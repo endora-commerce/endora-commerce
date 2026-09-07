@@ -1133,8 +1133,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `readMembers`. Measured by parking the test file: the two helpers alone
     // read 524.
     // **The storefront-scaffold backend variables: 525 -> 526.** One
-    // `.replace()`, in `backendAddressVariables` — the quote strip that reads
-    // `KEY="http://host:3001"` as it reads `KEY=http://host:3001`. Its pattern
+    // `.replace()`, in `envExampleDeclarations` — the quote strip that reads
+    // `KEY="http://host:3001"` as it reads `KEY=http://host:3001`. This entry
+    // named `backendAddressVariables`, which was that parser's one caller and
+    // is gone: the backend-address question is now asked of a declaration's
+    // `addressOf` rather than of a value's shape. The site is the parser's and
+    // did not move with it. Its pattern
     // is anchored on a matching quote pair, so the slug predicate reads it and
     // clears it; the `files` field does not move, that function landing in
     // `packages/cli/src/new-storefront/reference.ts`, which this walk already
@@ -3048,7 +3052,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry, so the value below is the sum of the two contributions rather than
     // either one's — re-measured after the rebase rather than carried across it, which
     // is the state the drift census exists to surface.
-    files: 7794,
+    // **The `addressOf` fixture repair: 7794 -> 7795 (+1), and the whole of it is this
+    // merge request's own changeset.** The branch edits one existing test file and
+    // creates one file — `.changeset/environment-input-fixtures-answer-address-of.md` —
+    // which this walk opens like any other, its subject being the whole repository.
+    // Measured both ways in this tree rather than inferred: with that file off disk this
+    // check reads 7794, which is what was recorded, so its base carried no inherited
+    // staleness. Measured with `backend/.env` parked, that being a worktree's file and
+    // not CI's.
+    files: 7795,
     sites: null,
     sources: [],
   },
@@ -4492,7 +4504,25 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry, so the value below is the sum of the two contributions rather than
     // either one's — re-measured after the rebase rather than carried across it, which
     // is the state the drift census exists to surface.
-    files: 7852,
+    // **`NEXT_PUBLIC_SITE_URL` reaches the deployment path: 7852 -> 7854, of which +1 is
+    // this branch and +1 was already stale.** The branch's one is
+    // `.changeset/environment-input-address-of.md`, which
+    // `git ls-files --cached --others --exclude-standard` lists like any other file; every
+    // other edit is to a file that already existed, this repair being four lines in the
+    // deployment path and a field on a declaration. The other is measured rather than
+    // assumed, in this entry's own idiom: `git ls-tree -r --name-only HEAD | wc -l` is
+    // **7854** at `1d906d15a`, against which this walk reads 7853 with the changeset
+    // taken out — so `master` had moved by one before the branch existed.
+    // **The `addressOf` fixture repair: 7854 -> 7855 (+1), all of it this merge request's
+    // own changeset.** Same single file as `check-nul-bytes` one entry over, seen through
+    // a different listing: this walk's population is
+    // `git ls-files --cached --others --exclude-standard`, which lists a committed
+    // changeset like any other file. Parking it on disk therefore measures nothing here,
+    // because `--cached` still lists it — so it was measured by taking it out of the index
+    // as well, which reads **7854**, the recorded value. Nothing was inherited stale, and
+    // `git ls-tree -r --name-only` is 7855 at this branch's base against 7856 at its head:
+    // the same +1, from a second listing.
+    files: 7855,
     sites: null,
     sources: ['manifest-index'],
   },

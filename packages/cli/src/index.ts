@@ -64,8 +64,10 @@ export {
 // derivation rather than re-deriving it — see `storefrontDeclaredInputs`.
 export { flagFor } from './inputs/resolve.js';
 export {
-  backendAddressVariables,
+  addressVariables,
   backendAddressVariablesOf,
+  storefrontAddressVariablesOf,
+  STOREFRONT_DECLARATION_EXPORT,
   ENV_EXAMPLE_FILE,
   envExampleDeclarations,
   envExampleDeclarationsOf,

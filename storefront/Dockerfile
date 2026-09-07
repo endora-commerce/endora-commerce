@@ -4,6 +4,7 @@
 # Build from the REPO ROOT (pnpm workspace must be visible):
 #   docker build -f storefront/Dockerfile \
 #     --build-arg NEXT_PUBLIC_API_BASE_URL=https://api.example.com \
+#     --build-arg NEXT_PUBLIC_SITE_URL=https://example.com \
 #     --build-arg NEXT_PUBLIC_SALES_CHANNEL_CODE=pl_default \
 #     --build-arg NEXT_PUBLIC_DEFAULT_LOCALE=en-US \
 #     -t storefront .
@@ -11,6 +12,15 @@
 # NEXT_PUBLIC_* values are inlined into the browser bundle at BUILD time, so they
 # must be passed as build args. The server-side fetcher reads BACKEND_BASE_URL at
 # RUNTIME (set by compose to the internal http://backend:3001).
+#
+# NEXT_PUBLIC_SITE_URL is this shop's own PUBLIC origin and is not an address of
+# the backend. It is what every canonical link, the sitemap and robots.txt name.
+# Build without it and the image serves `http://localhost:3000` in all three —
+# the fallback in storefront/lib/seo/site-url.ts — with nothing to say so, which
+# is what every image this repository built did until 2026-09-06. It cannot be
+# repaired on a running container: measured on this tree, `next build` inlines
+# the value and drops the variable's name from `.next/server` entirely, and
+# `/robots.txt` is prerendered, so its `Sitemap:` line is a static file here.
 
 FROM node:22.17-slim AS base
 ENV PNPM_HOME=/pnpm
@@ -53,9 +63,11 @@ COPY eslint.config.js eslint.config.js
 RUN pnpm --filter "storefront^..." run build
 
 ARG NEXT_PUBLIC_API_BASE_URL
+ARG NEXT_PUBLIC_SITE_URL
 ARG NEXT_PUBLIC_SALES_CHANNEL_CODE
 ARG NEXT_PUBLIC_DEFAULT_LOCALE
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL \
+    NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
     NEXT_PUBLIC_SALES_CHANNEL_CODE=$NEXT_PUBLIC_SALES_CHANNEL_CODE \
     NEXT_PUBLIC_DEFAULT_LOCALE=$NEXT_PUBLIC_DEFAULT_LOCALE \
     NEXT_TELEMETRY_DISABLED=1

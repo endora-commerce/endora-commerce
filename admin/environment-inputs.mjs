@@ -45,6 +45,7 @@ export const ADMIN_ENVIRONMENT_INPUTS = [
     generable: false,
     owner: { kind: 'application', application: 'admin' },
     consumers: ['admin'],
+    addressOf: 'backend',
   },
   {
     name: 'VITE_BUILD_ID',
@@ -63,5 +64,6 @@ export const ADMIN_ENVIRONMENT_INPUTS = [
     generable: false,
     owner: { kind: 'application', application: 'admin' },
     consumers: ['admin'],
+    addressOf: null,
   },
 ];

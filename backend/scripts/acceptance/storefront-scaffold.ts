@@ -89,11 +89,14 @@ import { fileURLToPath } from 'node:url';
 import { isRequiredGiven, type EnvironmentInput } from '@endora-commerce/contracts';
 
 import {
+  canonicalHrefIn,
   compareToExpectation,
+  COMPILED_IN_SITE_ORIGIN,
   evaluateA1,
   evaluateA2,
   evaluateA4,
   evaluateA6,
+  evaluateA7,
   evaluateProcess,
   exitCodeFor,
   exitCodeForExpectation,
@@ -190,12 +193,14 @@ function resolveMode(): { mode: AcceptanceMode; registry: string | null } {
 async function resolveScaffoldInputs(): Promise<readonly string[]> {
   const {
     backendAddressVariablesOf,
+    storefrontAddressVariablesOf,
     envExampleDeclarationsOf,
     flagFor,
     resolveReference,
     storefrontDeclaredInputs,
   } = (await import('@endora-commerce/cli')) as {
-    backendAddressVariablesOf: (storefrontDir: string) => readonly string[];
+    backendAddressVariablesOf: (storefrontDir: string) => Promise<readonly string[]>;
+    storefrontAddressVariablesOf: (storefrontDir: string) => Promise<readonly string[]>;
     envExampleDeclarationsOf: (storefrontDir: string) => ReadonlyMap<string, string>;
     flagFor: (name: string) => string;
     resolveReference: (cwd: string) => { dir: string };
@@ -220,8 +225,10 @@ async function resolveScaffoldInputs(): Promise<readonly string[]> {
   const backend = process.env['PUBLIC_API_BASE_URL'] ?? null;
   const plan = planScaffoldInputs({
     required,
-    backendAddressVariables: backendAddressVariablesOf(referenceDir),
+    backendAddressVariables: await backendAddressVariablesOf(referenceDir),
+    storefrontAddressVariables: await storefrontAddressVariablesOf(referenceDir),
     backend,
+    storefront: SITE_ORIGIN_UNDER_TEST,
     envExample: envExampleDeclarationsOf(referenceDir),
     standIns: SCAFFOLD_INPUT_STAND_INS,
   });
@@ -253,7 +260,8 @@ async function resolveScaffoldInputs(): Promise<readonly string[]> {
       `on the command line — ${[...plan.values.keys()].join(', ')} — the population is ` +
       `\`storefront/environment-inputs.mjs\`'s and the values are ` +
       `\`storefront/.env.example\`'s, with the backend addresses pointed at ` +
-      `${backend ?? 'the copy\'s own example address, this run having booted no backend'}`,
+      `${backend ?? 'the copy\'s own example address, this run having booted no backend'} ` +
+      `and the storefront's own public address at ${SITE_ORIGIN_UNDER_TEST}`,
   );
 
   return [...plan.values].flatMap(([name, value]) => [flagFor(name), value]);
@@ -492,16 +500,33 @@ function backendEnvironment(
 const CLOSED_ADDRESS = 'http://127.0.0.1:1';
 
 /**
+ * The public origin this run builds the instance with, for A7.
+ *
+ * **Not the address the instance is served at, and deliberately so.** A
+ * production storefront sits behind a proxy and is built with the origin a
+ * visitor types, never with the loopback port its container listens on — so a
+ * criterion using `http://127.0.0.1:<port>` would be measuring a shape no
+ * deployment has. What A7 needs of this value is that it is *not*
+ * `COMPILED_IN_SITE_ORIGIN`, which is what makes a canonical carrying it
+ * evidence rather than a coincidence.
+ *
+ * `.invalid` is reserved by RFC 2606 and resolves nowhere. That is the point: a
+ * canonical is metadata a crawler reads, nothing in this run fetches it, and a
+ * hostname that cannot resolve can never be mistaken for a real one.
+ */
+const SITE_ORIGIN_UNDER_TEST = 'https://shop.acceptance.invalid';
+
+/**
  * One boot of the built instance: `next start`, then `/`, then stop.
  *
- * The status line is the observation, not the page — a storefront whose backend
+ * The status line is A6's observation, not the page — a storefront whose backend
  * is unreachable still has to *serve*, and which of those two happened is what
  * the caller compares across the two boots.
  */
 async function serveOnce(
   target: string,
   environment: NodeJS.ProcessEnv,
-): Promise<{ status: number | null; output: string }> {
+): Promise<{ status: number | null; body: string | null; output: string }> {
   const port = 3200 + Math.floor(Math.random() * 300);
   const { spawn } = await import('node:child_process');
   const child = spawn('pnpm', ['exec', 'next', 'start', '--port', String(port)], {
@@ -515,13 +540,17 @@ async function serveOnce(
   try {
     const deadline = Date.now() + 90_000;
     for (;;) {
-      if (Date.now() > deadline) return { status: null, output };
+      if (Date.now() > deadline) return { status: null, body: null, output };
       await new Promise((wait) => setTimeout(wait, 1_000));
       try {
         const response = await fetch(`http://127.0.0.1:${String(port)}/`, {
           signal: AbortSignal.timeout(10_000),
         });
-        return { status: response.status, output };
+        // The body is A7's subject and A6 ignores it. Read here rather than in a
+        // second request because this one already has the page, and a second
+        // `next start` for it would measure a different boot.
+        const body = await response.text().catch(() => null);
+        return { status: response.status, body, output };
       } catch {
         // not listening yet
       }
@@ -544,35 +573,70 @@ async function serveOnce(
 async function boot(
   target: string,
   backendNames: readonly string[],
-): Promise<AssertionResult> {
+  siteOrigin: string | null,
+): Promise<readonly AssertionResult[]> {
+  // A7's subject is the page the configured boot served, so it is read off that
+  // boot rather than from one of its own. Where there is no boot to read there
+  // is no canonical either, and `evaluateA7` says so in its own words instead of
+  // inheriting A6's.
+  const canonicalOf = (body: string | null): AssertionResult =>
+    evaluateA7({
+      configured: siteOrigin,
+      canonical: body === null ? null : canonicalHrefIn(body),
+      path: '/',
+    });
+
   const backend = process.env['PUBLIC_API_BASE_URL'];
   if (backend === undefined || backend.length === 0) {
-    return evaluateA6({ backend: null, status: null, probeStatus: null, probeAddress: CLOSED_ADDRESS });
+    return [
+      evaluateA6({
+        backend: null,
+        status: null,
+        probeStatus: null,
+        probeAddress: CLOSED_ADDRESS,
+      }),
+      {
+        id: 'A7',
+        state: 'unmeasured',
+        detail: 'there was no boot to read a canonical from',
+      },
+    ];
   }
   const configured = await serveOnce(target, backendEnvironment(target, backend, backendNames));
   if (configured.status === null || configured.status >= 500) {
     // No fabricated probe value here: `evaluateA6` decides a failed boot before
     // it looks at the probe, so `null` is the honest reading of a probe that was
     // never run (`check:fixture-substitution`'s rule, one directory over).
-    return evaluateA6({
-      backend,
-      status: configured.status,
-      probeStatus: null,
-      probeAddress: CLOSED_ADDRESS,
-      output: configured.output,
-    });
+    return [
+      evaluateA6({
+        backend,
+        status: configured.status,
+        probeStatus: null,
+        probeAddress: CLOSED_ADDRESS,
+        output: configured.output,
+      }),
+      {
+        id: 'A7',
+        state: 'unmeasured',
+        detail:
+          'the configured boot did not serve a page, so its head carries no canonical to read',
+      },
+    ];
   }
   const probe = await serveOnce(
     target,
     backendEnvironment(target, CLOSED_ADDRESS, backendNames),
   );
-  return evaluateA6({
-    backend,
-    status: configured.status,
-    probeStatus: probe.status,
-    probeAddress: CLOSED_ADDRESS,
-    output: configured.output,
-  });
+  return [
+    evaluateA6({
+      backend,
+      status: configured.status,
+      probeStatus: probe.status,
+      probeAddress: CLOSED_ADDRESS,
+      output: configured.output,
+    }),
+    canonicalOf(configured.body),
+  ];
 }
 
 async function main(): Promise<void> {
@@ -596,17 +660,17 @@ async function main(): Promise<void> {
     scaffold(target, registry, await resolveScaffoldInputs());
 
     // A1/A2 read the copy, through the command's own derivation.
-    const { outwardReferences, backendAddressVariablesOf } = (await import(
-      '@endora-commerce/cli'
-    )) as {
-      outwardReferences: (reference: {
-        repoRoot: string;
-        dir: string;
-        files: readonly string[];
-        manifest: Record<string, unknown>;
-      }) => readonly { file: string; specifier: string }[];
-      backendAddressVariablesOf: (storefrontDir: string) => readonly string[];
-    };
+    const { outwardReferences, backendAddressVariablesOf, storefrontAddressVariablesOf } =
+      (await import('@endora-commerce/cli')) as {
+        outwardReferences: (reference: {
+          repoRoot: string;
+          dir: string;
+          files: readonly string[];
+          manifest: Record<string, unknown>;
+        }) => readonly { file: string; specifier: string }[];
+        backendAddressVariablesOf: (storefrontDir: string) => Promise<readonly string[]>;
+        storefrontAddressVariablesOf: (storefrontDir: string) => Promise<readonly string[]>;
+      };
     const manifestText = readFileSync(join(target, 'package.json'), 'utf8');
     results.push(
       evaluateA1(
@@ -657,7 +721,8 @@ async function main(): Promise<void> {
       // storefront's compiled-in fallback and no later `next start` can change
       // it. The names are the instance's own declaration, through the same
       // derivation the command prints.
-      const backendNames = backendAddressVariablesOf(target);
+      const backendNames = await backendAddressVariablesOf(target);
+      const siteNames = await storefrontAddressVariablesOf(target);
       const backend = process.env['PUBLIC_API_BASE_URL'];
       const buildEnvironment =
         backend === undefined || backend.length === 0
@@ -667,24 +732,41 @@ async function main(): Promise<void> {
         backendNames.length === 0
           ? 'the instance declares no backend variable'
           : `pointed ${backendNames.join(', ')} at the backend — the names are the instance's ` +
-            `own \`.env.example\`, not this harness's \`PUBLIC_API_BASE_URL\`, which no file ` +
+            `own declaration, not this harness's \`PUBLIC_API_BASE_URL\`, which no file ` +
             `in the storefront reads`,
+      );
+      // A7's value is **not** added to `buildEnvironment`, deliberately: it
+      // reaches this build through the `.env` the command wrote from the flag
+      // this run supplied, so what A7 measures is the whole chain — declared,
+      // resolved, written, inlined, served — rather than a variable the harness
+      // exported over the top of it.
+      notes.push(
+        siteNames.length === 0
+          ? 'the instance declares no variable naming its own public address, so A7 has no subject'
+          : `built with ${siteNames.join(', ')} = ${SITE_ORIGIN_UNDER_TEST}, out of the ` +
+            `\`.env\` the command wrote — not the ${COMPILED_IN_SITE_ORIGIN} an unconfigured ` +
+            `storefront names`,
       );
       const built = run('pnpm', ['run', 'build'], { cwd: target, env: buildEnvironment });
       results.push(
         evaluateProcess('A5', built.code, built.output, 'next build succeeded outside the checkout'),
       );
-      if (built.code === 0) results.push(await boot(target, backendNames));
-      else {
-        results.push({
-          id: 'A6',
-          state: 'unmeasured',
-          detail: 'there is no build to boot',
-        });
+      if (built.code === 0) {
+        results.push(
+          ...(await boot(
+            target,
+            backendNames,
+            siteNames.length === 0 ? null : SITE_ORIGIN_UNDER_TEST,
+          )),
+        );
+      } else {
+        results.push({ id: 'A6', state: 'unmeasured', detail: 'there is no build to boot' });
+        results.push({ id: 'A7', state: 'unmeasured', detail: 'there is no build to boot' });
       }
     } else {
       results.push({ id: 'A5', state: 'unmeasured', detail: 'there is no install to build' });
       results.push({ id: 'A6', state: 'unmeasured', detail: 'there is no build to boot' });
+      results.push({ id: 'A7', state: 'unmeasured', detail: 'there is no build to boot' });
     }
   } finally {
     if (process.env['KEEP_STOREFRONT_ACCEPTANCE'] !== '1') {

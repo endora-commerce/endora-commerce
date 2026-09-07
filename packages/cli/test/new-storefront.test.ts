@@ -22,11 +22,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import type { EnvironmentInput } from '@endora-commerce/contracts';
+
 import { main } from '../src/bin/endora.js';
 import { DECLARATION_FILE } from '../src/inputs/declaration.js';
 import { runNewStorefront } from '../src/new-storefront/index.js';
 import {
-  backendAddressVariables,
+  addressVariables,
   envExampleDeclarations,
   memberDirectories,
   outwardReferences,
@@ -135,11 +137,19 @@ function fixtureRepo(options: { storefrontFiles: Record<string, string> }): stri
 }
 
 /**
- * The fixture storefront's declaration: one required input and one optional one.
+ * The fixture storefront's declaration: a required input, an optional one, and
+ * an address that is the shop's own.
  *
- * Two, so that both halves of the resolution have something to act on — the
- * required one is what a refusal, a prompt and a flag are asserted over, and the
- * optional one is what proves R1.4 (an optional input is never prompted for).
+ * The first two are the resolution's — the required one is what a refusal, a
+ * prompt and a flag are asserted over, and the optional one is what proves R1.4
+ * (an optional input is never prompted for).
+ *
+ * The third is the **discrimination**. `NEXT_PUBLIC_SITE_URL` is a URL and is
+ * not the backend's address, so it is what separates the predicate that reads
+ * `addressOf` from the one this replaced, which read *an absolute `http(s)` URL
+ * in `.env.example`* and would sweep it in. Its own `.env.example` value below
+ * is deliberately an absolute URL, so a regression to the value-shape rule is
+ * red rather than invisible.
  */
 const FIXTURE_DECLARATION = `export const STOREFRONT_ENVIRONMENT_INPUTS = [
   {
@@ -150,6 +160,7 @@ const FIXTURE_DECLARATION = `export const STOREFRONT_ENVIRONMENT_INPUTS = [
     generable: false,
     owner: { kind: 'application', application: 'storefront' },
     consumers: ['storefront'],
+    addressOf: 'backend',
   },
   {
     name: 'NEXT_PUBLIC_APP_NAME',
@@ -162,6 +173,20 @@ const FIXTURE_DECLARATION = `export const STOREFRONT_ENVIRONMENT_INPUTS = [
     generable: false,
     owner: { kind: 'application', application: 'storefront' },
     consumers: ['storefront'],
+    addressOf: null,
+  },
+  {
+    name: 'NEXT_PUBLIC_SITE_URL',
+    describes: { en: 'the public address of this shop.', pl: 'publiczny adres sklepu.' },
+    requirement: {
+      kind: 'optional',
+      without: { en: 'canonicals name the compiled-in origin.', pl: 'kanoniczne adresy sa domyslne.' },
+    },
+    secret: false,
+    generable: false,
+    owner: { kind: 'application', application: 'storefront' },
+    consumers: ['storefront'],
+    addressOf: 'storefront',
   },
 ];
 `;
@@ -678,40 +703,59 @@ describe('the argv layer', () => {
  * derived from the copy's own declaration rather than written into a sentence,
  * which is what keeps them true when the storefront renames one.
  */
-describe('the backend address variables are derived from the copy\'s own .env.example', () => {
-  it('takes every key whose declared value is an absolute http(s) URL, in declaration order', () => {
-    expect(
-      backendAddressVariables(
-        [
-          '# Storefront development environment.',
-          '',
-          '# PORT — auto-loaded by Next.',
-          'PORT=3000',
-          '',
-          '# Server-side fetcher (lib/api/*) reads BACKEND_BASE_URL.',
-          'BACKEND_BASE_URL=http://localhost:3001',
-          'NEXT_PUBLIC_API_BASE_URL=https://api.example.com',
-          'NEXT_PUBLIC_SALES_CHANNEL_CODE=pl_default',
-          'REVALIDATE_SECRET=change-me-shared-with-backend',
-          '',
-        ].join('\n'),
-      ),
-    ).toEqual(['BACKEND_BASE_URL', 'NEXT_PUBLIC_API_BASE_URL']);
+describe('the address variables are derived from the copy\'s own declaration', () => {
+  const declared = (over: Record<string, unknown>): EnvironmentInput =>
+    ({
+      name: 'X',
+      describes: { en: 'a value.', pl: 'wartosc.' },
+      requirement: { kind: 'required' },
+      secret: false,
+      generable: false,
+      owner: { kind: 'application', application: 'storefront' },
+      consumers: ['storefront'],
+      addressOf: null,
+      ...over,
+    }) as EnvironmentInput;
+
+  it('takes every input whose `addressOf` names the member, in declaration order', () => {
+    const inputs = [
+      declared({ name: 'PORT' }),
+      declared({ name: 'BACKEND_BASE_URL', addressOf: 'backend' }),
+      declared({ name: 'NEXT_PUBLIC_SITE_URL', addressOf: 'storefront' }),
+      declared({ name: 'NEXT_PUBLIC_API_BASE_URL', addressOf: 'backend' }),
+      declared({ name: 'REVALIDATE_SECRET', secret: true }),
+    ];
+    expect(addressVariables(inputs, 'backend')).toEqual([
+      'BACKEND_BASE_URL',
+      'NEXT_PUBLIC_API_BASE_URL',
+    ]);
+    expect(addressVariables(inputs, 'storefront')).toEqual(['NEXT_PUBLIC_SITE_URL']);
   });
 
-  it('reads `export KEY=` and a quoted value, and ignores a commented-out declaration', () => {
-    expect(
-      backendAddressVariables(
-        ['# BACKEND_BASE_URL=http://commented.example', 'export API_URL="http://host:3001"'].join(
-          '\n',
-        ),
-      ),
-    ).toEqual(['API_URL']);
+  /**
+   * The predicate this replaced, as a red proof.
+   *
+   * It read `.env.example` for *a declaration whose value is an absolute
+   * `http(s)` URL*, which is right only while the file declares no address but
+   * the backend's. All four values below are absolute URLs and only two of them
+   * name a backend, so a regression to the value-shape rule fails here rather
+   * than in a client's `.env` a year later.
+   */
+  it('does not answer from the shape of a value: a URL is not thereby a backend', () => {
+    const inputs = [
+      declared({ name: 'BACKEND_BASE_URL', addressOf: 'backend' }),
+      declared({ name: 'NEXT_PUBLIC_API_BASE_URL', addressOf: 'backend' }),
+      declared({ name: 'NEXT_PUBLIC_SITE_URL', addressOf: 'storefront' }),
+      declared({ name: 'ASSET_CDN_URL' }),
+    ];
+    expect(addressVariables(inputs, 'backend')).not.toContain('NEXT_PUBLIC_SITE_URL');
+    expect(addressVariables(inputs, 'backend')).not.toContain('ASSET_CDN_URL');
+    expect(addressVariables(inputs, 'storefront')).toEqual(['NEXT_PUBLIC_SITE_URL']);
   });
 
-  it('answers with nothing when no declaration names a URL, rather than inventing a name', () => {
-    expect(backendAddressVariables('PORT=3000\nLOCALE=en-US\n')).toEqual([]);
-    expect(backendAddressVariables('')).toEqual([]);
+  it('answers with nothing when no input names that member, rather than inventing a name', () => {
+    expect(addressVariables([declared({ name: 'PORT' })], 'backend')).toEqual([]);
+    expect(addressVariables([], 'storefront')).toEqual([]);
   });
 
   /**
@@ -739,14 +783,13 @@ describe('the backend address variables are derived from the copy\'s own .env.ex
     ]);
   });
 
-  it('reads a blank value as no declaration, in both questions', () => {
+  it('reads a blank value as no declaration', () => {
     // `NEXT_PUBLIC_SITE_URL=` and no line at all are the same state for whoever
     // has to supply it, so a consumer must not be handed an empty string by a
     // command whose whole subject is that nothing is invented.
     const text = 'BACKEND_BASE_URL=http://localhost:3001\nBACKEND_BASE_URL=\nCHANNEL=\n';
     expect(envExampleDeclarations(text).has('BACKEND_BASE_URL')).toBe(false);
     expect(envExampleDeclarations(text).has('CHANNEL')).toBe(false);
-    expect(backendAddressVariables(text)).toEqual([]);
   });
 
   it('names those variables in the next steps, and never one nothing reads', async () => {
@@ -754,18 +797,56 @@ describe('the backend address variables are derived from the copy\'s own .env.ex
       storefrontFiles: {
         'package.json': MANIFEST,
         'app/page.tsx': 'export default () => null;\n',
-        '.env.example': 'PORT=3000\nBACKEND_BASE_URL=http://localhost:3001\n',
+        '.env.example':
+          'PORT=3000\nNEXT_PUBLIC_API_BASE_URL=http://localhost:3001\n' +
+          'NEXT_PUBLIC_SITE_URL=https://shop.example.com\n',
       },
     });
     const target = join(temp('endora-sf-backend-step-'), 'shop');
     try {
       const result = await runNewStorefront({ dir: target, cwd: root, dryRun: true });
       const steps = result.nextSteps.join('\n');
-      expect(steps).toContain('BACKEND_BASE_URL');
+      expect(steps).toContain('NEXT_PUBLIC_API_BASE_URL');
       // The name the guidance used to carry. Nothing in the copy reads it, so
       // an operator who set it got the fallback and no error anywhere.
       expect(steps).not.toMatch(/(?<![A-Z_])PUBLIC_API_BASE_URL/);
       expect(steps).not.toContain('Nothing in the copy points at a backend');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  /**
+   * The sentence that would have gone confidently wrong.
+   *
+   * `nextSteps` says the variables it names "name the backend this storefront
+   * talks to", in a file the client owns outright and nobody revisits. Under the
+   * value-shape predicate, supplying `NEXT_PUBLIC_SITE_URL` in `.env.example` —
+   * which is what the deployment-path repair does — would have put the shop's
+   * **own** public address in that sentence.
+   */
+  it('does not call the shop\'s own public address a backend', async () => {
+    const root = fixtureRepo({
+      storefrontFiles: {
+        'package.json': MANIFEST,
+        'app/page.tsx': 'export default () => null;\n',
+        '.env.example':
+          'NEXT_PUBLIC_API_BASE_URL=http://localhost:3001\n' +
+          'NEXT_PUBLIC_SITE_URL=https://shop.example.com\n',
+      },
+    });
+    const target = join(temp('endora-sf-site-url-step-'), 'shop');
+    try {
+      const result = await runNewStorefront({ dir: target, cwd: root, dryRun: true });
+      // Either branch of the backend step — the one that tells an author to set
+      // the names, and the one that says the run already answered them — names
+      // exactly `backendVariables`, so the assertion is over whichever fired.
+      const backendSentence = result.nextSteps.find((step) =>
+        step.includes('the backend this storefront talks to'),
+      );
+      expect(backendSentence).toBeDefined();
+      expect(backendSentence).toContain('NEXT_PUBLIC_API_BASE_URL');
+      expect(backendSentence).not.toContain('NEXT_PUBLIC_SITE_URL');
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

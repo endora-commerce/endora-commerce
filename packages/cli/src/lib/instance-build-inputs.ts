@@ -1,6 +1,6 @@
 /**
- * The per-instance build inputs — the four values that genuinely vary between
- * one deployment of this platform and another, and that nothing derives
+ * The per-instance build inputs — the values that genuinely vary between one
+ * deployment of this platform and another, and that nothing derives
  * (`specs/110-instance-repository/` FR-009).
  *
  * ## Why this file exists
@@ -9,9 +9,19 @@
  * repository depends on the platform, the admin shell and the module packages
  * and holds a copy of none of them, so everything a build needs is either
  * derived by the platform or is one of these; and `spec.md` §5 is the argument
- * that there is no fifth — five of `endora.config.ts`'s six fields restate a
- * fact something already derives, which is D-100 at the scale of a whole file
- * in a tree we cannot grep.
+ * against the *kind* of input that does not belong here — five of
+ * `endora.config.ts`'s six fields restate a fact something already derives,
+ * which is D-100 at the scale of a whole file in a tree we cannot grep.
+ *
+ * **§5 was written down as "there is no fifth", and a fifth arrived.**
+ * `STOREFRONT_DOMAIN` was already a required CI/CD variable, classified in
+ * `.gitlab-ci.yml` as a domain the pipeline *deploys to* rather than one a build
+ * reads — correct until the storefront had to name its own public origin inside
+ * a bundle. Nothing derives it, and the storefront's canonicals, its sitemap and
+ * its robots.txt are all built from it. So the closed set was a count of a
+ * derived fact written into prose (D-100); what survives the correction is §5's
+ * actual test — *does something already derive this?* — which is a predicate and
+ * not a number.
  *
  * Before this declaration existed, the set was written in three places in
  * `.gitlab-ci.yml` and nowhere else: a comment block listing the CI/CD
@@ -75,12 +85,12 @@ export interface InstanceBuildInput {
 }
 
 /**
- * The four, in the order a client meets them.
+ * They are declared in the order a client meets them.
  *
  * `DEPLOYMENT` first because it is the one an instance always has — it names
  * the client's own deployment directory, where their overlay modules and their
- * `divergence.ts` live (Principle XV) — and the three that follow are what the
- * two frontend builds inline into their bundles.
+ * `divergence.ts` live (Principle XV) — and the rest are what the two frontend
+ * builds inline into their bundles.
  */
 export const INSTANCE_BUILD_INPUTS: readonly InstanceBuildInput[] = [
   {
@@ -109,6 +119,28 @@ export const INSTANCE_BUILD_INPUTS: readonly InstanceBuildInput[] = [
         target: 'storefront',
         buildArg: 'NEXT_PUBLIC_API_BASE_URL',
         value: 'https://${API_DOMAIN}',
+      },
+    ],
+  },
+  {
+    name: 'STOREFRONT_DOMAIN',
+    // It was already a required CI/CD variable and was classified as a domain
+    // this pipeline *deploys to* rather than a build input — true until the
+    // storefront had to name its own origin in a bundle. `endora new storefront`
+    // asks for the same fact as `NEXT_PUBLIC_SITE_URL`, and the backend's
+    // `STOREFRONT_BASE_URL` is built from this variable in
+    // `deploy/compose.prod.yml`, so this is one fact reaching a third reader.
+    meaning:
+      'The host the instance serves its storefront from. The storefront inlines it at build ' +
+      'time as the origin it puts in every canonical link, in its sitemap and in its ' +
+      'robots.txt — none of which a running container can correct afterwards.',
+    example: 'example.com',
+    default: null,
+    consumers: [
+      {
+        target: 'storefront',
+        buildArg: 'NEXT_PUBLIC_SITE_URL',
+        value: 'https://${STOREFRONT_DOMAIN}',
       },
     ],
   },

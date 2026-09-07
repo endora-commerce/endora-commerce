@@ -11,11 +11,14 @@ import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  canonicalHrefIn,
   compareToExpectation,
+  COMPILED_IN_SITE_ORIGIN,
   evaluateA1,
   evaluateA2,
   evaluateA4,
   evaluateA6,
+  evaluateA7,
   evaluateProcess,
   exitCodeFor,
   exitCodeForExpectation,
@@ -307,6 +310,123 @@ describe('A6 — the boot, and its discrimination probe', () => {
   });
 });
 
+/**
+ * A7 — the served canonical names the origin the instance was built with.
+ *
+ * These are the judgement's proofs; the criterion's own run is what supplies a
+ * real page. The fixtures enter as **served HTML** rather than as a parsed
+ * canonical, so `canonicalHrefIn` — the half that has to survive Next changing
+ * its attribute order — is inside every one of them (issue #130).
+ */
+describe('A7 — the canonical names the configured public origin', () => {
+  const page = (head: string): string =>
+    `<!DOCTYPE html><html><head>${head}</head><body>shop</body></html>`;
+
+  it('passes when the canonical carries the origin this run built with', () => {
+    const result = evaluateA7({
+      configured: 'https://shop.acceptance.invalid',
+      canonical: 'https://shop.acceptance.invalid/',
+      path: '/',
+    });
+    expect(result.state).toBe('pass');
+    expect(result.detail).toContain('shop.acceptance.invalid');
+  });
+
+  /**
+   * The defect this whole branch is about, as one assertion: a storefront built
+   * with no `NEXT_PUBLIC_SITE_URL` serves the compiled-in origin, and says
+   * nothing. The report names the fallback by name so its reader is not left to
+   * recognise the address.
+   */
+  it('fails on the compiled-in fallback, and says that is what it is', () => {
+    const result = evaluateA7({
+      configured: 'https://shop.acceptance.invalid',
+      canonical: `${COMPILED_IN_SITE_ORIGIN}/`,
+      path: '/',
+    });
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('compiled-in fallback');
+  });
+
+  it('fails on any other origin, without claiming it is the fallback', () => {
+    const result = evaluateA7({
+      configured: 'https://shop.acceptance.invalid',
+      canonical: 'https://somewhere.else.invalid/',
+      path: '/',
+    });
+    expect(result.state).toBe('fail');
+    expect(result.detail).not.toContain('compiled-in fallback');
+  });
+
+  it('ignores the path: a canonical is judged on its origin', () => {
+    expect(
+      evaluateA7({
+        configured: 'https://shop.acceptance.invalid',
+        canonical: 'https://shop.acceptance.invalid/c/pumps?page=2',
+        path: '/c/pumps',
+      }).state,
+    ).toBe('pass');
+  });
+
+  it('is unmeasured when the page carried no canonical — never a pass', () => {
+    const result = evaluateA7({
+      configured: 'https://shop.acceptance.invalid',
+      canonical: canonicalHrefIn(page('<title>shop</title>')),
+      path: '/',
+    });
+    expect(result.state).toBe('unmeasured');
+  });
+
+  it('is unmeasured when no public origin was configured', () => {
+    expect(
+      evaluateA7({ configured: null, canonical: 'http://localhost:3000/', path: '/' }).state,
+    ).toBe('unmeasured');
+  });
+
+  it('fails on a canonical that is not a URL at all', () => {
+    expect(
+      evaluateA7({
+        configured: 'https://shop.acceptance.invalid',
+        canonical: '/relative/only',
+        path: '/',
+      }).state,
+    ).toBe('fail');
+  });
+
+  describe('reading the canonical out of the served page', () => {
+    it('finds it whatever the attribute order and quoting', () => {
+      expect(canonicalHrefIn(page('<link rel="canonical" href="https://a.invalid/"/>'))).toBe(
+        'https://a.invalid/',
+      );
+      expect(canonicalHrefIn(page("<link href='https://b.invalid/' rel='canonical'>"))).toBe(
+        'https://b.invalid/',
+      );
+      expect(canonicalHrefIn(page('<link REL=CANONICAL HREF=https://c.invalid/>'))).toBe(
+        'https://c.invalid/',
+      );
+    });
+
+    it('is not fooled by another link in the same head', () => {
+      expect(
+        canonicalHrefIn(
+          page(
+            '<link rel="preload" href="https://cdn.invalid/x.js">' +
+              '<link rel="canonical" href="https://a.invalid/">' +
+              '<link rel="alternate" href="https://a.invalid/pl">',
+          ),
+        ),
+      ).toBe('https://a.invalid/');
+    });
+
+    it('answers null rather than guessing when there is none', () => {
+      expect(canonicalHrefIn(page('<link rel="icon" href="/favicon.ico">'))).toBeNull();
+      expect(canonicalHrefIn('')).toBeNull();
+      // A canonical tag with no href says which page nothing.
+      expect(canonicalHrefIn(page('<link rel="canonical">'))).toBeNull();
+    });
+  });
+});
+
 describe('the inputs the criterion supplies to `endora new storefront`', () => {
   const envExample = new Map([
     ['BACKEND_BASE_URL', 'http://localhost:3001'],
@@ -319,7 +439,9 @@ describe('the inputs the criterion supplies to `endora new storefront`', () => {
     const plan = planScaffoldInputs({
       required: ['BACKEND_BASE_URL', 'NEXT_PUBLIC_API_BASE_URL'],
       backendAddressVariables: ['BACKEND_BASE_URL', 'NEXT_PUBLIC_API_BASE_URL'],
+      storefrontAddressVariables: [],
       backend: 'http://127.0.0.1:3001',
+      storefront: null,
       envExample,
       standIns: {},
     });
@@ -332,7 +454,9 @@ describe('the inputs the criterion supplies to `endora new storefront`', () => {
     const plan = planScaffoldInputs({
       required: ['BACKEND_BASE_URL'],
       backendAddressVariables: ['BACKEND_BASE_URL'],
+      storefrontAddressVariables: [],
       backend: null,
+      storefront: null,
       envExample,
       standIns: {},
     });
@@ -344,7 +468,9 @@ describe('the inputs the criterion supplies to `endora new storefront`', () => {
     const plan = planScaffoldInputs({
       required: ['NEXT_PUBLIC_SALES_CHANNEL_CODE', 'REVALIDATE_SECRET'],
       backendAddressVariables: [],
+      storefrontAddressVariables: [],
       backend: null,
+      storefront: null,
       envExample,
       standIns: {},
     });
@@ -356,7 +482,9 @@ describe('the inputs the criterion supplies to `endora new storefront`', () => {
     const plan = planScaffoldInputs({
       required: ['NEXT_PUBLIC_SITE_URL'],
       backendAddressVariables: [],
+      storefrontAddressVariables: [],
       backend: null,
+      storefront: null,
       envExample,
       standIns: {},
     });
@@ -368,7 +496,9 @@ describe('the inputs the criterion supplies to `endora new storefront`', () => {
     const plan = planScaffoldInputs({
       required: ['NEXT_PUBLIC_SITE_URL'],
       backendAddressVariables: [],
+      storefrontAddressVariables: [],
       backend: null,
+      storefront: null,
       envExample,
       standIns: { NEXT_PUBLIC_SITE_URL: 'http://127.0.0.1:3000' },
     });
@@ -381,7 +511,9 @@ describe('the inputs the criterion supplies to `endora new storefront`', () => {
     const plan = planScaffoldInputs({
       required: ['REVALIDATE_SECRET'],
       backendAddressVariables: [],
+      storefrontAddressVariables: [],
       backend: null,
+      storefront: null,
       envExample,
       standIns: { REVALIDATE_SECRET: 'a-stand-in-nobody-needs-now' },
     });
@@ -389,11 +521,58 @@ describe('the inputs the criterion supplies to `endora new storefront`', () => {
     expect(plan.staleStandIns).toEqual(['REVALIDATE_SECRET']);
   });
 
+  /**
+   * The second address derivation, and the reason it is not the first one
+   * widened.
+   *
+   * Both used to be one rule keyed on the shape of the value in `.env.example`.
+   * That rule would now give `NEXT_PUBLIC_SITE_URL` the **backend's** address,
+   * which is a canonical origin pointing at the API host — a wrong measurement
+   * dressed as a configured one, in the assertion that exists to measure it.
+   */
+  it('points the storefront\'s own address variable at the origin this run builds with', () => {
+    const plan = planScaffoldInputs({
+      required: ['NEXT_PUBLIC_API_BASE_URL', 'NEXT_PUBLIC_SITE_URL'],
+      backendAddressVariables: ['NEXT_PUBLIC_API_BASE_URL'],
+      storefrontAddressVariables: ['NEXT_PUBLIC_SITE_URL'],
+      backend: 'http://127.0.0.1:3001',
+      storefront: 'https://shop.acceptance.invalid',
+      envExample: new Map([
+        ['NEXT_PUBLIC_API_BASE_URL', 'http://localhost:3001'],
+        ['NEXT_PUBLIC_SITE_URL', 'http://localhost:3000'],
+      ]),
+      standIns: {},
+    });
+    expect(plan.values.get('NEXT_PUBLIC_API_BASE_URL')).toBe('http://127.0.0.1:3001');
+    expect(plan.values.get('NEXT_PUBLIC_SITE_URL')).toBe('https://shop.acceptance.invalid');
+    // The whole point of the second derivation: it is not the backend's.
+    expect(plan.values.get('NEXT_PUBLIC_SITE_URL')).not.toBe('http://127.0.0.1:3001');
+    // And it is not the origin an unconfigured storefront names, or A7 could
+    // not tell a configured build from an unconfigured one.
+    expect(plan.values.get('NEXT_PUBLIC_SITE_URL')).not.toBe(COMPILED_IN_SITE_ORIGIN);
+  });
+
+  it('falls back to the copy\'s own example origin when this run names none', () => {
+    const plan = planScaffoldInputs({
+      required: ['NEXT_PUBLIC_SITE_URL'],
+      backendAddressVariables: [],
+      storefrontAddressVariables: ['NEXT_PUBLIC_SITE_URL'],
+      backend: null,
+      storefront: null,
+      envExample: new Map([['NEXT_PUBLIC_SITE_URL', 'http://localhost:3000']]),
+      standIns: {},
+    });
+    expect(plan.values.get('NEXT_PUBLIC_SITE_URL')).toBe('http://localhost:3000');
+    expect(plan.unanswerable).toEqual([]);
+  });
+
   it('reports a stand-in for an input the storefront no longer declares required', () => {
     const plan = planScaffoldInputs({
       required: [],
       backendAddressVariables: [],
+      storefrontAddressVariables: [],
       backend: null,
+      storefront: null,
       envExample,
       standIns: { GONE_FROM_THE_DECLARATION: 'x' },
     });
@@ -426,8 +605,12 @@ describe('the criterion supplies every input the reference storefront declares r
   it('answers all of them, from the two derivations and the stand-in table', async () => {
     const repoRoot = resolve(__dirname, '..', '..', '..', '..');
     const storefrontDir = join(repoRoot, 'storefront');
-    const { backendAddressVariablesOf, envExampleDeclarationsOf, storefrontDeclaredInputs } =
-      await import('@endora-commerce/cli');
+    const {
+      backendAddressVariablesOf,
+      storefrontAddressVariablesOf,
+      envExampleDeclarationsOf,
+      storefrontDeclaredInputs,
+    } = await import('@endora-commerce/cli');
     const { isRequiredGiven } = await import('@endora-commerce/contracts');
 
     const declared = await storefrontDeclaredInputs(repoRoot);
@@ -441,8 +624,10 @@ describe('the criterion supplies every input the reference storefront declares r
 
     const plan = planScaffoldInputs({
       required,
-      backendAddressVariables: backendAddressVariablesOf(storefrontDir),
+      backendAddressVariables: await backendAddressVariablesOf(storefrontDir),
+      storefrontAddressVariables: await storefrontAddressVariablesOf(storefrontDir),
       backend: 'http://127.0.0.1:3001',
+      storefront: 'https://shop.acceptance.invalid',
       envExample: envExampleDeclarationsOf(storefrontDir),
       standIns: SCAFFOLD_INPUT_STAND_INS,
     });
@@ -450,5 +635,22 @@ describe('the criterion supplies every input the reference storefront declares r
     expect(plan.unanswerable).toEqual([]);
     expect(plan.staleStandIns).toEqual([]);
     expect([...plan.values.keys()].sort()).toEqual([...required].sort());
+  });
+
+  /**
+   * The stand-in table is empty, and that is an assertion rather than a fact
+   * about today.
+   *
+   * It held exactly one entry — `NEXT_PUBLIC_SITE_URL`, declared required and
+   * supplied by nothing in the deployment path — whose written retiring
+   * condition was *the moment any derivation reaches the variable*. Four
+   * deployment-path edits and the storefront-address derivation are that
+   * moment. Asserting the emptiness here is what stops the next author reaching
+   * for the table before they have asked whether the tree can answer for
+   * itself: a value the criterion invents is a value nobody reviewed, and the
+   * table exists to make that visible, not to make it easy.
+   */
+  it('needs no stand-in: every required input has a derivation', () => {
+    expect(Object.keys(SCAFFOLD_INPUT_STAND_INS)).toEqual([]);
   });
 });

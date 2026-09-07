@@ -54,10 +54,11 @@ import {
 } from '../inputs/resolve.js';
 import { TOKEN_VARIABLE } from './npmrc.js';
 import {
-  backendAddressVariablesOf,
+  addressVariables,
   ENV_EXAMPLE_FILE,
   memberDirectories,
   resolveReference,
+  STOREFRONT_DECLARATION_EXPORT,
   StorefrontHostError,
   StorefrontInputError,
   type StorefrontReference,
@@ -184,7 +185,7 @@ export async function runNewStorefront(
       targetDir,
       plan,
       dryRun: true,
-      nextSteps: nextSteps(targetDir, plan, reference, resolution.resolved),
+      nextSteps: nextSteps(targetDir, plan, declared, resolution.resolved),
       resolved: resolution.resolved,
       provenance: provenanceLine(resolution.resolved),
       wouldPrompt: resolution.toPrompt.map((input) => input.name),
@@ -218,7 +219,7 @@ export async function runNewStorefront(
     targetDir,
     plan,
     dryRun: false,
-    nextSteps: nextSteps(targetDir, plan, reference, resolved),
+    nextSteps: nextSteps(targetDir, plan, declared, resolved),
     resolved,
     provenance: provenanceLine(resolved),
     wouldPrompt: [],
@@ -226,9 +227,6 @@ export async function runNewStorefront(
     unset: resolution.unset.map((input) => input.name),
   };
 }
-
-/** The binding the storefront's declaration is exported under. */
-const STOREFRONT_DECLARATION_EXPORT = 'STOREFRONT_ENVIRONMENT_INPUTS';
 
 /**
  * The flags this build accepts for the reference storefront's declared inputs,
@@ -356,7 +354,7 @@ function refuseOccupiedDirectory(targetDir: string): void {
 function nextSteps(
   targetDir: string,
   plan: StorefrontPlan,
-  reference: StorefrontReference,
+  declared: readonly EnvironmentInput[],
   resolved: readonly ResolvedInput[],
 ): readonly string[] {
   const published = plan.ranges.length;
@@ -382,7 +380,14 @@ function nextSteps(
   // reads, and the fetchers fall back to `http://localhost:3001` in silence — so
   // an author who followed it had a storefront talking to nothing in particular
   // and no error anywhere to say so.
-  const backendVariables = backendAddressVariablesOf(reference.dir);
+  //
+  // **It is `addressOf`, not the shape of the value in `.env.example`.** That
+  // was the derivation until `NEXT_PUBLIC_SITE_URL` was supplied there, at which
+  // point a predicate reading *absolute `http(s)` URL* would have swept the
+  // shop's **own** public address into this sentence and told its owner it
+  // "names the backend this storefront talks to" — in a file they own outright
+  // and nobody comes back to correct.
+  const backendVariables = addressVariables(declared, 'backend');
   // Which of those the run already answered. The step below stops telling an
   // author to set a value that is already in the file this command wrote:
   // instructions in a copy the client owns outright are not something anybody

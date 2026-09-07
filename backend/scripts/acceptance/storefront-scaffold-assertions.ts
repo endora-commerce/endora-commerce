@@ -235,6 +235,120 @@ export function evaluateA6(observed: BootObservation): AssertionResult {
   };
 }
 
+/** The origin an unconfigured storefront names — `storefront/lib/seo/site-url.ts`. */
+export const COMPILED_IN_SITE_ORIGIN = 'http://localhost:3000';
+
+/** What A7 read out of the page the built instance served. */
+export interface CanonicalObservation {
+  /** The public origin the run configured, or `null` where it configured none. */
+  readonly configured: string | null;
+  /** The `href` of the served page's canonical link, or `null` if it carried none. */
+  readonly canonical: string | null;
+  /** The path whose page was read, for the message. */
+  readonly path: string;
+}
+
+/**
+ * A7 — the served page's canonical names the origin this run configured.
+ *
+ * **This is the assertion that measures the defect rather than its shape.**
+ * `NEXT_PUBLIC_SITE_URL` was declared required and set by nothing in the
+ * deployment path — not the Dockerfile's build arguments, not
+ * `build:storefront`, not `.env.example` — so every image this repository built
+ * served canonicals, a sitemap and a `robots.txt` naming
+ * {@link COMPILED_IN_SITE_ORIGIN}, and the build reported success. Four files
+ * gaining a line proves none of that. What proves it is a storefront that was
+ * *built* with the variable and *serves* a canonical carrying its value.
+ *
+ * It is a separate assertion from A6 rather than a clause inside it because the
+ * two ask different questions of one boot — A6 is *which backend did this
+ * instance reach*, A7 is *which origin does it tell a crawler it is served at* —
+ * and folding the second into the first would let either go red for the other's
+ * reason.
+ *
+ * **The discrimination is in the value, not in a second boot.** The origin the
+ * run configures is deliberately not the compiled-in one, so a canonical
+ * carrying it cannot be the fallback's; a canonical that *is* the fallback is a
+ * red criterion naming both. That is cheaper than A6's probe and no weaker
+ * here, because the fallback is a constant in the subject's own source rather
+ * than an address that might coincidentally answer.
+ *
+ * Its bound, stated rather than discovered: it reads the page's `<link
+ * rel="canonical">`, so a storefront that stopped emitting one is `unmeasured`
+ * — never a pass — and a storefront whose home page stopped being indexable
+ * would need a different page rather than a cheerful green.
+ */
+export function evaluateA7(observed: CanonicalObservation): AssertionResult {
+  const id = 'A7';
+  if (observed.configured === null || observed.configured.length === 0) {
+    return {
+      id,
+      state: 'unmeasured',
+      detail:
+        'no public origin was configured, so a canonical naming the compiled-in fallback ' +
+        'would be correct behaviour rather than a finding',
+    };
+  }
+  if (observed.canonical === null) {
+    return {
+      id,
+      state: 'unmeasured',
+      detail:
+        `${observed.path} carried no <link rel="canonical">, so there is nothing here that ` +
+        `says which origin the instance was built with. A7 measures a canonical; a page ` +
+        `without one needs a different page, not a pass`,
+    };
+  }
+  let origin: string;
+  try {
+    origin = new URL(observed.canonical).origin;
+  } catch {
+    return {
+      id,
+      state: 'fail',
+      detail: `${observed.path} served a canonical this run cannot parse as a URL: ${observed.canonical}`,
+    };
+  }
+  const expected = new URL(observed.configured).origin;
+  if (origin !== expected) {
+    return {
+      id,
+      state: 'fail',
+      detail:
+        `${observed.path} served a canonical at ${origin} while the instance was built with ` +
+        `${expected}` +
+        (origin === new URL(COMPILED_IN_SITE_ORIGIN).origin
+          ? ` — which is the compiled-in fallback, so NEXT_PUBLIC_SITE_URL reached neither the ` +
+            `build nor the page`
+          : ''),
+    };
+  }
+  return {
+    id,
+    state: 'pass',
+    detail:
+      `${observed.path} served <link rel="canonical" href="${observed.canonical}">, whose ` +
+      `origin is the ${expected} this run built the instance with and not the ` +
+      `${COMPILED_IN_SITE_ORIGIN} it falls back to when nothing names one`,
+  };
+}
+
+/** The `href` of a page's canonical link, or `null` where it carries none. */
+export function canonicalHrefIn(html: string): string | null {
+  // Read as text rather than parsed: the criterion has no DOM, the subject is
+  // Next's own emitted `<link>`, and attribute order is not ours to assume — so
+  // the tag is found by its `rel` and the `href` is read out of the same tag.
+  for (const match of html.matchAll(/<link\b[^>]*>/gi)) {
+    const tag = match[0];
+    if (!/\brel\s*=\s*["']?canonical\b/i.test(tag)) continue;
+    const href = /\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(tag);
+    if (href === null) continue;
+    const value = href[1] ?? href[2] ?? href[3];
+    if (value !== undefined && value.length > 0) return value;
+  }
+  return null;
+}
+
 /** A build, an install or a boot: exit 0 is a pass, anything else the tail of its output. */
 export function evaluateProcess(
   id: string,
@@ -360,24 +474,26 @@ export function formatReport(
  * hold it to its two-way rule without importing a module whose top level runs an
  * install and a `next build`.
  *
- * **One entry, and it is a finding rather than a convenience.**
- * `NEXT_PUBLIC_SITE_URL` is declared **required** by
- * `storefront/environment-inputs.mjs` and is supplied by nothing in this tree:
- * not `storefront/.env.example`, not `storefront/Dockerfile`'s build arguments,
- * not `.gitlab-ci.yml`'s `build:storefront`, not `deploy/compose.prod.yml`. Its
- * reader falls back to `http://localhost:3000` (`storefront/lib/seo/site-url.ts`),
- * so a real deployment's canonicals, sitemap and `robots.txt` name localhost and
- * nothing says so — which is the deployment path's defect and not this
- * criterion's to repair.
+ * **It is empty, and the entry it held retired exactly as written.** That entry
+ * was `NEXT_PUBLIC_SITE_URL`: declared **required** by
+ * `storefront/environment-inputs.mjs` and supplied by nothing in this tree — not
+ * `storefront/.env.example`, not `storefront/Dockerfile`'s build arguments, not
+ * `.gitlab-ci.yml`'s `build:storefront`, not `deploy/compose.prod.yml` — so
+ * every deployment this repository built served canonicals, a sitemap and a
+ * `robots.txt` naming the `http://localhost:3000` that
+ * `storefront/lib/seo/site-url.ts` falls back to. The stand-in's own retiring
+ * condition was *the moment any derivation reaches the variable*, and the four
+ * deployment-path edits plus `planScaffoldInputs`' storefront-address
+ * derivation are that moment. The guard did the remembering: with the entry
+ * left in place the fast suite reports it as `staleStandIns` and the criterion
+ * refuses.
  *
- * The value below is that same fallback address, deliberately: it changes
- * nothing this criterion observes, so no assertion can be made green by it. The
- * entry retires the moment any derivation reaches the variable — the fast-suite
- * guard reports it as `staleStandIns` on that day, so nobody has to remember.
+ * Keeping the empty map is the point. It is a two-way rule with nothing in it,
+ * so the next required input this repository cannot answer has a home that
+ * demands a reason and a retiring condition, rather than a value somebody
+ * invents at the call site.
  */
-export const SCAFFOLD_INPUT_STAND_INS: Readonly<Record<string, string>> = {
-  NEXT_PUBLIC_SITE_URL: 'http://127.0.0.1:3000',
-};
+export const SCAFFOLD_INPUT_STAND_INS: Readonly<Record<string, string>> = {};
 
 /** What the criterion will put on the `endora new storefront` command line. */
 export interface ScaffoldInputPlan {
@@ -392,10 +508,14 @@ export interface ScaffoldInputPlan {
 export interface ScaffoldInputRequest {
   /** The inputs the command will demand, in declaration order. */
   readonly required: readonly string[];
-  /** Of those, the ones that name a backend — the copy's own derivation. */
+  /** Of those, the ones whose value is the backend's address — `addressOf`. */
   readonly backendAddressVariables: readonly string[];
+  /** Of those, the ones whose value is the storefront's own public address. */
+  readonly storefrontAddressVariables: readonly string[];
   /** The backend this run booted, or `null` where it booted none. */
   readonly backend: string | null;
+  /** The public origin this run tells the instance it is served at. */
+  readonly storefront: string | null;
   /** The copy's own worked example of its environment. */
   readonly envExample: ReadonlyMap<string, string>;
   readonly standIns: Readonly<Record<string, string>>;
@@ -412,32 +532,55 @@ export interface ScaffoldInputRequest {
  * that run and gone stale at the sixth, so what it supplies is derived from the
  * same declaration the command resolves against.
  *
- * Two value derivations, in order, and both are the tree's own:
+ * Three value derivations, in order, and all three are the tree's own:
  *
- *   1. a variable the copy's `.env.example` declares as an absolute `http(s)`
- *      URL is a backend address, and gets the backend this run booted — the
- *      translation that already existed, unchanged;
- *   2. anything else gets the value that same file declares for it, which is
- *      what the file is: the storefront's worked example of its environment.
+ *   1. a variable whose `addressOf` is `backend` gets the backend this run
+ *      booted — the translation that already existed;
+ *   2. a variable whose `addressOf` is `storefront` gets the origin this run
+ *      tells the instance it is served at, which is what makes A7 an
+ *      observation rather than a tautology: it is not the address any
+ *      unconfigured storefront falls back to;
+ *   3. anything else gets the value the copy's `.env.example` declares for it,
+ *      which is what that file is: the storefront's worked example of its own
+ *      environment.
  *
- * With no backend booted, (1) falls through to (2) rather than to nothing: the
+ * **(1) and (2) used to be one rule keyed on the shape of the value** — *an
+ * absolute `http(s)` URL in `.env.example`* — which was right only while that
+ * file happened to declare no address but the backend's. It now declares
+ * `NEXT_PUBLIC_SITE_URL`, so under the old predicate this criterion would have
+ * pointed the shop's canonical origin at its API host and called the result a
+ * measurement. `addressOf` is the copy's own statement of what each value *is*.
+ *
+ * With no backend booted, (1) falls through to (3) rather than to nothing: the
  * scaffold still has to be given an address, A1–A5 are still measurable without
  * one, and A6 records `unmeasured` from `backend === null` as it always did.
+ * (2) falls through the same way, and A7 is `unmeasured` with it.
  *
- * What is left over is {@link SCAFFOLD_INPUT_STAND_INS}, one entry deep, and
- * what is left over *after that* is `unanswerable` — a refusal, because a
- * criterion that invented a value for a required input would be configuring the
- * instance out of its own imagination and calling the result a measurement.
+ * What is left over is {@link SCAFFOLD_INPUT_STAND_INS}, today empty, and what
+ * is left over *after that* is `unanswerable` — a refusal, because a criterion
+ * that invented a value for a required input would be configuring the instance
+ * out of its own imagination and calling the result a measurement.
  */
 export function planScaffoldInputs(request: ScaffoldInputRequest): ScaffoldInputPlan {
-  const addresses = new Set(request.backendAddressVariables);
+  const backendAddresses = new Set(request.backendAddressVariables);
+  const storefrontAddresses = new Set(request.storefrontAddressVariables);
   const values = new Map<string, string>();
   const unanswerable: string[] = [];
 
-  const derived = (name: string): string | undefined =>
-    addresses.has(name) && request.backend !== null && request.backend.length > 0
-      ? request.backend
-      : request.envExample.get(name);
+  const configured = (value: string | null): string | undefined =>
+    value !== null && value.length > 0 ? value : undefined;
+
+  const derived = (name: string): string | undefined => {
+    if (backendAddresses.has(name)) {
+      const backend = configured(request.backend);
+      if (backend !== undefined) return backend;
+    }
+    if (storefrontAddresses.has(name)) {
+      const storefront = configured(request.storefront);
+      if (storefront !== undefined) return storefront;
+    }
+    return request.envExample.get(name);
+  };
 
   for (const name of request.required) {
     const value = derived(name) ?? request.standIns[name];
