@@ -70,9 +70,12 @@ async function main(): Promise<number> {
     entries,
     migrationOwnership: () => Promise.resolve(coreMigrationOwnership()),
     // `confirm` is deliberately not supplied (D115-7, R2.7). Absent means this
-    // run cannot ask, so `--hard` requires `--force` — which is what every
-    // invocation of this script meets today, because whether a terminal is
-    // asked at all is `D-217`'s to settle and no prompt exists to reach.
+    // run cannot ask, so `--hard` requires `--force` — on every invocation of
+    // this script, terminal or not, which is what owner ruling **D-217** settled
+    // on 2026-09-07. Supplying it here without building a prompt behind it would
+    // take `--hard` straight through to reverting migrations and deleting the
+    // registry row; `test/integration/_lifecycle/uninstall-hard-needs-force`
+    // runs this file with every interactivity signal true and is what says so.
     out: (line) => void process.stdout.write(line),
     err: (line) => void process.stderr.write(line),
   };
