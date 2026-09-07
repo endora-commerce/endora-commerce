@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fireEvent, render, screen } from '@testing-library/react';
 import type { ReactElement, ReactNode } from 'react';
-import { TranslationProvider } from '../../src/i18n/TranslationProvider';
-import type { Bundle } from '../../src/i18n/types';
+import { TranslationProvider } from '../../../packages/admin-shell/src/i18n/TranslationProvider';
+import type { Bundle } from '../../../packages/admin-shell/src/i18n/types';
 import {
   FulfilmentStrategyPicker,
   type FulfilmentStrategyValue,

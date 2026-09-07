@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest';
  */
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const APPSHELL_PATH = resolve(__dirname, '../../../src/components/AppShell.tsx');
+const APPSHELL_PATH = resolve(__dirname, '../../../../packages/admin-shell/src/components/AppShell.tsx');
 const SOURCE = readFileSync(APPSHELL_PATH, 'utf8');
 
 describe('AppShell.tsx migration after feature 020 US2', () => {

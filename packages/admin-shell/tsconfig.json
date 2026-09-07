@@ -1,0 +1,46 @@
+{
+  // Type-check configuration, and the two-config split every package under
+  // `packages/` uses (feature 080, T042 / R11). `tsconfig.base.json`'s `paths`
+  // block is active here, so `@endora-commerce/admin-kit` and
+  // `@endora-commerce/contracts` resolve at their *source* and this package
+  // type-checks against the branch it is on (issue #255). `noEmit` is set for
+  // that reason: with `paths` active an emit would land beside another
+  // package's source (TS6059).
+  //
+  // This package carries an `endora` block in **no** form, deliberately, and
+  // for two reasons that point the same way. `workspace-resolution.test.ts`
+  // reads it to decide the `paths` entries: a member the running platform
+  // *composes* is refused them, and nothing composes the admin shell — the
+  // admin project resolves it as a library, through its own `exports` map in
+  // every process — so it takes the entries. And `'admin-ui'`, the third value,
+  // would put this package into `check:admin-zones`' third `foreign-module-id`
+  // population, whose premise is that *no namespace in the file can be the
+  // file's own*. That is true of a design-system package and false of the
+  // shell: the host's dashboard tiles gate on `catalog`, `orders` and
+  // `quote_requests` by name, which is the mounting point doing its job. The
+  // shell is the admin application relocated, and the instruments follow it as
+  // a **host root** — `adminHostRootsOf` in `packages/cli/src/lib/admin-surfaces.ts`.
+  //
+  // `types: ["vite/client"]` is what makes `import.meta.env` a type here.
+  // Three files read it — one for the API base URL, two to keep a diagnostic
+  // out of a production bundle — and they are kept **verbatim**, because Vite
+  // replaces the expression at build time and a cast or an indirection is a
+  // chance for that replacement to stop happening in a way no type-check can
+  // see. `src/types/env.d.ts` declares the two `VITE_*` names this package
+  // reads; the admin application declares its own, so the two never collide.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"]
+  },
+  "include": ["src/**/*"],
+  // A test must not be compiled into `dist`: it imports `vitest`, a
+  // devDependency, which is an unresolvable specifier in every consumer's
+  // install. The pattern is kept here because `tsconfig.build.json` extends
+  // this file and the emit configuration is judged on it
+  // (`backend/test/unit/packages/package-dist-build.test.ts`).
+  "exclude": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"]
+}

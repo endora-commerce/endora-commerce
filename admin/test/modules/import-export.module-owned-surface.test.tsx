@@ -44,19 +44,19 @@ let permissions = new Set<string>(['catalog:write']);
 
 
 
-vi.mock('@/lib/admin-actions/useAdminActions', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/admin-actions/useAdminActions', () => ({
   useAdminActions: () => ({ actions: [], loading: false }),
 }));
 
-vi.mock('@/components/notifications', () => ({
+vi.mock('../../../packages/admin-shell/src/components/notifications', () => ({
   NotificationBell: () => <span data-testid="notifications" />,
 }));
 
-vi.mock('@/components/LanguagePicker.js', () => ({
+vi.mock('../../../packages/admin-shell/src/components/LanguagePicker.js', () => ({
   LanguagePicker: () => <span data-testid="language-picker" />,
 }));
 
-vi.mock('@/lib/prompt-actions/api', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/prompt-actions/api', () => ({
   getPromptCapability: vi.fn(async () => ({ status: 'disabled', bulkLimit: 0 })),
   listUnseenPromptRequests: vi.fn(async () => []),
   submitPrompt: vi.fn(),
@@ -67,7 +67,7 @@ vi.mock('@/lib/prompt-actions/api', () => ({
   markPromptRequestSeen: vi.fn(),
 }));
 
-const { AppShell } = await import('../../src/components/AppShell');
+const { AppShell } = await import('../../../packages/admin-shell/src/components/AppShell');
 
 /**
  * The label key resolves in the **module's** namespace, not in `core`. That is
@@ -151,8 +151,8 @@ describe('the shell no longer names this module by hand', () => {
     // The evidence that the conversion converted something. `App.tsx` and
     // `AppShell.tsx` are the two registries 11 of the last 12 module additions
     // edited; neither mentions this module now, and the screen is still there.
-    const app = sourceOf('src/App.tsx');
-    const shell = sourceOf('src/components/AppShell.tsx');
+    const app = sourceOf('../packages/admin-shell/src/App.tsx');
+    const shell = sourceOf('../packages/admin-shell/src/components/AppShell.tsx');
     expect(app).not.toContain('import_export');
     expect(app).not.toContain('ImportExportPage');
     expect(shell).not.toContain("to: '/import-export'");

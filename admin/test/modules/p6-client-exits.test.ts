@@ -81,7 +81,7 @@ const EXITS: readonly ClientExit[] = [
     endpoints: ['/api/v1/admin/settings/'],
   },
   {
-    caller: 'src/components/IdleLogout.tsx',
+    caller: '../packages/admin-shell/src/components/IdleLogout.tsx',
     owner: 'settings',
     binding: 'settingsClient',
     clientPath: 'modules/settings/api/settings-client',
@@ -162,11 +162,14 @@ describe('feature 091 P6 — nine callers build their own request', () => {
     // names the wrong path passes every import rule in the estate and fetches
     // nothing, which is the one regression this repair can introduce.
     const source = sourceOf(exit.caller);
-    // `@/lib/api-client` for a caller still in `admin/src`, and the kit's own
-    // barrel — the identical binding, forwarded by that shim — for one inside
-    // a module package, where the `@/` alias does not resolve at all.
+    // The shell's own relative reach into its `lib/api-client` shim for a
+    // caller inside `@endora-commerce/admin-shell` — feature 110's T120 moved
+    // `admin/src` into that package and its `@/` specifiers became relative
+    // ones — and the kit's own barrel, the identical binding forwarded by that
+    // shim, for a caller inside a module package, where neither the alias nor a
+    // relative reach into the shell resolves at all.
     expect(
-      source.includes("from '@/lib/api-client'") ||
+      /from '(\.\.\/)+lib\/api-client(\.js)?'/.test(source) ||
         source.includes("from '@endora-commerce/admin-kit/lib'"),
     ).toBe(true);
     for (const endpoint of exit.endpoints) {

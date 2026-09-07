@@ -191,6 +191,6 @@ describe('order.entry.tabs — both hosts mount the place', () => {
       expect(host, file).toContain('name="order.entry.tabs"');
       expect(host, file).not.toContain('OrderEntryTabs');
     }
-    expect(existsSync(resolve(process.cwd(), 'src/components/OrderEntryTabs.tsx'))).toBe(false);
+    expect(existsSync(resolve(process.cwd(), '../packages/admin-shell/src/components/OrderEntryTabs.tsx'))).toBe(false);
   });
 });

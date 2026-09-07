@@ -1085,7 +1085,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
     // (D115-1). Six files added and none removed: the five entry points keep their paths,
     // shrunk to the ORM handle, the Redis connection and the system scope.
-    files: 5311,
+    // **`specs/110-instance-repository/` T120: 5305 -> 5307 (+2).** A whole-tree
+    // walk, so the 106 files that moved from `admin/src` into
+    // `packages/admin-shell/src` are a wash and the two are the new package's
+    // own: its barrel and its `src/types/env.d.ts`. The two tsconfigs and the
+    // manifest are not `.ts` sources and are outside this population.
+    // **Re-measured on the union after rebasing onto `7d699f4cc`.** Phase 5 and this
+    // branch each recorded this entry on `e3dd43635` and neither could see the other;
+    // the value below is a fresh census of the combined tree, not the sum of the two.
+    files: 5313,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1639,7 +1647,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
     // (D115-1). Six files added and none removed: the five entry points keep their paths,
     // shrunk to the ORM handle, the Redis connection and the system scope.
-    files: 691,
+    // **`specs/110-instance-repository/` T122: 685 -> 687 (+2).** The admin tree's
+    // walk became the layout's **host roots** — the admin project's and
+    // `@endora-commerce/admin-shell`'s — because T120 moved all three of the
+    // admin's `import.meta.env` reads into the shell and this check exits 2 on
+    // a consumer that contributed none. The 106 files are read at their new
+    // paths, so the +2 is the shell's barrel and its `src/types/env.d.ts`.
+    // **Re-measured on the union after rebasing onto `7d699f4cc`.** Phase 5 and this
+    // branch each recorded this entry on `e3dd43635` and neither could see the other;
+    // the value below is a fresh census of the combined tree, not the sum of the two.
+    files: 693,
     sites: 67,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
@@ -2116,7 +2133,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
     // (D115-1). Six files added and none removed: the five entry points keep their paths,
     // shrunk to the ORM handle, the Redis connection and the system scope.
-    files: 2586,
+    // **`specs/110-instance-repository/` T120: 2580 -> 2582 (+2).** The admin
+    // shell became `@endora-commerce/admin-shell` and this walk's admin
+    // population became the layout's **host roots** — the admin project's and
+    // the shell's — so the 106 files that moved are read at their new paths and
+    // the count is a wash. The two are the package's own new files: its barrel
+    // (`src/index.ts`) and its `src/types/env.d.ts`. `sites` does not move at
+    // all, which is the property T122 exists to produce: the same renders, the
+    // same contributions and the same one foreign id, read at different
+    // addresses.
+    // **Re-measured on the union after rebasing onto `7d699f4cc`.** Phase 5 and this
+    // branch each recorded this entry on `e3dd43635` and neither could see the other;
+    // the value below is a fresh census of the combined tree, not the sum of the two.
+    files: 2588,
     sites: 53,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
@@ -2759,7 +2788,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // files D115-1 adds under `packages/platform/src/lifecycle/commands/` — the five `module:*`
     // command bodies and their `OperatorRuntime` seam — counted once by the specifier walk and
     // once by the schema walk, this check's `files` being the sum of the two.
-    files: 4681,
+    // **`specs/110-instance-repository/` T122: 4669 -> 4670 (+1).** The admin host
+    // walk became the layout's host roots, so `admin/src`'s 106 files are read
+    // at `packages/admin-shell/src` instead and cancel. The one is the shell's
+    // barrel; its `src/types/env.d.ts` is not counted, this walk taking `.ts`
+    // and `.tsx` and excluding declaration files.
+    // **Re-measured on the union after rebasing onto `7d699f4cc`.** Phase 5 and this
+    // branch each recorded this entry on `e3dd43635` and neither could see the other;
+    // the value below is a fresh census of the combined tree, not the sum of the two.
+    files: 4682,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -2781,7 +2818,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // deleted file. The pair is what says which of the two happened: a file left
     // the walk and took its specifiers with it, rather than a specifier shape the
     // reader stopped recognising, which would have moved `sites` alone.
-    sites: 11888,
+    // **`specs/110-instance-repository/` T120: 11888 -> 11893 (+5).** Import
+    // specifiers, and the extraction is where they come from: the shell's own
+    // files lost their `@/` aliases and gained relative ones one-for-one, while
+    // the new barrel writes five (`App`, `registerSw`, `lib/auth` twice for the
+    // value and the types, `lib/module-registry`). The cross-module half does
+    // not move at all — `reaches=8`, `ledger-size=8`, `stale=0` before and
+    // after — which is T122's own criterion.
+    sites: 11893,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -3171,7 +3215,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // whole repository, so a changeset is a file it opens, and the arithmetic that stopped
     // at +6 was the one the census caught. Measured with `backend/.env` absent, as the
     // block above.
-    files: 7805,
+    // **`specs/110-instance-repository/` T120: 7798 -> 7805 (+7).** The whole
+    // repository, so the 106 moved files cancel and the seven are what the
+    // extraction *adds*: `packages/admin-shell`'s manifest, its two tsconfigs,
+    // its own `eslint.config.js`, its barrel, its `src/types/env.d.ts` and this
+    // merge request's changeset. Measured with `backend/.env` absent, as above.
+    // **Re-measured on the union after rebasing onto `7d699f4cc`.** Phase 5 and this
+    // branch each recorded this entry on `e3dd43635` and neither could see the other;
+    // the value below is a fresh census of the combined tree, not the sum of the two.
+    files: 7812,
     sites: null,
     sources: [],
   },
@@ -3780,8 +3832,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **file** is opened only for a `SEE LICENSE IN` licence, of which this
     // estate has none, so the count follows the tree rather than the ruling and
     // moves on the day a paid package arrives.
-    files: 85,
-    sites: 489,
+    //
+    // **`specs/110-instance-repository/` T120: `files` 85 -> 86, `sites` 489 ->
+    // 495.** One more manifest — `@endora-commerce/admin-shell` — and the six
+    // fitness decisions a public versionable member is now asked, which is the
+    // "four per member" two notes up, at its post-ruling width.
+    files: 86,
+    sites: 495,
     sources: ['workspace-globs'],
   },
   'backend/scripts/check-rsc-discipline.ts': {
@@ -4692,7 +4749,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `git ls-files --cached --others --exclude-standard` lists like any other;
     // `backend/.env` moves this walk in neither direction, git's list not being a
     // directory tree.
-    files: 7865,
+    // **`specs/110-instance-repository/` T120: 7858 -> 7865 (+7).** The same seven
+    // files `check-nul-bytes` names — the shell package's manifest, its two
+    // tsconfigs, its `eslint.config.js`, its barrel, its `src/types/env.d.ts`
+    // and this merge request's changeset; the 106 moved ones cancel. git's own
+    // list again, so `backend/.env` moves it in neither direction.
+    // **Re-measured on the union after rebasing onto `7d699f4cc`.** Phase 5 and this
+    // branch each recorded this entry on `e3dd43635` and neither could see the other;
+    // the value below is a fresh census of the combined tree, not the sum of the two.
+    files: 7872,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4871,7 +4936,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
     // (D115-1). Six files added and none removed: the five entry points keep their paths,
     // shrunk to the ORM handle, the Redis connection and the system scope.
-    files: 5857,
+    // **`specs/110-instance-repository/` T120: 5851 -> 5854 (+3).** git's tracked
+    // inventory filtered to the extensions this scan reads, so the 106 moved
+    // files cancel and the three are the shell package's barrel, its
+    // `src/types/env.d.ts` and its `eslint.config.js`; the manifest, the two
+    // tsconfigs and the changeset are not in this scan's extension set, which
+    // is why it moves by three where the two whole-tree walks move by seven.
+    // **Re-measured on the union after rebasing onto `7d699f4cc`.** Phase 5 and this
+    // branch each recorded this entry on `e3dd43635` and neither could see the other;
+    // the value below is a fresh census of the combined tree, not the sum of the two.
+    files: 5860,
     sites: null,
     sources: ['manifest-index'],
   },

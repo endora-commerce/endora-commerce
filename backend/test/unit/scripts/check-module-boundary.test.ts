@@ -664,6 +664,12 @@ describe('analyzeSource — what it must not flag', () => {
  */
 const ADMIN_LAYOUT: AdminBoundarySurfaces = {
   sourceRoot: 'admin/src',
+  // The admin project's root and the shell package's, which is what the
+  // layout answers after feature 110's T120 moved `App.tsx` and every host
+  // screen out of the alias member. Both are walked and both attribute to
+  // `ADMIN_HOST_OWNER`; a tree that has not moved answers `['admin/src']`
+  // and every assertion below reads the same.
+  hostRoots: ['admin/src', 'packages/admin-shell/src'],
   moduleRoot: 'admin/src/modules',
   aliasPrefix: '@/',
   // `warehouses` is `inventory`'s under another name, which is the derivation
@@ -898,6 +904,39 @@ describe('the host population’s floors (issues #113 and #215, over feature 091
         adminHostFiles: [],
       }),
     ).toMatch(/host walk outside its module root opened no file/);
+  });
+
+  it('refuses a workspace with a frontend whose admin layout resolved to nothing', () => {
+    // Feature 110's T122. The route table and the nav live inside
+    // `@endora-commerce/admin-shell` now, so a checkout whose shell is
+    // unbuilt, uninstalled or renamed has a perfectly good alias member and no
+    // layout — and every admin population comes back empty with `violations=0`
+    // printed beside it. `adminPopulationLost` cannot see it: its anchor is the
+    // ledger, and the admin ledger has drained.
+    const refusal = vacuousReason({
+      ...READ_SOMETHING,
+      adminSurfaces: null,
+      adminApplicationPresent: true,
+      adminSurfacesRefusal: 'no workspace member holds both App.tsx and components/AppShell.tsx',
+    });
+    expect(refusal).toMatch(/declares the admin source alias/);
+    // The layout's own sentence, carried rather than re-worded — inventing one
+    // is how a reader is sent to repair a file that is correct.
+    expect(refusal).toContain('App.tsx');
+  });
+
+  it('is silent for a workspace with no frontend at all', () => {
+    // The other side of the same discrimination, and the behaviour that
+    // shipped: every fixture in this tree is a backend with no admin, and a
+    // refusal there would make the check unspawnable over any of them.
+    expect(
+      vacuousReason({
+        ...READ_SOMETHING,
+        adminSurfaces: null,
+        adminApplicationPresent: false,
+        adminSurfacesRefusal: 'no workspace member declares a `"@/*"` path',
+      }),
+    ).toBeNull();
   });
 
   it('is silent for a caller that performs no host walk at all', () => {

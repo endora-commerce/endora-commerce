@@ -21,15 +21,15 @@ import { adminSession, modulePresence, withSession } from '../helpers/render-wit
  * `admin/test/modules/orders/order-entry-tabs-zone.test.tsx`.
  */
 
-vi.mock('@/lib/admin-actions/useAdminActions', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/admin-actions/useAdminActions', () => ({
   useAdminActions: () => ({ actions: [], loading: false }),
 }));
 
-vi.mock('@/components/notifications', () => ({
+vi.mock('../../../packages/admin-shell/src/components/notifications', () => ({
   NotificationBell: () => <span data-testid="notifications" />,
 }));
 
-vi.mock('@/components/LanguagePicker.js', () => ({
+vi.mock('../../../packages/admin-shell/src/components/LanguagePicker.js', () => ({
   LanguagePicker: () => <span data-testid="language-picker" />,
 }));
 
@@ -61,7 +61,7 @@ const bundle = {
  */
 const PRESENT_MODULES = ['orders', 'quick_order'];
 
-const { AppShell } = await import('../../src/components/AppShell');
+const { AppShell } = await import('../../../packages/admin-shell/src/components/AppShell');
 
 describe('AppShell — quick order leaves the sidebar', () => {
   it('keeps New order and drops Quick order', () => {

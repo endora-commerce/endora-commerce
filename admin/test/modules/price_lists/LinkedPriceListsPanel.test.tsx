@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
-import { TranslationProvider } from '../../../src/i18n/TranslationProvider';
+import { TranslationProvider } from '../../../../packages/admin-shell/src/i18n/TranslationProvider';
 import {
   LinkedPriceListsList,
   toInternalPath,

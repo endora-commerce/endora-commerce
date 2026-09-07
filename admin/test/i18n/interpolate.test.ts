@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { interpolate } from '../../src/i18n/interpolate';
+import { interpolate } from '../../../packages/admin-shell/src/i18n/interpolate';
 
 /**
  * Interpolator unit tests — the regex is a one-liner but its

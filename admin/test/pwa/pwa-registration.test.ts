@@ -13,7 +13,7 @@ const swSource = readFileSync(resolve(here, '../../public/admin-service-worker.j
 const manifest = JSON.parse(
   readFileSync(resolve(here, '../../public/manifest.webmanifest'), 'utf-8'),
 ) as { name: string; display: string; scope: string; icons: Array<{ purpose?: string }> };
-const registerSrc = readFileSync(resolve(here, '../../src/registerSw.ts'), 'utf-8');
+const registerSrc = readFileSync(resolve(here, '../../../packages/admin-shell/src/registerSw.ts'), 'utf-8');
 
 describe('admin PWA (US6)', () => {
   it('manifest is a distinct, installable identity', () => {

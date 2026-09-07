@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { LoginPage } from '../../src/components/LoginPage';
+import { LoginPage } from '../../../packages/admin-shell/src/components/LoginPage';
 
-vi.mock('@/lib/auth', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/auth', () => ({
   useAuth: () => ({
     login: vi.fn(),
     lastLoginError: null,

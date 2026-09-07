@@ -535,6 +535,30 @@ describe('check-admin-zones — the refusals', () => {
     expect(reason).toContain(fragment);
   });
 
+  it('refuses a workspace with a frontend whose admin layout resolved to nothing', () => {
+    // Feature 110's T122. `App.tsx` and the nav are inside
+    // `@endora-commerce/admin-shell` now, so a shell that is unbuilt or
+    // renamed takes the host walk to zero — and no other floor here sees it:
+    // `hostFiles` stays comfortably non-empty on the module and kit walks
+    // alone, which is exactly why this needs a refusal of its own.
+    const reason = vacuousReason({
+      ...complete,
+      adminApplicationLost:
+        'no workspace member holds both App.tsx and components/AppShell.tsx under its source root',
+    });
+    expect(reason).not.toBeNull();
+    expect(reason).toContain('declares the admin source alias');
+    // The layout's sentence, carried rather than re-worded.
+    expect(reason).toContain('App.tsx');
+  });
+
+  it('is silent when the layout resolved, whatever else is true', () => {
+    // `null` is *"the caller asked and the layout is there"*, `undefined` is a
+    // caller that did not ask — a fixture, and the behaviour that shipped.
+    expect(vacuousReason({ ...complete, adminApplicationLost: null })).toBeNull();
+    expect(vacuousReason(complete)).toBeNull();
+  });
+
   it('does not refuse a workspace that has no admin application at all', () => {
     // `null` and `0` are different answers on purpose: a workspace with no admin
     // application has no generated registry, so there is nothing to be short of

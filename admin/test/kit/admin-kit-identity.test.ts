@@ -41,24 +41,24 @@ import * as kitLib from '@endora-commerce/admin-kit/lib';
 import * as kitI18n from '@endora-commerce/admin-kit/i18n';
 import * as kitComponents from '@endora-commerce/admin-kit/components';
 
-import { Button } from '@/components/ui/button';
-import { Table } from '@/components/ui/table';
-import { cn } from '@/lib/utils';
-import { apiClient, ApiError } from '@/lib/api-client';
-import { PAGE_SIZE_OPTIONS, usePageSizePreference } from '@/lib/use-page-size-preference';
-import { AuthProvider, useAuth } from '@/lib/auth';
-import { ModulePresenceProvider, useModulePresence, getModulePresence } from '@/lib/module-presence';
-import { isSurfaceVisible, satisfiesPermission, useSurfaceVisibility } from '@/lib/surface-visibility';
-import { useTranslation } from '@/i18n/useTranslation';
-import { AppLanguageContext } from '@/i18n/app-language-context';
-import { ResponsiveTable } from '@/components/ResponsiveTable';
-import { EChart } from '@/components/charts/echart';
-import { SalesChannelPicker } from '@/components/sales-channel-picker/SalesChannelPicker';
-import { CmsBlockPicker } from '@/components/cms-picker/CmsBlockPicker';
-import { CmsPagePicker } from '@/components/cms-picker/CmsPagePicker';
-import { OrganizationPicker, OrganizationStatusBadge } from '@/components/organization-picker';
-import { OrganizationPickerMulti } from '@/components/organization-picker/OrganizationPickerMulti';
-import { AssetFieldPicker } from '@/components/asset-picker/AssetFieldPicker';
+import { Button } from '../../../packages/admin-shell/src/components/ui/button';
+import { Table } from '../../../packages/admin-shell/src/components/ui/table';
+import { cn } from '../../../packages/admin-shell/src/lib/utils';
+import { apiClient, ApiError } from '../../../packages/admin-shell/src/lib/api-client';
+import { PAGE_SIZE_OPTIONS, usePageSizePreference } from '../../../packages/admin-shell/src/lib/use-page-size-preference';
+import { AuthProvider, useAuth } from '../../../packages/admin-shell/src/lib/auth';
+import { ModulePresenceProvider, useModulePresence, getModulePresence } from '../../../packages/admin-shell/src/lib/module-presence';
+import { isSurfaceVisible, satisfiesPermission, useSurfaceVisibility } from '../../../packages/admin-shell/src/lib/surface-visibility';
+import { useTranslation } from '../../../packages/admin-shell/src/i18n/useTranslation';
+import { AppLanguageContext } from '../../../packages/admin-shell/src/i18n/app-language-context';
+import { ResponsiveTable } from '../../../packages/admin-shell/src/components/ResponsiveTable';
+import { EChart } from '../../../packages/admin-shell/src/components/charts/echart';
+import { SalesChannelPicker } from '../../../packages/admin-shell/src/components/sales-channel-picker/SalesChannelPicker';
+import { CmsBlockPicker } from '../../../packages/admin-shell/src/components/cms-picker/CmsBlockPicker';
+import { CmsPagePicker } from '../../../packages/admin-shell/src/components/cms-picker/CmsPagePicker';
+import { OrganizationPicker, OrganizationStatusBadge } from '../../../packages/admin-shell/src/components/organization-picker';
+import { OrganizationPickerMulti } from '../../../packages/admin-shell/src/components/organization-picker/OrganizationPickerMulti';
+import { AssetFieldPicker } from '../../../packages/admin-shell/src/components/asset-picker/AssetFieldPicker';
 
 describe('@endora-commerce/admin-kit — the shims forward, they do not copy', () => {
   it('serves the same function object through both spellings', () => {

@@ -15,7 +15,7 @@ import {
   resolvePermissionLabel,
   scopeCarrying,
 } from '../../../../packages/modules/admin_users/src/admin/permission-label';
-import type { Bundle } from '../../../src/i18n/types';
+import type { Bundle } from '../../../../packages/admin-shell/src/i18n/types';
 
 /**
  * Feature 091, Phase 3 — a permission label written in the owning module's own

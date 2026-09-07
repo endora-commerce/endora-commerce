@@ -2,7 +2,11 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
-import { adminRegistryPathOf } from './lib/admin-surfaces.js';
+import {
+  AdminLayoutUnresolvableError,
+  adminHostRootsOf,
+  adminRegistryPathOf,
+} from './lib/admin-surfaces.js';
 import {
   adminRegistryPresent,
   moduleAdminLayers,
@@ -64,14 +68,26 @@ export interface AdminScanRoot {
  * measured no-op; widening afterwards adds the population that would have
  * caught the move in the merge request that no longer needs it.
  *
+ * **Feature 110's T120 opens it a fifth time, and this root is here *with* the
+ * move.** `admin/src` was the admin application, and T120 extracted the router,
+ * the shell and every host screen into `@endora-commerce/admin-shell`, leaving
+ * the alias member holding four files. `LoginPage.tsx`'s four baseline findings
+ * would have named a path no root reaches, and the two-way ratchet would have
+ * asked for the entry to be deleted — sixteen strings' worth of the same
+ * laundering, one home further out. So the admin's roots are the **host roots**
+ * the layout derives, which are the project's and the shell's, and the one
+ * baseline key moves with the file in the same merge request.
+ *
  * ## Nothing here is spelled — every root is a declaration
  *
- * `admin/src` is the application's and is the one path this file names. Every
- * other root is a workspace member's own statement about itself: `endora:
- * { type: 'module' }` for a module package, whose admin layer is a root when
- * the package has one, and `endora: { type: 'admin-ui' }` for a package whose
- * whole source tree is admin UI. **The kit is found by that declaration and no
- * longer by name.** It used to be `ADMIN_KIT_PACKAGE`, a constant naming
+ * The admin application's own roots come from `lib/admin-surfaces.ts`, which
+ * derives them from the `"@/*"` alias and from the source root holding the
+ * route table and the nav — two declarations rather than a path this file
+ * names. Every other root is a workspace member's own statement about itself:
+ * `endora: { type: 'module' }` for a module package, whose admin layer is a
+ * root when the package has one, and `endora: { type: 'admin-ui' }` for a
+ * package whose whole source tree is admin UI. **The kit is found by that
+ * declaration and no longer by name.** It used to be `ADMIN_KIT_PACKAGE`, a constant naming
  * `@endora-commerce/admin-kit`, which is a derived fact written down (D-100):
  * the second admin-ui package would have had to be added to it by whoever
  * remembered, and forgetting costs sixteen findings silently.
@@ -114,8 +130,25 @@ export function adminScanRoots(): readonly AdminScanRoot[] {
     // nothing — an empty set is legitimate here, unlike the admin-ui set,
     // because before Story 3 there were no layers at all.
     .filter((root) => existsSync(root.dir));
+  // The admin's own roots, and a refusal rather than a fallback when they
+  // cannot be derived (feature 110, T122). The alternative — carrying on with
+  // whatever roots are left — is `admin/src`'s four files plus the packages,
+  // over a ledger keyed by path: every entry naming a shell file would read as
+  // **drained**, which is the laundering this walk's own header exists to
+  // refuse, arriving through the derivation instead of through a move.
+  let hostRoots: readonly string[];
+  try {
+    hostRoots = adminHostRootsOf(members);
+  } catch (error: unknown) {
+    if (!(error instanceof AdminLayoutUnresolvableError)) throw error;
+    process.stderr.write(`[i18n:hardcoded] ${error.message}; refusing to report a vacuous pass\n`);
+    process.exit(2);
+  }
   return [
-    { dir: join(REPO_ROOT, 'admin', 'src'), owner: null, adminUi: false },
+    // `owner: null` for both, because both are the admin application's: the
+    // shell is not an `admin-ui` **library** whose every module id is foreign,
+    // it is the mounting point, relocated (feature 110, T122).
+    ...hostRoots.map((dir) => ({ dir, owner: null, adminUi: false })),
     ...adminUi.map((pkg) => ({ dir: join(pkg.dir, 'src'), owner: pkg.name, adminUi: true })),
     ...moduleAdminLayers,
   ];
@@ -345,7 +378,12 @@ export function analyzeSource(source: string, filePath: string): Finding[] {
 export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // Issue #193 lifted the two federated-provider labels into
   // `preauth-login-copy.ts`; the four left are the second-step MFA screen.
-  'admin/src/components/LoginPage.tsx': 4,
+  //
+  // Re-keyed, not drained: feature 110's T120 moved `admin/src` into
+  // `@endora-commerce/admin-shell` and this walk's roots moved with it, so the
+  // same four strings in the same component are read at the path they now sit
+  // at. The count is unmoved, which is what says nothing was translated.
+  'packages/admin-shell/src/components/LoginPage.tsx': 4,
   // Feature 091's P4c published the asset cluster, so this file's one finding
   // ("Clear asset") is the kit's now. The count is unmoved: the same string in
   // the same component, under the path the walk reads it at.

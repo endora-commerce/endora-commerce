@@ -34,19 +34,19 @@ const unseenSpy = vi.fn(async () => []);
 // `@endora-commerce/admin-kit`, where a `vi.mock` on `@/lib/…` cannot reach
 // them. `withSession` supplies both through their `initial` props.
 
-vi.mock('@/lib/admin-actions/useAdminActions', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/admin-actions/useAdminActions', () => ({
   useAdminActions: () => ({ actions: [], loading: false }),
 }));
 
-vi.mock('@/components/notifications', () => ({
+vi.mock('../../../packages/admin-shell/src/components/notifications', () => ({
   NotificationBell: () => <span data-testid="notifications" />,
 }));
 
-vi.mock('@/components/LanguagePicker.js', () => ({
+vi.mock('../../../packages/admin-shell/src/components/LanguagePicker.js', () => ({
   LanguagePicker: () => <span data-testid="language-picker" />,
 }));
 
-vi.mock('@/lib/prompt-actions/api', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/prompt-actions/api', () => ({
   getPromptCapability: (...a: unknown[]) => capabilitySpy(...(a as [])),
   listUnseenPromptRequests: (...a: unknown[]) => unseenSpy(...(a as [])),
   submitPrompt: vi.fn(),
@@ -57,7 +57,7 @@ vi.mock('@/lib/prompt-actions/api', () => ({
   markPromptRequestSeen: vi.fn(),
 }));
 
-const shellModule = await import('../../src/components/AppShell');
+const shellModule = await import('../../../packages/admin-shell/src/components/AppShell');
 const { AppShell, resetPromptCapabilityCacheForTesting } = shellModule;
 
 const coreBundle = {

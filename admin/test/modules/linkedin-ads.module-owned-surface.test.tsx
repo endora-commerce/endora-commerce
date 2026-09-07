@@ -56,19 +56,19 @@ let permissions = new Set<string>(['linkedin_ads:read']);
 
 
 
-vi.mock('@/lib/admin-actions/useAdminActions', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/admin-actions/useAdminActions', () => ({
   useAdminActions: () => ({ actions: [], loading: false }),
 }));
 
-vi.mock('@/components/notifications', () => ({
+vi.mock('../../../packages/admin-shell/src/components/notifications', () => ({
   NotificationBell: () => <span data-testid="notifications" />,
 }));
 
-vi.mock('@/components/LanguagePicker.js', () => ({
+vi.mock('../../../packages/admin-shell/src/components/LanguagePicker.js', () => ({
   LanguagePicker: () => <span data-testid="language-picker" />,
 }));
 
-vi.mock('@/lib/prompt-actions/api', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/prompt-actions/api', () => ({
   getPromptCapability: vi.fn(async () => ({ status: 'disabled', bulkLimit: 0 })),
   listUnseenPromptRequests: vi.fn(async () => []),
   submitPrompt: vi.fn(),
@@ -79,7 +79,7 @@ vi.mock('@/lib/prompt-actions/api', () => ({
   markPromptRequestSeen: vi.fn(),
 }));
 
-const { AppShell } = await import('../../src/components/AppShell');
+const { AppShell } = await import('../../../packages/admin-shell/src/components/AppShell');
 
 /**
  * The label key resolves in the **module's** namespace, not in `core`. That is
@@ -171,8 +171,8 @@ describe('the shell no longer names linkedin_ads by hand', () => {
     // there. The breadcrumb table is the third and is derived rather than
     // enumerated — `registryCrumbs` builds the trail for `/linkedin-ads` from the
     // composed sidebar, which is why the hand-written rule goes with the rest.
-    const app = sourceOf('src/App.tsx');
-    const shell = sourceOf('src/components/AppShell.tsx');
+    const app = sourceOf('../packages/admin-shell/src/App.tsx');
+    const shell = sourceOf('../packages/admin-shell/src/components/AppShell.tsx');
     expect(app).not.toContain('ConversionMapping');
     expect(app).not.toContain('modules/linkedin_ads');
     expect(shell).not.toContain("to: '/linkedin-ads'");
@@ -186,7 +186,7 @@ describe('the shell no longer names linkedin_ads by hand', () => {
     // not do is carry a second, hand-written copy in `PALETTE_ITEMS`: that one
     // would keep advertising the screen after an operator switched the module
     // off, because nothing on the server would have been asked.
-    const shell = sourceOf('src/components/AppShell.tsx');
+    const shell = sourceOf('../packages/admin-shell/src/components/AppShell.tsx');
     expect(shell).not.toContain("'/linkedin-ads'");
   });
 

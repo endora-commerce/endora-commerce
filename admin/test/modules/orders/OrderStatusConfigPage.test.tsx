@@ -15,7 +15,7 @@ const putSpy = vi.fn();
  * `Cannot read properties of null`. Edge-click selection is exercised via the
  * kept From/To form.
  *
- * **The library, not the wrapper.** This was `vi.mock('@/components/charts/echart')`
+ * **The library, not the wrapper.** This was `vi.mock('../../../../packages/admin-shell/src/components/charts/echart')`
  * until feature 091's batch 8 published `StatusTransitionGraph` into
  * `@endora-commerce/admin-kit`. The graph reaches its chart through the kit's
  * own internals now, so a mock of the admin's re-export shim intercepts nothing

@@ -6,7 +6,7 @@ import {
   UNKNOWN_RENDERING,
   formatRelative,
   renderActivity,
-} from '../../../src/modules/home/activity-render';
+} from '../../../../packages/admin-shell/src/modules/home/activity-render';
 
 /**
  * Feature 024 / T013, rewritten by feature 080's T042j (D-163.1).
@@ -83,7 +83,7 @@ describe('renderActivity', () => {
 describe('the dashboard rendering table stays retired', () => {
   const SOURCE = resolve(
     dirname(fileURLToPath(import.meta.url)),
-    '../../../src/modules/home/activity-render.ts',
+    '../../../../packages/admin-shell/src/modules/home/activity-render.ts',
   );
 
   it('names no audit action token', () => {

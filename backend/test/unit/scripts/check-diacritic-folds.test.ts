@@ -1168,8 +1168,16 @@ describe('check-diacritic-folds — the tree it guards', () => {
   // found nothing — and it is why this list, like `slugGenerators` below, is
   // re-keyed by the batch that moves a file rather than left to go stale in the
   // one after it.
+  //
+  // The fourth address change is feature 110's T120: the admin shell became
+  // `@endora-commerce/admin-shell`, so `AppShell.tsx` writes the shim it always
+  // wrote as a relative specifier inside its own package rather than through
+  // the application's `@/` alias, which a package cannot resolve.
   const repaired: readonly (readonly [string, string])[] = [
-    ['admin/src/components/AppShell.tsx', "from '@/lib/text-normalization'"],
+    [
+      'packages/admin-shell/src/components/AppShell.tsx',
+      "from '../lib/text-normalization.js'",
+    ],
     ['packages/admin-kit/src/ui/combobox.tsx', "from '../lib/text-normalization.js'"],
     ['packages/admin-kit/src/ui/multi-select.tsx', "from '../lib/text-normalization.js'"],
     [

@@ -25,8 +25,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   ADMIN_SOURCE_ALIAS,
   AdminLayoutUnresolvableError,
+  adminApplicationPresent,
+  adminHostRootsOf,
   adminModuleDirectories,
   findAdminModuleRoot,
+  findAdminShellRoot,
   adminNavEntries,
   adminRoutes,
   aliasTargetOf,
@@ -265,6 +268,146 @@ describe('which module owns a surface directory', () => {
   });
 });
 
+/**
+ * Where the route table and the nav are (feature 110, T122).
+ *
+ * The fixtures enter as a **file map**, which is the top of this analysis: the
+ * derivation's whole job is to decide which of several source roots holds the
+ * pair, so a proof handed a resolved root would leave the search unrun (issue
+ * #130).
+ */
+describe('finding the admin shell', () => {
+  const APP = 'export function App() { return null; }';
+
+  function withFiles(files: Readonly<Record<string, string>>) {
+    return (path: string): string | null => files[path] ?? null;
+  }
+
+  it('answers the alias member on a tree whose route table has not moved', () => {
+    // The pre-extraction shape, and it must answer exactly what it answered
+    // before this function existed — that is what makes T120 a measurable move
+    // rather than a rewritten instrument.
+    const members = [member('backend', '/w/backend'), member('admin', '/w/admin')];
+    const root = findAdminShellRoot(
+      members,
+      withFiles({
+        '/w/admin/tsconfig.json': ALIASED,
+        '/w/admin/src/App.tsx': APP,
+        '/w/admin/src/components/AppShell.tsx': APP,
+      }),
+    );
+    expect(root).toBe(join('/w/admin', 'src'));
+  });
+
+  it('follows the pair into a package the alias member does not name', () => {
+    const members = [
+      member('admin', '/w/admin'),
+      member('@endora-commerce/admin-shell', '/w/packages/admin-shell'),
+    ];
+    const root = findAdminShellRoot(
+      members,
+      withFiles({
+        '/w/admin/tsconfig.json': ALIASED,
+        '/w/packages/admin-shell/src/App.tsx': APP,
+        '/w/packages/admin-shell/src/components/AppShell.tsx': APP,
+      }),
+    );
+    expect(root).toBe(join('/w/packages/admin-shell', 'src'));
+  });
+
+  it('refuses a workspace where the pair is nowhere — never a scan over what is left', () => {
+    // The shell package unbuilt, uninstalled or renamed. The alias member is
+    // still there and still holds files, so a walk that carried on would report
+    // `violations=0` over an admin population that had silently emptied.
+    const members = [member('admin', '/w/admin')];
+    expect(() =>
+      findAdminShellRoot(members, withFiles({ '/w/admin/tsconfig.json': ALIASED })),
+    ).toThrow(AdminLayoutUnresolvableError);
+  });
+
+  it('refuses two, because picking one narrows every walk without saying so', () => {
+    const members = [
+      member('admin', '/w/admin'),
+      member('@endora-commerce/admin-shell', '/w/packages/admin-shell'),
+    ];
+    expect(() =>
+      findAdminShellRoot(
+        members,
+        withFiles({
+          '/w/admin/tsconfig.json': ALIASED,
+          '/w/admin/src/App.tsx': APP,
+          '/w/admin/src/components/AppShell.tsx': APP,
+          '/w/packages/admin-shell/src/App.tsx': APP,
+          '/w/packages/admin-shell/src/components/AppShell.tsx': APP,
+        }),
+      ),
+    ).toThrow(AdminLayoutUnresolvableError);
+  });
+
+  it('refuses a root holding only one of the two', () => {
+    // Half the pair is not the shell: attribution is read from the route table
+    // **and** the nav, and a root with one of them would answer every surface
+    // directory to nobody.
+    const members = [member('admin', '/w/admin')];
+    expect(() =>
+      findAdminShellRoot(
+        members,
+        withFiles({ '/w/admin/tsconfig.json': ALIASED, '/w/admin/src/App.tsx': APP }),
+      ),
+    ).toThrow(AdminLayoutUnresolvableError);
+  });
+});
+
+describe('the admin host roots', () => {
+  const APP = 'export function App() { return null; }';
+
+  it('are the alias member\'s and the shell\'s, sorted', () => {
+    const members = [
+      member('admin', '/w/admin'),
+      member('@endora-commerce/admin-shell', '/w/packages/admin-shell'),
+    ];
+    const roots = adminHostRootsOf(members, (path) =>
+      ({
+        '/w/admin/tsconfig.json': ALIASED,
+        '/w/packages/admin-shell/src/App.tsx': APP,
+        '/w/packages/admin-shell/src/components/AppShell.tsx': APP,
+      })[path] ?? null,
+    );
+    expect(roots).toEqual([join('/w/admin', 'src'), join('/w/packages/admin-shell', 'src')]);
+  });
+
+  it('are one root, not two, when the shell has not moved', () => {
+    // The deduplication is what keeps a walk from opening every file twice and
+    // reporting a doubled `files=` on an unmoved tree.
+    const members = [member('admin', '/w/admin')];
+    const roots = adminHostRootsOf(members, (path) =>
+      ({
+        '/w/admin/tsconfig.json': ALIASED,
+        '/w/admin/src/App.tsx': APP,
+        '/w/admin/src/components/AppShell.tsx': APP,
+      })[path] ?? null,
+    );
+    expect(roots).toEqual([join('/w/admin', 'src')]);
+  });
+});
+
+describe('whether this workspace has a frontend at all', () => {
+  it('answers true for a member declaring the alias, whatever else is missing', () => {
+    // The discriminator between "no admin" and "an admin whose route table the
+    // walk stopped finding". It must not consult the shell: that is exactly the
+    // thing it is asked about.
+    expect(
+      adminApplicationPresent([member('admin', '/w/admin')], (path) =>
+        path === '/w/admin/tsconfig.json' ? ALIASED : null,
+      ),
+    ).toBe(true);
+  });
+
+  it('answers false for a workspace with no member declaring it', () => {
+    expect(adminApplicationPresent([member('backend', '/w/backend')], () => null)).toBe(false);
+  });
+});
+
 describe('this repository', () => {
   it('resolves the admin surfaces where the tree keeps them', async () => {
     const layout = await requireModuleLayout('[admin-surfaces-test]');
@@ -273,6 +416,19 @@ describe('this repository', () => {
 
     expect(admin.sourceRoot.endsWith('/admin/src')).toBe(true);
     expect(admin.aliasPrefix).toBe('@/');
+    // Feature 110's T120: the route table and the nav are the shell package's,
+    // and both roots are the admin application's own. Asserted rather than
+    // inferred, because every host walk in the estate takes `hostRoots` and a
+    // silent reduction to one is a hundred files nobody reads.
+    expect(admin.shellRoot.endsWith('/packages/admin-shell/src')).toBe(true);
+    expect(admin.hostRoots).toEqual([admin.sourceRoot, admin.shellRoot].sort());
+    for (const file of admin.registryFiles) {
+      expect(file.startsWith(`${admin.shellRoot}/`)).toBe(true);
+    }
+    // The generated registry stays the admin project's whatever else moves
+    // (`contracts/instance-repository.md` R3.2), so it is under the **alias**
+    // root and never under the shell's.
+    expect(admin.generatedRegistryFile.startsWith(`${admin.sourceRoot}/`)).toBe(true);
     // The floors that survive the drain, and they are the ones a check rests
     // on: `sourceRoot` classifies a reach, `aliasPrefix` is what makes an
     // `aliased-reach` recognisable, and the route table and the nav are what

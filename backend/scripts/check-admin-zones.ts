@@ -129,7 +129,11 @@ import {
   FOREIGN_MODULE_IDS,
   type ForeignModuleIdLedger,
 } from './ledgers/foreign-module-ids.js';
-import { adminRegistryPathOf, type AdminSurfaceLayout } from './lib/admin-surfaces.js';
+import {
+  adminApplicationPresent,
+  adminRegistryPathOf,
+  type AdminSurfaceLayout,
+} from './lib/admin-surfaces.js';
 import {
   adminRegistryPresent,
   moduleAdminLayers,
@@ -851,6 +855,20 @@ export function vacuousReason(input: {
    * on the call site.
    */
   readonly moduleAdminLayers: number | null;
+  /**
+   * Whether a workspace member declares the admin source alias — *"this
+   * repository has a frontend"* — with the admin layout `null` (feature 110,
+   * T122).
+   *
+   * The discriminator between a workspace with no admin at all, which is the
+   * behaviour that shipped, and one whose route table the layout has stopped
+   * finding. T120 put `App.tsx` and the nav inside
+   * `@endora-commerce/admin-shell`; with that package unbuilt or renamed the
+   * host walk contributes nothing, and `hostFiles` above stays comfortably
+   * non-empty on the module and kit files alone, so no other floor here sees
+   * it. `null` is a caller that did not ask.
+   */
+  readonly adminApplicationLost?: string | null;
 }): string | null {
   if (input.zoneNames === 0) {
     return (
@@ -898,6 +916,14 @@ export function vacuousReason(input: {
     return (
       'the generated manifest index yielded no module id, so no namespace and no gate could ' +
       'ever be foreign; refusing to report a vacuous pass'
+    );
+  }
+  if (input.adminApplicationLost !== undefined && input.adminApplicationLost !== null) {
+    return (
+      'a workspace member declares the admin source alias and the admin layout resolved to ' +
+      `nothing — ${input.adminApplicationLost}. The host walk would then contribute no file ` +
+      'while the module and kit walks keep `hostFiles` non-empty, so every floor above stays ' +
+      'satisfied; refusing to report a vacuous pass'
     );
   }
   if (input.moduleAdminLayers === 0) {
@@ -972,7 +998,15 @@ async function main(): Promise<void> {
     kitDir === null ? null : packageSubpathSource(kitDir, ZONE_SUBPATH);
 
   const moduleFiles = layout.moduleWalkRoots.flatMap((root) => walk(root));
-  const adminFiles = admin === null ? [] : walk(admin.sourceRoot);
+  // Every source root the admin application owns — the project's and
+  // `@endora-commerce/admin-shell`'s (feature 110, T122). It was `sourceRoot`
+  // alone, which was the whole application until T120 moved `App.tsx`,
+  // `AppShell.tsx` and every host screen into the shell package; a walk left on
+  // the alias target would have opened four files and reported `renders=0`
+  // over a mounting point it could no longer see. On a tree whose route table
+  // is still in the alias member the two are one directory and this reads
+  // exactly what it read before.
+  const adminFiles = admin === null ? [] : admin.hostRoots.flatMap((root) => walk(root));
   // Every admin-ui package **other than the kit**: the kit is population 2,
   // whose message is R6 of `admin-kit-surface.md` and whose subject is the kit
   // specifically, so leaving it here as well would report one site twice under
@@ -1146,6 +1180,8 @@ async function main(): Promise<void> {
     translationSites,
     moduleIdCount: registered.size,
     moduleAdminLayers: adminLayers === null ? null : adminLayers.length,
+    adminApplicationLost:
+      admin === null && adminApplicationPresent(members) ? await layout.adminSurfacesRefusal() : null,
   });
   if (vacuous !== null) {
     console.error(`[admin-zones] ${vacuous}`);

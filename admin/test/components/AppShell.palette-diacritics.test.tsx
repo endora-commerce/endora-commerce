@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { GetAdminActionsResponse } from '@endora-commerce/contracts';
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
 import { adminSession, everyDeclaredModule, modulePresence, withSession } from '../helpers/render-with-session';
-import { AdminActionsProvider } from '../../src/lib/admin-actions/AdminActionsProvider';
+import { AdminActionsProvider } from '../../../packages/admin-shell/src/lib/admin-actions/AdminActionsProvider';
 
 /**
  * Issue #233 item 3 — the palette's two indexes matched differently.
@@ -34,15 +34,15 @@ let capabilityStatus: 'ready' | 'disabled' = 'disabled';
 
 
 
-vi.mock('@/components/notifications', () => ({
+vi.mock('../../../packages/admin-shell/src/components/notifications', () => ({
   NotificationBell: () => <span data-testid="notifications" />,
 }));
 
-vi.mock('@/components/LanguagePicker.js', () => ({
+vi.mock('../../../packages/admin-shell/src/components/LanguagePicker.js', () => ({
   LanguagePicker: () => <span data-testid="language-picker" />,
 }));
 
-vi.mock('@/lib/prompt-actions/api', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/prompt-actions/api', () => ({
   getPromptCapability: vi.fn(async () => ({ status: capabilityStatus, bulkLimit: 500 })),
   listUnseenPromptRequests: vi.fn(async () => []),
   submitPrompt: vi.fn(),
@@ -76,11 +76,11 @@ const ACTIONS_RESPONSE: GetAdminActionsResponse = {
   meta: { language: 'pl', total: 1, registryVersion: 1 },
 };
 
-vi.mock('@/lib/admin-actions/api', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/admin-actions/api', () => ({
   getAdminActions: vi.fn(async () => ACTIONS_RESPONSE),
 }));
 
-const shellModule = await import('../../src/components/AppShell');
+const shellModule = await import('../../../packages/admin-shell/src/components/AppShell');
 const { AppShell, resetPromptCapabilityCacheForTesting } = shellModule;
 
 /**

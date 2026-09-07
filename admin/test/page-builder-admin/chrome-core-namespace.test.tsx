@@ -4,8 +4,8 @@ import { join, resolve } from 'node:path';
 import ts from 'typescript';
 import { render, screen } from '@testing-library/react';
 import type { ReactElement, ReactNode } from 'react';
-import { TranslationProvider } from '../../src/i18n/TranslationProvider';
-import type { Bundle } from '../../src/i18n/types';
+import { TranslationProvider } from '../../../packages/admin-shell/src/i18n/TranslationProvider';
+import type { Bundle } from '../../../packages/admin-shell/src/i18n/types';
 import {
   ColorPaletteModal,
   PageBuilderHeaderActions,

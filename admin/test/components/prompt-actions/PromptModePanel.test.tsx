@@ -14,7 +14,7 @@ const submitSpy = vi.fn();
 const confirmSpy = vi.fn();
 const cancelSpy = vi.fn();
 
-vi.mock('@/lib/prompt-actions/api', () => ({
+vi.mock('../../../../packages/admin-shell/src/lib/prompt-actions/api', () => ({
   getPromptCapability: vi.fn(async () => ({ status: 'ready', bulkLimit: 500 })),
   submitPrompt: (...a: unknown[]) => submitSpy(...a),
   confirmPrompt: (...a: unknown[]) => confirmSpy(...a),
@@ -26,7 +26,7 @@ vi.mock('@/lib/prompt-actions/api', () => ({
 }));
 
 const { PromptModePanel } = await import(
-  '../../../src/components/prompt-actions/PromptModePanel'
+  '../../../../packages/admin-shell/src/components/prompt-actions/PromptModePanel'
 );
 
 const BUNDLE = passthroughBundle('prompt_actions', [

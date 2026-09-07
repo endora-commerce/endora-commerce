@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 
 import { DISCOVERED_MANIFESTS } from '../../src/manifest-index.generated.js';
 import { discoverModulePackages } from '../../scripts/lib/module-packages.js';
+import { findAdminShellRoot } from '../../scripts/lib/admin-surfaces.js';
 import { MANIFEST_INDEX_FILENAME } from '../../scripts/lib/module-roots.js';
 import {
   adminUiPackages,
@@ -1372,8 +1373,20 @@ function copyApplicationTests(backend: string): void {
  * Three files are what the derivation needs and all three are load-bearing:
  * `tsconfig.json` declares the `"@/*"` alias the admin source root comes from,
  * `package.json` makes the directory a workspace member the search reaches, and
- * `src` holds the route table, the nav and the surface directories. 4.8 MB,
- * about the same as the platform package this fixture already carries.
+ * `src` holds the generated contribution registry and whatever surface
+ * directories the drain has not taken yet. 4.8 MB, about the same as the
+ * platform package this fixture already carries.
+ *
+ * **And the shell package with it** (feature 110, T122). Feature 110's T120
+ * moved the route table and the nav — `App.tsx` and `components/AppShell.tsx` —
+ * into `@endora-commerce/admin-shell`, and the admin layout is read out of that
+ * pair: without the package staged here, `resolveAdminSurfaces` refuses, and
+ * both admin checks exit 2 over every tree this file builds, which asserts no
+ * discrimination at all. Which member holds them is **derived** and never
+ * spelled — `findAdminShellRoot` is the same function the checks use, so a
+ * shell that moves again changes this answer by moving rather than by being
+ * edited here (D-100). `stageWorkspacePackage` is idempotent, so a tree whose
+ * route table is still in the alias member stages nothing twice.
  */
 function copyAdminApplication(root: string): void {
   const source = join(REPO_ROOT, 'admin');
@@ -1382,6 +1395,29 @@ function copyAdminApplication(root: string): void {
   cpSync(join(source, 'package.json'), join(destination, 'package.json'));
   cpSync(join(source, 'tsconfig.json'), join(destination, 'tsconfig.json'));
   cpSync(join(source, 'src'), join(destination, 'src'), { recursive: true });
+  copyAdminShellPackage(root);
+}
+
+/**
+ * The workspace member holding the route table and the nav, staged whole.
+ *
+ * The shell root is a **source root**, so the member is its parent — derived by
+ * asking which workspace member's directory contains it, never by naming
+ * `packages/admin-shell`. A shell root that is the alias member's own is
+ * already staged by {@link copyAdminApplication} and stages nothing further.
+ */
+function copyAdminShellPackage(root: string): void {
+  const members = workspaceMembers(REPO_ROOT, nodeWorkspaceFs());
+  const shellRoot = findAdminShellRoot(members);
+  const owner = members.find((member) => shellRoot.startsWith(`${member.dir}/`));
+  if (owner === undefined) {
+    throw new Error(
+      `[moved-module-tree-fixture] the admin shell root ${shellRoot} belongs to no workspace ` +
+        'member, so the fixture cannot stage the route table and the nav the admin layout is ' +
+        'read from. Both admin checks would exit 2 over every tree this file builds.',
+    );
+  }
+  stageWorkspacePackage(root, owner.dir);
 }
 
 export function createSplitModuleTreeFixture(

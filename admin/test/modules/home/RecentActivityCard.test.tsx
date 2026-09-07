@@ -3,7 +3,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
-import { ApiError } from '@/lib/api-client';
+import { ApiError } from '../../../../packages/admin-shell/src/lib/api-client';
 
 function fakeApiError(status: number): ApiError {
   return new ApiError(status, { error: { code: 'INTERNAL', message: 'test' } });
@@ -18,8 +18,8 @@ function fakeApiError(status: number): ApiError {
 
 const getSpy = vi.fn();
 
-vi.mock('@/lib/api-client', async () => {
-  const actual = await vi.importActual('@/lib/api-client');
+vi.mock('../../../../packages/admin-shell/src/lib/api-client', async () => {
+  const actual = await vi.importActual('../../../../packages/admin-shell/src/lib/api-client');
   return {
     ...(actual as Record<string, unknown>),
     apiClient: {
@@ -33,7 +33,7 @@ vi.mock('@/lib/api-client', async () => {
 });
 
 const { RecentActivityCard } = await import(
-  '../../../src/modules/home/RecentActivityCard'
+  '../../../../packages/admin-shell/src/modules/home/RecentActivityCard'
 );
 
 const BUNDLE = {

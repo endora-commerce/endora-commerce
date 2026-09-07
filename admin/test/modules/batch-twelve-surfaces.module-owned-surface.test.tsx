@@ -7,6 +7,7 @@ import type { RenderResult } from '@testing-library/react';
 import { setMobileViewport } from '../setup';
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
 import { adminSession, modulePresence, withSession } from '../helpers/render-with-session';
+import { MODULE_ADMIN_CONTRIBUTIONS } from '../../src/modules.generated.js';
 
 /**
  * One of the repository's source files, read as text, relative to `admin/`.
@@ -191,27 +192,27 @@ const SUBJECTS: readonly Subject[] = [
 let presentModules = new Set<string>();
 let permissions = new Set<string>();
 
-vi.mock('@/lib/admin-actions/useAdminActions', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/admin-actions/useAdminActions', () => ({
   useAdminActions: () => ({ actions: [], loading: false }),
 }));
 
-vi.mock('@/lib/admin-actions/AdminActionsProvider', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/admin-actions/AdminActionsProvider', () => ({
   AdminActionsProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-vi.mock('@/components/notifications', () => ({
+vi.mock('../../../packages/admin-shell/src/components/notifications', () => ({
   NotificationBell: () => <span data-testid="notifications" />,
 }));
 
-vi.mock('@/components/LanguagePicker.js', () => ({
+vi.mock('../../../packages/admin-shell/src/components/LanguagePicker.js', () => ({
   LanguagePicker: () => <span data-testid="language-picker" />,
 }));
 
-vi.mock('@/components/IdleLogout', () => ({
+vi.mock('../../../packages/admin-shell/src/components/IdleLogout', () => ({
   IdleLogout: () => null,
 }));
 
-vi.mock('@/lib/prompt-actions/api', () => ({
+vi.mock('../../../packages/admin-shell/src/lib/prompt-actions/api', () => ({
   getPromptCapability: vi.fn(async () => ({ status: 'disabled', bulkLimit: 0 })),
   listUnseenPromptRequests: vi.fn(async () => []),
   submitPrompt: vi.fn(),
@@ -266,7 +267,7 @@ globalThis.ResizeObserver ??= class {
   disconnect(): void {}
 } as unknown as typeof ResizeObserver;
 
-const { App } = await import('../../src/App');
+const { App } = await import('../../../packages/admin-shell/src/App');
 
 const bundle = {
   ...passthroughBundle('core', [
@@ -287,7 +288,7 @@ function renderAt(path: string): RenderResult {
   return renderWithI18n(
     withSession(
       <MemoryRouter initialEntries={[path]}>
-        <App modulePresence={modulePresence({ present: [...presentModules] })} />
+        <App contributions={MODULE_ADMIN_CONTRIBUTIONS} modulePresence={modulePresence({ present: [...presentModules] })} />
       </MemoryRouter>,
       { session: adminSession({ permissions: [...permissions] }) },
     ),
@@ -442,7 +443,7 @@ describe.each(SUBJECTS)('the shell no longer names $module by hand', (subject) =
     // edited. Leaving a `<Route>` standing beside the declaration would declare
     // the screen **twice**, with `react-router` silently taking the first
     // match, which D-23 calls the worst available failure.
-    const shell = codeOf('src/components/AppShell.tsx');
+    const shell = codeOf('../packages/admin-shell/src/components/AppShell.tsx');
     for (const target of subject.navTargets) {
       expect(shell, target).not.toContain(`to: '${target}'`);
     }
@@ -488,11 +489,11 @@ describe.each(SUBJECTS)('the shell no longer names $module by hand', (subject) =
     // directory also held the P8 e-mail-outcome shim, whose one remaining
     // reader was `admin/test/kit/admin-kit-identity.test.ts` — a file kept
     // alive for one assertion is the residue this case refuses.
-    expect(() => sourceOf(`src/modules/${subject.module}`)).toThrow();
+    expect(() => sourceOf(`../packages/admin-shell/src/modules/${subject.module}`)).toThrow();
   });
 
   it('declares every one of its routes exactly once, and nowhere in App.tsx', async () => {
-    const app = codeOf('src/App.tsx');
+    const app = codeOf('../packages/admin-shell/src/App.tsx');
     const { contributions } = (await import(
       /* @vite-ignore */ subject.specifier
     )) as typeof import('@endora-commerce/mod-invoices/admin');

@@ -66,6 +66,7 @@ import {
   workspaceMembers,
 } from '@endora-commerce/cli/lib/workspace-packages.js';
 
+import { adminHostRootsOf } from './lib/admin-surfaces.js';
 import { requireModuleLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
 
@@ -189,9 +190,14 @@ async function main(): Promise<void> {
   const layout = await requireModuleLayout(PREFIX);
   const { repoRoot } = layout;
 
-  const members = new Map(
-    workspaceMembers(repoRoot, nodeWorkspaceFs()).map((member) => [member.name, member.dir]),
-  );
+  const workspace = workspaceMembers(repoRoot, nodeWorkspaceFs());
+  const members = new Map(workspace.map((member) => [member.name, member.dir]));
+  // Where the admin's own sources are — the project's and the shell package's
+  // (feature 110, T122). Derived by the same function the two admin checks use,
+  // so the three cannot come to disagree about which directories are the
+  // admin's; its own refusals (no shell, two) reach this check as a throw and
+  // are the honest verdict here too.
+  const adminHostRoots = [...adminHostRootsOf(workspace)];
 
   const files: EnvSourceFile[] = [];
   const declarations: DeclarationSource[] = [];
@@ -208,17 +214,31 @@ async function main(): Promise<void> {
       );
     }
 
+    const declared = tree.walk.map((sub) => join(memberDir, sub));
     const roots =
       tree.consumer === 'backend'
         ? [
-            ...tree.walk.map((sub) => join(memberDir, sub)),
+            ...declared,
             // The platform is a root of its own: it is not the application's
             // and not a module's, and 5 of the 21 host inputs are read inside
             // it. `platformRoot` is `null` only on a workspace with no member
             // declaring `endora.type: "platform"`, which this one is not.
             ...(layout.platformRoot === null ? [] : [layout.platformRoot]),
           ]
-        : tree.walk.map((sub) => join(memberDir, sub));
+        : tree.consumer === 'admin'
+          ? // The admin's own sources, wherever they are — the same shape the
+            // backend has, one surface over (feature 110, T122). T120 moved the
+            // router, the shell and every host screen into
+            // `@endora-commerce/admin-shell`, and all three of the admin's
+            // `import.meta.env` reads went with them: `VITE_API_BASE_URL` in
+            // the federated sign-in, `VITE_BUILD_ID` in the service-worker
+            // registration, `DEV` in two diagnostics. Left on the alias target
+            // this tree contributes no read at all, which is refusal two above
+            // — measured, on the merge request that moved them. The declaration
+            // stays the admin project's, because a build input is the project's
+            // and not the library's.
+            adminHostRoots
+          : declared;
 
     const before = files.length;
     for (const root of roots) {

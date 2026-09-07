@@ -394,7 +394,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname as posixDirname, join as posixJoin, normalize as posixNormalize } from 'node:path/posix';
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { ADMIN_HOST_OWNER } from './lib/admin-surfaces.js';
+import { ADMIN_HOST_OWNER, adminApplicationPresent } from './lib/admin-surfaces.js';
 import { moduleOf } from './check-container-imports.js';
 import { requireModuleLayout, type ModuleTreeLayout } from './lib/module-roots.js';
 import {
@@ -446,6 +446,7 @@ import {
   type PackageTable,
 } from './lib/package-declarations.js';
 import { reportReadSize, type ReadCoverage } from './lib/read-size.js';
+import { nodeWorkspaceFs, workspaceMembers } from './lib/workspace-packages.js';
 
 const BACKEND_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 const TEST_ROOT = join(BACKEND_ROOT, 'test');
@@ -988,8 +989,28 @@ interface ModuleLocation {
  * to — so a ledger key, a message and a walked source are one namespace.
  */
 export interface AdminBoundarySurfaces {
-  /** `admin/src` — what the source alias resolves to. */
+  /**
+   * `admin/src` — what the source alias resolves to.
+   *
+   * The **alias's** target, and since feature 110's T120 that is narrower than
+   * the admin's own code: it is what an `@/…` specifier resolves against and
+   * where the generated registry lands. The population is
+   * {@link AdminBoundarySurfaces.hostRoots}.
+   */
   readonly sourceRoot: string;
+  /**
+   * Every source root the admin application owns — the project's and
+   * `@endora-commerce/admin-shell`'s (feature 110, T122).
+   *
+   * The layout's own field, carried through. On a tree whose route table is
+   * still in the alias member this is `[sourceRoot]` and every walk below is
+   * byte-identical to what it was, which is what makes the extraction a
+   * measurable move rather than a rewritten instrument. A tree with no shell at
+   * all is refused by the layout before this field exists — the population
+   * would otherwise shrink to the thin project and report `violations=0` over
+   * a hundred files nobody read (issue #215, one frontend over).
+   */
+  readonly hostRoots: readonly string[];
   /**
    * `admin/src/modules` — the directory holding the module surfaces — or `null`
    * when the application has none left (feature 091, R16).
@@ -1096,9 +1117,10 @@ function adminHostOwnerOf(
   admin: AdminBoundarySurfaces | null,
 ): ModuleLocation | null {
   if (admin === null) return null;
-  if (!path.startsWith(`${admin.sourceRoot}/`)) return null;
+  const root = admin.hostRoots.find((candidate) => path.startsWith(`${candidate}/`));
+  if (root === undefined) return null;
   if (admin.moduleRoot !== null && path.startsWith(`${admin.moduleRoot}/`)) return null;
-  return { id: ADMIN_HOST_OWNER, dir: admin.sourceRoot };
+  return { id: ADMIN_HOST_OWNER, dir: root };
 }
 
 /**
@@ -2137,6 +2159,29 @@ export function vacuousReason(input: {
   readonly importSites?: number;
   /** Table references the walk examined, on the same terms. */
   readonly tableSites?: number;
+  /**
+   * Whether a workspace member declares the admin source alias — *"this
+   * repository has a frontend"* (feature 110, T122).
+   *
+   * With {@link ModuleBoundaryVacuityInput.adminSurfaces} `null` it is the
+   * discriminator between the two states that `null` has run together: a
+   * workspace with no admin at all, which is every fixture here and is the
+   * behaviour that shipped, and an admin whose route table the layout has
+   * stopped finding. T120 put `App.tsx` and the nav inside
+   * `@endora-commerce/admin-shell`, so the second is a package that is not
+   * built, not installed or renamed — and the whole admin population then comes
+   * back empty with `violations=0` printed beside it.
+   *
+   * `undefined` is a caller with no answer and keeps the old behaviour, which
+   * is what every fixture wants.
+   */
+  readonly adminApplicationPresent?: boolean;
+  /**
+   * The layout's own sentence for why it answered `null`, carried rather than
+   * re-worded — `adminSurfacesRefusal` exists precisely so that a check does
+   * not invent one and send a reader to repair a file that is correct.
+   */
+  readonly adminSurfacesRefusal?: string | null;
 }): string | null {
   if (input.moduleFiles.length === 0) {
     return 'no module sources under src/ — refusing to report a vacuous pass';
@@ -2166,6 +2211,18 @@ export function vacuousReason(input: {
     return (
       'the table→owner map resolved no `create table` DDL — an entity-only map is blind to ' +
       'every join table and every channel bridge; refusing to report a vacuous pass'
+    );
+  }
+  // The frontend is there and the layout is not: exit 2, never a clean line
+  // over an admin population that came back empty (issue #215). It is asked
+  // **before** `adminPopulationLost`, whose anchor is the ledger and which
+  // therefore says nothing once the admin ledger has drained — which it has.
+  if (input.adminApplicationPresent === true && (input.adminSurfaces ?? null) === null) {
+    return (
+      'a workspace member declares the admin source alias and the admin layout resolved to ' +
+      `nothing — ${input.adminSurfacesRefusal ?? 'the layout recorded no reason'}. Every admin ` +
+      'population would be empty and `violations=0` would be printed beside it; refusing to ' +
+      'report a vacuous pass'
     );
   }
   const adminAnchor = adminPopulationLost(
@@ -2473,9 +2530,9 @@ export function collectAdminHostFiles(
 ): string[] {
   if (admin === null) return [];
   // With no module root the two walks stop being complements and this one is
-  // all of `admin/src`, which is the measurement: every file under it is the
-  // admin application's own.
-  const files = walk(join(repoRoot, admin.sourceRoot), [], ['.ts', '.tsx']);
+  // all of the admin's own sources, which is the measurement: every file under
+  // a host root is the admin application's own.
+  const files = admin.hostRoots.flatMap((root) => walk(join(repoRoot, root), [], ['.ts', '.tsx']));
   if (admin.moduleRoot === null) return files;
   const moduleRoot = join(repoRoot, admin.moduleRoot);
   return files.filter((file) => !file.startsWith(`${moduleRoot}/`));
@@ -2566,6 +2623,7 @@ export async function adminSurfacesOf(
   if (admin === null) return null;
   return {
     sourceRoot: layout.keyOf(admin.sourceRoot),
+    hostRoots: admin.hostRoots.map(layout.keyOf),
     moduleRoot: admin.moduleRoot === null ? null : layout.keyOf(admin.moduleRoot),
     aliasPrefix: admin.aliasPrefix,
     moduleOfDirectory: admin.moduleOfDirectory,
@@ -3067,6 +3125,10 @@ async function main(): Promise<void> {
     entityTables: owners.entityTables,
     migrationTables: owners.migrationTables,
     adminSurfaces: admin,
+    adminApplicationPresent: adminApplicationPresent(
+      workspaceMembers(layout.repoRoot, nodeWorkspaceFs()),
+    ),
+    adminSurfacesRefusal: await layout.adminSurfacesRefusal(),
     ledgerKeys: shards.flatMap((shard) => Object.keys(shard.entries)),
     fileExists: (path) => existsSync(join(layout.repoRoot, path)),
     moduleFileKeys: new Set(files.map((file) => layout.keyOf(file))),

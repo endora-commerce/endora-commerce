@@ -17,15 +17,15 @@ import { InvoiceSectionTabs } from '../../../../packages/modules/invoices/src/ad
 // `@/lib/module-presence` cannot reach it. `withSession` supplies it through
 // the `initial` prop it has carried since feature 073.
 
-vi.mock('@/lib/admin-actions/useAdminActions', () => ({
+vi.mock('../../../../packages/admin-shell/src/lib/admin-actions/useAdminActions', () => ({
   useAdminActions: () => ({ actions: [], loading: false }),
 }));
 
-vi.mock('@/components/notifications', () => ({
+vi.mock('../../../../packages/admin-shell/src/components/notifications', () => ({
   NotificationBell: () => <span data-testid="notifications" />,
 }));
 
-vi.mock('@/components/LanguagePicker.js', () => ({
+vi.mock('../../../../packages/admin-shell/src/components/LanguagePicker.js', () => ({
   LanguagePicker: () => <span data-testid="language-picker" />,
 }));
 
@@ -106,7 +106,7 @@ describe('InvoiceSectionTabs', () => {
   });
 });
 
-const { AppShell } = await import('../../../src/components/AppShell');
+const { AppShell } = await import('../../../../packages/admin-shell/src/components/AppShell');
 
 describe('AppShell — invoice templates leave the sidebar', () => {
   it('keeps Invoices and drops Invoice templates', () => {
