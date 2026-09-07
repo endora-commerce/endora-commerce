@@ -1303,7 +1303,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // branch is stacked on; the four files added here are source and a test, which
     // this walk does not read. The conflict resolution had reverted this entry to a
     // value measured before that stack; the number here is measured on the union.
-    files: 1265,
+    // **+1 on `master`, measured on the union of three merged branches.**
+    // `specs/113-module-owned-demo-data/contracts/demo-opt-in.md` is the one *document*
+    // the three merges added; the other two new files are changesets, which this walk
+    // does not read. Re-recorded after the merge rather than in the branch that moved it,
+    // because a spec-only branch moves this entry and its author has no reason to look.
+    files: 1266,
     sites: 12,
     sources: [],
   },
@@ -3074,7 +3079,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // unlike `check-naming.sh` one entry over, this walk *does* move by one when that file
     // is present, its population being the directory tree rather than git's list. Measured
     // both ways at this head: 7797 with it, 7796 without.
-    files: 7796,
+    // **+2 on `master`, on the union of three merged branches: 7796 -> 7798.** The
+    // population is the whole repository, so it counts every file the merges added —
+    // `demo-opt-in.md` and two changesets — of which `.changeset/storefront-declared-
+    // variables.md` is already inside the 7796 above, leaving +2. Each of the three
+    // branches read 0 drift on its own base and the union drifted: the merge-pair blind
+    // spot, not an author's oversight. Measured with `backend/.env` absent, as above.
+    files: 7798,
     sites: null,
     sources: [],
   },
@@ -4544,7 +4555,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `git ls-files --cached --others --exclude-standard` lists like any other; nothing else
     // on this branch adds or removes one. `backend/.env` does not move this walk — git's own
     // list, not a directory tree — measured both ways, 7856 either way.
-    files: 7856,
+    // **+2 on `master`, on the same union: 7856 -> 7858.** The same two files
+    // `check-nul-bytes` names one entry back — `demo-opt-in.md` and
+    // `.changeset/contracts-cli-test-kit-typecheck-programs.md` — the third already being
+    // counted. This entry reads git's file list rather than the directory tree, so
+    // `backend/.env` moves it in neither direction.
+    files: 7858,
     sites: null,
     sources: ['manifest-index'],
   },
