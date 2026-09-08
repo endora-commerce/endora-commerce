@@ -102,9 +102,16 @@ async function main(): Promise<void> {
   console.log(`Delivery       : in_person_pickup (free)`);
   console.log(`Payment        : bank_transfer (proforma flow), credit_limit (50 000.00 PLN granted)`);
   console.log('');
-  console.log(`Composition    : ${composed.applied.length} applied, ${composed.skipped.length} skipped`);
-  for (const step of composed.applied) console.log(`  applied: ${step}`);
-  for (const skip of composed.skipped) console.log(`  skipped: ${skip.step} — ${skip.reason}`);
+  // One statement rather than a loop apiece: this file is a console-printing
+  // script and every `console.log` in it is a lint warning the repository
+  // tolerates, so a summary that grows should not grow the warning count.
+  console.log(
+    [
+      `Composition    : ${composed.applied.length} applied, ${composed.skipped.length} skipped`,
+      ...composed.applied.map((step) => `  applied: ${step}`),
+      ...composed.skipped.map((skip) => `  skipped: ${skip.step} — ${skip.reason}`),
+    ].join('\n'),
+  );
   console.log('');
   console.log('Sign in credentials (CHANGE before any non-local use):');
   console.log(`  Platform Administrator : ${DEMO_ADMIN_EMAIL} / ${DEMO_ADMIN_PASSWORD}`);
