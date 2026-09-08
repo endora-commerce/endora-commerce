@@ -4155,7 +4155,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `.changeset/catalog-create-route-takes-the-write-code.md`. This walk is the whole
     // repository, so it takes both where `check-language.sh` takes only the source file.
     // **+7 against this branch's own earlier record, of which 2 are its own.** It adds a changeset and `ProductsList.create-affordance-gating.test.tsx`; the other five arrive on the base, T116 having moved the ORM and the twelve core migrations into the platform since this branch recorded. Measured on the combined tree.
-    files: 8082,
+    // **`fix/ordering-guard-follows-the-platform`: 8082 -> 8083 (+1).** One added file,
+    // `.changeset/ordering-guard-follows-the-derivation.md`. Attributed by measurement —
+    // the same walk over the same tree with that one file moved aside reads 8082. The
+    // branch's other three files are edits to files this walk already opened.
+    files: 8083,
     sites: null,
     sources: [],
     //
@@ -6222,7 +6226,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // from the **index**: deleting a tracked file from disk does not move it, and the
     // measurement that attributes it is a diff of the two refs' listings.
     // **+7, two of them this branch's.** Repo-wide, so the same two added files as `check-nul-bytes.ts` above, on the same moved base.
-    files: 8142,
+    // **`fix/ordering-guard-follows-the-platform`: 8142 -> 8143 (+1).** The one file
+    // `check-nul-bytes` names, this walk having the same whole-repository listing.
+    // Attributed against a pristine `origin/master` worktree, which reads 8142 — and
+    // *not* by moving the file aside, which leaves this number at 8143 once the file is
+    // committed, for the index-versus-disk reason recorded three lines above. That
+    // difference between the two checks is what identified the file.
+    files: 8143,
     sites: null,
     sources: ['manifest-index'],
     //
