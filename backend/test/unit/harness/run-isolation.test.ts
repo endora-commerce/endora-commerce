@@ -20,7 +20,7 @@ import {
   templateDrift,
   withDatabase,
 } from '@endora-commerce/test-kit/database';
-import { TEST_DATABASE_NAME_PATTERN as SEED_GUARD_PATTERN } from '../../../src/seeds/dev-seed-guard.js';
+import { TEST_DATABASE_NAME_PATTERN as SEED_GUARD_PATTERN } from '../../../src/demo/index.js';
 
 /**
  * Issue #189 — the naming and selection rules behind per-invocation isolation.
@@ -38,7 +38,8 @@ describe('run-isolation — generated database names', () => {
   it('produces a run name the existing test-database guard accepts', () => {
     const name = runDatabaseName(BASE, AT, 'a1b2c3');
     expect(name).toMatch(TEST_DATABASE_NAME_PATTERN);
-    // The same judgement `src/seeds/dev-seed-guard.ts` makes, from its own
+    // The same judgement the demo guard (`packages/platform/src/demo/guard.ts`)
+    // makes, from its own
     // export rather than from a second copy of the regex.
     expect(name).toMatch(SEED_GUARD_PATTERN);
     expect(name.length).toBeLessThanOrEqual(63);
@@ -201,7 +202,7 @@ describe('run-isolation — keeping the run database', () => {
 
 describe('the test-database convention', () => {
   it('is spelled once, and `global-setup.ts` reads it from the kit', () => {
-    // `test/unit/seeds/dev-seed-guard.test.ts` pins the seed guard's copy to
+    // `test/unit/seeds/dev-seed-guard.test.ts` pins the demo guard's copy to
     // this module's. This half pins the harness's: `global-setup.ts` must
     // import the predicate rather than re-spell the regex, which is what it
     // used to do.

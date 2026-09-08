@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { SEED_SCOPE_REASON } from '../../../src/seeds/seed-scope.js';
+import { SEED_SCOPE_REASON } from '../../../src/demo/index.js';
 import { enterSystemScope, openPlatformScopeCount } from '../../../src/kernel/scope.js';
 import {
   setEscapeHatchAuditSink,

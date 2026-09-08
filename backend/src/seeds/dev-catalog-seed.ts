@@ -49,8 +49,7 @@
  */
 
 import { initOrm, closeOrm } from '../db/index.js';
-import { mustBeNonProduction } from './dev-seed-guard.js';
-import { SEED_SCOPE_REASON } from './seed-scope.js';
+import { mustBeNonProduction, SEED_SCOPE_REASON } from '../demo/index.js';
 import { enterSystemScope } from '../kernel/scope.js';
 import {
   createDemoComposition,

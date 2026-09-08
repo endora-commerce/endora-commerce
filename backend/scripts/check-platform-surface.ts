@@ -748,22 +748,6 @@ export const RELATIVE_HOST_REACHES: Readonly<Record<string, LedgeredHostReach>> 
       'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
       'specifier',
   },
-  'backend/src/seeds/dev-seed-guard.ts|packages/platform/src/demo/guard.ts': {
-    reason:
-      'a re-export shim over `packages/platform/src/demo/guard.ts`, which no barrel carries — ' +
-      'the reach needs a declared subpath before it has an address to name',
-    retiredBy:
-      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
-      'specifier',
-  },
-  'backend/src/seeds/seed-scope.ts|packages/platform/src/demo/scope.ts': {
-    reason:
-      'a re-export shim over `packages/platform/src/demo/scope.ts`, which no barrel carries — ' +
-      'the reach needs a declared subpath before it has an address to name',
-    retiredBy:
-      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
-      'specifier',
-  },
   'backend/src/tenancy/filters.ts|packages/platform/src/tenancy/filters.ts': {
     reason:
       'a re-export shim over `packages/platform/src/tenancy/filters.ts`, which no barrel ' +
