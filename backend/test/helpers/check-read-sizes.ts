@@ -2637,7 +2637,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which relocated with the rule, and the manifest registry's own refusal. Every
     // one of them is English and none is a finding; the population grew, the debt
     // did not.
-    sites: 32854,
+    // **`specs/089-unopim-pim-sync/` withdrawal repair: 32854 -> 32851 (-3).** The
+    // three literals in the reactivation block this branch deletes from
+    // `pim_unopim`'s product phase — one `'inactive'` read and the two `'active'`
+    // writes. `files` does not move: the file is still there, three lines shorter.
+    sites: 32851,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
