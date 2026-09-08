@@ -79,6 +79,10 @@ import type {
   CustomerPasswordVerificationPort,
   CustomerRollupScopePort,
   OrderReadPort,
+  // T118 — `organizations` declared this and no longer does: it is the type
+  // argument of a `providePort` name, so it is a contract type. The production
+  // root spells it the same way.
+  OrganizationTaxProfilePort,
   SettingsManifestCollectionPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -101,10 +105,7 @@ import {
 // cradle typed by one and a getter typed by the other is TS2322. It erases,
 // so nothing is loaded twice (D-160.6.1) — `check:singleton-identity` asks
 // about value reaches, and this is not one.
-import type {
-  OrganizationsCradle,
-  OrganizationTaxProfilePort,
-} from '../../../packages/modules/organizations/src/backend/index.js';
+import type { OrganizationsCradle } from '../../../packages/modules/organizations/src/backend/index.js';
 import type { OrganizationModerationService } from '../../../packages/modules/organizations/src/backend/services/organization-moderation-service.js';
 import type { OrganizationContextService } from '../../../packages/modules/organizations/src/backend/services/organization-context-service.js';
 import type { OrganizationRestrictionService } from '../../../packages/modules/organizations/src/backend/services/organization-restriction-service.js';

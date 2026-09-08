@@ -1,5 +1,5 @@
 import type { AssetsLibraryCradle } from '@endora-commerce/mod-assets-library/backend';
-import type { CartShoppingListBridge, CartsCradle } from '@endora-commerce/mod-carts/backend';
+import type { CartShoppingListBridge } from '@endora-commerce/mod-carts/backend';
 import type { FastifyRequest } from 'fastify';
 import { randomUUID } from 'crypto';
 import { Redis } from 'ioredis';
@@ -10,16 +10,28 @@ import { ERROR_CODES, type ProductAvailability } from '@endora-commerce/contract
 // this root's five entity-class reads. Types only: what a root resolves is a
 // container name, and the shape it resolves it against is published in
 // `@endora-commerce/contracts` rather than imported from the provider.
+//
+// `specs/110-instance-repository/` T118 — and four more joined them for the
+// same reason one layer out. This root's remaining container reads spelled
+// their shape by importing the registering module's cradle interface, which is
+// a reach D-52/D-53 refuses once this code is inside
+// `@endora-commerce/platform`. Where the owner already registers the name as a
+// `providePort` over a published shape, that shape is what the read names.
 import type {
+  AdminI18nTranslatePort,
   AdminPasswordVerificationPort,
   AdminRolePort,
   AdminUserReadPort,
   AssetReadPort,
+  CartMergeOutcome,
   CustomerAccountReadPort,
   CustomerPasswordVerificationPort,
   CustomerRollupScopePort,
+  EmailMailerPort,
   OrderReadPort,
+  OrganizationTaxProfilePort,
   SettingsManifestCollectionPort,
+  TaxServicePort,
 } from '@endora-commerce/contracts';
 import { HttpError } from './http/error-envelope.js';
 import type { ModulePlugin } from './http/server.js';
@@ -105,34 +117,31 @@ import { StorefrontRevalidator } from './http/storefront-revalidator.js';
 // two event subscriptions. T143a — the sales-rep assignment scope too: what is
 // left here is the actor half of the orders/RFQ visibility question, which only
 // a composition can answer.
-import type { OrganizationTreeService } from '@endora-commerce/mod-organizations/backend';
-import type { OrganizationTaxProfilePort } from '@endora-commerce/mod-organizations/backend';
+//
+// T118 — the two type imports that stood here are gone. `organizationTreeService`
+// is read against the one method this root calls (below, beside `salesRepScope`,
+// which has always been written that way), and `organizationTaxProfilePort`'s
+// shape is `@endora-commerce/contracts`' now, which is where a `providePort`
+// name's type argument belongs whoever resolves it.
 // Feature 072 (T079) — `email` is composed through the kernel. The driver
 // decision that used to sit in this file is one registration in its
-// `backend.ts`; what stays here is the cradle shape the senders below resolve
-// through. The URL helper that also stayed was `absolutizePublicUrl`, and
-// feature 080's T040b moved it to the platform: it had no consumer inside
-// `email` at all, so it was a deployment-origin helper filed under the module
-// that first needed it — and a root value import of a module's source is a
-// spelling that ends the day that module becomes a package (D-160.6.1).
-import type { EmailCradle } from '@endora-commerce/mod-email/backend';
+// `backend.ts`; what stays here is the mailer the senders below resolve. The
+// URL helper that also stayed was `absolutizePublicUrl`, and feature 080's
+// T040b moved it to the platform: it had no consumer inside `email` at all, so
+// it was a deployment-origin helper filed under the module that first needed it
+// — and a root value import of a module's source is a spelling that ends the
+// day that module becomes a package (D-160.6.1).
 // Feature 046 — Returns & Complaints (Refunds, RMA).
 import type { ReturnsBridge } from '@endora-commerce/mod-returns/backend';
 import type { InvoicesBridge } from '@endora-commerce/mod-invoices/backend';
-import type { KsefCradle } from '@endora-commerce/mod-ksef/backend';
 import type { ProductFeedsBridge } from '@endora-commerce/mod-product-feeds/backend';
-import type { AdminUsersCradle } from '@endora-commerce/mod-admin-users/backend';
 import type { MfaActorBridge } from '@endora-commerce/mod-mfa/backend';
 import type { TargetValidatorDeps } from '@endora-commerce/mod-megamenu/backend';
 import type { StorefrontDeps } from '@endora-commerce/mod-megamenu/backend';
-import type { CustomerAccountsCradle } from '@endora-commerce/mod-customer-accounts/backend';
-import type { TaxesCradle } from '@endora-commerce/mod-taxes/backend';
 import { composeSettingsKernel } from './kernel/settings/compose.js';
 import { ManifestReconciler } from './kernel/settings/manifest-reconciler.js';
 import { composeSalesChannelsKernel } from './kernel/sales-channels/compose.js';
-import type { SalesChannelsCradle } from '@endora-commerce/mod-sales-channels/backend';
 import { DefaultChannelReconciler } from './kernel/sales-channels/default-channel-reconciler.js';
-import type { ComparisonsCradle } from '@endora-commerce/mod-comparisons/backend';
 // Feature 046 — Progressive Web App.
 import type { PwaBridge } from '@endora-commerce/mod-pwa/backend';
 // Feature 047 — Transactional Emails.
@@ -180,10 +189,7 @@ import {
   buildErrorTranslationTargets,
   describeErrorCodeCollisions,
 } from './kernel/i18n/error-translation.js';
-import type { AdminI18nCradle } from '@endora-commerce/mod-i18n/backend';
-import type { CatalogQueryService } from '@endora-commerce/mod-catalog/backend';
 import type { ModuleSettingsManifest } from '@endora-commerce/contracts';
-import type { ShoppingListService } from '@endora-commerce/mod-shopping-lists/backend';
 
 /**
  * Production composition root.
@@ -281,6 +287,121 @@ export interface ComposeAppHandle {
   resolvedModules: readonly RegisteredManifestEntry[];
   /** Closes the ORM + redis connection; call from a SIGTERM handler. */
   dispose: () => Promise<void>;
+}
+
+/**
+ * The container reads this root makes, declared as **what it calls** rather
+ * than as the registering module's cradle interface
+ * (`specs/110-instance-repository/` T118).
+ *
+ * A composition root resolves a **container name**, and a name is a string. The
+ * type it asserts the resolution against was, for nine of these, the module's
+ * own `XCradle` — which made a type reach into the module that registers the
+ * name, and D-52/D-53 refuses one from inside `@endora-commerce/platform`,
+ * where T118 moves this code. Nothing was gained by it either: the assertion is
+ * unchecked in both spellings (`container.cradle as unknown as XCradle` is the
+ * same `as` either way), so the cradle bought the *member's* signature and
+ * nothing about whether the name resolves.
+ *
+ * Two spellings, and which one applies is decided by the owner's registration,
+ * never by preference:
+ *
+ *   - the owner registers the name as a `providePort` over a **published**
+ *     shape ⇒ the read names that shape, and it is the one the provider is
+ *     already checked against. `taxService`, `adminI18nService`, `emailMailer`
+ *     and `organizationTaxProfilePort` are those, and the last of them moved to
+ *     `@endora-commerce/contracts` in this commit because a port's type argument
+ *     is a contract type and never the provider's file (composition checklist
+ *     item 3);
+ *   - nothing is published for it ⇒ the read declares the one method it calls,
+ *     which is what `salesRepScope` and `emailCradle` below have always done.
+ *
+ * These are **narrow on purpose**. Widening one to the module's whole service
+ * would restate a declaration this root is not the author of, and the next
+ * reader would take the restatement for a contract. What a member is *supposed*
+ * to be is the owner's to say; what this root needs is what it calls.
+ */
+interface ContainerReads {
+  /** Owner: `admin_users`. Turning actor ids into names for the audit log. */
+  readonly adminUserService: {
+    listByIds(
+      ids: string[],
+    ): Promise<Array<{ id: string; firstName: string; lastName: string; email: string }>>;
+  };
+  /** Owner: `_i18n`. The envelope's translation step (D-127). */
+  readonly adminI18nService: AdminI18nTranslatePort;
+  /** Owner: `carts`. Anonymous-cart adoption at login. */
+  readonly cartService: {
+    mergeAnonymousIntoCustomer(
+      anonymousToken: string,
+      customer: { customerAccountId: string; organizationId: string | null },
+    ): Promise<CartMergeOutcome>;
+  };
+  /**
+   * Owner: `catalog`. The category→product expansion `product_feeds` reads
+   * through this root because a feed run must not reach `catalog`'s tables.
+   */
+  readonly catalogQueryPort: {
+    expandCategoryProductIds(categoryIds: string[]): Promise<Map<string, Set<string>>>;
+  };
+  /** Owner: `comparisons`. Anonymous-comparison adoption at login (R-2 / FR-005). */
+  readonly comparisonService: {
+    adoptAnonymousComparison(customerAccountId: string, anonymousToken: string): Promise<unknown>;
+  };
+  /** Owner: `customer_accounts`. The Rule Builder's customer-group picker source. */
+  readonly customerGroupService: {
+    list(): Promise<Array<{ id: string; code: string; name: string }>>;
+  };
+  /** Owner: `email`. The one mailer six senders share (D-59). */
+  readonly emailMailer: EmailMailerPort;
+  /**
+   * Owner: `ksef`. The PDF QR seam
+   * (`specs/059-ksef-integration/contracts/invoices-integration.md` §3).
+   *
+   * Deliberately *not* a port, and `ksef`'s own barrel says why — so there is
+   * no published shape for this one and the read declares the call.
+   */
+  readonly ksef: {
+    readonly handle: {
+      buildVerification(
+        invoiceId: string,
+      ): Promise<{ verificationUrl: string; offline: boolean } | null>;
+    };
+  };
+  /** Owner: `organizations`. The VAT facts a quote's tax rate depends on (T143c). */
+  readonly organizationTaxProfilePort: OrganizationTaxProfilePort;
+  /**
+   * Owner: `organizations`. The subtree walk a roll-up-enabled customer's
+   * tenant context widens over (feature 056, US2).
+   */
+  readonly organizationTreeService: { subtreeIds(organizationId: string): Promise<string[]> };
+  /** Owner: `sales_channels`. The Rule Builder's channel picker source. */
+  readonly salesChannelsService: {
+    list(options: Record<string, unknown>): Promise<{
+      items: Array<{ id: string; code: string; name: unknown }>;
+    }>;
+  };
+  /** Owner: `taxes`. The rate a quote is priced at. */
+  readonly taxService: TaxServicePort;
+}
+
+/**
+ * The `shopping_lists` service, as the two `carts` bridge members call it.
+ *
+ * Named rather than inlined because it is the type of a `let` the sink below
+ * fills in, and a sink's parameter and its variable have to agree.
+ */
+interface ShoppingListBridgeService {
+  addItem(
+    ctx: { customerAccountId: string; organizationId: string },
+    listId: string,
+    input: { productId: string; variantId?: string; quantity: number },
+  ): Promise<unknown>;
+  convertToCart(
+    ctx: { customerAccountId: string; organizationId: string },
+    listId: string,
+    itemIds: string[] | undefined,
+  ): Promise<{ added: number; skipped: Array<{ productId: string }> }>;
 }
 
 /** Pick a display label from a possibly-multilingual (jsonb) name value. */
@@ -572,6 +693,17 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   const assetReadPort = (): AssetReadPort =>
     (container.cradle as never as { assetReadPort: AssetReadPort }).assetReadPort;
 
+  /**
+   * The remaining container reads, against {@link ContainerReads} (T118).
+   *
+   * A function rather than a captured object, for the reason every accessor
+   * above is one: a gated name resolves per call, so a switched-off owner
+   * answers at the call site instead of through a handle this root is holding.
+   * Reading the whole cradle here would resolve nothing — awilix resolves on
+   * property access — but returning it as a value would still invite a capture.
+   */
+  const reads = (): ContainerReads => container.cradle as never;
+
   // T143a — `inventory`'s availability port, read lazily.
   const inventoryCradle = (): {
     inventoryAvailabilityPort: {
@@ -843,9 +975,8 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // `organizations`' own services and both are gated ports since T138; this
   // root reads them lazily for the hand-wired remainder that still takes them
   // as arguments.
-  const organizationTreeService = (): OrganizationTreeService =>
-    (container.cradle as never as { organizationTreeService: OrganizationTreeService })
-      .organizationTreeService;
+  const organizationTreeService = (): ContainerReads['organizationTreeService'] =>
+    reads().organizationTreeService;
 
   // Feature 072 (T101) — `credit_limits` owns its service and routes now, and
   // since T143c the return-settlement top-up as well, so this root reads
@@ -956,9 +1087,12 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
       return { actorAdminUserId: actor.adminUserId };
     },
   });
-  // Feature 072 (T119) — `taxes` owns its service and routes now.
-  const taxesCradle = container.cradle as unknown as TaxesCradle;
-  // Feature 012 / US8 — promotions reads catalog through CatalogQueryService
+  // Feature 072 (T119) — `taxes` owns its service and routes now. T118 — the
+  // cradle handle this root held is gone: `taxService` is read through
+  // `reads()` at its one call site, which is a `providePort` name and so
+  // resolves against its published `TaxServicePort` rather than against the
+  // module's own interface.
+  // Feature 012 / US8 — promotions reads catalog through the catalog query port
   // (the documented cross-module port — Constitution I) so the rule editor
   // can list `isPromoRule` attributes and the resolver can validate
   // `attribute` criteria against the authoritative option list.
@@ -970,15 +1104,11 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   composedModules.contribute({
     promotionRuleTargets: {
       salesChannels: async () => {
-        const { items } = await (
-          container.cradle as unknown as SalesChannelsCradle
-        ).salesChannelsService.list({});
+        const { items } = await reads().salesChannelsService.list({});
         return items.map((c) => ({ id: c.id, code: c.code, name: anyLabel(c.name) }));
       },
       customerGroups: async () => {
-        const groups = await (
-          container.cradle as unknown as CustomerAccountsCradle
-        ).customerGroupService.list();
+        const groups = await reads().customerGroupService.list();
         return groups.map((g) => ({ id: g.id, code: g.code, name: g.name }));
       },
       organizations: async () => {
@@ -1211,12 +1341,12 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // `sales_channels.storefront_url` setting that the sitemap generator
   // stamps into URLs. Plugin is pushed onto `modules` further below.
   // Feature 072 (T117) — `seo` owns its services and routes now.
-  let shoppingListService: ShoppingListService | null = null;
+  let shoppingListService: ShoppingListBridgeService | null = null;
 
   // Feature 072 (T079) — the platform mailer, resolved from the container the
   // `email` module registered it into. Six senders share it, which is why it
   // was never really "the organizations mailer" and is not named one now.
-  const platformMailer = (container.cradle as unknown as EmailCradle).emailMailer;
+  const platformMailer = reads().emailMailer;
 
   // Feature 026's moderation lifecycle — the moderation service, the
   // registration notifier, their two `organization.registered.v1`
@@ -1643,9 +1773,7 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     salesChannelCodeIdPort: {
       idByCode: async (code: string) => (await salesChannels.resolver.getByCode(code))?.id ?? null,
       codeById: async (id: string) => {
-        const { items } = await (
-          container.cradle as unknown as SalesChannelsCradle
-        ).salesChannelsService.list({});
+        const { items } = await reads().salesChannelsService.list({});
         return items.find((c) => c.id === id)?.code ?? null;
       },
     },
@@ -1690,9 +1818,7 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     // defaults it absent, and it composes after `admin_users`, so a
     // registration from the module would be overwritten by that default.
     auditActorResolver: async (ids: string[]) => {
-      const users = await (
-        container.cradle as unknown as AdminUsersCradle
-      ).adminUserService.listByIds(ids);
+      const users = await reads().adminUserService.listByIds(ids);
       return users.map((u) => ({
         id: u.id,
         firstName: u.firstName,
@@ -1976,13 +2102,11 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     // off: a quote priced from a tenancy row the platform was refusing to
     // serve. The refusal now reaches the same place a database failure does.
     rfqTaxRateResolver: async (organizationId: string) => {
-      const org = await (
-        container.cradle as never as { organizationTaxProfilePort: OrganizationTaxProfilePort }
-      ).organizationTaxProfilePort.taxProfileOf(organizationId);
+      const org = await reads().organizationTaxProfilePort.taxProfileOf(organizationId);
       const vatStatus = org?.vatStatus ?? 'vat_payer';
       if (vatStatus !== 'vat_payer') return 0;
       const country = org?.country ?? 'PL';
-      const resolved = await taxesCradle.taxService.taxRateFor({
+      const resolved = await reads().taxService.taxRateFor({
         country,
         productType: 'simple',
         vatStatus,
@@ -2012,15 +2136,16 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
       anonymousCompareToken?: string;
     }) => {
       let cartMerge:
-        | Awaited<ReturnType<CartsCradle['cartService']['mergeAnonymousIntoCustomer']>>
+        | Awaited<ReturnType<ContainerReads['cartService']['mergeAnonymousIntoCustomer']>>
         | undefined;
       if (loginCtx.anonymousCartToken) {
-        cartMerge = await (
-          container.cradle as unknown as CartsCradle
-        ).cartService.mergeAnonymousIntoCustomer(loginCtx.anonymousCartToken, {
-          customerAccountId: loginCtx.customerAccountId,
-          organizationId: loginCtx.organizationId,
-        });
+        cartMerge = await reads().cartService.mergeAnonymousIntoCustomer(
+          loginCtx.anonymousCartToken,
+          {
+            customerAccountId: loginCtx.customerAccountId,
+            organizationId: loginCtx.organizationId,
+          },
+        );
       }
       // Comparisons' anonymous→authenticated adoption (R-2 / FR-005). Resolved
       // per login rather than captured, so a switched-off `comparisons` cannot
@@ -2037,9 +2162,7 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
       // absorbs exactly what feature 037 FR-007/FR-008 say it must, and nothing
       // else.
       if (loginCtx.anonymousCompareToken && effectiveState.isPresent('comparisons')) {
-        await (
-          container.cradle as unknown as ComparisonsCradle
-        ).comparisonService.adoptAnonymousComparison(
+        await reads().comparisonService.adoptAnonymousComparison(
           loginCtx.customerAccountId,
           loginCtx.anonymousCompareToken,
         );
@@ -2154,14 +2277,14 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
       }
     },
   });
-  const ksefCradle = container.cradle as unknown as KsefCradle;
+
   // PDF QR seam (contracts/invoices-integration.md §3) — one resolver covers
   // every render path; absent/disabled module ⇒ pre-059 output.
   // Feature 072 (T113) — contributed, not set. `invoices` installs its own
   // resolver at construction and reads this per call, so a deployment without
   // KSeF simply has no verification block rather than an unset setter.
   composedModules.contribute({
-    ksefVerificationResolver: ksefCradle.ksef.handle.buildVerification,
+    ksefVerificationResolver: reads().ksef.handle.buildVerification,
   });
 
   // Feature 067 — Product Feed. Projects a sales channel's catalogue into
@@ -2213,9 +2336,7 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
       // it stops answering when `catalog` is switched off, which the root's
       // copy never did.
       expandCategoryProductIds: (categoryIds: string[]) =>
-        (
-          container.cradle as never as { catalogQueryPort: CatalogQueryService }
-        ).catalogQueryPort.expandCategoryProductIds(categoryIds),
+        reads().catalogQueryPort.expandCategoryProductIds(categoryIds),
       resolvePublicImageUrls: async (assetIds: string[]) => {
         const out = new Map<string, string>();
         if (assetIds.length === 0) return out;
@@ -2415,7 +2536,7 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // two cross-module services it must not reach for directly, and the sink that
   // hands its own service back to `carts` until that module converts.
   composedModules.contribute({
-    shoppingListServiceSink: (svc: ShoppingListService) => {
+    shoppingListServiceSink: (svc: ShoppingListBridgeService) => {
       shoppingListService = svc;
     },
   });
@@ -2434,7 +2555,7 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   let lifecycleRef: typeof lifecycle | undefined;
   // Feature 072 (T089) — `_i18n` owns its service, its reconciler and its
   // routes now. The root only reads the two the platform consumes.
-  const adminI18nCradle = container.cradle as unknown as AdminI18nCradle;
+
 
   // Feature 020 — Admin Command Palette actions registry. Built before
   // the lifecycle so its reconciler can be plugged into the orchestrator
@@ -2660,7 +2781,7 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
           null,
       }),
       translateErrorMessage: async ({ moduleId, key, language, originalMessage, params }) => {
-        const translated = await adminI18nCradle.adminI18nService.translate(
+        const translated = await reads().adminI18nService.translate(
           moduleId,
           key,
           language,
