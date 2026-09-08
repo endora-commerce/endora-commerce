@@ -50,6 +50,9 @@ function appendAttempt(
   row.lastError = error;
 }
 
+export const INVOICE_LEDGER_VENDOR_KSEF_ABSENT_MESSAGE =
+  'KSeF is delegated to the ledger vendor but no vendor is active.';
+
 export class InvoiceLedgerDeliveryService implements InvoiceLedgerDeliveryPort {
   constructor(private readonly emFactory: () => EntityManager) {}
 
@@ -84,6 +87,37 @@ export class InvoiceLedgerDeliveryService implements InvoiceLedgerDeliveryPort {
       status: 'queued',
       idempotencyKey: `${input.adapterId}:${input.invoiceId}`,
     });
+    await em.flush();
+    return toRecord(row);
+  }
+
+  async enqueueClosed(
+    input: InvoiceLedgerEnqueueInput,
+    error: string,
+    opts?: { dead?: boolean },
+  ): Promise<LedgerDeliveryRecord> {
+    const em = this.emFactory();
+    const existing = await em.findOne(InvoiceLedgerDelivery, {
+      adapterId: input.adapterId,
+      invoiceId: input.invoiceId,
+    });
+    if (existing) return toRecord(existing);
+
+    const status = opts?.dead ? 'dead' : 'failed';
+    const row = em.create(InvoiceLedgerDelivery, {
+      adapterId: input.adapterId,
+      invoiceId: input.invoiceId,
+      kind: input.kind,
+      salesChannelId: input.salesChannelId,
+      credentialCode: input.credentialCode,
+      environment: input.environment,
+      numberingMode: input.numberingMode,
+      ksefRouting: input.ksefRouting,
+      ksefDelegated: input.ksefDelegated,
+      status,
+      idempotencyKey: `${input.adapterId}:${input.invoiceId}`,
+    });
+    appendAttempt(row, status, error);
     await em.flush();
     return toRecord(row);
   }

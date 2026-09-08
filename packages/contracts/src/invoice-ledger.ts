@@ -147,6 +147,11 @@ export interface InvoiceLedgerDeliveryPort {
   getById(id: string): Promise<LedgerDeliveryRecord | null>;
   findByInvoice(adapterId: string, invoiceId: string): Promise<LedgerDeliveryRecord | null>;
   enqueue(input: InvoiceLedgerEnqueueInput): Promise<LedgerDeliveryRecord>;
+  enqueueClosed(
+    input: InvoiceLedgerEnqueueInput,
+    error: string,
+    opts?: { dead?: boolean },
+  ): Promise<LedgerDeliveryRecord>;
   markAwaitingRemote(id: string, asyncTaskId: string): Promise<void>;
   markSucceeded(id: string, remoteDocumentId: string): Promise<void>;
   markFailed(id: string, error: string, opts?: { dead?: boolean }): Promise<void>;

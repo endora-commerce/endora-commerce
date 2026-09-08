@@ -1,10 +1,11 @@
 import { InvoiceLedgerDelivery } from '../../helpers/package-entities.js';
+import type { InvoiceLedgerDelivery as InvoiceLedgerDeliveryRow } from '../../../../packages/modules/invoice_ledger/src/backend/entities/invoice-ledger-delivery.entity.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 import { setSellerSettings } from '../invoices/helpers.js';
 import type { BackendServerHandle } from '../../helpers/test-server.js';
 
-type DeliveryRow = InstanceType<typeof InvoiceLedgerDelivery>;
+type DeliveryRow = InvoiceLedgerDeliveryRow;
 
 export const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
 export const INFAKT_API_KEY = 'infakt-vat-push-key-119';
@@ -21,6 +22,18 @@ export async function activateInfakt(h: BackendServerHandle): Promise<void> {
   });
   if (res.statusCode !== 200) {
     throw new Error(`Infakt activation failed: ${res.statusCode} ${res.body}`);
+  }
+}
+
+export async function deactivateInfakt(h: BackendServerHandle): Promise<void> {
+  const res = await h.app.inject({
+    method: 'POST',
+    url: '/api/v1/admin/modules/infakt/activation',
+    ...ADMIN,
+    payload: { active: false },
+  });
+  if (res.statusCode !== 200) {
+    throw new Error(`Infakt deactivation failed: ${res.statusCode} ${res.body}`);
   }
 }
 
@@ -108,4 +121,19 @@ export async function findDelivery(
   return withSystemScope('test read ledger delivery', () =>
     h.em().fork().findOne(InvoiceLedgerDelivery, { invoiceId }),
   );
+}
+
+export async function setLedgerKsefRouting(
+  h: BackendServerHandle,
+  ksefRouting: 'native' | 'vendor',
+): Promise<void> {
+  const res = await h.app.inject({
+    method: 'PUT',
+    url: '/api/v1/admin/invoice-ledger/routing',
+    ...ADMIN,
+    payload: { ksefRouting },
+  });
+  if (res.statusCode !== 200) {
+    throw new Error(`Ledger KSeF routing write failed: ${res.statusCode} ${res.body}`);
+  }
 }

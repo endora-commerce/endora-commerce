@@ -28,7 +28,10 @@ import { InvoiceLedgerClientMap } from './entities/invoice-ledger-client-map.ent
 import { InvoiceLedgerDelivery } from './entities/invoice-ledger-delivery.entity.js';
 import { InvoiceLedgerDocumentMap } from './entities/invoice-ledger-document-map.entity.js';
 import { InvoiceLedgerWebhookReceipt } from './entities/invoice-ledger-webhook-receipt.entity.js';
-import { InvoiceLedgerDeliveryService } from './services/invoice-ledger-delivery.service.js';
+import {
+  INVOICE_LEDGER_VENDOR_KSEF_ABSENT_MESSAGE,
+  InvoiceLedgerDeliveryService,
+} from './services/invoice-ledger-delivery.service.js';
 import { InvoiceLedgerRegistryService } from './services/invoice-ledger-registry.service.js';
 import { InvoiceLedgerRoutingService } from './services/invoice-ledger-routing.service.js';
 
@@ -100,13 +103,32 @@ export function registerModule(ctx: ModuleContext): void {
     if (!parsed.success) return;
     if (parsed.data.kind === 'proforma') return;
     const routing = lazyPort<InvoiceLedgerRoutingPort>(ctx, INVOICE_LEDGER_ROUTING_PORT);
-    const adapterId = await routing.activeVendorModuleId();
-    if (!adapterId) return;
-
     const channelId = parsed.data.salesChannelId;
     const numberingMode = await routing.numberingModeFor(channelId);
     const ksefAction = await routing.nativeKsefActionFor(channelId);
     const ksefRouting = ksefAction === 'skip' ? 'vendor' : 'native';
+    const adapterId = await routing.activeVendorModuleId();
+    const deliveries = lazyPort<InvoiceLedgerDeliveryPort>(ctx, INVOICE_LEDGER_DELIVERY_PORT);
+    if (!adapterId) {
+      if (ksefRouting === 'vendor') {
+        await deliveries.enqueueClosed(
+          {
+            adapterId: INVOICE_LEDGER_MODULES[0].id,
+            invoiceId: parsed.data.invoiceId,
+            kind: 'invoice',
+            salesChannelId: channelId,
+            credentialCode: INFAKT_INSTANCE_CREDENTIAL_CODE,
+            environment: 'sandbox',
+            numberingMode,
+            ksefRouting,
+            ksefDelegated: true,
+          },
+          INVOICE_LEDGER_VENDOR_KSEF_ABSENT_MESSAGE,
+          { dead: true },
+        );
+      }
+      return;
+    }
     let credentialCode =
       adapterId === 'infakt' ? INFAKT_INSTANCE_CREDENTIAL_CODE : adapterId;
     const credentials = lazyPort<CredentialsPort>(ctx, 'credentialsService');
@@ -120,7 +142,6 @@ export function registerModule(ctx: ModuleContext): void {
     const parsedEnv = infaktEnvironmentSchema.safeParse(envField?.value);
     const environment = parsedEnv.success ? parsedEnv.data : 'sandbox';
 
-    const deliveries = lazyPort<InvoiceLedgerDeliveryPort>(ctx, INVOICE_LEDGER_DELIVERY_PORT);
     const row = await deliveries.enqueue({
       adapterId,
       invoiceId: parsed.data.invoiceId,
