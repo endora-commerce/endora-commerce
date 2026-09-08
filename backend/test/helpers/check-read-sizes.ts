@@ -1303,7 +1303,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // This walk is the whole tree's source, so the branch's other added file — a
     // changeset markdown — is not in the population; `check-nul-bytes` and
     // `check-naming.sh` take both and move by two.
-    files: 5457,
+    // **+6, one of it this branch's.** This walk takes the new `.tsx` test and not the changeset, which is not a source file.
+    files: 5463,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -4153,7 +4154,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `ProductsList.create-affordance-gating.test.tsx` and
     // `.changeset/catalog-create-route-takes-the-write-code.md`. This walk is the whole
     // repository, so it takes both where `check-language.sh` takes only the source file.
-    files: 8075,
+    // **+7 against this branch's own earlier record, of which 2 are its own.** It adds a changeset and `ProductsList.create-affordance-gating.test.tsx`; the other five arrive on the base, T116 having moved the ORM and the twelve core migrations into the platform since this branch recorded. Measured on the combined tree.
+    files: 8082,
     sites: null,
     sources: [],
     //
@@ -6219,7 +6221,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The listing is `git ls-files --cached --others --exclude-standard`, so it is read
     // from the **index**: deleting a tracked file from disk does not move it, and the
     // measurement that attributes it is a diff of the two refs' listings.
-    files: 8135,
+    // **+7, two of them this branch's.** Repo-wide, so the same two added files as `check-nul-bytes.ts` above, on the same moved base.
+    files: 8142,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -6504,7 +6507,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // by two because this scan's population is source-code extensions plus
     // `docs/docs/**` and each module's own `docs/`, and a `.changeset/*.md` is in none
     // of them.
-    files: 6081,
+    // **+6, one of it this branch's.** This scan reads source comments, so it takes the new test file and not the changeset.
+    files: 6087,
     sites: null,
     sources: ['manifest-index'],
     //

@@ -47,7 +47,9 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 
 ## Permissions
 
-_None._
+| Code | Label | Also needs |
+| --- | --- | --- |
+| `catalog:write` | Edit catalog | `catalog:read` |
 
 ## Command palette
 
