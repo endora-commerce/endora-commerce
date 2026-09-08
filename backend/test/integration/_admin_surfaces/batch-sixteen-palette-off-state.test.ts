@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { contributions as cmsAdmin } from '@endora-commerce/mod-cms/admin';
 import { contributions as blogAdmin } from '@endora-commerce/mod-blog/admin';
 import type {
@@ -15,6 +14,9 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { withModuleOff, type OffStateAxis } from '../../helpers/off-state.js';
+import { resolveAdminSurfaces } from '../../../scripts/lib/admin-surfaces.js';
+import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
+import { nodeWorkspaceFs, workspaceMembers } from '../../../scripts/lib/workspace-packages.js';
 
 /**
  * The **server-side** half of feature 091 batch 16's off-state proof — the
@@ -258,19 +260,36 @@ describe('batch 16 contributes no palette action while off (Constitution XVII it
     }
   });
 
-  it('neither module had a hand-written palette row for this batch to convert', () => {
+  it('neither module had a hand-written palette row for this batch to convert', async () => {
     // The claim the header makes, asserted rather than left as prose. Batches
     // 10, 13 and 14 each moved a `PALETTE_ITEMS` row into a manifest action
     // because a hand-written row is a copy the server was never asked about;
     // these two never had one, so "we changed nothing here" is the statement —
     // and it is the statement that goes stale without a test.
-    const shell = readFileSync(
-      resolve(process.cwd(), '../admin/src/components/AppShell.tsx'),
-      'utf8',
+    //
+    // **The shell is located, not spelled.** This read
+    // `resolve(process.cwd(), '../admin/src/components/AppShell.tsx')`, and
+    // feature 110's T120 moved the file into `@endora-commerce/admin-shell`:
+    // `readFileSync` threw `ENOENT` and the case stopped being about palette
+    // rows at all. That commit moved the estate's own derivation with the files
+    // (`AdminSurfaceLayout.shellRoot` / `registryFiles`), so the repair is to
+    // ask the same question the checks ask instead of keeping a ninth literal —
+    // and `resolveAdminSurfaces` refuses a tree where the pair has gone rather
+    // than handing back a path that is not there.
+    const layout = await requireModuleLayout('[batch-sixteen-palette-off-state]');
+    const admin = resolveAdminSurfaces(
+      workspaceMembers(layout.repoRoot, nodeWorkspaceFs()),
+      new Set(layout.registeredIds),
     );
-    const palette = /const PALETTE_ITEMS: PaletteItem\[\] = \[([\s\S]*?)\n\];/.exec(shell)?.[1];
-    expect(palette, 'PALETTE_ITEMS must be readable').toBeDefined();
-    const rows = (palette ?? '')
+    // Of the two hand-written registries the layout returns, the one declaring
+    // the palette table — the artefact this case is about, so it is found by
+    // what it holds rather than by its name.
+    const sources = admin.registryFiles.map((file) => readFileSync(file, 'utf8'));
+    const palettes = sources
+      .map((source) => /const PALETTE_ITEMS: PaletteItem\[\] = \[([\s\S]*?)\n\];/.exec(source)?.[1])
+      .filter((match): match is string => match !== undefined);
+    expect(palettes, 'exactly one registry must declare PALETTE_ITEMS').toHaveLength(1);
+    const rows = palettes[0]!
       .split('\n')
       .filter((line) => /^\s*\{ group:/.test(line));
     expect(rows.length > 0, 'the palette table must still hold rows').toBe(true);
