@@ -29,6 +29,36 @@
  * move, or an asset stops shipping the day the module is packaged, silently.
  * So the answer lives here once, `backend/scripts/lib/runtime-assets.ts`
  * re-exports it, and `runtime-assets.d.mts` types it for that consumer.
+ *
+ * ## A test's fixture is not a runtime asset (D-218)
+ *
+ * The rule runs in the other direction too, and until D-218 it had a hole
+ * exactly the size of {@link RUNTIME_ASSET_EXTENSIONS}. FR-008 of
+ * `specs/106-module-owned-tests/` says a published tarball carries no test file.
+ * The `.ts` half is enforced by each module's `tsconfig.json` excluding
+ * co-located tests from the emit; the other half was enforced by nothing. A
+ * `.json` fixture beside a co-located test does not go through `tsc` at all, so
+ * it arrived here, read as `'asset'`, put `copy-package-assets.mjs` into that
+ * package's generated `build`, and shipped — `dist` is in `files`. Measured:
+ * one `.json` under `packages/modules/taxes/src/` rewrote that package's build.
+ *
+ * So {@link classifyAssetFile} takes the file's **siblings** and answers
+ * `'fixture'` for a file in a directory that also holds a test. The convention
+ * is *a sibling test file* and deliberately only that: it is the shape the tree
+ * writes (`hmac-canonical-vectors.json` beside `hmac-canonical-vectors.test.ts`)
+ * and `specs/106-module-owned-tests/` contract §2 puts a package's tests beside
+ * their subjects, which is what makes "the same directory" the whole of the
+ * question. A `__fixtures__` segment would be a second answer to it, and this
+ * module's own reason for existing is that the classification is answered once.
+ *
+ * **The cost, stated where the rule is** — D-218 leaves the convention to the
+ * implementation and asks for this sentence. A genuine runtime asset that
+ * happens to sit in a directory holding a test stops shipping, and the remedy is
+ * to move it into a directory of its own, as `product_feeds` already keeps its
+ * four taxonomy `.txt` files under `backend/data/taxonomies/`. That is a path to
+ * change rather than a rule to remember, and it fails in the direction the
+ * silent absence above does not: `'fixture'` is a classification the walk
+ * reports, so an author whose asset stopped shipping is told which file and why.
  */
 
 import { cpSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
@@ -72,6 +102,23 @@ export const NON_RUNTIME_EXTENSIONS = {
   '.gitkeep': 'a placeholder that keeps an empty directory in git; not a file',
 };
 
+/**
+ * What a test file is called, for the fixture predicate below and for the
+ * manifest generator's own `files`-list refusal.
+ *
+ * Vitest's own default, and **one owner**: the generator carried an identical
+ * regex of its own until D-218, which was harmless only while nothing else asked
+ * the question. Two copies of it would now be able to disagree about the same
+ * directory — one classifying a fixture as shippable while the other refuses the
+ * test beside it — which is the shape this whole module exists to prevent.
+ */
+const TEST_FILE_RE = /\.(?:test|spec)\.[cm]?tsx?$/;
+
+/** Whether `fileName` is a test file (see {@link TEST_FILE_RE}). */
+export function isTestFileName(fileName) {
+  return TEST_FILE_RE.test(fileName);
+}
+
 /** The extension key used against the two lists — `.gitkeep` has no stem. */
 export function extensionOf(fileName) {
   const dot = fileName.lastIndexOf('.');
@@ -82,8 +129,8 @@ export function extensionOf(fileName) {
 const toPosix = (path) => (sep === '/' ? path : path.split(sep).join('/'));
 
 /**
- * What a file name is, by the two lists above — `'asset'`, `'ignored'` or
- * `'unclassified'`.
+ * What a file is — `'asset'`, `'fixture'`, `'ignored'` or `'unclassified'` —
+ * from its own name and the names of the files beside it.
  *
  * The **rule** has one owner; the **walk** does not, deliberately. Two callers
  * walk with different filesystems — this file's own `readdirSync`, and the
@@ -91,8 +138,15 @@ const toPosix = (path) => (sep === '/' ? path : path.split(sep).join('/'));
  * synthetic checkout — and a walk cannot be shared across those without one of
  * them growing an abstraction for the other's sake. What must never be
  * answered twice is which extension ships, so that is what this exports.
+ *
+ * `siblings` is **required**, not defaulted, and that is the fail-closed
+ * direction: a default of `[]` would let a caller that forgot the argument go on
+ * classifying fixtures as shippable, silently and exactly as before D-218, while
+ * `runtime-assets.d.mts` makes the omission a `tsc` error for every consumer.
+ * The file's own name may legally be among them; a test is `'ignored'` on the
+ * first branch and never reaches the predicate.
  */
-export function classifyAssetFile(fileName) {
+export function classifyAssetFile(fileName, siblings) {
   // `.tsx` is source, exactly as `.ts` is — a module package's admin layer
   // (feature 091) is React components, and `tsc` emits them from
   // `tsconfig.ui.json`. It is named here rather than left to the two lists
@@ -101,7 +155,14 @@ export function classifyAssetFile(fileName) {
   // generator on the first module to ship a screen.
   if (fileName.endsWith('.ts') || fileName.endsWith('.tsx')) return 'ignored';
   const ext = extensionOf(fileName);
-  if (RUNTIME_ASSET_EXTENSIONS.includes(ext)) return 'asset';
+  const shippable = RUNTIME_ASSET_EXTENSIONS.includes(ext);
+  // D-218 — see the header. The predicate is asked only of a file that would
+  // otherwise ship: an unruled extension stays `'unclassified'` wherever it
+  // sits, because "nobody has ruled on this kind of file" is a question about
+  // the kind and answering it with "there is a test next door" would let the
+  // refusal be switched off by adding one.
+  if (shippable && siblings.some(isTestFileName)) return 'fixture';
+  if (shippable) return 'asset';
   return ext in NON_RUNTIME_EXTENSIONS ? 'ignored' : 'unclassified';
 }
 
@@ -112,15 +173,26 @@ export function classifyAssetFile(fileName) {
  * the number a `read:` line has to print, because "4 assets" over a tree of
  * four files and "4 assets" over a tree of four hundred are different results
  * and only one of them means the walk read what it thinks it read (issue #244).
+ *
+ * `fixtures` is reported rather than dropped into `ignored` (D-218) for the
+ * reason the header gives: the one thing this classification can now get wrong
+ * is a genuine runtime asset parked beside a test, and the author it costs is
+ * the author who can be told about it. Nothing copies them.
  */
 export function collectRuntimeAssets(root) {
   const assets = [];
+  const fixtures = [];
   const unclassified = [];
   let scanned = 0;
   const walk = (dir) => {
-    for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) =>
+    const entries = readdirSync(dir, { withFileTypes: true }).sort((a, b) =>
       a.name.localeCompare(b.name),
-    )) {
+    );
+    // Every file name in this directory, gathered before any of them is
+    // classified: the fixture predicate is about the directory, so a file must
+    // get the same answer whichever position it is walked from.
+    const siblings = entries.filter((entry) => entry.isFile()).map((entry) => entry.name);
+    for (const entry of entries) {
       const full = join(dir, entry.name);
       if (entry.isDirectory()) {
         walk(full);
@@ -128,17 +200,19 @@ export function collectRuntimeAssets(root) {
       }
       if (!entry.isFile()) continue;
       scanned += 1;
-      const kind = classifyAssetFile(entry.name);
+      const kind = classifyAssetFile(entry.name, siblings);
       if (kind === 'ignored') continue;
       const rel = toPosix(relative(root, full));
       if (kind === 'asset') assets.push(rel);
+      else if (kind === 'fixture') fixtures.push(rel);
       else unclassified.push(rel);
     }
   };
   walk(root);
   assets.sort();
+  fixtures.sort();
   unclassified.sort();
-  return { assets, unclassified, scanned };
+  return { assets, fixtures, unclassified, scanned };
 }
 
 /** Copy `assets` (paths relative to `srcRoot`) into `outRoot`, mirroring the tree. */

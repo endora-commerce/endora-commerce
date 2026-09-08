@@ -8,7 +8,7 @@ import {
 } from '@endora-commerce/platform/lifecycle';
 import { loadDivergenceDeclaration } from '../../../src/overlay/divergence-loader.js';
 import {
-  applicationSourceRoot,
+  deploymentRoot,
   deploymentsOnDisk,
 } from '../../../src/overlay/overlay-roots.js';
 import { resolvedManifestEntries } from '../../../src/lifecycle/registered-manifests.js';
@@ -107,13 +107,13 @@ describe('every deployment on disk declares its divergence in the shape the load
       // one shape that tells the two apart.
       const declared = await loadDivergenceDeclaration(
         { DEPLOYMENT: deployment },
-        applicationSourceRoot(),
+        deploymentRoot(),
       );
       expect(declared).toEqual(await loadDivergenceDeclaration({ DEPLOYMENT: deployment }));
       await expect(
         loadDivergenceDeclaration(
           { DEPLOYMENT: deployment },
-          join(applicationSourceRoot(), 'no_such_application_root'),
+          join(deploymentRoot(), 'no_such_application_root'),
         ),
       ).resolves.toEqual(emptyDivergenceDeclaration());
     },

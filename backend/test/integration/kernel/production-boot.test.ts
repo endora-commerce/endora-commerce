@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { composeApp } from '../../../src/composition.js';
+import { deploymentRoot } from '../../../src/overlay/overlay-roots.js';
 import { buildServer } from '../../../src/http/server.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
@@ -70,7 +71,7 @@ describe('the production composition root boots', () => {
     // consumers on the Redis the rest of the suite shares.
     process.env['BACKEND_ROLE'] = 'api';
 
-    composition = await composeApp();
+    composition = await composeApp({ deploymentRoot: deploymentRoot() });
     app = await buildServer({
       // `index.ts` reads SESSION_COOKIE_SECRET; nothing here signs a cookie.
       sessionCookieSecret: 'production-boot-test-secret',

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { composeApp } from '../../../src/composition.js';
+import { deploymentRoot } from '../../../src/overlay/overlay-roots.js';
 import { PublicApiBaseUrlNotConfiguredError } from '../../../src/kernel/public-api-base-url.js';
 
 /**
@@ -55,10 +56,10 @@ describe('composeApp refuses a production boot with no public API origin', () =>
     // Nothing is opened before this rejects. If the file ever starts needing a
     // database, the guard has moved down `composeApp()` and is no longer the
     // first thing a misconfigured production process meets.
-    await expect(composeApp()).rejects.toThrow(PublicApiBaseUrlNotConfiguredError);
+    await expect(composeApp({ deploymentRoot: deploymentRoot() })).rejects.toThrow(PublicApiBaseUrlNotConfiguredError);
   });
 
   it('tells the operator which variable to set', async () => {
-    await expect(composeApp()).rejects.toThrow(/PUBLIC_API_BASE_URL[\s\S]*BACKEND_PUBLIC_URL/);
+    await expect(composeApp({ deploymentRoot: deploymentRoot() })).rejects.toThrow(/PUBLIC_API_BASE_URL[\s\S]*BACKEND_PUBLIC_URL/);
   });
 });

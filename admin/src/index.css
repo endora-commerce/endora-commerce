@@ -1,25 +1,36 @@
 @import "tailwindcss";
 
 /*
- * The admin's tokens, base rules and legacy class shim are the shell's, not this
- * project's (feature 110, T126;
- * `specs/110-instance-repository/contracts/admin-stylesheet-composition.md` R3).
+ * The admin's design system — its tokens **and** its class vocabulary — is a
+ * package's, not this project's (feature 110, T129; owner ruling **D-219**;
+ * `specs/110-instance-repository/contracts/admin-stylesheet-composition.md`
+ * R3–R4).
  *
- * Everything that stood below this line until T126 — the `@theme inline` block,
- * the `:root` and `.dark` declarations, the `@layer base` rules and the
- * `@layer components` shim — now lives in `@endora-commerce/admin-shell`'s
- * `./theme.css`. It moved because this file is one an *instance* holds: a client
- * scaffolded from it held the definition of classes the module packages they
- * install actually render, so a module release adding one would have rendered
- * unstyled in every existing instance with no diagnostic anywhere.
+ * Three files stood here and beside this one until T129: this file's own
+ * `@theme inline` block and token declarations, `src/styles/design-tokens.css`
+ * and `src/styles/components.css`, the last two imported directly by `main.tsx`.
+ * T126 moved the first. T129 moved the other two, which is where the load was:
+ * **70 files in `packages/` render a class `components.css` defined and 30 read
+ * a property `design-tokens.css` declared, and no file under `admin/src` did
+ * either.** A client scaffolded from this project held those definitions as a
+ * fork frozen on their scaffolding day, so a module release adding one class
+ * would have rendered unstyled in every existing instance, silently, with no
+ * diagnostic anywhere.
  *
- * A client changes a token by **redeclaring it after the import**, in the slot
- * at the bottom of this file, and never by editing the shell. That works because
- * each semantic token is an indirection (`--color-primary: hsl(var(--primary))`,
- * R3.2), so a utility the shell's build never saw resolves against this
- * project's `:root`.
+ * They are `@endora-commerce/admin-kit`'s now — the package every renderer
+ * already declares — and the import below is the whole of what an instance
+ * holds of them. It moved from the shell to the kit because 55 module packages
+ * declare the kit in their manifest and none declares the shell: a class
+ * published from the shell would be one those packages cannot name and cannot
+ * put a version range on.
+ *
+ * A client changes a token by **redeclaring it after the import** and a class by
+ * **writing a later rule**, both in the slot at the bottom of this file, and
+ * never by editing the package. The token half works because each semantic token
+ * is an indirection (`--color-primary: hsl(var(--primary))`, R3.2), so a utility
+ * the package's build never saw resolves against this project's `:root`.
  */
-@import "@endora-commerce/admin-shell/theme.css";
+@import "@endora-commerce/admin-kit/theme.css";
 
 /*
  * The packages this admin composes declare their own sources
@@ -51,7 +62,8 @@
 
 /*
  * This deployment's own overrides go here, last, so a redeclaration wins over
- * the shell's default (R2.3). This repository's admin is the reference instance
- * and overrides nothing, which is why the slot is empty rather than absent: a
+ * the design system's default (R2.3) — a `:root` line for a token, an ordinary
+ * rule for a class. This repository's admin is the reference instance and
+ * overrides nothing, which is why the slot is empty rather than absent: a
  * client's first edit is a line below this comment.
  */

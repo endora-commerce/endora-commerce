@@ -62,6 +62,7 @@ import {
   parseDemoVerb,
 } from './cli/demo-command.js';
 import { composeApp } from './composition.js';
+import { deploymentRoot } from './overlay/overlay-roots.js';
 import { ModuleDisabledError } from './kernel/lifecycle/plugin-helpers.js';
 import { effectiveState } from './kernel/lifecycle/effective-state.js';
 import { resolvedManifestEntries } from './lifecycle/registered-manifests.js';
@@ -148,7 +149,7 @@ async function runDemoCommand(
   const entries = demoEntriesFrom(resolved);
 
   process.env['BACKEND_ROLE'] = 'api';
-  const composition = await composeApp();
+  const composition = await composeApp({ deploymentRoot: deploymentRoot() });
   try {
     return await enterSystemScope(
       verb === 'seed' ? DEMO_SEED_SCOPE_REASON : DEMO_RESET_SCOPE_REASON,
@@ -215,7 +216,7 @@ async function main(): Promise<number> {
   }
 
   process.env['BACKEND_ROLE'] = 'api';
-  const composition = await composeApp();
+  const composition = await composeApp({ deploymentRoot: deploymentRoot() });
 
   try {
     // The scope opens over **this composition's** container. `composeApp`

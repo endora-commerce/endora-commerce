@@ -10,15 +10,15 @@ import { orchestratorFor, type OperatorRuntime } from './operator-runtime.js';
  * Soft uninstall (default): unregisters the module's settings, marks the
  * registry row as `uninstalled`, leaves DB tables / data intact.
  * Hard uninstall (`--hard`): also reverts the module's migrations and
- * deletes the registry row. `--hard` additionally requires `--force` on any run
- * that cannot ask the operator to confirm — which is every run whose caller
- * supplies no {@link OperatorRuntime.confirm} (D115-7, R2.7) — to prevent
- * accidental data loss in CI / cron.
+ * deletes the registry row. `--hard` additionally requires `--force` — on every
+ * run, terminal or not (owner ruling **D-217**), because no caller supplies
+ * {@link OperatorRuntime.confirm} and absent means this run cannot ask
+ * (D115-7, R2.7).
  *
  * Exit codes (per `specs/018-module-lifecycle/contracts/cli-commands.md` §C-2),
  * preserved byte-for-byte by the move (R2.3):
  *   - 0   success (or already uninstalled — no-op)
- *   - 64  misuse: bad argv, --hard without --force on a run that cannot ask
+ *   - 64  misuse: bad argv, --hard without --force (D-217: every run)
  *   - 66  conflict: dependents still installed
  *   - 70  internal error during uninstall
  *   - 75  lock unavailable
@@ -102,15 +102,25 @@ export async function runUninstallCommand(
   // The exit code and the sentence stay here, on this side of the partition
   // with the rest of the table (§1.1, R2.3); only the fact travels.
   //
-  // **Absent means this run cannot ask**, and nothing supplies `confirm` today,
-  // so the refusal is what every invocation meets. For the non-interactive runs
-  // the CLI contract test and `uninstall-hard-needs-force.integration.test.ts`
-  // spawn that is this branch's behaviour unchanged. Asking the question —
-  // `specs/018-module-lifecycle/contracts/cli-commands.md` §C-2 step 6's *"or a
-  // tty prompt confirming "yes" verbatim"*, which has never been implemented in
-  // either tree — is `D-217`'s to settle, and the field is shaped so that either
-  // of the owner's answers is a change to the entry points and to this branch,
-  // never to the interface.
+  // **Absent means this run cannot ask**, and nothing supplies `confirm`, so the
+  // refusal is what every invocation meets — which is the whole of §C-2 step 6
+  // since owner ruling **D-217** (2026-09-07). That ruling struck the step's
+  // second half, *"or a tty prompt confirming "yes" verbatim"*, which had been
+  // contract since feature 018 and was never implemented in either tree: a
+  // promise that went unimplemented that long, in a destructive path, with
+  // nobody noticing, is evidence nobody needed it. `--hard` requires `--force`
+  // whether or not the run has a terminal, and nothing in the platform ever
+  // needs stdin.
+  //
+  // **The field stays** and this predicate keeps reading it, both by the
+  // ruling's own words. Supplying `confirm` from an entry point *without* also
+  // building the prompt is therefore the one way back to the data loss above —
+  // and it is the shape D115-7 anticipated, since it recorded the intent that
+  // the entry points would supply it on the R2.7 conjunction. It is pinned by
+  // `uninstall-hard-needs-force.integration.test.ts`, whose second case runs
+  // this entry point with every interactivity signal reading true; the first
+  // case spawns through a pipe and, measured, stays green under exactly that
+  // change.
   if (args.hard && !args.force && !rt.confirm) {
     rt.err(
       `[uninstall] --hard requires --force unless this run can ask for confirmation ` +

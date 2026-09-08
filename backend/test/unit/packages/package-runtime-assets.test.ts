@@ -180,8 +180,36 @@ describe('a module package ships its runtime assets (feature 080, criterion 8)',
         'dist/backend/index.js': 'export {};\n',
       });
       const { code, out } = runCopier(root, ['--src', 'src', '--out', 'dist']);
-      expect(out).toContain('read: files=2 assets=1 copied=1');
+      expect(out).toContain('read: files=2 assets=1 fixtures=0 copied=1');
       expect(code).toBe(0);
+      expect(readFileSync(join(root, 'dist/backend/data/en.txt'), 'utf8')).toBe('a > b\n');
+    });
+
+    it("does not copy a test's fixture, and names the file rather than dropping it", () => {
+      // D-218. The fixture would otherwise ship — `.json` is in
+      // `RUNTIME_ASSET_EXTENSIONS` — against FR-008 of
+      // `specs/106-module-owned-tests/`, which says a published tarball carries
+      // no test file and which held for the `.ts` half alone.
+      //
+      // The `.txt` in the sibling directory is the discrimination: one tree, two
+      // shippable files, two answers, so this asserts a predicate rather than
+      // `.json` having stopped shipping. And the fixture is *named* on stdout,
+      // because a real asset parked beside a test is the one thing this rule can
+      // get wrong and its author is the reader.
+      const root = fixtureTree({
+        'src/backend/index.ts': 'export {};\n',
+        'src/backend/services/signer.ts': 'export {};\n',
+        'src/backend/services/vectors.test.ts': 'export {};\n',
+        'src/backend/services/vectors.json': '[]\n',
+        'src/backend/data/en.txt': 'a > b\n',
+        'dist/backend/index.js': 'export {};\n',
+      });
+      const { code, out } = runCopier(root, ['--src', 'src', '--out', 'dist']);
+      expect(code).toBe(0);
+      expect(out).toContain('read: files=5 assets=1 fixtures=1 copied=1');
+      expect(out).toContain('src/backend/services/vectors.json');
+      expect(out).toContain("test's fixture");
+      expect(existsSync(join(root, 'dist/backend/services/vectors.json'))).toBe(false);
       expect(readFileSync(join(root, 'dist/backend/data/en.txt'), 'utf8')).toBe('a > b\n');
     });
 

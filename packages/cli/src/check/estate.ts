@@ -307,6 +307,46 @@ export const ESTATE: readonly EstateEntry[] = [
     tier: 'A',
   },
   {
+    id: 'check:class-vocabulary',
+    script: 'backend/scripts/check-class-vocabulary.ts',
+    scope: 'package',
+    /**
+     * Neither of Tier B's two halves, so the phase is **named** rather than
+     * numbered, in `check:block-names`' idiom.
+     *
+     * What a lone module package cannot supply is the thing this rule is
+     * *about*: the **published design system**. The vocabulary is read off the
+     * `./theme.css` of whichever package declares it, and a module package
+     * declares none — it is a consumer of that vocabulary, not its author. So a
+     * package host needs the installed design system resolved by name out of
+     * the author's own `node_modules`, which is the same capability the admin
+     * half of `plan.md`'s Phase 4 builds and one seam wider than it.
+     *
+     * Until it lands, `endora check` reports this rule `pending` rather than
+     * `unreadable`: an author with a module and no installed kit has no input
+     * they could supply, and blaming their tree for the tool's incompleteness
+     * would send them looking.
+     */
+    host: pending(
+      "Phase 4 — beside the admin half, and a rule to it: this one waits on the **installed** design system, whose `./theme.css` is the author's dependency rather than anything their package declares",
+    ),
+    partial: [
+      {
+        signal: 'unrendered-definition',
+        reason:
+          'the definitions are the design system package’s and the renders are the whole ' +
+          'estate’s, so a lone package can only ever answer "this module renders none of ' +
+          'them" — which is true of most modules and is not a finding',
+      },
+    ],
+    subjectDeclaration: {
+      kind: 'exports-subpath',
+      declaration: '`exports` subpath publishing an admin layer',
+    },
+    readsArtefact: false,
+    tier: 'B',
+  },
+  {
     id: 'check:command-coverage',
     script: 'backend/scripts/check-command-coverage.ts',
     scope: 'package',
