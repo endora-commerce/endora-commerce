@@ -160,41 +160,40 @@ describe('migration 102 — attributes on custom fields (SC-001 parity)', () => 
 
   const conn = () => db.orm.em.getConnection();
 
-  async function latestExecutedMigration(): Promise<string | null> {
+  async function executedMigrations(): Promise<string[]> {
     const rows = await conn().execute<Array<{ name: string }>>(
-      `select "name" from "mikro_orm_migrations" order by "id" desc limit 1`,
+      `select "name" from "mikro_orm_migrations"`,
     );
-    return rows[0]?.name ?? null;
+    return rows.map((row) => row.name);
   }
 
   async function revert102(): Promise<void> {
-    // Later features keep appending migrations (103+ as of feature 062), so the
-    // latest executed migration is usually not 102. Step down through anything
-    // newer first, then revert 102 itself — but refuse to ever down() a
-    // migration OLDER than 102.
+    // **Migration 102 is reverted by name, and nothing else is touched.**
     //
-    // `id desc` is the order the migrations were *applied*, and `migrator.down()`
-    // reverts the last one in the order the ORM config *configures*. The two
-    // agree only on a database migrated in one pass, which is what a clone of
-    // the template is and what an incrementally-migrated database is not — see
-    // `templateDrift` in `@endora-commerce/test-kit/database` for the run this loop made
-    // when they disagreed.
-    const migrator = db.orm.getMigrator();
-    for (;;) {
-      const latest = await latestExecutedMigration();
-      const stamp = /^Migration(\d{8}T\d{6})/.exec(latest ?? '')?.[1] ?? '';
-      expect(
-        stamp,
-        `expected ${TARGET_MIGRATION} or a later one as the latest executed migration (got "${latest ?? 'none'}") — refusing to down() anything older`,
-      ).not.toBe('');
-      expect(
-        stamp >= TARGET_STAMP,
-        `expected ${TARGET_MIGRATION} or a later one as the latest executed migration (got "${latest ?? 'none'}") — refusing to down() anything older`,
-      ).toBe(true);
-      if (latest === TARGET_MIGRATION) break;
-      await migrator.down();
-    }
-    await migrator.down();
+    // This stepped `migrator.down()` from the latest executed migration back to
+    // 102 — a walk over every migration a later feature appends, which held only
+    // while every one of them was reversible. Feature 076's
+    // `Migration20260820T150317PimPimcoreCompleteRecordDelivery` is deliberately
+    // not: its `down()` throws, because the retired pull schema cannot represent
+    // delivered bodies. So the loop died on a module this file has nothing to do
+    // with, took all three cases with it, and would have gone on dying for every
+    // irreversible migration anybody lands after it — a file whose subject is
+    // `catalog` made hostage to the whole platform's migration history.
+    //
+    // Naming the migration also subsumes the two guards the loop needed. The
+    // "refuse to down() anything older than 102" check is structural now — only
+    // 102 is named — and the `id desc` versus configured-order hazard the old
+    // comment described (see `templateDrift` in
+    // `@endora-commerce/test-kit/database`) cannot arise when nothing is
+    // reverted positionally. What is left is the one precondition that still
+    // has to hold: 102 must actually be applied, or this file's whole premise
+    // is gone and the seed below would be writing into a shape that is already
+    // legacy.
+    expect(
+      await executedMigrations(),
+      `${TARGET_MIGRATION} (stamp ${TARGET_STAMP}) must be applied before this file reverts it`,
+    ).toContain(TARGET_MIGRATION);
+    await db.orm.getMigrator().down({ migrations: [TARGET_MIGRATION] });
   }
 
   async function seedLegacyFixtures(): Promise<void> {
@@ -499,8 +498,9 @@ describe('migration 102 — attributes on custom fields (SC-001 parity)', () => 
     );
     expect(Number(defsLeft[0]?.count)).toBe(0);
 
-    // Clean up the offending row; re-apply so the suite continues migrated.
-    // (up() also re-applies any post-102 migrations stepped down by revert102.)
+    // Clean up the offending row; re-apply so the schema ends where it started.
+    // 102 is the only pending migration, `revert102` having reverted it alone,
+    // so this `up()` runs exactly it.
     await conn().execute(`delete from "product_attributes" where "key" = 'name'`);
     await db.orm.getMigrator().up();
     const executed = await conn().execute<Array<{ name: string }>>(

@@ -76,6 +76,25 @@ const SEEDED: ReadonlyArray<SeededModule> = [
 
 const MODULE_IDS = SEEDED.map((m) => m.id);
 
+/**
+ * Every `(moduleId, actionId)` pair the seeded manifests declare, sorted.
+ *
+ * The two cases below asserted `visible.length` against a literal `10` — a count
+ * of a derived fact, copied into this file, which the manifests moved past the
+ * day `catalog` gained three palette entries (feature 091's batch 15) and
+ * `sales_channels` a second one. It is 14 today and will be something else
+ * tomorrow, and the literal answered "how many were there when this was
+ * written" rather than "did every declared action come back".
+ *
+ * The pairs rather than the count, because that is what the guard is for: the
+ * count exists so an empty list cannot pass the placeholder sweep vacuously,
+ * and comparing the pairs says the same thing while also naming an action that
+ * went missing.
+ */
+const DECLARED_PAIRS = SEEDED.flatMap((m) =>
+  (m.manifest.actions ?? []).map((action) => `${m.id}:${action.id}`),
+).sort();
+
 describe('admin_actions i18n resolution (integration, real I18nService)', () => {
   let orm: MikroORM;
   let em: EntityManager;
@@ -114,7 +133,7 @@ describe('admin_actions i18n resolution (integration, real I18nService)', () => 
         adminUserId: 'admin',
       });
       const visible = result.actions.filter((a) => MODULE_IDS.includes(a.moduleId));
-      expect(visible.length).toBe(10);
+      expect(visible.map((a) => `${a.moduleId}:${a.actionId}`).sort()).toEqual(DECLARED_PAIRS);
       for (const action of visible) {
         // The placeholder shape returned by the resolver when a key is
         // missing is `${moduleId}.${key}`. Asserting the label is NOT
