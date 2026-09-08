@@ -132,7 +132,11 @@ export class InvoiceLedgerDeliveryService implements InvoiceLedgerDeliveryPort {
     await em.flush();
   }
 
-  async markSucceeded(id: string, remoteDocumentId: string): Promise<void> {
+  async markSucceeded(
+    id: string,
+    remoteDocumentId: string,
+    opts?: { originalInvoiceId?: string | null },
+  ): Promise<void> {
     const em = this.emFactory();
     const row = await em.findOne(InvoiceLedgerDelivery, { id });
     if (!row) return;
@@ -144,10 +148,12 @@ export class InvoiceLedgerDeliveryService implements InvoiceLedgerDeliveryPort {
       adapterId: row.adapterId,
       invoiceId: row.invoiceId,
     });
+    const originalInvoiceId = opts?.originalInvoiceId ?? null;
     if (map === null) {
       map = em.create(InvoiceLedgerDocumentMap, {
         adapterId: row.adapterId,
         invoiceId: row.invoiceId,
+        originalInvoiceId,
         remoteDocumentId,
         environment: row.environment,
         credentialCode: row.credentialCode,
@@ -156,6 +162,7 @@ export class InvoiceLedgerDeliveryService implements InvoiceLedgerDeliveryPort {
       map.remoteDocumentId = remoteDocumentId;
       map.environment = row.environment;
       map.credentialCode = row.credentialCode;
+      if (originalInvoiceId) map.originalInvoiceId = originalInvoiceId;
     }
     await em.flush();
   }
@@ -199,6 +206,17 @@ export class InvoiceLedgerDeliveryService implements InvoiceLedgerDeliveryPort {
       credentialCode: input.credentialCode,
     });
     return row?.remoteClientId ?? null;
+  }
+
+  async findDocumentRemoteId(input: {
+    adapterId: string;
+    invoiceId: string;
+  }): Promise<string | null> {
+    const row = await this.emFactory().findOne(InvoiceLedgerDocumentMap, {
+      adapterId: input.adapterId,
+      invoiceId: input.invoiceId,
+    });
+    return row?.remoteDocumentId ?? null;
   }
 
   async markFailed(id: string, error: string, opts?: { dead?: boolean }): Promise<void> {

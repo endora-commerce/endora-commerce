@@ -55,6 +55,7 @@ export class InvoiceCopyHostService implements InvoiceCopyHostPort {
       saleDate: invoice.saleDate ?? null,
       paymentDueDate: invoice.paymentDueDate ?? null,
       paymentMethod: invoice.paymentMethod ?? null,
+      originalInvoiceId: invoice.originalInvoiceId ?? null,
       buyer: invoice.buyerSnapshot ?? EMPTY_BUYER,
       lines,
     };

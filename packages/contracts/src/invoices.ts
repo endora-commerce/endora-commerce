@@ -353,6 +353,8 @@ export interface InvoiceCopyRecord {
   saleDate: string | null;
   paymentDueDate: string | null;
   paymentMethod: string | null;
+  /** Set on a `correction`: the VAT document this one credits. */
+  originalInvoiceId: string | null;
   buyer: InvoiceBuyer;
   lines: InvoiceLine[];
 }

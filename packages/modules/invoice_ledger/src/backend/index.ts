@@ -12,6 +12,7 @@ import {
   INVOICE_NUMBERING_HOST_PORT,
   INVOICE_PAID_HOST_PORT,
   infaktEnvironmentSchema,
+  invoiceCorrectedEventSchema,
   invoiceIssuedEventSchema,
   type CredentialsPort,
   type InvoiceKsefAssignmentPort,
@@ -123,12 +124,13 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   });
 
-  ctx.subscribe('invoice.issued.v1', async (payload) => {
-    const parsed = invoiceIssuedEventSchema.safeParse(payload);
-    if (!parsed.success) return;
-    if (parsed.data.kind === 'proforma') return;
+  async function enqueueFromInvoiceEvent(input: {
+    invoiceId: string;
+    kind: 'invoice' | 'correction';
+    salesChannelId: string | null;
+  }): Promise<void> {
     const routing = lazyPort<InvoiceLedgerRoutingPort>(ctx, INVOICE_LEDGER_ROUTING_PORT);
-    const channelId = parsed.data.salesChannelId;
+    const channelId = input.salesChannelId;
     const numberingMode = await routing.numberingModeFor(channelId);
     const ksefAction = await routing.nativeKsefActionFor(channelId);
     const ksefRouting = ksefAction === 'skip' ? 'vendor' : 'native';
@@ -139,8 +141,8 @@ export function registerModule(ctx: ModuleContext): void {
         await deliveries.enqueueClosed(
           {
             adapterId: INVOICE_LEDGER_MODULES[0].id,
-            invoiceId: parsed.data.invoiceId,
-            kind: 'invoice',
+            invoiceId: input.invoiceId,
+            kind: input.kind,
             salesChannelId: channelId,
             credentialCode: INFAKT_INSTANCE_CREDENTIAL_CODE,
             environment: 'sandbox',
@@ -169,8 +171,8 @@ export function registerModule(ctx: ModuleContext): void {
 
     const row = await deliveries.enqueue({
       adapterId,
-      invoiceId: parsed.data.invoiceId,
-      kind: 'invoice',
+      invoiceId: input.invoiceId,
+      kind: input.kind,
       salesChannelId: channelId,
       credentialCode,
       environment,
@@ -183,6 +185,27 @@ export function registerModule(ctx: ModuleContext): void {
       occurredAt: new Date().toISOString(),
       deliveryId: row.id,
       adapterId,
+    });
+  }
+
+  ctx.subscribe('invoice.issued.v1', async (payload) => {
+    const parsed = invoiceIssuedEventSchema.safeParse(payload);
+    if (!parsed.success) return;
+    if (parsed.data.kind === 'proforma') return;
+    await enqueueFromInvoiceEvent({
+      invoiceId: parsed.data.invoiceId,
+      kind: 'invoice',
+      salesChannelId: parsed.data.salesChannelId,
+    });
+  });
+
+  ctx.subscribe('invoice.corrected.v1', async (payload) => {
+    const parsed = invoiceCorrectedEventSchema.safeParse(payload);
+    if (!parsed.success) return;
+    await enqueueFromInvoiceEvent({
+      invoiceId: parsed.data.invoiceId,
+      kind: 'correction',
+      salesChannelId: parsed.data.salesChannelId,
     });
   });
 

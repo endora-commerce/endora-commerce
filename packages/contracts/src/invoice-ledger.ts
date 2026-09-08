@@ -154,7 +154,11 @@ export interface InvoiceLedgerDeliveryPort {
     opts?: { dead?: boolean },
   ): Promise<LedgerDeliveryRecord>;
   markAwaitingRemote(id: string, asyncTaskId: string): Promise<void>;
-  markSucceeded(id: string, remoteDocumentId: string): Promise<void>;
+  markSucceeded(
+    id: string,
+    remoteDocumentId: string,
+    opts?: { originalInvoiceId?: string | null },
+  ): Promise<void>;
   markFailed(id: string, error: string, opts?: { dead?: boolean }): Promise<void>;
   rememberClient(input: InvoiceLedgerClientMapInput): Promise<void>;
   findClientRemoteId(input: {
@@ -163,6 +167,7 @@ export interface InvoiceLedgerDeliveryPort {
     environment: 'sandbox' | 'production';
     credentialCode: string;
   }): Promise<string | null>;
+  findDocumentRemoteId(input: { adapterId: string; invoiceId: string }): Promise<string | null>;
 }
 
 /**
