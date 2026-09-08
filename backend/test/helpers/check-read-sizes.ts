@@ -774,7 +774,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry too — the `pim_akeneo` module and its 71st package — so the value
     // below is a census of the combined tree rather than the sum of the two
     // branches' arithmetic.
-    files: 2018,
+    // **`specs/110-instance-repository/` T117 (the host CLI dispatcher): +2 files.**
+    // `cli/module-commands.ts` moved out of `backend/src/` and into
+    // `packages/platform/src/`, and a re-export shim took its old path — so the
+    // move itself nets to nothing across the two roots this walk reads, and the
+    // +2 is the platform's new `cli/index.ts` barrel plus the shim. Measured by
+    // parking this branch's three new files and re-running: every recorded value
+    // below came back exactly.
+    files: 2020,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -927,7 +934,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry too — the `pim_akeneo` module and its 71st package — so the value
     // below is a census of the combined tree rather than the sum of the two
     // branches' arithmetic.
-    files: 2145,
+    // **`specs/110-instance-repository/` T117 (the host CLI dispatcher): +2 files.**
+    // `cli/module-commands.ts` moved out of `backend/src/` and into
+    // `packages/platform/src/`, and a re-export shim took its old path — so the
+    // move itself nets to nothing across the two roots this walk reads, and the
+    // +2 is the platform's new `cli/index.ts` barrel plus the shim. Measured by
+    // parking this branch's three new files and re-running: every recorded value
+    // below came back exactly.
+    files: 2147,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1304,7 +1318,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changeset markdown — is not in the population; `check-nul-bytes` and
     // `check-naming.sh` take both and move by two.
     // **+6, one of it this branch's.** This walk takes the new `.tsx` test and not the changeset, which is not a source file.
-    files: 5463,
+    // **`specs/110-instance-repository/` T117 (the host CLI dispatcher): +2 files.**
+    // The platform's new `cli/index.ts` barrel and the re-export shim at
+    // `backend/src/cli/module-commands.ts`; the moved file nets to nothing across
+    // the roots this walk reads, and the changeset markdown is not in scope.
+    files: 5465,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1505,7 +1523,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // below is a census of the combined tree rather than the sum of the two
     // branches' arithmetic.
     // **+1, master's.** The same new search test file, from the merge that landed after this branch recorded.
-    files: 2280,
+    // **`specs/110-instance-repository/` T117 (the host CLI dispatcher): +2 files.**
+    // `cli/module-commands.ts` moved out of `backend/src/` and into
+    // `packages/platform/src/`, and a re-export shim took its old path — so the
+    // move itself nets to nothing across the two roots this walk reads, and the
+    // +2 is the platform's new `cli/index.ts` barrel plus the shim. Measured by
+    // parking this branch's three new files and re-running: every recorded value
+    // below came back exactly.
+    files: 2282,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -1784,7 +1809,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry too — the `pim_akeneo` module and its 71st package — so the value
     // below is a census of the combined tree rather than the sum of the two
     // branches' arithmetic.
-    files: 2145,
+    // **`specs/110-instance-repository/` T117 (the host CLI dispatcher): +2 files.**
+    // `cli/module-commands.ts` moved out of `backend/src/` and into
+    // `packages/platform/src/`, and a re-export shim took its old path — so the
+    // move itself nets to nothing across the two roots this walk reads, and the
+    // +2 is the platform's new `cli/index.ts` barrel plus the shim. Measured by
+    // parking this branch's three new files and re-running: every recorded value
+    // below came back exactly.
+    files: 2147,
     sites: 260,
     sources: ['manifest-index'],
   },
@@ -1918,7 +1950,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry too — the `pim_akeneo` module and its 71st package — so the value
     // below is a census of the combined tree rather than the sum of the two
     // branches' arithmetic.
-    files: 2145,
+    // **`specs/110-instance-repository/` T117 (the host CLI dispatcher): +2 files.**
+    // `cli/module-commands.ts` moved out of `backend/src/` and into
+    // `packages/platform/src/`, and a re-export shim took its old path — so the
+    // move itself nets to nothing across the two roots this walk reads, and the
+    // +2 is the platform's new `cli/index.ts` barrel plus the shim. Measured by
+    // parking this branch's three new files and re-running: every recorded value
+    // below came back exactly.
+    files: 2147,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2052,7 +2091,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry too — the `pim_akeneo` module and its 71st package — so the value
     // below is a census of the combined tree rather than the sum of the two
     // branches' arithmetic.
-    files: 2145,
+    // **`specs/110-instance-repository/` T117 (the host CLI dispatcher): +2 files.**
+    // `cli/module-commands.ts` moved out of `backend/src/` and into
+    // `packages/platform/src/`, and a re-export shim took its old path — so the
+    // move itself nets to nothing across the two roots this walk reads, and the
+    // +2 is the platform's new `cli/index.ts` barrel plus the shim. Measured by
+    // parking this branch's three new files and re-running: every recorded value
+    // below came back exactly.
+    files: 2147,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -2175,7 +2221,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // than off an injected environment, because a value reached through a
     // parameter is a declared input this check cannot see — measured, as two
     // `unread-input` findings, before that was put back.
-    files: 695,
+    // **`specs/110-instance-repository/` T117 (the host CLI dispatcher): +2 files.**
+    // `cli/module-commands.ts` moved out of `backend/src/` and into
+    // `packages/platform/src/`, and a re-export shim took its old path — so the
+    // move itself nets to nothing across the two roots this walk reads, and the
+    // +2 is the platform's new `cli/index.ts` barrel plus the shim. Measured by
+    // parking this branch's three new files and re-running: every recorded value
+    // below came back exactly.
+    files: 697,
     sites: 67,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
@@ -2550,7 +2603,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry too — the `pim_akeneo` module and its 71st package — so the value
     // below is a census of the combined tree rather than the sum of the two
     // branches' arithmetic.
-    files: 2145,
+    // **`specs/110-instance-repository/` T117 (the host CLI dispatcher): +2 files.**
+    // `cli/module-commands.ts` moved out of `backend/src/` and into
+    // `packages/platform/src/`, and a re-export shim took its old path — so the
+    // move itself nets to nothing across the two roots this walk reads, and the
+    // +2 is the platform's new `cli/index.ts` barrel plus the shim. Measured by
+    // parking this branch's three new files and re-running: every recorded value
+    // below came back exactly.
+    files: 2147,
     sites: 30,
     sources: ['manifest-index'],
   },
@@ -3555,7 +3615,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // below is a census of the combined tree rather than the sum of the two
     // branches' arithmetic.
     // **+2, of which one is this branch's and one is not.** Measured on `master` itself this walk reads 4863, so the search fix that merged after this branch recorded contributes one and this branch's platform sources contribute the other. Attributed by measuring the base rather than by subtracting deltas.
-    files: 4864,
+    // **`specs/110-instance-repository/` T117 (the host CLI dispatcher): +1 file**,
+    // and the file is measured rather than reasoned about, because +1 is not the
+    // arithmetic the other walks give. Holding each of the branch's three new
+    // files out in turn: without `packages/platform/src/cli/index.ts` this reads
+    // 4864, and without either the moved `cli/module-commands.ts` or the shim at
+    // its old path it still reads 4865. The barrel is the whole of the move.
+    files: 4865,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -4159,7 +4225,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `.changeset/ordering-guard-follows-the-derivation.md`. Attributed by measurement —
     // the same walk over the same tree with that one file moved aside reads 8082. The
     // branch's other three files are edits to files this walk already opened.
-    files: 8083,
+    // **`specs/110-instance-repository/` T117 (the host CLI dispatcher): +3 files.**
+    // The listing is `git ls-files --cached --others`, so the move is net zero and
+    // the three additions are the platform's `cli/index.ts` barrel, the re-export
+    // shim at `backend/src/cli/module-commands.ts`, and this row's changeset.
+    // Measured against a pristine `origin/master` worktree, which read exactly the
+    // recorded value.
+    // **+1, and it is not this branch's.** `fix/ordering-guard-follows-the-platform` merged after this branch recorded, adding `.changeset/ordering-guard-follows-the-derivation.md`; this walk opens the whole repository. Re-measured on the union.
+    files: 8086,
     sites: null,
     sources: [],
     //
@@ -4492,7 +4565,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry too — the `pim_akeneo` module and its 71st package — so the value
     // below is a census of the combined tree rather than the sum of the two
     // branches' arithmetic.
-    files: 2145,
+    // **`specs/110-instance-repository/` T117 (the host CLI dispatcher): +2 files.**
+    // `cli/module-commands.ts` moved out of `backend/src/` and into
+    // `packages/platform/src/`, and a re-export shim took its old path — so the
+    // move itself nets to nothing across the two roots this walk reads, and the
+    // +2 is the platform's new `cli/index.ts` barrel plus the shim. Measured by
+    // parking this branch's three new files and re-running: every recorded value
+    // below came back exactly.
+    files: 2147,
     sites: 213,
     sources: ['manifest-index'],
   },
@@ -5242,7 +5322,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry too — the `pim_akeneo` module and its 71st package — so the value
     // below is a census of the combined tree rather than the sum of the two
     // branches' arithmetic.
-    files: 2145,
+    // **`specs/110-instance-repository/` T117 (the host CLI dispatcher): +2 files.**
+    // `cli/module-commands.ts` moved out of `backend/src/` and into
+    // `packages/platform/src/`, and a re-export shim took its old path — so the
+    // move itself nets to nothing across the two roots this walk reads, and the
+    // +2 is the platform's new `cli/index.ts` barrel plus the shim. Measured by
+    // parking this branch's three new files and re-running: every recorded value
+    // below came back exactly.
+    files: 2147,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -5482,7 +5569,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this entry too — the `pim_akeneo` module and its 71st package — so the value
     // below is a census of the combined tree rather than the sum of the two
     // branches' arithmetic.
-    files: 2145,
+    // **`specs/110-instance-repository/` T117 (the host CLI dispatcher): +2 files.**
+    // `cli/module-commands.ts` moved out of `backend/src/` and into
+    // `packages/platform/src/`, and a re-export shim took its old path — so the
+    // move itself nets to nothing across the two roots this walk reads, and the
+    // +2 is the platform's new `cli/index.ts` barrel plus the shim. Measured by
+    // parking this branch's three new files and re-running: every recorded value
+    // below came back exactly.
+    files: 2147,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -5659,7 +5753,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // below is a census of the combined tree rather than the sum of the two
     // branches' arithmetic.
     // **+1, master's.** The search test file, which this walk opens with the rest of the module tree.
-    files: 4486,
+    // **`specs/110-instance-repository/` T117 (the host CLI dispatcher): +2 files.**
+    // `cli/module-commands.ts` moved out of `backend/src/` and into
+    // `packages/platform/src/`, and a re-export shim took its old path — so the
+    // move itself nets to nothing across the two roots this walk reads, and the
+    // +2 is the platform's new `cli/index.ts` barrel plus the shim. Measured by
+    // parking this branch's three new files and re-running: every recorded value
+    // below came back exactly.
+    files: 4488,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -6232,7 +6333,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // *not* by moving the file aside, which leaves this number at 8143 once the file is
     // committed, for the index-versus-disk reason recorded three lines above. That
     // difference between the two checks is what identified the file.
-    files: 8143,
+    // **`specs/110-instance-repository/` T117 (the host CLI dispatcher): +3 files.**
+    // The listing is `git ls-files --cached --others`, so the move is net zero and
+    // the three additions are the platform's `cli/index.ts` barrel, the re-export
+    // shim at `backend/src/cli/module-commands.ts`, and this row's changeset.
+    // Measured against a pristine `origin/master` worktree, which read exactly the
+    // recorded value.
+    // **+1, the same changeset from the base.** Repo-wide, so it sees the same one file as `check-nul-bytes.ts` above.
+    files: 8146,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -6518,7 +6626,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `docs/docs/**` and each module's own `docs/`, and a `.changeset/*.md` is in none
     // of them.
     // **+6, one of it this branch's.** This scan reads source comments, so it takes the new test file and not the changeset.
-    files: 6087,
+    // **`specs/110-instance-repository/` T117 (the host CLI dispatcher): +2 files.**
+    // The same three additions the whole-repository walks take, minus the
+    // changeset markdown, which is not in this population. Measured against a
+    // pristine `origin/master` worktree, which read exactly the recorded value.
+    files: 6089,
     sites: null,
     sources: ['manifest-index'],
     //

@@ -163,6 +163,19 @@ export const HOST_INTERNAL_SUBPATHS: Readonly<Record<string, string>> = {
     'answer to customising without forking, and the loader that composes one decides which ' +
     'modules a deployment runs at all. It derives no path: the overlay root and the claims ' +
     'already made on a module id are parameters the application supplies.',
+  cli:
+    "the host's side of a module-declared operator command " +
+    '(`specs/110-instance-repository/` T117, FR-013): the enumeration of every command the ' +
+    'resolved manifest set declares, the two refusals a declaration can earn, the ' +
+    '`<module id> <command name>` lookup, the `--list` and `--help` renderings, and the ' +
+    "find-gate-invoke that ends in the module's own `run`. Host-internal for " +
+    "`./composition`'s own reason one surface over: this is the code that decides which " +
+    'command runs and whether the module that declared it is present at all, so a module ' +
+    "that could name it could enumerate its siblings' operator commands and invoke one. A " +
+    'module declares its commands in its own `manifest.ts` and receives a `ModuleContext`; ' +
+    'that is the whole of the surface it is entitled to. The process around it — argv, the ' +
+    'composition, the system scope and the exit code — stays in the application at ' +
+    '`backend/src/cli.ts`.',
 };
 
 /** The file a published directory's surface is written in. */

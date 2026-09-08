@@ -304,7 +304,10 @@ path. An import naming one fails `tsc` and is reported by
 
 The one wrapper the barrel does publish is `requireModuleEnabled`, for an entry
 point that has **no port and no request**. It is not the escape hatch for a
-module: its single call site in the tree is `backend/src/cli/module-commands.ts`,
+module: its single call site in the tree is the platform's own
+`cli/module-commands.ts`, published host-internally as
+`@endora-commerce/platform/cli` (`specs/110-instance-repository/` T117) and reached by
+the application through a re-export shim at `backend/src/cli/module-commands.ts`,
 where the **host** asks about the module that declared the operator command it is
 about to run, once, before it builds a context. A `cliCommands` handler receives
 an ordinary `ModuleContext` and uses the same seams as everything above.

@@ -1265,7 +1265,9 @@ with *"is not a function"*.
 **3. Presence is decided by the host, before a context exists.** A command has
 no route to gate, no worker to wrap and no port resolution to hang a transient
 gate on, so the **declaration** is the seam:
-`src/cli/module-commands.ts` calls `requireModuleEnabled` for the module that
+the platform's own `cli/module-commands.ts` — `@endora-commerce/platform/cli`,
+reached by the application through a re-export shim at `src/cli/module-commands.ts`
+(`specs/110-instance-repository/` T117) — calls `requireModuleEnabled` for the module that
 declared the command — first, outside every `try`, before it asks for a context.
 A module author writes no presence check and cannot forget one, which is what
 Constitution XVII item 3 says a gate is for. It is asked for the declaring
