@@ -239,7 +239,7 @@ the page awaits `listProducts` (so `resultCount` is meaningful), then
 
 `search reindex` walks every Sales Channel and pushes its public
 product surface into Meilisearch. Idempotent — safe to run after a
-fresh `seed:dev` or whenever the index drifts from Postgres.
+fresh `endora demo seed` or whenever the index drifts from Postgres.
 
 It is a command this module declares in its `manifest.ts` and the host
 runs, so it reindexes through the one `SearchIndexer` the composition

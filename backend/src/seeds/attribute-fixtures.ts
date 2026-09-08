@@ -112,7 +112,7 @@ export async function createAttributeFixture(
   input: AttributeFixtureInput,
 ): Promise<AttributeFixture> {
   // command-coverage-ignore: development fixture data. Reached only from
-  // `dev-catalog-seed` (`pnpm seed:dev`) and from tests, never from a request or
+  // `dev-catalog-seed` and from tests, never from a request or
   // a worker — there is no operator and no production database behind it.
   const triple = legacyToCfType(input.valueType);
   const definition = em.create(CustomFieldDefinition, {

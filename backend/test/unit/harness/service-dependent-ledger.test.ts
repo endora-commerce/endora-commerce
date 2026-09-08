@@ -414,6 +414,12 @@ const SERVICE_BOUND_BEYOND_THE_SCREEN: Readonly<Record<string, string>> = {
     'and asserts the refusal names it. Measured under `BACKEND_TEST_SERVICES=none`: 3 of 5 ' +
     'cases fail, because the composition dies for the wrong reason before the assertion is ' +
     'reached. Correctly III(c).',
+  'test/integration/demo/demo-parity.test.ts':
+    'It provisions three PostgreSQL databases of its own with `pg` and spawns the migration ' +
+    'runner and both seeds as child processes, so it reaches the database through a client ' +
+    'it constructs and through `spawn` — neither of which is an import the closure screen ' +
+    'can follow. Measured under `BACKEND_TEST_SERVICES=none`: `connect ECONNREFUSED ' +
+    '127.0.0.1:1`, the `beforeAll` fails and all 37 cases are skipped. Correctly III(c).',
 };
 
 function outerTestFiles(): string[] {

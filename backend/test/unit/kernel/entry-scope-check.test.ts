@@ -329,8 +329,16 @@ describe('the real tree', () => {
     return findEntrySites(absolute, readFileSync(absolute, 'utf8'), declared, displayOf);
   };
 
-  it('declares the dev seed as a program this check has to see', () => {
-    expect(declared).toContain('src/seeds/dev-catalog-seed.ts');
+  it('declares the demo seed as a program this check has to see', () => {
+    // It was `src/seeds/dev-catalog-seed.ts` until feature 113's T214 deleted
+    // the `seed:dev` script that declared it. The subject is unchanged — the
+    // check has to see the entry point that seeds the demo shop — and that
+    // entry point is now the host CLI, which `db:reset` reaches as
+    // `cli demo seed`. The file the assertion used to name is still on disk
+    // and is deliberately **not** expected here: nothing declares it, which is
+    // exactly what this population means.
+    expect(declared).toContain('src/cli.ts');
+    expect(declared).not.toContain('src/seeds/dev-catalog-seed.ts');
   });
 
   it('resolves every declared program to a file that exists', () => {

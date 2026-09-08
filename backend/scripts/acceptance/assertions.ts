@@ -273,7 +273,7 @@ export interface DatabaseTarget {
  * refuse anything the convention above does not call disposable.
  *
  * This runner creates and drops a database; the guard is therefore the same
- * question `pnpm seed:dev` asks, with the loopback arm removed. A local
+ * question the demo guard asks, with the loopback arm removed. A local
  * developer's own `b2b` database is reachable over loopback and is exactly the
  * thing that must not be dropped by an acceptance run.
  */

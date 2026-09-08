@@ -11,7 +11,7 @@ import { describe, it, expect } from 'vitest';
 import {
   mustBeNonProduction,
   TEST_DATABASE_NAME_PATTERN,
-} from '../../../src/seeds/dev-seed-guard.js';
+} from '../../../src/demo/index.js';
 import { TEST_DATABASE_NAME_PATTERN as HARNESS_TEST_DATABASE_PATTERN } from '@endora-commerce/test-kit/database';
 
 const DEV_LOCAL = 'postgresql://b2b:b2b@localhost:5432/b2b';

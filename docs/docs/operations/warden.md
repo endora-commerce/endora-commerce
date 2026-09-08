@@ -56,10 +56,11 @@ warden env ps
 
 ```bash
 pnpm --filter backend run migration:up   # or: db:fresh  (destructive)
-pnpm --filter backend run seed:dev
+pnpm --filter backend run cli demo seed
 ```
 
-Demo credentials are printed by the seed script.
+Demo credentials are printed by the command. `endora demo reset` withdraws
+what it created, and it is what to run before seeding a database twice.
 
 ## Daily loop
 
