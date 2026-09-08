@@ -5,7 +5,6 @@ import {
   INVOICE_LEDGER_DELIVERY_PORT,
   INVOICE_LEDGER_DELIVERY_QUEUED_EVENT,
   INVOICE_LEDGER_MODULES,
-  INVOICE_LEDGER_READ_PERMISSION,
   INVOICE_LEDGER_REGISTRY_PORT,
   INVOICE_LEDGER_ROUTING_PORT,
   infaktEnvironmentSchema,
@@ -14,11 +13,16 @@ import {
   type InvoiceLedgerDeliveryPort,
   type InvoiceLedgerDeliveryQueuedEvent,
   type InvoiceLedgerRegistryPort,
+  infaktChannelCredentialCode,
   type InvoiceLedgerRoutingPort,
+  type SettingsAdminPort,
 } from '@endora-commerce/contracts';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { EventBase, EventBus } from '@endora-commerce/platform/events';
 import type { ModuleContext, RequireAdminFactory, SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { lazyPort } from '@endora-commerce/platform/kernel';
+import { registerInvoiceLedgerAdminRoutes } from './routes.admin.js';
+import { InvoiceLedgerRoutingWriteService } from './services/invoice-ledger-routing-write.service.js';
 import { InvoiceLedgerActivationLock } from './entities/invoice-ledger-activation-lock.entity.js';
 import { InvoiceLedgerClientMap } from './entities/invoice-ledger-client-map.entity.js';
 import { InvoiceLedgerDelivery } from './entities/invoice-ledger-delivery.entity.js';
@@ -36,6 +40,8 @@ interface LedgerCradle {
   readonly requireAdmin: RequireAdminFactory;
   readonly emFactory: () => EntityManager;
   readonly eventBus: EventBus<LedgerEvents>;
+  readonly commandBus: CommandBus;
+  readonly invoiceLedgerRoutingWrite: InvoiceLedgerRoutingWriteService;
 }
 
 interface ModuleActivationChangedPayload {
@@ -73,6 +79,22 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 
+  ctx.di.register({
+    invoiceLedgerRoutingWrite: ctx
+      .asFunction(({ emFactory, commandBus }: LedgerCradle) => {
+        const settings = lazyPort<SettingsReadPort>(ctx, 'settingsReadPort');
+        const registry = lazyPort<InvoiceLedgerRegistryPort>(ctx, INVOICE_LEDGER_REGISTRY_PORT);
+        const routing = new InvoiceLedgerRoutingService(settings, registry);
+        return new InvoiceLedgerRoutingWriteService(
+          routing,
+          lazyPort<SettingsAdminPort>(ctx, 'settingsAdminService'),
+          emFactory,
+          commandBus,
+        );
+      })
+      .singleton(),
+  });
+
   ctx.subscribe('invoice.issued.v1', async (payload) => {
     const parsed = invoiceIssuedEventSchema.safeParse(payload);
     if (!parsed.success) return;
@@ -85,9 +107,14 @@ export function registerModule(ctx: ModuleContext): void {
     const numberingMode = await routing.numberingModeFor(channelId);
     const ksefAction = await routing.nativeKsefActionFor(channelId);
     const ksefRouting = ksefAction === 'skip' ? 'vendor' : 'native';
-    const credentialCode =
+    let credentialCode =
       adapterId === 'infakt' ? INFAKT_INSTANCE_CREDENTIAL_CODE : adapterId;
     const credentials = lazyPort<CredentialsPort>(ctx, 'credentialsService');
+    if (adapterId === 'infakt' && channelId) {
+      const overrideCode = infaktChannelCredentialCode(channelId);
+      const override = await credentials.getByCode(overrideCode);
+      if (override) credentialCode = overrideCode;
+    }
     const stored = await credentials.getByCode(credentialCode);
     const envField = stored?.fields.find((field) => field.key === 'environment');
     const parsedEnv = infaktEnvironmentSchema.safeParse(envField?.value);
@@ -126,22 +153,10 @@ export function registerModule(ctx: ModuleContext): void {
   });
 
   ctx.routes(async (app) => {
-    const { requireAdmin } = ctx.cradle<LedgerCradle>();
-    const read = { preHandler: requireAdmin(INVOICE_LEDGER_READ_PERMISSION) };
-    app.get('/api/v1/admin/invoice-ledger/deliveries', read, async (_request, reply) => {
-      return reply.send({ data: [] });
-    });
-    app.get('/api/v1/admin/invoice-ledger/routing', read, async (_request, reply) => {
-      const routing = lazyPort<InvoiceLedgerRoutingPort>(ctx, INVOICE_LEDGER_ROUTING_PORT);
-      return reply.send({
-        data: {
-          numberingMode: await routing.numberingModeFor(null),
-          ksefRouting:
-            (await routing.nativeKsefActionFor(null)) === 'skip' ? 'vendor' : 'native',
-          activeVendorModuleId: await routing.activeVendorModuleId(),
-          channelOverrides: [],
-        },
-      });
+    const { requireAdmin, invoiceLedgerRoutingWrite } = ctx.cradle<LedgerCradle>();
+    await registerInvoiceLedgerAdminRoutes(app, {
+      requireAdmin,
+      routingWrite: invoiceLedgerRoutingWrite,
     });
   });
 }

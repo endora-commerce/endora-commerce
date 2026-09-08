@@ -29,5 +29,13 @@ export const contributions: AdminContributions = {
       weight: 610,
       requiredPermission: READ_PERMISSION,
     },
+    {
+      to: ROUTING_PATH,
+      labelKey: 'nav.routing.label',
+      icon: 'Settings',
+      section: 'sales',
+      weight: 611,
+      requiredPermission: READ_PERMISSION,
+    },
   ],
 };

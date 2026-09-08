@@ -59,7 +59,9 @@
     "@mikro-orm/core": "^6",
     "@mikro-orm/migrations": "^6",
     "@mikro-orm/postgresql": "^6",
-    "react": "^19"
+    "fastify": "^5",
+    "react": "^19",
+    "zod": "^4"
   },
   "peerDependenciesMeta": {
     "@endora-commerce/admin-kit": {
@@ -78,8 +80,10 @@
     "@mikro-orm/postgresql": "^6.6.13",
     "@types/node": "^22.9.0",
     "@types/react": "^19.2.14",
+    "fastify": "^5.8.5",
     "react": "^19.2.5",
     "typescript": "^5.9.3",
-    "vitest": "^2.1.4"
+    "vitest": "^2.1.4",
+    "zod": "^4.2.0"
   }
 }
