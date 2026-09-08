@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type { ModuleManifest } from '@endora-commerce/contracts';
 import { defineModuleManifest } from '@endora-commerce/contracts';
 import {
+  committedModuleDependencies,
   orderMigrations,
   type MigrationClass,
   type MigrationRegistryEntry,
@@ -24,9 +25,10 @@ import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
  * an array `fk-dependency-drift.test.ts` does not read — a table created after
  * the table it references, on a fresh database only.
  *
- * Three assertions, because each alone is defeatable: the **behaviour**, over
+ * Four assertions, because each alone is defeatable: the **behaviour**, over
  * the ordering function itself; the **derivation**, driven over the live
- * manifests; and the **uniqueness** of that derivation, read out of the tree.
+ * manifests; the **binding** that the host wraps it in; and the **uniqueness**
+ * of that derivation, read out of the tree.
  */
 
 /** Builds a class whose `.name` is exactly the supplied migration name. */
@@ -109,7 +111,26 @@ const readerWithdrawing = defineModuleManifest({
   ],
 });
 
-const SRC_ROOT = fileURLToPath(new URL('../../../src', import.meta.url));
+/**
+ * The roots this guard walks, and why there are two.
+ *
+ * The whole traced chain is the platform's, so the trace itself needs only that
+ * root. **Uniqueness** needs both: a second `orderMigrations` call is a second
+ * ordering graph wherever it is written, and the application is where one would
+ * most plausibly be written — a host that wanted its own order would build it
+ * beside the binding that supplies the platform's inputs. A platform-only walk
+ * would report `violations=0` over exactly that defect.
+ *
+ * The floor is asked **per root** rather than over the union. "No call site" is
+ * this test's loudest failure and it must always mean the ordering moved, never
+ * that the walk was blind; asking it of the union would let either root go to
+ * zero unnoticed, which is how this guard came to be measuring an empty
+ * directory.
+ */
+const SOURCE_ROOTS: readonly string[] = [
+  fileURLToPath(new URL('../../../src', import.meta.url)),
+  fileURLToPath(new URL('../../../../packages/platform/src', import.meta.url)),
+];
 
 function walkSources(dir: string, out = new Map<string, string>()): Map<string, string> {
   for (const name of readdirSync(dir)) {
@@ -144,8 +165,9 @@ function walkSources(dir: string, out = new Map<string, string>()): Map<string, 
  * A **local variable name** is the wrong handle for the same reason one layer
  * in — it is the tree's spelling, not the platform's contract. Both names this
  * guard keys on come off the imported bindings (`orderMigrations.name`,
- * `coreModuleDependencies.name`), so a rename follows and a rename that does not
- * keep the export in step is a compile error here rather than a silent green.
+ * `committedModuleDependencies.name`), so a rename follows and a rename that
+ * does not keep the export in step is a compile error here rather than a silent
+ * green.
  *
  * The **ordering function** is the right handle for uniqueness, and is stronger
  * than the map's name was: a graph that never reaches `orderMigrations` is not
@@ -157,13 +179,63 @@ function walkSources(dir: string, out = new Map<string, string>()): Map<string, 
  * the derivation the test above drives: each is red. There is no path through
  * here that means "I could not look".
  *
- * What it cannot see, stated rather than discovered later: the chain is followed
+ * ## The fifth breakage, and why it did not need new machinery
+ *
+ * Feature 110's T116 moved the ORM and the migration ordering into
+ * `@endora-commerce/platform`, and this guard went from *"exactly one call"* to
+ * *"none"* — red on `master`, found by the next task on the chain rather than by
+ * the one that moved the file, which is the shape AGENTS.md records twice: a
+ * guard derived **about** the files a batch changed is never a file that batch
+ * changed, and under D-198 no merge-request pipeline creates the job that runs
+ * it. Two handles were stale, and only one of them was the obvious one.
+ *
+ * The walk **root** was spelled `backend/src` — the same mistake the paragraph
+ * above refuses, one level up. It is now both source roots that can hold a
+ * derivation, with the vacuous-pass floor asked **per root**, so neither can go
+ * to zero unnoticed.
+ *
+ * The second was the diagnosis worth writing down, because the obvious reading
+ * of the failure is wrong. It looks as though the property has been split across
+ * a package boundary — derivation on one side, ordering call on the other, the
+ * graph crossing as a supplied parameter — which would need this guard to trace
+ * across a seam, and it would be the first here to do so. It has not. T116 moved
+ * **both** halves together: `committedModuleDependencies` is the one expression
+ * that turns manifests into edges, and it sits in the same platform file as the
+ * one `orderMigrations` call, filling that call's input from the function
+ * directly above it. What crosses the boundary is the **manifest index** — a
+ * generated artefact the platform may not name (D-52/D-53, R7.4) and therefore
+ * receives as `CoreMigrationSources`. A graph is not what is supplied; the
+ * material it is derived from is.
+ *
+ * So `coreModuleDependencies` in `backend/src/db/configured-migrations.ts` is no
+ * longer the derivation. It is a **one-line host binding** over it, with no
+ * caller in `src` at all — the production path reaches the derivation through
+ * `CORE_SOURCES`, not through that export. Keying the trace on it was keying on
+ * a name the derivation had left behind, which is exactly the T033 failure with
+ * a different noun: the guard would have been asserting against a delegation and
+ * calling it the platform's ordering graph.
+ *
+ * The handle is therefore the derivation itself. The trace lands on
+ * `committedModuleDependencies(...)` and, one hop further, on its **body**, so
+ * the D-44 §8 union stays refused where it would actually be written. The
+ * binding is not dropped: it is *measured* against the derivation by a test of
+ * its own, because an export whose only callers are tests is the shape that
+ * drifts in silence — a filter or a union there would change nothing anybody
+ * runs, and would quietly make every test that drives it measure something this
+ * platform does not compute.
+ *
+ * What it cannot see, stated rather than discovered later. The chain is followed
  * **within one file**, so a contribution reached through an import is invisible
  * to it — as it was to every version of this guard — and the uniqueness
- * assertion is what stands in that gap.
+ * assertion is what stands in that gap. And the manifests the production path
+ * hands the platform are `CORE_SOURCES`', which this guard does not read: it
+ * proves the derivation is right over the index this build ships, not that
+ * `CORE_SOURCES` supplies that index whole. `test/unit/db/migration-ownership.test.ts`
+ * is where that is witnessed — through a second consumer of the same constant,
+ * and by coverage rather than by identity.
  */
 const ORDERING_FUNCTION = orderMigrations.name;
-const GRAPH_DERIVATION = coreModuleDependencies.name;
+const GRAPH_DERIVATION = committedModuleDependencies.name;
 
 const CLOSERS: Record<string, string> = { '(': ')', '[': ']', '{': '}' };
 
@@ -424,11 +496,18 @@ describe('nonBindingDependencies — invisible to the migration order', () => {
   });
 
   it('the platform derives its ordering graph from `dependencies` and nothing else', () => {
-    // The derivation, **driven** rather than read. Every manifest declaring a
-    // withdrawn edge is a discriminating fixture by construction: the contract
-    // refuses a `nonBindingDependencies` or `acknowledgedDependencies` target
-    // that `dependencies` already names, so a union would move this map.
-    const graph = coreModuleDependencies();
+    // The derivation, **driven** rather than read — and driven at the expression
+    // the production path evaluates, argument included: what
+    // `discoverConfiguredMigrations` calls is
+    // `committedModuleDependencies(sources.manifests)`, and `sources.manifests`
+    // is this build's generated index. So this is not a second spelling of the
+    // derivation held next to it and hoped to agree; it is the derivation.
+    //
+    // Every manifest declaring a withdrawn edge is a discriminating fixture by
+    // construction: the contract refuses a `nonBindingDependencies` or
+    // `acknowledgedDependencies` target that `dependencies` already names, so a
+    // union would move this map.
+    const graph = committedModuleDependencies(DISCOVERED_MANIFESTS);
 
     const withWithdrawnEdges = DISCOVERED_MANIFESTS.filter(
       (entry) =>
@@ -451,18 +530,45 @@ describe('nonBindingDependencies — invisible to the migration order', () => {
     }
   });
 
+  it('the host binding delegates to that derivation rather than re-spelling it', () => {
+    // `coreModuleDependencies` was the derivation until feature 110's T116 and
+    // is now a one-line binding over it, kept because its input is this build's
+    // manifest index and the platform may not name that (D-52/D-53, R7.4).
+    //
+    // It has **no caller in `src`**: the ordering path reaches the derivation
+    // through `CORE_SOURCES`, and every caller of this export is a test. That is
+    // the shape that drifts in silence — a filter, a union, or a `new Map` built
+    // by hand here would change nothing anybody runs, and would quietly make
+    // every test driving it measure something this platform does not compute.
+    // Its own doc block claims it delegates; this is that claim, measured.
+    expect(
+      coreModuleDependencies(),
+      'the host binding no longer answers what the derivation answers over this build\'s ' +
+        'manifest index. Either it transforms the index on the way in — a filter or a union, ' +
+        'neither of which the ordering path would see — or it has stopped delegating and is a ' +
+        'second spelling of the derivation, which is what it was kept from being.',
+    ).toEqual(committedModuleDependencies(DISCOVERED_MANIFESTS));
+  });
+
   it('the ordering graph is computed once, and from that derivation', () => {
-    const sources = walkSources(SRC_ROOT);
-    // The vacuous-pass floor: a walk that read nothing would report no call
-    // site, and "no call site" is this test's loudest failure — it must mean
-    // the ordering moved, never that the walk was blind.
-    expect(sources.size, `no TypeScript sources under ${SRC_ROOT}`).toBeGreaterThan(0);
+    const sources = new Map<string, string>();
+    // The vacuous-pass floor, and it is **per root**: a walk that read nothing
+    // would report no call site, and "no call site" is this test's loudest
+    // failure — it must mean the ordering moved, never that the walk was blind.
+    // Asking it of the union would let either root go to zero unnoticed, which
+    // is exactly how this guard came to be measuring an empty directory.
+    for (const root of SOURCE_ROOTS) {
+      const fromRoot = walkSources(root);
+      expect(fromRoot.size, `no TypeScript sources under ${root}`).toBeGreaterThan(0);
+      for (const [file, source] of fromRoot) sources.set(file, source);
+    }
 
     const analysis = analyseOrderingGraph(sources);
 
     expect(
       analysis.callSites,
-      `${ORDERING_FUNCTION} is called nowhere in backend/src — renamed, deleted or moved out ` +
+      `${ORDERING_FUNCTION} is called nowhere in the application or the platform — renamed, ` +
+        `deleted or moved out ` +
         `— or it is called more than once, which is a second derivation of the ordering ` +
         `graph and the change this test exists to refuse`,
     ).toHaveLength(1);
@@ -492,28 +598,57 @@ describe('nonBindingDependencies — invisible to the migration order', () => {
 });
 
 /**
- * A tree in which the graph is derived the way this platform derives it:
- * `orderMigrations` called once, its map traced back through a parameter to
- * `coreModuleDependencies()`. Each proof below mutates exactly one thing about
- * it, so a red names the shape it caught.
+ * A tree in which the graph is derived the way this platform derives it: the
+ * derivation and the one `orderMigrations` call in the platform's own file, the
+ * call's map traced through a supplied property back to
+ * `committedModuleDependencies()`, and the host's binding beside it in the other
+ * root.
+ *
+ * It carries **both** files because the real tree does, and because the second
+ * one is what the walk has to stay unconfused by: it names the derivation, and
+ * naming it is not calling the ordering function. Each proof below mutates
+ * exactly one thing about this tree, so a red names the shape it caught.
  */
+const PLATFORM_FILE = '/packages/platform/src/db/configured-migrations.ts';
+const HOST_BINDING_FILE = '/backend/src/db/configured-migrations.ts';
+
 function cleanTree(): Map<string, string> {
   return new Map([
     [
-      '/src/db/configured-migrations.ts',
+      PLATFORM_FILE,
       [
-        'interface Inputs {',
+        'export function configuredMigrationsFrom(inputs: {',
+        '  readonly coreEntries: readonly MigrationRegistryEntry[];',
         '  readonly coreModuleDependencies: ReadonlyMap<string, readonly string[]>;',
-        '}',
-        'export function configuredMigrationsFrom(inputs: Inputs) {',
+        '  readonly baseline?: readonly string[];',
+        '}) {',
+        '  const entries = [...inputs.coreEntries];',
         '  const moduleDependencies = new Map(inputs.coreModuleDependencies);',
-        '  return orderMigrations({ entries, moduleDependencies, baselineThrough });',
+        '  return orderMigrations({ entries, moduleDependencies, baseline: inputs.baseline });',
         '}',
-        'function coreModuleDependencies(): Map<string, readonly string[]> {',
-        '  return new Map(MANIFESTS.map((e) => [e.id, e.manifest.dependencies ?? []]));',
+        'export function committedModuleDependencies(manifests: readonly Entry[]) {',
+        '  return new Map([',
+        '    [CORE_MODULE_ID, []],',
+        '    ...manifests.map((e) => [e.id, e.manifest.dependencies ?? []] as const),',
+        '  ]);',
         '}',
-        'export async function configuredMigrations() {',
-        '  return configuredMigrationsFrom({ coreModuleDependencies: coreModuleDependencies() });',
+        'export async function discoverConfiguredMigrations(sources: CoreMigrationSources) {',
+        '  return configuredMigrationsFrom({',
+        '    coreEntries: sources.coreEntries,',
+        '    coreModuleDependencies: committedModuleDependencies(sources.manifests),',
+        '  });',
+        '}',
+      ].join('\n'),
+    ],
+    [
+      HOST_BINDING_FILE,
+      [
+        'const CORE_SOURCES: CoreMigrationSources = {',
+        '  coreEntries: MIGRATION_REGISTRY,',
+        '  manifests: DISCOVERED_MANIFESTS,',
+        '};',
+        'export function coreModuleDependencies(): Map<string, readonly string[]> {',
+        '  return committedModuleDependencies(DISCOVERED_MANIFESTS);',
         '}',
       ].join('\n'),
     ],
@@ -534,13 +669,16 @@ describe('the ordering-graph guard — what it refuses', () => {
     expect(analyseOrderingGraph(tree).callSites).toHaveLength(0);
   });
 
-  it('refuses a second derivation of the ordering graph', () => {
+  it('refuses a second derivation of the ordering graph, written in the host root', () => {
     const tree = cleanTree();
-    // The shape the old probe could not have seen: a second call building its
-    // graph inline, under no name at all.
+    // Two shapes at once, and both matter. The graph is built **inline**, under
+    // no name at all, which the pre-issue-#289 probe could not have seen; and it
+    // is written in the *application*, which is where a host wanting an order of
+    // its own would plausibly write one and which a platform-only walk would
+    // not read. It is the case the second source root exists for.
     tree.set(
-      '/src/db/second-order.ts',
-      'export const other = orderMigrations({ entries, moduleDependencies: new Map(), baselineThrough });',
+      '/backend/src/db/second-order.ts',
+      'export const other = orderMigrations({ entries, moduleDependencies: new Map(), baseline });',
     );
     expect(analyseOrderingGraph(tree).callSites).toHaveLength(2);
   });
@@ -567,7 +705,7 @@ describe('the ordering-graph guard — what it refuses', () => {
   it('refuses a graph it cannot trace back to the derivation', () => {
     const tree = cleanTree();
     tree.set(
-      '/src/db/configured-migrations.ts',
+      PLATFORM_FILE,
       [
         'import { graphFromSomewhereElse } from "./elsewhere.js";',
         'export function configuredMigrationsFrom() {',
@@ -584,11 +722,11 @@ describe('the ordering-graph guard — what it refuses', () => {
   it('refuses a withdrawn-edge array unioned in on the way to the ordering call', () => {
     const tree = cleanTree();
     tree.set(
-      '/src/db/configured-migrations.ts',
+      PLATFORM_FILE,
       [
         'export function configuredMigrationsFrom() {',
         '  const withdrawn = MANIFESTS.flatMap((e) => e.manifest.nonBindingDependencies ?? []);',
-        '  const moduleDependencies = new Map([...coreModuleDependencies(), ...withdrawn]);',
+        '  const moduleDependencies = new Map([...committedModuleDependencies(m), ...withdrawn]);',
         '  return orderMigrations({ entries, moduleDependencies, baselineThrough });',
         '}',
       ].join('\n'),
@@ -603,7 +741,7 @@ describe('the ordering-graph guard — what it refuses', () => {
   it('refuses an acknowledged-edge array on the same terms', () => {
     const tree = cleanTree();
     tree.set(
-      '/src/db/configured-migrations.ts',
+      PLATFORM_FILE,
       [
         'export function configuredMigrationsFrom() {',
         '  const moduleDependencies = new Map(edgesOf(m.acknowledgedDependencies ?? []));',
@@ -612,6 +750,33 @@ describe('the ordering-graph guard — what it refuses', () => {
       ].join('\n'),
     );
     expect(analyseOrderingGraph(tree).withdrawnEdgeReads.length).toBeGreaterThan(0);
+  });
+
+  it('refuses a platform that derives nothing, however the host spells its binding', () => {
+    // Feature 110's T116, in the shape it did **not** take — and the shape this
+    // guard has to keep refusing if it is ever proposed. Here the ordering call
+    // takes its graph straight off a supplied parameter and the derivation lives
+    // only in the host root, across a package boundary the one-file chain cannot
+    // follow. The honest answer is then "I cannot say where this graph comes
+    // from", which is a refusal; accepting it because the host file *contains*
+    // the derivation somewhere would be this guard asserting nothing at all.
+    const tree = cleanTree();
+    tree.set(
+      PLATFORM_FILE,
+      [
+        'export function configuredMigrationsFrom(inputs: OrderingInputs) {',
+        '  return orderMigrations({',
+        '    entries: inputs.coreEntries,',
+        '    moduleDependencies: new Map(inputs.coreModuleDependencies),',
+        '    baseline: inputs.baseline,',
+        '  });',
+        '}',
+      ].join('\n'),
+    );
+    const analysis = analyseOrderingGraph(tree);
+    expect(analysis.callSites).toHaveLength(1);
+    expect(analysis.gaveUp).toBe(false);
+    expect(analysis.reachesDerivation).toBe(false);
   });
 
   it('reports a chain too wide to follow as a refusal, never as a pass', () => {

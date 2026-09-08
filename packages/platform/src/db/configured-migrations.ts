@@ -259,8 +259,17 @@ export function configuredMigrationsFrom(inputs: {
  * guard can drive the real derivation instead of reading its source text.
  * `test/contract/_lifecycle/non-binding-dependencies.contract.test.ts` calls it
  * over the live manifests and holds every entry to `manifest.dependencies`
- * exactly. Nothing in `src` calls it but {@link discoverConfiguredMigrations} — a second
- * caller would be a second ordering graph, which that same guard refuses.
+ * exactly, and traces the one `orderMigrations` call back to it through
+ * {@link discoverConfiguredMigrations}.
+ *
+ * That trace, and not a rule about callers, is what refuses a second ordering
+ * graph. This sentence used to read *"nothing in `src` calls it but
+ * {@link discoverConfiguredMigrations} — a second caller would be a second
+ * ordering graph"*, and it was already false when it was written: the host binds
+ * this function a second time so that its own tests can drive it over the
+ * generated index, and a second **caller** is neither necessary nor sufficient
+ * for a second **graph**. What the guard counts is calls of `orderMigrations`;
+ * what it follows is the input of the one call there may be.
  */
 export function committedModuleDependencies(
   manifests: readonly DiscoveredManifestEntry[],
