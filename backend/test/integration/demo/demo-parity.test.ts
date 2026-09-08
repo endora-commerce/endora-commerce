@@ -14,28 +14,41 @@
  * lands**, because `endora demo seed` seeds nothing today. A split measured
  * after the fact is a split nobody measured.
  *
- * ## What is compared, and why it is derived rather than listed
+ * ## What is compared, and why it is deltas over a derived population
  *
- * Two layers, and the first is a **derivation**: every base table in the
- * `public` schema of both databases is counted, so a table the seed writes that
- * nobody thought to name is compared anyway. A list of tables here would be a
- * derived fact written down (D-100) that goes stale the first time a block
- * gains a row — and the tables this seed writes were miscounted twice in this
- * feature's own artefacts before a line of it was implemented.
+ * **The two paths do not start from the same place, and nothing in this
+ * feature's artefacts said so.** `endora demo seed` composes the platform
+ * before it seeds, so a boot runs first and its reconcilers write — measured on
+ * a freshly migrated database, one boot inserts 72 module registrations, 303
+ * settings, 62 setting groups, 73 countries, 52 currencies, 60 dictionary
+ * translations, 8 562 product-feed taxonomy nodes and a system-default sales
+ * channel. `seed:dev` composes nothing and writes none of them. An absolute
+ * whole-database comparison between a booted path and an unbooted one measures
+ * the boot, not the demo.
+ *
+ * So: **both databases are put through one `endora demo reset` first**, which
+ * boots and withdraws, and what is compared is the **delta** each seed then
+ * produces. The population is derived rather than listed — it is every table
+ * whose count the *reference* run moved — so a table the demo starts writing
+ * joins the comparison by being written, and a table only the platform's boot
+ * touches is out of it because the reference never touches it. A list of tables
+ * here would be a derived fact written down (D-100), and the tables this seed
+ * writes were miscounted twice in this feature's own artefacts before a line of
+ * it was implemented.
  *
  * The second layer is the one that catches a **faithful count of the wrong
- * rows**: ordered content fingerprints over natural keys, one per composition
- * step plus the identities. Row ids cannot appear in either layer — the seed
- * mints `crypto.randomUUID()` for assets, gallery items and every composite's
- * wiring, and MikroORM mints one per product — so every fingerprint is keyed on
- * a SKU, a slug, a code or an e-mail.
+ * rows**: ordered content fingerprints over natural keys, one group per
+ * composition step. Row ids cannot appear in either layer — the seed mints
+ * `crypto.randomUUID()` for assets, gallery items and every composite's wiring,
+ * and MikroORM mints one per product — so every fingerprint is keyed on a SKU,
+ * a slug, a code or an e-mail.
  *
  * **`SEED_PRODUCT_101_ID` and its siblings are not in scope, and the task list
  * that asked for them was wrong about where they come from.** They are declared
  * by `backend/test/helpers/seed-catalog.ts`' `seedUs1Catalog`, the *test*
- * fixture; the dev seed writes no fixed product id at all (`git grep` finds two
- * fixed UUIDs in the file, the Kraków warehouse and the default attribute set,
- * and both are asserted below by their natural key).
+ * fixture; the dev seed writes no fixed product id at all (two fixed UUIDs are
+ * in the file, the Kraków warehouse and the default attribute set, and both are
+ * reached below by their natural key).
  *
  * ## Why it is an integration test rather than an acceptance script
  *
@@ -221,9 +234,26 @@ const FINGERPRINTS: Readonly<Record<string, string>> = {
                        join price_lists l on l.id = i.price_list_id
                        join products p on p.id = i.product_id
                       order by l.code, p.sku, i.min_quantity`,
+  price_list_products: `select l.code, p.sku
+                          from price_list_products x
+                          join price_lists l on l.id = x.price_list_id
+                          join products p on p.id = x.product_id
+                         order by l.code, p.sku`,
+  price_list_price_brackets: `select l.code, p.sku, b.currency_code, b.min_quantity,
+                                     b.max_quantity, b.amount
+                                from price_list_price_brackets b
+                                join price_lists l on l.id = b.price_list_id
+                                join products p on p.id = b.product_id
+                               order by l.code, p.sku, b.currency_code, b.min_quantity`,
 
   // ── step 4 — the stock spread ──────────────────────────────────────────
-  stock_levels: `select p.sku, w.code as warehouse_code, s.on_hand, s.reserved
+  // No `on_hand`, and that is a finding rather than a concession: the demo's
+  // quantity is `50 + (parseInt(product.id.slice(0,8), 16) % 200)`, derived
+  // from a **random** UUID MikroORM mints per row, so no two runs of the demo
+  // seed — on any path — produce the same stock. What is comparable is which
+  // product is stocked in which warehouse; the 60/40 split itself is asserted
+  // per side below, where it is decidable.
+  stock_levels: `select p.sku, w.code as warehouse_code, s.reserved
                    from stock_levels s
                    join products p on p.id = s.product_id
                    join warehouses w on w.id = s.warehouse_id
@@ -286,22 +316,76 @@ const FINGERPRINTS: Readonly<Record<string, string>> = {
                          order by parent.sku, o.position`,
 };
 
+/**
+ * What the **composed** path holds that `seed:dev` cannot, and why.
+ *
+ * `endora demo seed` boots the platform before it seeds, so the boot hooks run
+ * once more after the shop exists and reconcile themselves to it. None of these
+ * rows is the demo's: they are the platform catching up with a channel and a
+ * catalogue that, on the `seed:dev` path, appear after the last boot and are
+ * therefore never reconciled at all. That asymmetry is the composed path being
+ * *more* complete, and it is the same hole `dev-catalog-seed.ts` already patched
+ * by hand for one reconciler, with a comment beginning *"Seed runs BEFORE the
+ * backend boots"*.
+ *
+ * It is a two-way ledger and not a filter: a table that stops being reconciled
+ * fails here, and so does one that starts. Magnitudes are deliberately not
+ * recorded — `cms_hook_sales_channels` is one row per shipped CMS hook and
+ * moves whenever a module adds one — but for a table the reference run also
+ * writes, every reference row must still be present, which is asserted below.
+ */
+const BOOT_RECONCILED: Readonly<Record<string, string>> = {
+  admin_roles:
+    "`blog` and `cms` seed a `blog_manager` and a `content_manager` role from their own " +
+    'boot hooks. The demo adds `platform_admin` and `sales_representative` on both paths.',
+  audit_log_entries:
+    'the sales-channel reconciler records its own promotion, and the second boot has a ' +
+    'channel to promote.',
+  blog_categories: "`blog` seeds a default category once a sales channel exists.",
+  blog_category_sales_channels: 'and binds it to that channel.',
+  cms_hook_sales_channels:
+    'one row per shipped CMS hook per channel — the boot binds every hook to the channel ' +
+    'the demo created.',
+  setting_values:
+    "`invoices` pins the system-default channel to its historical numbering patterns from " +
+    'its own boot hook, which needs a channel to pin.',
+};
+
+/**
+ * Per product, what each warehouse holds — read for the 60/40 assertion and
+ * deliberately outside `FINGERPRINTS`, since it is compared within one database
+ * rather than between two.
+ */
+const STOCK_SPLIT = `select p.sku,
+                            max(case when w.code = 'default' then s.on_hand end)::text as default_qty,
+                            max(case when w.code = 'pl-krk' then s.on_hand end)::text as krakow_qty
+                       from stock_levels s
+                       join products p on p.id = s.product_id
+                       join warehouses w on w.id = s.warehouse_id
+                      group by p.sku
+                     having count(*) = 2
+                      order by p.sku`;
+
 async function fingerprints(client: Client): Promise<Record<string, unknown[]>> {
   const taken: Record<string, unknown[]> = {};
   for (const [name, sql] of Object.entries(FINGERPRINTS)) {
     const { rows } = await client.query(sql);
     taken[name] = rows;
   }
+  taken['stock_split'] = (await client.query(STOCK_SPLIT)).rows;
   return taken;
 }
 
 /** Names must fit PostgreSQL's 63-byte identifier limit and end in `_test`. */
 const RUN = randomBytes(4).toString('hex');
 const TEMPLATE_DB = `dp_${RUN}_tpl_test`;
+const DEMO_RESET = ['pnpm', 'exec', 'tsx', 'src/cli.ts', 'demo', 'reset'];
 const LEGACY_DB = `dp_${RUN}_legacy_test`;
 const DEMO_DB = `dp_${RUN}_demo_test`;
 
 describe('T210 — `seed:dev` and `endora demo seed` produce the same shop', () => {
+  let legacyBefore: Record<string, number>;
+  let demoBefore: Record<string, number>;
   let legacyCounts: Record<string, number>;
   let demoCounts: Record<string, number>;
   let legacyContent: Record<string, unknown[]>;
@@ -334,33 +418,39 @@ describe('T210 — `seed:dev` and `endora demo seed` produce the same shop', () 
       await cloner.end();
     }
 
-    await run('seed:dev', ['pnpm', 'exec', 'tsx', 'src/seeds/dev-catalog-seed.ts'], dsnFor(LEGACY_DB));
-    // `reset` then `seed`, and the pair is the subject rather than a
-    // precaution. `seed:dev` opens with a 29-table `truncate … cascade`, so
-    // what it produces is *the truncate's* baseline — it destroys the delivery
-    // methods, payment methods and adapter rules four migrations seeded, and
-    // ends at 2 payment methods where the migrated template has 15. T213
-    // dissolves that truncate into `reset`, where it belongs, and the day it
-    // does, a demo side that only seeded would diverge from the legacy side by
-    // exactly those platform rows. Asking the demo side for `reset` + `seed` is
-    // T213's own done-when — *"`endora demo reset` followed by `endora demo
-    // seed` produces the database T210 compares"* — and it is what lets this
-    // comparison hold still while the truncate moves.
-    await run('endora demo reset', ['pnpm', 'exec', 'tsx', 'src/cli.ts', 'demo', 'reset'], dsnFor(DEMO_DB));
-    await run('endora demo seed', ['pnpm', 'exec', 'tsx', 'src/cli.ts', 'demo', 'seed'], dsnFor(DEMO_DB));
+    // Both sides through one `endora demo reset` — which composes the platform,
+    // so both databases hold what a boot writes before either seed runs. This
+    // is what makes the deltas below comparable at all; see the header.
+    await run('endora demo reset (legacy)', DEMO_RESET, dsnFor(LEGACY_DB));
+    await run('endora demo reset (demo)', DEMO_RESET, dsnFor(DEMO_DB));
 
     const legacy = new Client({ connectionString: dsnFor(LEGACY_DB) });
     const demo = new Client({ connectionString: dsnFor(DEMO_DB) });
     await legacy.connect();
     await demo.connect();
     try {
-      legacyCounts = await tableCounts(legacy);
-      demoCounts = await tableCounts(demo);
-      legacyContent = await fingerprints(legacy);
-      demoContent = await fingerprints(demo);
+      legacyBefore = await tableCounts(legacy);
+      demoBefore = await tableCounts(demo);
     } finally {
       await legacy.end();
       await demo.end();
+    }
+
+    await run('seed:dev', ['pnpm', 'exec', 'tsx', 'src/seeds/dev-catalog-seed.ts'], dsnFor(LEGACY_DB));
+    await run('endora demo seed', ['pnpm', 'exec', 'tsx', 'src/cli.ts', 'demo', 'seed'], dsnFor(DEMO_DB));
+
+    const legacyAfter = new Client({ connectionString: dsnFor(LEGACY_DB) });
+    const demoAfter = new Client({ connectionString: dsnFor(DEMO_DB) });
+    await legacyAfter.connect();
+    await demoAfter.connect();
+    try {
+      legacyCounts = await tableCounts(legacyAfter);
+      demoCounts = await tableCounts(demoAfter);
+      legacyContent = await fingerprints(legacyAfter);
+      demoContent = await fingerprints(demoAfter);
+    } finally {
+      await legacyAfter.end();
+      await demoAfter.end();
     }
   }, SUITE_TIMEOUT_MS);
 
@@ -376,35 +466,97 @@ describe('T210 — `seed:dev` and `endora demo seed` produce the same shop', () 
     }
   }, SUITE_TIMEOUT_MS);
 
+  /** Tables the reference run moved — the demo's own population, derived. */
+  function referencePopulation(): Record<string, number> {
+    const moved: Record<string, number> = {};
+    for (const [table, after] of Object.entries(legacyCounts)) {
+      const before = legacyBefore[table];
+      if (before === undefined) continue;
+      if (after !== before) moved[table] = after - before;
+    }
+    return moved;
+  }
+
   it('the legacy seed wrote a shop at all', () => {
-    // Without this the comparison below is satisfied by two empty databases,
-    // which is the vacuous green every ratchet in this repository is written
-    // against. It asserts the *baseline*, not the subject.
-    const written = Object.entries(legacyCounts).filter(([, count]) => count > 0);
-    expect(written.length, 'seed:dev wrote no row in any table').toBeGreaterThan(20);
-    expect(legacyCounts['products']).toBe(203);
+    // Without this the comparison below is satisfied by two seeds that wrote
+    // nothing, which is the vacuous green every ratchet in this repository is
+    // written against. It asserts the *baseline*, not the subject.
+    const population = referencePopulation();
+    expect(Object.keys(population).length, 'seed:dev moved no table at all').toBeGreaterThan(20);
+    expect(population['products']).toBe(203);
   });
 
-  it('writes the same number of rows in every table', () => {
+  it('moves every table the reference run moves, by the same amount', () => {
+    const reference = referencePopulation();
     const differing: Record<string, { legacy: number; demo: number }> = {};
-    for (const [table, count] of Object.entries(legacyCounts)) {
-      const mine = demoCounts[table];
-      if (mine !== count) differing[table] = { legacy: count, demo: mine ?? -1 };
-    }
-    for (const [table, count] of Object.entries(demoCounts)) {
-      if (!(table in legacyCounts)) differing[table] = { legacy: -1, demo: count };
+    for (const [table, delta] of Object.entries(reference)) {
+      if (table in BOOT_RECONCILED) continue;
+      const mine = (demoCounts[table] ?? 0) - (demoBefore[table] ?? 0);
+      if (mine !== delta) differing[table] = { legacy: delta, demo: mine };
     }
     expect(
       differing,
-      'the two demo seeds disagree about how many rows the shop has. Each entry is ' +
-        '<table>: { legacy: seed:dev, demo: endora demo seed }.',
+      'the two demo seeds disagree about how many rows the shop gains. Each entry is ' +
+        '<table>: { legacy: seed:dev, demo: endora demo seed }, as a delta over the ' +
+        'database each of them started from.',
     ).toEqual({});
   });
 
+  it('moves no table the reference run leaves alone, beyond what the boot reconciles', () => {
+    // The other direction, and it is not symmetric with the one above: a demo
+    // path that writes a table `seed:dev` never touches is a shop with rows
+    // nobody asked for, and the delta sweep above cannot see it — its
+    // population is the reference's.
+    const reference = referencePopulation();
+    const extra: string[] = [];
+    for (const [table, after] of Object.entries(demoCounts)) {
+      if (table in reference) continue;
+      const before = demoBefore[table];
+      if (before !== undefined && after !== before) extra.push(table);
+    }
+    const declared = Object.keys(BOOT_RECONCILED).filter((table) => !(table in reference));
+    expect(
+      extra.sort(),
+      'the composed path moved a table `seed:dev` does not, and BOOT_RECONCILED does not ' +
+        'say why — or an entry in it describes a reconciliation that no longer happens.',
+    ).toEqual(declared.sort());
+  });
+
   it.each(Object.keys(FINGERPRINTS))('writes the same %s', (name) => {
+    if (name in BOOT_RECONCILED) {
+      // Every row the reference produced is there; the surplus is the boot's
+      // and is what BOOT_RECONCILED accounts for.
+      const mine = demoContent[name]!.map((row) => JSON.stringify(row));
+      const theirs = legacyContent[name]!.map((row) => JSON.stringify(row));
+      expect(
+        theirs.filter((row) => !mine.includes(row)),
+        `the composed path is missing rows of ${name} that seed:dev produced`,
+      ).toEqual([]);
+      return;
+    }
     expect(
       demoContent[name],
       `the two demo seeds disagree about ${name}'s content, at equal row counts or not`,
     ).toEqual(legacyContent[name]);
+  });
+
+  it.each([
+    ['seed:dev', () => legacyContent],
+    ['endora demo seed', () => demoContent],
+  ])('spreads %s stock 60/40 across the two warehouses', (_label, content) => {
+    // The quantities are not comparable between databases (see the
+    // `stock_levels` fingerprint), so the split is asserted where it *is*
+    // decidable: inside one database, against the rule the step implements.
+    const rows = content()['stock_split'] as {
+      sku: string;
+      default_qty: string;
+      krakow_qty: string;
+    }[];
+    expect(rows.length, 'no product carries stock in both warehouses').toBeGreaterThan(100);
+    const wrong = rows.filter((row) => {
+      const total = Number(row.default_qty) + Number(row.krakow_qty);
+      return Number(row.default_qty) !== Math.floor(total * 0.6);
+    });
+    expect(wrong, 'the default warehouse does not hold 60% of the product’s stock').toEqual([]);
   });
 });

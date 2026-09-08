@@ -61,6 +61,7 @@ import {
   isDemoInvocation,
   parseDemoVerb,
 } from './cli/demo-command.js';
+import type { EntityManager } from '@mikro-orm/postgresql';
 import { composeApp } from './composition.js';
 import { deploymentRoot } from './overlay/overlay-roots.js';
 import { ModuleDisabledError } from './kernel/lifecycle/plugin-helpers.js';
@@ -75,6 +76,11 @@ import {
   runDemo,
   unwrapDemoFailure,
 } from './demo/index.js';
+import { loadDemoComposition } from './demo/composition-loader.js';
+import {
+  resetHostModuleResidue,
+  seedHostModuleResidue,
+} from './seeds/demo-host-residue.js';
 
 const USAGE = `usage: endora <module id> <command> [args…]
        endora <module id> <command> --help
@@ -140,6 +146,34 @@ dependency graph gives, and then applies this instance's composition.
  * and nothing else, which over zero declaring modules is the state Phase 0 is
  * measured against — it completes and says so.
  */
+/**
+ * Run the host's own demo residue, and say what it did (feature 113, T213).
+ *
+ * `demo-host-residue.ts` holds the demo rows whose modules have not taken them
+ * back yet. It is not a module and it declares no `demo` manifest field, so
+ * `runDemo` cannot reach it — it is run here instead, in a module's place: on
+ * the way in before the composition is applied, on the way out after it is
+ * withdrawn. Both are `runDemo`'s own order for a module (§5.5), applied to the
+ * one pile that is not one.
+ *
+ * It reports as a line rather than as a module outcome, deliberately: a
+ * `DemoModuleOutcome` for a fictitious module would put a name in the report
+ * that no manifest carries, and an operator reading `demo-host-residue —
+ * seeded` would go looking for a module by that name.
+ */
+async function hostResidue(verb: 'seed' | 'reset', em: EntityManager): Promise<string> {
+  if (verb === 'reset') {
+    await resetHostModuleResidue(em);
+    return "\nThis instance's remaining host-held demo rows were withdrawn.\n";
+  }
+  const summary = await seedHostModuleResidue(em);
+  return (
+    `\nHost-held demo rows (not yet owned by their modules): ` +
+    `${summary.products} products in ${summary.categoryNodes} category nodes, ` +
+    `plus the identities, methods and warehouses the shop needs.\n`
+  );
+}
+
 async function runDemoCommand(
   verb: 'seed' | 'reset',
   resolved: Awaited<ReturnType<typeof resolvedManifestEntries>>,
@@ -154,13 +188,36 @@ async function runDemoCommand(
     return await enterSystemScope(
       verb === 'seed' ? DEMO_SEED_SCOPE_REASON : DEMO_RESET_SCOPE_REASON,
       async () => {
+        // Feature 113 T212 — the parameter Phase 0 left unsupplied. The
+        // EntityManager is forked **inside** the scope, so the composition's
+        // reads carry the same system scope every module's body does, and the
+        // presence oracle handed to it is the composed platform's own: a
+        // composition step over a switched-off module is a reported skip
+        // (§5.4), decided from the conjunction of both axes and never
+        // re-derived.
+        const em = composition.orm.em.fork();
+        const found = await loadDemoComposition({
+          em,
+          isPresent: (id) => effectiveState.isPresent(id),
+        });
+        // Feature 113 T213 — the **host residue**: the demo rows that have not
+        // reached their own modules yet. It runs exactly where a module's own
+        // body runs, which is what keeps this command and `seed:dev` producing
+        // one shop while Phase 2 drains it: before the composition is applied
+        // on the way in, after it is withdrawn on the way out (§5.5). It
+        // shrinks batch by batch and the calls go with the last block.
+        const residue = await hostResidue(verb, em);
         const result = await runDemo({
           mode: verb,
           entries,
           isPresent: (id) => effectiveState.isPresent(id),
           contextFor: composition.contextFor,
+          ...(found.found ? { composition: found.composition } : {}),
         });
         process.stdout.write(formatDemoReport(result));
+        process.stdout.write(residue);
+        // §5.6, once and enumerating nothing.
+        if (!found.found) process.stdout.write(`\n${found.notice}\n`);
         return 0;
       },
       { entryPoint: 'cli', container: composition.container },
