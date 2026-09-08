@@ -152,7 +152,13 @@ import type { NewsletterBridge } from '@endora-commerce/mod-newsletter/backend';
 // Feature 064 — Meta Ads.
 // Feature 066 — Google Tag Manager.
 import { SalesChannel } from './kernel/sales-channels/sales-channel.entity.js';
-import { createRequestLanguageResolver } from './kernel/i18n/request-language.js';
+// T118 — the error envelope's assembly, by the **declared** subpath rather than
+// by a relative path into the platform. `./composition` is host-internal (a
+// module naming it is `check:platform-surface`'s `host-internal-subpath`), which
+// is exactly what this file is, and it is the spelling that leaves no new shim
+// behind: `RELATIVE_HOST_REACHES` is the ledger T119 drains, and a repair that
+// added to it would be moving in the wrong direction.
+import { composeErrorEnvelopeOptions } from '@endora-commerce/platform/composition';
 import {
   lifecycleModuleFromStaticEntries,
   loadModulePresence,
@@ -2768,28 +2774,19 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     // resolves (T042b).
     contextFor: (moduleId) => composedModules.contextFor(moduleId),
     resolvedModules: resolvedRegistry,
-    errorEnvelope: {
+    // T118 — the assembly is the platform's, and what this root supplies is the
+    // three things only a composition holds: its own resolved routing table and
+    // the two gated ports the envelope's callbacks read. The twenty lines that
+    // stood here stood character-for-character in the harness as well, which is
+    // the drift `harness-parity.test.ts` exists for and which issue #234 already
+    // paid for once — both roots read `if (request.actor.kind !== 'admin')
+    // return null`, so every Polish error sentence the platform ships was
+    // unreachable for a buyer, in production and in every test at once.
+    errorEnvelope: composeErrorEnvelopeOptions({
       errorTranslationTargets: errorTranslation.targets,
-      // Issue #234 — the ladder is one kernel function, and the root keeps the
-      // one rung that reads a module's table (D-137). What stood here was
-      // `if (request.actor.kind !== 'admin') return null`, which the envelope
-      // turns into the platform fallback: every Polish error sentence the
-      // platform ships was unreachable for a buyer.
-      resolvePreferredLanguage: createRequestLanguageResolver({
-        adminPreferredLanguage: async (adminUserId) =>
-          (await identityPorts().adminUserReadPort.findById(adminUserId))?.preferredLanguage ??
-          null,
-      }),
-      translateErrorMessage: async ({ moduleId, key, language, originalMessage, params }) => {
-        const translated = await reads().adminI18nService.translate(
-          moduleId,
-          key,
-          language,
-          params,
-        );
-        return translated === `${moduleId}.${key}` ? originalMessage : translated;
-      },
-    },
+      adminUserReadPort: () => identityPorts().adminUserReadPort,
+      translate: () => reads().adminI18nService,
+    }),
     dispose: async () => {
       // Feature 062 — drain the webhook delivery pipeline before dropping the
       // Redis connections (graceful shutdown). Every part of that is the

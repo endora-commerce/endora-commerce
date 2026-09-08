@@ -130,11 +130,21 @@ describe('codeOnly', () => {
     // runaway match — because what this case needs is a token that is really
     // there and really eaten. A probe that has left the file makes the case red
     // for a reason that is not the stripper's, which is what it just was.
+    //
+    // `resolvePreferredLanguage` left it the same way, and it is the second
+    // time this case has been re-derived rather than repaired
+    // (`specs/110-instance-repository/` T118): the harness no longer assembles
+    // the error envelope, so the callback it named is inside the platform now.
+    // `errorTranslationTargets` replaces it on identical terms — still the
+    // envelope's wiring, still code and not comment, still measured inside the
+    // runaway match. The lesson the two share is the one worth keeping: a probe
+    // is a derived fact about another file, so it goes stale in the merge
+    // request that edits that file and never in this one.
     const source = readFileSync(HARNESS, 'utf8');
     const code = codeOnly(source);
     const eaten = blockFirst(source);
     expect(code.split('\n')).toHaveLength(source.split('\n').length);
-    for (const probe of ['beforeBoot:', 'errorEnvelope', 'resolvePreferredLanguage']) {
+    for (const probe of ['beforeBoot:', 'errorEnvelope', 'errorTranslationTargets']) {
       expect(eaten, `${probe} was visible to the block-first stripper after all`).not.toContain(
         probe,
       );

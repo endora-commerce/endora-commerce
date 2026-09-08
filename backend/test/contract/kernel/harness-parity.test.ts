@@ -555,18 +555,36 @@ describe('T075 — a converted module costs no test-helper edit', () => {
  * English they produced. That is the exact failure mode this file exists for:
  * a wiring difference the suite reports green over.
  *
- * The policy is one kernel function now, and each root keeps one line — the
- * admin lookup, the only rung that reads a module's table. These two
- * assertions are what stops a second spelling of the ladder growing back.
+ * **The assertion is re-derived rather than repaired**
+ * (`specs/110-instance-repository/` T118). It read *"each root constructs
+ * `createRequestLanguageResolver` exactly once"*, and that was the strongest
+ * claim available while each root assembled the envelope itself: what remained
+ * duplicated after feature 083 was the twenty lines *around* the shared ladder
+ * — the same `errorTranslationTargets` wiring, the same admin lookup, the same
+ * `translated === `${moduleId}.${key}`` miss test — written out in both files
+ * and identical. T118 moved that assembly into the platform, so neither root
+ * constructs the resolver now and the old assertion measured its absence.
+ *
+ * What the two roots owe each other here is therefore one line lower than it
+ * was: each hands the shared assembly its own three composition inputs, and
+ * neither reconstructs any part of the policy. The harness-only actor property
+ * reappearing in that wiring is still the signal it always was.
  */
 describe('083 — both roots resolve a request language through one function', () => {
-  it('each root constructs the shared resolver rather than writing a ladder', () => {
+  it('each root delegates the envelope rather than assembling one', () => {
     for (const [root, source] of [
       ['harness', harness],
       ['production', production],
     ] as const) {
-      const calls = [...codeOnly(source).matchAll(/createRequestLanguageResolver\(/g)].length;
-      expect(calls, `${root} does not construct the shared request-language resolver`).toBe(1);
+      const code = codeOnly(source);
+      const delegated = [...code.matchAll(/composeErrorEnvelopeOptions\(/g)].length;
+      expect(delegated, `${root} does not delegate the error-envelope assembly`).toBe(1);
+      // The two halves the assembly owns. A root that spells either has started
+      // writing a second answer beside the one it just called.
+      const ladder = [...code.matchAll(/createRequestLanguageResolver\(/g)].length;
+      expect(ladder, `${root} reconstructs the language ladder`).toBe(0);
+      const written = [...code.matchAll(/translateErrorMessage\s*:/g)].length;
+      expect(written, `${root} writes its own translation callback`).toBe(0);
     }
   });
 
@@ -574,12 +592,12 @@ describe('083 — both roots resolve a request language through one function', (
     // `registerTestAuth` mirrors every resolved actor onto `request.actor` as
     // well as onto the harness's own decoration, so the shared resolver —
     // which reads the production property — answers correctly here too. The
-    // harness-only property reappearing inside the `errorEnvelope` block means
-    // the two roots have started answering different questions again.
+    // harness-only property reappearing in the `errorEnvelope` wiring means the
+    // two roots have started answering different questions again.
     const code = codeOnly(harness);
-    const block = code.slice(code.indexOf('errorEnvelope: {'));
-    const envelopeBlock = block.slice(0, block.indexOf('\n    },'));
-    expect(envelopeBlock).toContain('createRequestLanguageResolver(');
+    const at = code.indexOf('errorEnvelope: composeErrorEnvelopeOptions(');
+    expect(at, 'the harness no longer delegates the envelope').toBeGreaterThan(0);
+    const envelopeBlock = code.slice(at, code.indexOf('}),', at));
     expect(envelopeBlock).not.toContain('testActor');
   });
 });

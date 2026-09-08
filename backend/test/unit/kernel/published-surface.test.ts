@@ -513,7 +513,12 @@ const HOST_COMPOSITION_SURFACE: Readonly<Record<string, readonly string[]>> = {
   'kernel/settings/manifest-reconciler.ts': ['ManifestReconciler'],
   'kernel/sales-channels/compose.ts': ['composeSalesChannelsKernel', 'SalesChannelsKernel'],
   'kernel/sales-channels/default-channel-reconciler.ts': ['DefaultChannelReconciler'],
-  'kernel/i18n/request-language.ts': ['createRequestLanguageResolver'],
+  // T118 — `createRequestLanguageResolver` was here and is not: the assembly
+  // that constructed it in both roots is one platform function now, so no
+  // composition root names the resolver and R3.1a's second direction — a name
+  // no consumer imports is surface parked against a future need — takes it off.
+  // The count is unchanged at 27 because the assembly replaced it one for one.
+  'kernel/i18n/error-envelope-options.ts': ['composeErrorEnvelopeOptions'],
   'kernel/audit/audit-log-service.ts': ['AuditLogService'],
   'tenancy/scoped-em.ts': ['forkScopedEm'],
   'tenancy/resolve-tenant-context.ts': ['resolveTenantContext', 'systemTenantContext'],

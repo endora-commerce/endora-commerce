@@ -89,7 +89,14 @@ export {
   type SalesChannelsKernel,
 } from '../kernel/sales-channels/compose.js';
 export { DefaultChannelReconciler } from '../kernel/sales-channels/default-channel-reconciler.js';
-export { createRequestLanguageResolver } from '../kernel/i18n/request-language.js';
+// T118 — `createRequestLanguageResolver` left this barrel with the assembly that
+// wrapped it. Both roots constructed it; neither does now, because the whole
+// error-envelope assembly is one platform function, and R3.1a's rule cuts both
+// ways — a name here with no consumer outside the platform is surface parked
+// against a future need, which is what `published-surface.test.ts`' second
+// direction refuses. The resolver is still the ladder; it is simply no longer a
+// composition root's to construct.
+export { composeErrorEnvelopeOptions } from '../kernel/i18n/error-envelope-options.js';
 export { AuditLogService } from '../kernel/audit/audit-log-service.js';
 
 // --- tenancy: establishing and forking a context --------------------------
