@@ -189,9 +189,11 @@ export function App({ contributions, modulePresence }: AppProps): ReactNode {
             `category.editor.after` — and a host moves on the same terms a
             contributor does, because a zone is neither a route nor a nav entry.
             Their declarations are in
-            `packages/modules/catalog/src/admin/index.ts`. The create form is
-            `/catalog/products/:id` with the id `new` and always was, so this
-            batch declares no static `/catalog/products/new` beside it. */}
+            `packages/modules/catalog/src/admin/index.ts`. That batch declared
+            no static `/catalog/products/new` beside `:id`; D-221 does, on
+            `catalog:write`, so the URL `new-product` advertises is answered by
+            a declaration carrying the code it names. `ModuleRoute`'s gate is
+            what made that necessary — see the ruling. */}
         {/* The three `/customers*` and two `/organizations*` routes were
             declared here until feature 091's Phase 4 batch 14. Both modules are
             zone **hosts** — `CustomerDetail` renders `customer.detail.after`

@@ -119,6 +119,7 @@
   "productsList.empty.prefix": "Spróbuj wyczyścić filtry lub użyj",
   "productsList.empty.button": "+ Nowy produkt",
   "productsList.empty.suffix": "aby utworzyć produkt.",
+  "productsList.empty.readOnly": "Spróbuj wyczyścić filtry.",
   "productsList.column.product": "Produkt",
   "productsList.column.sku": "SKU",
   "productsList.column.status": "Status",

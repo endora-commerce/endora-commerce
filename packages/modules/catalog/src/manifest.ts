@@ -366,6 +366,52 @@ export const manifest = defineModuleManifest({
     { code: 'VARIANT_AXIS_MISSING' },
     { code: 'VARIANT_COMBINATION_EXISTS' },
   ],
+  /**
+   * **One entry, and it declares a requirement rather than a code** (D-221).
+   *
+   * `catalog:read` and `catalog:write` are core rows — `PERMISSION_CATALOGUE`
+   * in `packages/contracts/src/admin.ts` declares both under
+   * `module: 'catalog'` — so this module already owns them and this array adds
+   * neither. What it adds is the field a core row cannot carry:
+   * `PermissionCatalogueService#merge` seeds every core row with an **empty**
+   * `requires` and never reads that field off a core entry, so a requirement
+   * written in the contracts package would be silently dropped. The manifest
+   * path is the designed one (D-175) and unions across declarers.
+   *
+   * The label is the core row's, repeated because the field is required and a
+   * second spelling would be a second answer waiting to disagree. The merge
+   * keeps the first label it was given, which is the core one, and adds
+   * `catalog` to an owner set it is already in — so `/admin-roles` renders
+   * exactly what it rendered before, plus the shortfall.
+   *
+   * **Why `catalog:write` requires `catalog:read`.** Since D-221 the product
+   * create form is a route of its own on `catalog:write`
+   * (`packages/modules/catalog/src/admin/index.ts`), and `ProductEditor`'s
+   * loader fetches `/catalog/categories` and `/catalog/attribute-sets`
+   * unconditionally — before any `isNew` branch — with the create path *using*
+   * the second to select the new product's default attribute set. Both are
+   * `requireAdmin('catalog:read')`. So a role holding the write code alone
+   * opens the form and watches both mount fetches refuse; one
+   * `requiredPermission` field cannot say two codes, and this is the field
+   * D-175 added for exactly that.
+   *
+   * It is **advisory**: no upsert is refused, nothing at runtime reads it, and
+   * it is not a lifecycle edge — it puts no module in `dependencies`. The role
+   * editor renders it as a one-click shortfall, which is what makes the
+   * incomplete role visible where it is created instead of at the gate.
+   * The requirement is attached to the **code** and not to this screen, so
+   * every holder of `catalog:write` is advised to add `catalog:read` —
+   * including the holders of the gates other modules enforce with it. How many
+   * of those there are is not written here, because a count copied into a
+   * comment goes stale in the merge request that changes it (D-100); a grep for
+   * `catalog:write` under the other modules' `src/backend` answers it. That
+   * breadth was weighed and accepted as correct rather than as collateral: a
+   * role that may edit the catalogue through any surface and cannot read it is
+   * incomplete wherever it was granted.
+   */
+  permissions: [
+    { code: 'catalog:write', label: 'Edit catalog', requires: ['catalog:read'] },
+  ],
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
   actions: [

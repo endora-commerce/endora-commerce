@@ -28,7 +28,7 @@ import {
   resolveProductSelection,
   type ListFilterSnapshot,
 } from '../lib/resolve-product-selection.js';
-import { ApiError, apiClient, cn, usePageSizePreference } from '@endora-commerce/admin-kit/lib';
+import { ApiError, apiClient, cn, useAuth, usePageSizePreference } from '@endora-commerce/admin-kit/lib';
 import { PaginationFooter } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
@@ -87,6 +87,15 @@ function isStatusFilter(value: string | null): value is StatusFilter {
 export function ProductsList(): ReactNode {
   const t = useTranslation('catalog');
   const navigate = useNavigate();
+  // The create route this screen links to takes the **write** code (D-221), so
+  // both buttons that navigate there are gated on the same one. A link whose
+  // destination the operator's codes cannot open answers the admin's own
+  // not-found page, which says nothing about permissions at all — so the
+  // affordance moves with the route, or the tightening relocates the dead end
+  // instead of closing it. `sales_channels`' `+ New channel` and `blog`'s
+  // `New post` are the same shape.
+  const { hasPermission } = useAuth();
+  const canWrite = hasPermission('catalog:write');
   const [searchParams] = useSearchParams();
   const [rows, setRows] = useState<AdminProduct[]>([]);
   const [total, setTotal] = useState(0);
@@ -349,13 +358,15 @@ export function ProductsList(): ReactNode {
           <button type="button" className="b2b-btn b2b-btn--default b2b-btn--sm">
             <Download size={13} /> {t('productsList.action.export')}
           </button>
-          <button
-            type="button"
-            className="b2b-btn b2b-btn--primary"
-            onClick={(): void => { navigate('/catalog/products/new'); }}
-          >
-            <Plus size={14} /> {t('productsList.action.newProduct')}
-          </button>
+          {canWrite ? (
+            <button
+              type="button"
+              className="b2b-btn b2b-btn--primary"
+              onClick={(): void => { navigate('/catalog/products/new'); }}
+            >
+              <Plus size={14} /> {t('productsList.action.newProduct')}
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -560,17 +571,31 @@ export function ProductsList(): ReactNode {
                 <Package size={20} />
               </div>
               <div className="b2b-empty__title">{t('productsList.empty.title')}</div>
+              {/*
+                The empty state's sentence is *"Try clearing filters, or use
+                + New product to create one."* — half advice, half affordance.
+                A read-only operator gets the advice and not the affordance:
+                the sentence degrades to its own key rather than losing the
+                button out of the middle of it, which would read as
+                *"Try clearing filters, or use  to create one."*
+              */}
               <div className="b2b-empty__sub">
-                {t('productsList.empty.prefix')}{' '}
-                <button
-                  type="button"
-                  className="b2b-btn b2b-btn--ghost"
-                  onClick={(): void => { navigate('/catalog/products/new'); }}
-                  style={{ display: 'inline-flex', height: 'auto', padding: 0, color: 'var(--primary-color)' }}
-                >
-                  {t('productsList.empty.button')}
-                </button>{' '}
-                {t('productsList.empty.suffix')}
+                {canWrite ? (
+                  <>
+                    {t('productsList.empty.prefix')}{' '}
+                    <button
+                      type="button"
+                      className="b2b-btn b2b-btn--ghost"
+                      onClick={(): void => { navigate('/catalog/products/new'); }}
+                      style={{ display: 'inline-flex', height: 'auto', padding: 0, color: 'var(--primary-color)' }}
+                    >
+                      {t('productsList.empty.button')}
+                    </button>{' '}
+                    {t('productsList.empty.suffix')}
+                  </>
+                ) : (
+                  t('productsList.empty.readOnly')
+                )}
               </div>
             </div>
           ) : (

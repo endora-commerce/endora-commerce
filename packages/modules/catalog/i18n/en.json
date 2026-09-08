@@ -119,6 +119,7 @@
   "productsList.empty.prefix": "Try clearing filters, or use",
   "productsList.empty.button": "+ New product",
   "productsList.empty.suffix": "to create one.",
+  "productsList.empty.readOnly": "Try clearing filters.",
   "productsList.column.product": "Product",
   "productsList.column.sku": "SKU",
   "productsList.column.status": "Status",

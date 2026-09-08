@@ -1,6 +1,6 @@
 /**
- * `catalog`'s admin surface — eight routes and six sidebar entries (feature
- * 091, Phase 4 batch 15).
+ * `catalog`'s admin surface — nine routes and six sidebar entries (feature
+ * 091, Phase 4 batch 15; the ninth route arrives with D-221).
  *
  * **The largest surface in the drain, and a zone *host* six members over.**
  * `ProductEditor.tsx` mounts `product.editor.details.before`,
@@ -26,13 +26,24 @@
  * sides of the move, and that agreement is the measurement rather than a
  * silence.
  *
+ * **The product create form is a route of its own** (D-221, R17). It was not,
+ * and the header that stood here argued it should not be: the create form was
+ * `/catalog/products/:id` with the id `new`, served on `catalog:read`, while
+ * `new-product` advertised the same URL on `catalog:write`. Since feature 091
+ * the admin *enforces* the pairing — `ModuleRoute` renders the not-found
+ * treatment for a route the operator's codes do not satisfy — so an advertised
+ * holder of the write code and not the read code reached a page that says
+ * nothing about permissions, which is Principle XVI item 2's prohibition one
+ * page worse than the 403 it names. The route below is that URL's own
+ * declaration, on the code its own purpose needs.
+ *
  * **This entry exports data and nothing else** (R2); every component is a
  * dynamic-import factory (R6).
  */
 import type { AdminContributions } from '@endora-commerce/admin-kit/contributions';
 
 /**
- * The one code that opens every screen below.
+ * The code that opens every screen below except the create form.
  *
  * `packages/modules/catalog/src/backend/routes.admin.ts` gates the product
  * roster, one product, the category tree, the attribute and attribute-set
@@ -43,6 +54,30 @@ import type { AdminContributions } from '@endora-commerce/admin-kit/contribution
  * sidebar rows carried.
  */
 const READ_PERMISSION = 'catalog:read';
+
+/**
+ * The code that opens the create form, and only that.
+ *
+ * A screen whose one purpose is a write opens on the write code — batch 10's
+ * `/credentials/new`, batch 14's `/sales-channels/new`, batch 15's
+ * `/orders/new`, and now this. The alternative, `catalog:read`, would advertise
+ * to every read-only operator a form whose save refuses, which moves the 403
+ * from the router to the end of the work.
+ *
+ * **The form needs `catalog:read` as well, and that is why the manifest
+ * declares `requires`** (D-221; R17's third clause). `ProductEditor`'s loader
+ * fetches `/catalog/categories` and `/catalog/attribute-sets` unconditionally,
+ * before any `isNew` branch, and the create path *uses* the second to select
+ * the new product's default attribute set; both are `requireAdmin('catalog:read')`.
+ * So this is a two-code screen and one `requiredPermission` field cannot say
+ * both. `blog`'s and `sales_channels`' create branches return from their loader
+ * before fetching anything, which is why the write code alone is complete for
+ * them and not here. The second code is declared as `requires` on
+ * `catalog:write` in this module's manifest, where the role editor renders it
+ * as a one-click shortfall — advisory, so the incomplete role is visible where
+ * it is created rather than refused at the gate.
+ */
+const WRITE_PERMISSION = 'catalog:write';
 
 /** The module's landing route: the product roster. */
 const ROUTE_PATH = '/catalog/products';
@@ -56,14 +91,24 @@ export const contributions: AdminContributions = {
       index: true,
     },
     {
-      // **The create form is this route with the id `new`** — `ProductEditor`'s
-      // own `params.id === 'new'` reads it — and there is deliberately no
-      // static `/catalog/products/new` declared beside it. `new-product`'s
-      // `targetRoute` names that URL and always has; declaring a route for it
-      // would be inventing one in a batch whose job is to move one, and it
-      // would tighten a form an operator reaches from a list they can already
-      // open. `<Routes>` ranks a static segment above a parametric one, so the
-      // day somebody does want the split it is available without reordering.
+      // **The create form, declared** (D-221). It is the same component — the
+      // id `new` is what `ProductEditor`'s own `params.id === 'new'` reads —
+      // and it is a route of its own so that the URL `new-product` advertises
+      // is answered by a declaration carrying the code `new-product` names.
+      // `<Routes>` ranks a static segment above a parametric one, so the order
+      // here is documentation rather than mechanism; it is written first
+      // anyway, because a reader comparing this list to the palette should
+      // meet the specific declaration before the general one.
+      path: `${ROUTE_PATH}/new`,
+      component: () => import('./pages/ProductEditor.js'),
+      requiredPermission: WRITE_PERMISSION,
+    },
+    {
+      // The edit form keeps the read code: opening one product is a read, and
+      // every control on it that writes gates itself. Nothing about D-221
+      // touches this route — the tightening is the create URL's alone, and
+      // saying so here is what stops the next reader from applying the write
+      // code to both.
       path: `${ROUTE_PATH}/:id`,
       component: () => import('./pages/ProductEditor.js'),
       requiredPermission: READ_PERMISSION,
