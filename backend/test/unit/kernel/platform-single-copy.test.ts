@@ -128,6 +128,7 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     expect([...measurement.declared].sort()).toEqual([
       'commands',
       'composition',
+      'db',
       'env',
       'events',
       'http',
@@ -169,6 +170,19 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     // 121 files import that path (D115-2 keeps every name it exported). A
     // re-export is a second spelling whatever the file's purpose is, so the
     // comparison is real and is three names wide rather than the whole barrel.
+    // `./db` arrived with `specs/110-instance-repository/` T116 and is
+    // comparable for `./overlay`'s reason, with one extra property worth
+    // stating: what the application keeps under `src/db/` is not a shim but a
+    // **binding** — the two committed registries a relocated platform file may
+    // not import (R7.4), and the four files that hand them over. Those files
+    // re-export the platform's pure halves (`configuredMigrationsFrom`,
+    // `migrationOwnershipOf`, `orderMigrations`, the naming strategy), which is
+    // what makes the comparison real; the functions they *declare* are
+    // deliberately named apart from the platform's — `coreMigrationOwnership()`
+    // takes this build's registry, `committedMigrationOwnership(sources)` takes
+    // any — because two objects under one name is what this file's second
+    // assertion is unable to tell from a duplication.
+    //
     // `./overlay` and `./packages` arrived with `specs/110-instance-repository/`
     // T113 and T114, and they arrive **comparable** rather than `unshimmed`:
     // both directories keep an application half — the shims T119 drains, plus
@@ -179,6 +193,7 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     expect(comparisons.map((entry) => entry.subpath)).toEqual([
       'commands',
       'composition',
+      'db',
       'events',
       'http',
       'kernel',

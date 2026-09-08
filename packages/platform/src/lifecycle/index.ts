@@ -137,12 +137,13 @@ export {
 } from './services/lock.js';
 
 // --- the two graphs a presence decision is computed over ------------------
-export {
-  ModuleDepGraph,
-  moduleDependencyCycles,
-  sortComponentsTopologically,
-  stronglyConnectedComponents,
-} from './services/dep-graph.js';
+//
+// The three free functions of `dep-graph.ts` left this barrel with
+// `specs/110-instance-repository/` T116: their one consumer outside the
+// platform was `migration-order.ts`, which is now inside it and names the file
+// directly. R5.4 — a name here that no first-party source outside the platform
+// imports is surface parked against a future need.
+export { ModuleDepGraph } from './services/dep-graph.js';
 export {
   acknowledgedPortEdgesFrom,
   gatingGraph,
@@ -195,7 +196,11 @@ export {
   type RegisteredManifestEntry,
 } from './manifest-registry.js';
 export { buildStaticRegistry } from './services/static-registry.js';
-export { type MigrationOwnership } from './services/migration-ownership.js';
+// `MigrationOwnership` left this barrel with `specs/110-instance-repository/`
+// T116 for `dep-graph.ts`' three functions' reason: the merge that builds one is
+// `db/configured-migrations.ts`, which is inside the platform now, and the one
+// address a consumer outside it uses is `./db`. Two homes would be two answers
+// to which subpath owns the shape (R5.5).
 
 // --- what a deployment declares about differing from core -----------------
 // The shape half only. The locator is `backend/src/overlay/divergence-loader.ts`

@@ -45,3 +45,29 @@
  * the platform applies them in.
  */
 export { BASELINE_MIGRATIONS } from './baseline-migrations.generated.js';
+
+// --- the platform's own twelve migrations ---------------------------------
+//
+// Named exports and no `migrations` array, and the asymmetry with a module
+// package's `./migrations` barrel is deliberate. That array exists because
+// `packages/package-runtime.ts` reads it out of an **installed** package's
+// export and refuses the package when it is absent; the platform is not a
+// module package and is discovered by nothing, so an array here would be a
+// claim nothing reads. What is read is each class **by name**, by
+// `backend/src/db/migrations-registry.generated.ts`, which the generator emits
+// against this specifier — and a migration class name is contract in a way an
+// entity class name is not: `mikro_orm_migrations` persists it, so it is a
+// string every already-migrated database holds. A class that is in neither this
+// barrel nor the registry is a migration that does not run.
+export { Migration20260424T165847CoreFoundationInit } from './20260424T165847_core_foundation_init.js';
+export { Migration20260425T050720CoreCommerceInit } from './20260425T050720_core_commerce_init.js';
+export { Migration20260430T101450CoreSettingsInit } from './20260430T101450_core_settings_init.js';
+export { Migration20260430T170044CoreSalesChannelsPromote } from './20260430T170044_core_sales_channels_promote.js';
+export { Migration20260506T200657CoreModuleLifecycleInit } from './20260506T200657_core_module_lifecycle_init.js';
+export { Migration20260514T111329CoreSettingsGlobalValue } from './20260514T111329_core_settings_global_value.js';
+export { Migration20260611T140411CoreSettingsSecretValueType } from './20260611T140411_core_settings_secret_value_type.js';
+export { Migration20260611T140419CoreSettingsEnumOptions } from './20260611T140419_core_settings_enum_options.js';
+export { Migration20260629T090100CoreSettingsHiddenFlag } from './20260629T090100_core_settings_hidden_flag.js';
+export { Migration20260717T134752CoreTenantScopeIndexes } from './20260717T134752_core_tenant_scope_indexes.js';
+export { Migration20260721T011510CoreSettingsCredentialRefValueType } from './20260721T011510_core_settings_credential_ref_value_type.js';
+export { Migration20260816T203339CoreRetireCoreActivationSettings } from './20260816T203339_core_retire_core_activation_settings.js';

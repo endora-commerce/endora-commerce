@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, join, relative } from 'node:path';
 import {
+  coreMigrationDirs,
   coreModuleRoot,
   deriveFkGraph,
   KERNEL_OWNER,
@@ -34,7 +35,7 @@ const MIGRATION_FILE_RE = /^(\d{8}T\d{6})_([a-z0-9_]+)\.ts$/;
 export interface MigrationTables {
   /** Migration class name — the name `mikro_orm_migrations` stores. */
   className: string;
-  /** Owning group: a module id, or 'core' for src/db/migrations/. */
+  /** Owning group: a module id, or 'core' for the platform's own `migrations/`. */
   groupId: string;
   /** Path relative to backend/, for readable failure messages. */
   relativePath: string;
@@ -69,9 +70,16 @@ export function collectMigrationTables(
   sourceRoot: string,
   moduleRoots: readonly ModuleRoot[] = [coreModuleRoot(sourceRoot)],
 ): MigrationTables[] {
-  const files: { path: string; groupId: string }[] = listMigrationFiles(
-    join(sourceRoot, 'db', 'migrations'),
-  ).map((name) => ({ path: join(sourceRoot, 'db', 'migrations', name), groupId: 'core' }));
+  // Both homes of the `core` group, for `coreMigrationDirs`' own reason: the
+  // twelve moved into the platform package with T116 and every fixture here
+  // still writes them under `<sourceRoot>/db/migrations`.
+  const files: { path: string; groupId: string }[] = coreMigrationDirs(sourceRoot).flatMap(
+    (directory) =>
+      listMigrationFiles(directory).map((name) => ({
+        path: join(directory, name),
+        groupId: 'core',
+      })),
+  );
 
   for (const [id, scanned] of resolveModuleDirectories(moduleRoots)) {
     // Found by **directory name**, at any depth — the same predicate

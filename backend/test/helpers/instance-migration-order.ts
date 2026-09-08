@@ -40,12 +40,13 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { configuredMigrationsFrom } from '../../src/db/configured-migrations.js';
-import { BASELINE_THROUGH, type MigrationRegistryEntry } from '../../src/db/migration-order.js';
+import { BASELINE_THROUGH, type MigrationRegistryEntry } from '@endora-commerce/platform/db';
 import type { PackageSchemaContribution } from '../../src/packages/package-runtime.js';
 import { resolveModuleLayout } from '../../scripts/lib/module-roots.js';
+import { coreMigrationDirs } from './fk-graph.js';
 import { sqlTableAccesses } from '../../scripts/lib/sql-tables.js';
 
-/** The cross-cutting pseudo-module owning `src/db/migrations/`. */
+/** The cross-cutting pseudo-module owning the platform's own `migrations/`. */
 const CORE_MODULE_ID = 'core';
 
 /** Everything an order is computed from, with nothing memoised and nothing global. */
@@ -218,9 +219,11 @@ const ON_TABLE = /\bon "([a-z0-9_]+)"/gi;
  */
 export async function readMigrationSources(): Promise<readonly MigrationSource[]> {
   const layout = await resolveModuleLayout();
-  const directories: Array<{ directory: string; moduleId: string }> = [
-    { directory: join(layout.srcRoot, 'db', 'migrations'), moduleId: CORE_MODULE_ID },
-  ];
+  const directories: Array<{ directory: string; moduleId: string }> = coreMigrationDirs(
+    layout.srcRoot,
+  )
+    .filter((directory) => existsSync(directory))
+    .map((directory) => ({ directory, moduleId: CORE_MODULE_ID }));
   for (const moduleId of layout.registeredIds) {
     const root = layout.moduleDirectoryOf(moduleId);
     if (root === null) continue;

@@ -166,6 +166,36 @@ export function createModulePackageFixture(): ModulePackageFixture {
   );
   mkdirSync(join(root, 'backend', 'src', 'db', 'migrations'), { recursive: true });
 
+  // The host package. It is not a module and is discovered by nothing here —
+  // `discoverModulePackages` filters on `endora.type === 'module'` — but a
+  // rendered migration registry names it: since
+  // `specs/110-instance-repository/` T116 the artefact's type import is
+  // `@endora-commerce/platform/db` and a `core` migration's is
+  // `@endora-commerce/platform/migrations`. Without a member declaring it, the
+  // containment pass reports the host as `foreign`, which is a fact about a
+  // fixture missing a workspace member and not about the rule under test.
+  write(
+    join(root, 'packages', 'platform', 'package.json'),
+    `${JSON.stringify(
+      {
+        name: '@endora-commerce/platform',
+        version: '0.0.0',
+        type: 'module',
+        endora: { type: 'platform' },
+        exports: {
+          './db': { types: './dist/db/index.d.ts', default: './dist/db/index.js' },
+          './migrations': {
+            types: './dist/migrations/index.d.ts',
+            default: './dist/migrations/index.js',
+          },
+          './package.json': './package.json',
+        },
+      },
+      null,
+      2,
+    )}\n`,
+  );
+
   const workspaceDir = join(root, 'packages', 'modules', 'alpha');
   writeModulePackage(workspaceDir, WORKSPACE_NAME, 'alpha', 'AlphaThing');
 

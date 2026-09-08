@@ -203,11 +203,13 @@ describe('buildScaffold', () => {
   // Where the file lands is no longer `buildScaffold`'s answer: it is
   // `migrationTargetFor`'s, resolved from the module layout, and it is driven
   // over real trees in test/unit/scripts/migration-scaffold-roots.test.ts. The
-  // keys below are the application-tree paths the generator's own walk
-  // produces.
+  // keys below are the source-root-relative paths the generator's own walk
+  // produces — `migrations/` at the top level is the platform's own directory
+  // since `specs/110-instance-repository/` T116, which is where a `core`
+  // migration lands.
   it.each([
     ['orders', 'placement intents', 'modules/orders/migrations'],
-    ['core', 'tenant_indexes', 'db/migrations'],
+    ['core', 'tenant_indexes', 'migrations'],
   ])('scaffolds a file the registry generator registers (%s)', (moduleId, slug, directory) => {
     const built = buildScaffold({ moduleId, slug, stamp: '20260805T141530' });
     const file = `${directory}/${built.filename}`;

@@ -12,6 +12,8 @@ import {
   packageRelativePathOf,
   type ModulePackage,
 } from '../../../scripts/lib/module-packages.js';
+import { platformSourceRootAt } from '../../../scripts/lib/platform-root.js';
+import { barrelKeyOf } from '../../../scripts/lib/platform-surface.js';
 
 /**
  * Round-trip guard for the migration registry.
@@ -39,7 +41,26 @@ import {
 
 const here = dirname(fileURLToPath(import.meta.url));
 const backendRoot = resolve(here, '../../..');
-const dbMigrationsDir = resolve(backendRoot, 'src/db/migrations');
+/**
+ * The platform's own migrations — `packages/platform/src/migrations/` since
+ * `specs/110-instance-repository/` T116, `backend/src/db/migrations/` before it.
+ *
+ * Resolved rather than spelled: the platform is the one workspace member
+ * declaring `endora.type: "platform"`. That resolution is shared infrastructure
+ * and not the generator's migration walk, so it costs this file none of the
+ * independence its header is about — the recognizer, the class-name derivation
+ * and the directory walk are still its own.
+ */
+const platformMigrationsDir = ((): string => {
+  const platformRoot = platformSourceRootAt(resolve(backendRoot, '..'));
+  if (platformRoot === null) {
+    throw new Error(
+      'no workspace member declares `endora.type: "platform"`, so the twelve core ' +
+        'migrations have no directory and every one of them would read as an orphan entry.',
+    );
+  }
+  return resolve(platformRoot, 'migrations');
+})();
 const modulesRoot = resolve(backendRoot, 'src/modules');
 
 /** contracts/naming-convention.md §1 — the only recognizer any tool may use. */
@@ -85,7 +106,7 @@ interface DiscoveredMigration {
   relativePath: string;
   filename: string;
   className: string;
-  /** Owning module id — 'core' for src/db/migrations/. */
+  /** Owning module id — 'core' for the platform's own `migrations/`. */
   moduleId: string;
 }
 
@@ -125,12 +146,19 @@ function migrationDirs(): { dir: string; moduleId: string; owner?: ModulePackage
   const packageDirs = discoverModulePackages(resolve(backendRoot, '..')).flatMap((pkg) =>
     migrationDirsUnder(pkg.dir).map((dir) => ({ dir, moduleId: pkg.moduleId, owner: pkg })),
   );
-  return [{ dir: dbMigrationsDir, moduleId: 'core' }, ...moduleDirs, ...packageDirs];
+  return [{ dir: platformMigrationsDir, moduleId: 'core' }, ...moduleDirs, ...packageDirs];
 }
 
+/**
+ * `.generated.ts` is excluded for the reason `generate-composer.ts`'s own
+ * `readTree` excludes it: a generated artefact in a migrations directory is the
+ * composer's output, not an input it walks. The platform's
+ * `baseline-migrations.generated.ts` is the one such file, and it sits beside
+ * the twelve because it is a claim about their order.
+ */
 function listTsFiles(dir: string): string[] {
   if (!existsSync(dir) || !statSync(dir).isDirectory()) return [];
-  return readdirSync(dir).filter((name) => name.endsWith('.ts'));
+  return readdirSync(dir).filter((name) => name.endsWith('.ts') && !name.endsWith('.generated.ts'));
 }
 
 function discoverAllMigrations(): DiscoveredMigration[] {
@@ -224,6 +252,12 @@ describe('migration registry round-trip', () => {
         // than a §4 helper, so it needs no allow-list entry and the next module
         // package needs none either.
         if (owner !== undefined && isDeclaredEntryPoint(owner, packageRelativePathOf(owner, absolute))) {
+          continue;
+        }
+        // The platform's own `./migrations` barrel, on the same reasoning: the
+        // subpath has to name a file, that file re-exports the twelve classes,
+        // and the name comes off `barrelKeyOf` rather than being spelled here.
+        if (dir === platformMigrationsDir && absolute === resolve(dir, '..', barrelKeyOf('migrations'))) {
           continue;
         }
         strays.push(relativePath);

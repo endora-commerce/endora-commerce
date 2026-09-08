@@ -195,7 +195,11 @@ describe('the host package `exports` map', () => {
     });
 
     it('refuses a subpath the classification does not publish', () => {
-      const exports = { ...sound.exports, './db': { types: './dist/db/index.d.ts' } };
+      // `./db` was this case's fixture until `specs/110-instance-repository/`
+      // T116 declared it host-internal. The shape being refused is unchanged —
+      // a subpath in neither population — so the fixture is a name in neither,
+      // and it is deliberately one nothing plans to add.
+      const exports = { ...sound.exports, './seeds': { types: './dist/seeds/index.d.ts' } };
       expect(exportMapFindings({ ...sound, exports }).map((f) => f.kind)).toEqual([
         'unknown-subpath',
       ]);
@@ -250,9 +254,16 @@ describe('the host package `exports` map', () => {
     // discovery, silently, exit 0; a second copy of the host throws `MetadataError:
     // Duplicate entity names are not allowed` at boot. A `dependencies` entry permits both
     // by construction, which is why these four are peers.
+    // `@mikro-orm/migrations` joined them with `specs/110-instance-repository/`
+    // T116: the ORM configuration registers the `Migrator` extension and the
+    // platform's own twelve migrations extend `Migration`, so the package needs
+    // the name — and it needs it as a peer for the same reason as the other
+    // four, since a second copy of the migrator is a second `Migration` base
+    // class and the twelve would fail `instanceof` at the migrator's own gate.
     const peers = MANIFEST.peerDependencies ?? {};
     expect(Object.keys(peers).sort()).toEqual([
       '@mikro-orm/core',
+      '@mikro-orm/migrations',
       '@mikro-orm/postgresql',
       'fastify',
       'zod',
@@ -479,13 +490,17 @@ describe('the host package resolves under node', () => {
   // checkout and in no client's. T113 and T114 declare them, host-internal, so
   // each moved from "resolves for nobody" to "resolves, and no module may name
   // it" — which is `check:platform-surface`'s `host-internal-subpath` finding
-  // and not this file's question. The count is derived below rather than written
-  // into the case name for the reason it went stale here (D-100).
-  const REFUSED = [
-    `${HOST_NAME}/db`,
-    `${HOST_NAME}/kernel/lifecycle/plugin-helpers.js`,
-    HOST_NAME,
-  ];
+  // and not this file's question. **`./db` left the list with T116 on exactly
+  // that reasoning**, and it is the hardest of the three: §1.4f made it the
+  // single hardest **A** in the classification, because publishing the ORM
+  // configuration would make the host import all 219 module-owned entity
+  // references. It still may not be *published* — `PUBLISHED_SUBPATHS` is
+  // unchanged and a module reaching it gets `host-internal-subpath` — but the
+  // ORM configuration, the ordering and the bootstrap are the platform's code
+  // now, and the application needs an address for them that is not a path into
+  // `dist`. The count is derived below rather than written into the case name
+  // for the reason it went stale here (D-100).
+  const REFUSED = [`${HOST_NAME}/kernel/lifecycle/plugin-helpers.js`, HOST_NAME];
 
   let consumer: Consumer;
 

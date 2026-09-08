@@ -113,7 +113,7 @@ describe('collectMigrations', () => {
     const found = collectMigrations(
       tree({
         'modules/blog/migrations/20260901T101112_blog_widen_slug.ts': MIGRATION_SOURCE,
-        'db/migrations/20260901T101113_core_thing.ts':
+        'migrations/20260901T101113_core_thing.ts':
           'export class Migration20260901T101113CoreThing extends Migration {}',
       }),
     );
@@ -121,7 +121,7 @@ describe('collectMigrations', () => {
       {
         moduleId: 'core',
         className: 'Migration20260901T101113CoreThing',
-        file: 'db/migrations/20260901T101113_core_thing.ts',
+        file: 'migrations/20260901T101113_core_thing.ts',
         owner: null,
       },
       {
@@ -259,7 +259,7 @@ describe('the emitted registries', () => {
       {
         moduleId: 'core',
         className: 'Migration20260901T101113CoreThing',
-        file: 'db/migrations/20260901T101113_core_thing.ts',
+        file: 'migrations/20260901T101113_core_thing.ts',
         owner: null,
       },
       {
@@ -269,8 +269,12 @@ describe('the emitted registries', () => {
         owner: null,
       },
     ]);
+    // `specs/110-instance-repository/` T116: a `core` migration is the
+    // platform's own and is named through the subpath that publishes it, not
+    // through a relative path — the twelve moved out of the application and no
+    // shim was left behind for them.
     expect(content).toContain(
-      "import { Migration20260901T101113CoreThing } from './migrations/20260901T101113_core_thing.js';",
+      "import { Migration20260901T101113CoreThing } from '@endora-commerce/platform/migrations';",
     );
     expect(content).toContain("migration('blog', Migration20260901T101112BlogWidenSlug),");
     expect(content).toContain('export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [');

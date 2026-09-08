@@ -31,7 +31,7 @@
 //
 // Add one with: pnpm --filter backend run migration:new -- --module <id> --name <slug>
 
-import type { MigrationClass, MigrationRegistryEntry } from './migration-order.js';
+import type { MigrationClass, MigrationRegistryEntry } from '@endora-commerce/platform/db';
 
 // ── _i18n ───────────────────────────────────────────────────────────────────
 import { Migration20260507T091405I18nAdminI18nInit } from '@endora-commerce/mod-i18n/migrations';
@@ -104,18 +104,18 @@ import { Migration20260501T185834ComparisonsInit } from '@endora-commerce/mod-co
 import { Migration20260830T163143ComparisonsOrganizationAttribution } from '@endora-commerce/mod-comparisons/migrations';
 
 // ── core ────────────────────────────────────────────────────────────────────
-import { Migration20260424T165847CoreFoundationInit } from './migrations/20260424T165847_core_foundation_init.js';
-import { Migration20260425T050720CoreCommerceInit } from './migrations/20260425T050720_core_commerce_init.js';
-import { Migration20260430T101450CoreSettingsInit } from './migrations/20260430T101450_core_settings_init.js';
-import { Migration20260430T170044CoreSalesChannelsPromote } from './migrations/20260430T170044_core_sales_channels_promote.js';
-import { Migration20260506T200657CoreModuleLifecycleInit } from './migrations/20260506T200657_core_module_lifecycle_init.js';
-import { Migration20260514T111329CoreSettingsGlobalValue } from './migrations/20260514T111329_core_settings_global_value.js';
-import { Migration20260611T140411CoreSettingsSecretValueType } from './migrations/20260611T140411_core_settings_secret_value_type.js';
-import { Migration20260611T140419CoreSettingsEnumOptions } from './migrations/20260611T140419_core_settings_enum_options.js';
-import { Migration20260629T090100CoreSettingsHiddenFlag } from './migrations/20260629T090100_core_settings_hidden_flag.js';
-import { Migration20260717T134752CoreTenantScopeIndexes } from './migrations/20260717T134752_core_tenant_scope_indexes.js';
-import { Migration20260721T011510CoreSettingsCredentialRefValueType } from './migrations/20260721T011510_core_settings_credential_ref_value_type.js';
-import { Migration20260816T203339CoreRetireCoreActivationSettings } from './migrations/20260816T203339_core_retire_core_activation_settings.js';
+import { Migration20260424T165847CoreFoundationInit } from '@endora-commerce/platform/migrations';
+import { Migration20260425T050720CoreCommerceInit } from '@endora-commerce/platform/migrations';
+import { Migration20260430T101450CoreSettingsInit } from '@endora-commerce/platform/migrations';
+import { Migration20260430T170044CoreSalesChannelsPromote } from '@endora-commerce/platform/migrations';
+import { Migration20260506T200657CoreModuleLifecycleInit } from '@endora-commerce/platform/migrations';
+import { Migration20260514T111329CoreSettingsGlobalValue } from '@endora-commerce/platform/migrations';
+import { Migration20260611T140411CoreSettingsSecretValueType } from '@endora-commerce/platform/migrations';
+import { Migration20260611T140419CoreSettingsEnumOptions } from '@endora-commerce/platform/migrations';
+import { Migration20260629T090100CoreSettingsHiddenFlag } from '@endora-commerce/platform/migrations';
+import { Migration20260717T134752CoreTenantScopeIndexes } from '@endora-commerce/platform/migrations';
+import { Migration20260721T011510CoreSettingsCredentialRefValueType } from '@endora-commerce/platform/migrations';
+import { Migration20260816T203339CoreRetireCoreActivationSettings } from '@endora-commerce/platform/migrations';
 
 // ── credentials ─────────────────────────────────────────────────────────────
 import { Migration20260721T011509CredentialsInit } from '@endora-commerce/mod-credentials/migrations';

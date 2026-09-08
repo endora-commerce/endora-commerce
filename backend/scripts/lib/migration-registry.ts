@@ -32,7 +32,7 @@
  * So: **expected** is every class the registry registers for a module, and
  * **covered** is how many of those a walked migration source declares.
  *
- * Core's own migrations (`moduleId === 'core'`, `backend/src/db/migrations/`)
+ * Core's own migrations (`moduleId === 'core'`, `packages/platform/src/migrations/`)
  * are **excluded from the expectation**, and that is the population and not an
  * exemption: they belong to no module (`declaringOwnerOf` answers `core:db`),
  * they sit under no module walk root, and the rule this floor protects does not

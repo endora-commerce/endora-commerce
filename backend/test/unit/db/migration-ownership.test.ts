@@ -4,7 +4,7 @@ import {
   coreMigrationOwnership,
   migrationOwnershipOf,
 } from '../../../src/db/configured-migrations.js';
-import type { MigrationRegistryEntry } from '../../../src/db/migration-order.js';
+import type { MigrationRegistryEntry } from '@endora-commerce/platform/db';
 
 /**
  * Who owns which migration, and the distinction the lifecycle orchestrator's

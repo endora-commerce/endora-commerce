@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BASELINE_MIGRATIONS } from '@endora-commerce/platform/migrations';
-import { BASELINE_THROUGH, orderMigrations } from '../../../src/db/migration-order.js';
+import { BASELINE_THROUGH, orderMigrations } from '@endora-commerce/platform/db';
 import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
 import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
 

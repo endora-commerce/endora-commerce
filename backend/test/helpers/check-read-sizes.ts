@@ -762,7 +762,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // reads; the two application files it edits move no count. Measured by parking
     // this branch's five new files and re-running.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's route registrations and admin surface, which this walk pairs against its manifest actions.
-    files: 2012,
+    // **`specs/110-instance-repository/` T116 (the `db/` move): +6 files.** The
+    // ORM configuration, the migration ordering, the two merges and the
+    // bootstrap became `@endora-commerce/platform/db` — eight files under
+    // `packages/platform/src/db/` — while `backend/src/db/` kept four bindings
+    // and the `migrate.ts` entry point and lost `migration-order.ts` and
+    // `pluralizing-naming-strategy.ts` outright. Eight in, two out, and the
+    // twelve core migrations moved between two roots this walk reads, so they
+    // net to nothing here.
+    // **Re-measured on the union after rebasing onto `f3d3da596`.** `master` moved
+    // this entry too — the `pim_akeneo` module and its 71st package — so the value
+    // below is a census of the combined tree rather than the sum of the two
+    // branches' arithmetic.
+    files: 2018,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -903,7 +915,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // reads; the two application files it edits move no count. Measured by parking
     // this branch's five new files and re-running.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The 61 backend sources the module adds to this walk's population.
-    files: 2139,
+    // **`specs/110-instance-repository/` T116 (the `db/` move): +6 files.** The
+    // ORM configuration, the migration ordering, the two merges and the
+    // bootstrap became `@endora-commerce/platform/db` — eight files under
+    // `packages/platform/src/db/` — while `backend/src/db/` kept four bindings
+    // and the `migrate.ts` entry point and lost `migration-order.ts` and
+    // `pluralizing-naming-strategy.ts` outright. Eight in, two out, and the
+    // twelve core migrations moved between two roots this walk reads, so they
+    // net to nothing here.
+    // **Re-measured on the union after rebasing onto `f3d3da596`.** `master` moved
+    // this entry too — the `pim_akeneo` module and its 71st package — so the value
+    // below is a census of the combined tree rather than the sum of the two
+    // branches' arithmetic.
+    files: 2145,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1261,7 +1285,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **+1, re-measured on the chained union.** `packages/platform/src/overlay/deployment-roots.ts`, this branch's one new package source, which this whole-tree walk opens.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. This walk is the whole tree minus the check scripts, so it takes the package, the tests and the admin files.
     // **`fix/search-reindex-task-timeout`: files 5455 -> 5456.** The same one new co-located test file; this walk is the whole tree's TypeScript.
-    files: 5456,
+    // **`specs/110-instance-repository/` T116 (the `db/` move): +6 files.** The
+    // ORM configuration, the migration ordering, the two merges and the
+    // bootstrap became `@endora-commerce/platform/db` — eight files under
+    // `packages/platform/src/db/` — while `backend/src/db/` kept four bindings
+    // and the `migrate.ts` entry point and lost `migration-order.ts` and
+    // `pluralizing-naming-strategy.ts` outright. Eight in, two out, and the
+    // twelve core migrations moved between two roots this walk reads, so they
+    // net to nothing here.
+    // **Re-measured on the union after rebasing onto `f3d3da596`.** `master` moved
+    // this entry too — the `pim_akeneo` module and its 71st package — so the value
+    // below is a census of the combined tree rather than the sum of the two
+    // branches' arithmetic.
+    // **+1, and it is not this branch's.** `fix/search-reindex-task-timeout` merged after this branch recorded, adding `search-indexer-task-wait.test.ts`, which this whole-tree walk opens. Re-measured on the union.
+    files: 5462,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1453,7 +1490,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **+1, re-measured on the chained union.** The same new platform source; this walk reads the overlay tree and the platform beside it.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's sources, which this walk opens alongside the overlay tree.
     // **`fix/search-reindex-task-timeout`: files 2259 -> 2260.** The same one new co-located test file, through the owner map's module-tree input.
-    files: 2260,
+    // **`specs/110-instance-repository/` T116 (the `db/` move): +20 files.** This
+    // walk's population is the platform's own tree and the module roots, not
+    // `backend/src/db/`, so it sees only the arrival: eight `db/` sources and the
+    // twelve core migrations, both now under `packages/platform/src/`.
+    // **Re-measured on the union after rebasing onto `f3d3da596`.** `master` moved
+    // this entry too — the `pim_akeneo` module and its 71st package — so the value
+    // below is a census of the combined tree rather than the sum of the two
+    // branches' arithmetic.
+    // **+1, master's.** The same new search test file, from the merge that landed after this branch recorded.
+    files: 2280,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -1719,8 +1765,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // reads; the two application files it edits move no count. Measured by parking
     // this branch's five new files and re-running.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The 61 backend sources the module adds to this walk's population.
-    files: 2139,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's 9 persisted entity classes, each owing exactly one tenant-scope decorator.
+    // **`specs/110-instance-repository/` T116 (the `db/` move): +6 files.** The
+    // ORM configuration, the migration ordering, the two merges and the
+    // bootstrap became `@endora-commerce/platform/db` — eight files under
+    // `packages/platform/src/db/` — while `backend/src/db/` kept four bindings
+    // and the `migrate.ts` entry point and lost `migration-order.ts` and
+    // `pluralizing-naming-strategy.ts` outright. Eight in, two out, and the
+    // twelve core migrations moved between two roots this walk reads, so they
+    // net to nothing here.
+    // **Re-measured on the union after rebasing onto `f3d3da596`.** `master` moved
+    // this entry too — the `pim_akeneo` module and its 71st package — so the value
+    // below is a census of the combined tree rather than the sum of the two
+    // branches' arithmetic.
+    files: 2145,
     sites: 260,
     sources: ['manifest-index'],
   },
@@ -1842,7 +1900,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // reads; the two application files it edits move no count. Measured by parking
     // this branch's five new files and re-running.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The 61 backend sources the module adds to this walk's population.
-    files: 2139,
+    // **`specs/110-instance-repository/` T116 (the `db/` move): +6 files.** The
+    // ORM configuration, the migration ordering, the two merges and the
+    // bootstrap became `@endora-commerce/platform/db` — eight files under
+    // `packages/platform/src/db/` — while `backend/src/db/` kept four bindings
+    // and the `migrate.ts` entry point and lost `migration-order.ts` and
+    // `pluralizing-naming-strategy.ts` outright. Eight in, two out, and the
+    // twelve core migrations moved between two roots this walk reads, so they
+    // net to nothing here.
+    // **Re-measured on the union after rebasing onto `f3d3da596`.** `master` moved
+    // this entry too — the `pim_akeneo` module and its 71st package — so the value
+    // below is a census of the combined tree rather than the sum of the two
+    // branches' arithmetic.
+    files: 2145,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1964,7 +2034,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // reads; the two application files it edits move no count. Measured by parking
     // this branch's five new files and re-running.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The 61 backend sources the module adds to this walk's population.
-    files: 2139,
+    // **`specs/110-instance-repository/` T116 (the `db/` move): +6 files.** The
+    // ORM configuration, the migration ordering, the two merges and the
+    // bootstrap became `@endora-commerce/platform/db` — eight files under
+    // `packages/platform/src/db/` — while `backend/src/db/` kept four bindings
+    // and the `migrate.ts` entry point and lost `migration-order.ts` and
+    // `pluralizing-naming-strategy.ts` outright. Eight in, two out, and the
+    // twelve core migrations moved between two roots this walk reads, so they
+    // net to nothing here.
+    // **Re-measured on the union after rebasing onto `f3d3da596`.** `master` moved
+    // this entry too — the `pim_akeneo` module and its 71st package — so the value
+    // below is a census of the combined tree rather than the sum of the two
+    // branches' arithmetic.
+    files: 2145,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -2079,7 +2161,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // parameter. It is the only source file the task adds under a root this walk
     // reads; the two application files it edits move no count. Measured by parking
     // this branch's five new files and re-running.
-    files: 689,
+    // **`specs/110-instance-repository/` T116 (the `db/` move): +6 files, `sites`
+    // unmoved.** The backend tree's roots already include the platform's own, so
+    // the eight new `db/` sources arrive and the two that left `backend/src/db/`
+    // go. `sites` stayed at 67 deliberately: `mikro-orm.config.ts` reads
+    // `DATABASE_URL`, `NODE_ENV` and `DB_DEBUG` off `process.env` directly rather
+    // than off an injected environment, because a value reached through a
+    // parameter is a declared input this check cannot see — measured, as two
+    // `unread-input` findings, before that was put back.
+    files: 695,
     sites: 67,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
@@ -2442,7 +2532,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // reads; the two application files it edits move no count. Measured by parking
     // this branch's five new files and re-running.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The 61 backend sources the module adds to this walk's population.
-    files: 2139,
+    // **`specs/110-instance-repository/` T116 (the `db/` move): +6 files.** The
+    // ORM configuration, the migration ordering, the two merges and the
+    // bootstrap became `@endora-commerce/platform/db` — eight files under
+    // `packages/platform/src/db/` — while `backend/src/db/` kept four bindings
+    // and the `migrate.ts` entry point and lost `migration-order.ts` and
+    // `pluralizing-naming-strategy.ts` outright. Eight in, two out, and the
+    // twelve core migrations moved between two roots this walk reads, so they
+    // net to nothing here.
+    // **Re-measured on the union after rebasing onto `f3d3da596`.** `master` moved
+    // this entry too — the `pim_akeneo` module and its 71st package — so the value
+    // below is a census of the combined tree rather than the sum of the two
+    // branches' arithmetic.
+    files: 2145,
     sites: 30,
     sources: ['manifest-index'],
   },
@@ -3423,7 +3525,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **+2, re-measured on the chained union.** The new platform source and the new unit test under `backend/test/`, both inside this walk's populations.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module package and the backend tests beside it.
     // **`fix/search-reindex-task-timeout`: files 4861 -> 4863.** Two, and both are the one new co-located test file: it sits in a module package's sources and under a source root, and this walk's `files` counts both populations. Measured by taking that file alone out of the tree, which returns 4861.
-    files: 4863,
+    // **`specs/110-instance-repository/` T116 (the `db/` move): +1 file.** This
+    // number is the sum of four populations and they move in both directions:
+    // the twelve core migrations and the two deleted `db/` sources leave
+    // `backend/src`, and eight `db/` sources plus the same twelve arrive under
+    // `packages/platform/src`. Measured net, never subtracted.
+    // **Re-measured on the union after rebasing onto `f3d3da596`.** `master` moved
+    // this entry too — the `pim_akeneo` module and its 71st package — so the value
+    // below is a census of the combined tree rather than the sum of the two
+    // branches' arithmetic.
+    // **+2, of which one is this branch's and one is not.** Measured on `master` itself this walk reads 4863, so the search fix that merged after this branch recorded contributes one and this branch's platform sources contribute the other. Attributed by measuring the base rather than by subtracting deltas.
+    files: 4864,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -3998,7 +4110,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **+12 against this branch's own earlier record, of which +5 are its own.** It adds eight files, deletes three and renames one, which is net five for a whole-tree walk. The other seven arrive on the chained base — D-217/D-218, 113's `tasks.md`, the UnoPim re-import changeset and T114a's six. Measured on the combined tree.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. This walk opens the whole repository, so it sees every file the merge adds.
     // **`fix/search-reindex-task-timeout`: files 8071 -> 8073.** Two, and this walk is the whole repository, so it is the only entry that sees both: the new co-located test file, and `.changeset/search-indexer-task-wait.md`. Measured one at a time - 8071, 8072 with the test file, 8073 with the changeset as well.
-    files: 8073,
+    // **`specs/110-instance-repository/` T116 (the `db/` move): +8 files.** The
+    // six net new sources plus the changeset and this feature's own spec edits;
+    // this walk is the whole repository and counts every extension.
+    // **Measured on a tree with no generated documentation copies.** The first
+    // measurement read 7990 because `composer:generate` had placed the 66
+    // git-ignored module pages under `docs/docs/modules/`, which this walk counts
+    // and the recorded value never held; `git clean -fX docs/docs/modules` before
+    // re-measuring, or the number recorded is one no fresh checkout reproduces.
+    // **Re-measured on the union after rebasing onto `f3d3da596`.** `master` moved
+    // this entry too — the `pim_akeneo` module and its 71st package — so the value
+    // below is a census of the combined tree rather than the sum of the two
+    // branches' arithmetic.
+    // **+2, both master's.** The search fix added its changeset and its test file; this walk opens the whole repository and sees both.
+    files: 8081,
     sites: null,
     sources: [],
     //
@@ -4318,8 +4443,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // reads; the two application files it edits move no count. Measured by parking
     // this branch's five new files and re-running.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The 61 backend sources the module adds to this walk's population.
-    files: 2139,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The 17 port-call sites in the module's backend.
+    // **`specs/110-instance-repository/` T116 (the `db/` move): +6 files.** The
+    // ORM configuration, the migration ordering, the two merges and the
+    // bootstrap became `@endora-commerce/platform/db` — eight files under
+    // `packages/platform/src/db/` — while `backend/src/db/` kept four bindings
+    // and the `migrate.ts` entry point and lost `migration-order.ts` and
+    // `pluralizing-naming-strategy.ts` outright. Eight in, two out, and the
+    // twelve core migrations moved between two roots this walk reads, so they
+    // net to nothing here.
+    // **Re-measured on the union after rebasing onto `f3d3da596`.** `master` moved
+    // this entry too — the `pim_akeneo` module and its 71st package — so the value
+    // below is a census of the combined tree rather than the sum of the two
+    // branches' arithmetic.
+    files: 2145,
     sites: 213,
     sources: ['manifest-index'],
   },
@@ -4485,7 +4622,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // request is the one whose census measured the drift.
     // **2 387 -> 2 391** with T129b's four files under `backend/scripts` — the check, its analysis and its two ledgers. Its companion test is not in this population.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's sources, whose reaches into the host this walk judges.
-    files: 2460,
+    // **`specs/110-instance-repository/` T116 (the `db/` move): -14 files.** This
+    // walk's population is the application's own tree and the module packages,
+    // and the platform's is neither — so it sees only the departure: the twelve
+    // core migrations and the two `db/` sources that left `backend/src/db/`
+    // without a binding behind them.
+    // **Re-measured on the union after rebasing onto `f3d3da596`.** `master` moved
+    // this entry too — the `pim_akeneo` module and its 71st package — so the value
+    // below is a census of the combined tree rather than the sum of the two
+    // branches' arithmetic.
+    files: 2446,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -5048,7 +5194,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // reads; the two application files it edits move no count. Measured by parking
     // this branch's five new files and re-running.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The 61 backend sources the module adds to this walk's population.
-    files: 2139,
+    // **`specs/110-instance-repository/` T116 (the `db/` move): +6 files.** The
+    // ORM configuration, the migration ordering, the two merges and the
+    // bootstrap became `@endora-commerce/platform/db` — eight files under
+    // `packages/platform/src/db/` — while `backend/src/db/` kept four bindings
+    // and the `migrate.ts` entry point and lost `migration-order.ts` and
+    // `pluralizing-naming-strategy.ts` outright. Eight in, two out, and the
+    // twelve core migrations moved between two roots this walk reads, so they
+    // net to nothing here.
+    // **Re-measured on the union after rebasing onto `f3d3da596`.** `master` moved
+    // this entry too — the `pim_akeneo` module and its 71st package — so the value
+    // below is a census of the combined tree rather than the sum of the two
+    // branches' arithmetic.
+    files: 2145,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -5276,7 +5434,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // reads; the two application files it edits move no count. Measured by parking
     // this branch's five new files and re-running.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The 61 backend sources the module adds to this walk's population.
-    files: 2139,
+    // **`specs/110-instance-repository/` T116 (the `db/` move): +6 files.** The
+    // ORM configuration, the migration ordering, the two merges and the
+    // bootstrap became `@endora-commerce/platform/db` — eight files under
+    // `packages/platform/src/db/` — while `backend/src/db/` kept four bindings
+    // and the `migrate.ts` entry point and lost `migration-order.ts` and
+    // `pluralizing-naming-strategy.ts` outright. Eight in, two out, and the
+    // twelve core migrations moved between two roots this walk reads, so they
+    // net to nothing here.
+    // **Re-measured on the union after rebasing onto `f3d3da596`.** `master` moved
+    // this entry too — the `pim_akeneo` module and its 71st package — so the value
+    // below is a census of the combined tree rather than the sum of the two
+    // branches' arithmetic.
+    files: 2145,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -5440,7 +5610,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **+4, re-measured on the chained union.** This branch adds four sources this walk opens — the check, its library, its two ledgers — and T114a's platform source arrives on the base.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. This walk opens the module tree and the backend tests together, so it takes both.
     // **`fix/search-reindex-task-timeout`: files 4479 -> 4480.** The same one new co-located test file.
-    files: 4480,
+    // **`specs/110-instance-repository/` T116 (the `db/` move): +6 files.** The
+    // ORM configuration, the migration ordering, the two merges and the
+    // bootstrap became `@endora-commerce/platform/db` — eight files under
+    // `packages/platform/src/db/` — while `backend/src/db/` kept four bindings
+    // and the `migrate.ts` entry point and lost `migration-order.ts` and
+    // `pluralizing-naming-strategy.ts` outright. Eight in, two out, and the
+    // twelve core migrations moved between two roots this walk reads, so they
+    // net to nothing here.
+    // **Re-measured on the union after rebasing onto `f3d3da596`.** `master` moved
+    // this entry too — the `pim_akeneo` module and its 71st package — so the value
+    // below is a census of the combined tree rather than the sum of the two
+    // branches' arithmetic.
+    // **+1, master's.** The search test file, which this walk opens with the rest of the module tree.
+    files: 4486,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -5994,7 +6177,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **+12, re-measured on the chained union.** Repo-wide, so the same twelve as `check-nul-bytes.ts` above: five this branch's net, seven the chained base's.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. Repo-wide, and the same population as `check-nul-bytes.ts` above.
     // **`fix/search-reindex-task-timeout`: files 8131 -> 8133.** Two: the new co-located test file and `.changeset/search-indexer-task-wait.md`, this walk being the whole repository like `check-nul-bytes`'.
-    files: 8133,
+    // **`specs/110-instance-repository/` T116 (the `db/` move): +7 files.** The six
+    // net new sources plus the changeset; this walk reads the whole checkout.
+    // **Re-measured on the union after rebasing onto `f3d3da596`.** `master` moved
+    // this entry too — the `pim_akeneo` module and its 71st package — so the value
+    // below is a census of the combined tree rather than the sum of the two
+    // branches' arithmetic.
+    // **+2, both master's.** Repo-wide, so the same two files as `check-nul-bytes.ts` above.
+    files: 8140,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -6265,7 +6455,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **+6, re-measured on the chained union.** This scan reads source comments, so it takes this branch's five new `.ts` files and not its two deleted stylesheets, plus what the chained base adds.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. This scan reads source comments across the tree and takes every source file the branch adds.
     // **`fix/search-reindex-task-timeout`: files 6079 -> 6080.** The same one new co-located test file.
-    files: 6080,
+    // **`specs/110-instance-repository/` T116 (the `db/` move): +6 files.** Eight
+    // `db/` sources arrive under `packages/platform/src/`, two leave
+    // `backend/src/db/`, and the twelve core migrations move between two roots
+    // this walk reads.
+    // **Re-measured on the union after rebasing onto `f3d3da596`.** `master` moved
+    // this entry too — the `pim_akeneo` module and its 71st package — so the value
+    // below is a census of the combined tree rather than the sum of the two
+    // branches' arithmetic.
+    // **+1, master's.** The search test file; this scan reads source comments and takes the `.ts` and not the changeset.
+    files: 6086,
     sites: null,
     sources: ['manifest-index'],
     //

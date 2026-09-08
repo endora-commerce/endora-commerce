@@ -32,8 +32,9 @@ import { fileURLToPath } from 'node:url';
 import { isAbsolute, join, relative } from 'node:path';
 import { MIGRATION_FILE_RE } from '../scripts/new-migration.js';
 import { discoverModulePackages } from '../scripts/lib/module-packages.js';
+import { platformSourceRootAt } from '../scripts/lib/platform-root.js';
 import type { RegisteredMigration } from '../src/db/configured-migrations.js';
-import type { MigrationOrigin } from '../src/db/migration-order.js';
+import type { MigrationOrigin } from '@endora-commerce/platform/db';
 import { templateDigest, type TemplateInputs, type TemplateSource } from '@endora-commerce/test-kit/database';
 
 /** `backend/`, the root every recorded path is relative to. */
@@ -90,7 +91,13 @@ export interface MigrationSourceRoot {
  * migration") — which D-106 narrowed and D-106.2 reversed.
  */
 export const MIGRATION_SOURCE_ROOTS: readonly MigrationSourceRoot[] = [
-  { origin: 'core', path: 'src/db/migrations', kind: 'directory' },
+  // The platform's own twelve, `backend/`-relative and **resolved** rather than
+  // spelled: they were `src/db/migrations` until
+  // `specs/110-instance-repository/` T116 moved them beside the `./migrations`
+  // barrel that publishes them, and the platform is the one workspace member
+  // declaring `endora.type: "platform"`. Still `core` — their classes are in
+  // the committed registry and the committed registry configures them.
+  { origin: 'core', path: platformMigrationsRoot(), kind: 'directory' },
   { origin: 'core', path: 'src/modules', kind: 'module-tree' },
   // A module this repository has already moved into a workspace package
   // (feature 080, T040b). Still `core`: its migrations are committed here and
@@ -101,6 +108,27 @@ export const MIGRATION_SOURCE_ROOTS: readonly MigrationSourceRoot[] = [
   // `came up short by 1` each time.
   ...workspaceModulePackageRoots(),
 ];
+
+/**
+ * The platform's own `migrations/` directory, `backend/`-relative.
+ *
+ * A checkout with no platform member is a refusal rather than a root the walk
+ * quietly drops: the twelve are the only migrations that create `settings`,
+ * `module_registrations` and `sales_channels`, so a digest computed without
+ * them would reuse a template built from a different schema.
+ */
+function platformMigrationsRoot(): string {
+  const repoRoot = join(BACKEND_ROOT, '..');
+  const platformRoot = platformSourceRootAt(repoRoot);
+  if (platformRoot === null) {
+    throw new Error(
+      '[template-identity] no workspace member declares `endora.type: "platform"`, so the ' +
+        "platform's own migrations have no root. A digest without them would reuse a " +
+        'template built from a different schema.',
+    );
+  }
+  return relative(BACKEND_ROOT, join(platformRoot, 'migrations'));
+}
 
 /**
  * One root per workspace module package, `backend/`-relative so the digest is

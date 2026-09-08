@@ -4,7 +4,7 @@ import {
   type MigrationClass,
   type MigrationOrderDiagnostic,
   type MigrationRegistryEntry,
-} from '../../../src/db/migration-order.js';
+} from '@endora-commerce/platform/db';
 import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
 
 /**

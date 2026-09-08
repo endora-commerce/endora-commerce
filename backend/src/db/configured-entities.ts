@@ -1,74 +1,42 @@
-import { ALL_ENTITIES } from './entities-registry.generated.js';
-import { discoverPackageSchema, type EntityClassLike } from '../packages/package-runtime.js';
-import { assertTransitiveParentsResolve } from '../tenancy/org-scoped.decorator.js';
-import { platformLogger } from '../kernel/logging.js';
-
 /**
- * The entity classes this platform registers: the committed core registry plus
- * every installed extension package's own (feature 080, T033 — D-106.2).
+ * The entity set's **binding** — one supplier, and nothing else
+ * (`specs/110-instance-repository/` T116; `contracts/instance-repository.md`
+ * R7.4, FR-014).
  *
- * The sibling of `configured-migrations.ts`, and async for the same reason: the
- * committed registry is emitted by a source-text walk under `backend/src` for
- * the MikroORM entity decorator (`generate-composer.ts`), and compilation turns
- * that decorator into a `__decorate([...])` call — so a published package
- * contributes nothing to it and could not, whatever the generator did. Which
- * packages an instance installed is a fact about the process (D-119/D-155), so
- * the second half is read at runtime, through the package's own `./backend`
- * export.
+ * The merge is `@endora-commerce/platform/db`'s since T116: the committed core
+ * registry, plus every installed extension package's entity classes, plus the
+ * tenancy-chain reconciliation that has to happen after the last classification
+ * decorator has run and before the ORM exists.
  *
- * (The decorator's spelling is deliberately not written out above: this file is
- * inside the tree that walk reads, and the walk is a text match.)
+ * What is left here is the input. `entities-registry.generated.ts` is a fact
+ * about *this repository's tree* — a source-text walk for the MikroORM entity
+ * decorator, emitted by `scripts/generate-composer.ts`, bare core under every
+ * value of `DEPLOYMENT` — so the platform may not import it and receives it
+ * instead. An instance writes the same three lines against its own artefact.
  *
- * A **factory, not a promise-valued export**, for the reason spelled out in
- * `configured-migrations.ts`: a promise created at import scans `node_modules`
- * in every process that touches the module, including one that only wanted a
- * type, and turns a discovery failure into an unhandled rejection.
+ * **The memoisation is the binding's too**, and deliberately: how many times one
+ * process may scan `node_modules` is a fact about that process, not about the
+ * merge. The result is memoised because there are fourteen direct importers of
+ * the ORM config and fourteen call sites must not mean fourteen scans; `env` is
+ * read on the first call only, because it selects the `node_modules` roots and
+ * an instance does not move underneath a running platform.
  *
- * It lives beside the migration seam rather than inside it because the two
- * answer different questions to different readers — the ORM configuration is
- * the only reader of the entity set, while the order has three — but both are
- * one merge over the one discovery in `src/packages/`.
- *
- * ## It is also where the tenancy chains are reconciled (feature 080, T049)
- *
- * Since D-169 a `@TransitivelyScoped` entity names its parent by class name
- * rather than by importing the class, so a name that resolves to nothing is
- * possible in a way it was not before — and a transitively scoped entity has no
- * tenant column of its own, so that would leave it reachable with no tenant
- * predicate at all (Principle XI, non-negotiable).
- *
- * This is the first moment the question can honestly be asked. The decorator
- * cannot ask it: entity classes register in import order and a child is
- * routinely imported before its parent. The line below is the instant after
- * every classification decorator has run — the committed registry above plus
- * every installed package's entities — and still before the ORM exists, so no
- * query can have been issued under a chain that does not resolve. It throws
- * `UnresolvableTenantParentError`, which stops the boot; there is deliberately
- * no degraded mode, because the degraded mode is an untenanted read.
- *
- * Since T054(a) (D-170) it walks the whole chain rather than one hop, and
- * refuses one that resolves at every step and grounds nowhere — a `global` or
- * `rule` terminus, a cycle, a run of transitives reaching no keyed
- * classification. It also emits an `info` line for a chain that terminates at a
- * `customer`, which is legal and has a gap worth naming; the logger is passed
- * from here because that is where the platform's destination is nameable, and
- * `tenancy/` deliberately imports nothing from `kernel/`.
+ * A **factory, not a promise-valued export**: a promise created at import scans
+ * `node_modules` in every process that touches the module, including one that
+ * only wanted a type, and turns a discovery failure into an unhandled rejection.
  */
-export type ConfiguredEntity = (typeof ALL_ENTITIES)[number] | EntityClassLike;
+import { configuredEntitiesFrom, type ConfiguredEntity } from '@endora-commerce/platform/db';
+
+import { ALL_ENTITIES } from './entities-registry.generated.js';
+
+/** Re-exported so a caller that already reads this seam has one import. */
+export type { ConfiguredEntity } from '@endora-commerce/platform/db';
 
 let memoised: Promise<readonly ConfiguredEntity[]> | undefined;
 
 export async function configuredEntities(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<readonly ConfiguredEntity[]> {
-  memoised ??= (async () => {
-    const packages = await discoverPackageSchema(env);
-    const entities = [
-      ...ALL_ENTITIES,
-      ...packages.flatMap((contribution) => contribution.entities),
-    ];
-    assertTransitiveParentsResolve(platformLogger());
-    return entities;
-  })();
+  memoised ??= configuredEntitiesFrom({ coreEntities: ALL_ENTITIES, env });
   return memoised;
 }

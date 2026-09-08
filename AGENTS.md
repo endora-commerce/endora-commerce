@@ -814,12 +814,17 @@ number", never pick a number, never edit an execution list.
 
 1. **Scaffold it** — `pnpm --filter backend run migration:new -- --module <id> --name <slug>`.
    The file lands in the module's own `migrations/` directory, **resolved** rather than
-   spelled: `--module core` is `backend/src/db/migrations/`, and a module package's is the
-   directory its own `exports` map publishes as `./migrations`. This step read
+   spelled: `--module core` is the **platform's** own `migrations/` directory — the twelve
+   cross-cutting migrations moved there with `specs/110-instance-repository/` T116, beside
+   the `./migrations` barrel that publishes them — and a module package's is the directory
+   its own `exports` map publishes as `./migrations`. This step read
    *"`backend/src/modules/<id>/migrations/`"* while the scaffolder rejected all 67 module
    ids with `Valid ids are: core.`, because that is where the tool looked and F4 had emptied
-   it. The file is named `<YYYYMMDDTHHmmss>_<module-segment>_<slug>.ts` with a UTC
-   timestamp. The class name is derived mechanically from the filename
+   it. The path is not written into the tool at either end: the scaffolder resolves the
+   platform by its own `endora.type: "platform"` declaration and refuses a checkout that
+   has none, because a fallback to the old directory would write a migration the generator
+   no longer walks — and an unregistered migration does not run. The file is named
+   `<YYYYMMDDTHHmmss>_<module-segment>_<slug>.ts` with a UTC timestamp. The class name is derived mechanically from the filename
    (`Migration<STAMP><PascalCaseTail>`); it is the name persisted in `mikro_orm_migrations`,
    so never rename an applied class. **The tail must begin with the owning module's
    segment** (`orders` → `Migration…Orders…`, `_i18n` → `Migration…I18n…`, core →
@@ -834,7 +839,8 @@ number", never pick a number, never edit an execution list.
    `overlay:check` both fail the build for a stale artefact.
 3. **Do not order by hand, and do not order by timestamp.** Declaration order in the
    registry has no effect — and there is nothing to reorder, since regenerating restores it.
-   Execution order is computed by `backend/src/db/migration-order.ts` (feature 081): a frozen
+   Execution order is computed by `@endora-commerce/platform/db`'s `migration-order.ts`
+   (feature 081): a frozen
    historical prefix, then **module by module** in a topological order of the manifest
    `dependencies` graph, each module's migrations contiguous and ascending by timestamp. So a
    **timestamp orders a module's own migrations and nothing else** — two modules may legally
@@ -885,7 +891,7 @@ number", never pick a number, never edit an execution list.
    class is a different set and the next invocation builds its own template rather than
    re-applying anything into yours.
 6. **Never scaffold a migration stamped at or before `BASELINE_THROUGH`**
-   (`20260801T000000`, `backend/src/db/migration-order.ts`). Everything the committed core
+   (`20260801T000000`, `@endora-commerce/platform/db`). Everything the committed core
    registry contributed at or before it is the **frozen historical prefix**: its order is
    history — the pre-065 block contradicts the manifest graph in 37 places, and recomputing it
    produces an order a fresh database cannot apply — so a migration landing there is ordered

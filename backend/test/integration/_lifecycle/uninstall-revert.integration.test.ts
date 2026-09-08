@@ -1,10 +1,11 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Redis } from 'ioredis';
-import { existsSync, readdirSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineModuleManifest } from '@endora-commerce/contracts';
 import type { IMigrator } from '@mikro-orm/core';
+import { platformSourceRootAt } from '../../../scripts/lib/platform-root.js';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import {
   type LoadedManifestRegistry,
@@ -34,7 +35,26 @@ import {
  */
 
 const here = dirname(fileURLToPath(import.meta.url));
-const dbMigrationsDir = resolve(here, '../../../src/db/migrations');
+
+/**
+ * The `core` group's own migrations directory, resolved rather than spelled.
+ *
+ * It was `backend/src/db/migrations` until `specs/110-instance-repository/`
+ * T116 moved the twelve into the platform package. A checkout with no platform
+ * member is a refusal rather than an empty listing: the assertion below is that
+ * the legacy filename pattern matches *nothing in a directory that has files*,
+ * and a directory that is not there would satisfy it while measuring nothing.
+ */
+const dbMigrationsDir = ((): string => {
+  const platformRoot = platformSourceRootAt(resolve(here, '../../../..'));
+  if (platformRoot === null) {
+    throw new Error(
+      'no workspace member declares `endora.type: "platform"`, so the `core` migrations have ' +
+        'no directory and the legacy-filename assertion below would pass over an empty list.',
+    );
+  }
+  return resolve(platformRoot, 'migrations');
+})();
 
 /** The module the assertions run against — it owns several migrations. */
 const TARGET_MODULE = 'catalog';
@@ -138,13 +158,14 @@ describe('Module uninstall — migration revert resolves from the registry (inte
   }
 
   it('the pre-065 filename scan matched nothing (the bug this replaces)', () => {
-    // src/db/migrations/ holds only the `core` migrations, and none of them —
-    // nor any module migration — uses the legacy `NNN_<moduleId>_` filename.
+    // The directory holds only the `core` migrations, and none of them — nor any
+    // module migration — uses the legacy `NNN_<moduleId>_` filename.
     const legacyPattern = new RegExp(`^\\d+_${TARGET_MODULE}_`);
-    const matches = existsSync(dbMigrationsDir)
-      ? readdirSync(dbMigrationsDir).filter((file) => legacyPattern.test(file))
-      : [];
-    expect(matches).toEqual([]);
+    const files = readdirSync(dbMigrationsDir);
+    // A read that came back empty is a finding about the walk, not about the
+    // filenames: the assertion under it would hold over nothing.
+    expect(files.length, dbMigrationsDir).toBeGreaterThan(0);
+    expect(files.filter((file) => legacyPattern.test(file))).toEqual([]);
 
     // Yet the module genuinely owns migrations, which is what must be reverted.
     expect(ownedMigrationNames(TARGET_MODULE).length).toBeGreaterThan(1);
