@@ -166,7 +166,7 @@ import type { FeedDeliveryAdapter } from '../../../packages/modules/product_feed
 import { FeedDeliveryError, type FeedDeliveryProtocol } from '@endora-commerce/contracts';
 import type { PimErgonodeCradle } from '@endora-commerce/mod-pim-ergonode/backend';
 import type { PimUnopimCradle } from '@endora-commerce/mod-pim-unopim/backend';
-import type { PimConnectorRegistryPort } from '@endora-commerce/contracts';
+import type { InfaktHttpPort, PimConnectorRegistryPort } from '@endora-commerce/contracts';
 import type { ErgonodeClientPort } from '../../../packages/modules/pim_ergonode/src/backend/services/ergonode-client.port.js';
 import type { ErgonodeMediaFetcherPort } from '../../../packages/modules/pim_ergonode/src/backend/services/ergonode-media-fetcher.js';
 import type { UnopimMediaFetcherPort } from '../../../packages/modules/pim_unopim/src/backend/services/unopim-media-fetcher.js';
@@ -295,6 +295,11 @@ export interface BackendServerOptions {
    * fetcher that has nothing scripted and therefore answers `not_found`.
    */
   akeneoMediaFetcher?: AkeneoMediaFetcherPort;
+  /**
+   * Feature 119 — Infakt HTTP. Defaults to the module's refusing port. US1
+   * connection-test scripts pass a stub that answers account details.
+   */
+  infaktHttp?: InfaktHttpPort;
   /**
    * Feature 072 (T073) — arm the cross-process pub/sub path: subscribe the
    * second Redis client to the custom-field and module-state channels.
@@ -663,6 +668,11 @@ const SEEDED_TABLES = [
   'sitemap_cache',
   'seo_meta_overrides',
   'audit_log_entries',
+  'invoice_ledger_webhook_receipts',
+  'invoice_ledger_deliveries',
+  'invoice_ledger_document_maps',
+  'invoice_ledger_client_maps',
+  'invoice_ledger_activation_lock',
   'ksef_submissions',
   'ksef_credentials',
   'invoices',
@@ -1921,6 +1931,9 @@ export async function setupBackendServer(
           taxonomySourceFetcher: options.taxonomySourceFetcher ?? refusingTaxonomyFetcher(),
           deliveryAdapters: options.feedDeliveryAdapters ?? refusingDeliveryAdapters(),
         },
+        // Feature 119 — `invoice_ledger` and `infakt` compose through MODULES.
+        // This contribution only replaces Infakt HTTP when a test scripts it.
+        ...(options.infaktHttp ? { infaktHttp: options.infaktHttp } : {}),
       });
 
       // Feature 072 (T136) — `carts` owns its thirteen services and three route
