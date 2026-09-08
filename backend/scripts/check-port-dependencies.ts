@@ -250,6 +250,7 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // (Principle X). A deployment decision, read at construction because it
   // decides whether the consumers are built at all (T131).
   'pimErgonodeRunWorkers',
+  'pimAkeneoRunWorkers',
   'pimPimcoreRunWorkers',
   'pimUnopimRunWorkers',
   'productFeedsRunWorkers',
@@ -257,6 +258,7 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // them early beside the worker flag: production derives the feed base URL
   // from the environment, the harness pins one because a test asserts the
   // exact link an administrator is handed (T137).
+  'pimAkeneoPublicBaseUrl',
   'productFeedsPublicBaseUrl',
   'productFeedsTokenEncryptionKey',
   // Same shape for `inventory` (T129): how this deployment names a non-admin
@@ -498,6 +500,8 @@ export const CAPTURABLE_NAMES: ReadonlySet<string> = new Set([
   // Same category: whether this process runs the Pimcore import consumer
   // (feature 089).
   'pimPimcoreRunWorkers',
+  // Same category: whether this process runs the Akeneo apply consumer.
+  'pimAkeneoRunWorkers',
   // Same category: whether this process runs the UnoPim import and reaper
   // consumers (feature 089).
   'pimUnopimRunWorkers',
@@ -511,7 +515,9 @@ export const CAPTURABLE_NAMES: ReadonlySet<string> = new Set([
   // Pinned per composition and read at construction, so they are registered
   // early alongside the worker flag: production derives the feed base URL from
   // the environment, the harness pins one because a test asserts the exact link
-  // an administrator is handed (T137).
+  // an administrator is handed (T137). Receive URLs on the Akeneo connection
+  // screen use the same origin.
+  'pimAkeneoPublicBaseUrl',
   'productFeedsPublicBaseUrl',
   'productFeedsTokenEncryptionKey',
   // The storefront origin a customer-facing link points at, and whether this

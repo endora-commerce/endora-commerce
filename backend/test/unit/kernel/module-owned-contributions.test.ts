@@ -18,8 +18,8 @@ import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
  * shape: a module contributing a descriptor to a registry another module
  * enumerates.
  *
- *  - the four `configurationTypeRegistry` registrations (`credentials`' own two,
- *    plus `pim_ergonode`'s and `product_feeds`');
+ *  - the five `configurationTypeRegistry` registrations (`credentials`' own two,
+ *    plus `pim_ergonode`'s, `pim_akeneo`'s and `product_feeds`');
  *  - the four asset / CMS reference cross-registrations (`catalog`, `cms` and
  *    `megamenu` into `assets_library`' registry, `megamenu` into `cms`');
  *  - cluster 6, below: six pieces of module-owned machinery a root still
@@ -73,6 +73,7 @@ const CONTRIBUTIONS: ReadonlyArray<{
   { call: 'register(llmConfigurationType)', owner: 'credentials' },
   { call: 'register(emailAdapterConfigurationType)', owner: 'credentials' },
   { call: 'register(ergonodeConfigurationType)', owner: 'pim_ergonode' },
+  { call: 'register(akeneoConfigurationType)', owner: 'pim_akeneo' },
   { call: 'register(feedDeliveryConfigurationType)', owner: 'product_feeds' },
   { call: 'registerCatalogAssetReferences(', owner: 'catalog' },
   { call: 'registerCmsAssetReferences(', owner: 'cms' },

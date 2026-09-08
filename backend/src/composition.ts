@@ -473,9 +473,11 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     // The module's `ctx.onBoot` schedule reconcile resolves this (T131), and
     // nothing else in this file has an opinion about it.
     pimErgonodeRunWorkers: runWorkers,
+    pimAkeneoRunWorkers: runWorkers,
     pimPimcoreRunWorkers: runWorkers,
     pimUnopimRunWorkers: runWorkers,
     productFeedsRunWorkers: runWorkers,
+    pimAkeneoPublicBaseUrl: resolvePublicApiBaseUrl(),
     productFeedsPublicBaseUrl: resolvePublicApiBaseUrl(),
     productFeedsTokenEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'],
     // The one connection ioredis has put into subscriber mode. Shared, because

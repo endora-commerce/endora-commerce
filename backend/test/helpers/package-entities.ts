@@ -40,6 +40,7 @@ import { entities as invoicesEntities } from '@endora-commerce/mod-invoices/back
 import { entities as pimErgonodeEntities } from '@endora-commerce/mod-pim-ergonode/backend';
 import { entities as pimUnopimEntities } from '@endora-commerce/mod-pim-unopim/backend';
 import { entities as pimPimcoreEntities } from '@endora-commerce/mod-pim-pimcore/backend';
+import { entities as pimAkeneoEntities } from '@endora-commerce/mod-pim-akeneo/backend';
 import { entities as productFeedsEntities } from '@endora-commerce/mod-product-feeds/backend';
 import { entities as authEntities } from '@endora-commerce/mod-auth/backend';
 import { entities as catalogEntities } from '@endora-commerce/mod-catalog/backend';
@@ -49,6 +50,7 @@ import type { Session as SessionRow } from '../../../packages/modules/auth/src/b
 import type { AttributeSet as AttributeSetRow } from '../../../packages/modules/catalog/src/backend/entities/attribute-set.entity.js';
 import type { AttributeSetAttribute as AttributeSetAttributeRow } from '../../../packages/modules/catalog/src/backend/entities/attribute-set-attribute.entity.js';
 import type { BulkOperation as BulkOperationRow } from '../../../packages/modules/catalog/src/backend/entities/bulk-operation.entity.js';
+import type { BundleSlot as BundleSlotRow } from '../../../packages/modules/catalog/src/backend/entities/bundle-slot.entity.js';
 import type { Category as CategoryRow } from '../../../packages/modules/catalog/src/backend/entities/category.entity.js';
 import type { GalleryItem as GalleryItemRow } from '../../../packages/modules/catalog/src/backend/entities/gallery-item.entity.js';
 import type { GalleryItemLabel as GalleryItemLabelRow } from '../../../packages/modules/catalog/src/backend/entities/gallery-item-label.entity.js';
@@ -57,6 +59,7 @@ import type { Product as ProductRow } from '../../../packages/modules/catalog/sr
 import type { ProductAttachment as ProductAttachmentRow } from '../../../packages/modules/catalog/src/backend/entities/product-attachment.entity.js';
 import type { ProductAttribute as ProductAttributeRow } from '../../../packages/modules/catalog/src/backend/entities/product-attribute.entity.js';
 import type { ProductLink as ProductLinkRow } from '../../../packages/modules/catalog/src/backend/entities/product-link.entity.js';
+import type { ProductPackagingUnit as ProductPackagingUnitRow } from '../../../packages/modules/catalog/src/backend/entities/product-packaging-unit.entity.js';
 import type { ProductValueOverride as ProductValueOverrideRow } from '../../../packages/modules/catalog/src/backend/entities/product-value-override.entity.js';
 import type { ProductVariant as ProductVariantRow } from '../../../packages/modules/catalog/src/backend/entities/product-variant.entity.js';
 import type { Address as AddressRow } from '../../../packages/modules/addresses/src/backend/entities/address.entity.js';
@@ -161,6 +164,14 @@ import type { PimcoreImportIssue as PimcoreImportIssueRow } from '../../../packa
 import type { PimcoreImportRun as PimcoreImportRunRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-import-run.entity.js';
 import type { PimcoreMediaLink as PimcoreMediaLinkRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-media-link.entity.js';
 import type { PimcoreSourceLink as PimcoreSourceLinkRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-source-link.entity.js';
+import type { AkeneoConnection as AkeneoConnectionRow } from '../../../packages/modules/pim_akeneo/src/backend/entities/akeneo-connection.entity.js';
+import type { AkeneoDeliveredRecord as AkeneoDeliveredRecordRow } from '../../../packages/modules/pim_akeneo/src/backend/entities/akeneo-delivered-record.entity.js';
+import type { AkeneoFieldProtection as AkeneoFieldProtectionRow } from '../../../packages/modules/pim_akeneo/src/backend/entities/akeneo-field-protection.entity.js';
+import type { AkeneoHmacReplay as AkeneoHmacReplayRow } from '../../../packages/modules/pim_akeneo/src/backend/entities/akeneo-hmac-replay.entity.js';
+import type { AkeneoImportIssue as AkeneoImportIssueRow } from '../../../packages/modules/pim_akeneo/src/backend/entities/akeneo-import-issue.entity.js';
+import type { AkeneoImportRun as AkeneoImportRunRow } from '../../../packages/modules/pim_akeneo/src/backend/entities/akeneo-import-run.entity.js';
+import type { AkeneoMediaLink as AkeneoMediaLinkRow } from '../../../packages/modules/pim_akeneo/src/backend/entities/akeneo-media-link.entity.js';
+import type { AkeneoSourceLink as AkeneoSourceLinkRow } from '../../../packages/modules/pim_akeneo/src/backend/entities/akeneo-source-link.entity.js';
 import type { EmailDelivery as EmailDeliveryRow } from '../../../packages/modules/email/src/backend/entities/email-delivery.entity.js';
 import type { Invoice as InvoiceRow } from '../../../packages/modules/invoices/src/backend/entities/invoice.entity.js';
 import type { InvoiceLine as InvoiceLineRow } from '../../../packages/modules/invoices/src/backend/entities/invoice-line.entity.js';
@@ -349,6 +360,7 @@ export const AttributeSetAttribute = classNamed<AttributeSetAttributeRow>(
   'AttributeSetAttribute',
 );
 export const BulkOperation = classNamed<BulkOperationRow>(catalogEntities, 'BulkOperation');
+export const BundleSlot = classNamed<BundleSlotRow>(catalogEntities, 'BundleSlot');
 export const Category = classNamed<CategoryRow>(catalogEntities, 'Category');
 export const GalleryItem = classNamed<GalleryItemRow>(catalogEntities, 'GalleryItem');
 export const GalleryItemLabel = classNamed<GalleryItemLabelRow>(
@@ -366,6 +378,10 @@ export const ProductAttribute = classNamed<ProductAttributeRow>(
   'ProductAttribute',
 );
 export const ProductLink = classNamed<ProductLinkRow>(catalogEntities, 'ProductLink');
+export const ProductPackagingUnit = classNamed<ProductPackagingUnitRow>(
+  catalogEntities,
+  'ProductPackagingUnit',
+);
 export const ProductValueOverride = classNamed<ProductValueOverrideRow>(
   catalogEntities,
   'ProductValueOverride',
@@ -404,6 +420,7 @@ export type { PaymentMethodRow };
  * type` erases; nothing here is a second copy of anything.
  */
 export type {
+  AttributeSetRow,
   BulkOperationRow,
   CategoryRow,
   ProductRow,
@@ -776,6 +793,33 @@ export const PimcoreSourceLink = classNamed<PimcoreSourceLinkRow>(
   'PimcoreSourceLink',
 );
 
+export const AkeneoConnection = classNamed<AkeneoConnectionRow>(
+  pimAkeneoEntities,
+  'AkeneoConnection',
+);
+export const AkeneoDeliveredRecord = classNamed<AkeneoDeliveredRecordRow>(
+  pimAkeneoEntities,
+  'AkeneoDeliveredRecord',
+);
+export const AkeneoFieldProtection = classNamed<AkeneoFieldProtectionRow>(
+  pimAkeneoEntities,
+  'AkeneoFieldProtection',
+);
+export const AkeneoHmacReplay = classNamed<AkeneoHmacReplayRow>(
+  pimAkeneoEntities,
+  'AkeneoHmacReplay',
+);
+export const AkeneoImportIssue = classNamed<AkeneoImportIssueRow>(
+  pimAkeneoEntities,
+  'AkeneoImportIssue',
+);
+export const AkeneoImportRun = classNamed<AkeneoImportRunRow>(pimAkeneoEntities, 'AkeneoImportRun');
+export const AkeneoMediaLink = classNamed<AkeneoMediaLinkRow>(pimAkeneoEntities, 'AkeneoMediaLink');
+export const AkeneoSourceLink = classNamed<AkeneoSourceLinkRow>(
+  pimAkeneoEntities,
+  'AkeneoSourceLink',
+);
+
 /**
  * The **row shapes** batch four's tests annotate with, on the same terms as
  * `PaymentMethodRow` above: `classNamed` returns a value, so a test that writes
@@ -934,4 +978,19 @@ export type PimcoreImportIssue = PimcoreImportIssueRow;
 export type PimcoreImportRun = PimcoreImportRunRow;
 export type PimcoreMediaLink = PimcoreMediaLinkRow;
 export type PimcoreSourceLink = PimcoreSourceLinkRow;
+
+/**
+ * The `pim_akeneo` names the test tree also uses as a **type**, on the terms
+ * the block above states: `classNamed` returns the value alone, so a test that
+ * annotates a `Promise<AkeneoImportRun>` needs the type declared beside it.
+ * `export type` erases, so nothing is constructed.
+ */
+export type AkeneoConnection = AkeneoConnectionRow;
+export type AkeneoDeliveredRecord = AkeneoDeliveredRecordRow;
+export type AkeneoFieldProtection = AkeneoFieldProtectionRow;
+export type AkeneoHmacReplay = AkeneoHmacReplayRow;
+export type AkeneoImportIssue = AkeneoImportIssueRow;
+export type AkeneoImportRun = AkeneoImportRunRow;
+export type AkeneoMediaLink = AkeneoMediaLinkRow;
+export type AkeneoSourceLink = AkeneoSourceLinkRow;
 export type AdminNotification = AdminNotificationRow;

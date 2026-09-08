@@ -177,10 +177,12 @@ import type { PimConnectorRegistryPort } from '@endora-commerce/contracts';
 import type { ErgonodeClientPort } from '../../../packages/modules/pim_ergonode/src/backend/services/ergonode-client.port.js';
 import type { ErgonodeMediaFetcherPort } from '../../../packages/modules/pim_ergonode/src/backend/services/ergonode-media-fetcher.js';
 import type { UnopimMediaFetcherPort } from '../../../packages/modules/pim_unopim/src/backend/services/unopim-media-fetcher.js';
+import type { AkeneoMediaFetcherPort } from '../../../packages/modules/pim_akeneo/src/backend/services/akeneo-media-fetcher.js';
 import { refusingErgonodeClient } from './scripted-ergonode-client.js';
 import { refusingUnopimClient } from './scripted-unopim-client.js';
 import { ScriptedErgonodeMediaFetcher } from './scripted-ergonode-media-fetcher.js';
 import { ScriptedUnopimMediaFetcher } from './scripted-unopim-media-fetcher.js';
+import { ScriptedAkeneoMediaFetcher } from './scripted-akeneo-media-fetcher.js';
 import type { PimPimcoreCradle } from '@endora-commerce/mod-pim-pimcore/backend';
 import type { KsefApiClientPort } from '../../../packages/modules/ksef/src/backend/integrations/ksef-client.interface.js';
 import type { PwaBridge, PwaCradle } from '../../../packages/modules/pwa/src/backend/index.js';
@@ -293,6 +295,11 @@ export interface BackendServerOptions {
    * fetcher that has nothing scripted and therefore answers `not_found`.
    */
   unopimMediaFetcher?: UnopimMediaFetcherPort;
+  /**
+   * Feature 094 / US5 — the byte source for imported media. Defaults to a
+   * fetcher that has nothing scripted and therefore answers `not_found`.
+   */
+  akeneoMediaFetcher?: AkeneoMediaFetcherPort;
   /**
    * Feature 072 (T073) — arm the cross-process pub/sub path: subscribe the
    * second Redis client to the custom-field and module-state channels.
@@ -1158,6 +1165,8 @@ export async function setupBackendServer(
       pimErgonodeRunWorkers: false,
       pimPimcoreRunWorkers: false,
       pimUnopimRunWorkers: false,
+      pimAkeneoRunWorkers: false,
+      pimAkeneoPublicBaseUrl: 'http://localhost',
       productFeedsRunWorkers: false,
       productFeedsPublicBaseUrl: 'http://feeds.test.local',
       productFeedsTokenEncryptionKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
@@ -2056,6 +2065,9 @@ export async function setupBackendServer(
         pimUnopimSourceOverrides: {
           unopimClient: options.unopimClient ?? refusingUnopimClient(),
           mediaFetcher: options.unopimMediaFetcher ?? new ScriptedUnopimMediaFetcher(),
+        },
+        pimAkeneoSourceOverrides: {
+          mediaFetcher: options.akeneoMediaFetcher ?? new ScriptedAkeneoMediaFetcher(),
         },
         productFeedsTestOverrides: {
           taxonomyDataRoot: '/nonexistent/product-feeds-taxonomies',

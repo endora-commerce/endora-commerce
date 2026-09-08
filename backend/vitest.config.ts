@@ -11,7 +11,7 @@ export default mergeConfig(
   defineConfig({
     test: {
       name: 'backend',
-      include: ['test/**/*.test.ts', 'test/**/*.bench.ts', 'src/**/*.test.ts'],
+      include: ['test/**/*.test.ts', 'test/**/*.bench.ts', 'test/**/*.perf.ts', 'src/**/*.test.ts'],
       // `test/release/` needs **git**, and every backend job runs in
       // `node:22.17-slim`, which has none. It is run by `release:changeset`
       // through `vitest.release.config.ts` — see that file's header, and

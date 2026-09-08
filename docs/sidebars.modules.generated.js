@@ -67,6 +67,14 @@ const modules = [
   },
   {
     type: 'category',
+    label: 'Akeneo PIM',
+    link: { type: 'doc', id: 'modules/pim-akeneo' },
+    items: [
+      'module-reference/pim-akeneo',
+    ],
+  },
+  {
+    type: 'category',
     label: 'analytics',
     link: { type: 'doc', id: 'modules/analytics' },
     items: [
