@@ -130,16 +130,30 @@ describe('seeded action set (integration, v1)', () => {
     expect(visible.sort()).toEqual(expected.sort());
   });
 
-  it('exactly 10 distinct actions across 9 seeded modules', async () => {
+  it('every seeded module contributes, and contributes exactly what it declares', async () => {
+    // This case read `toBe(10)` and `toBe(9)` — two counts of a derived fact
+    // written into the file. The manifests moved past the first the day
+    // `catalog` gained three palette entries and `sales_channels` a second one
+    // (feature 091's batches 15 and 16); it is 14 today, and the literal was
+    // answering "how many were there when this was written". Both numbers come
+    // off `SEEDED_MANIFESTS` now, which is where the actions themselves come
+    // from.
+    //
+    // What survives is the half the counts were carrying and the case above
+    // does not: **no seeded module is absent**. The pair sweep compares two
+    // lists and is silent about which modules those pairs belong to, so a
+    // module whose actions all disappeared from the palette while another
+    // module's grew would need the set below to say so.
     const service = buildService(['*']);
     const result = await service.listVisibleForOperator({
       language: 'en',
       adminUserId: 'admin',
     });
+    const declared = SEEDED_MANIFESTS.flatMap((m) => m.actions ?? []);
     const visible = result.actions.filter((a) => MODULE_IDS.includes(a.moduleId));
-    expect(visible.length).toBe(10);
+    expect(visible.length).toBe(declared.length);
     const distinctModules = new Set(visible.map((a) => a.moduleId));
-    expect(distinctModules.size).toBe(9);
+    expect([...distinctModules].sort()).toEqual([...MODULE_IDS].sort());
   });
 
   it('disabling the catalog module hides only its actions', async () => {

@@ -99,6 +99,20 @@ export interface OperatorRuntime {
    * Ask the operator to confirm a destructive step. **Absent means this run
    * cannot ask** (R2.7), and the body refuses rather than proceeding; present
    * means the caller has judged that it can.
+   *
+   * **Nothing supplies it, and that is the settled answer rather than a state
+   * of play** (owner ruling **D-217**, 2026-09-07): `module:uninstall --hard`
+   * requires `--force` whether or not the run has a terminal, and no command
+   * prompts or reads stdin. The field is kept because it is the seam an
+   * operator-facing confirmation would use if that is ever revisited, and
+   * removing it would be a second change to a published interface for no gain.
+   *
+   * **So supplying it is not a small change.** A caller that grants this
+   * capability without a prompt behind it takes `--hard` past the refusal and
+   * into reverting a module's migrations and deleting its registry row — which
+   * is the fail-open D-217 closes, and what
+   * `test/integration/_lifecycle/uninstall-hard-needs-force.integration.test.ts`
+   * refuses with a run that reads as interactive in every way a caller can test.
    */
   readonly confirm?: (question: string) => Promise<boolean>;
   readonly out: (line: string) => void;

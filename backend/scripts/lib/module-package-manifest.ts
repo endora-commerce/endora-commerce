@@ -129,7 +129,7 @@ import { join, relative, sep } from 'node:path';
 
 import ts from 'typescript';
 
-import { classifyAssetFile } from '../../../scripts/lib/runtime-assets.mjs';
+import { classifyAssetFile, isTestFileName } from '../../../scripts/lib/runtime-assets.mjs';
 import { type SourceReader } from './emitted-exports.js';
 import {
   modulePackageSurfaces,
@@ -372,8 +372,12 @@ export function layerInventoryOf(packageDir: string, fs: ManifestFs): LayerInven
  * sources are TypeScript. The pattern is written against vitest's default
  * `include` rather than as a `.test.ts` suffix test so the refusal and the
  * runner answer the same question about the same file.
+ *
+ * **It is `runtime-assets.mjs`'s, imported, and no longer a copy here**
+ * (D-218). The fixture predicate in {@link classifyAssetFile} asks the same
+ * question about the same directory, and two spellings of it could disagree —
+ * one shipping a fixture while the other refuses the test beside it.
  */
-const TEST_FILE_RE = /\.(?:test|spec)\.[cm]?tsx?$/;
 
 /**
  * Every test file a package ships, under `src/` and under `test/`.
@@ -387,7 +391,7 @@ function testFilesIn(packageDir: string, fs: ManifestFs): readonly string[] {
   const found: string[] = [];
   for (const root of ['src', 'test']) {
     for (const path of sourceFilesUnder(packageDir, root, fs)) {
-      if (TEST_FILE_RE.test(path)) found.push(path);
+      if (isTestFileName(path)) found.push(path);
     }
   }
   return found.sort();
@@ -402,14 +406,22 @@ function testFilesIn(packageDir: string, fs: ManifestFs): readonly string[] {
  * same file before and after it is packaged. The **walk** is local because this
  * one runs over the injected {@link ManifestFs}, which is what lets a red proof
  * hand in a whole synthetic checkout at the top of the analysis (issue #130).
+ *
+ * **A file beside a co-located test is that test's fixture and ships nowhere**
+ * (D-218). It is the classifier that answers so, from the directory's own file
+ * names, which is why the walk gathers them before it classifies any of them:
+ * this generator is the caller that turned a fixture into a published asset —
+ * one `.json` under a module's `src/` adds `copy-package-assets.mjs` to that
+ * package's `build`, and `dist` is in `files`.
  */
 function assetsUnder(srcDir: string, fs: ManifestFs, packageDir: string): string[] {
   const assets: string[] = [];
   const unclassified: string[] = [];
   const walk = (dir: string, prefix: string): void => {
-    for (const name of [...fs.listFiles(dir)].sort()) {
-      const kind = classifyAssetFile(name);
-      if (kind === 'ignored') continue;
+    const names = [...fs.listFiles(dir)].sort();
+    for (const name of names) {
+      const kind = classifyAssetFile(name, names);
+      if (kind === 'ignored' || kind === 'fixture') continue;
       (kind === 'asset' ? assets : unclassified).push(`${prefix}${name}`);
     }
     for (const child of [...fs.listDirectories(dir)].sort()) {
@@ -598,13 +610,14 @@ export function subpathOf(specifier: string): string {
  * The layer a reach was written in: a directory name under `src/`, `'root'` for
  * `src/manifest.ts`, or `'test'` for a co-located test file.
  *
- * `'test'` is decided first and by {@link TEST_FILE_RE}, which is vitest's own
+ * `'test'` is decided first and by {@link isTestFileName}, which is vitest's own
  * default `include` — the same spelling {@link layerInventoryOf} refuses an
- * unconfigured test file by, so the runner and this classification cannot come
- * to disagree about which file is a test.
+ * unconfigured test file by and the same one the asset classifier's fixture
+ * predicate reads (D-218), so the runner, this classification and what a package
+ * ships cannot come to disagree about which file is a test.
  */
 export function reachLayerOf(file: string): string {
-  if (TEST_FILE_RE.test(file)) return 'test';
+  if (isTestFileName(file)) return 'test';
   const segments = file.split('/');
   return segments.length > 2 ? segments[1]! : 'root';
 }

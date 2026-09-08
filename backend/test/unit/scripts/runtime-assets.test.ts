@@ -1,4 +1,12 @@
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,6 +21,7 @@ import {
   describeBundleFinding,
   extensionOf,
   FALLBACK_BUNDLE_FILE,
+  isTestFileName,
   NON_RUNTIME_EXTENSIONS,
   RUNTIME_ASSET_EXTENSIONS,
   type RegisteredBundleModule,
@@ -141,8 +150,8 @@ describe('collectRuntimeAssets — what a compiled tree is missing', () => {
     // and a ruling that has quietly gone false is one nobody can check. This is
     // the assertion that would have gone red on the day the old sentence
     // stopped being true.
-    expect(classifyAssetFile('index.md')).toBe('ignored');
-    expect(classifyAssetFile('index.mdx')).toBe('unclassified');
+    expect(classifyAssetFile('index.md', ['index.md'])).toBe('ignored');
+    expect(classifyAssetFile('index.mdx', ['index.mdx'])).toBe('unclassified');
     const reason = NON_RUNTIME_EXTENSIONS['.md'];
     expect(reason).toContain('package root');
     expect(reason).not.toContain('no code opens one');
@@ -186,6 +195,106 @@ describe('collectRuntimeAssets — what a compiled tree is missing', () => {
     const { assets, unclassified } = collectRuntimeAssets(root);
     expect(assets).toEqual([]);
     expect(unclassified).toEqual(['modules/invoices/template.hbs']);
+  });
+
+  it("calls a shippable file beside a test that test's fixture (D-218)", () => {
+    // FR-008 of `specs/106-module-owned-tests/` says a published tarball
+    // carries no test file. Its `.ts` half is enforced by each module's
+    // `tsconfig.json` exclude; its other half was enforced by nothing, and a
+    // `.json` fixture read as an asset put `copy-package-assets.mjs` into the
+    // package's build with `dist` in `files`.
+    expect(
+      classifyAssetFile('hmac-vectors.json', ['hmac-vectors.json', 'hmac-vectors.test.ts']),
+    ).toBe('fixture');
+    // The discrimination: the same file, the same extension, no test.
+    expect(classifyAssetFile('hmac-vectors.json', ['hmac-vectors.json', 'signer.ts'])).toBe(
+      'asset',
+    );
+  });
+
+  it("reads every spelling vitest's own default include reads", () => {
+    // A single `.test.ts` suffix test would let `.spec.ts` and `.test.tsx`
+    // through, and the second is not hypothetical: a module package's admin
+    // layer is `.tsx`. One owner for the spelling, shared with the manifest
+    // generator's `files`-list refusal.
+    for (const test of ['a.spec.ts', 'a.test.tsx', 'a.spec.mts', 'a.test.cts']) {
+      expect(isTestFileName(test), test).toBe(true);
+      expect(classifyAssetFile('vectors.json', ['vectors.json', test]), test).toBe('fixture');
+    }
+    expect(isTestFileName('a.testing.ts')).toBe(false);
+    expect(isTestFileName('test.ts')).toBe(false);
+  });
+
+  it('leaves an unruled extension unruled, test or no test', () => {
+    // The predicate applies to a file that would otherwise ship. "Nobody has
+    // ruled on this kind of file" is a question about the kind, and answering
+    // it with "there is a test next door" would let the refusal be switched
+    // off by adding one.
+    expect(classifyAssetFile('invoice.hbs', ['invoice.hbs', 'invoice.test.ts'])).toBe(
+      'unclassified',
+    );
+  });
+
+  it('answers per directory, so a test does not reach the subtree below it', () => {
+    // `product_feeds` keeps four real taxonomy `.txt` files under
+    // `backend/data/taxonomies/`, and a subtree predicate would stop shipping
+    // them the moment any test appeared above. The walk is what supplies the
+    // siblings, so this is the case that proves it supplies the *right* ones.
+    const root = temporaryRootNamed('runtime-assets-fixture-');
+    mkdirSync(join(root, 'services'), { recursive: true });
+    mkdirSync(join(root, 'data'), { recursive: true });
+    writeFileSync(join(root, 'services', 'signer.ts'), 'export {};');
+    writeFileSync(join(root, 'services', 'vectors.test.ts'), 'export {};');
+    writeFileSync(join(root, 'services', 'vectors.json'), '[]');
+    writeFileSync(join(root, 'data', 'taxonomy.txt'), 'a > b\n');
+
+    const { assets, fixtures, unclassified, scanned } = collectRuntimeAssets(root);
+    expect(assets).toEqual(['data/taxonomy.txt']);
+    expect(fixtures).toEqual(['services/vectors.json']);
+    expect(unclassified).toEqual([]);
+    // The fixture is walked and classified, not skipped — `scanned` counts it,
+    // which is what keeps "read nothing" and "read it and ruled on it" apart.
+    expect(scanned).toBe(4);
+  });
+
+  it('has a live subject in this repository, and took no real asset with it', () => {
+    // Two halves of one measurement, over the real tree rather than a fixture.
+    //
+    // **Non-vacuity.** D-218 landed with nothing to drain — zero `.json` files
+    // sat under any `packages/modules/*/src/` when it was ruled — and a
+    // predicate that reclassifies nothing is one that may not be running. The
+    // ruling's own repair supplies the subject: `pim_pimcore`'s HMAC vectors
+    // moved into the package with the test that reads them, which is the whole
+    // reason that file's deferral could be retired.
+    //
+    // **And no genuine asset went with it.** The sibling set is re-derived here
+    // with `readdirSync`, independently of the walk that classified the file, so
+    // a walk handing a directory the wrong neighbours' names — the one bug this
+    // predicate can have — is visible rather than self-confirming.
+    const roots = [SRC_ROOT];
+    for (const entry of DISCOVERED_MANIFESTS) {
+      const src = join(dirname(entry.manifestPath), 'src');
+      if (existsSync(src)) roots.push(src);
+    }
+    const fixtures: string[] = [];
+    for (const root of roots) {
+      const walk = collectRuntimeAssets(root);
+      for (const path of walk.fixtures) {
+        fixtures.push(join(root, path));
+        expect(
+          readdirSync(dirname(join(root, path))).some(isTestFileName),
+          `${path} is a fixture and no test sits beside it`,
+        ).toBe(true);
+      }
+      for (const path of walk.assets) {
+        expect(
+          readdirSync(dirname(join(root, path))).some(isTestFileName),
+          `${path} still ships and a test sits beside it`,
+        ).toBe(false);
+      }
+    }
+    expect(roots.length).toBeGreaterThan(1);
+    expect(fixtures.length).toBeGreaterThan(0);
   });
 
   it('classifies an extension-less dotfile by its own name', () => {

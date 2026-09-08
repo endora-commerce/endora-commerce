@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -32,6 +32,21 @@ describe('feed run with no storefront URL configured [integration]', () => {
   let h: BackendServerHandle;
   let feedId: string;
   let channelId: string;
+
+  // "Unconfigured" is this file's subject, and until now it was this file's *assumption*:
+  // the origin is `sales_channels.storefront_url` defaulted to `STOREFRONT_BASE_URL`, and
+  // `backend/.env` sets that variable. Under the complete config the run therefore had an
+  // origin, emitted every item and came back `completed_with_warnings` — the file asserted
+  // the unconfigured behaviour while running configured, and was green only where the
+  // variable happens to be unset. A test whose subject is an absence has to establish the
+  // absence.
+  beforeEach(() => {
+    vi.stubEnv('STOREFRONT_BASE_URL', '');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
 
   beforeAll(async () => {
     h = await setupBackendServer();

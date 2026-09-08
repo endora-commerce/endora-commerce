@@ -84,7 +84,7 @@ function main(): number {
     return 2;
   }
 
-  const { assets, unclassified } = collectRuntimeAssets(SRC_ROOT);
+  const { assets, fixtures, unclassified } = collectRuntimeAssets(SRC_ROOT);
   if (unclassified.length > 0) {
     console.error(
       `[runtime-assets] ${unclassified.length} file(s) under src/ have an extension this ` +
@@ -148,8 +148,19 @@ function main(): number {
   console.log(
     `[runtime-assets] copied: files=${copied} into ${outRoot} ` +
       `bundles=${compiled.length}/${bundleModules.length} (manifest-index) ` +
-      `audited=${bundleModules.length}/${bundleModules.length}`,
+      `audited=${bundleModules.length}/${bundleModules.length} ` +
+      // D-218: a file that would have shipped and sits beside a test. Printed
+      // because it is the one classification an author can be surprised by, and
+      // the surprise is otherwise a missing file at runtime rather than a line
+      // here. Zero on this tree, which compiles no module.
+      `fixtures=${fixtures.length}`,
   );
+  for (const path of fixtures) {
+    console.log(
+      `  src/${path} is a test's fixture (a test sits beside it) and is not copied. ` +
+        'If the application reads it at runtime, move it to a directory that holds no test.',
+    );
+  }
   return 0;
 }
 

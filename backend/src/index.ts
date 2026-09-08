@@ -8,6 +8,7 @@
 import { buildServer } from './http/server.js';
 import { parseTrustedProxy, type TrustedProxy } from './http/trusted-proxy.js';
 import { composeApp } from './composition.js';
+import { deploymentRoot } from './overlay/overlay-roots.js';
 
 async function main(): Promise<void> {
   const port = Number(process.env['PORT'] ?? 3001);
@@ -42,7 +43,7 @@ async function main(): Promise<void> {
   // as an unhandled rejection with no context. Catch it and fail loud + clean.
   let composition: Awaited<ReturnType<typeof composeApp>>;
   try {
-    composition = await composeApp();
+    composition = await composeApp({ deploymentRoot: deploymentRoot() });
   } catch (err) {
     console.error(
       '[boot] composeApp() failed — the backend cannot start. ' +

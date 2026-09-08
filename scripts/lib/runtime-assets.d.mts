@@ -22,6 +22,13 @@ export interface CollectedAssets {
    * downstream does.
    */
   unclassified: AssetPath[];
+  /**
+   * Files that would ship but sit in a directory holding a test, so they are a
+   * test's fixture and not a runtime asset (D-218). Reported rather than
+   * silently dropped: a genuine asset parked beside a test is the one thing
+   * this classification can now get wrong, and its author is the reader.
+   */
+  fixtures: AssetPath[];
   /** Every file the walk saw, `.ts` and ruled-out kinds included. */
   scanned: number;
 }
@@ -29,8 +36,17 @@ export interface CollectedAssets {
 export declare const RUNTIME_ASSET_EXTENSIONS: readonly string[];
 export declare const NON_RUNTIME_EXTENSIONS: Readonly<Record<string, string>>;
 export declare function extensionOf(fileName: string): string;
-export type AssetClassification = 'asset' | 'ignored' | 'unclassified';
-export declare function classifyAssetFile(fileName: string): AssetClassification;
+export declare function isTestFileName(fileName: string): boolean;
+export type AssetClassification = 'asset' | 'fixture' | 'ignored' | 'unclassified';
+/**
+ * `siblings` is required rather than defaulted, deliberately: it makes a caller
+ * that has not been taught about D-218 a `tsc` error instead of a walk that
+ * quietly ships fixtures again.
+ */
+export declare function classifyAssetFile(
+  fileName: string,
+  siblings: readonly string[],
+): AssetClassification;
 export declare function collectRuntimeAssets(root: string): CollectedAssets;
 export declare function copyRuntimeAssets(
   srcRoot: string,

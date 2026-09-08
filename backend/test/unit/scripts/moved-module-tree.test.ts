@@ -84,6 +84,16 @@ const CHECKS: readonly MovedTreeCheck[] = [
   // refuses first, before a finding count can be printed.
   { script: 'check-block-names.ts', args: [], prefix: '[block-names]' },
   { script: 'check-bundle-pairing.ts', args: [], prefix: '[bundle-pairing]' },
+  // `specs/110-instance-repository/` T129b (owner ruling D-219). Its render walk
+  // is `layout.moduleWalkRoots` plus the non-module packages that declare
+  // `./tailwind.css` plus the admin's own roots — so over a moved tree it comes
+  // back with the kit, the shell, the page-builder family and the admin project,
+  // several hundred files, none of them a module's. That is issue #215's exact
+  // shape and it is worse here than a clean-line-over-nothing: those residual
+  // files render the vocabulary too, so a check asking *"did I read anything?"*
+  // would find most definitions rendered and print `findings=0` over 71
+  // unjudged modules. The floor is per module and refuses first.
+  { script: 'check-class-vocabulary.ts', args: [], prefix: '[class-vocabulary]' },
   // `specs/100-module-owned-documentation/`. Its module walk is
   // `check:bundle-pairing`'s — each registered module's own directory — so the
   // residue shape is the same: over a moved tree the index still registers 71

@@ -1821,6 +1821,79 @@ describe('module package manifests are generated (feature 080, T041)', () => {
       );
     });
 
+    it("does not count a test's fixture, which ships nowhere (D-218)", () => {
+      // FR-008 of `specs/106-module-owned-tests/` says a published tarball
+      // carries no test file. The `.ts` half is enforced by the package's own
+      // `tsconfig.json` exclude and the other half was enforced by nothing: a
+      // `.json` beside a co-located test is compiled by nobody, so it arrived
+      // at the classifier as an ordinary asset, put the copier into this
+      // script, and shipped — `dist` is in `files`.
+      const manifest = manifestOf(
+        widgets(
+          {
+            ...BACKEND_ONLY,
+            'src/backend/services/hmac-vectors.json': '[]',
+            'src/backend/services/hmac-vectors.test.ts': "import { it } from 'vitest';\n",
+          },
+          { [`${ROOT}/packages/modules/widgets/vitest.config.ts`]: 'export default {};\n' },
+        ),
+      );
+      expect((manifest['scripts'] as Record<string, string>)['build']).toBe(
+        'tsc -p tsconfig.build.json',
+      );
+    });
+
+    it('still counts the same file when no test sits beside it', () => {
+      // The discrimination, without which the case above asserts only that
+      // `.json` stopped shipping. One file, two directories, two answers.
+      const manifest = manifestOf(
+        widgets({
+          ...BACKEND_ONLY,
+          'src/backend/services/hmac-vectors.json': '[]',
+        }),
+      );
+      expect((manifest['scripts'] as Record<string, string>)['build']).toContain(
+        'copy-package-assets.mjs',
+      );
+    });
+
+    it('reaches only the directory the test is in, never the subtree below it', () => {
+      // A test at `src/backend/x.test.ts` says nothing about
+      // `src/backend/data/`, which is where `product_feeds` keeps four real
+      // taxonomy assets. A subtree predicate would stop shipping them.
+      const manifest = manifestOf(
+        widgets(
+          {
+            ...BACKEND_ONLY,
+            'src/backend/service.test.ts': "import { it } from 'vitest';\n",
+            'src/backend/data/taxonomies/en.txt': 'a > b\n',
+          },
+          { [`${ROOT}/packages/modules/widgets/vitest.config.ts`]: 'export default {};\n' },
+        ),
+      );
+      expect((manifest['scripts'] as Record<string, string>)['build']).toContain(
+        'copy-package-assets.mjs',
+      );
+    });
+
+    it('refuses an unruled extension beside a test, rather than excusing it', () => {
+      // The fixture predicate applies to a file that would otherwise ship. An
+      // extension nobody has ruled on is a question about the *kind*, and
+      // answering it with "there is a test next door" would let the refusal be
+      // switched off by adding one.
+      const tree = (): Record<string, string> =>
+        widgets(
+          {
+            ...BACKEND_ONLY,
+            'src/backend/templates/invoice.hbs': '{{x}}',
+            'src/backend/templates/invoice.test.ts': "import { it } from 'vitest';\n",
+          },
+          { [`${ROOT}/packages/modules/widgets/vitest.config.ts`]: 'export default {};\n' },
+        );
+      expect(() => manifestOf(tree())).toThrow(ModulePackageManifestError);
+      expect(() => manifestOf(tree())).toThrow(/invoice\.hbs/);
+    });
+
     it('refuses an extension nobody has ruled on, rather than dropping it', () => {
       const tree = (): Record<string, string> =>
         widgets({ ...BACKEND_ONLY, 'src/backend/templates/invoice.hbs': '{{x}}' });
