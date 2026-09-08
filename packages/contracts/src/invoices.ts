@@ -309,6 +309,7 @@ export interface InvoicePdfPort {
 export const INVOICE_NUMBERING_HOST_PORT = 'invoiceNumberingHostPort' as const;
 export const INVOICE_PAID_HOST_PORT = 'invoicePaidHostPort' as const;
 export const INVOICE_COPY_HOST_PORT = 'invoiceCopyHostPort' as const;
+export const INVOICE_KSEF_ASSIGNMENT_PORT = 'invoiceKsefAssignmentPort' as const;
 
 /**
  * Container name: `invoiceNumberingHostPort`. Owner: `invoices`.
@@ -324,6 +325,18 @@ export interface InvoiceNumberingHostPort {
  */
 export interface InvoicePaidHostPort {
   recordPaidFromLedger(invoiceId: string): Promise<void>;
+}
+
+/**
+ * Container name: `invoiceKsefAssignmentPort`. Owner: `invoices`.
+ * Native ksef and Infakt delegated KSeF success both call this. Idempotent
+ * same number; 409 on a different number.
+ */
+export interface InvoiceKsefAssignmentPort {
+  recordKsefAssignment(
+    invoiceId: string,
+    assignment: { ksefReferenceNumber: string; ksefProcessedAt: Date },
+  ): Promise<void>;
 }
 
 /**

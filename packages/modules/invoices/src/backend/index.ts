@@ -7,6 +7,7 @@ import type {
   CustomerAccountReadPort,
   EmailDefaultsRegistryPort,
   InvoiceCopyHostPort,
+  InvoiceKsefAssignmentPort,
   InvoiceNumberingHostPort,
   InvoicePaidHostPort,
   InvoiceLedgerRoutingPort,
@@ -19,6 +20,7 @@ import type {
 } from '@endora-commerce/contracts';
 import {
   INVOICE_COPY_HOST_PORT,
+  INVOICE_KSEF_ASSIGNMENT_PORT,
   INVOICE_LEDGER_ROUTING_PORT,
   INVOICE_NUMBERING_HOST_PORT,
   INVOICE_PAID_HOST_PORT,
@@ -221,6 +223,10 @@ export function registerModule(ctx: ModuleContext): void {
   );
   ctx.di.providePort<InvoicePaidHostPort>(
     INVOICE_PAID_HOST_PORT,
+    ctx.asFunction(({ invoices }: InvoicesCradle) => invoices.handle.invoiceService).singleton(),
+  );
+  ctx.di.providePort<InvoiceKsefAssignmentPort>(
+    INVOICE_KSEF_ASSIGNMENT_PORT,
     ctx.asFunction(({ invoices }: InvoicesCradle) => invoices.handle.invoiceService).singleton(),
   );
   ctx.di.providePort<InvoiceCopyHostPort>(
