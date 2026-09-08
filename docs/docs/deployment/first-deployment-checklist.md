@@ -169,8 +169,11 @@ the release's `backend-migrate` container produces on the VPS.
 
 ### C2. Do not run the demo seed
 
-**Why.** The developer demo seed (`backend/src/seeds/dev-catalog-seed.ts`) **truncates the
-public catalog and business tables**. It has a production guard —
+**Why.** The demo seed (`endora demo seed`) writes a whole shop — a catalogue, an
+organisation, an administrator and a buyer — into the database it is pointed at. It no longer
+truncates on the way in (feature 113 moved that into `endora demo reset`, which does), so what
+it costs a production database is rows that are not the client's rather than the loss of ones
+that are. It has a production guard —
 `ALLOW_DEV_SEED_IN_PRODUCTION` — which `deploy/compose.prod.yml` used to defeat permanently in
 a pre-armed `seed` service that `deploy/README.md` listed as a deployment step. Issue #218
 removed the service and took the seed out of the deployment procedure: there is now no way to

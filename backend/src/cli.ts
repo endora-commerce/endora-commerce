@@ -133,9 +133,8 @@ dependency graph gives, and then applies this instance's composition.
  *     body resolves the same services — and the same deployment decorations —
  *     the running server does.
  *  3. **One system scope for the whole run** (§3.4), so no module's demo body is
- *     its own entry point. That is stricter than `seed:dev`, which is a declared
- *     program in `check:entry-scope`'s population and has to remember
- *     `enterSystemScope` itself.
+ *     its own entry point. That is stricter than `dev-catalog-seed.ts`, which
+ *     opens its own scope around its own `main` and has to remember to.
  *
  * Presence is decided inside `runDemo`, from the declaration and before a
  * context is built (§3.5) — the rule `runModuleCommand` already applies one
@@ -214,8 +213,13 @@ async function runDemoCommand(
           contextFor: composition.contextFor,
           ...(found.found ? { composition: found.composition } : {}),
         });
+        // The residue first when seeding and last when withdrawing, so the
+        // report reads in the order the work happened. Without it an operator
+        // reads "No module contributed demo data" above the 200 products the
+        // residue just wrote.
+        if (verb === 'seed') process.stdout.write(residue.trimStart());
         process.stdout.write(formatDemoReport(result));
-        process.stdout.write(residue);
+        if (verb === 'reset') process.stdout.write(residue);
         // §5.6, once and enumerating nothing.
         if (!found.found) process.stdout.write(`\n${found.notice}\n`);
         return 0;

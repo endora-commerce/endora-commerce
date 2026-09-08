@@ -1,5 +1,11 @@
 /**
- * Dev seed — `pnpm --filter backend run seed:dev` (T093 / quickstart §3).
+ * Dev seed (T093 / quickstart §3).
+ *
+ * **No package script runs this file any more** (feature 113, T214): `db:reset`
+ * calls `endora demo seed`, which is the composed path and the one an operator
+ * has. What still runs it is `test/integration/demo/demo-parity.test.ts`, which
+ * seeds through both and compares the two databases — this file is the
+ * reference side of that comparison and is deleted with the residue (T226).
  *
  * The developer bootstrap: a shop to sign in to and click around. It creates
  * two sales channels, a three-level category tree, ~10 product attributes, 200

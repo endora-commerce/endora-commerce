@@ -211,14 +211,14 @@ pnpm --filter backend run migration:down      # roll back the most recent
 pnpm --filter backend run migration:pending   # list migrations not yet applied
 pnpm --filter backend run migration:new -- --module <id> --name <slug>   # scaffold a new migration
 pnpm --filter backend run db:reset            # drop + recreate + migrate (dev only)
-pnpm --filter backend run seed:dev            # load the synthetic dev catalog
+pnpm --filter backend run cli demo seed       # load the synthetic demo shop
 ```
 
 Migrations are named `<YYYYMMDDTHHmmss>_<module>_<slug>.ts` (UTC timestamp, no repo-wide sequence number), and the class name is derived mechanically from the filename — so two branches never have to agree on a number. `migration:new` writes the file and prints the two lines to paste into `backend/src/db/migrations-registry.ts`; an unregistered migration does not run and fails the round-trip guard. Execution order is computed from the timestamps and corrected by the module-manifest dependency graph — never by the order of lines in the registry.
 
 See [`docs/docs/architecture/migrations.md`](docs/docs/architecture/migrations.md) for the naming convention, the ordering rules, the FK-drift validator, and the failure modes.
 
-After `seed:dev` a demo Platform Administrator and a demo Customer Organization are available — credentials are printed by the seed script.
+After `endora demo seed` a demo Platform Administrator and a demo Customer Organization are available — credentials are printed by the command. `endora demo reset` withdraws what it created.
 
 ## Module lifecycle
 

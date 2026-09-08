@@ -57,7 +57,7 @@ storefront_stack_stop() {
 }
 
 # The same judgement `test/global-setup.ts` and the dev-seed guard make. The
-# boot runs `seed:dev`, which DROPS business-data tables, so a mistyped DSN is
+# boot runs `endora demo seed`, which writes a whole shop, so a mistyped DSN is
 # the difference between a test run and a data-loss incident. The seed's own
 # guard would refuse afterwards; refusing here means the migration never runs
 # either.
@@ -107,7 +107,10 @@ storefront_stack_boot() {
   fi
 
   storefront_stack_say 'seeding the catalogue…'
-  if ! (cd "$REPO_ROOT" && pnpm --filter backend run seed:dev) > "$WORK/seed.log" 2>&1; then
+  # `endora demo seed` since feature 113's T214 replaced `seed:dev`. It composes
+  # the platform before it seeds, which is the reason the migration above is a
+  # separate step rather than part of the seed command as it used to be.
+  if ! (cd "$REPO_ROOT" && pnpm --filter backend run cli demo seed) > "$WORK/seed.log" 2>&1; then
     tail -40 "$WORK/seed.log" >&2
     storefront_stack_die2 'the catalogue seed failed, so no route type has a subject.'
   fi
@@ -116,7 +119,7 @@ storefront_stack_boot() {
 
   # **After the first boot and before the second, and both halves are
   # load-bearing.** The settings rows this seed writes are created by the
-  # platform's own boot, not by `seed:dev`, so a seed that ran first found
+  # platform's own boot, not by the demo seed, so a seed that ran first found
   # nothing to update and said nothing — measured, on a database created from
   # scratch, and it is why the home page reported its declared `Organization`
   # as unemitted after that ordering had already been "fixed" once. And the
