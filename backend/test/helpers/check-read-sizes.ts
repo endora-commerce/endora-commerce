@@ -832,7 +832,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` — against the two `src/seeds/` re-export shims T215
     // deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. The same two files.
-    files: 2022,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T220 + T223): files 2021
+    // -> 2035 (+14).** The branch adds 23 files and removes none: four modules'
+    // `src/backend/demo/` (`rows`, `seed`, `reset` and a co-located test each), `taxes`'
+    // `vitest.config.ts`, `backend/src/seeds/demo-relocated-reference.ts` — the frozen
+    // copy of the moved blocks that keeps the demo parity comparison a comparison — and
+    // five changesets. This walk reads the twelve non-test module files,
+    // `demo-relocated-reference.ts` and `taxes`' `vitest.config.ts`.
+    // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
+    files: 2036,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -998,7 +1006,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` — against the two `src/seeds/` re-export shims T215
     // deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. The same two files.
-    files: 2149,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T220 + T223): files 2148
+    // -> 2162 (+14).** The branch adds 23 files and removes none: four modules'
+    // `src/backend/demo/` (`rows`, `seed`, `reset` and a co-located test each), `taxes`'
+    // `vitest.config.ts`, `backend/src/seeds/demo-relocated-reference.ts` — the frozen
+    // copy of the moved blocks that keeps the demo parity comparison a comparison — and
+    // five changesets. This walk reads the twelve non-test module files,
+    // `demo-relocated-reference.ts` and `taxes`' `vitest.config.ts`.
+    // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
+    files: 2163,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1053,7 +1069,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 1613 -> 1672.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
-    files: 1672,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T220 + T223): files 1672
+    // -> 1685 (+13).** The branch adds 23 files and removes none: four modules'
+    // `src/backend/demo/` (`rows`, `seed`, `reset` and a co-located test each), `taxes`'
+    // `vitest.config.ts`, `backend/src/seeds/demo-relocated-reference.ts` — the frozen
+    // copy of the moved blocks that keeps the demo parity comparison a comparison — and
+    // five changesets. This walk reads the twelve non-test module files and `taxes`'
+    // `vitest.config.ts`; it reads `.ts` and not `*.test.ts`.
+    files: 1685,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -1114,7 +1137,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // module walk roots from `backend/test/`.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's sources, which this walk opens to refuse a module importing the container library.
     // **`fix/search-reindex-task-timeout`: files 2151 -> 2152.** The same one new co-located test file.
-    files: 2152,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T220 + T223): files 2152
+    // -> 2169 (+17).** The branch adds 23 files and removes none: four modules'
+    // `src/backend/demo/` (`rows`, `seed`, `reset` and a co-located test each), `taxes`'
+    // `vitest.config.ts`, `backend/src/seeds/demo-relocated-reference.ts` — the frozen
+    // copy of the moved blocks that keeps the demo parity comparison a comparison — and
+    // five changesets. This walk reads the sixteen module `.ts` files plus
+    // `demo-relocated-reference.ts`.
+    files: 2169,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -1384,7 +1414,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` and `test/integration/demo/demo-parity.test.ts` —
     // against the two `src/seeds/` re-export shims T215 deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. The same two files.
-    files: 5468,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T220 + T223): files 5467
+    // -> 5485 (+18).** The branch adds 23 files and removes none: four modules'
+    // `src/backend/demo/` (`rows`, `seed`, `reset` and a co-located test each), `taxes`'
+    // `vitest.config.ts`, `backend/src/seeds/demo-relocated-reference.ts` — the frozen
+    // copy of the moved blocks that keeps the demo parity comparison a comparison — and
+    // five changesets. This walk reads the seventeen `.ts` files plus `taxes`' new
+    // `vitest.config.ts`; the five changesets are markdown.
+    // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
+    files: 5486,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1592,7 +1630,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // +2 is the platform's new `cli/index.ts` barrel plus the shim. Measured by
     // parking this branch's three new files and re-running: every recorded value
     // below came back exactly.
-    files: 2283,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T220 + T223): files 2282
+    // -> 2299 (+17).** The branch adds 23 files and removes none: four modules'
+    // `src/backend/demo/` (`rows`, `seed`, `reset` and a co-located test each), `taxes`'
+    // `vitest.config.ts`, `backend/src/seeds/demo-relocated-reference.ts` — the frozen
+    // copy of the moved blocks that keeps the demo parity comparison a comparison — and
+    // five changesets. This walk reads the sixteen module `.ts` files plus
+    // `demo-relocated-reference.ts`.
+    // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
+    files: 2300,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -1884,7 +1930,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` — against the two `src/seeds/` re-export shims T215
     // deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. The same two files.
-    files: 2149,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T220 + T223): files 2148
+    // -> 2162 (+14).** The branch adds 23 files and removes none: four modules'
+    // `src/backend/demo/` (`rows`, `seed`, `reset` and a co-located test each), `taxes`'
+    // `vitest.config.ts`, `backend/src/seeds/demo-relocated-reference.ts` — the frozen
+    // copy of the moved blocks that keeps the demo parity comparison a comparison — and
+    // five changesets. This walk reads the twelve non-test module files,
+    // `demo-relocated-reference.ts` and `taxes`' `vitest.config.ts`.
+    // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
+    files: 2163,
     sites: 260,
     sources: ['manifest-index'],
   },
@@ -2031,7 +2085,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` — against the two `src/seeds/` re-export shims T215
     // deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. The same two files.
-    files: 2149,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T220 + T223): files 2148
+    // -> 2162 (+14).** The branch adds 23 files and removes none: four modules'
+    // `src/backend/demo/` (`rows`, `seed`, `reset` and a co-located test each), `taxes`'
+    // `vitest.config.ts`, `backend/src/seeds/demo-relocated-reference.ts` — the frozen
+    // copy of the moved blocks that keeps the demo parity comparison a comparison — and
+    // five changesets. This walk reads the twelve non-test module files,
+    // `demo-relocated-reference.ts` and `taxes`' `vitest.config.ts`.
+    // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
+    files: 2163,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2178,7 +2240,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` — against the two `src/seeds/` re-export shims T215
     // deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. The same two files.
-    files: 2149,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T220 + T223): files 2148
+    // -> 2162 (+14).** The branch adds 23 files and removes none: four modules'
+    // `src/backend/demo/` (`rows`, `seed`, `reset` and a co-located test each), `taxes`'
+    // `vitest.config.ts`, `backend/src/seeds/demo-relocated-reference.ts` — the frozen
+    // copy of the moved blocks that keeps the demo parity comparison a comparison — and
+    // five changesets. This walk reads the twelve non-test module files,
+    // `demo-relocated-reference.ts` and `taxes`' `vitest.config.ts`.
+    // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
+    files: 2163,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -2319,7 +2389,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` — against the two `src/seeds/` re-export shims T215
     // deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. Both of those two are in this walk's population.
-    files: 699,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T220 + T223): files 698
+    // -> 699 (+1).** The branch adds 23 files and removes none: four modules'
+    // `src/backend/demo/` (`rows`, `seed`, `reset` and a co-located test each), `taxes`'
+    // `vitest.config.ts`, `backend/src/seeds/demo-relocated-reference.ts` — the frozen
+    // copy of the moved blocks that keeps the demo parity comparison a comparison — and
+    // five changesets. This walk reads `backend/src/seeds/demo-relocated-reference.ts`,
+    // and nothing else.
+    // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
+    files: 700,
     sites: 67,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
@@ -2713,7 +2791,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` — against the two `src/seeds/` re-export shims T215
     // deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. The same two files.
-    files: 2149,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T220 + T223): files 2148
+    // -> 2162 (+14).** The branch adds 23 files and removes none: four modules'
+    // `src/backend/demo/` (`rows`, `seed`, `reset` and a co-located test each), `taxes`'
+    // `vitest.config.ts`, `backend/src/seeds/demo-relocated-reference.ts` — the frozen
+    // copy of the moved blocks that keeps the demo parity comparison a comparison — and
+    // five changesets. This walk reads the twelve non-test module files,
+    // `demo-relocated-reference.ts` and `taxes`' `vitest.config.ts`.
+    // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
+    files: 2163,
+    // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     sites: 31,
     sources: ['manifest-index'],
   },
@@ -2941,7 +3028,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // zero here — measured at the commit before it, which read the same number.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's admin layer and the tests beside it, both inside this walk.
     // **`fix/search-reindex-task-timeout`: files 2681 -> 2682.** One file: `packages/modules/search/src/backend/services/search-indexer-task-wait.test.ts`, the co-located unit test for the indexer's task wait. This walk reads a module package's sources, so a new file under one lands here.
-    files: 2682,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T220 + T223): files 2682
+    // -> 2699 (+17).** The branch adds 23 files and removes none: four modules'
+    // `src/backend/demo/` (`rows`, `seed`, `reset` and a co-located test each), `taxes`'
+    // `vitest.config.ts`, `backend/src/seeds/demo-relocated-reference.ts` — the frozen
+    // copy of the moved blocks that keeps the demo parity comparison a comparison — and
+    // five changesets. This walk reads the sixteen module `.ts` files plus
+    // `demo-relocated-reference.ts`.
+    files: 2699,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
     sites: 56,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
@@ -3011,7 +3105,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 1998 -> 2065.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
-    files: 2065,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T220 + T223): files 2065
+    // -> 2078 (+13).** The branch adds 23 files and removes none: four modules'
+    // `src/backend/demo/` (`rows`, `seed`, `reset` and a co-located test each), `taxes`'
+    // `vitest.config.ts`, `backend/src/seeds/demo-relocated-reference.ts` — the frozen
+    // copy of the moved blocks that keeps the demo parity comparison a comparison — and
+    // five changesets. This walk reads the twelve non-test module files and `taxes`'
+    // `vitest.config.ts`; it reads `.ts` and not `*.test.ts`.
+    files: 2078,
     // The finer population, and it is the one that moves when nothing else does
     // (issues #235/#237): tree sites, unreadable sites, renderer-map sites, the
     // block declarations and the declared `(key, context)` sections. A block
@@ -3044,7 +3145,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **+1, re-measured on the chained union.** The check this branch adds walks `packages/` and `admin/src`, and gains the one new platform source that arrives with T114a on the base beneath it.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's admin sources, which this walk opens with the rest of `packages/`.
     // **`fix/search-reindex-task-timeout`: files 2779 -> 2780.** The same one new co-located test file under `packages/modules/search/src/backend/services/`.
-    files: 2780,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T220 + T223): files 2780
+    // -> 2797 (+17).** The branch adds 23 files and removes none: four modules'
+    // `src/backend/demo/` (`rows`, `seed`, `reset` and a co-located test each), `taxes`'
+    // `vitest.config.ts`, `backend/src/seeds/demo-relocated-reference.ts` — the frozen
+    // copy of the moved blocks that keeps the demo parity comparison a comparison — and
+    // five changesets. This walk reads the sixteen module `.ts` files plus
+    // `demo-relocated-reference.ts`.
+    files: 2797,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -3219,7 +3327,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 1625 -> 1684.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
-    files: 1684,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T220 + T223): sites
+    // 34198 -> 34256 (+58), files 1684 -> 1697 (+13).** The branch adds 23 files and
+    // removes none: four modules' `src/backend/demo/` (`rows`, `seed`, `reset` and a
+    // co-located test each), `taxes`' `vitest.config.ts`,
+    // `backend/src/seeds/demo-relocated-reference.ts` — the frozen copy of the moved
+    // blocks that keeps the demo parity comparison a comparison — and five changesets.
+    // This walk reads the twelve non-test module files and `taxes`' `vitest.config.ts`; it
+    // reads `.ts` and not `*.test.ts`.
+    files: 1697,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -3287,7 +3403,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `ProductsList.tsx` moves it by **zero**, measured, which is why the total is
     // six and not more: its added strings are a permission code inside a call and a
     // translation key, neither of which this classifier counts as a site.
-    sites: 34198,
+    sites: 34256,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -3730,7 +3846,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` — against the two `src/seeds/` re-export shims T215
     // deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. Only the barrel lands in this walk's population, which is why it moves by one where its neighbours move by two.
-    files: 4867,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T220 + T223): sites
+    // 12360 -> 12448 (+88), files 4866 -> 4901 (+35).** The branch adds 23 files and
+    // removes none: four modules' `src/backend/demo/` (`rows`, `seed`, `reset` and a
+    // co-located test each), `taxes`' `vitest.config.ts`,
+    // `backend/src/seeds/demo-relocated-reference.ts` — the frozen copy of the moved
+    // blocks that keeps the demo parity comparison a comparison — and five changesets.
+    // This walk reads the seventeen `.ts` files, counted once per walk that reaches them,
+    // plus `taxes`' `vitest.config.ts`.
+    // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
+    files: 4902,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -3782,7 +3907,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `import('./pages/ProductEditor.js')` factory, so the module's second entry point
     // to one screen is a second specifier. Measured by removing the entry and
     // re-running, which returns both checks to their recorded values together.
-    sites: 12360,
+    sites: 12448,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -4346,7 +4471,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` and `test/integration/demo/demo-parity.test.ts` —
     // against the two `src/seeds/` re-export shims T215 deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. Decomposed by measuring the base rather than by arithmetic: `feat/110-t117-cli-to-platform` itself reads 8086 here, so +2 of the move against this branch's earlier record is the base's and the remaining +3 is this branch's own net — eight files added, five deleted.
-    files: 8091,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T220 + T223): files 8089
+    // -> 8112 (+23).** The branch adds 23 files and removes none: four modules'
+    // `src/backend/demo/` (`rows`, `seed`, `reset` and a co-located test each), `taxes`'
+    // `vitest.config.ts`, `backend/src/seeds/demo-relocated-reference.ts` — the frozen
+    // copy of the moved blocks that keeps the demo parity comparison a comparison — and
+    // five changesets. This walk reads every one of them — this walk is the whole
+    // repository.
+    // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. Repo-wide, so it takes the source and the changeset both.
+    files: 8114,
     sites: null,
     sources: [],
     //
@@ -4695,7 +4828,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // measured with `PORT_CATCH_WHY=1`: `runSteps` in `src/seeds/demo-composition.ts`, a
     // local the analysis reads as a port-bearing alias. It is a site and not a violation.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. The same two files.
-    files: 2149,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T220 + T223): files 2148
+    // -> 2162 (+14).** The branch adds 23 files and removes none: four modules'
+    // `src/backend/demo/` (`rows`, `seed`, `reset` and a co-located test each), `taxes`'
+    // `vitest.config.ts`, `backend/src/seeds/demo-relocated-reference.ts` — the frozen
+    // copy of the moved blocks that keeps the demo parity comparison a comparison — and
+    // five changesets. This walk reads the twelve non-test module files,
+    // `demo-relocated-reference.ts` and `taxes`' `vitest.config.ts`.
+    // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
+    files: 2163,
     sites: 214,
     sources: ['manifest-index'],
   },
@@ -4750,11 +4891,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 1855 -> 1916.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
-    files: 1916,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T220 + T223): sites 1535
+    // -> 1543 (+8), files 1916 -> 1929 (+13).** The branch adds 23 files and removes none:
+    // four modules' `src/backend/demo/` (`rows`, `seed`, `reset` and a co-located test
+    // each), `taxes`' `vitest.config.ts`, `backend/src/seeds/demo-relocated-reference.ts`
+    // — the frozen copy of the moved blocks that keeps the demo parity comparison a
+    // comparison — and five changesets. This walk reads the twelve non-test module files
+    // and `taxes`' `vitest.config.ts`; it reads `.ts` and not `*.test.ts`.
+    files: 1929,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 1471 -> 1535.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
-    sites: 1535,
+    sites: 1543,
     sources: ['manifest-index'],
   },
   // Two derivations, deliberately, because the check has two inputs that can be
@@ -4875,7 +5023,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/seeds/demo-host-residue.ts` (the corpus Phase 2 drains) and
     // `src/demo/composition-loader.ts` — against the two `src/seeds/` re-export shims T215
     // deletes.
-    files: 2447,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T220 + T223): sites 1871
+    // -> 1884 (+13), files 2447 -> 2460 (+13).** The branch adds 23 files and removes
+    // none: four modules' `src/backend/demo/` (`rows`, `seed`, `reset` and a co-located
+    // test each), `taxes`' `vitest.config.ts`,
+    // `backend/src/seeds/demo-relocated-reference.ts` — the frozen copy of the moved
+    // blocks that keeps the demo parity comparison a comparison — and five changesets.
+    // This walk reads the twelve non-test module files and `taxes`' `vitest.config.ts`; it
+    // reads `.ts` and not `*.test.ts`.
+    files: 2460,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -4933,7 +5089,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/113-module-owned-demo-data/` Phase 1: sites 1873 -> 1871.** T215 deletes
     // `src/seeds/dev-seed-guard.ts` and `src/seeds/seed-scope.ts`, and each was one
     // relative host reach — `ledger-size` falls 70 -> 68 with them.
-    sites: 1871,
+    sites: 1884,
     // The third source is T060's floor: every module package whose manifest
     // declares the host package must have contributed a host reach to this walk.
     // The manifest is rendered from the bare specifiers the package's sources
@@ -5027,7 +5183,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 1952 -> 2014.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
-    files: 2014,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T220 + T223): files 2014
+    // -> 2027 (+13).** The branch adds 23 files and removes none: four modules'
+    // `src/backend/demo/` (`rows`, `seed`, `reset` and a co-located test each), `taxes`'
+    // `vitest.config.ts`, `backend/src/seeds/demo-relocated-reference.ts` — the frozen
+    // copy of the moved blocks that keeps the demo parity comparison a comparison — and
+    // five changesets. This walk reads the twelve non-test module files and `taxes`'
+    // `vitest.config.ts`; it reads `.ts` and not `*.test.ts`.
+    files: 2027,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 692 -> 721.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -5468,7 +5631,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` — against the two `src/seeds/` re-export shims T215
     // deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. The same two files.
-    files: 2149,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T220 + T223): files 2148
+    // -> 2162 (+14).** The branch adds 23 files and removes none: four modules'
+    // `src/backend/demo/` (`rows`, `seed`, `reset` and a co-located test each), `taxes`'
+    // `vitest.config.ts`, `backend/src/seeds/demo-relocated-reference.ts` — the frozen
+    // copy of the moved blocks that keeps the demo parity comparison a comparison — and
+    // five changesets. This walk reads the twelve non-test module files,
+    // `demo-relocated-reference.ts` and `taxes`' `vitest.config.ts`.
+    // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
+    files: 2163,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -5538,7 +5709,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`fix/search-reindex-task-timeout`: files 1717 -> 1718.** The same one new co-located test file - a test, which is this walk's whole subject.
     // **`specs/113-module-owned-demo-data/` Phase 1: files 1718 -> 1719.** one file:
     // `test/integration/demo/demo-parity.test.ts`, the demo parity comparison.
-    files: 1719,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T220 + T223): files 1719
+    // -> 1723 (+4).** The branch adds 23 files and removes none: four modules'
+    // `src/backend/demo/` (`rows`, `seed`, `reset` and a co-located test each), `taxes`'
+    // `vitest.config.ts`, `backend/src/seeds/demo-relocated-reference.ts` — the frozen
+    // copy of the moved blocks that keeps the demo parity comparison a comparison — and
+    // five changesets. This walk reads the four co-located demo tests, which is the whole
+    // of what this walk sees of the branch.
+    files: 1723,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -5723,7 +5901,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` — against the two `src/seeds/` re-export shims T215
     // deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. The same two files.
-    files: 2149,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T220 + T223): files 2148
+    // -> 2162 (+14).** The branch adds 23 files and removes none: four modules'
+    // `src/backend/demo/` (`rows`, `seed`, `reset` and a co-located test each), `taxes`'
+    // `vitest.config.ts`, `backend/src/seeds/demo-relocated-reference.ts` — the frozen
+    // copy of the moved blocks that keeps the demo parity comparison a comparison — and
+    // five changesets. This walk reads the twelve non-test module files,
+    // `demo-relocated-reference.ts` and `taxes`' `vitest.config.ts`.
+    // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
+    files: 2163,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -5912,7 +6098,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` and `test/integration/demo/demo-parity.test.ts` —
     // against the two `src/seeds/` re-export shims T215 deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. The same two files.
-    files: 4491,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T220 + T223): files 4490
+    // -> 4508 (+18).** The branch adds 23 files and removes none: four modules'
+    // `src/backend/demo/` (`rows`, `seed`, `reset` and a co-located test each), `taxes`'
+    // `vitest.config.ts`, `backend/src/seeds/demo-relocated-reference.ts` — the frozen
+    // copy of the moved blocks that keeps the demo parity comparison a comparison — and
+    // five changesets. This walk reads the seventeen `.ts` files plus `taxes`' new
+    // `vitest.config.ts`; the five changesets are markdown.
+    // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
+    files: 4509,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -6497,7 +6691,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` and `test/integration/demo/demo-parity.test.ts` —
     // against the two `src/seeds/` re-export shims T215 deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. Repo-wide, and decomposed the same way: the base reads 8146, so +2 is the base's and +3 is this branch's net.
-    files: 8151,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T220 + T223): files 8149
+    // -> 8172 (+23).** The branch adds 23 files and removes none: four modules'
+    // `src/backend/demo/` (`rows`, `seed`, `reset` and a co-located test each), `taxes`'
+    // `vitest.config.ts`, `backend/src/seeds/demo-relocated-reference.ts` — the frozen
+    // copy of the moved blocks that keeps the demo parity comparison a comparison — and
+    // five changesets. This walk reads every one of them — this walk is the whole
+    // repository.
+    // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. Repo-wide, and the same two files as `check-nul-bytes.ts` above.
+    files: 8174,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -6792,7 +6994,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` and `test/integration/demo/demo-parity.test.ts` —
     // against the two `src/seeds/` re-export shims T215 deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. This scan reads source comments. The base reads 6089 here, so the whole of this +2 is this branch's own sources; the changeset markdown is not in this population.
-    files: 6092,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T220 + T223): files 6091
+    // -> 6109 (+18).** The branch adds 23 files and removes none: four modules'
+    // `src/backend/demo/` (`rows`, `seed`, `reset` and a co-located test each), `taxes`'
+    // `vitest.config.ts`, `backend/src/seeds/demo-relocated-reference.ts` — the frozen
+    // copy of the moved blocks that keeps the demo parity comparison a comparison — and
+    // five changesets. This walk reads the seventeen `.ts` files plus `taxes`' new
+    // `vitest.config.ts`; the five changesets are markdown.
+    // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. This scan reads source comments, so it takes the `.ts` and not the changeset markdown.
+    files: 6110,
     sites: null,
     sources: ['manifest-index'],
     //
