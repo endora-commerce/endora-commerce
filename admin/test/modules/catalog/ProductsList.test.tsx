@@ -3,6 +3,13 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+// The session provider arrives with D-221: `ProductsList` gates its two
+// *New product* affordances on `catalog:write` through `useAuth`, which throws
+// outside `<AuthProvider>`. The wildcard is deliberate — this file's subject is
+// not the permission gate, and `adminSession` documents `['*']` as the value
+// for exactly that. The gate itself is
+// `admin/test/modules/catalog/ProductsList.create-affordance-gating.test.tsx`.
+import { adminSession, withSession } from '../../helpers/render-with-session';
 
 /**
  * Feature 022 / T041 — interaction test for the streamlined selection
@@ -120,9 +127,12 @@ describe('ProductsList — streamlined selection toolbar (T041)', () => {
     });
 
     renderWithI18n(
-      <MemoryRouter>
-        <ProductsList />
-      </MemoryRouter>,
+      withSession(
+        <MemoryRouter>
+          <ProductsList />
+        </MemoryRouter>,
+        { session: adminSession({ permissions: ['*'] }) },
+      ),
       BUNDLE,
     );
 
@@ -161,9 +171,12 @@ describe('ProductsList — streamlined selection toolbar (T041)', () => {
     });
 
     renderWithI18n(
-      <MemoryRouter>
-        <ProductsList />
-      </MemoryRouter>,
+      withSession(
+        <MemoryRouter>
+          <ProductsList />
+        </MemoryRouter>,
+        { session: adminSession({ permissions: ['*'] }) },
+      ),
       BUNDLE,
     );
 
@@ -194,9 +207,12 @@ describe('ProductsList — streamlined selection toolbar (T041)', () => {
     });
 
     renderWithI18n(
-      <MemoryRouter>
-        <ProductsList />
-      </MemoryRouter>,
+      withSession(
+        <MemoryRouter>
+          <ProductsList />
+        </MemoryRouter>,
+        { session: adminSession({ permissions: ['*'] }) },
+      ),
       BUNDLE,
     );
 

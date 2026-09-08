@@ -55,15 +55,30 @@ import { withModuleOff, type OffStateAxis } from '../../helpers/off-state.js';
  * fails there instead of quietly keeping a table row that says its axis is the
  * other one.
  *
- * ## One action's target is a route pattern rather than a path
+ * ## The pairing matches route patterns, and one action used to need it to
  *
- * `new-product` targets `/catalog/products/new`, and `catalog` declares no such
- * route: the create form is `/catalog/products/:id` with the id `new`, which is
- * what `ProductEditor`'s own `isNew` reads and what `App.tsx` served before this
- * batch. So the pairing below matches an action's target against the declared
- * route **patterns**, not against a set of literal paths. That is the honest
- * question — *is there a route that will answer this URL* — and a set
- * comparison would have failed a screen that has worked since feature 022.
+ * The pairing below matches an action's target against the declared route
+ * **patterns** rather than against a set of literal paths, because that is the
+ * honest question — *is there a route that will answer this URL* — and three of
+ * this batch's routes are parametric.
+ *
+ * This section used to justify the pattern match with `new-product`, which
+ * targets `/catalog/products/new` against a module that declared no such route:
+ * the create form was `/catalog/products/:id` with the id `new`, which is what
+ * `ProductEditor`'s own `isNew` reads and what `App.tsx` served before this
+ * batch. **The third case below was red on `master` from 2026-09-02**, and
+ * correctly so: the pattern that answered the URL carries `catalog:read` while
+ * the action advertises `catalog:write`, so the palette was advertising a
+ * destination `ModuleRoute` refuses — the admin's own not-found page, which
+ * says nothing about permissions. The pattern match made the *route* half pass
+ * and left the *code* half failing, which is the two halves doing exactly what
+ * they are for.
+ *
+ * **D-221 settles it**: `catalog` declares `/catalog/products/new` on
+ * `catalog:write`, beside the parametric route that keeps `catalog:read`, and
+ * the `.find` below picks the static declaration because the module writes it
+ * first. The pattern match stays for the three parametric routes it was always
+ * needed for.
  */
 
 /**
@@ -174,8 +189,9 @@ describe('batch 15 contributes no palette action while off (Constitution XVII it
       // so both halves are read from their artefacts and compared.
       //
       // Matched against the route **patterns** rather than against a set of
-      // paths — see the header: `new-product` targets `/catalog/products/new`,
-      // which `/catalog/products/:id` answers and no literal declaration does.
+      // paths — see the header. Three of this batch's routes are parametric;
+      // `new-product`'s target is not one of them any more, since D-221 gave
+      // `/catalog/products/new` its own declaration.
       const manifest = REGISTERED_MANIFESTS.find(
         (entry) => entry.manifest.id === subject.module,
       )?.manifest;
@@ -205,11 +221,16 @@ describe('batch 15 contributes no palette action while off (Constitution XVII it
       // than writing an id into this file means the day an owner decides, this
       // case tightens in the same merge request that empties the entry.
       //
-      // `new-product` is the reason that matters here: it advertises
-      // `catalog:write` for a form the `catalog:read` route opens, which is a
-      // *widening* rather than a 403 — holding the write code and not the read
-      // code is a role nobody grants, and the ledger is where an owner would say
-      // so if they disagreed.
+      // `new-product` is the reason that matters here, and it is the case this
+      // file was **red** on from 2026-09-02: it advertised `catalog:write`
+      // against the `catalog:read` route that answered its URL, which the
+      // comment standing here called a *widening* rather than a 403. That
+      // reading was wrong in one respect that decides the question — since
+      // feature 091 `ModuleRoute` **enforces** the pairing, so the advertised
+      // holder got the admin's not-found page rather than a form. D-221 is the
+      // repair, on the owner's decision: the route is declared on the write
+      // code. The case is untouched by the repair and is the thing that turns
+      // green, which is the shape a ruling implemented in the tree should have.
       const manifest = REGISTERED_MANIFESTS.find(
         (entry) => entry.manifest.id === subject.module,
       )?.manifest;

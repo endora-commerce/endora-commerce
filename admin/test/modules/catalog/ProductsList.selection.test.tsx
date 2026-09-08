@@ -3,6 +3,13 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+// The session provider arrives with D-221: `ProductsList` gates its two
+// *New product* affordances on `catalog:write` through `useAuth`, which throws
+// outside `<AuthProvider>`. The wildcard is deliberate — this file's subject is
+// not the permission gate, and `adminSession` documents `['*']` as the value
+// for exactly that. The gate itself is
+// `admin/test/modules/catalog/ProductsList.create-affordance-gating.test.tsx`.
+import { adminSession, withSession } from '../../helpers/render-with-session';
 import { BULK_EDIT_HARD_MAX } from '../../../../packages/modules/catalog/src/admin/lib/resolve-product-selection';
 
 const getSpy = vi.fn();
@@ -108,9 +115,12 @@ describe('ProductsList — collection selection (feature 033)', () => {
     });
 
     renderWithI18n(
-      <MemoryRouter>
-        <ProductsList />
-      </MemoryRouter>,
+      withSession(
+        <MemoryRouter>
+          <ProductsList />
+        </MemoryRouter>,
+        { session: adminSession({ permissions: ['*'] }) },
+      ),
       BUNDLE,
     );
 
@@ -140,9 +150,12 @@ describe('ProductsList — collection selection (feature 033)', () => {
     });
 
     renderWithI18n(
-      <MemoryRouter>
-        <ProductsList />
-      </MemoryRouter>,
+      withSession(
+        <MemoryRouter>
+          <ProductsList />
+        </MemoryRouter>,
+        { session: adminSession({ permissions: ['*'] }) },
+      ),
       BUNDLE,
     );
 
@@ -176,9 +189,12 @@ describe('ProductsList — collection selection (feature 033)', () => {
     postSpy.mockResolvedValue({ data: { productIds: manyIds, total: overLimit } });
 
     renderWithI18n(
-      <MemoryRouter>
-        <ProductsList />
-      </MemoryRouter>,
+      withSession(
+        <MemoryRouter>
+          <ProductsList />
+        </MemoryRouter>,
+        { session: adminSession({ permissions: ['*'] }) },
+      ),
       BUNDLE,
     );
 

@@ -91,7 +91,7 @@ function codeOf(relativePath: string): string {
  * sides of the move, and that agreement is the measurement rather than a
  * silence.
  *
- * ## One route tightens, and it is recorded rather than glossed
+ * ## Two routes tighten, and both are recorded rather than glossed
  *
  * `/orders/new` was `App.tsx`'s and therefore **ungated**, while the sidebar
  * row that advertised it carried `orders:write` and the `order.entry.tabs`
@@ -100,13 +100,31 @@ function codeOf(relativePath: string): string {
  * `sales_channels`' from batch 14: a screen whose only purpose is a write opens
  * on the write code.
  *
- * `/catalog/products/new` does **not** tighten, and the difference is worth
- * stating because it looks like an omission. There is no such route: the
- * product create form is `/catalog/products/:id` with the id `new`, which is
- * what `ProductEditor`'s own `isNew` reads. Declaring a static
- * `/catalog/products/new` beside it would be inventing a route in a batch whose
- * job is to move one, so `new-product`'s target is paired against the route
- * **pattern** that serves it rather than against an exact path.
+ * `/catalog/products/new` is the second, and this paragraph used to argue the
+ * opposite — that there was no such route, that the create form is
+ * `/catalog/products/:id` with the id `new`, and that declaring one would be
+ * inventing a route in a batch whose job is to move one. The reasoning held
+ * for the batch and not for the tree: `new-product` advertises that URL on
+ * `catalog:write`, `ModuleRoute` renders the admin's own not-found treatment
+ * for a route the operator's codes do not satisfy, and the parametric route
+ * that answered the URL carries `catalog:read` — so the advertised holder
+ * reached a page that says nothing about permissions, which is Principle XVI
+ * item 2's prohibition one page worse than the 403 it names. **D-221 settles
+ * it**: the route is declared, on the write code, and the two *New product*
+ * affordances on `ProductsList` are gated on the same code in the same merge
+ * request, so the dead end is closed rather than relocated. The pairing below
+ * is still written against route **patterns** — the batch's other three
+ * parametric routes need it — but `/catalog/products/new` is now answered by
+ * its own declaration rather than by `:id`.
+ *
+ * The tightening it costs is stated rather than glossed: a role holding
+ * `catalog:read` and not `catalog:write` loses the product create form. It
+ * loses a form whose save already refused it, and it now loses the button too.
+ * The second code that form needs is `catalog:read` itself — `ProductEditor`'s
+ * loader fetches `/catalog/categories` and `/catalog/attribute-sets` before
+ * any `isNew` branch — which is why `catalog`'s manifest declares
+ * `{ code: 'catalog:write', requires: ['catalog:read'] }` rather than the
+ * route standing alone.
  *
  * ## What is not asserted here, derived rather than declared
  *
@@ -183,14 +201,22 @@ const SUBJECTS: readonly Subject[] = [
     permission: 'catalog:read',
     // The module's own write code, and the sharp near miss: every save on the
     // product editor and every bulk edit enforces it, so a gate that treated
-    // the two as interchangeable would open all eight screens and pass every
-    // case below.
+    // the two as interchangeable would open all eight read screens and pass
+    // every case below. Since D-221 it is also the code one route genuinely
+    // takes — `/catalog/products/new` — which does not blunt it: the near-miss
+    // cases below deep-link the module's **landing** route, and that one is
+    // `catalog:read`'s.
     nearMiss: 'catalog:write',
     labelKey: 'nav.products.label',
     specifier: '@endora-commerce/mod-catalog/admin',
     sections: ['catalog', 'system'],
     routes: [
       ['/catalog/products', 'catalog:read'],
+      // The create form, opened by the code the create demands (D-221). Its
+      // position is part of the assertion: the equality below is ordered, and
+      // the static declaration is written before the parametric one it used to
+      // hide behind.
+      ['/catalog/products/new', 'catalog:write'],
       ['/catalog/products/:id', 'catalog:read'],
       ['/catalog/categories', 'catalog:read'],
       ['/catalog/attributes', 'catalog:read'],
@@ -809,11 +835,11 @@ describe('the two hosts still mount their zones from inside their packages', () 
   });
 });
 
-describe('the one route that tightens says so in its own declaration', () => {
+describe('the routes that tighten say so in their own declarations', () => {
   it('opens the order-entry form on the code the entry demands', () => {
     // Asserted on its own rather than folded into the equality above, because
-    // an equality passes whichever way the split falls and this is the batch's
-    // one operator-visible tightening. `/orders/new` was `App.tsx`'s and
+    // an equality passes whichever way the split falls and this is an
+    // operator-visible tightening. `/orders/new` was `App.tsx`'s and
     // therefore ungated, while the sidebar row that advertised it and the
     // `order.entry.tabs` contribution P4d declared both carried `orders:write`.
     const routes = CONTRIBUTIONS.get('orders')?.routes ?? [];
@@ -824,20 +850,65 @@ describe('the one route that tightens says so in its own declaration', () => {
     expect(byPath.get('/orders')).toBe('orders:read');
   });
 
-  it('leaves the product create form on the edit route, which is where it lives', () => {
-    // The other half, and it is a **non**-change stated so it cannot be read as
-    // an omission. `catalog`'s `new-product` action targets
-    // `/catalog/products/new`, and there is no such route: the create form is
-    // `/catalog/products/:id` with the id `new`, which `ProductEditor`'s own
-    // `isNew` reads. Declaring a static route beside it would be inventing a
-    // route in a batch whose job is to move one — and it would tighten
-    // `catalog:read` to `catalog:write` for a screen an operator reaches from a
-    // list they can already open.
-    const paths = new Set((CONTRIBUTIONS.get('catalog')?.routes ?? []).map((r) => r.path));
-    expect(paths.has('/catalog/products/new')).toBe(false);
-    expect(paths.has('/catalog/products/:id')).toBe(true);
+  it('opens the product create form on the code the create demands', () => {
+    // **This case asserted the opposite until D-221**, and the argument it made
+    // is worth keeping rather than deleting: the create form *is*
+    // `/catalog/products/:id` with the id `new` — `ProductEditor`'s own `isNew`
+    // reads it, and the last assertion here still pins that — so declaring a
+    // static route beside it looked like inventing one. What the argument
+    // missed is the gate: `new-product` advertises that URL on `catalog:write`
+    // and `ModuleRoute` refuses a route the operator's codes do not satisfy, so
+    // the parametric fallback on `catalog:read` meant the advertised holder
+    // reached the admin's not-found page. The route is declared now, on the
+    // write code, and the two *New product* affordances on `ProductsList` moved
+    // with it — `ProductsList.create-affordance-gating.test.tsx` is that half,
+    // and without it the tightening would relocate the dead end instead of
+    // closing it.
+    //
+    // The component is deliberately the same one: this is one screen with two
+    // entry points, not two screens.
+    const routes = CONTRIBUTIONS.get('catalog')?.routes ?? [];
+    const byPath = new Map(routes.map((route) => [route.path, route.requiredPermission]));
+    expect(byPath.get('/catalog/products/new')).toBe('catalog:write');
+    expect(byPath.get('/catalog/products/:id')).toBe('catalog:read');
+    expect(byPath.get('/catalog/products')).toBe('catalog:read');
+    // The static declaration precedes the parametric one it used to hide
+    // behind. `<Routes>` ranks a static segment higher whatever the order, so
+    // this is the declaration reading the way an operator's URL resolves.
+    const paths = routes.map((route) => route.path);
+    expect(paths.indexOf('/catalog/products/new')).toBeLessThan(
+      paths.indexOf('/catalog/products/:id'),
+    );
     const editor = sourceOf('../packages/modules/catalog/src/admin/pages/ProductEditor.tsx');
     expect(editor).toContain("params.id === 'new'");
+  });
+
+  it('declares the second code the create form needs, as a requirement on the write one', () => {
+    // R17's third clause, and the reason `catalog` is not `blog` or
+    // `sales_channels`: `ProductEditor`'s loader fetches `/catalog/categories`
+    // and `/catalog/attribute-sets` **unconditionally**, before any `isNew`
+    // branch, and the create path uses the second to pick a default attribute
+    // set. Both are `requireAdmin('catalog:read')`, so `catalog:write` alone
+    // cannot open this form whatever route is declared — the route alone would
+    // move the refusal from the router into two mount fetches.
+    //
+    // One `requiredPermission` field cannot say two codes, so the second is
+    // declared as `requires` (D-175), which the role editor renders as a
+    // one-click shortfall. Asserted here, beside the route it belongs to,
+    // because the two are one decision.
+    const loader = sourceOf('../packages/modules/catalog/src/admin/pages/ProductEditor.tsx');
+    const unconditional = loader.slice(
+      loader.indexOf('const refresh'),
+      loader.indexOf('const defaultSet'),
+    );
+    expect(unconditional).toContain('/api/v1/admin/catalog/categories');
+    expect(unconditional).toContain('/api/v1/admin/catalog/attribute-sets');
+    expect(unconditional).not.toContain('isNew');
+
+    const manifest = sourceOf('../packages/modules/catalog/src/manifest.ts');
+    expect(manifest).toMatch(
+      /code: 'catalog:write',[\s\S]{0,80}requires: \['catalog:read'\]/,
+    );
   });
 });
 
