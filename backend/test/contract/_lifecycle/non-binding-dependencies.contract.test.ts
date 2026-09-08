@@ -109,7 +109,28 @@ const readerWithdrawing = defineModuleManifest({
   ],
 });
 
-const SRC_ROOT = fileURLToPath(new URL('../../../src', import.meta.url));
+/**
+ * The roots this guard walks, and why there are now two.
+ *
+ * The block above says a **path** is the wrong handle, because the property is
+ * *"nowhere in this platform's sources is the ordering graph built from anything
+ * but `dependencies`"* — a claim about the tree rather than about a filename. It
+ * resolved the call *site* on that reasoning and then spelled its own *root* as
+ * `backend/src`, which is the same mistake one level up, and feature 110's T116
+ * collected it: the derivation moved to `@endora-commerce/platform`, this walk
+ * stayed where it was, and the assertion went from "exactly one call" to "none"
+ * — red on `master`, found by the next task on the chain rather than by the one
+ * that moved the file.
+ *
+ * So the population is both sources that can hold a derivation: the application
+ * and the platform. That is stronger than following the file, because a second
+ * `orderMigrations` call is a second derivation wherever it is written, and it
+ * survives the rest of Phase 2 moving more of one root into the other.
+ */
+const SOURCE_ROOTS: readonly string[] = [
+  fileURLToPath(new URL('../../../src', import.meta.url)),
+  fileURLToPath(new URL('../../../../packages/platform/src', import.meta.url)),
+];
 
 function walkSources(dir: string, out = new Map<string, string>()): Map<string, string> {
   for (const name of readdirSync(dir)) {
@@ -452,17 +473,24 @@ describe('nonBindingDependencies — invisible to the migration order', () => {
   });
 
   it('the ordering graph is computed once, and from that derivation', () => {
-    const sources = walkSources(SRC_ROOT);
-    // The vacuous-pass floor: a walk that read nothing would report no call
-    // site, and "no call site" is this test's loudest failure — it must mean
-    // the ordering moved, never that the walk was blind.
-    expect(sources.size, `no TypeScript sources under ${SRC_ROOT}`).toBeGreaterThan(0);
+    const sources = new Map<string, string>();
+    // The vacuous-pass floor, and it is **per root**: a walk that read nothing
+    // would report no call site, and "no call site" is this test's loudest
+    // failure — it must mean the ordering moved, never that the walk was blind.
+    // Asking it of the union would let either root go to zero unnoticed, which
+    // is exactly how this guard came to be measuring an empty directory.
+    for (const root of SOURCE_ROOTS) {
+      const fromRoot = walkSources(root);
+      expect(fromRoot.size, `no TypeScript sources under ${root}`).toBeGreaterThan(0);
+      for (const [file, source] of fromRoot) sources.set(file, source);
+    }
 
     const analysis = analyseOrderingGraph(sources);
 
     expect(
       analysis.callSites,
-      `${ORDERING_FUNCTION} is called nowhere in backend/src — renamed, deleted or moved out ` +
+      `${ORDERING_FUNCTION} is called nowhere in the application or the platform — renamed, ` +
+        `deleted or moved out ` +
         `— or it is called more than once, which is a second derivation of the ordering ` +
         `graph and the change this test exists to refuse`,
     ).toHaveLength(1);
