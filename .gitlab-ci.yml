@@ -905,6 +905,40 @@ release:changeset:
   # the `master` pipeline is what bounds it.
   # ---------------------------------------------------------------------------
   rules:
+    # 0 — a scheduled pipeline runs the whole suite, whatever changed. Owner
+    #     ruling of 2026-09-08, and it is the half D-198 above left open rather
+    #     than a reversal of it: merge requests keep the fast signal and the
+    #     complete suite stops depending on somebody happening to run it.
+    #
+    #     **Why the schedule needs no `changes:` filter, and must not have one.**
+    #     The rungs below ask what a commit touched, which is the right question
+    #     for a push and the wrong one here — a nightly exists precisely to catch
+    #     what no single diff predicts. GitLab also evaluates `changes:` as true
+    #     for a scheduled pipeline, so a filter here would read as a decision and
+    #     behave as none; leaving it out says the same thing and means it.
+    #
+    #     **What it is for, measured rather than argued.** On 2026-09-08 the
+    #     complete suite was run by hand on `master` for the first time in a long
+    #     while: **24 files red, 1416 green**, in three hours fifteen minutes. Of
+    #     the seven distinct causes, five were product defects and two were test
+    #     defects — a withdrawn product returning to sale on the next import,
+    #     prices never updated after the first import, category assignments never
+    #     replaced, a Meilisearch batch refused and reported as written. Every one
+    #     of them was invisible to every merge-request pipeline, because D-198
+    #     creates no `test:backend` for one. All 24 are closed; this rung is what
+    #     stops the next 24 accumulating unseen.
+    #
+    #     **It blocks nothing**, which is the point of putting it on a schedule
+    #     rather than restoring the merge-request clause: it competes with no
+    #     merge, it runs when the shared runner is idle, and its red is a message
+    #     to whoever reads it in the morning. The schedule itself is created in
+    #     GitLab (CI/CD → Schedules) against the default branch. **Nothing in
+    #     this repository can create it or see that it exists**, so a schedule
+    #     that is deleted, paused, or was never made leaves this rung correct and
+    #     never taken — a green pipeline history that means nobody ran it. That
+    #     is the one failure mode here and it is unguardable from inside the
+    #     tree; the only check is a person looking at the schedules page.
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
     # 1 — something that can affect the backend changed. On the default branch
     #     this is what gets deployed.
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
