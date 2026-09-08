@@ -65,9 +65,13 @@ import ts from 'typescript';
 /**
  * The platform directories the host publishes, in the order §2.1 lists them.
  *
- * A ruling (D-160.7), not a measurement — see the header. `db`, `overlay` and
- * `packages` are absent on purpose and their absence is the whole of §1.4f and
- * §1.4l: a reach into one of them is unpublished by construction.
+ * A ruling (D-160.7), not a measurement — see the header. `db` is absent on
+ * purpose and its absence is the whole of §1.4f: a reach into it is unpublished
+ * by construction. `overlay` and `packages` were absent for the same reason and
+ * are now **declared and host-internal** (`specs/110-instance-repository/` T113
+ * and T114): the code moved into the package, so the application needed an
+ * address for it, and the answer to "may a module name it" is still no — see
+ * {@link HOST_INTERNAL_SUBPATHS}, which is where that judgement is recorded.
  */
 export const PUBLISHED_SUBPATHS: readonly string[] = [
   'kernel',
@@ -130,6 +134,23 @@ export const HOST_INTERNAL_SUBPATHS: Readonly<Record<string, string>> = {
     'module that could name this one could read, and would eventually copy, a population it ' +
     'does not own. The shape it is written in is public API and lives in ' +
     '`@endora-commerce/contracts`, which is where a module takes it from.',
+  packages:
+    'installed extension-package discovery (`specs/110-instance-repository/` T113, FR-013): the ' +
+    '`node_modules` scan, the classification that tells a tarball install from a workspace link, ' +
+    'and the manifest, `ModuleEntry` and schema readers a composition root appends to its one ' +
+    "`composeModules` call. Host-internal for `./composition`'s own reason one surface over — this " +
+    'is the code that decides which packages are composed at all, so a module that could name it ' +
+    'could enumerate, and eventually judge, its siblings. What it finds is merged into the ORM ' +
+    "configuration by the host, which is where a module's own schema reaches it from.",
+  overlay:
+    "the loader that composes a deployment's client-only modules " +
+    '(`specs/110-instance-repository/` T114, FR-013): the listing of an overlay root, the ' +
+    'unit resolution a compiled tree needs, the id-collision seam both overlay readers go ' +
+    'through, and the two loaders a composition root appends to its core list. ' +
+    "Host-internal for `./composition`'s own reason — an overlay module is the deployment's " +
+    'answer to customising without forking, and the loader that composes one decides which ' +
+    'modules a deployment runs at all. It derives no path: the overlay root and the claims ' +
+    'already made on a module id are parameters the application supplies.',
 };
 
 /** The file a published directory's surface is written in. */

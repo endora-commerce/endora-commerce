@@ -743,7 +743,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
     // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
     // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
-    files: 2004,
+    // **`specs/110-instance-repository/` T113 and T114: 1955 -> 1962 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
+    // **+7, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 168 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 docs pages, a contract and a changeset. The module's route registrations and admin surface, which this walk reads to pair an action with the code its target enforces.
+    files: 2011,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -865,7 +877,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
     // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
     // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
-    files: 2131,
+    // **`specs/110-instance-repository/` T113 and T114: 2079 -> 2086 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
+    // **+7, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 168 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 docs pages, a contract and a changeset. The 61 backend sources the module adds to this walk's population.
+    files: 2138,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1197,7 +1221,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
     // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
     // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
-    files: 5444,
+    // **`specs/110-instance-repository/` T113 and T114: 5312 -> 5319 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
+    // **+7, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 168 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 docs pages, a contract and a changeset. This walk is the whole tree minus the check scripts, so it takes the package, the tests and the admin files.
+    files: 5451,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1361,7 +1397,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. Of that, **+23 is
     // this branch's test move** — the 23 harness-free `pim_akeneo` tests entering the
     // module walk roots from `backend/test/`.
-    files: 2250,
+    // **`specs/110-instance-repository/` T113 and T114: 2166 -> 2173 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
+    // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 168 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 docs pages, a contract and a changeset. The module's sources plus its package root, which this walk opens alongside the overlay tree.
+    files: 2257,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -1464,7 +1507,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 1267 -> 1282.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
-    files: 1282,
+    // **+1 on `master`, not this branch's**:
+    // `specs/110-instance-repository/contracts/application-root-supplier.md`, added by the
+    // T114a design merge, which is spec-only and whose author had no reason to look here.
+    // Re-recorded by the T115 branch, which reads the census and inherits the drift; every
+    // file *this* branch changes under `specs/` already existed, and an edit moves no count.
+    // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 168 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 docs pages, a contract and a changeset. The 12 spec pages and 2 documentation pages the branch adds, which this walk opens as documents.
+    files: 1283,
     sites: 12,
     sources: [],
   },
@@ -1570,7 +1619,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
     // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
     // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
-    files: 2131,
+    // **`specs/110-instance-repository/` T113 and T114: 2079 -> 2086 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
+    // **+7, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 168 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 docs pages, a contract and a changeset. The 61 backend sources the module adds to this walk's population.
+    files: 2138,
+    // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 168 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 docs pages, a contract and a changeset. The module's 9 persisted entity classes, each of which must carry exactly one tenant-scope decorator.
     sites: 260,
     sources: ['manifest-index'],
   },
@@ -1673,7 +1735,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
     // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
     // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
-    files: 2131,
+    // **`specs/110-instance-repository/` T113 and T114: 2079 -> 2086 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
+    // **+7, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 168 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 docs pages, a contract and a changeset. The 61 backend sources the module adds to this walk's population.
+    files: 2138,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1776,7 +1850,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
     // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
     // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
-    files: 2131,
+    // **`specs/110-instance-repository/` T113 and T114: 2079 -> 2086 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
+    // **+7, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 168 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 docs pages, a contract and a changeset. The 61 backend sources the module adds to this walk's population.
+    files: 2138,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -1874,7 +1960,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
     // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
     // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
-    files: 681,
+    // **`specs/110-instance-repository/` T113 and T114: 690 -> 697 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
+    // **+7, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    files: 688,
     sites: 67,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
@@ -2202,7 +2299,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
     // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
     // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
-    files: 2131,
+    // **`specs/110-instance-repository/` T113 and T114: 2079 -> 2086 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
+    // **+7, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 168 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 docs pages, a contract and a changeset. The 61 backend sources the module adds to this walk's population.
+    files: 2138,
     sites: 30,
     sources: ['manifest-index'],
   },
@@ -2710,7 +2819,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the whole move is this branch's. The seven `{ code: … }` literals
     // `pim_akeneo`'s manifest gains: this walk classifies literals in a module's own
     // sources, and seven more are classified (all English, so `violations` is unmoved).
-    sites: 34159,
+    // **`specs/089-unopim-pim-sync/` withdrawal repair: 32854 -> 32851 (-3).** The
+    // three literals in the reactivation block this branch deletes from
+    // `pim_unopim`'s product phase — one `'inactive'` read and the two `'active'`
+    // writes. `files` does not move: the file is still there, three lines shorter.
+    // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 168 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 docs pages, a contract and a changeset. The module's own literals, which this walk classifies one by one — much the largest population in the estate, so the largest absolute move.
+    sites: 34156,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -3617,7 +3731,27 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
     // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
     // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
-    files: 8044,
+    // **`specs/110-instance-repository/` T113 and T114: 7880 -> 7887 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
+    // **The same merge request: +2 more.** Its two changeset files, which this
+    // walk's population includes.
+    // **+9, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    // **+2 on the T115 branch, and only one of them is its own.** `master` gained
+    // `specs/110-instance-repository/contracts/application-root-supplier.md` from the T114a
+    // design merge, which is spec-only; T115 adds one empty changeset, this branch's whole
+    // contribution to any whole-repository walk. Every other file it touches already existed,
+    // and no file moved into or out of `backend/src/lifecycle/` — the measurement T115 is
+    // about is that the movable population there is already 0.
+    // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 168 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 docs pages, a contract and a changeset. This walk opens the whole repository, so it sees all but the two the merge does not add as files.
+    files: 8056,
     sites: null,
     sources: [],
   },
@@ -3909,7 +4043,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
     // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
     // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
-    files: 2131,
+    // **`specs/110-instance-repository/` T113 and T114: 2079 -> 2086 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
+    // **+7, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 168 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 docs pages, a contract and a changeset. The 61 backend sources the module adds to this walk's population.
+    files: 2138,
+    // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 168 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 docs pages, a contract and a changeset. This walk gains the module's 61 backend sources and the 17 port-call sites in them.
     sites: 213,
     sources: ['manifest-index'],
   },
@@ -4609,7 +4756,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
     // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
     // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
-    files: 2131,
+    // **`specs/110-instance-repository/` T113 and T114: 2079 -> 2086 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
+    // **+7, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 168 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 docs pages, a contract and a changeset. The 61 backend sources the module adds to this walk's population.
+    files: 2138,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4800,7 +4959,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
     // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
     // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
-    files: 2131,
+    // **`specs/110-instance-repository/` T113 and T114: 2079 -> 2086 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
+    // **+7, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 168 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 docs pages, a contract and a changeset. The 61 backend sources the module adds to this walk's population.
+    files: 2138,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4939,7 +5110,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
     // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
     // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
-    files: 4463,
+    // **`specs/110-instance-repository/` T113 and T114: 4338 -> 4345 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
+    // **+7, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 168 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 docs pages, a contract and a changeset. This walk opens the module tree and the backend tests together, so it takes both the package and the 42 new test files.
+    files: 4470,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -5437,7 +5620,24 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
     // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
     // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
-    files: 8104,
+    // **`specs/110-instance-repository/` T113 and T114: 7940 -> 7947 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
+    // **The same merge request: +2 more.** Its two changeset files, which this
+    // walk's population includes.
+    // **+9, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    // **+2 on the T115 branch, as the byte scan above and for the same population.**
+    // `specs/110-instance-repository/contracts/application-root-supplier.md` came from the
+    // T114a design merge on `master`; the second is T115's one empty changeset.
+    // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 168 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 docs pages, a contract and a changeset. Repo-wide, and the same population as `check-nul-bytes.ts` above.
+    files: 8116,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -5670,7 +5870,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/modules/_i18n/services/error-translation.ts` — the prefix router
     // feature 090 Phase 4 deleted and this branch re-created — is deleted again, and its
     // replacement is `pim_akeneo`'s own `errorCodes` declaration, which adds no file.
-    files: 6063,
+    // **`specs/110-instance-repository/` T113 and T114: 5924 -> 5931 (+7 files).**
+    // `backend/src/packages/` (3 files) and `backend/src/overlay/`'s loader (2)
+    // moved into `@endora-commerce/platform` behind two new host-internal
+    // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
+    // Seven files added to the platform, none removed from `backend/src`: every
+    // old path keeps a shim or a binding, which is what T119 drains.
+    // **+7, re-measured on the union after rebasing onto `1c5a51d86`.** T113 and T114 add seven
+    // files to `packages/platform/src/` (three under `packages/`, two under `overlay/`, two
+    // barrels); the two whole-repository walks take this branch's two changesets as well. The
+    // branch first recorded against a `master` that still held the nine lifecycle shims, so
+    // every base moved under it — this is a fresh census of the combined tree, not a sum.
+    // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 168 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 docs pages, a contract and a changeset. This scan reads source comments across the tree and takes every source file the branch adds.
+    files: 6070,
     sites: null,
     sources: ['manifest-index'],
   },

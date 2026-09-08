@@ -75,6 +75,17 @@
  *     which is exactly the shims — a file that does not forward holds the
  *     application's own values, which are not a second spelling of anything, and
  *     is never imported;
+ *
+ *     **A binding is the second kind, and the distinction is load-bearing**
+ *     (`specs/110-instance-repository/` T114). `backend/src/overlay/overlay-runtime.ts`
+ *     imports the moved loader once and wraps it, supplying the overlay root and
+ *     the id claims the platform may not derive; its exported functions carry the
+ *     names its consumers already write and are its **own** values. A binding
+ *     that also re-exported one platform name would join this walk whole, and
+ *     each wrapper would compare unequal to the function it wraps — a
+ *     duplication reported where there is exactly one copy. Measured: three such
+ *     entries from one `export … from` line. So a binding re-exports a type with
+ *     no `from`, and says so in place;
  *  2. for each name the barrel re-exports, the application file at the barrel's
  *     own target path, if there is one and it forwards.
  *

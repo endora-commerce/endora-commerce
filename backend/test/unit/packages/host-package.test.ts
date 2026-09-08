@@ -467,13 +467,22 @@ describe('the host package type probe can go red', () => {
 });
 
 describe('the host package resolves under node', () => {
-  // The subpaths the map publishes, and the five refusals §2.2 measured: the three
-  // platform directories that are accidental reach, a deep file that would be one, and
-  // the root §2.4 argues against.
+  // The subpaths the map publishes, and the refusals §2.2 measured: the platform
+  // directories that are accidental reach, a deep file that would be one, and the
+  // root §2.4 argues against.
+  //
+  // **The list is shorter than §2.2 measured it, and shrinking it is the change
+  // rather than a concession to it.** `./packages` and `./overlay` were refusals
+  // because no `exports` entry declared them, which is the state
+  // `specs/110-instance-repository/` R7.3 calls out: the application reached
+  // both by relative path into `packages/platform/dist/`, which resolves in this
+  // checkout and in no client's. T113 and T114 declare them, host-internal, so
+  // each moved from "resolves for nobody" to "resolves, and no module may name
+  // it" — which is `check:platform-surface`'s `host-internal-subpath` finding
+  // and not this file's question. The count is derived below rather than written
+  // into the case name for the reason it went stale here (D-100).
   const REFUSED = [
     `${HOST_NAME}/db`,
-    `${HOST_NAME}/overlay`,
-    `${HOST_NAME}/packages`,
     `${HOST_NAME}/kernel/lifecycle/plugin-helpers.js`,
     HOST_NAME,
   ];
@@ -503,7 +512,7 @@ describe('the host package resolves under node', () => {
     if (consumer !== undefined) rmSync(consumer.dir, { recursive: true, force: true });
   });
 
-  it('resolves every declared subpath and refuses the five that are not', () => {
+  it(`resolves every declared subpath and refuses the ${REFUSED.length} that are not`, () => {
     const raw = execFileSync(process.execPath, ['probe.mjs'], {
       cwd: consumer.dir,
       encoding: 'utf8',

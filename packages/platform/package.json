@@ -6,7 +6,7 @@
   "endora": {
     "type": "platform"
   },
-  "description": "The host package (feature 080, T042a). Publishes the surface an installed extension package compiles against: five enumerated subpaths, one per platform directory that has published API. No root export and no wildcard (D-160.7). Three further subpaths are host-internal and no module may name any of them (D-160.14): ./composition, the host composition surface; ./migrations, the frozen historical prefix an execution order is computed from (specs/110-instance-repository/, R1.5); and ./lifecycle, the operator surface that drives the platform presence axis (specs/115-lifecycle-container-move/, D115-4).",
+  "description": "The host package (feature 080, T042a). Publishes the surface an installed extension package compiles against: five enumerated subpaths, one per platform directory that has published API. No root export and no wildcard (D-160.7). Three further subpaths are host-internal and no module may name any of them (D-160.14): ./composition, the host composition surface; ./migrations, the frozen historical prefix an execution order is computed from (specs/110-instance-repository/, R1.5); ./lifecycle, the operator surface that drives the platform presence axis (specs/115-lifecycle-container-move/, D115-4); ./packages, installed extension-package discovery; and ./overlay, the loader that composes a deployment's client-only modules (specs/110-instance-repository/, T113 and T114).",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -52,6 +52,14 @@
     "./env": {
       "types": "./dist/env/index.d.ts",
       "default": "./dist/env/index.js"
+    },
+    "./packages": {
+      "types": "./dist/packages/index.d.ts",
+      "default": "./dist/packages/index.js"
+    },
+    "./overlay": {
+      "types": "./dist/overlay/index.d.ts",
+      "default": "./dist/overlay/index.js"
     },
     "./package.json": "./package.json"
   },

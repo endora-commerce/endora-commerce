@@ -134,6 +134,8 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
       'kernel',
       'lifecycle',
       'migrations',
+      'overlay',
+      'packages',
       'tenancy',
     ]);
     // `./migrations` is reached by the bare specifier alone: the frozen
@@ -167,6 +169,12 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     // 121 files import that path (D115-2 keeps every name it exported). A
     // re-export is a second spelling whatever the file's purpose is, so the
     // comparison is real and is three names wide rather than the whole barrel.
+    // `./overlay` and `./packages` arrived with `specs/110-instance-repository/`
+    // T113 and T114, and they arrive **comparable** rather than `unshimmed`:
+    // both directories keep an application half — the shims T119 drains, plus
+    // the bindings that supply what a relocated platform file may not reach
+    // (R7.4) — so both spellings of every moved value are live in one process,
+    // which is precisely the state this file exists to measure.
     expect([...measurement.unshimmed].sort()).toEqual(['env', 'migrations']);
     expect(comparisons.map((entry) => entry.subpath)).toEqual([
       'commands',
@@ -175,6 +183,8 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
       'http',
       'kernel',
       'lifecycle',
+      'overlay',
+      'packages',
       'tenancy',
     ]);
     for (const entry of comparisons) {
