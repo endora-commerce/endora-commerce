@@ -16,6 +16,10 @@ import { refuseDuplicateInvoiceNumber } from './duplicate-number-refusal.js';
 import type { InvoiceNumberGenerator } from './invoice-number-generator.js';
 import type { SellerSettingsResolver } from './seller-settings.js';
 import { buildInvoiceLines, type RawOrderLine } from './invoice-line-builder.js';
+import {
+  shouldHoldForVendorNumber,
+  type LedgerNumberingLookup,
+} from './vendor-number-hold.js';
 
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
@@ -74,6 +78,7 @@ export class InvoiceService {
     private readonly audit?: InvoiceAuditRecorder,
     private readonly events?: InvoiceDomainEventEmitter,
     private readonly emailOnReady?: (invoiceId: string) => Promise<void>,
+    private readonly ledgerRouting?: LedgerNumberingLookup,
   ) {}
 
   /** Issue an invoice/proforma for an order. Idempotent per (order, kind). */
@@ -150,6 +155,10 @@ export class InvoiceService {
     // Captured out of the transaction on purpose: the callback's result is lost
     // when the transaction aborts, and the duplicate-number refusal exists to
     // name the number that was drawn.
+    const holdForVendor = await shouldHoldForVendorNumber(
+      this.ledgerRouting,
+      order.salesChannelId,
+    );
     let drawnNumber: string | null = null;
     const invoice = await this.issueInTransaction(em, async (tx) => {
       const number = await this.numbers.next(tx, kind, order.salesChannelId, issuedAt);
@@ -171,7 +180,7 @@ export class InvoiceService {
         sellerSnapshot: seller,
         buyerSnapshot: buyer,
         issuedBy: opts.issuedBy ?? 'system',
-        status: 'ready',
+        status: holdForVendor ? 'pending' : 'ready',
       });
       await tx.persistAndFlush(inv);
       let ordinal = 0;

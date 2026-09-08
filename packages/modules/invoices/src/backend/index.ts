@@ -9,6 +9,7 @@ import type {
   InvoiceCopyHostPort,
   InvoiceNumberingHostPort,
   InvoicePaidHostPort,
+  InvoiceLedgerRoutingPort,
   InvoicePdfPort,
   InvoiceReadPort,
   OrderReadPort,
@@ -18,11 +19,12 @@ import type {
 } from '@endora-commerce/contracts';
 import {
   INVOICE_COPY_HOST_PORT,
+  INVOICE_LEDGER_ROUTING_PORT,
   INVOICE_NUMBERING_HOST_PORT,
   INVOICE_PAID_HOST_PORT,
 } from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
-import { lazyPort } from '@endora-commerce/platform/kernel';
+import { effectiveState, lazyPort } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import type { FastifyRequest } from 'fastify';
 import type { InvoicePlacementApplyPort } from '../ports/index.js';
@@ -181,6 +183,22 @@ export function registerModule(ctx: ModuleContext): void {
           ),
           resolveLanguage: createChannelLanguageResolver(emFactory),
           loadAssetImage: createAssetImageLoader(lazyPort<AssetReadPort>(ctx, 'assetReadPort')),
+          ledgerRouting: {
+            numberingModeFor: async (salesChannelId) => {
+              if (!effectiveState.isPresent('invoice_ledger')) return 'endora';
+              return lazyPort<InvoiceLedgerRoutingPort>(
+                ctx,
+                INVOICE_LEDGER_ROUTING_PORT,
+              ).numberingModeFor(salesChannelId);
+            },
+            activeVendorModuleId: async () => {
+              if (!effectiveState.isPresent('invoice_ledger')) return null;
+              return lazyPort<InvoiceLedgerRoutingPort>(
+                ctx,
+                INVOICE_LEDGER_ROUTING_PORT,
+              ).activeVendorModuleId();
+            },
+          },
         });
         // Installed once, reading the contribution per call, so a root may
         // contribute the verifier at any point in its own ordering.
@@ -297,6 +315,22 @@ export function registerModule(ctx: ModuleContext): void {
             () => numberGenerator,
             auditLogService,
             eventBus,
+            {
+              numberingModeFor: async (salesChannelId) => {
+                if (!effectiveState.isPresent('invoice_ledger')) return 'endora';
+                return lazyPort<InvoiceLedgerRoutingPort>(
+                  ctx,
+                  INVOICE_LEDGER_ROUTING_PORT,
+                ).numberingModeFor(salesChannelId);
+              },
+              activeVendorModuleId: async () => {
+                if (!effectiveState.isPresent('invoice_ledger')) return null;
+                return lazyPort<InvoiceLedgerRoutingPort>(
+                  ctx,
+                  INVOICE_LEDGER_ROUTING_PORT,
+                ).activeVendorModuleId();
+              },
+            },
           ),
       )
       .singleton(),
