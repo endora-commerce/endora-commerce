@@ -1298,7 +1298,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // below is a census of the combined tree rather than the sum of the two
     // branches' arithmetic.
     // **+1, and it is not this branch's.** `fix/search-reindex-task-timeout` merged after this branch recorded, adding `search-indexer-task-wait.test.ts`, which this whole-tree walk opens. Re-measured on the union.
-    files: 5462,
+    // **D-221 (`feat/catalog-new-product-route`): 5456 -> 5457.** One file: the new
+    // `admin/test/modules/catalog/ProductsList.create-affordance-gating.test.tsx`.
+    // This walk is the whole tree's source, so the branch's other added file — a
+    // changeset markdown — is not in the population; `check-nul-bytes` and
+    // `check-naming.sh` take both and move by two.
+    files: 5457,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -3109,7 +3114,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // not derived from the two deltas.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's own literals, classified one by one — the estate's largest population, so the largest absolute move.
     // **`fix/search-reindex-task-timeout`: sites 34157 -> 34192.** Thirty-five literals, not files: the new test file's fixture strings and assertion messages, plus the two new error classes' composed sentences in `search-indexer.ts` and the setting's description in `search/src/manifest.ts`. All English, so the finding count does not move.
-    sites: 34192,
+    // **D-221 (`feat/catalog-new-product-route`): 34198 (+6).** Attributed by
+    // measurement, one module source at a time — reverting each file to `master`
+    // and re-running: `packages/modules/catalog/src/manifest.ts` **+3** (the
+    // `permissions` entry's three string literals, `catalog:write`, its label and
+    // `catalog:read`) and `packages/modules/catalog/src/admin/index.ts` **+3** (the
+    // `WRITE_PERMISSION` constant and the new route entry's two literals).
+    // `ProductsList.tsx` moves it by **zero**, measured, which is why the total is
+    // six and not more: its added strings are a permission code inside a call and a
+    // translation key, neither of which this classifier counts as a site.
+    sites: 34198,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -3334,7 +3348,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 2159 -> 2238.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
-    sites: 2238,
+    // **D-221 (`feat/catalog-new-product-route`): 2238 -> 2239 (+1).** The new
+    // `/catalog/products/new` route entry in `packages/modules/catalog/src/admin/index.ts`.
+    // Measured rather than reasoned: removing the `useAuth` import this branch also adds
+    // to `ProductsList.tsx` leaves the number at 2239, and removing the route entry alone
+    // returns it to 2238. `files` does not move — the branch adds no file this walk opens.
+    sites: 2239,
     // **Three** derivations since Phase 5's T3, none of them the walk counting
     // itself: the generated manifest index for the modules a walked file is
     // attributed to; the kit's own `exports` map against the barrels on disk —
@@ -3581,7 +3600,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Re-measured on the chained union.** This branch still removes the two stylesheet imports from `admin/src/main.tsx` that its own entry above records; the remainder arrives with the four branches it is chained behind. A fresh census of the combined tree, never a sum of deltas.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's import specifiers and SQL table references, both of which this walk counts.
     // **`fix/search-reindex-task-timeout`: sites 12356 -> 12359.** Three. Two are that file's own import specifiers; the third is the new manifest import in `search-indexer.ts`. Measured: with the test file removed and the source edits kept, this reads 12357.
-    sites: 12359,
+    // **D-221 (`feat/catalog-new-product-route`): 12359 -> 12360 (+1).** The same
+    // route entry as `check-admin-surface` one entry over, seen through this walk's
+    // import-specifier half: the new declaration carries its own
+    // `import('./pages/ProductEditor.js')` factory, so the module's second entry point
+    // to one screen is a second specifier. Measured by removing the entry and
+    // re-running, which returns both checks to their recorded values together.
+    sites: 12360,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -4123,7 +4148,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // below is a census of the combined tree rather than the sum of the two
     // branches' arithmetic.
     // **+2, both master's.** The search fix added its changeset and its test file; this walk opens the whole repository and sees both.
-    files: 8081,
+    // **D-221 (`feat/catalog-new-product-route`): 8073 -> 8075 (+2).** The branch's two
+    // added files, one each, measured: the new
+    // `ProductsList.create-affordance-gating.test.tsx` and
+    // `.changeset/catalog-create-route-takes-the-write-code.md`. This walk is the whole
+    // repository, so it takes both where `check-language.sh` takes only the source file.
+    files: 8075,
     sites: null,
     sources: [],
     //
@@ -6184,7 +6214,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // below is a census of the combined tree rather than the sum of the two
     // branches' arithmetic.
     // **+2, both master's.** Repo-wide, so the same two files as `check-nul-bytes.ts` above.
-    files: 8140,
+    // **D-221 (`feat/catalog-new-product-route`): 8133 -> 8135 (+2).** The same two files
+    // `check-nul-bytes` names, this walk having the same whole-repository listing.
+    // The listing is `git ls-files --cached --others --exclude-standard`, so it is read
+    // from the **index**: deleting a tracked file from disk does not move it, and the
+    // measurement that attributes it is a diff of the two refs' listings.
+    files: 8135,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -6464,7 +6499,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // below is a census of the combined tree rather than the sum of the two
     // branches' arithmetic.
     // **+1, master's.** The search test file; this scan reads source comments and takes the `.ts` and not the changeset.
-    files: 6086,
+    // **D-221 (`feat/catalog-new-product-route`): 6080 -> 6081 (+1).** One file, the new
+    // `ProductsList.create-affordance-gating.test.tsx`. Its `check-naming.sh` twin moves
+    // by two because this scan's population is source-code extensions plus
+    // `docs/docs/**` and each module's own `docs/`, and a `.changeset/*.md` is in none
+    // of them.
+    files: 6081,
     sites: null,
     sources: ['manifest-index'],
     //
