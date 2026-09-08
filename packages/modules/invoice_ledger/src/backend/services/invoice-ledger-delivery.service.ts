@@ -219,6 +219,27 @@ export class InvoiceLedgerDeliveryService implements InvoiceLedgerDeliveryPort {
     return row?.remoteDocumentId ?? null;
   }
 
+  async lookupUniqueMappedInvoice(input: {
+    adapterId: string;
+    remoteDocumentId: string;
+  }): Promise<{ invoiceId: string } | null> {
+    const maps = await this.emFactory().find(InvoiceLedgerDocumentMap, {
+      adapterId: input.adapterId,
+      remoteDocumentId: input.remoteDocumentId,
+    });
+    if (maps.length !== 1) return null;
+    const invoiceId = maps[0]?.invoiceId;
+    return invoiceId ? { invoiceId } : null;
+  }
+
+  async markRemotePaid(id: string): Promise<void> {
+    const em = this.emFactory();
+    const row = await em.findOne(InvoiceLedgerDelivery, { id });
+    if (!row || row.remotePaidAt) return;
+    row.remotePaidAt = new Date();
+    await em.flush();
+  }
+
   async markFailed(id: string, error: string, opts?: { dead?: boolean }): Promise<void> {
     const em = this.emFactory();
     const row = await em.findOne(InvoiceLedgerDelivery, { id });

@@ -168,6 +168,15 @@ export interface InvoiceLedgerDeliveryPort {
     credentialCode: string;
   }): Promise<string | null>;
   findDocumentRemoteId(input: { adapterId: string; invoiceId: string }): Promise<string | null>;
+  /**
+   * T089 unique-map: exactly one row for `(adapter_id, remote_document_id)`.
+   * Zero or two-plus matches return null.
+   */
+  lookupUniqueMappedInvoice(input: {
+    adapterId: string;
+    remoteDocumentId: string;
+  }): Promise<{ invoiceId: string } | null>;
+  markRemotePaid(id: string): Promise<void>;
 }
 
 /**
