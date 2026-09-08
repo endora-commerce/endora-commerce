@@ -1,5 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   CatalogCategoryReadPort,
   CatalogCategoryRecord,
@@ -235,6 +235,21 @@ describe('seo — the meta-tag rule sources arrive over published read ports', (
 });
 
 describe('seo — the sitemap reads memberships through the sanctioned bridge accessor', () => {
+  // `SitemapGeneratorService` resolves its base URL setting -> env -> fallback, and the
+  // `baseUrl` option feeds only the last of the three. `backend/.env` sets
+  // `STOREFRONT_BASE_URL`, so under the complete config the env step outranks the option
+  // these cases inject and every asserted URL comes back on `localhost:3000` instead.
+  // The cases passed under `test:unit:fast` alone, which loads no `.env` — a green that
+  // meant "this variable happens to be unset here" rather than "the option is honoured".
+  // Emptying it is what makes these unit cases answer about the option they set.
+  beforeEach(() => {
+    vi.stubEnv('STOREFRONT_BASE_URL', '');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   function membershipStub(
     members: Partial<Record<ChannelMemberEntityType, string[]>>,
     seen: ChannelMemberEntityType[],
