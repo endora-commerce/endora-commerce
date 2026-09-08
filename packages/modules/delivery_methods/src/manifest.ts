@@ -1,4 +1,25 @@
-import { defineModuleManifest } from '@endora-commerce/contracts';
+import { defineModuleManifest, type ModuleDemoManifest } from '@endora-commerce/contracts';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+
+/**
+ * The demo data this module owns (feature 113, T220 — contract §1.3).
+ *
+ * A typed `const` rather than an inline object literal: declared inline the
+ * parameter infers from the schema and is `never`, so the author loses
+ * `context.ctx: ModuleContext`.
+ *
+ * Both bodies are reached by a **relative `await import()`** (§1.4), in
+ * `cliCommands.run`'s shape and for `cliCommands`' reason: a manifest is loaded
+ * by every process that composes the platform and by the check scripts that
+ * import the generated index, so a demo body imported at the top of this file
+ * would be a service graph pulled into all of them. It needs no `exports`
+ * subpath and no `files` entry (§1.5).
+ */
+const demo: ModuleDemoManifest<ModuleContext> = {
+  summary: 'A free in-person pickup method, so the demo shop can be checked out.',
+  seed: async (context) => (await import('./backend/demo/seed.js')).seedDemo(context),
+  reset: async (context) => (await import('./backend/demo/reset.js')).resetDemo(context),
+};
 
 /**
  * Delivery Methods module — manifest backfill (Module Lifecycle, feature 018);
@@ -158,5 +179,6 @@ export const manifest = defineModuleManifest({
       weight: 300,
     },
   ],
+  demo,
   activation: { settingCode: 'delivery_methods.enabled', default: true },
 });

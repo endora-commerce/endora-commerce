@@ -37,9 +37,6 @@ import type { Category as CategoryRow } from '../../../packages/modules/catalog/
 import type { AttributeSetAttribute as AttributeSetAttributeRow } from '../../../packages/modules/catalog/dist/backend/entities/attribute-set-attribute.entity.js';
 import { createAttributeFixture } from './attribute-fixtures.js';
 import { SalesChannel } from '../kernel/sales-channels/sales-channel.entity.js';
-import { entities as deliveryMethodsEntities } from '@endora-commerce/mod-delivery-methods/backend';
-import { entities as paymentMethodsEntities } from '@endora-commerce/mod-payment-methods/backend';
-import { entities as taxesEntities } from '@endora-commerce/mod-taxes/backend';
 import { entities as creditLimitsEntities } from '@endora-commerce/mod-credit-limits/backend';
 import { entities as organizationsEntities } from '@endora-commerce/mod-organizations/backend';
 import { entities as adminUsersEntities } from '@endora-commerce/mod-admin-users/backend';
@@ -52,9 +49,6 @@ import { entityNamed } from '../packages/package-entity-lookup.js';
 // build whose `rootDir` is `src/` and a `.ts` outside it is TS6059 even for an
 // `import type`. Nothing is constructed: `import type` erases, so there is no
 // second copy of anything (D-160.6.1). See `src/packages/package-entity-lookup.ts`.
-import type { DeliveryMethod as DeliveryMethodRow } from '../../../packages/modules/delivery_methods/dist/backend/entities/delivery-method.entity.js';
-import type { PaymentMethod as PaymentMethodRow } from '../../../packages/modules/payment_methods/dist/backend/entities/payment-method.entity.js';
-import type { Tax as TaxRow } from '../../../packages/modules/taxes/dist/backend/entities/tax.entity.js';
 import type { CreditLimit as CreditLimitRow } from '../../../packages/modules/credit_limits/dist/backend/entities/credit-limit.entity.js';
 import type { Organization as OrganizationRow } from '../../../packages/modules/organizations/dist/backend/entities/organization.entity.js';
 import type { AdminUser as AdminUserRow } from '../../../packages/modules/admin_users/dist/backend/entities/admin-user.entity.js';
@@ -230,6 +224,15 @@ export interface HostResidueSummary {
  * measured — so a developer's `seed:dev` silently took the platform's own
  * data away. A withdrawal that an operator asks for by name may do that; a
  * seed may not.
+ *
+ * **T220 took `taxes`, `delivery_methods` and `payment_methods` off the list**,
+ * and that is the second half of the same repair. Each of those modules now
+ * withdraws its own demo rows by the fixed codes its `seed` assigns (contract
+ * §2.5), so the reset stops taking the rows this file never created: the five
+ * gateway modules' migration-seeded methods, their adapter rules, and whatever
+ * the operator added. A truncate cannot tell a demo row from an operator's, and
+ * that is exactly why it may not be the withdrawal for a table this file has
+ * stopped writing.
  */
 export async function resetHostModuleResidue(em: EntityManager): Promise<void> {
   const conn = em.getConnection();
@@ -265,10 +268,7 @@ export async function resetHostModuleResidue(em: EntityManager): Promise<void> {
       admin_roles,
       price_list_assignments,
       price_list_items,
-      price_lists,
-      taxes,
-      delivery_methods,
-      payment_methods
+      price_lists
     cascade
   `);
   // Feature 061 — product attributes are backed by product-host custom-field
@@ -393,23 +393,12 @@ export async function seedHostModuleResidue(em: EntityManager): Promise<HostResi
   }
   await em.persistAndFlush(leaves);
 
-  // Fourteen more entity classes come from packages, and a module package publishes
+  // The remaining entity classes come from packages, and a module package publishes
   // one `entities` array and no class by name (D-168). `entityNamed` takes each
   // off the array the ORM itself registered — `entities-registry.generated.ts`
   // imports the same export — under the row type imported above, so the payloads
   // below are checked against the entity actually being created rather than
   // against whichever constituent of the array's union TypeScript picks.
-  const DeliveryMethod = entityNamed<DeliveryMethodRow>(
-    deliveryMethodsEntities,
-    'DeliveryMethod',
-    '@endora-commerce/mod-delivery-methods/backend',
-  );
-  const PaymentMethod = entityNamed<PaymentMethodRow>(
-    paymentMethodsEntities,
-    'PaymentMethod',
-    '@endora-commerce/mod-payment-methods/backend',
-  );
-  const Tax = entityNamed<TaxRow>(taxesEntities, 'Tax', '@endora-commerce/mod-taxes/backend');
   const CreditLimit = entityNamed<CreditLimitRow>(
     creditLimitsEntities,
     'CreditLimit',
@@ -831,55 +820,24 @@ export async function seedHostModuleResidue(em: EntityManager): Promise<HostResi
   // the composition is the only place that holds both. See step 5 of
   // `demo-composition.ts`.
 
-  // --- Delivery + payment methods (T166) ------------------------------
-  const pickup = em.create(DeliveryMethod, {
-    code: 'in_person_pickup',
-    name: { 'en-US': 'In-person pickup', 'pl-PL': 'Odbior osobisty' },
-    cost: '0',
-    currency: 'PLN',
-    // Feature 035 — shipping adapter backing this delivery method.
-    adapter: 'personal_pickup',
-  });
-  await em.persistAndFlush(pickup);
-
-  const bankTransfer = em.create(PaymentMethod, {
-    code: 'bank_transfer',
-    name: { 'en-US': 'Bank transfer', 'pl-PL': 'Przelew bankowy' },
-    kind: 'bank_transfer',
-    adapter: 'bank_transfer',
-    statusOnPending: 'new',
-    statusOnSuccess: 'paid',
-    // Feature 085 (FR-003) — the shipped default; a declined payment holds the
-    // order rather than ending it.
-    statusOnFailure: 'on_hold',
-  });
-  await em.persistAndFlush(bankTransfer);
-
-  // The platform's headline B2B payment path, seeded so a fresh dev environment
-  // shows it (feature 080, D5). `credit_limit` has been a first-class
-  // `paymentMethodKindSchema` member and a registered adapter all along, and
-  // checkout already offers it — but only when an operator has created the row,
-  // which no seed did, so the capability read as missing.
+  // --- The granted credit limit (T166) --------------------------------
   //
-  // `statusOnSuccess: 'paid'` is what a settled deferred payment means; the
-  // reservation itself is opened inside the placement transaction and the order
-  // waits in `new` until the proforma is settled.
-  const creditLimitMethod = em.create(PaymentMethod, {
-    code: 'credit_limit',
-    name: { 'en-US': 'Credit limit', 'pl-PL': 'Limit kupiecki' },
-    kind: 'credit_limit',
-    adapter: 'credit_limit',
-    statusOnPending: 'new',
-    statusOnSuccess: 'paid',
-    statusOnFailure: 'on_hold',
-  });
-  await em.persistAndFlush(creditLimitMethod);
-
-  // And a granted limit for the demo organization, because the seeded method
-  // alone shows nothing: checkout hides a `credit_limit` method from a buyer
-  // whose organization holds no grant, and again when the cart exceeds what is
-  // available. Without this row the seed would add an option no seeded buyer can
-  // ever see, which is the same "capability reads as missing" it exists to fix.
+  // The delivery method and the two payment methods that used to open this
+  // block are `delivery_methods`' and `payment_methods`' own demo data now
+  // (feature 113, T220): each module declares it in its `manifest.ts` and
+  // creates it from its own `src/backend/demo/`.
+  //
+  // The grant stays, and it is not a leftover. `credit_limits` owns the row and
+  // `organizations` owns the party it is granted to, so it is two modules' rows
+  // in one statement — a composition step (contract §5.1) and no module's demo
+  // data. It sits here beside the organisation it needs until batch 3 decides
+  // where it goes.
+  //
+  // It is what makes `payment_methods`' `credit_limit` method visible at all:
+  // checkout hides that method from a buyer whose organization holds no grant,
+  // and again when the cart exceeds what is available. Without this row the
+  // demo would offer an option no seeded buyer can ever see, which is the same
+  // "capability reads as missing" the method was seeded to fix.
   const demoCreditLimit = em.create(CreditLimit, {
     organizationId: demoOrg.id,
     grantedAmount: '50000.00',
@@ -932,15 +890,7 @@ export async function seedHostModuleResidue(em: EntityManager): Promise<HostResi
   }
   await em.flush();
 
-  // --- Polish VAT Tax (T166) ------------------------------------------
-  em.create(Tax, {
-    code: 'pl_vat_23',
-    name: 'PL VAT 23%',
-    rate: '0.23',
-    country: 'PL',
-    isDefault: true,
-  });
-  await em.flush();
+  // `taxes`' Polish VAT rule is that module's own demo data now (T220).
 
   return { categoryNodes: 1 + sections.length + leaves.length, products: PRODUCT_COUNT };
 }

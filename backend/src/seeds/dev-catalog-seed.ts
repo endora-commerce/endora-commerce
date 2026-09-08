@@ -29,8 +29,15 @@
  * It used to be 887 lines in one function, holding a dozen modules' demo rows
  * and the wiring between them with nothing separating the two. It is now the
  * **entry point** and nothing else: the guard, the database, one system scope,
- * and two calls. The rows live in `demo-host-residue.ts` — a queue Phase 2
+ * and three calls. The rows live in `demo-host-residue.ts` — a queue Phase 2
  * empties module by module — and the wiring in `demo-composition.ts`.
+ *
+ * The third call is `demo-relocated-reference.ts`, and it is what keeps the
+ * comparison below meaningful while Phase 2 runs: a module that has taken its
+ * block back writes those rows on the composed path, and this script writes the
+ * frozen copy of the block it replaced. Two different pieces of code producing
+ * one shop is the thing being asserted; one piece of code called twice would
+ * assert nothing.
  *
  * `endora demo seed` makes the same two calls over a composed platform, which
  * is the point of the split: this script is the one being replaced, and until
@@ -67,6 +74,7 @@ import {
   DEMO_ADMIN_PASSWORD,
   seedHostModuleResidue,
 } from './demo-host-residue.js';
+import { seedRelocatedDemoReference } from './demo-relocated-reference.js';
 
 async function main(): Promise<void> {
   // command-coverage-ignore: the development seed. `mustBeNonProduction()` on
@@ -78,6 +86,15 @@ async function main(): Promise<void> {
   const em = orm.em.fork();
 
   const residue = await seedHostModuleResidue(em);
+
+  // The blocks that have already reached their own modules, in the frozen copy
+  // this script — and nothing else — runs. `endora demo seed` invokes the
+  // modules' own bodies here instead, which is what
+  // `test/integration/demo/demo-parity.test.ts` compares the two databases
+  // over. See `demo-relocated-reference.ts` for why the copy exists: without
+  // it a moved block leaves the reference side of that comparison, and a batch
+  // that dropped a column would be as green as one that did not.
+  await seedRelocatedDemoReference(em);
 
   // The wiring that spans modules — the megamenu over the category tree, the
   // two bridge tables, the price-list backfill, the stock spread and the

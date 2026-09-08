@@ -263,9 +263,30 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // method on a granted limit against the cart total. The seed therefore
   // grants one too, which is what puts this module here.
   credit_limits: ['src/seeds/demo-host-residue.ts'],
-  delivery_methods: ['src/seeds/demo-host-residue.ts'],
-  payment_methods: ['src/seeds/demo-host-residue.ts'],
-  taxes: ['src/seeds/demo-host-residue.ts'],
+  // ── Feature 113's T220 re-pointed three of these and freed none ───────────
+  //
+  // `delivery_methods`, `payment_methods` and `taxes` own their demo rows now:
+  // each declares them in its own `manifest.ts` and creates them from its own
+  // `src/backend/demo/`, and the block left `demo-host-residue.ts` in the same
+  // merge request. T220's *"done when"* predicted the three entries below would
+  // be **gone**, and they are not — they moved one file across.
+  //
+  // The reason is the comparison rather than the conversion.
+  // `test/integration/demo/demo-parity.test.ts` is the only thing that can say
+  // whether a moved block still writes the rows it used to, and it works by
+  // diffing two seeded databases — so it is only worth something while the two
+  // sides are different code. A block deleted outright leaves the reference
+  // side, its table drops out of the derived population, and a batch that lost
+  // a column is as green as one that did not. So the block is *frozen* in
+  // `src/seeds/demo-relocated-reference.ts`, which `dev-catalog-seed.ts` alone
+  // runs, and the entity type imports that hold these entries went with it.
+  //
+  // They therefore retire at T226, with the reference file and the legacy entry
+  // point, rather than one batch at a time. That is a correction to the task
+  // list and it is recorded there too.
+  delivery_methods: ['src/seeds/demo-relocated-reference.ts'],
+  payment_methods: ['src/seeds/demo-relocated-reference.ts'],
+  taxes: ['src/seeds/demo-relocated-reference.ts'],
   // `orders` needs no entry and gets none, since feature 080's T052. Its single
   // reference was `import { Order } from './modules/orders/entities/order.entity.js'`,
   // read by one `em.findOne` inside a bridge the root contributes; D-168 gives a
