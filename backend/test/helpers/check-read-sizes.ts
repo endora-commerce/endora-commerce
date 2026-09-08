@@ -2680,7 +2680,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // three literals in the reactivation block this branch deletes from
     // `pim_unopim`'s product phase — one `'inactive'` read and the two `'active'`
     // writes. `files` does not move: the file is still there, three lines shorter.
-    sites: 32851,
+    // **`specs/089-unopim-pim-sync/` re-import repair: 32854 -> 32855 (+1).** The SQL
+    // literal in `pim_unopim`'s new `categoryMappingsPostdateProductWalk`, which asks
+    // whether a category mapping postdates the last product walk. One literal, English,
+    // and not a finding — `files` does not move because the file already existed.
+    // **-3 against this branch's own earlier record, re-measured on the union.** The record above
+    // was taken before `fix/089-unopim-withdrawal-stays` merged; that branch deleted the
+    // reactivation block and the three status literals in it, so the base fell by three. This
+    // branch still contributes the one SQL literal its repair adds. Measured on the combined tree,
+    // not derived from the two deltas.
+    sites: 32852,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -3101,7 +3110,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // value and the types, `lib/module-registry`). The cross-module half does
     // not move at all — `reaches=8`, `ledger-size=8`, `stale=0` before and
     // after — which is T122's own criterion.
-    sites: 11898,
+    // **`specs/089-unopim-pim-sync/` re-import repair: 11893 -> 11895 (+2).** Two table
+    // references, both `pim_unopim`'s own: the SQL that asks whether a category mapping
+    // postdates the last product walk names `unopim_category_mappings` and
+    // `unopim_sync_bookmarks`. The cross-module half does not move — `reaches=8`,
+    // `ledger-size=8`, `stale=0` before and after — a module reading its own tables
+    // being no reach at all.
+    // **Re-measured on the union after rebasing onto `spec/113-demo-data-tasks`.** This branch
+    // still contributes the two `pim_unopim` tables its SQL literal names; the remainder is the
+    // base moving under it in the eight merges of 2026-09-08. A fresh census of the combined tree.
+    sites: 11900,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -3600,7 +3618,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // come from the base it now sits on — `master` moved +1 in the eight merges of 2026-09-08, and
     // D-217/D-218 adds two. This branch is merged after that one, so the value is a fresh census of
     // the combined tree rather than a sum.
-    files: 7894,
+    // **+1 on the chained base, re-measured.** This branch adds one file, its changeset. The base
+    // is `spec/113-demo-data-tasks`, which this branch is merged after.
+    files: 7895,
     sites: null,
     sources: [],
     //
@@ -5376,7 +5396,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // lands second is a no-op, because the recorded value here is the observed one either way.
     // **+4, re-measured on the union after rebasing onto `chore/d217-d218-impl`.** The same four
     // files as `check-nul-bytes.ts` above: one this branch adds, three the base does.
-    files: 7954,
+    // **+1 on the chained base, re-measured.** The same changeset file as `check-nul-bytes.ts`
+    // above.
+    files: 7955,
     sites: null,
     sources: ['manifest-index'],
     //
