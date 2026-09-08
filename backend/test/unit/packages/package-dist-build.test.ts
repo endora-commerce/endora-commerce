@@ -221,8 +221,9 @@ export function distShapeFindings(manifest: PackageManifest): Finding[] {
     // `i18n/` and `docs/`' position, which this rule has never seen only because those
     // two layers are located by joining a manifest declaration and carry no subpath.
     //
-    // `./theme.css` is the admin shell's design tokens, base rules and legacy
-    // class shim (feature 110, T126; R3.1). It is at the root for the second of
+    // `./theme.css` is the admin's design system — its token vocabulary and its
+    // class vocabulary — published by the package every renderer already declares
+    // (feature 110, T129; owner ruling D-219; R3.1/R3.4). It is at the root for the second of
     // `./tailwind.css`' two reasons and not the first: it names no relative path,
     // so M7 does not bind it, but it is **hand-written source** rather than build
     // output, and this package's build is `tsc`, which compiles `.ts` and copies

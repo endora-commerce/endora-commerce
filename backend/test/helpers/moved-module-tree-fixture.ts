@@ -1308,6 +1308,54 @@ function stageWorkspacePackage(root: string, source: string): void {
   if (existsSync(built)) {
     cpSync(built, join(destination, 'dist'), { recursive: true, preserveTimestamps: true });
   }
+  stagePackageRootTargets(source, destination);
+}
+
+/**
+ * The files a package publishes **at its own root**, rather than out of `src` or
+ * `dist` (feature 110, T129b).
+ *
+ * `package.json`, `src` and `dist` were the whole of what this staged, and that
+ * is three of the four places a package's `exports` map can point. The fourth is
+ * the package root itself, which is where `./tailwind.css` and `./theme.css`
+ * live and where they have to live: a `@source` resolves relative to the
+ * stylesheet that declares it (M7), and both are hand-written or generated
+ * source rather than anything a compiler emits, so a copy under a git-ignored
+ * `dist` would be deleted by the next clean build.
+ *
+ * Measured on the split fixture before this existed: `check-class-vocabulary`
+ * exited 2 on *"a design system was read and its rule preludes named no
+ * class"*. The refusal was correct and was about the **fixture** — the kit's
+ * manifest declared `./theme.css` and the file was not there — which is the
+ * state § 6 of `split-fixture-package-naming.md` is about, and it would have
+ * made a check whose population *is* the module tree unspawnable here.
+ *
+ * **Derived from the `exports` map, never a list of file names** (D-100): every
+ * string target that names a file at the package root. A package that publishes
+ * a fifth root file is staged by declaring it, and one that stops publishing
+ * `./theme.css` takes it out of this fixture in the same run.
+ */
+function stagePackageRootTargets(source: string, destination: string): void {
+  let manifest: { exports?: Record<string, unknown> };
+  try {
+    manifest = JSON.parse(readFileSync(join(source, 'package.json'), 'utf8')) as {
+      exports?: Record<string, unknown>;
+    };
+  } catch {
+    return;
+  }
+  const declared = manifest.exports;
+  if (typeof declared !== 'object' || declared === null || Array.isArray(declared)) return;
+  for (const target of Object.values(declared)) {
+    if (typeof target !== 'string') continue;
+    const relativeTarget = target.replace(/^\.\//, '');
+    // Root files only: anything with a path separator is under `src` or `dist`,
+    // which the copies above already staged.
+    if (relativeTarget === '' || relativeTarget.includes('/')) continue;
+    const from = join(source, relativeTarget);
+    if (!existsSync(from)) continue;
+    cpSync(from, join(destination, relativeTarget), { preserveTimestamps: true });
+  }
 }
 
 function copyPageBuilderPackages(root: string): void {
