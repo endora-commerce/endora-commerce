@@ -47,7 +47,7 @@
  * that asked for them was wrong about where they come from.** They are declared
  * by `backend/test/helpers/seed-catalog.ts`' `seedUs1Catalog`, the *test*
  * fixture; the dev seed writes no fixed product id at all (two fixed UUIDs are
- * in the file, the Kraków warehouse and the default attribute set, and both are
+ * in the file, the `Kraków` warehouse and the default attribute set, and both are
  * reached below by their natural key).
  *
  * ## Why it is an integration test rather than an acceptance script
