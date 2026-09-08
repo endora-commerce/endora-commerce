@@ -230,7 +230,12 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // the type imports erase — and it retires on the same condition as the
   // `delivery_methods` / `payment_methods` / `taxes` block below.
   custom_fields: ['src/seeds/attribute-fixtures.ts'],
-  inventory: ['src/seeds/demo-composition.ts', 'src/seeds/demo-host-residue.ts'],
+  // `inventory` moved with T223 and, like the three below, was re-pointed
+  // rather than freed: the warehouse block is frozen in the reference file the
+  // parity comparison needs, and the composition still spreads stock across the
+  // warehouse this module's demo body creates. The second entry is the
+  // composition doing its job and is not expected to drain at all.
+  inventory: ['src/seeds/demo-composition.ts', 'src/seeds/demo-relocated-reference.ts'],
   // ── Criterion 7's cost, and it is a cost of a decision rather than a defect ─
   //
   // The three entries below came back on 2026-08-25 with !997, and the comment

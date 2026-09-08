@@ -39,6 +39,10 @@
  */
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { entities as deliveryMethodsEntities } from '@endora-commerce/mod-delivery-methods/backend';
+import {
+  entities as inventoryEntities,
+  WarehouseChannelReconciler,
+} from '@endora-commerce/mod-inventory/backend';
 import { entities as paymentMethodsEntities } from '@endora-commerce/mod-payment-methods/backend';
 import { entities as taxesEntities } from '@endora-commerce/mod-taxes/backend';
 import { entityNamed } from '../packages/package-entity-lookup.js';
@@ -51,6 +55,9 @@ import { entityNamed } from '../packages/package-entity-lookup.js';
 import type { DeliveryMethod as DeliveryMethodRow } from '../../../packages/modules/delivery_methods/dist/backend/entities/delivery-method.entity.js';
 import type { PaymentMethod as PaymentMethodRow } from '../../../packages/modules/payment_methods/dist/backend/entities/payment-method.entity.js';
 import type { Tax as TaxRow } from '../../../packages/modules/taxes/dist/backend/entities/tax.entity.js';
+import type { Warehouse as WarehouseRow } from '../../../packages/modules/inventory/dist/backend/entities/warehouse.entity.js';
+import type { WarehouseChannelAssignment as WarehouseChannelAssignmentRow } from '../../../packages/modules/inventory/dist/backend/entities/warehouse-channel-assignment.entity.js';
+import { SalesChannel } from '../kernel/sales-channels/sales-channel.entity.js';
 
 const DeliveryMethod = entityNamed<DeliveryMethodRow>(
   deliveryMethodsEntities,
@@ -63,6 +70,16 @@ const PaymentMethod = entityNamed<PaymentMethodRow>(
   '@endora-commerce/mod-payment-methods/backend',
 );
 const Tax = entityNamed<TaxRow>(taxesEntities, 'Tax', '@endora-commerce/mod-taxes/backend');
+const Warehouse = entityNamed<WarehouseRow>(
+  inventoryEntities,
+  'Warehouse',
+  '@endora-commerce/mod-inventory/backend',
+);
+const WarehouseChannelAssignment = entityNamed<WarehouseChannelAssignmentRow>(
+  inventoryEntities,
+  'WarehouseChannelAssignment',
+  '@endora-commerce/mod-inventory/backend',
+);
 
 /**
  * Create the rows the modules below now create for themselves.
@@ -131,5 +148,61 @@ export async function seedRelocatedDemoReference(em: EntityManager): Promise<voi
     country: 'PL',
     isDefault: true,
   });
+  await em.flush();
+  // ── T223, batch 2 ────────────────────────────────────────────────────────
+  // `inventory`. Verbatim from `demo-host-residue.ts` **but for two string
+  // values**, and the deviation is the batch's one deliberate content change:
+  // `Magazyn Kraków` and `Demo secondary warehouse — Kraków, PL` are Polish
+  // prose in a scalar column, so on the move they became
+  // `check:default-language-prose` findings — measured, two of them — and
+  // neither of that check's two answers was available. A per-language map has
+  // nowhere to go (`Warehouse.name` is a `varchar(160)`), and a ledger entry is
+  // what T223's own obligation forbids. So the value is English on both sides,
+  // and the parity comparison holds over the changed value rather than hiding
+  // the change.
+
+  // --- Feature 010 — multi-warehouse demo data (T085) ----------------
+  // Add a second warehouse and spread stock between it and the seeded
+  // `default` warehouse so the inventory landing, per-product roster, and
+  // channel-binding panels all have real data to render. The existing channels
+  // keep `default` as their default warehouse (the boot-time
+  // WarehouseChannelReconciler handled that) and gain a second non-default
+  // assignment for the demo warehouse.
+  const krakowWarehouseId = '00000000-0000-4000-8000-00000000d0c0';
+  let krakow = await em.findOne(Warehouse, { id: krakowWarehouseId });
+  if (!krakow) {
+    krakow = em.create(Warehouse, {
+      id: krakowWarehouseId,
+      name: 'Krakow warehouse',
+      code: 'pl-krk',
+      active: true,
+      description: 'Demo secondary warehouse — Krakow, PL',
+    });
+    em.persist(krakow);
+    await em.flush();
+  }
+
+  // Seed runs BEFORE the backend boots, so the WarehouseChannelReconciler
+  // (which fires at boot, after DefaultChannelReconciler) hasn't yet
+  // paired channels with the Default warehouse. Run it inline so the
+  // dev DB lands fully wired and admins don't need a server bounce.
+  await new WarehouseChannelReconciler(em.fork()).run();
+
+  const channelsForBinding = await em.find(SalesChannel, {});
+  for (const ch of channelsForBinding) {
+    const existing = await em.findOne(WarehouseChannelAssignment, {
+      warehouseId: krakowWarehouseId,
+      salesChannelId: ch.id,
+    });
+    if (!existing) {
+      const row = em.create(WarehouseChannelAssignment, {
+        warehouseId: krakowWarehouseId,
+        salesChannelId: ch.id,
+        isDefault: false,
+        sortOrder: 1,
+      });
+      em.persist(row);
+    }
+  }
   await em.flush();
 }

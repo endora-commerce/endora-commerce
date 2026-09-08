@@ -53,13 +53,7 @@ import type { CreditLimit as CreditLimitRow } from '../../../packages/modules/cr
 import type { Organization as OrganizationRow } from '../../../packages/modules/organizations/dist/backend/entities/organization.entity.js';
 import type { AdminUser as AdminUserRow } from '../../../packages/modules/admin_users/dist/backend/entities/admin-user.entity.js';
 import type { AdminRole as AdminRoleRow } from '../../../packages/modules/admin_roles/dist/backend/entities/admin-role.entity.js';
-import type { Warehouse as WarehouseRow } from '../../../packages/modules/inventory/dist/backend/entities/warehouse.entity.js';
-import type { WarehouseChannelAssignment as WarehouseChannelAssignmentRow } from '../../../packages/modules/inventory/dist/backend/entities/warehouse-channel-assignment.entity.js';
 import { hashPassword } from '../kernel/crypto/password-hasher.js';
-import {
-  entities as inventoryEntities,
-  WarehouseChannelReconciler,
-} from '@endora-commerce/mod-inventory/backend';
 
 /**
  * `catalog`'s three entity classes, taken off the package's published `entities`
@@ -418,16 +412,6 @@ export async function seedHostModuleResidue(em: EntityManager): Promise<HostResi
     adminRolesEntities,
     'AdminRole',
     '@endora-commerce/mod-admin-roles/backend',
-  );
-  const Warehouse = entityNamed<WarehouseRow>(
-    inventoryEntities,
-    'Warehouse',
-    '@endora-commerce/mod-inventory/backend',
-  );
-  const WarehouseChannelAssignment = entityNamed<WarehouseChannelAssignmentRow>(
-    inventoryEntities,
-    'WarehouseChannelAssignment',
-    '@endora-commerce/mod-inventory/backend',
   );
   // --- Product attributes ---------------------------------------------
   // Feature 061 — a product attribute is a product-host Custom Field
@@ -845,50 +829,8 @@ export async function seedHostModuleResidue(em: EntityManager): Promise<HostResi
   });
   await em.persistAndFlush(demoCreditLimit);
 
-  // --- Feature 010 — multi-warehouse demo data (T085) ----------------
-  // Add a second warehouse `Magazyn Kraków` and spread stock between it
-  // and the seeded `default` warehouse so the inventory landing,
-  // per-product roster, and channel-binding panels all have real data
-  // to render. The existing channels keep `default` as their default
-  // warehouse (the boot-time WarehouseChannelReconciler handled that)
-  // and gain a second non-default assignment for `Magazyn Kraków`.
-  const krakowWarehouseId = '00000000-0000-4000-8000-00000000d0c0';
-  let krakow = await em.findOne(Warehouse, { id: krakowWarehouseId });
-  if (!krakow) {
-    krakow = em.create(Warehouse, {
-      id: krakowWarehouseId,
-      name: 'Magazyn Kraków',
-      code: 'pl-krk',
-      active: true,
-      description: 'Demo secondary warehouse — Kraków, PL',
-    });
-    em.persist(krakow);
-    await em.flush();
-  }
-
-  // Seed runs BEFORE the backend boots, so the WarehouseChannelReconciler
-  // (which fires at boot, after DefaultChannelReconciler) hasn't yet
-  // paired channels with the Default warehouse. Run it inline so the
-  // dev DB lands fully wired and admins don't need a server bounce.
-  await new WarehouseChannelReconciler(em.fork()).run();
-
-  const channelsForBinding = await em.find(SalesChannel, {});
-  for (const ch of channelsForBinding) {
-    const existing = await em.findOne(WarehouseChannelAssignment, {
-      warehouseId: krakowWarehouseId,
-      salesChannelId: ch.id,
-    });
-    if (!existing) {
-      const row = em.create(WarehouseChannelAssignment, {
-        warehouseId: krakowWarehouseId,
-        salesChannelId: ch.id,
-        isDefault: false,
-        sortOrder: 1,
-      });
-      em.persist(row);
-    }
-  }
-  await em.flush();
+  // `inventory`'s second warehouse and its channel assignments are that
+  // module's own demo data now (T223).
 
   // `taxes`' Polish VAT rule is that module's own demo data now (T220).
 
