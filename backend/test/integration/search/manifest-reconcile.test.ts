@@ -10,7 +10,10 @@ import { settingsManifest } from '../../../../packages/modules/settings/src/mani
 import { SettingGroup } from '../../../src/kernel/settings/setting-group.entity.js';
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
-import { SEARCH_SETTING_CODES } from '../../../../packages/modules/search/src/manifest.js';
+import {
+  DEFAULT_INDEX_TASK_TIMEOUT_SECONDS,
+  SEARCH_SETTING_CODES,
+} from '../../../../packages/modules/search/src/manifest.js';
 
 /**
  * T020 — Manifest reconciliation for the search module (feature 006).
@@ -72,6 +75,12 @@ describe('search manifest reconciliation (T020)', () => {
         SEARCH_SETTING_CODES.POPUP_MINIMUM_QUERY_LENGTH,
         SEARCH_SETTING_CODES.POPUP_SUGGESTION_COUNT,
         SEARCH_SETTING_CODES.REINDEX_INTERVAL_MINUTES,
+        // The indexer's Meilisearch task wait. It is an operator knob rather
+        // than a constant because its right value is a function of the
+        // deployment — catalogue size, index throughput, and how much other
+        // work shares the Meilisearch instance — and none of those is knowable
+        // from this repository.
+        SEARCH_SETTING_CODES.INDEX_TASK_TIMEOUT_SECONDS,
         // Feature 073 — the operator's activation control (T123).
         'search.enabled',
       ].sort(),
@@ -95,6 +104,15 @@ describe('search manifest reconciliation (T020)', () => {
       'number',
     );
     expect(byCode.get(SEARCH_SETTING_CODES.REINDEX_INTERVAL_MINUTES)?.defaultValue).toBe(10);
+    expect(byCode.get(SEARCH_SETTING_CODES.INDEX_TASK_TIMEOUT_SECONDS)?.valueType).toBe(
+      'number',
+    );
+    // 120 s, and the number that matters is the one it replaced: the
+    // `meilisearch` client's own 5000 ms default, which nine of the indexer's
+    // twelve waits took by omission.
+    expect(byCode.get(SEARCH_SETTING_CODES.INDEX_TASK_TIMEOUT_SECONDS)?.defaultValue).toBe(
+      DEFAULT_INDEX_TASK_TIMEOUT_SECONDS,
+    );
   });
 
   it('is idempotent on re-apply', async () => {

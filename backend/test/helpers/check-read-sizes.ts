@@ -1018,7 +1018,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this branch's test move** — the 23 harness-free `pim_akeneo` tests entering the
     // module walk roots from `backend/test/`.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's sources, which this walk opens to refuse a module importing the container library.
-    files: 2151,
+    // **`fix/search-reindex-task-timeout`: files 2151 -> 2152.** The same one new co-located test file.
+    files: 2152,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -1259,7 +1260,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // task adds, this walk being the whole-workspace one for `.ts`.
     // **+1, re-measured on the chained union.** `packages/platform/src/overlay/deployment-roots.ts`, this branch's one new package source, which this whole-tree walk opens.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. This walk is the whole tree minus the check scripts, so it takes the package, the tests and the admin files.
-    files: 5455,
+    // **`fix/search-reindex-task-timeout`: files 5455 -> 5456.** The same one new co-located test file; this walk is the whole tree's TypeScript.
+    files: 5456,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1450,7 +1452,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this branch's five new files and re-running.
     // **+1, re-measured on the chained union.** The same new platform source; this walk reads the overlay tree and the platform beside it.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's sources, which this walk opens alongside the overlay tree.
-    files: 2259,
+    // **`fix/search-reindex-task-timeout`: files 2259 -> 2260.** The same one new co-located test file, through the owner map's module-tree input.
+    files: 2260,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -2666,7 +2669,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's admin layer and the tests beside it, both inside this walk.
-    files: 2681,
+    // **`fix/search-reindex-task-timeout`: files 2681 -> 2682.** One file: `packages/modules/search/src/backend/services/search-indexer-task-wait.test.ts`, the co-located unit test for the indexer's task wait. This walk reads a module package's sources, so a new file under one lands here.
+    files: 2682,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
     sites: 56,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
@@ -2768,7 +2772,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // shape and the state this check's fourth refusal exists for.
     // **+1, re-measured on the chained union.** The check this branch adds walks `packages/` and `admin/src`, and gains the one new platform source that arrives with T114a on the base beneath it.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's admin sources, which this walk opens with the rest of `packages/`.
-    files: 2779,
+    // **`fix/search-reindex-task-timeout`: files 2779 -> 2780.** The same one new co-located test file under `packages/modules/search/src/backend/services/`.
+    files: 2780,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -3001,7 +3006,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // branch still contributes the one SQL literal its repair adds. Measured on the combined tree,
     // not derived from the two deltas.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's own literals, classified one by one — the estate's largest population, so the largest absolute move.
-    sites: 34157,
+    // **`fix/search-reindex-task-timeout`: sites 34157 -> 34192.** Thirty-five literals, not files: the new test file's fixture strings and assertion messages, plus the two new error classes' composed sentences in `search-indexer.ts` and the setting's description in `search/src/manifest.ts`. All English, so the finding count does not move.
+    sites: 34192,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -3416,7 +3422,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this branch's five new files and re-running.
     // **+2, re-measured on the chained union.** The new platform source and the new unit test under `backend/test/`, both inside this walk's populations.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module package and the backend tests beside it.
-    files: 4861,
+    // **`fix/search-reindex-task-timeout`: files 4861 -> 4863.** Two, and both are the one new co-located test file: it sits in a module package's sources and under a source root, and this walk's `files` counts both populations. Measured by taking that file alone out of the tree, which returns 4861.
+    files: 4863,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -3461,7 +3468,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **11 893 -> 11 891, and `files` did not move**, which is the #235/#237 shape read the other way: feature 110's T129 deleted two `import './styles/*.css'` lines from `admin/src/main.tsx`, so two specifier sites went and no file did.
     // **Re-measured on the chained union.** This branch still removes the two stylesheet imports from `admin/src/main.tsx` that its own entry above records; the remainder arrives with the four branches it is chained behind. A fresh census of the combined tree, never a sum of deltas.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's import specifiers and SQL table references, both of which this walk counts.
-    sites: 12356,
+    // **`fix/search-reindex-task-timeout`: sites 12356 -> 12359.** Three. Two are that file's own import specifiers; the third is the new manifest import in `search-indexer.ts`. Measured: with the test file removed and the source edits kept, this reads 12357.
+    sites: 12359,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -3989,7 +3997,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changesets and one contract page — and this walk opens the whole repository.
     // **+12 against this branch's own earlier record, of which +5 are its own.** It adds eight files, deletes three and renames one, which is net five for a whole-tree walk. The other seven arrive on the chained base — D-217/D-218, 113's `tasks.md`, the UnoPim re-import changeset and T114a's six. Measured on the combined tree.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. This walk opens the whole repository, so it sees every file the merge adds.
-    files: 8071,
+    // **`fix/search-reindex-task-timeout`: files 8071 -> 8073.** Two, and this walk is the whole repository, so it is the only entry that sees both: the new co-located test file, and `.changeset/search-indexer-task-wait.md`. Measured one at a time - 8071, 8072 with the test file, 8073 with the changeset as well.
+    files: 8073,
     sites: null,
     sources: [],
     //
@@ -5106,7 +5115,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **1 655 -> 1 656** with T129b's companion test, which is one more file under `backend/test/`.
     // **+1, re-measured on the chained union.** This walk opens `*.test.ts` only, and gains T114a's new unit test from the base.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. This walk opens `*.test.ts` only, and takes the module's own test files.
-    files: 1717,
+    // **`fix/search-reindex-task-timeout`: files 1717 -> 1718.** The same one new co-located test file - a test, which is this walk's whole subject.
+    files: 1718,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -5429,7 +5439,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // branch's own +5 is unchanged; this is a fresh census of the combined tree, not a sum.
     // **+4, re-measured on the chained union.** This branch adds four sources this walk opens — the check, its library, its two ledgers — and T114a's platform source arrives on the base.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. This walk opens the module tree and the backend tests together, so it takes both.
-    files: 4479,
+    // **`fix/search-reindex-task-timeout`: files 4479 -> 4480.** The same one new co-located test file.
+    files: 4480,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -5982,7 +5993,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // files, as recorded for `check-nul-bytes.ts` above; this scan's population is repo-wide.
     // **+12, re-measured on the chained union.** Repo-wide, so the same twelve as `check-nul-bytes.ts` above: five this branch's net, seven the chained base's.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. Repo-wide, and the same population as `check-nul-bytes.ts` above.
-    files: 8131,
+    // **`fix/search-reindex-task-timeout`: files 8131 -> 8133.** Two: the new co-located test file and `.changeset/search-indexer-task-wait.md`, this walk being the whole repository like `check-nul-bytes`'.
+    files: 8133,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -6252,7 +6264,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // sources T113 and T114 added while this branch was open; the comment scan opens them.
     // **+6, re-measured on the chained union.** This scan reads source comments, so it takes this branch's five new `.ts` files and not its two deleted stylesheets, plus what the chained base adds.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. This scan reads source comments across the tree and takes every source file the branch adds.
-    files: 6079,
+    // **`fix/search-reindex-task-timeout`: files 6079 -> 6080.** The same one new co-located test file.
+    files: 6080,
     sites: null,
     sources: ['manifest-index'],
     //

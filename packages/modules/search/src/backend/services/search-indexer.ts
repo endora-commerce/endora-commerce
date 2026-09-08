@@ -13,6 +13,7 @@ import {
 } from '@endora-commerce/contracts';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { DEFAULT_INDEX_TASK_TIMEOUT_SECONDS, SEARCH_SETTING_CODES } from '../../manifest.js';
 
 /**
  * SearchIndexer (T067 — initial offline path).
@@ -114,6 +115,21 @@ export interface SearchIndexerOptions {
    * comment states and the sweep found this module breaking.
    */
   channelMembership: SalesChannelMembershipPort;
+  /**
+   * How long to wait for one Meilisearch task, in milliseconds, re-read per
+   * wait so an operator raising `search.index_task_timeout_seconds` takes
+   * effect without a restart — the property `search.reindex_interval_minutes`
+   * already has, and for the same reason: the operator who needs to change it
+   * is mid-incident.
+   *
+   * Optional, and this one genuinely is: absent, it answers the manifest
+   * default, which is the same number the Setting defaults to. That is not the
+   * "optional option that silently produced a lesser module" this module's
+   * `backend/index.ts` records six of — there is no lesser behaviour to
+   * produce, only the same number reached without a settings round trip. It is
+   * what lets a test construct an indexer without composing the settings store.
+   */
+  resolveTaskTimeoutMs?: () => Promise<number>;
 }
 
 /**
@@ -171,6 +187,138 @@ export interface IndexedDocument {
   updatedAt: number;
 }
 
+/**
+ * The default wait, in milliseconds. Derived from the manifest so the constant
+ * and the Setting's default cannot drift into two answers.
+ */
+export const DEFAULT_INDEX_TASK_TIMEOUT_MS = DEFAULT_INDEX_TASK_TIMEOUT_SECONDS * 1000;
+
+/**
+ * A Meilisearch task came back in a state that is not `succeeded`.
+ *
+ * This error exists because `waitForTask` **does not throw for a task that
+ * failed** — it resolves, carrying `status: 'failed'` and Meilisearch's own
+ * `error` object. Every one of this file's twelve waits discarded that value,
+ * so a refused document batch, a rejected settings update and an applied one
+ * were the same thing to the caller: `reindexChannel` went on to report a
+ * document count for an index Meilisearch had written nothing into.
+ */
+export class SearchIndexTaskFailed extends Error {
+  readonly taskUid: number;
+  readonly what: string;
+  readonly status: string;
+  /** Meilisearch's own error code, e.g. `missing_document_id`. */
+  readonly meilisearchCode: string | undefined;
+
+  constructor(args: {
+    taskUid: number;
+    what: string;
+    status: string;
+    meilisearchCode?: string | undefined;
+    detail?: string | undefined;
+  }) {
+    super(
+      `Meilisearch ${args.what} (task ${args.taskUid}) came back "${args.status}"` +
+        (args.meilisearchCode ? ` [${args.meilisearchCode}]` : '') +
+        (args.detail ? `: ${args.detail}` : ''),
+    );
+    this.name = 'SearchIndexTaskFailed';
+    this.taskUid = args.taskUid;
+    this.what = args.what;
+    this.status = args.status;
+    this.meilisearchCode = args.meilisearchCode;
+  }
+}
+
+/**
+ * The wait expired. The task is **still running** — Meilisearch was never told
+ * to stop, because giving up on a wait cancels nothing.
+ *
+ * It is a separate error from {@link SearchIndexTaskFailed} on purpose, and the
+ * separation is the point of the repair rather than a nicety: the two arrive at
+ * an operator with opposite remedies. This one says "the queue outlasted the
+ * wait — raise `search.index_task_timeout_seconds`, or let the instance drain";
+ * the other says "the write was refused, and here is what Meilisearch said".
+ * Under the client's 5000 ms default these were one symptom, and it was the
+ * benign one that was raised while the malignant one was silent.
+ */
+export class SearchIndexTaskStillRunning extends Error {
+  readonly taskUid: number;
+  readonly what: string;
+  readonly timeoutMs: number;
+
+  constructor(args: { taskUid: number; what: string; timeoutMs: number }) {
+    super(
+      `Meilisearch ${args.what} (task ${args.taskUid}) is still running after ` +
+        `${args.timeoutMs} ms. The task was not cancelled and may yet succeed. If this ` +
+        `instance is busy or the catalogue is large, raise ` +
+        `"${SEARCH_SETTING_CODES.INDEX_TASK_TIMEOUT_SECONDS}".`,
+    );
+    this.name = 'SearchIndexTaskStillRunning';
+    this.taskUid = args.taskUid;
+    this.what = args.what;
+    this.timeoutMs = args.timeoutMs;
+  }
+}
+
+/** The slice of the Meilisearch task client this module waits through. */
+interface TaskWaiter {
+  waitForTask(
+    taskUid: number,
+    options: { timeout: number },
+  ): Promise<{ status: string; error?: { message?: string; code?: string } | null }>;
+}
+
+/**
+ * Wait for one Meilisearch task and give its three outcomes three names.
+ *
+ * This is the **only** place this module awaits a task, which is what makes the
+ * timeout one number rather than eleven literals, and what makes the
+ * failed-status check impossible to forget at the thirteenth call site.
+ *
+ * `tolerate` names Meilisearch error codes that are an expected, benign outcome
+ * for **this** wait, and it is deliberately a per-call argument rather than a
+ * blanket leniency: the one caller that needs it is `ensureIndex`, whose
+ * `index_already_exists` is another process having created the index first —
+ * which satisfies the postcondition rather than violating it.
+ */
+export async function awaitIndexTask(
+  tasks: TaskWaiter,
+  task: { taskUid: number },
+  what: string,
+  timeoutMs: number,
+  tolerate: readonly string[] = [],
+): Promise<void> {
+  let settled: Awaited<ReturnType<TaskWaiter['waitForTask']>>;
+  try {
+    settled = await tasks.waitForTask(task.taskUid, { timeout: timeoutMs });
+  } catch (error) {
+    // Matched on `name` rather than on the class: this module holds no value
+    // import of the client's error types, and the name is what the client sets.
+    if (error instanceof Error && error.name === 'MeilisearchTaskTimeOutError') {
+      throw new SearchIndexTaskStillRunning({
+        taskUid: task.taskUid,
+        what,
+        timeoutMs,
+      });
+    }
+    // Anything else — an unreachable host, an auth refusal — is not this
+    // function's to interpret and is not swallowed.
+    throw error;
+  }
+
+  if (settled.status === 'succeeded') return;
+  const code = settled.error?.code;
+  if (code !== undefined && tolerate.includes(code)) return;
+  throw new SearchIndexTaskFailed({
+    taskUid: task.taskUid,
+    what,
+    status: settled.status,
+    meilisearchCode: code,
+    detail: settled.error?.message,
+  });
+}
+
 export class SearchIndexer {
   private readonly client: Meilisearch;
   private readonly locale: string;
@@ -178,6 +326,7 @@ export class SearchIndexer {
   private readonly products: CatalogProductReadPort;
   private readonly categories: CatalogCategoryReadPort;
   private readonly channelMembership: SalesChannelMembershipPort;
+  private readonly resolveTaskTimeoutMs: () => Promise<number>;
 
   constructor(options: SearchIndexerOptions) {
     const host =
@@ -194,6 +343,26 @@ export class SearchIndexer {
     this.products = options.products;
     this.categories = options.categories;
     this.channelMembership = options.channelMembership;
+    this.resolveTaskTimeoutMs =
+      options.resolveTaskTimeoutMs ?? (async () => DEFAULT_INDEX_TASK_TIMEOUT_MS);
+  }
+
+  /**
+   * Every Meilisearch task this module waits for goes through here — see
+   * {@link awaitIndexTask} for why the wait has one home and three outcomes.
+   */
+  private async awaitTask(
+    task: { taskUid: number },
+    what: string,
+    tolerate: readonly string[] = [],
+  ): Promise<void> {
+    await awaitIndexTask(
+      this.client.tasks,
+      task,
+      what,
+      await this.resolveTaskTimeoutMs(),
+      tolerate,
+    );
   }
 
   /**
@@ -260,7 +429,10 @@ export class SearchIndexer {
     // exactly mirrors Postgres for this channel". Event-driven incremental
     // reindex is a separate code path that can upsert without wiping.
     const wipeTask = await index.deleteAllDocuments();
-    await this.client.tasks.waitForTask(wipeTask.taskUid);
+    // O(the corpus being dropped). A wait that expires here is the worst of the
+    // twelve: the documents are already gone and the push below never runs, so
+    // an index that was merely slow is left empty.
+    await this.awaitTask(wipeTask, `wipe of ${indexUid}`);
 
     // The settings go in while the index is empty, and that ordering is the
     // whole reason they moved here from after the document push (issue #287).
@@ -278,7 +450,10 @@ export class SearchIndexer {
       index.updateSortableAttributes([...SORTABLE_ATTRIBUTES]),
     ]);
     for (const task of settingsTasks) {
-      await this.client.tasks.waitForTask(task.taskUid);
+      // O(1) by construction — this is the ordering the comment above is about.
+      // The wait is still not free: it queues behind whatever else the instance
+      // is doing, which is the term no site here controls.
+      await this.awaitTask(task, `index settings for ${indexUid}`);
     }
 
     if (documents.length > 0) {
@@ -287,7 +462,7 @@ export class SearchIndexer {
       // this method returns. Production callers (event-driven reindex)
       // could fire-and-forget; the offline reindex CLI + tests both want
       // the synchronous guarantee.
-      await this.client.tasks.waitForTask(task.taskUid);
+      await this.awaitTask(task, `${documents.length}-document push to ${indexUid}`);
     }
 
     return {
@@ -344,11 +519,11 @@ export class SearchIndexer {
           languageCode: channel.defaultLanguage,
         });
         const task = await index.addDocuments([document], { primaryKey: 'id' });
-        await this.client.tasks.waitForTask(task.taskUid);
+        await this.awaitTask(task, `upsert of product ${productId} into ${indexUid}`);
       } else {
         // Either unlinked or no longer publishable — make sure the doc is gone.
         const task = await index.deleteDocument(productId);
-        await this.client.tasks.waitForTask(task.taskUid);
+        await this.awaitTask(task, `removal of product ${productId} from ${indexUid}`);
       }
       touched.push(channel.code);
     }
@@ -384,7 +559,7 @@ export class SearchIndexer {
       const indexUid = indexUidFor(channel);
       const index = await this.ensureIndex(indexUid);
       const task = await index.deleteDocument(productId);
-      await this.client.tasks.waitForTask(task.taskUid);
+      await this.awaitTask(task, `deletion of product ${productId} from ${indexUid}`);
       touched.push(channel.code);
     }
     return touched;
@@ -418,9 +593,15 @@ export class SearchIndexer {
       const sortableTask = await index.updateSortableAttributes([...SORTABLE_ATTRIBUTES]);
       // Settings updates are async tasks; wait so callers reading the
       // settings immediately after see the new values.
-      await this.client.tasks.waitForTask(searchableTask.taskUid);
-      await this.client.tasks.waitForTask(filterableTask.taskUid);
-      await this.client.tasks.waitForTask(sortableTask.taskUid);
+      // Unlike the identical-looking three in `reindexChannel`, these land on
+      // a **populated** index, and a settings update re-indexes the corpus it
+      // lands on — so these are O(corpus) where those are O(1). It is the
+      // sharpest illustration of why the old per-site literals were not a
+      // considered set: the three cheapest waits and the three most expensive
+      // ones both took the client default by omission.
+      await this.awaitTask(searchableTask, `searchable attributes for ${indexUid}`);
+      await this.awaitTask(filterableTask, `filterable attributes for ${indexUid}`);
+      await this.awaitTask(sortableTask, `sortable attributes for ${indexUid}`);
       touched.push(channel.code);
     }
     return touched;
@@ -472,11 +653,13 @@ export class SearchIndexer {
         model: config.model,
       },
     });
-    // Embedder operations can take longer than the JS client's default
-    // 5 s task wait — Meilisearch may validate the embedder URL on the
-    // server side. Bump to 30 s so the operator does not silently
-    // observe stale index state on slow paths.
-    await this.client.tasks.waitForTask(task.taskUid, { timeout: 30_000 });
+    // This site and `detachEmbedderForChannel` were the two that already
+    // carried a literal, `{ timeout: 30_000 }`, for the stated reason that
+    // Meilisearch may validate the embedder URL server-side. The reason was
+    // right and the remedy was local: nine sibling waits kept the 5 s default
+    // for no reason at all. Both now take the module-wide value, which is
+    // larger than the 30 s they asked for, so neither loses anything.
+    await this.awaitTask(task, `embedder attach on ${indexUid}`);
   }
 
   /**
@@ -488,7 +671,7 @@ export class SearchIndexer {
     const indexUid = indexUidFor({ code: channelCode });
     const index = await this.ensureIndex(indexUid);
     const task = await index.resetEmbedders();
-    await this.client.tasks.waitForTask(task.taskUid, { timeout: 30_000 });
+    await this.awaitTask(task, `embedder detach on ${indexUid}`);
   }
 
   /**
@@ -560,7 +743,14 @@ export class SearchIndexer {
       return await this.client.getIndex(uid);
     } catch {
       const task = await this.client.createIndex(uid, { primaryKey: 'id' });
-      await this.client.tasks.waitForTask(task.taskUid);
+      // `index_already_exists` is tolerated, and it is the one site in this
+      // file where a failed task is an expected outcome rather than a defect:
+      // this method is a check-then-create with no lock, so two processes
+      // indexing the same channel both miss `getIndex` and both create. The
+      // loser's task fails and the index is there, which is the whole
+      // postcondition. Measured: a second `createIndex` returns a task with
+      // `status: 'failed'`, `code: 'index_already_exists'`.
+      await this.awaitTask(task, `index create for ${uid}`, ['index_already_exists']);
       return this.client.getIndex(uid);
     }
   }

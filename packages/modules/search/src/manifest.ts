@@ -18,6 +18,7 @@ import type { ModuleContext } from '@endora-commerce/platform/kernel';
  *                                           API key + model; the single embedder
  *                                           credential source)
  *   5. search.reindex_interval_minutes     (number)
+ *   6. search.index_task_timeout_seconds   (number)
  *
  * The Settings module's value-type registry only recognises a handful of
  * primitives (`string`, `number`, `boolean`, `json`, `string_list`) — range
@@ -33,11 +34,42 @@ export const SEARCH_SETTING_CODES = {
   // model.
   LLM_EMBEDDER_CREDENTIALS: 'search.llm.embedder_credentials',
   REINDEX_INTERVAL_MINUTES: 'search.reindex_interval_minutes',
+  INDEX_TASK_TIMEOUT_SECONDS: 'search.index_task_timeout_seconds',
 } as const;
 
 export const DEFAULT_POPUP_SUGGESTION_COUNT = 8;
 export const DEFAULT_POPUP_MINIMUM_QUERY_LENGTH = 3;
 export const DEFAULT_REINDEX_INTERVAL_MINUTES = 10;
+
+/**
+ * How long the indexer keeps waiting for one Meilisearch task before it gives
+ * up and says so — the default of {@link SEARCH_SETTING_CODES.INDEX_TASK_TIMEOUT_SECONDS}.
+ *
+ * The number this replaces was the `meilisearch` client's own default of 5000
+ * ms, taken by omission at nine of the indexer's twelve waits. It is the wrong
+ * order of magnitude for the thing being waited on, and the reason is that a
+ * task wait is not a measurement of the task: it is
+ * `queue ahead of this task` + `this task's own work`, and Meilisearch's task
+ * queue is global to the instance. Measured on a developer machine, a
+ * one-document write into an empty index expired the 5000 ms wait after 5006 ms
+ * with twelve document batches enqueued ahead of it, and then settled
+ * `succeeded` 10540 ms later. Nothing about that task was slow.
+ *
+ * 120 s is therefore sized for the queue rather than for the corpus, and the
+ * cost of sizing it generously is close to nil: an expired wait does **not**
+ * cancel the Meilisearch task, and a task that genuinely dies comes back
+ * `failed` immediately rather than by timing out. So the only thing a short
+ * value buys is noticing a task that is stuck forever, and the only thing it
+ * costs is aborting a reindex that was going to succeed — in
+ * `reindexChannel`'s case between the wipe and the document push, which leaves
+ * the channel index empty.
+ *
+ * An operator whose catalogue or Meilisearch host makes even this too short
+ * raises the setting; nothing in this repository can know their corpus size or
+ * their index throughput, which is why the number is a Setting and not only
+ * this constant.
+ */
+export const DEFAULT_INDEX_TASK_TIMEOUT_SECONDS = 120;
 
 const settings = defineModuleSettingsManifest({
   moduleCode: 'search',
@@ -103,6 +135,15 @@ const settings = defineModuleSettingsManifest({
       groupCode: 'search',
       valueType: 'number',
       defaultValue: DEFAULT_REINDEX_INTERVAL_MINUTES,
+    },
+    {
+      code: SEARCH_SETTING_CODES.INDEX_TASK_TIMEOUT_SECONDS,
+      name: 'Index task timeout (seconds)',
+      description:
+        'How long to wait for one Meilisearch indexing task before reporting that it is still running. Raise it if reindexing a large catalogue, or a Meilisearch instance shared with other work, reports that a task is still running: the wait covers the instance-wide task queue as well as the work itself, and giving up early does not cancel the task. Lower it only to be told sooner that indexing has stopped moving.',
+      groupCode: 'search',
+      valueType: 'number',
+      defaultValue: DEFAULT_INDEX_TASK_TIMEOUT_SECONDS,
     },
   ],
 });
