@@ -2,17 +2,25 @@ import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   INFAKT_INSTANCE_CREDENTIAL_CODE,
+  INVOICE_KSEF_ASSIGNMENT_PORT,
   INVOICE_LEDGER_DELIVERY_PORT,
   INVOICE_LEDGER_DELIVERY_QUEUED_EVENT,
   INVOICE_LEDGER_MODULES,
   INVOICE_LEDGER_REGISTRY_PORT,
   INVOICE_LEDGER_ROUTING_PORT,
+  INVOICE_LEDGER_WEBHOOK_PORT,
+  INVOICE_NUMBERING_HOST_PORT,
+  INVOICE_PAID_HOST_PORT,
   infaktEnvironmentSchema,
   invoiceIssuedEventSchema,
   type CredentialsPort,
+  type InvoiceKsefAssignmentPort,
   type InvoiceLedgerDeliveryPort,
   type InvoiceLedgerDeliveryQueuedEvent,
   type InvoiceLedgerRegistryPort,
+  type InvoiceLedgerWebhookPort,
+  type InvoiceNumberingHostPort,
+  type InvoicePaidHostPort,
   infaktChannelCredentialCode,
   type InvoiceLedgerRoutingPort,
   type SettingsAdminPort,
@@ -34,6 +42,7 @@ import {
 } from './services/invoice-ledger-delivery.service.js';
 import { InvoiceLedgerRegistryService } from './services/invoice-ledger-registry.service.js';
 import { InvoiceLedgerRoutingService } from './services/invoice-ledger-routing.service.js';
+import { InvoiceLedgerWebhookService } from './services/invoice-ledger-webhook.service.js';
 
 type LedgerEvents = Record<string, EventBase> & {
   [INVOICE_LEDGER_DELIVERY_QUEUED_EVENT]: InvoiceLedgerDeliveryQueuedEvent;
@@ -79,6 +88,22 @@ export function registerModule(ctx: ModuleContext): void {
     INVOICE_LEDGER_DELIVERY_PORT,
     ctx
       .asFunction(({ emFactory }: LedgerCradle) => new InvoiceLedgerDeliveryService(emFactory))
+      .singleton(),
+  );
+
+  ctx.di.providePort<InvoiceLedgerWebhookPort>(
+    INVOICE_LEDGER_WEBHOOK_PORT,
+    ctx
+      .asFunction(({ emFactory }: LedgerCradle) => {
+        const deliveries = lazyPort<InvoiceLedgerDeliveryPort>(ctx, INVOICE_LEDGER_DELIVERY_PORT);
+        return new InvoiceLedgerWebhookService({
+          emFactory,
+          deliveries,
+          numbering: lazyPort<InvoiceNumberingHostPort>(ctx, INVOICE_NUMBERING_HOST_PORT),
+          paid: lazyPort<InvoicePaidHostPort>(ctx, INVOICE_PAID_HOST_PORT),
+          ksefAssignment: lazyPort<InvoiceKsefAssignmentPort>(ctx, INVOICE_KSEF_ASSIGNMENT_PORT),
+        });
+      })
       .singleton(),
   );
 

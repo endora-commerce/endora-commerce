@@ -50,6 +50,30 @@ export const manifest = defineModuleManifest({
       reason:
         'Enqueue reads the instance Infakt credential environment at freeze time. invoice_ledger is non-deactivatable, so credentials cannot be a hard dependency.',
     },
+    {
+      moduleId: 'invoices',
+      name: 'invoiceNumberingHostPort',
+      kind: 'refuses-without',
+      whenAbsent: 'Webhook apply cannot write vendor-assigned numbers while invoices is off.',
+      reason:
+        'invoice_ledger is non-deactivatable, so invoices cannot be a hard dependency.',
+    },
+    {
+      moduleId: 'invoices',
+      name: 'invoicePaidHostPort',
+      kind: 'refuses-without',
+      whenAbsent: 'Webhook apply cannot stamp paid from Infakt while invoices is off.',
+      reason:
+        'invoice_ledger is non-deactivatable, so invoices cannot be a hard dependency.',
+    },
+    {
+      moduleId: 'invoices',
+      name: 'invoiceKsefAssignmentPort',
+      kind: 'refuses-without',
+      whenAbsent: 'Webhook apply cannot record Infakt KSeF numbers while invoices is off.',
+      reason:
+        'invoice_ledger is non-deactivatable, so invoices cannot be a hard dependency.',
+    },
   ],
   activation: {
     nonDeactivatable: true,

@@ -42,6 +42,7 @@ export const INVOICE_LEDGER_WRITE_PERMISSION = 'invoice_ledger:write';
 export const INVOICE_LEDGER_REGISTRY_PORT = 'invoiceLedgerRegistryPort' as const;
 export const INVOICE_LEDGER_ROUTING_PORT = 'invoiceLedgerRoutingPort' as const;
 export const INVOICE_LEDGER_DELIVERY_PORT = 'invoiceLedgerDeliveryPort' as const;
+export const INVOICE_LEDGER_WEBHOOK_PORT = 'invoiceLedgerWebhookPort' as const;
 export const INVOICE_LEDGER_DELIVERY_QUEUED_EVENT = 'invoice_ledger.delivery.queued.v1' as const;
 
 /**
@@ -162,6 +163,27 @@ export interface InvoiceLedgerDeliveryPort {
     environment: 'sandbox' | 'production';
     credentialCode: string;
   }): Promise<string | null>;
+}
+
+/**
+ * Container name: `invoiceLedgerWebhookPort`. Owner: `invoice_ledger`.
+ * Authenticated Infakt events only. HMAC lives on the Infakt route.
+ */
+export interface InvoiceLedgerWebhookEventInput {
+  adapterId: string;
+  eventId: string;
+  eventType: string;
+  remoteDocumentId: string | null;
+  vendorNumber: string | null;
+  asyncTaskId: string | null;
+  ksefReferenceNumber: string | null;
+  errorMessage: string | null;
+}
+
+export interface InvoiceLedgerWebhookPort {
+  handleAuthenticatedEvent(
+    input: InvoiceLedgerWebhookEventInput,
+  ): Promise<{ outcome: 'applied' | 'duplicate' | 'acknowledged' }>;
 }
 
 export const invoiceLedgerChannelOverrideSchema = z.object({
