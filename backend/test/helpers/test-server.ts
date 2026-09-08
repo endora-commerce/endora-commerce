@@ -2680,14 +2680,22 @@ export async function setupBackendServer(
           },
         },
       });
+      // Feature 060 — the caller's fixture interceptors, registered **once**, in
+      // the composition window and after every module registered its own. That
+      // is where this call sat until the harness composed through the kit
+      // (feature 109, Phase 1c) and the split copied it into `beforeBoot` too:
+      // one composition, one registry, two invocations, and the registry's
+      // duplicate-(module, id) guard refused the second — correctly. Keep it
+      // here and nowhere else. Registration is a composition-time act, sealed at
+      // `app.ready()` (specs/060-api-interceptor/contracts/interceptor-registry.md);
+      // the kit's `beforeBoot` is the later slot, for a reconcile or a settings
+      // write a boot hook will read.
       options.configureInterceptors?.(apiInterceptors);
     },
     plugins: harnessPlugins,
     scopedPlugins: harnessScopedPlugins,
     buildTenantContext: buildTestTenantContext,
     beforeBoot: async () => {
-      options.configureInterceptors?.(apiInterceptors);
-
       // Feature 004 — boot-time manifest reconciliation. Runs before
       // app.ready() so contract tests start from a consistent settings
       // catalog.
