@@ -1,5 +1,6 @@
 import { InvoiceLedgerDelivery } from '../../helpers/package-entities.js';
 import type { InvoiceLedgerDelivery as InvoiceLedgerDeliveryRow } from '../../../../packages/modules/invoice_ledger/src/backend/entities/invoice-ledger-delivery.entity.js';
+import { CorrectiveInvoiceProvider } from '../../../../packages/modules/invoices/dist/backend/services/corrective-invoice.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 import { setSellerSettings } from '../invoices/helpers.js';
@@ -54,6 +55,38 @@ export async function saveInfaktConnection(
   if (res.statusCode !== 200) {
     throw new Error(`Infakt connection upsert failed: ${res.statusCode} ${res.body}`);
   }
+}
+
+export async function issueCorrection(
+  h: BackendServerHandle,
+  input: { orderId: string; itemId: string; amount?: number },
+): Promise<{ id: string; number: string }> {
+  const provider = new CorrectiveInvoiceProvider(
+    h.em,
+    () => h.invoices.numberGenerator,
+    h.auditLogService,
+    h.eventBus,
+  );
+  const amount = input.amount ?? 1107;
+  const result = await withSystemScope('issue ledger correction', () =>
+    provider.createCorrection({
+      orderId: input.orderId,
+      lines: [
+        {
+          orderItemId: input.itemId,
+          productName: 'Example Server',
+          quantity: 1,
+          amount,
+        },
+      ],
+      total: amount,
+      currency: 'PLN',
+    }),
+  );
+  if (!result.issued) {
+    throw new Error(`Expected a correction: ${result.reason}`);
+  }
+  return { id: result.invoiceId, number: result.number };
 }
 
 export async function issueInvoice(
@@ -116,6 +149,13 @@ export async function prepareInfaktVatCopy(
       AUDIT,
     );
   }
+  await h.settings.adminService.setValueForSubset(
+    'invoices.numbering.correction.pattern',
+    [channelCode],
+    'KOR-IL {seq}/{YYYY}',
+    null,
+    AUDIT,
+  );
   await activateInfakt(h);
   await saveInfaktConnection(h);
   return channelId;
