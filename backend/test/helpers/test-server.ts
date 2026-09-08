@@ -393,6 +393,8 @@ export interface BackendServerHandle {
   };
   /** Feature 059 — KSeF handle (settings, auth, credentials, submissions). */
   ksef: KsefCradle['ksef']['handle'];
+  /** Feature 119 — drive the Infakt delivery processor (no BullMQ in this harness). */
+  infakt: { processDelivery: (deliveryId: string) => Promise<void> };
   /** Feature 067 — Product Feed handle (feeds, generation, runs, token cache). */
   productFeeds: ProductFeedsCradle['productFeeds']['handle'];
   /** Feature 068 — Ergonode PIM handle (source client seam, queue gate). */
@@ -2577,6 +2579,14 @@ export async function setupBackendServer(
       loadAssetImage: invoicesCradle.invoices.handle.loadAssetImage,
     },
     ksef: ksefCradle.ksef.handle,
+    infakt: {
+      processDelivery: (deliveryId: string) =>
+        (
+          container.cradle as unknown as {
+            infaktDeliveryProcessor: { process: (id: string) => Promise<void> };
+          }
+        ).infaktDeliveryProcessor.process(deliveryId),
+    },
     productFeeds: (container.cradle as unknown as ProductFeedsCradle).productFeeds.handle,
     pimErgonode: (container.cradle as unknown as PimErgonodeCradle).pimErgonode.handle,
     pimConnectorRegistry: (

@@ -1,10 +1,14 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
+  type InvoiceLedgerClientMapInput,
   type InvoiceLedgerDeliveryAttempt,
   type InvoiceLedgerDeliveryPort,
+  type InvoiceLedgerEnqueueInput,
   type LedgerDeliveryRecord,
 } from '@endora-commerce/contracts';
+import { InvoiceLedgerClientMap } from '../entities/invoice-ledger-client-map.entity.js';
 import { InvoiceLedgerDelivery } from '../entities/invoice-ledger-delivery.entity.js';
+import { InvoiceLedgerDocumentMap } from '../entities/invoice-ledger-document-map.entity.js';
 
 function toRecord(row: InvoiceLedgerDelivery): LedgerDeliveryRecord {
   return {
@@ -54,6 +58,36 @@ export class InvoiceLedgerDeliveryService implements InvoiceLedgerDeliveryPort {
     return row ? toRecord(row) : null;
   }
 
+  async findByInvoice(adapterId: string, invoiceId: string): Promise<LedgerDeliveryRecord | null> {
+    const row = await this.emFactory().findOne(InvoiceLedgerDelivery, { adapterId, invoiceId });
+    return row ? toRecord(row) : null;
+  }
+
+  async enqueue(input: InvoiceLedgerEnqueueInput): Promise<LedgerDeliveryRecord> {
+    const em = this.emFactory();
+    const existing = await em.findOne(InvoiceLedgerDelivery, {
+      adapterId: input.adapterId,
+      invoiceId: input.invoiceId,
+    });
+    if (existing) return toRecord(existing);
+
+    const row = em.create(InvoiceLedgerDelivery, {
+      adapterId: input.adapterId,
+      invoiceId: input.invoiceId,
+      kind: input.kind,
+      salesChannelId: input.salesChannelId,
+      credentialCode: input.credentialCode,
+      environment: input.environment,
+      numberingMode: input.numberingMode,
+      ksefRouting: input.ksefRouting,
+      ksefDelegated: input.ksefDelegated,
+      status: 'queued',
+      idempotencyKey: `${input.adapterId}:${input.invoiceId}`,
+    });
+    await em.flush();
+    return toRecord(row);
+  }
+
   async markAwaitingRemote(id: string, asyncTaskId: string): Promise<void> {
     const em = this.emFactory();
     const row = await em.findOne(InvoiceLedgerDelivery, { id });
@@ -71,7 +105,66 @@ export class InvoiceLedgerDeliveryService implements InvoiceLedgerDeliveryPort {
     row.remoteDocumentId = remoteDocumentId;
     row.status = 'succeeded';
     appendAttempt(row, 'succeeded', null);
+
+    let map = await em.findOne(InvoiceLedgerDocumentMap, {
+      adapterId: row.adapterId,
+      invoiceId: row.invoiceId,
+    });
+    if (map === null) {
+      map = em.create(InvoiceLedgerDocumentMap, {
+        adapterId: row.adapterId,
+        invoiceId: row.invoiceId,
+        remoteDocumentId,
+        environment: row.environment,
+        credentialCode: row.credentialCode,
+      });
+    } else {
+      map.remoteDocumentId = remoteDocumentId;
+      map.environment = row.environment;
+      map.credentialCode = row.credentialCode;
+    }
     await em.flush();
+  }
+
+  async rememberClient(input: InvoiceLedgerClientMapInput): Promise<void> {
+    const em = this.emFactory();
+    let row = await em.findOne(InvoiceLedgerClientMap, {
+      adapterId: input.adapterId,
+      organizationId: input.organizationId,
+      environment: input.environment,
+      credentialCode: input.credentialCode,
+    });
+    if (row === null) {
+      row = em.create(InvoiceLedgerClientMap, {
+        adapterId: input.adapterId,
+        organizationId: input.organizationId,
+        nipUsed: input.nipUsed,
+        remoteClientId: input.remoteClientId,
+        credentialCode: input.credentialCode,
+        environment: input.environment,
+        salesChannelId: input.salesChannelId,
+      });
+    } else {
+      row.nipUsed = input.nipUsed;
+      row.remoteClientId = input.remoteClientId;
+      row.salesChannelId = input.salesChannelId;
+    }
+    await em.flush();
+  }
+
+  async findClientRemoteId(input: {
+    adapterId: string;
+    organizationId: string;
+    environment: 'sandbox' | 'production';
+    credentialCode: string;
+  }): Promise<string | null> {
+    const row = await this.emFactory().findOne(InvoiceLedgerClientMap, {
+      adapterId: input.adapterId,
+      organizationId: input.organizationId,
+      environment: input.environment,
+      credentialCode: input.credentialCode,
+    });
+    return row?.remoteClientId ?? null;
   }
 
   async markFailed(id: string, error: string, opts?: { dead?: boolean }): Promise<void> {

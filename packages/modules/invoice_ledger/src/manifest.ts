@@ -40,6 +40,17 @@ export const manifest = defineModuleManifest({
     'Shared invoice-ledger rails: vendor mutex, numbering and KSeF routing, deliveries, and document maps. Vendor HTTP lives in adapter modules such as Infakt.',
   version: '1.0.0',
   dependencies: ['settings', 'organizations', 'admin_users', 'sales_channels'],
+  nonBindingDependencies: [
+    {
+      moduleId: 'credentials',
+      name: 'credentialsService',
+      kind: 'refuses-without',
+      whenAbsent:
+        'VAT copy cannot freeze the Infakt environment while credentials are off.',
+      reason:
+        'Enqueue reads the instance Infakt credential environment at freeze time. invoice_ledger is non-deactivatable, so credentials cannot be a hard dependency.',
+    },
+  ],
   activation: {
     nonDeactivatable: true,
     reason:

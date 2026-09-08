@@ -42,6 +42,7 @@ export const INVOICE_LEDGER_WRITE_PERMISSION = 'invoice_ledger:write';
 export const INVOICE_LEDGER_REGISTRY_PORT = 'invoiceLedgerRegistryPort' as const;
 export const INVOICE_LEDGER_ROUTING_PORT = 'invoiceLedgerRoutingPort' as const;
 export const INVOICE_LEDGER_DELIVERY_PORT = 'invoiceLedgerDeliveryPort' as const;
+export const INVOICE_LEDGER_DELIVERY_QUEUED_EVENT = 'invoice_ledger.delivery.queued.v1' as const;
 
 /**
  * Known invoice-ledger vendor modules and their activation setting codes.
@@ -92,7 +93,7 @@ export const ledgerDeliveryRecordSchema = z.object({
   kind: invoiceLedgerDeliveryKindSchema,
   salesChannelId: z.string().uuid().nullable(),
   credentialCode: z.string().min(1),
-  environment: z.string().min(1),
+  environment: z.enum(['sandbox', 'production']),
   numberingMode: invoiceLedgerNumberingModeSchema,
   ksefRouting: invoiceLedgerKsefRoutingSchema,
   status: invoiceLedgerDeliveryStatusSchema,
@@ -109,14 +110,53 @@ export const ledgerDeliveryRecordSchema = z.object({
 });
 export type LedgerDeliveryRecord = z.infer<typeof ledgerDeliveryRecordSchema>;
 
+export const invoiceLedgerDeliveryQueuedEventSchema = z.object({
+  eventId: z.string().uuid(),
+  occurredAt: z.string().datetime(),
+  deliveryId: z.string().uuid(),
+  adapterId: z.string().min(1),
+});
+export type InvoiceLedgerDeliveryQueuedEvent = z.infer<typeof invoiceLedgerDeliveryQueuedEventSchema>;
+
+export interface InvoiceLedgerEnqueueInput {
+  adapterId: string;
+  invoiceId: string;
+  kind: InvoiceLedgerDeliveryKind;
+  salesChannelId: string | null;
+  credentialCode: string;
+  environment: 'sandbox' | 'production';
+  numberingMode: InvoiceLedgerNumberingMode;
+  ksefRouting: InvoiceLedgerKsefRouting;
+  ksefDelegated: boolean;
+}
+
+export interface InvoiceLedgerClientMapInput {
+  adapterId: string;
+  organizationId: string;
+  nipUsed: string;
+  remoteClientId: string;
+  credentialCode: string;
+  environment: 'sandbox' | 'production';
+  salesChannelId: string | null;
+}
+
 /**
  * Container name: `invoiceLedgerDeliveryPort`. Owner: `invoice_ledger`.
  */
 export interface InvoiceLedgerDeliveryPort {
   getById(id: string): Promise<LedgerDeliveryRecord | null>;
+  findByInvoice(adapterId: string, invoiceId: string): Promise<LedgerDeliveryRecord | null>;
+  enqueue(input: InvoiceLedgerEnqueueInput): Promise<LedgerDeliveryRecord>;
   markAwaitingRemote(id: string, asyncTaskId: string): Promise<void>;
   markSucceeded(id: string, remoteDocumentId: string): Promise<void>;
   markFailed(id: string, error: string, opts?: { dead?: boolean }): Promise<void>;
+  rememberClient(input: InvoiceLedgerClientMapInput): Promise<void>;
+  findClientRemoteId(input: {
+    adapterId: string;
+    organizationId: string;
+    environment: 'sandbox' | 'production';
+    credentialCode: string;
+  }): Promise<string | null>;
 }
 
 export const invoiceLedgerChannelOverrideSchema = z.object({

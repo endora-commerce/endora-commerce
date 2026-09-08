@@ -6,6 +6,7 @@ import type {
   CorrectiveInvoicePort,
   CustomerAccountReadPort,
   EmailDefaultsRegistryPort,
+  InvoiceCopyHostPort,
   InvoiceNumberingHostPort,
   InvoicePaidHostPort,
   InvoicePdfPort,
@@ -16,6 +17,7 @@ import type {
   TransactionalEmailSender,
 } from '@endora-commerce/contracts';
 import {
+  INVOICE_COPY_HOST_PORT,
   INVOICE_NUMBERING_HOST_PORT,
   INVOICE_PAID_HOST_PORT,
 } from '@endora-commerce/contracts';
@@ -27,6 +29,7 @@ import type { InvoicePlacementApplyPort } from '../ports/index.js';
 import { invoicesModule, type InvoicesModuleOptions, type InvoicesModuleHandle } from './plugin.js';
 import { CorrectiveInvoiceProvider } from './services/corrective-invoice.js';
 import { InvoicePlacementApplyService } from './services/invoice-placement-apply-port.js';
+import { InvoiceCopyHostService } from './services/invoice-copy-host.service.js';
 import { InvoiceReadService, createInvoicePdfPort } from './services/invoice-read-port.js';
 import type { InvoiceNumberGenerator } from './services/invoice-number-generator.js';
 import { NumberingConfigurationService } from './services/numbering-configuration.js';
@@ -201,6 +204,15 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort<InvoicePaidHostPort>(
     INVOICE_PAID_HOST_PORT,
     ctx.asFunction(({ invoices }: InvoicesCradle) => invoices.handle.invoiceService).singleton(),
+  );
+  ctx.di.providePort<InvoiceCopyHostPort>(
+    INVOICE_COPY_HOST_PORT,
+    ctx
+      .asFunction(({ emFactory }: InvoicesCradle) => {
+        const orders = lazyPort<OrderReadPort>(ctx, 'orderReadPort');
+        return new InvoiceCopyHostService(emFactory, orders);
+      })
+      .singleton(),
   );
   ctx.di.providePort(
     'invoiceNumberGenerator',

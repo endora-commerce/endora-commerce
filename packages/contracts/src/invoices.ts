@@ -308,6 +308,7 @@ export interface InvoicePdfPort {
 
 export const INVOICE_NUMBERING_HOST_PORT = 'invoiceNumberingHostPort' as const;
 export const INVOICE_PAID_HOST_PORT = 'invoicePaidHostPort' as const;
+export const INVOICE_COPY_HOST_PORT = 'invoiceCopyHostPort' as const;
 
 /**
  * Container name: `invoiceNumberingHostPort`. Owner: `invoices`.
@@ -323,6 +324,28 @@ export interface InvoiceNumberingHostPort {
  */
 export interface InvoicePaidHostPort {
   recordPaidFromLedger(invoiceId: string): Promise<void>;
+}
+
+/**
+ * Container name: `invoiceCopyHostPort`. Owner: `invoices`.
+ * Ledger / Infakt VAT copy: buyer snapshot and lines, never a catalog write.
+ */
+export interface InvoiceCopyRecord {
+  invoiceId: string;
+  organizationId: string;
+  number: string;
+  kind: InvoiceKind;
+  salesChannelId: string | null;
+  currency: string;
+  saleDate: string | null;
+  paymentDueDate: string | null;
+  paymentMethod: string | null;
+  buyer: InvoiceBuyer;
+  lines: InvoiceLine[];
+}
+
+export interface InvoiceCopyHostPort {
+  getById(invoiceId: string): Promise<InvoiceCopyRecord | null>;
 }
 
 // ---------------------------------------------------------------------------
