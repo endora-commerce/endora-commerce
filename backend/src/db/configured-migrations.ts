@@ -84,10 +84,18 @@ export function coreMigrationOwnership(): ReturnType<typeof committedMigrationOw
  * likely to be broken by a well-meaning later edit, because unioning
  * `nonBindingDependencies` or `acknowledgedDependencies` into it is a two-word
  * change that no type would catch. It is bound here because its input is this
- * build's manifest index, and it stays exported for the reason it always was:
- * so `test/contract/_lifecycle/non-binding-dependencies.contract.test.ts` can
- * drive the real derivation over the live manifests instead of reading its
- * source text.
+ * build's manifest index, which the platform may not name (D-52/D-53, R7.4).
+ *
+ * **It has no caller in `src`.** The ordering path reaches the derivation
+ * through `CORE_SOURCES`, not through here, so this export exists for the tests
+ * that need the graph over the live manifests — which makes it the shape that
+ * drifts in silence: a filter or a union written here would change nothing
+ * anybody runs, and would quietly make every test driving it measure something
+ * this platform does not compute. So the delegation is *measured* rather than
+ * asserted —
+ * `test/contract/_lifecycle/non-binding-dependencies.contract.test.ts` drives
+ * the platform's `committedModuleDependencies` directly and holds this function
+ * to it.
  */
 export function coreModuleDependencies(): Map<string, readonly string[]> {
   return committedModuleDependencies(DISCOVERED_MANIFESTS);
