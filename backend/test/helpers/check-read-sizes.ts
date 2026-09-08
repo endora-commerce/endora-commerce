@@ -743,7 +743,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // barrels); the two whole-repository walks take this branch's two changesets as well. The
     // branch first recorded against a `master` that still held the nine lifecycle shims, so
     // every base moved under it — this is a fresh census of the combined tree, not a sum.
-    files: 1953,
+    // **`specs/110-instance-repository/` T114a: +1 file.**
+    // `packages/platform/src/overlay/deployment-roots.ts` — the four functions
+    // `overlay-roots.ts` used to compute, each taking the deployment root as a
+    // parameter. It is the only source file the task adds under a root this walk
+    // reads; the two application files it edits move no count. Measured by parking
+    // this branch's five new files and re-running.
+    files: 1954,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -862,7 +868,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // barrels); the two whole-repository walks take this branch's two changesets as well. The
     // branch first recorded against a `master` that still held the nine lifecycle shims, so
     // every base moved under it — this is a fresh census of the combined tree, not a sum.
-    files: 2077,
+    // **`specs/110-instance-repository/` T114a: +1 file.**
+    // `packages/platform/src/overlay/deployment-roots.ts` — the four functions
+    // `overlay-roots.ts` used to compute, each taking the deployment root as a
+    // parameter. It is the only source file the task adds under a root this walk
+    // reads; the two application files it edits move no count. Measured by parking
+    // this branch's five new files and re-running.
+    files: 2078,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1195,7 +1207,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // barrels); the two whole-repository walks take this branch's two changesets as well. The
     // branch first recorded against a `master` that still held the nine lifecycle shims, so
     // every base moved under it — this is a fresh census of the combined tree, not a sum.
-    files: 5315,
+    // **`specs/110-instance-repository/` T114a: +3 files** — the three `.ts` files the
+    // task adds, this walk being the whole-workspace one for `.ts`.
+    // **+1, re-measured on the chained union.** `packages/platform/src/overlay/deployment-roots.ts`, this branch's one new package source, which this whole-tree walk opens.
+    files: 5318,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1278,7 +1293,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // clears it; the `files` field does not move, that function landing in
     // `packages/cli/src/new-storefront/reference.ts`, which this walk already
     // opened.
-    sites: 530,
+    // **`specs/110-instance-repository/` T114a: sites 530 -> 529.** One `.replace()`
+    // call, and it is the one the task deleted: `divergence-loader.ts`' extension
+    // surgery, `path.replace(/\.ts$/, '.js')`, which was `RUNNING_FROM_DIST`' only use.
+    // A resolution over the two candidates replaced it, so there is no string to rewrite.
+    sites: 529,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -1363,7 +1382,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
     // Seven files added to the platform, none removed from `backend/src`: every
     // old path keeps a shim or a binding, which is what T119 drains.
-    files: 2174,
+    // **`specs/110-instance-repository/` T114a: +1 file.**
+    // `packages/platform/src/overlay/deployment-roots.ts` — the four functions
+    // `overlay-roots.ts` used to compute, each taking the deployment root as a
+    // parameter. It is the only source file the task adds under a root this walk
+    // reads; the two application files it edits move no count. Measured by parking
+    // this branch's five new files and re-running.
+    // **+1, re-measured on the chained union.** The same new platform source; this walk reads the overlay tree and the platform beside it.
+    files: 2175,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -1481,6 +1507,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // baseline census run before this file was written (`3 drifted, 39 agree, 0 not measured, of
     // 42 recorded`, +1 on exactly these three entries). !1512 carries the same repair; whichever
     // lands second is a no-op, because the recorded value here is the observed one either way.
+    // **+1, and none of it this branch's.** Measured: with this branch's five new files
+    // parked and its edits reverted, this walk still reads 1268, so the document that
+    // moved it arrived on `master` and was not re-recorded there. T114a creates no
+    // document. Re-recorded because a census that cannot reach `0 drifted` stops being
+    // read.
+    // **+1, and it is not this branch's.** The document is `specs/113-module-owned-demo-data/tasks.md`, which arrives on the chained base (`spec/113-demo-data-tasks`, merged before this one). This branch adds no page.
     files: 1269,
     sites: 12,
     sources: [],
@@ -1591,7 +1623,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // barrels); the two whole-repository walks take this branch's two changesets as well. The
     // branch first recorded against a `master` that still held the nine lifecycle shims, so
     // every base moved under it — this is a fresh census of the combined tree, not a sum.
-    files: 2077,
+    // **`specs/110-instance-repository/` T114a: +1 file.**
+    // `packages/platform/src/overlay/deployment-roots.ts` — the four functions
+    // `overlay-roots.ts` used to compute, each taking the deployment root as a
+    // parameter. It is the only source file the task adds under a root this walk
+    // reads; the two application files it edits move no count. Measured by parking
+    // this branch's five new files and re-running.
+    files: 2078,
     sites: 251,
     sources: ['manifest-index'],
   },
@@ -1694,7 +1732,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // barrels); the two whole-repository walks take this branch's two changesets as well. The
     // branch first recorded against a `master` that still held the nine lifecycle shims, so
     // every base moved under it — this is a fresh census of the combined tree, not a sum.
-    files: 2077,
+    // **`specs/110-instance-repository/` T114a: +1 file.**
+    // `packages/platform/src/overlay/deployment-roots.ts` — the four functions
+    // `overlay-roots.ts` used to compute, each taking the deployment root as a
+    // parameter. It is the only source file the task adds under a root this walk
+    // reads; the two application files it edits move no count. Measured by parking
+    // this branch's five new files and re-running.
+    files: 2078,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1797,7 +1841,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // barrels); the two whole-repository walks take this branch's two changesets as well. The
     // branch first recorded against a `master` that still held the nine lifecycle shims, so
     // every base moved under it — this is a fresh census of the combined tree, not a sum.
-    files: 2077,
+    // **`specs/110-instance-repository/` T114a: +1 file.**
+    // `packages/platform/src/overlay/deployment-roots.ts` — the four functions
+    // `overlay-roots.ts` used to compute, each taking the deployment root as a
+    // parameter. It is the only source file the task adds under a root this walk
+    // reads; the two application files it edits move no count. Measured by parking
+    // this branch's five new files and re-running.
+    files: 2078,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -1892,7 +1942,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // barrels); the two whole-repository walks take this branch's two changesets as well. The
     // branch first recorded against a `master` that still held the nine lifecycle shims, so
     // every base moved under it — this is a fresh census of the combined tree, not a sum.
-    files: 688,
+    // **`specs/110-instance-repository/` T114a: +1 file.**
+    // `packages/platform/src/overlay/deployment-roots.ts` — the four functions
+    // `overlay-roots.ts` used to compute, each taking the deployment root as a
+    // parameter. It is the only source file the task adds under a root this walk
+    // reads; the two application files it edits move no count. Measured by parking
+    // this branch's five new files and re-running.
+    files: 689,
     sites: 67,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
@@ -2007,7 +2063,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` Phase 3 (T123): 1575 -> 1576 (+1).** The
     // population is `backend/test`, and the one file is
     // `test/unit/packages/tailwind-sources.test.ts`.
-    files: 1576,
+    // **`specs/110-instance-repository/` T114a: +2 files.** The two `.ts` files
+    // under `backend/test/` the task adds — `unit/overlay/deployment-root-supplier.test.ts`
+    // and the `divergence.ts` of the source-tree deployment fixture. Its other two
+    // fixtures are committed JavaScript, deliberately (issue #130: what is under test
+    // is the file name the loader resolves), and this walk reads `.ts`.
+    files: 1578,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -2094,7 +2155,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` Phase 3 (T123): 1575 -> 1576 (+1).** Same
     // population and the same one file as `check-fixture-substitution` above:
     // `test/unit/packages/tailwind-sources.test.ts`.
-    files: 1576,
+    // **`specs/110-instance-repository/` T114a: +2 files.** The two `.ts` files
+    // under `backend/test/` the task adds — `unit/overlay/deployment-root-supplier.test.ts`
+    // and the `divergence.ts` of the source-tree deployment fixture. Its other two
+    // fixtures are committed JavaScript, deliberately (issue #130: what is under test
+    // is the file name the loader resolves), and this walk reads `.ts`.
+    files: 1578,
     sites: null,
     sources: [],
   },
@@ -2197,7 +2263,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // barrels); the two whole-repository walks take this branch's two changesets as well. The
     // branch first recorded against a `master` that still held the nine lifecycle shims, so
     // every base moved under it — this is a fresh census of the combined tree, not a sum.
-    files: 2077,
+    // **`specs/110-instance-repository/` T114a: +1 file.**
+    // `packages/platform/src/overlay/deployment-roots.ts` — the four functions
+    // `overlay-roots.ts` used to compute, each taking the deployment root as a
+    // parameter. It is the only source file the task adds under a root this walk
+    // reads; the two application files it edits move no count. Measured by parking
+    // this branch's five new files and re-running.
+    files: 2078,
     sites: 30,
     sources: ['manifest-index'],
   },
@@ -3081,7 +3153,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Re-measured on the union after rebasing onto `7d699f4cc`.** Phase 5 and this
     // branch each recorded this entry on `e3dd43635` and neither could see the other;
     // the value below is a fresh census of the combined tree, not the sum of the two.
-    files: 4684,
+    // **`specs/110-instance-repository/` T114a: +1 file.**
+    // `packages/platform/src/overlay/deployment-roots.ts` — the four functions
+    // `overlay-roots.ts` used to compute, each taking the deployment root as a
+    // parameter. It is the only source file the task adds under a root this walk
+    // reads; the two application files it edits move no count. Measured by parking
+    // this branch's five new files and re-running.
+    // **+2, re-measured on the chained union.** The new platform source and the new unit test under `backend/test/`, both inside this walk's populations.
+    files: 4685,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -3620,7 +3699,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the combined tree rather than a sum.
     // **+1 on the chained base, re-measured.** This branch adds one file, its changeset. The base
     // is `spec/113-demo-data-tasks`, which this branch is merged after.
-    files: 7895,
+    // **+6: five this branch's and one `master`'s.** Measured on the reverted tree,
+    // which reads 7889 — so one file arrived on `master` unrecorded. The other five are
+    // `specs/110-instance-repository/` T114a's: `deployment-roots.ts`, the unit test and
+    // the three deployment fixtures, two of which are committed JavaScript. This walk is
+    // the whole repository and reads every one of them.
+    // **+1: this row's own changeset.** The file that records the platform's new
+    // `./overlay` surface is itself in this walk, which is the whole repository.
+    // **+6, re-measured on the chained union.** All six are this branch's: the changeset, three overlay fixture deployments (`divergence.{js,js,ts}`), `backend/test/unit/overlay/deployment-root-supplier.test.ts` and `packages/platform/src/overlay/deployment-roots.ts`. This walk opens the whole repository, so it sees every one.
+    files: 7901,
     sites: null,
     sources: [],
     //
@@ -3905,7 +3992,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // barrels); the two whole-repository walks take this branch's two changesets as well. The
     // branch first recorded against a `master` that still held the nine lifecycle shims, so
     // every base moved under it — this is a fresh census of the combined tree, not a sum.
-    files: 2077,
+    // **`specs/110-instance-repository/` T114a: +1 file.**
+    // `packages/platform/src/overlay/deployment-roots.ts` — the four functions
+    // `overlay-roots.ts` used to compute, each taking the deployment root as a
+    // parameter. It is the only source file the task adds under a root this walk
+    // reads; the two application files it edits move no count. Measured by parking
+    // this branch's five new files and re-running.
+    files: 2078,
     sites: 196,
     sources: ['manifest-index'],
   },
@@ -4411,7 +4504,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` Phase 3 (T123): 1575 -> 1576 (+1).** Same
     // population and the same one file as `check-fixture-substitution`:
     // `test/unit/packages/tailwind-sources.test.ts`.
-    files: 1576,
+    // **`specs/110-instance-repository/` T114a: +2 files.** The two `.ts` files
+    // under `backend/test/` the task adds — `unit/overlay/deployment-root-supplier.test.ts`
+    // and the `divergence.ts` of the source-tree deployment fixture. Its other two
+    // fixtures are committed JavaScript, deliberately (issue #130: what is under test
+    // is the file name the loader resolves), and this walk reads `.ts`.
+    files: 1578,
     sites: 163,
     sources: [],
   },
@@ -4566,7 +4664,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // barrels); the two whole-repository walks take this branch's two changesets as well. The
     // branch first recorded against a `master` that still held the nine lifecycle shims, so
     // every base moved under it — this is a fresh census of the combined tree, not a sum.
-    files: 2077,
+    // **`specs/110-instance-repository/` T114a: +1 file.**
+    // `packages/platform/src/overlay/deployment-roots.ts` — the four functions
+    // `overlay-roots.ts` used to compute, each taking the deployment root as a
+    // parameter. It is the only source file the task adds under a root this walk
+    // reads; the two application files it edits move no count. Measured by parking
+    // this branch's five new files and re-running.
+    files: 2078,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4621,7 +4725,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // is the state the drift census exists to surface.
     // **`specs/110-instance-repository/` Phase 3 (T123): 1654 -> 1655 (+1).** One
     // file under `backend/test`: `test/unit/packages/tailwind-sources.test.ts`.
-    files: 1655,
+    // **`specs/110-instance-repository/` T114a: +1 file.** This walk's union takes
+    // one of the two `.ts` files the task adds under `backend/test/` — the new unit
+    // test — and not the deployment fixture's `divergence.ts`, which is a fixture and
+    // owns no subject.
+    files: 1656,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -4748,7 +4856,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // barrels); the two whole-repository walks take this branch's two changesets as well. The
     // branch first recorded against a `master` that still held the nine lifecycle shims, so
     // every base moved under it — this is a fresh census of the combined tree, not a sum.
-    files: 2077,
+    // **`specs/110-instance-repository/` T114a: +1 file.**
+    // `packages/platform/src/overlay/deployment-roots.ts` — the four functions
+    // `overlay-roots.ts` used to compute, each taking the deployment root as a
+    // parameter. It is the only source file the task adds under a root this walk
+    // reads; the two application files it edits move no count. Measured by parking
+    // this branch's five new files and re-running.
+    files: 2078,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4886,7 +5000,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // barrels); the two whole-repository walks take this branch's two changesets as well. The
     // branch first recorded against a `master` that still held the nine lifecycle shims, so
     // every base moved under it — this is a fresh census of the combined tree, not a sum.
-    files: 4337,
+    // **`specs/110-instance-repository/` T114a: +3 files.** All three `.ts` files the
+    // task adds: `packages/platform/src/overlay/deployment-roots.ts` and the two under
+    // `backend/test/` (the unit test and the source-tree deployment fixture's
+    // `divergence.ts`). This walk is the widest of the `.ts` ones and reads every root
+    // the other three split between them.
+    // **+1, re-measured on the chained union.** The new platform source; the fixtures sit outside this walk and the changeset is not a source file.
+    files: 4340,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -5398,7 +5518,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // files as `check-nul-bytes.ts` above: one this branch adds, three the base does.
     // **+1 on the chained base, re-measured.** The same changeset file as `check-nul-bytes.ts`
     // above.
-    files: 7955,
+    // **+6: five this branch's and one `master`'s.** The reverted tree reads 7949, so
+    // one file landed on `master` unrecorded; the other five are
+    // `specs/110-instance-repository/` T114a's five new files. This walk and
+    // `check-nul-bytes` are the two whole-repository ones and move together.
+    // **+1: this row's own changeset.** The whole-repository walk reads
+    // `.changeset/*.md` too, so the file that announces the surface change moves it.
+    // **+6, re-measured on the chained union.** The same six files as `check-nul-bytes.ts` above; this scan is repo-wide.
+    files: 7961,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -5649,7 +5776,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // barrels); the two whole-repository walks take this branch's two changesets as well. The
     // branch first recorded against a `master` that still held the nine lifecycle shims, so
     // every base moved under it — this is a fresh census of the combined tree, not a sum.
-    files: 5929,
+    // **+5, all of it this branch's.** `specs/110-instance-repository/` T114a's five new
+    // files. The reverted tree reads 5928, which is what is recorded — so unlike the
+    // other two whole-tree walks this one carried no `master` residue, its population
+    // excluding the directory the unrecorded file landed in.
+    // **+1, re-measured on the chained union.** The new platform source, whose comments this scan reads.
+    files: 5934,
     sites: null,
     sources: ['manifest-index'],
     //

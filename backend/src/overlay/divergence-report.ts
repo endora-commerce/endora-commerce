@@ -20,15 +20,16 @@
 // rendering. A deployment that diverges by nothing says so explicitly, which is
 // the whole difference between an empty report and an absent one.
 
-import { relative, sep } from 'node:path';
-import type { DivergenceEntry, DivergenceKind, DivergenceReport } from '@endora-commerce/contracts';
-import { repoRoot } from './overlay-roots.js';
+// **It reaches for nothing outside itself since `specs/110-instance-repository/`
+// T114a.** Its one application dependency was `repoRoot`, imported for exactly
+// one consumer — `repoRelativePath`, an export with no caller anywhere in the
+// repository. (The four apparent hits in `check-module-boundary.ts` are an
+// unrelated *parameter* name, `(repoRelativePath: string) => boolean`.) A dead
+// export is the cheapest possible thing to be blocked on, and leaving it
+// standing is what made this file look blocked: `contracts/application-root-supplier.md`
+// §5. Everything left is `node:path` and `@endora-commerce/contracts`.
 
-/** Repo-relative, POSIX separators — determinism (FR-013). */
-export function repoRelativePath(absPath: string, base: string = repoRoot()): string {
-  const rel = relative(base, absPath);
-  return sep === '/' ? rel : rel.split(sep).join('/');
-}
+import type { DivergenceEntry, DivergenceKind, DivergenceReport } from '@endora-commerce/contracts';
 
 /**
  * What each rung costs, in the words a reader who has never seen this repository

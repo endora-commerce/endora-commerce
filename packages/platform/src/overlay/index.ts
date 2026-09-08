@@ -12,13 +12,15 @@
  *
  * ## What is *not* on it, and that is the whole shape of this move
  *
- * **Every path.** This directory derives none: the overlay root and the claims
- * already made on a module id both arrive as parameters. The first is a fact
- * about the application — `backend/src/overlay/overlay-roots.ts` derives it once
- * from its own `import.meta.url` (D115-3), and in an instance the application is
- * a member the CLI scaffolded, which this package cannot see. The second's core
- * half comes off the generated manifest index, which R7.4 says a relocated
- * platform file receives rather than reaches for.
+ * **Every path.** This directory derives none: the deployment root and the
+ * claims already made on a module id both arrive as parameters. The first is a
+ * fact about the application — `backend/src/overlay/overlay-roots.ts` derives it
+ * once from its own `import.meta.url`, in one expression (D115-3;
+ * `specs/110-instance-repository/contracts/application-root-supplier.md` R6.1
+ * classifies a root directory as **wiring**) — and in an instance the
+ * application is a member the CLI scaffolded, which this package cannot see. The
+ * second's core half comes off the generated manifest index, which R7.4 says a
+ * relocated platform file receives rather than reaches for.
  *
  * So the application keeps a **binding** at `backend/src/overlay/overlay-runtime.ts`
  * carrying every name and signature its consumers already write —
@@ -26,14 +28,18 @@
  * among them — and an instance writes the same twenty lines over its own two
  * answers. That is `registered-manifests.ts`' split, one directory over.
  *
- * Three more files stayed behind for reasons of their own, each written in
- * place: `overlay-roots.ts` (its `import.meta.url` *is* the application's root
- * derivation), `divergence-loader.ts` (`RUNNING_FROM_DIST` is a fact about its
- * own location, and its own comment says the file is the application's for that
- * reason), and `types.ts` (named **by relative path** from every deployment's
- * generated divergence artefact, deliberately, so that a committed artefact's
- * import does not depend on the deployment's dependency graph).
- * `divergence-report.ts` is the renderer of those artefacts and stays with them.
+ * `deployment-roots.ts` joined it in T114a and is that split at its purest:
+ * *"which directory holds `apps/`"* is a **parameter** of every function that
+ * composes a path under it, so `overlay-roots.ts` keeps the derivation and
+ * nothing else (R1.3).
+ *
+ * Two files stayed behind for reasons of their own, each written in place:
+ * `types.ts` (named **by relative path** from every deployment's generated
+ * divergence artefact, deliberately, so that a committed artefact's import does
+ * not depend on the deployment's dependency graph) and `divergence-report.ts`,
+ * the renderer of those artefacts, which stays with them. `divergence-loader.ts`
+ * is no longer one of them: T114a deleted its `RUNNING_FROM_DIST` in favour of
+ * {@link resolveOverlayUnit}, so it derives nothing and is movable (R3).
  *
  * ## Why no module may name it
  *
@@ -44,6 +50,13 @@
  * `exports` map, carried by no published barrel, and answered for a module's
  * reach with `host-internal-subpath`.
  */
+
+export {
+  activeOverlayModulesRoot,
+  deploymentsOnDisk,
+  overlayModulesRootFor,
+  selectedDeployment,
+} from './deployment-roots.js';
 
 export {
   listOverlayModuleDirs,

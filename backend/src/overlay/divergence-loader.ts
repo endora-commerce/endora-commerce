@@ -9,7 +9,7 @@
  * deployment. What is here is everything that knows *where a deployment's file
  * is*, which is a fact about this repository's tree and about no other.
  *
- * ## Why this half stayed, measured rather than preferred
+ * ## Why the root is given, measured rather than preferred
  *
  * The root derivation was one `dirname` too high once: `declarationPathFor`
  * composed `backend/apps/<d>/divergence.ts`, `existsSync` said no, and **every
@@ -18,21 +18,35 @@
  * nothing could see it while every declaration in the tree was empty, because an
  * absent file and an empty one are deliberately the same answer.
  *
- * Three `dirname`s from `packages/platform/src/lifecycle/services/` give
- * `packages/platform/src`, so moving this file into the platform reproduces that
- * state exactly, in the one mechanism where a wrong answer is silent. R4.2. The
- * root is therefore **given** rather than derived from wherever this file sits,
- * and the giver is `overlay-roots.ts`, one directory's worth of layout knowledge
- * in the tree that owns `apps/`.
+ * Three `dirname`s from anywhere inside `packages/platform/` give a directory
+ * that holds no `apps/` at all, so a file in the package deriving its own root
+ * reproduces that state exactly, in the one mechanism where a wrong answer is
+ * silent. R4.2. The root is therefore **given**, and the giver is
+ * `overlay-roots.ts`: one expression, in the tree that owns `apps/`.
  *
- * ## Why it sits here rather than in `lifecycle/`
+ * ## What T114a deleted, and why it was a supplier nobody could supply
  *
- * It is a deployment concept, and `overlay-roots.ts` — whose `selectedDeployment`
- * it already calls — is where the deployment tree's layout is decided. Two
- * `import.meta.url` root derivations in one application are two answers waiting
- * to disagree, and there were exactly two: this file's and that one's,
- * byte-identical, which is how the second came to be written (R4.3). There is
- * now one.
+ * This file used to carry a second location fact,
+ * `RUNNING_FROM_DIST = import.meta.url.includes('/dist/')`, which chose between
+ * `divergence.ts` and `divergence.js`. It was correct only while the file sat in
+ * the application, and **silently** wrong everywhere else: the string is true
+ * inside `packages/platform/dist/overlay/` under `tsx` as well as under `node`,
+ * and true in every instance whose platform came out of `node_modules`, which is
+ * all of them. An extension is not a fact anyone has to know — it is a fact
+ * about which file is on disk, and the disk can be asked. So the flag is gone
+ * and `resolveOverlayUnit` answers instead, `.js` before `.ts`, for the reason
+ * `UNIT_EXTENSIONS` gives in place: the compiled tree is the one where picking
+ * up a stray source file would be wrong
+ * (`contracts/application-root-supplier.md` §3).
+ *
+ * `divergencePathFor` went with it. R3.6 asked only that it stop returning the
+ * literal `backend/src/apps/<d>/divergence.ts` — *"a platform telling a client
+ * that their declaration lives at … is a package asserting a layout it cannot
+ * see"* — and the resolution answers that better than a recomposition does: the
+ * path handed to `parseDivergenceDeclaration` is now the file the loader
+ * actually read, so a refusal names the reader's own tree and the spelling that
+ * is really in it. Its only caller was that one line, and a function whose
+ * caller stopped needing it is the dead export §5 is about.
  *
  * ## Its consumers take the value, never the loader
  *
@@ -44,7 +58,6 @@
  * the locator.
  */
 
-import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { DeploymentDivergenceDeclaration } from '@endora-commerce/contracts';
@@ -52,39 +65,20 @@ import {
   emptyDivergenceDeclaration,
   parseDivergenceDeclaration,
 } from '@endora-commerce/platform/lifecycle';
-import { applicationSourceRoot, selectedDeployment } from './overlay-roots.js';
+import { resolveOverlayUnit } from '@endora-commerce/platform/overlay';
+import { deploymentRoot, selectedDeployment } from './overlay-roots.js';
 
 /**
- * Whether this process is running the compiled tree.
+ * The declaration file that is **on disk** for this deployment, or `null`.
  *
- * It stays a fact about *this* file's own location, and may: the file is the
- * application's and travels with the `apps/` directory it composes a path into.
- * `applicationSourceRoot()` already answers `backend/dist` under a compiled run,
- * so the two agree by construction rather than by anyone keeping them in step —
- * what this decides is the **extension**, which the root cannot carry.
+ * A resolution, never a derivation: `.js` in a compiled tree, `.ts` under `tsx`
+ * and `vitest`, decided by asking rather than by a flag about the reader's own
+ * location. It is the same seam `manifest` and `backend` go through one
+ * directory over, which is what makes an instance that compiles its `apps/`
+ * tree and one that does not both correct with nobody deciding (R3.4).
  */
-const RUNNING_FROM_DIST = import.meta.url.includes('/dist/');
-
-/**
- * Repo-relative, for a refusal the reader can act on.
- *
- * It belongs to the repository and not to the package (R4.4): a platform
- * telling a client that their declaration lives at
- * `backend/src/apps/<d>/divergence.ts` is a package asserting a layout it cannot
- * see.
- */
-export function divergencePathFor(deployment: string): string {
-  return `backend/src/apps/${deployment}/divergence.ts`;
-}
-
-/**
- * Authored under `backend/src/apps/…`, compiled to `backend/dist/apps/…`. Under
- * tsx and vitest the `.ts` source is imported directly, which is the same
- * mapping the overlay loader makes for the same reason.
- */
-function declarationPathFor(deployment: string, root: string): string {
-  const path = join(root, 'apps', deployment, 'divergence.ts');
-  return RUNNING_FROM_DIST ? path.replace(/\.ts$/, '.js') : path;
+function declarationPathFor(deployment: string, root: string): string | null {
+  return resolveOverlayUnit(join(root, 'apps', deployment), 'divergence');
 }
 
 /**
@@ -95,23 +89,22 @@ function declarationPathFor(deployment: string, root: string): string {
  * its proof does not need a boot; this one answers "what did this deployment
  * declare?" and hands it over as data.
  *
- * @param root the application source root holding `apps/`. A parameter rather
- *   than a derivation of this file's own path (R4.3), so the answer survives
- *   this file moving and there is one derivation of it in the application. The
- *   default names that one derivation; a caller passing its own is the shape
- *   `specs/110-instance-repository/` Phase 2 needs when the application root
- *   itself becomes a parameter.
+ * @param root the deployment root holding `apps/`. A parameter rather than a
+ *   derivation of this file's own path (R4.3, R1.1), so the answer survives this
+ *   file moving and there is one derivation of it in the application. The
+ *   default names that one derivation; `composeApp` supplies its own, which is
+ *   what an instance's entry point does with a root this package cannot see.
  */
 export async function loadDivergenceDeclaration(
   env: NodeJS.ProcessEnv = process.env,
-  root: string = applicationSourceRoot(),
+  root: string = deploymentRoot(),
 ): Promise<DeploymentDivergenceDeclaration> {
   const deployment = selectedDeployment(env);
   if (deployment === null) return emptyDivergenceDeclaration();
   const path = declarationPathFor(deployment, root);
-  if (!existsSync(path)) return emptyDivergenceDeclaration();
+  if (path === null) return emptyDivergenceDeclaration();
   const loaded = (await import(pathToFileURL(path).href)) as Record<string, unknown>;
   const declared = loaded['divergence'] ?? loaded['default'];
   if (declared === undefined) return emptyDivergenceDeclaration();
-  return parseDivergenceDeclaration(declared, divergencePathFor(deployment));
+  return parseDivergenceDeclaration(declared, path);
 }
