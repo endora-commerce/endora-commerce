@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -19,6 +19,23 @@ const RETAIL = 'pl_retail';
 
 describe('GET /api/v1/catalog/sitemap.xml', () => {
   let h: BackendServerHandle;
+
+  // `SitemapGeneratorService` resolves its base URL setting -> env -> fallback, and the
+  // `baseUrl` the harness bakes into `sitemapOptions` feeds only the last of the three.
+  // `backend/.env` sets `STOREFRONT_BASE_URL`, which the complete config loads, so the env
+  // step outranks the option and every URL asserted below came back on `localhost:3000`.
+  // The file was green only where that variable happens to be unset — a green that meant
+  // "this shell exports nothing" rather than "the harness's base URL is stamped". Emptying
+  // it is what makes these cases answer about the channel and the option they are given.
+  // Test-side deliberately: the precedence is the product's, and no assertion here is about
+  // it (`test/unit/seo/cross-module-ports.test.ts` took the same repair).
+  beforeEach(() => {
+    vi.stubEnv('STOREFRONT_BASE_URL', '');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
 
   beforeAll(async () => {
     h = await setupBackendServer();
