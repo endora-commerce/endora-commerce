@@ -129,5 +129,20 @@ export const manifest = defineModuleManifest({
   // without a megamenu is a smaller platform, not a broken one: the menus,
   // their items and their channel bindings stay in the database and reappear
   // exactly as configured when it is switched back on.
+  /**
+    * Nothing to demonstrate of its own (feature 113, T225 — contract §1.2).
+    *
+    * The demo shop does have a megamenu, and it is not this module's demo data:
+    * it mirrors `catalog`'s demo category tree and binds to the demo sales
+    * channels, so it is three modules' rows in one step and belongs to whoever
+    * owns the instance (§5.1). It is step 1 of `backend/src/seeds/
+    * demo-composition.ts` and this module does not declare `catalog` — §2.3's
+    * measured case, and the whole reason `demo` may not become a way of
+    * acquiring a dependency.
+    *
+    * `false` rather than absent, because the two are different states: this is
+    * a decision that the module owes nothing, not a module nobody has looked at.
+    */
+  demo: false,
   activation: { settingCode: 'megamenu.enabled', default: true },
 });

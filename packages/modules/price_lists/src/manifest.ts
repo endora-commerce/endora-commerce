@@ -141,6 +141,19 @@ export const manifest = defineModuleManifest({
       'B2B is contract pricing. Absent, every buyer silently pays base price, which makes the ' +
       'platform a B2C shop rather than a reduced B2B one.',
   },
+  /**
+    * Nothing to demonstrate of its own (feature 113, T225 — contract §1.2).
+    *
+    * The demo's prices are a backfill over `catalog`'s demo products into this
+    * module's default list — two modules' rows in one step, so it is step 3 of
+    * `backend/src/seeds/demo-composition.ts` and not this module's demo data
+    * (§5.1). The default list itself is **platform data**: a migration creates
+    * it and the platform needs it whether or not anybody ever seeds a demo.
+    *
+    * `false` rather than absent, because the two are different states: this is
+    * a decision that the module owes nothing, not a module nobody has looked at.
+    */
+  demo: false,
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
   /**
