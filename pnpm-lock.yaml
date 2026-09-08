@@ -2454,6 +2454,9 @@ importers:
       '@mikro-orm/core':
         specifier: ^6.6.13
         version: 6.6.13
+      '@mikro-orm/migrations':
+        specifier: ^6.6.13
+        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
       '@mikro-orm/postgresql':
         specifier: ^6.6.13
         version: 6.6.13(@mikro-orm/core@6.6.13)
