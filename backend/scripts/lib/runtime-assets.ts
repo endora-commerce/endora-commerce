@@ -42,6 +42,7 @@ export {
   collectRuntimeAssets,
   copyRuntimeAssets,
   extensionOf,
+  isTestFileName,
   NON_RUNTIME_EXTENSIONS,
   RUNTIME_ASSET_EXTENSIONS,
   type AssetPath,

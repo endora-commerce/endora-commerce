@@ -969,9 +969,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/lifecycle/scripts/` into `packages/platform/src/lifecycle/commands/`
     // (D115-1). Six files added and none removed: the five entry points keep their paths,
     // shrunk to the ORM handle, the Redis connection and the system scope.
-    files: 2066,
+    files: 2067,
     sites: null,
     sources: ['manifest-index'],
+    //
+    // **2066 -> 2067.** D-218 moved `pim_pimcore`'s
+    // `hmac-canonical-vectors.test.ts` and its `.json` vectors out of
+    // `backend/test/unit/` and into the package beside their subject, which the
+    // asset classifier's new fixture predicate is what made possible. This walk
+    // reads a module package's sources and not `backend/test`, so the move is an
+    // arrival rather than a transfer — measured, by taking the file back out.
   },
   'backend/scripts/check-diacritic-folds.ts': {
     prefix: '[diacritic-folds]',
@@ -1188,7 +1195,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // barrels); the two whole-repository walks take this branch's two changesets as well. The
     // branch first recorded against a `master` that still held the nine lifecycle shims, so
     // every base moved under it — this is a fresh census of the combined tree, not a sum.
-    files: 5314,
+    files: 5315,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1273,6 +1280,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // opened.
     sites: 530,
     sources: [],
+    //
+    // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
+    // launcher `uninstall-hard-needs-force.integration.test.ts` spawns to prove
+    // `--hard` refuses at a terminal too. The D-218 move nets zero: both roots are
+    // in this population.
   },
   'backend/scripts/check-divergence.ts': {
     prefix: '[divergence]',
@@ -1351,7 +1363,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // subpaths, `./packages` and `./overlay`, each with a barrel of its own.
     // Seven files added to the platform, none removed from `backend/src`: every
     // old path keeps a shim or a binding, which is what T119 drains.
-    files: 2173,
+    files: 2174,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -1369,6 +1381,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // blind run, while a platform interface this run could not read at all is
     // `expected: 0`, which the shared reporter refuses.
     sources: ['overlay-modules', 'manifest-index', 'seam-kinds'],
+    //
+    // **2173 -> 2174.** D-218 moved `pim_pimcore`'s
+    // `hmac-canonical-vectors.test.ts` and its `.json` vectors out of
+    // `backend/test/unit/` and into the package beside their subject, which the
+    // asset classifier's new fixture predicate is what made possible. This walk
+    // reads a module package's sources and not `backend/test`, so the move is an
+    // arrival rather than a transfer — measured, by taking the file back out.
   },
   'backend/scripts/check-doc-snippets.ts': {
     prefix: '[doc-snippets]',
@@ -1459,6 +1478,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     files: 1268,
     sites: 12,
     sources: [],
+    //
+    // **1267 -> 1268, and none of it is this branch.** Measured by withdrawing
+    // every file the branch adds or moves, the changeset included: the tree still
+    // reads **1268**. Re-recorded here because the census asks the merge request
+    // that observes a drift to record it, and saying "not mine" while leaving the
+    // number wrong would hand the next author the same puzzle with one more merge
+    // in front of it.
   },
   'backend/scripts/check-entity-tenant-classification.ts': {
     prefix: '[tenant-classification]',
@@ -2378,7 +2404,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Re-measured on the union after rebasing onto `7d699f4cc`.** Phase 5 and this
     // branch each recorded this entry on `e3dd43635` and neither could see the other;
     // the value below is a fresh census of the combined tree, not the sum of the two.
-    files: 2588,
+    files: 2589,
     sites: 53,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
@@ -2399,6 +2425,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // packages ship admin code, and under which subpath" — and it grows with
     // every batch of Story 3.
     sources: ['zone-enum', 'admin-ui', 'manifest-index', 'module-admin'],
+    //
+    // **2588 -> 2589.** D-218 moved `pim_pimcore`'s
+    // `hmac-canonical-vectors.test.ts` and its `.json` vectors out of
+    // `backend/test/unit/` and into the package beside their subject, which the
+    // asset classifier's new fixture predicate is what made possible. This walk
+    // reads a module package's sources and not `backend/test`, so the move is an
+    // arrival rather than a transfer — measured, by taking the file back out.
   },
   'backend/scripts/check-block-names.ts': {
     prefix: '[block-names]',
@@ -3033,7 +3066,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Re-measured on the union after rebasing onto `7d699f4cc`.** Phase 5 and this
     // branch each recorded this entry on `e3dd43635` and neither could see the other;
     // the value below is a fresh census of the combined tree, not the sum of the two.
-    files: 4682,
+    files: 4684,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -3062,7 +3095,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // value and the types, `lib/module-registry`). The cross-module half does
     // not move at all — `reaches=8`, `ledger-size=8`, `stale=0` before and
     // after — which is T122's own criterion.
-    sites: 11893,
+    sites: 11898,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -3103,6 +3136,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // rather than an exemption: they belong to no module and sit under no module
     // walk root.
     sources: ['manifest-index', 'migration-registry', 'module-packages'],
+    //
+    // **11893 -> 11898 sites, 4682 -> 4684 files.** D-218 moved `pim_pimcore`'s
+    // `hmac-canonical-vectors.test.ts` and its `.json` vectors out of
+    // `backend/test/unit/` and into the package beside their subject, which the
+    // asset classifier's new fixture predicate is what made possible. Measured
+    // directly by taking the file back out: `module files` moves 2345 -> 2346 and
+    // the total moves by two, the file being read once by each of the two
+    // predicates' roots; the five sites are its own import specifiers.
   },
   'backend/scripts/check-nul-bytes.ts': {
     prefix: '[nul-bytes]',
@@ -3537,9 +3578,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // contribution to any whole-repository walk. Every other file it touches already existed,
     // and no file moved into or out of `backend/src/lifecycle/` — the measurement T115 is
     // about is that the movable population there is already 0.
-    files: 7890,
+    // **+2, re-measured on the union after rebasing onto `b32f37b7d`.** This branch adds
+    // two files — its changeset and `backend/test/helpers/interactive-run.ts` — and renames two
+    // (`hmac-canonical-vectors.{json,test.ts}` into the package), which is net zero. A whole-tree
+    // walk therefore moves by exactly the two additions. The value is a fresh census of the
+    // combined tree, not a sum.
+    files: 7893,
     sites: null,
     sources: [],
+    //
+    // **7888 -> 7891, of which +2 is this branch.** D-217 added
+    // `backend/test/helpers/interactive-run.ts`, the launcher
+    // `uninstall-hard-needs-force.integration.test.ts` spawns to prove `--hard`
+    // refuses at a terminal too. Plus the changeset markdown file. The population
+    // is the whole repository, so the D-218 move is a transfer and nets zero here.
+    // With both withdrawn the tree reads **7889**; the remaining +1 was already in
+    // it.
   },
   'backend/scripts/check-off-state-coverage.ts': {
     prefix: '[off-state-coverage]',
@@ -4538,7 +4592,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // removes the specifiers that named it, and an owner resolver that stopped
     // matching either spelling collapses this to zero while `files` is untouched
     // (issue #237's shape).
-    sites: 1088,
+    sites: 1087,
     // Two independent authors. `manifest-index` is issue #215's shared floor
     // over the module walk, whose unit is the module's own directory rather than
     // a test file — 14 of the 70 packages ship no test and a floor over test
@@ -4548,6 +4602,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and ships nothing the walk can see is a run that cannot be told from a
     // walk that lost that package, which is exit 2 rather than a finding.
     sources: ['manifest-index', 'package-test-scripts'],
+    //
+    // **1088 -> 1087.** D-218 moved `pim_pimcore`'s
+    // `hmac-canonical-vectors.test.ts` and its `.json` vectors out of
+    // `backend/test/unit/` and into the package beside their subject, which the
+    // asset classifier's new fixture predicate is what made possible. One fewer
+    // file under `backend/test` is one fewer ownership site, and the ledger shrank
+    // with it (182 -> 181) — `pim_pimcore`'s shard was the one carrying this file,
+    // under a generic `scheduled` reason that never said why it was harder than
+    // its five neighbours.
   },
   'backend/scripts/check-transaction-context.ts': {
     prefix: '[transaction-context]',
@@ -4786,7 +4849,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // barrels); the two whole-repository walks take this branch's two changesets as well. The
     // branch first recorded against a `master` that still held the nine lifecycle shims, so
     // every base moved under it — this is a fresh census of the combined tree, not a sum.
-    files: 4336,
+    files: 4337,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -4830,8 +4893,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // all, and packaging them turned every test import of either into one. 637
     // -> 963. Re-record it, never widen the band — the floor is what would catch
     // the walk losing the package tree.
-    sites: 852,
+    sites: 851,
     sources: ['manifest-index', 'entities-registry', 'tenant-chains'],
+    //
+    // **852 -> 851 sites, 4336 -> 4337 files, and the two have different causes.**
+    // The site went because d-218 moved `pim_pimcore`'s
+    // `hmac-canonical-vectors.test.ts` and its `.json` vectors out of
+    // `backend/test/unit/` and into the package beside their subject, which the
+    // asset classifier's new fixture predicate is what made possible. Its import
+    // of `packages/modules/pim_pimcore/src/backend/services/push-signature.js` was
+    // a value reach into a package's source — this check's own subject — and
+    // inside the package it is `./push-signature.js`, which is no reach at all.
+    // The file arrived because d-217 added
+    // `backend/test/helpers/interactive-run.ts`, the launcher
+    // `uninstall-hard-needs-force.integration.test.ts` spawns to prove `--hard`
+    // refuses at a terminal too.
   },
   'backend/scripts/i18n-hardcoded-strings.ts': {
     prefix: '[i18n:hardcoded]',
@@ -5273,9 +5349,26 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **+2 on the T115 branch, as the byte scan above and for the same population.**
     // `specs/110-instance-repository/contracts/application-root-supplier.md` came from the
     // T114a design merge on `master`; the second is T115's one empty changeset.
-    files: 7950,
+    // **+2, re-measured on the union after rebasing onto `b32f37b7d`.** The same two added
+    // files as `check-nul-bytes.ts` above; this scan is repo-wide and the two renames cancel.
+    files: 7953,
     sites: null,
     sources: ['manifest-index'],
+    //
+    // **Every number this branch records is a fresh census of the combined tree,
+    // never its own delta added to what it first measured.** It was written
+    // against `50a56f6ef` and rebased onto `ad0fe0876`, and four merges moved the
+    // bases under it in between — so each attribution below was measured by
+    // withdrawing this branch's files and re-running, not reasoned from the
+    // printed delta. **7948 -> 7951, and this branch's own contribution is −2.**
+    // D-218 moved `pim_pimcore`'s `hmac-canonical-vectors.test.ts` and its `.json`
+    // vectors out of `backend/test/unit/` and into the package beside their
+    // subject, which the asset classifier's new fixture predicate is what made
+    // possible. This walk reads `backend/test` and does not count a module
+    // package's `src` the same way, so the move is a departure: with the branch
+    // withdrawn the tree reads **7953**. The remaining +5 was already in the tree
+    // — the recorded 7948 was behind `ad0fe0876` before this branch touched
+    // anything.
   },
   'scripts/check-language.sh': {
     prefix: '[language]',
@@ -5509,9 +5602,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // barrels); the two whole-repository walks take this branch's two changesets as well. The
     // branch first recorded against a `master` that still held the nine lifecycle shims, so
     // every base moved under it — this is a fresh census of the combined tree, not a sum.
-    files: 5928,
+    files: 5929,
     sites: null,
     sources: ['manifest-index'],
+    //
+    // **5928 -> 5929, and this branch's own contribution is −1.** D-218 moved
+    // `pim_pimcore`'s `hmac-canonical-vectors.test.ts` and its `.json` vectors out
+    // of `backend/test/unit/` and into the package beside their subject, which the
+    // asset classifier's new fixture predicate is what made possible. Same
+    // population shape as `check:naming` above. With the branch withdrawn the tree
+    // reads **5930**; the other +2 was already there.
   },
   'scripts/check-pdfmake-footprint.sh': {
     prefix: '[pdfmake-gate]',

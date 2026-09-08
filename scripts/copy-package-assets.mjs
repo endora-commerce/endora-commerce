@@ -107,7 +107,7 @@ function main(argv) {
     return 2;
   }
 
-  const { assets, unclassified, scanned } = collectRuntimeAssets(srcRoot);
+  const { assets, fixtures, unclassified, scanned } = collectRuntimeAssets(srcRoot);
   if (unclassified.length > 0) {
     process.stderr.write(
       `${PREFIX} ${unclassified.length} file(s) under ${src}/ have an extension this build ` +
@@ -145,8 +145,17 @@ function main(argv) {
 
   process.stdout.write(
     `${PREFIX} read: files=${scanned} assets=${assets.length} ` +
-      `copied=${assets.length} ${src}/ -> ${out}/\n`,
+      // D-218 — a file that would have shipped and sits beside a test. Named,
+      // because a genuine runtime asset parked next to one stops shipping and
+      // the author would otherwise meet that as a missing file at runtime.
+      `fixtures=${fixtures.length} copied=${assets.length} ${src}/ -> ${out}/\n`,
   );
+  for (const path of fixtures) {
+    process.stdout.write(
+      `${PREFIX} ${src}/${path} is a test's fixture (a test sits beside it) and is not ` +
+        `copied. If the module reads it at runtime, move it to a directory holding no test.\n`,
+    );
+  }
   return 0;
 }
 
