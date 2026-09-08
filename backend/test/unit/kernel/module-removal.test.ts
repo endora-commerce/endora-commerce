@@ -104,13 +104,19 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   //
   // **They were deleted late, and the reason is worth more than the entries.**
   // This ledger is two-way, so a moved module reds this file the moment its
-  // last reference goes — but it lives in `test/integration/`, which
-  // `test:unit:fast` does not run, and a packaging batch's targeted run covers
-  // the paths it *touched*. This file is not one of them: it is derived *about*
-  // the modules a batch moves, never edited by moving them. So the batch that
-  // frees an entry is structurally the batch that cannot see it go stale.
-  // Three batches, three reds on `master`, each found by the next piece of work
+  // last reference goes — and a packaging batch's targeted run covers the paths
+  // it *touched*. This file is not one of them: it is derived *about* the
+  // modules a batch moves, never edited by moving them. So the batch that frees
+  // an entry is structurally the batch that cannot see it go stale. Three
+  // batches, three reds on `master`, each found by the next piece of work
   // rather than by the one that caused it.
+  //
+  // It used to say *"it lives in `test/integration/`, which `test:unit:fast`
+  // does not run"*, which was the mechanism at the time and stopped being true
+  // when feature 112's FR-004 moved this file to `test/unit/kernel/`. The
+  // failure mode survived the move intact, which is the point: the fast suite
+  // now runs this file on every merge request and a batch still has to *choose*
+  // to run it, because nothing in the diff points here.
   //
   // If you are moving a module: this file is part of the move. Re-derive the
   // ledger against `backend/src` and delete what no longer has a reference,
@@ -131,6 +137,24 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // finish — no central list holds a module any more.
   //
   // ── `src/seeds/` — twelve entries this scan could not see before ──────────
+  //
+  // **Feature 113's T211 split the file the twelve entries named, so every one
+  // of them was re-pointed and none was freed.** `dev-catalog-seed.ts` is now
+  // three: the entry point, which names no module; `demo-composition.ts`, the
+  // five steps that touch more than one module's rows; and
+  // `demo-host-residue.ts`, the demo rows whose modules have not taken them
+  // back yet. A module the composition wires and the residue seeds — `catalog`,
+  // `inventory`, `organizations` — is held by both, which is the split doing
+  // exactly what it says on the tin rather than a new coupling.
+  //
+  // What retires these entries is now known and scheduled, which it was not
+  // when the paragraph below was written: feature 113's Phase 2 moves each
+  // module's block into that module's own `src/backend/demo/`, and its entry
+  // here goes with the block. The residue file is deleted when the last one
+  // does (T226), and `demo-composition.ts`' own entries retire with it or
+  // survive as the composition's — a composition naming modules is a
+  // composition root doing its job, and this file records it rather than
+  // objecting to it.
   //
   // Feature 075 moved `dev-catalog-seed.ts` and `attribute-fixtures.ts` out of
   // `src/modules/catalog/seeds/` and into `src/seeds/`, beside `composition.ts`.
@@ -180,7 +204,11 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // carries the `modules/catalog/` substring this scan reads. So the reference
   // is real — deleting the package breaks the **build** — and it is not runtime
   // coupling, because the type imports erase.
-  catalog: ['src/seeds/attribute-fixtures.ts', 'src/seeds/dev-catalog-seed.ts'],
+  catalog: [
+    'src/seeds/attribute-fixtures.ts',
+    'src/seeds/demo-composition.ts',
+    'src/seeds/demo-host-residue.ts',
+  ],
   // The three modules the dev seed holds and nothing else does. Each is a plain
   // entity import in the seed — a warehouse, a stock level, a delivery method,
   // and the custom-field definition half of a product attribute.
@@ -202,7 +230,7 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // the type imports erase — and it retires on the same condition as the
   // `delivery_methods` / `payment_methods` / `taxes` block below.
   custom_fields: ['src/seeds/attribute-fixtures.ts'],
-  inventory: ['src/seeds/dev-catalog-seed.ts'],
+  inventory: ['src/seeds/demo-composition.ts', 'src/seeds/demo-host-residue.ts'],
   // ── Criterion 7's cost, and it is a cost of a decision rather than a defect ─
   //
   // The three entries below came back on 2026-08-25 with !997, and the comment
@@ -234,10 +262,10 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // an option no seeded buyer could ever see, because checkout filters the
   // method on a granted limit against the cart total. The seed therefore
   // grants one too, which is what puts this module here.
-  credit_limits: ['src/seeds/dev-catalog-seed.ts'],
-  delivery_methods: ['src/seeds/dev-catalog-seed.ts'],
-  payment_methods: ['src/seeds/dev-catalog-seed.ts'],
-  taxes: ['src/seeds/dev-catalog-seed.ts'],
+  credit_limits: ['src/seeds/demo-host-residue.ts'],
+  delivery_methods: ['src/seeds/demo-host-residue.ts'],
+  payment_methods: ['src/seeds/demo-host-residue.ts'],
+  taxes: ['src/seeds/demo-host-residue.ts'],
   // `orders` needs no entry and gets none, since feature 080's T052. Its single
   // reference was `import { Order } from './modules/orders/entities/order.entity.js'`,
   // read by one `em.findOne` inside a bridge the root contributes; D-168 gives a
@@ -268,7 +296,7 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // entry drained when that module was packaged and nothing in that merge
   // request read this file — the standing shape of this ledger's failures, and
   // the reason the entry is recorded as corrected rather than quietly deleted.
-  organizations: ['src/seeds/dev-catalog-seed.ts'],
+  organizations: ['src/seeds/demo-composition.ts', 'src/seeds/demo-host-residue.ts'],
 
   // `composition.ts` reaches into `email` once: for the `EmailCradle` type it
   // resolves the mailer with. It disappears when the mailer's consumers resolve
@@ -312,7 +340,7 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // retire it was never the thing holding it. Recorded here rather than quietly
   // deleted, because a reason nobody can check is how a ledger stops being
   // evidence.
-  admin_roles: ['src/seeds/dev-catalog-seed.ts'],
+  admin_roles: ['src/seeds/demo-host-residue.ts'],
   // `prompt_actions` (wave 1) — the inverted case, and the reason this ledger is
   // worth keeping. Its `composition.ts` reference was never a leftover of the
   // conversion: three *other* modules contributed into the registry it owns, and
@@ -337,7 +365,7 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // `modules/<id>/`. The residue this entry described is real and is measured by
   // `harness-parity.test.ts`'s value-import ledger, which counts declarations
   // rather than substrings.
-  customer_accounts: ['src/seeds/dev-catalog-seed.ts'],
+  customer_accounts: ['src/seeds/demo-composition.ts'],
   // `assets_library` (wave 1, T092). `composition.ts` imports the cradle type
   // to annotate the handle it resolves and hands the `catalog`, `cms` and
   // `megamenu` reference resolvers to. Contributing those is a root's job —
@@ -366,7 +394,7 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // one entry here that was never going to drain — and packaging re-spelled it
   // out of this scan's reach anyway, which is exactly why a substring ledger
   // cannot be the record of a design decision.
-  megamenu: ['src/seeds/dev-catalog-seed.ts'],
+  megamenu: ['src/seeds/demo-composition.ts'],
   // `invoices` (wave 2, T113). `composition.ts` imports the bridge type to
   // annotate what it contributes. The cradle import went with T143c: it existed
   // to reach `invoiceNumberGenerator` for a `CorrectiveInvoiceProvider` the root
@@ -388,7 +416,7 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // than this one. The seed entry stays: it constructs `AdminUser`, so it names
   // the row type inside this package's built artefact, which carries the
   // `modules/admin_users/` substring this scan reads.
-  admin_users: ['src/seeds/dev-catalog-seed.ts'],
+  admin_users: ['src/seeds/demo-host-residue.ts'],
   // `settings` needs no entry and gets none, since feature 080's T040b — this
   // module is now **absent** from the ledger, which is the strongest state a
   // key can reach.
