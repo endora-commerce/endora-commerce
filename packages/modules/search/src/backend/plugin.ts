@@ -33,7 +33,11 @@ import { SettingNotRegistered, SettingOutOfScopeForChannel } from '@endora-comme
 import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { effectiveState } from '@endora-commerce/platform/kernel';
 import { enterSystemScope } from '@endora-commerce/platform/kernel';
-import { DEFAULT_REINDEX_INTERVAL_MINUTES, SEARCH_SETTING_CODES } from '../manifest.js';
+import {
+  DEFAULT_INDEX_TASK_TIMEOUT_SECONDS,
+  DEFAULT_REINDEX_INTERVAL_MINUTES,
+  SEARCH_SETTING_CODES,
+} from '../manifest.js';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 /**
@@ -172,11 +176,54 @@ export interface SearchModuleResult {
 const numberSchema = z.number();
 
 export function searchModule(options: SearchModuleOptions): SearchModuleResult {
+  /**
+   * The indexer's Meilisearch task wait, in milliseconds — this module's own
+   * setting, read inside the module (composition checklist item 6) and not a
+   * knob a composition root resolves on its behalf. It sits here rather than
+   * inside `SearchIndexer` for the same reason
+   * `resolveReindexIntervalMinutes` does: this is the one place that already
+   * holds the module's settings-read idiom, including which two failures may
+   * be absorbed.
+   *
+   * Re-read per wait rather than captured at boot, so raising it during an
+   * incident takes effect on the next task instead of on the next restart.
+   *
+   * Absorbs only what D-43 allows — a setting the reconciler has not written
+   * yet, and a channel-scoped override of a platform-wide read. A shape
+   * mismatch or a driver error propagates, and so does `ModuleDisabledError`:
+   * neither branch below is a status test.
+   */
+  const resolveIndexTaskTimeoutMs = async (): Promise<number> => {
+    try {
+      const seconds = await options.settingsService.get(
+        SEARCH_SETTING_CODES.INDEX_TASK_TIMEOUT_SECONDS,
+        null,
+        z.number().int().positive(),
+      );
+      return seconds * 1000;
+    } catch (error) {
+      if (error instanceof SettingNotRegistered) {
+        return DEFAULT_INDEX_TASK_TIMEOUT_SECONDS * 1000;
+      }
+      if (error instanceof SettingOutOfScopeForChannel) {
+        warnOnceForSearch(
+          `out-of-scope:${SEARCH_SETTING_CODES.INDEX_TASK_TIMEOUT_SECONDS}`,
+          `[search] setting "${SEARCH_SETTING_CODES.INDEX_TASK_TIMEOUT_SECONDS}" is scoped ` +
+            `to specific sales channels, so it has no platform-wide value — falling back ` +
+            `to the manifest default (logged once per process).`,
+        );
+        return DEFAULT_INDEX_TASK_TIMEOUT_SECONDS * 1000;
+      }
+      throw error;
+    }
+  };
+
   const indexer = new SearchIndexer({
     attributeRead: options.catalogAttributeRead,
     products: options.catalogProducts,
     categories: options.catalogCategories,
     channelMembership: options.salesChannelMembership,
+    resolveTaskTimeoutMs: resolveIndexTaskTimeoutMs,
   });
   // Handlers only: `backend.ts` registers them through `ctx.subscribe`, which
   // is what makes this module's effective state decide whether they run.
