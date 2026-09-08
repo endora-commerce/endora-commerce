@@ -1,0 +1,14 @@
+{
+  "actions.openDeliveries.label": "Dostawy księgi faktur",
+  "actions.openDeliveries.description": "Status kopii u dostawcy, błędy i ponowienie",
+  "nav.deliveries.label": "Księga faktur",
+  "deliveries.page.title": "Dostawy księgi faktur",
+  "deliveries.page.subtitle": "Status kopii faktur wysłanych do aktywnego dostawcy księgi.",
+  "routing.page.title": "Trasowanie księgi faktur",
+  "routing.page.subtitle": "Źródło numeracji i trasowanie KSeF dla księgi faktur.",
+  "adminRoles.permission.invoice_ledger:read": "Podgląd dostaw księgi faktur",
+  "adminRoles.permission.invoice_ledger:write": "Zarządzanie księgą faktur",
+  "errors.INVOICE_LEDGER_VENDOR_ALREADY_ACTIVE": "Inny dostawca księgi faktur jest już aktywny ({activeModuleId}). Najpierw go wyłącz.",
+  "errors.INVOICE_LEDGER_CREDENTIALS_MISSING": "Brakuje danych dostępowych dostawcy księgi dla tej faktury.",
+  "errors.INVOICE_LEDGER_DELIVERY_NOT_RETRYABLE": "Tej dostawy nie można ponowić."
+}

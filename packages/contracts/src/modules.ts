@@ -868,6 +868,12 @@ export const ModuleManifestSchema = z.object({
    */
   pimConnector: z.literal(true).optional(),
   /**
+   * When `true`, the module participates in the invoice-ledger mutual-exclusion
+   * set (feature 119). Consumed by `invoice_ledger` registry discovery — not by
+   * install ordering.
+   */
+  invoiceLedger: z.literal(true).optional(),
+  /**
    * The operator-visible error codes this module owns (feature 090, D-182).
    *
    * The declaration is what routes the code's sentence to this module's bundle:

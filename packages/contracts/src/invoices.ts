@@ -306,6 +306,25 @@ export interface InvoicePdfPort {
   renderBulk(invoices: readonly InvoicePdfLine[]): Uint8Array;
 }
 
+export const INVOICE_NUMBERING_HOST_PORT = 'invoiceNumberingHostPort' as const;
+export const INVOICE_PAID_HOST_PORT = 'invoicePaidHostPort' as const;
+
+/**
+ * Container name: `invoiceNumberingHostPort`. Owner: `invoices`.
+ * Ledger vendor number wait (mode B) → ready + unique number.
+ */
+export interface InvoiceNumberingHostPort {
+  applyVendorAssignedNumber(invoiceId: string, number: string): Promise<void>;
+}
+
+/**
+ * Container name: `invoicePaidHostPort`. Owner: `invoices`.
+ * Infakt `invoice_paid` stamps paidTotal only. Never Payments.
+ */
+export interface InvoicePaidHostPort {
+  recordPaidFromLedger(invoiceId: string): Promise<void>;
+}
+
 // ---------------------------------------------------------------------------
 // Numbering — the pattern vocabulary and the collision shapes (feature 078, D-95)
 // ---------------------------------------------------------------------------

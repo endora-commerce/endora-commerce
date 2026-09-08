@@ -474,6 +474,18 @@ export const ERROR_CODES = {
   /** Another PIM connector is operator-active; activation refused (FR-003). */
   PIM_CONNECTOR_ALREADY_ACTIVE: 'PIM_CONNECTOR_ALREADY_ACTIVE',
 
+  // Invoice ledger + Infakt (feature 119).
+  /** Another invoice-ledger vendor is operator-active; activation refused. */
+  INVOICE_LEDGER_VENDOR_ALREADY_ACTIVE: 'INVOICE_LEDGER_VENDOR_ALREADY_ACTIVE',
+  /** Required Infakt (or vendor) credentials are missing for this delivery. */
+  INVOICE_LEDGER_CREDENTIALS_MISSING: 'INVOICE_LEDGER_CREDENTIALS_MISSING',
+  /** Delivery is succeeded or otherwise not eligible for operator retry. */
+  INVOICE_LEDGER_DELIVERY_NOT_RETRYABLE: 'INVOICE_LEDGER_DELIVERY_NOT_RETRYABLE',
+  /** Infakt account-details / connection test failed. */
+  INFAKT_CONNECTION_FAILED: 'INFAKT_CONNECTION_FAILED',
+  /** Infakt webhook HMAC missing, invalid, or secret unset. */
+  INFAKT_WEBHOOK_UNAUTHORIZED: 'INFAKT_WEBHOOK_UNAUTHORIZED',
+
   // UnoPim PIM integration (feature 089). See specs/089-unopim-pim-sync/contracts/admin-api.md.
   PIM_UNOPIM_NOT_CONFIGURED: 'PIM_UNOPIM_NOT_CONFIGURED',
   PIM_UNOPIM_CONNECTION_EXISTS: 'PIM_UNOPIM_CONNECTION_EXISTS',

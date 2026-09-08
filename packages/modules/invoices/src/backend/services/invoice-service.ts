@@ -73,6 +73,7 @@ export class InvoiceService {
     private readonly sellerSettings: SellerSettingsResolver,
     private readonly audit?: InvoiceAuditRecorder,
     private readonly events?: InvoiceDomainEventEmitter,
+    private readonly emailOnReady?: (invoiceId: string) => Promise<void>,
   ) {}
 
   /** Issue an invoice/proforma for an order. Idempotent per (order, kind). */
@@ -280,6 +281,51 @@ export class InvoiceService {
     // flow (`ksef.submission.accepted`); this is the sole-writer projection of it.
     inv.ksefReferenceNumber = assignment.ksefReferenceNumber;
     inv.ksefProcessedAt = assignment.ksefProcessedAt;
+    await em.persistAndFlush(inv);
+  }
+
+  /**
+   * Mode B: overwrite the Endora-drawn number with the vendor's, then ready.
+   * No-op when the invoice already carries that number and is ready.
+   */
+  async applyVendorAssignedNumber(invoiceId: string, number: string): Promise<void> {
+    const em = this.emFactory().fork();
+    const inv = await em.findOne(Invoice, { id: invoiceId });
+    if (!inv) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invoice not found.');
+    if (inv.status === 'cancelled') {
+      throw new HttpError(409, ERROR_CODES.VERSION_CONFLICT, 'The invoice is cancelled.');
+    }
+    if (inv.number === number && inv.status === 'ready') return;
+    if (inv.status !== 'pending' && inv.number !== number) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.VERSION_CONFLICT,
+        'The invoice is not waiting for a vendor number.',
+      );
+    }
+    const holder = await em.findOne(Invoice, { number });
+    if (holder && holder.id !== inv.id) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.INVOICE_NUMBER_ALREADY_ISSUED,
+        `Invoice number ${number} is already issued.`,
+      );
+    }
+    inv.number = number;
+    inv.status = 'ready';
+    await em.persistAndFlush(inv);
+    await this.emailOnReady?.(invoiceId);
+  }
+
+  /**
+   * Infakt `invoice_paid` → stamp paidTotal to the invoice gross. Never Payments.
+   */
+  async recordPaidFromLedger(invoiceId: string): Promise<void> {
+    const em = this.emFactory().fork();
+    const inv = await em.findOne(Invoice, { id: invoiceId });
+    if (!inv) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invoice not found.');
+    if (Number(inv.paidTotal) >= Number(inv.total)) return;
+    inv.paidTotal = inv.total;
     await em.persistAndFlush(inv);
   }
 

@@ -6,12 +6,18 @@ import type {
   CorrectiveInvoicePort,
   CustomerAccountReadPort,
   EmailDefaultsRegistryPort,
+  InvoiceNumberingHostPort,
+  InvoicePaidHostPort,
   InvoicePdfPort,
   InvoiceReadPort,
   OrderReadPort,
   SettingWriteValidatorRegistryPort,
   SettingsAdminPort,
   TransactionalEmailSender,
+} from '@endora-commerce/contracts';
+import {
+  INVOICE_NUMBERING_HOST_PORT,
+  INVOICE_PAID_HOST_PORT,
 } from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { lazyPort } from '@endora-commerce/platform/kernel';
@@ -186,6 +192,14 @@ export function registerModule(ctx: ModuleContext): void {
 
   ctx.di.providePort(
     'invoiceService',
+    ctx.asFunction(({ invoices }: InvoicesCradle) => invoices.handle.invoiceService).singleton(),
+  );
+  ctx.di.providePort<InvoiceNumberingHostPort>(
+    INVOICE_NUMBERING_HOST_PORT,
+    ctx.asFunction(({ invoices }: InvoicesCradle) => invoices.handle.invoiceService).singleton(),
+  );
+  ctx.di.providePort<InvoicePaidHostPort>(
+    INVOICE_PAID_HOST_PORT,
     ctx.asFunction(({ invoices }: InvoicesCradle) => invoices.handle.invoiceService).singleton(),
   );
   ctx.di.providePort(

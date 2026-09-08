@@ -1,0 +1,14 @@
+{
+  "actions.openDeliveries.label": "Invoice ledger deliveries",
+  "actions.openDeliveries.description": "Vendor copy status, failures and retry",
+  "nav.deliveries.label": "Invoice ledger",
+  "deliveries.page.title": "Invoice ledger deliveries",
+  "deliveries.page.subtitle": "Copy status for invoices sent to the active ledger vendor.",
+  "routing.page.title": "Invoice ledger routing",
+  "routing.page.subtitle": "Numbering source and KSeF routing for the invoice ledger.",
+  "adminRoles.permission.invoice_ledger:read": "View invoice ledger deliveries",
+  "adminRoles.permission.invoice_ledger:write": "Manage invoice ledger",
+  "errors.INVOICE_LEDGER_VENDOR_ALREADY_ACTIVE": "Another invoice ledger vendor is already active ({activeModuleId}). Switch it off first.",
+  "errors.INVOICE_LEDGER_CREDENTIALS_MISSING": "The ledger vendor credentials for this invoice are missing.",
+  "errors.INVOICE_LEDGER_DELIVERY_NOT_RETRYABLE": "This delivery cannot be retried."
+}

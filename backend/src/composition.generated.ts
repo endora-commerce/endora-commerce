@@ -186,6 +186,10 @@ import * as module70 from '@endora-commerce/mod-tpay/backend';
 import { manifest as manifest70 } from '@endora-commerce/mod-tpay';
 import * as module71 from '@endora-commerce/mod-webhooks/backend';
 import { manifest as manifest71 } from '@endora-commerce/mod-webhooks';
+import * as module72 from '@endora-commerce/mod-invoice-ledger/backend';
+import { manifest as manifest72 } from '@endora-commerce/mod-invoice-ledger';
+import * as module73 from '@endora-commerce/mod-infakt/backend';
+import { manifest as manifest73 } from '@endora-commerce/mod-infakt';
 
 export const MODULES: readonly ModuleEntry[] = [
   { id: '_lifecycle', version: manifest0.version, registerModule: module0.registerModule },
@@ -233,7 +237,9 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'orders', version: manifest42.version, registerModule: module42.registerModule },
   { id: 'credit_limits', version: manifest43.version, registerModule: module43.registerModule },
   { id: 'inventory', version: manifest44.version, registerModule: module44.registerModule },
+  { id: 'invoice_ledger', version: manifest72.version, registerModule: module72.registerModule },
   { id: 'invoices', version: manifest45.version, registerModule: module45.registerModule },
+  { id: 'infakt', version: manifest73.version, registerModule: module73.registerModule },
   { id: 'ksef', version: manifest46.version, registerModule: module46.registerModule },
   { id: 'payments', version: manifest47.version, registerModule: module47.registerModule },
   { id: 'pim_akeneo', version: manifest48.version, registerModule: module48.registerModule },
