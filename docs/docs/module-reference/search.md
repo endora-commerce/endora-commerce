@@ -50,6 +50,7 @@ _None._
 | Code | Name | Type |
 | --- | --- | --- |
 | `search.enabled` | Search enabled | `boolean` |
+| `search.index_task_timeout_seconds` | Index task timeout (seconds) | `number` |
 | `search.llm.embedder_credentials` | LLM-augmented search — embedder credentials | `credential_ref` |
 | `search.llm.enabled` | LLM-augmented search — enabled | `boolean` |
 | `search.popup.minimum_query_length` | Suggestion popup — minimum query length | `number` |
