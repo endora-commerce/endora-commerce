@@ -1,6 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   nodeModulesRootsFor,
@@ -239,8 +240,20 @@ describe('the roots it reads', () => {
   it('reads the chain above the running platform when nothing is declared', () => {
     // A deployed instance has no variable set: the platform's own
     // `node_modules` is where its extension packages are installed.
+    //
+    // **Which chain that is is a fact about where this function's file sits**,
+    // and it moved with the file (`specs/110-instance-repository/` T113): the
+    // walk started at `backend/src/packages/` and now starts at
+    // `@endora-commerce/platform`, so `backend/node_modules` came off the chain
+    // and the platform package's own went on. Asserted as the *directory holding
+    // the running module*, derived from `import.meta.resolve`, rather than as a
+    // path spelled here — a spelled one is a second answer to "where does the
+    // platform run from", and it is exactly the answer that just changed.
+    const platformRoot = dirname(
+      createRequire(import.meta.url).resolve('@endora-commerce/platform/package.json'),
+    );
     const roots = nodeModulesRootsFor({} as NodeJS.ProcessEnv);
-    expect(roots.some((r) => r.endsWith(join('backend', 'node_modules')))).toBe(true);
+    expect(roots).toContain(join(platformRoot, 'node_modules'));
   });
 
   it('deduplicates a declared root that is already on the chain', () => {

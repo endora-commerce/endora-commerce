@@ -728,8 +728,12 @@ rather than counting them:
    generated manifest index stays light. The handler receives a `ModuleContext` and resolves
    with `lazyPort<T>(ctx, 'literalName')`, byte-identical to `backend.ts`; a
    `scope.cradle.someForeignPort` read would be an undeclared edge `check:port-dependencies`
-   reports clean. `pnpm --filter backend run cli -- --list` prints every command an instance
-   offers. The five `module:*` scripts are the **other** family and must not convert: they
+   reports clean. `pnpm --filter backend run cli --list` prints every command an instance
+   offers — **without the `--`**, which pnpm forwards to the script as a literal argument
+   (`tsx … src/cli.ts "--" "--list"`, measured). A flag parser ignores the stray token, which is
+   why the `--` spelling elsewhere in this file is harmless; this dispatcher reads its first
+   positional as a module name and answers `UnknownCommandError: no module '--' declares a
+   command`, exit 1. The five `module:*` scripts are the **other** family and must not convert: they
    operate *on* the platform, and composing runs the reconciler that would make
    `module:install` a silent no-op (D-157.2/.4).
 

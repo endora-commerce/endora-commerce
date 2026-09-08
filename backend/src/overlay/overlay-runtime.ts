@@ -1,145 +1,73 @@
-// Overlay resolution — runtime loader used by composition.
-//
-// The resolver (`resolve-overlay.ts`) decides WHICH core units a deployment
-// overrides; this module dynamically imports the overlay implementations so
-// composition can wire them. It runs ONCE at composeApp() startup. For a
-// bare-core build (no DEPLOYMENT / no overlay dir) both loaders return empty and
-// composition is byte-for-byte unchanged (FR-008).
-//
-// Runtime path mapping: overlay files are authored under `backend/src/apps/…`
-// and compiled to `backend/dist/apps/…`. Which of the two this process reads
-// needs no detection — `overlay-roots.ts` derives every root from its own
-// `import.meta.url`, so a compiled run is already rooted at `backend/dist`.
-// What did not follow was the **file names**: this module spelled `manifest.ts`
-// and `backend.ts` into `join(...)` and an `existsSync`, and a compiled tree
-// spells both `.js`. `overlayModuleEntriesUnder` therefore skipped every
-// overlay module in production — `if (!existsSync(...)) continue`, no error and
-// no warning. Measured: the same binary with `DEPLOYMENT=example` logs
-// `decoratedBy: 'example_overlay'` under `tsx` and produces zero overlay lines
-// under `node dist/index.js` (feature 080, D-165 step C).
-//
-// So a unit is **resolved** rather than derived — see {@link resolveOverlayUnit}
-// — and the path that comes back is the file that exists, which is what every
-// consumer of `filePath` needs anyway.
+/**
+ * The overlay loader's **binding** — two suppliers, and nothing else
+ * (`specs/110-instance-repository/` T114, FR-013/FR-014).
+ *
+ * The loader is `@endora-commerce/platform/overlay`'s: the deterministic
+ * listing, the `.js`/`.ts` unit resolution a compiled tree needs, the
+ * id-collision seam both readers go through, and the two loaders themselves.
+ * None of it derives a path any more, because none of it can — in an instance
+ * the application is a member the CLI scaffolded and the package cannot see it.
+ *
+ * What is left here is the wiring an instance must own anyway, and it is two
+ * questions:
+ *
+ *  - **which directory holds `apps/<deployment>/modules`** — `overlay-roots.ts`,
+ *    the application's one `import.meta.url` root derivation (D115-3), and
+ *  - **who already claims a module id** — `claimsOutsideTheOverlay`, whose core
+ *    half comes off the generated manifest index and which R7.4 therefore keeps
+ *    out of the package.
+ *
+ * **Every exported name and signature is kept deliberately.** The composition
+ * root, the manifest registry, a check and the overlay test tree all import this
+ * path, so moving the *file* would be a rewrite whose entire content is a path,
+ * and moving the *loader* is this one. It is the split
+ * `registered-manifests.ts` took in `specs/115-lifecycle-container-move/`
+ * Phase 3, one directory over.
+ *
+ * The claims are computed **per call** rather than captured, because
+ * `claimsOutsideTheOverlay` reads this instance's `node_modules`: a captured set
+ * would answer the first caller's question forever, and a suite proves a module
+ * present and absent in one run.
+ */
 
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
-import type { ModuleManifest, ModuleManifestExports } from '@endora-commerce/contracts';
+import {
+  overlayModuleEntriesUnder as loadEntriesUnder,
+  overlayModuleIdsUnder as idsUnder,
+  overlayModuleManifestsUnder as loadManifestsUnder,
+  type OverlayModuleManifest,
+} from '@endora-commerce/platform/overlay';
 import type { ModuleEntry } from '../kernel/compose.js';
 import { claimsOutsideTheOverlay } from '../packages/claimed-module-ids.js';
-import { assertNoModuleIdCollisions } from '../packages/module-id-claims.js';
 import { activeOverlayModulesRoot } from './overlay-roots.js';
-import { listOverlayModuleDirs } from './resolve-overlay.js';
 
 /**
- * The two spellings one unit has: `<stem>.js` in a compiled tree, `<stem>.ts`
- * under `tsx` and `vitest`. Compiled first, for the reason
- * `manifest-locations.ts` gives about the same pair — the compiled tree is the
- * one where picking up a stray source file would be wrong.
+ * The manifest shape a caller of {@link discoverOverlayModuleManifests} names.
+ *
+ * Re-exported **without a `from`**, and that is not a style choice.
+ * `test/helpers/platform-single-copy-probe.ts` classifies an application file by
+ * whether it re-exports out of the platform, because a file that does holds a
+ * second spelling of a platform value and a file that does not holds the
+ * application's own. This file is the second kind: it imports the loader once
+ * and wraps it, so its three exported functions are its own — a wrapper, not a
+ * copy. A `export … from '@endora-commerce/platform/overlay'` here would put the
+ * whole binding in that walk, where the wrappers compare unequal to the
+ * functions they wrap and are reported as a duplication that is not there.
+ * Measured: three false `distinct` entries, one per wrapper.
  */
-const UNIT_EXTENSIONS = ['.js', '.ts'] as const;
+export type { OverlayModuleManifest };
 
 /**
- * The real path of the overlay unit `<dir>/<stem>`, or `null` when the module
- * ships neither spelling.
+ * The overlay module ids under one root, with this instance's claims applied.
  *
- * A **resolution**, never a derivation. The path this returns is a file that
- * exists, so `existsSync` on it is redundant by construction and a caller
- * cannot end up importing a name the build never emitted.
+ * `env` is an argument rather than an ambient read for the reason
+ * `resolvedManifestEntries` gives: one process resolves both answers, and a
+ * `DEPLOYMENT` read at import time could answer only one of them.
  */
-export function resolveOverlayUnit(dir: string, stem: string): string | null {
-  for (const extension of UNIT_EXTENSIONS) {
-    const candidate = join(dir, `${stem}${extension}`);
-    if (existsSync(candidate)) return candidate;
-  }
-  return null;
-}
-
-/** The candidates {@link resolveOverlayUnit} tried, for a message that names them. */
-function unitCandidates(dir: string, stem: string): string {
-  return UNIT_EXTENSIONS.map((extension) => join(dir, `${stem}${extension}`)).join(' and ');
-}
-
-/** Convert an absolute path to an importable URL. */
-function importUrlFor(absPath: string): string {
-  return pathToFileURL(absPath).href;
-}
-
-// ---- Overlay-only modules (US2, D-103/D-104) -------------------------------
-
-/** An overlay module's manifest + on-disk location (no registration wiring yet). */
-export interface OverlayModuleManifest {
-  id: string;
-  manifest: ModuleManifest;
-  filePath: string;
-  /** Install-time work lives in `manifest.ts` (D-46), overlay modules included. */
-  installHook?: ModuleManifestExports['installHook'];
-  uninstallHook?: ModuleManifestExports['uninstallHook'];
-  /**
-   * This module's interest in every *other* module's install and hard
-   * uninstall — feature 080, T036a / D-159. Read here for the same reason the
-   * two hooks are: the export travels with the manifest, so an overlay module
-   * and an installed package declare one on exactly core's terms.
-   */
-  lifecycleParticipant?: ModuleManifestExports['lifecycleParticipant'];
-  /**
-   * The operator commands this module declares — feature 080, T042b / D-160.9.
-   * Read here for the same reason the hooks are: the export travels with the
-   * manifest, so an overlay module declares one on exactly core's terms.
-   */
-  cliCommands?: ModuleManifestExports['cliCommands'];
-  /**
-   * The module's recent-activity eligibility — feature 080, T042j / D-163.1.
-   * Read here for the same reason the hooks are: the export travels with the
-   * manifest, so an overlay module declares one on exactly core's terms.
-   */
-  recentActivity?: ModuleManifestExports['recentActivity'];
-}
-
-/** Ids of client-only overlay modules for the active deployment (absent from core). */
-function newOverlayModuleIds(env: NodeJS.ProcessEnv): { root: string; ids: string[] } | null {
-  const overlayRoot = activeOverlayModulesRoot(env);
-  if (overlayRoot === null) return null;
-  return { root: overlayRoot, ids: overlayModuleIdsUnder(overlayRoot, env) };
-}
-
-/**
- * The overlay module ids under one overlay modules root, **and the one place
- * their claim on those ids is checked** (feature 103, FR-004).
- *
- * Both overlay seams go through here — `overlayModuleManifestsUnder`, which is
- * what `resolvedManifestEntries()` reads, and `overlayModuleEntriesUnder`,
- * which is what a composition root composes — so the two cannot answer
- * differently, which is exactly what they used to do: one dropped a colliding
- * manifest with a `continue` while the other composed the module, leaving it
- * with no registry row, no permission-catalogue entry and its routes gated on
- * the effective state of somebody else's module of the same id.
- *
- * The claimed set is derived from what this instance ships and what is
- * installed in it (`claimsOutsideTheOverlay`), never written down — so a module
- * that arrives, moves or leaves changes the answer in the same run.
- *
- * This used to be `scanOverlay(root, indexCore(coreModulesRoot())).newModules`
- * — a file-shadowing scan whose core index resolved `backend/src/modules`,
- * which has held no module since F4. With the index empty **every** overlay
- * directory came back as a new module claiming its id, unchecked (D-201).
- */
-function overlayModuleIdsUnder(root: string, env: NodeJS.ProcessEnv): string[] {
-  const ids = listOverlayModuleDirs(root);
-  assertNoModuleIdCollisions([
-    ...claimsOutsideTheOverlay(env),
-    ...ids.map((id) => ({
-      id,
-      origin: 'overlay' as const,
-      // The directory, not a manifest that may not be there: an overlay module
-      // with no manifest is refused a few lines down, by a message that names
-      // both candidate spellings, and a claim built from a path that does not
-      // exist would pre-empt it with a worse one.
-      claimedBy: join(root, id),
-    })),
-  ]);
-  return ids;
+export function overlayModuleIdsUnder(
+  root: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string[] {
+  return idsUnder(root, claimsOutsideTheOverlay(env));
 }
 
 /**
@@ -151,9 +79,9 @@ function overlayModuleIdsUnder(root: string, env: NodeJS.ProcessEnv): string[] {
 export async function discoverOverlayModuleManifests(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<OverlayModuleManifest[]> {
-  const found = newOverlayModuleIds(env);
-  if (found === null) return [];
-  return overlayModuleManifestsUnder(found.root, found.ids);
+  const root = activeOverlayModulesRoot(env);
+  if (root === null) return [];
+  return loadManifestsUnder(root, overlayModuleIdsUnder(root, env));
 }
 
 /**
@@ -168,104 +96,24 @@ export async function overlayModuleManifestsUnder(
   root: string,
   ids: readonly string[] = overlayModuleIdsUnder(root, process.env),
 ): Promise<OverlayModuleManifest[]> {
-  const out: OverlayModuleManifest[] = [];
-  for (const id of ids) {
-    const moduleDir = join(root, id);
-    const manifestPath = resolveOverlayUnit(moduleDir, 'manifest');
-    if (manifestPath === null) {
-      // The scan already reported this directory as a module, so an absent
-      // manifest is not "a directory that ships nothing" — it is a module with
-      // no id and no version to compose it under. Refused here rather than left
-      // to `import()`, whose ERR_MODULE_NOT_FOUND names a `.ts` path that never
-      // existed in a compiled tree and sends the reader looking for the wrong
-      // file (D-165 step C).
-      throw new Error(
-        `[overlay] the module directory ${moduleDir} carries no manifest — tried ` +
-          `${unitCandidates(moduleDir, 'manifest')}. An overlay module is discovered by its ` +
-          `directory and identified by its manifest; without one it has no id and no version.`,
-      );
-    }
-    const mod = (await import(importUrlFor(manifestPath))) as Record<string, unknown>;
-    const manifest = mod['manifest'] as ModuleManifest | undefined;
-    if (!manifest) continue;
-    // `exactOptionalPropertyTypes`: an absent key is not `{ hook: undefined }`,
-    // and the lifecycle asks `entry.installHook !== undefined`.
-    const installHook = mod['installHook'] as ModuleManifestExports['installHook'] | undefined;
-    const uninstallHook = mod['uninstallHook'] as
-      | ModuleManifestExports['uninstallHook']
-      | undefined;
-    const lifecycleParticipant = mod['lifecycleParticipant'] as
-      | ModuleManifestExports['lifecycleParticipant']
-      | undefined;
-    const cliCommands = mod['cliCommands'] as ModuleManifestExports['cliCommands'] | undefined;
-    const recentActivity = mod['recentActivity'] as
-      | ModuleManifestExports['recentActivity']
-      | undefined;
-    out.push({
-      id,
-      manifest,
-      filePath: manifestPath,
-      ...(installHook ? { installHook } : {}),
-      ...(uninstallHook ? { uninstallHook } : {}),
-      ...(lifecycleParticipant ? { lifecycleParticipant } : {}),
-      ...(cliCommands ? { cliCommands } : {}),
-      ...(recentActivity ? { recentActivity } : {}),
-    });
-  }
-  return out;
+  return loadManifestsUnder(root, ids);
 }
 
 /**
  * The active deployment's converted overlay modules, as composer entries
- * (D-103/D-104).
+ * (D-103/D-104). A root appends these to the core list and passes the single
+ * array to `composeModules`, so an overlay module receives an ordinary
+ * `ModuleContext` and reaches every seam a core module reaches.
  *
- * This is the **one** composition path for an overlay module: a root appends
- * these to the core list and passes the single array to `composeModules`, so an
- * overlay module receives an ordinary `ModuleContext` and reaches every seam a
- * core module reaches — `ctx.routes` and its lifecycle gate, `ctx.worker`,
- * `ctx.subscribe`, `ctx.interceptors`, `ctx.onBoot`, ports, and the decoration
- * exemption. The path it replaces handed a frozen seven-field context to a
- * `plugin.ts` factory and could gate nothing.
- *
- * **Discovered at runtime, not baked into a generated core artefact** (D-104).
- * A deployment's manifests already resolve this way and for the stated reason:
- * the answer depends on which deployment the *process* runs as, not on which
- * tree a generator was run against. Registrations have the identical property
- * and used to be given the opposite treatment, which made
- * `composition.generated.ts` and `manifest-index.generated.ts` environment-
- * dependent — an artefact that is always stale for a deployment is one nobody
- * can use to detect a genuinely stale one (issue #120, applied to the family it
- * was missed in).
- *
- * `overlay: true` is set **from the root the module was found under**, which is
- * what `ModuleEntry.overlay`'s own contract requires: it exempts the module
- * from the rule that a module may decorate only what it registered, so it may
- * never be a claim a module makes about itself.
- *
- * Ordering is deterministic — the entries come back in id order and a root
- * appends them after a frozen core list — and it decides nothing about
- * decoration. It used to: this paragraph read "so a deployment's decoration
- * always wraps a core registration that is already there", which was the
- * composer's array position doing policy work. Since D-176 every
- * `ctx.di.decorate` is queued during registration and drained once the last
- * module has registered, so where a module sits in the array cannot grant or
- * refuse a wrap; the ownership guard decides, alone.
- *
- * A module directory with no backend entry point **in either spelling** is
- * skipped, not thrown at — a deployment may ship an overlay directory that only
- * shadows core files. "Either spelling" is the whole of D-165 step C's repair
- * here: this used to ask `existsSync('backend.ts')`, so a compiled deployment's
- * every module took the skip and vanished with no error. A `backend.js`/`.ts`
- * that exports no `registerModule` is a different thing and is refused:
- * skipping it would compose nothing, and the first symptom would be a 404
- * nobody connects to this file.
+ * Empty for a bare-core build: no `DEPLOYMENT`, or a deployment that ships no
+ * overlay directory, and composition is byte-for-byte unchanged (FR-008).
  */
 export async function loadOverlayModuleEntries(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<ModuleEntry[]> {
   const root = activeOverlayModulesRoot(env);
   if (root === null) return [];
-  return overlayModuleEntriesUnder(root, env);
+  return loadEntriesUnder(root, claimsOutsideTheOverlay(env));
 }
 
 /**
@@ -280,44 +128,5 @@ export async function overlayModuleEntriesUnder(
   root: string,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<ModuleEntry[]> {
-  const entries: ModuleEntry[] = [];
-  for (const id of overlayModuleIdsUnder(root, env)) {
-    const moduleDir = join(root, id);
-    const backendPath = resolveOverlayUnit(moduleDir, 'backend');
-    if (backendPath === null) continue;
-    const mod = (await import(importUrlFor(backendPath))) as Record<string, unknown>;
-    const registerModule = mod['registerModule'];
-    if (typeof registerModule !== 'function') {
-      throw new Error(
-        `[overlay] ${backendPath} exports no 'registerModule'. A module's backend.ts is its ` +
-          `entry point (see backend/src/apps/example/modules/example_overlay/backend.ts); ` +
-          `rename or remove the file if it is not one. It is not composed as written, and an ` +
-          `overlay module that composes nothing is a 404 with no error behind it.`,
-      );
-    }
-    const manifestPath = resolveOverlayUnit(moduleDir, 'manifest');
-    if (manifestPath === null) {
-      throw new Error(
-        `[overlay] ${moduleDir} ships a composable backend entry point and no manifest — ` +
-          `tried ${unitCandidates(moduleDir, 'manifest')}. The module has no id and no ` +
-          `version to compose it under.`,
-      );
-    }
-    const manifestMod = (await import(importUrlFor(manifestPath))) as Record<string, unknown>;
-    const manifest = manifestMod['manifest'] as ModuleManifest | undefined;
-    if (!manifest) {
-      throw new Error(
-        `[overlay] ${manifestPath} exports no lifecycle-shape manifest, so ` +
-          `the module has no id and no version to compose it under.`,
-      );
-    }
-    entries.push({
-      id,
-      version: manifest.version,
-      registerModule: registerModule as ModuleEntry['registerModule'],
-      // From the root, never from the module. See the note above.
-      overlay: true,
-    });
-  }
-  return entries;
+  return loadEntriesUnder(root, claimsOutsideTheOverlay(env));
 }
