@@ -37,12 +37,19 @@ export async function deactivateInfakt(h: BackendServerHandle): Promise<void> {
   }
 }
 
-export async function saveInfaktConnection(h: BackendServerHandle): Promise<void> {
+export async function saveInfaktConnection(
+  h: BackendServerHandle,
+  opts?: { webhookSecret?: string },
+): Promise<void> {
   const res = await h.app.inject({
     method: 'PUT',
     url: '/api/v1/admin/infakt/connection',
     ...ADMIN,
-    payload: { apiKey: INFAKT_API_KEY, environment: 'sandbox' },
+    payload: {
+      apiKey: INFAKT_API_KEY,
+      environment: 'sandbox',
+      ...(opts?.webhookSecret !== undefined ? { webhookSecret: opts.webhookSecret } : {}),
+    },
   });
   if (res.statusCode !== 200) {
     throw new Error(`Infakt connection upsert failed: ${res.statusCode} ${res.body}`);

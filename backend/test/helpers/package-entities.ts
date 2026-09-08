@@ -177,6 +177,7 @@ import type { EmailDelivery as EmailDeliveryRow } from '../../../packages/module
 import type { InvoiceLedgerClientMap as InvoiceLedgerClientMapRow } from '../../../packages/modules/invoice_ledger/src/backend/entities/invoice-ledger-client-map.entity.js';
 import type { InvoiceLedgerDelivery as InvoiceLedgerDeliveryRow } from '../../../packages/modules/invoice_ledger/src/backend/entities/invoice-ledger-delivery.entity.js';
 import type { InvoiceLedgerDocumentMap as InvoiceLedgerDocumentMapRow } from '../../../packages/modules/invoice_ledger/src/backend/entities/invoice-ledger-document-map.entity.js';
+import type { InvoiceLedgerWebhookReceipt as InvoiceLedgerWebhookReceiptRow } from '../../../packages/modules/invoice_ledger/src/backend/entities/invoice-ledger-webhook-receipt.entity.js';
 import type { Invoice as InvoiceRow } from '../../../packages/modules/invoices/src/backend/entities/invoice.entity.js';
 import type { InvoiceLine as InvoiceLineRow } from '../../../packages/modules/invoices/src/backend/entities/invoice-line.entity.js';
 import type { InvoiceNumberCounter as InvoiceNumberCounterRow } from '../../../packages/modules/invoices/src/backend/entities/invoice-number-counter.entity.js';
@@ -679,6 +680,10 @@ export const InvoiceLedgerDelivery = classNamed<InvoiceLedgerDeliveryRow>(
 export const InvoiceLedgerDocumentMap = classNamed<InvoiceLedgerDocumentMapRow>(
   invoiceLedgerEntities,
   'InvoiceLedgerDocumentMap',
+);
+export const InvoiceLedgerWebhookReceipt = classNamed<InvoiceLedgerWebhookReceiptRow>(
+  invoiceLedgerEntities,
+  'InvoiceLedgerWebhookReceipt',
 );
 export const Invoice = classNamed<InvoiceRow>(invoicesEntities, 'Invoice');
 export const InvoiceLine = classNamed<InvoiceLineRow>(invoicesEntities, 'InvoiceLine');
