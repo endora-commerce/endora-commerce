@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   INFAKT_INSTANCE_CREDENTIAL_CODE,
+  INVOICE_COPY_HOST_PORT,
   INVOICE_KSEF_ASSIGNMENT_PORT,
   INVOICE_LEDGER_DELIVERY_PORT,
   INVOICE_LEDGER_DELIVERY_QUEUED_EVENT,
@@ -15,6 +16,7 @@ import {
   invoiceCorrectedEventSchema,
   invoiceIssuedEventSchema,
   type CredentialsPort,
+  type InvoiceCopyHostPort,
   type InvoiceKsefAssignmentPort,
   type InvoiceLedgerDeliveryPort,
   type InvoiceLedgerDeliveryQueuedEvent,
@@ -31,6 +33,7 @@ import type { EventBase, EventBus } from '@endora-commerce/platform/events';
 import type { ModuleContext, RequireAdminFactory, SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { lazyPort } from '@endora-commerce/platform/kernel';
 import { registerInvoiceLedgerAdminRoutes } from './routes.admin.js';
+import { InvoiceLedgerDeliveryAdminService } from './services/invoice-ledger-delivery-admin.service.js';
 import { InvoiceLedgerRoutingWriteService } from './services/invoice-ledger-routing-write.service.js';
 import { InvoiceLedgerActivationLock } from './entities/invoice-ledger-activation-lock.entity.js';
 import { InvoiceLedgerClientMap } from './entities/invoice-ledger-client-map.entity.js';
@@ -55,6 +58,8 @@ interface LedgerCradle {
   readonly eventBus: EventBus<LedgerEvents>;
   readonly commandBus: CommandBus;
   readonly invoiceLedgerRoutingWrite: InvoiceLedgerRoutingWriteService;
+  readonly invoiceLedgerDeliveryService: InvoiceLedgerDeliveryService;
+  readonly invoiceLedgerDeliveryAdmin: InvoiceLedgerDeliveryAdminService;
 }
 
 interface ModuleActivationChangedPayload {
@@ -85,10 +90,16 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 
+  ctx.di.register({
+    invoiceLedgerDeliveryService: ctx
+      .asFunction(({ emFactory }: LedgerCradle) => new InvoiceLedgerDeliveryService(emFactory))
+      .singleton(),
+  });
+
   ctx.di.providePort<InvoiceLedgerDeliveryPort>(
     INVOICE_LEDGER_DELIVERY_PORT,
     ctx
-      .asFunction(({ emFactory }: LedgerCradle) => new InvoiceLedgerDeliveryService(emFactory))
+      .asFunction(({ invoiceLedgerDeliveryService }: LedgerCradle) => invoiceLedgerDeliveryService)
       .singleton(),
   );
 
@@ -119,6 +130,16 @@ export function registerModule(ctx: ModuleContext): void {
           lazyPort<SettingsAdminPort>(ctx, 'settingsAdminService'),
           emFactory,
           commandBus,
+        );
+      })
+      .singleton(),
+    invoiceLedgerDeliveryAdmin: ctx
+      .asFunction(({ invoiceLedgerDeliveryService, commandBus, eventBus }: LedgerCradle) => {
+        return new InvoiceLedgerDeliveryAdminService(
+          invoiceLedgerDeliveryService,
+          lazyPort<InvoiceCopyHostPort>(ctx, INVOICE_COPY_HOST_PORT),
+          commandBus,
+          eventBus,
         );
       })
       .singleton(),
@@ -222,10 +243,12 @@ export function registerModule(ctx: ModuleContext): void {
   });
 
   ctx.routes(async (app) => {
-    const { requireAdmin, invoiceLedgerRoutingWrite } = ctx.cradle<LedgerCradle>();
+    const { requireAdmin, invoiceLedgerRoutingWrite, invoiceLedgerDeliveryAdmin } =
+      ctx.cradle<LedgerCradle>();
     await registerInvoiceLedgerAdminRoutes(app, {
       requireAdmin,
       routingWrite: invoiceLedgerRoutingWrite,
+      deliveries: invoiceLedgerDeliveryAdmin,
     });
   });
 }

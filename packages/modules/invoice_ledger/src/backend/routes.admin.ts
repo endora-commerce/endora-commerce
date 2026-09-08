@@ -4,15 +4,18 @@ import {
   ERROR_CODES,
   INVOICE_LEDGER_READ_PERMISSION,
   INVOICE_LEDGER_WRITE_PERMISSION,
+  invoiceLedgerDeliveryListQuerySchema,
   invoiceLedgerRoutingWriteBodySchema,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { InvoiceLedgerDeliveryAdminService } from './services/invoice-ledger-delivery-admin.service.js';
 import type { InvoiceLedgerRoutingWriteService } from './services/invoice-ledger-routing-write.service.js';
 
 export interface InvoiceLedgerAdminRoutesDeps {
   requireAdmin: RequireAdminFactory;
   routingWrite: InvoiceLedgerRoutingWriteService;
+  deliveries: InvoiceLedgerDeliveryAdminService;
 }
 
 function parseOrThrow<T>(schema: z.ZodType<T>, value: unknown): T {
@@ -43,7 +46,20 @@ export async function registerInvoiceLedgerAdminRoutes(
     return reply.send({ data: await deps.routingWrite.write(body) });
   });
 
-  app.get('/api/v1/admin/invoice-ledger/deliveries', read, async (_request, reply) => {
-    return reply.send({ data: [] });
+  app.get('/api/v1/admin/invoice-ledger/deliveries', read, async (request, reply) => {
+    const query = parseOrThrow(invoiceLedgerDeliveryListQuerySchema, request.query ?? {});
+    return reply.send(await deps.deliveries.list(query));
   });
+
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/invoice-ledger/deliveries/:id/retry',
+    write,
+    async (request, reply) => {
+      const id = request.params.id;
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Delivery not found.');
+      }
+      return reply.send({ data: await deps.deliveries.retry(id) });
+    },
+  );
 }

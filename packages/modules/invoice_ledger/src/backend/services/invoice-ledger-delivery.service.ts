@@ -9,6 +9,7 @@ import {
 import { InvoiceLedgerClientMap } from '../entities/invoice-ledger-client-map.entity.js';
 import { InvoiceLedgerDelivery } from '../entities/invoice-ledger-delivery.entity.js';
 import { InvoiceLedgerDocumentMap } from '../entities/invoice-ledger-document-map.entity.js';
+import { mappedDeliveryError } from './mapped-delivery-error.js';
 
 function toRecord(row: InvoiceLedgerDelivery): LedgerDeliveryRecord {
   return {
@@ -27,7 +28,7 @@ function toRecord(row: InvoiceLedgerDelivery): LedgerDeliveryRecord {
     idempotencyKey: row.idempotencyKey,
     attemptCount: row.attemptCount,
     attempts: row.attempts,
-    lastError: row.lastError ?? null,
+    lastError: mappedDeliveryError(row.lastError ?? null),
     remotePaidAt: row.remotePaidAt ? row.remotePaidAt.toISOString() : null,
     ksefDelegated: row.ksefDelegated,
     createdAt: row.createdAt.toISOString(),
@@ -47,7 +48,7 @@ function appendAttempt(
   };
   row.attempts = [...row.attempts, attempt];
   row.attemptCount = row.attempts.length;
-  row.lastError = error;
+  row.lastError = mappedDeliveryError(error);
 }
 
 export const INVOICE_LEDGER_VENDOR_KSEF_ABSENT_MESSAGE =
@@ -247,5 +248,33 @@ export class InvoiceLedgerDeliveryService implements InvoiceLedgerDeliveryPort {
     row.status = opts?.dead ? 'dead' : 'failed';
     appendAttempt(row, row.status, error);
     await em.flush();
+  }
+
+  async requeue(id: string): Promise<LedgerDeliveryRecord | null> {
+    const em = this.emFactory();
+    const row = await em.findOne(InvoiceLedgerDelivery, { id });
+    if (!row) return null;
+    row.status = 'queued';
+    await em.flush();
+    return toRecord(row);
+  }
+
+  async listRows(input: {
+    status?: LedgerDeliveryRecord['status'];
+    salesChannelId?: string;
+    invoiceId?: string;
+    limit: number;
+    cursor?: string;
+  }): Promise<InvoiceLedgerDelivery[]> {
+    const em = this.emFactory();
+    const where: Record<string, unknown> = {};
+    if (input.status) where['status'] = input.status;
+    if (input.salesChannelId) where['salesChannelId'] = input.salesChannelId;
+    if (input.invoiceId) where['invoiceId'] = input.invoiceId;
+    if (input.cursor) where['id'] = { $lt: input.cursor };
+    return em.find(InvoiceLedgerDelivery, where, {
+      orderBy: { updatedAt: 'DESC', id: 'DESC' },
+      limit: input.limit + 1,
+    });
   }
 }

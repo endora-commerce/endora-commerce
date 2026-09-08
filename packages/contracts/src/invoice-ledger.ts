@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { listQuerySchema } from './pagination.js';
 
 /**
  * Shared invoice-ledger vocabulary — feature 119 (`invoice_ledger` package).
@@ -234,3 +235,10 @@ export const invoiceLedgerDeliveryListItemSchema = z.object({
   updatedAt: z.string().datetime(),
 });
 export type InvoiceLedgerDeliveryListItem = z.infer<typeof invoiceLedgerDeliveryListItemSchema>;
+
+export const invoiceLedgerDeliveryListQuerySchema = listQuerySchema.extend({
+  status: invoiceLedgerDeliveryStatusSchema.optional(),
+  salesChannelId: z.string().uuid().optional(),
+  invoiceId: z.string().uuid().optional(),
+});
+export type InvoiceLedgerDeliveryListQuery = z.infer<typeof invoiceLedgerDeliveryListQuerySchema>;

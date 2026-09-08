@@ -74,6 +74,14 @@ export const manifest = defineModuleManifest({
       reason:
         'invoice_ledger is non-deactivatable, so invoices cannot be a hard dependency.',
     },
+    {
+      moduleId: 'invoices',
+      name: 'invoiceCopyHostPort',
+      kind: 'degrades-without',
+      whenAbsent: 'Delivery list shows invoice ids without numbers while invoices is off.',
+      reason:
+        'List reads invoice numbers through the invoices copy port. invoice_ledger is non-deactivatable, so invoices cannot be a hard dependency.',
+    },
   ],
   activation: {
     nonDeactivatable: true,
