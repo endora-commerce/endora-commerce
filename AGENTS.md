@@ -710,7 +710,11 @@ rather than counting them:
    maintenance entry. This item used to instruct every module author to call it, which is how it
    came to be cited far more often than used; the correction then overshot into *"zero call sites
    in `src/` today"*, which D-157.5 measured false. It has **one** call site, and since feature
-   080's T042b that call site is the **host**, not a module: `src/cli/module-commands.ts` asks it
+   080's T042b that call site is the **host**, not a module. Since
+   `specs/110-instance-repository/` T117 it is the platform's own
+   `cli/module-commands.ts`, published host-internally as
+   `@endora-commerce/platform/cli` and reached by the application through a re-export shim at
+   the old path; it asks
    about the module that **declared** the command it is about to run — first, before it builds a
    context and outside every `try`. That is the same question the one module that used to ask it
    (`carts`' abandonment sweep) asked about itself, applied once for every command instead of a

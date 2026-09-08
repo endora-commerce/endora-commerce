@@ -126,6 +126,7 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     // not written in prose beside the list: it moves with the map, and a derived
     // number copied into a sentence is what goes stale (D-100).
     expect([...measurement.declared].sort()).toEqual([
+      'cli',
       'commands',
       'composition',
       'db',
@@ -189,8 +190,17 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     // the bindings that supply what a relocated platform file may not reach
     // (R7.4) — so both spellings of every moved value are live in one process,
     // which is precisely the state this file exists to measure.
+    // `./cli` arrived with `specs/110-instance-repository/` T117 and is
+    // comparable on the plainest terms of any member here: the host's side of a
+    // module-declared command moved **whole**, so what `backend/src/cli/`
+    // keeps is one re-export shim and no binding at all — the first file on
+    // this chain that left nothing behind. Its neighbour in that directory,
+    // `demo-command.ts`, is the application's own and forwards to nothing, so
+    // the probe's forwarding filter is what keeps it out of a walk that
+    // imports what it finds.
     expect([...measurement.unshimmed].sort()).toEqual(['env', 'migrations']);
     expect(comparisons.map((entry) => entry.subpath)).toEqual([
+      'cli',
       'commands',
       'composition',
       'db',

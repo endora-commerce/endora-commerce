@@ -53,10 +53,14 @@
  * T1 asks for now and becomes executable the moment Phase 2 lands.
  *
  * §2.3's sixth wiring file, `backend/src/cli.ts`, is a different case and is
- * **not written**: the host CLI dispatcher's published entry point does not
- * exist under any name (T117 moves `cli/module-commands.ts`), and rendering a
- * file against a name somebody would have had to invent for it is exactly what
- * R2.5a refuses. It is reported as an omission instead.
+ * **not written**. T117 has since landed and the *dispatcher* now has an
+ * address — `<scope>platform/cli` carries the enumeration, the lookup and the
+ * find-gate-invoke — but the entry point around it still names surface the
+ * platform's `exports` map does not declare: the demo layer, which feature 113
+ * Phase 0 deliberately left unpublished pending an argument of its own. So the
+ * omission stands on a narrower reason than the one written here first, and
+ * rendering a file against a name somebody would have had to invent for it is
+ * still exactly what R2.5a refuses.
  */
 import { INSTANCE_BUILD_INPUTS, type InstanceBuildInput } from '../lib/instance-build-inputs.js';
 import { InstanceInputError } from './host.js';
@@ -218,10 +222,11 @@ export function planInstance(input: PlanInput): InstancePlan {
   omitted.push({
     path: 'backend/src/cli.ts',
     reason:
-      `the host CLI dispatcher has no published entry point in this build ` +
-      `(${input.scope}platform does not export one yet), and this command writes no file ` +
-      `against a name it would have to invent. A module's own operator command is ` +
-      `unavailable until it does; the five \`module:*\` commands are not, and are written`,
+      `the host CLI entry point names surface this build does not publish — the ` +
+      `dispatcher itself is \`${input.scope}platform/cli\`, but the demo layer around it ` +
+      `is exported under no subpath — and this command writes no file against a name it ` +
+      `would have to invent. A module's own operator command is unavailable until it ` +
+      `does; the five \`module:*\` commands are not, and are written`,
   });
 
   omitted.push({

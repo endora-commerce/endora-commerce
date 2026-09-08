@@ -65,6 +65,10 @@
       "types": "./dist/overlay/index.d.ts",
       "default": "./dist/overlay/index.js"
     },
+    "./cli": {
+      "types": "./dist/cli/index.d.ts",
+      "default": "./dist/cli/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
