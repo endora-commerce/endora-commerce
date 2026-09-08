@@ -616,14 +616,20 @@ describe('the criterion runs in CI', () => {
   it('is triggered by every input that can change the answer', () => {
     // A criterion that exists and never runs is `.gitlab-ci.yml`'s own
     // `DEPLOYMENT` matrix failure repeated one layer out (contract §Where it
-    // runs). These four paths are the ones that decide whether a package's
-    // schema reaches a database.
+    // runs). These paths are the ones that decide whether a package's schema
+    // reaches a database. The ordering half is
+    // `@endora-commerce/platform/db`'s since `specs/110-instance-repository/`
+    // T116 — `migration-order.ts` moved into the package with the ORM
+    // configuration and the two merges — so the trigger is the directory
+    // rather than the one file, and the platform's own twelve migrations are
+    // the second half of the same answer.
     const job = ci.slice(ci.indexOf('\nacceptance:package-schema:'));
     for (const path of [
       'backend/scripts/generate-composer.ts',
       'backend/src/db/migrations-registry.generated.ts',
       'backend/src/db/entities-registry.generated.ts',
-      'backend/src/db/migration-order.ts',
+      'packages/platform/src/db/**/*',
+      'packages/platform/src/migrations/**/*',
       'backend/acceptance/**/*',
       'backend/scripts/acceptance/**/*',
     ]) {

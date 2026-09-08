@@ -8,7 +8,7 @@ import {
   orderMigrations,
   type MigrationClass,
   type MigrationRegistryEntry,
-} from '../../../src/db/migration-order.js';
+} from '@endora-commerce/platform/db';
 import { coreModuleDependencies } from '../../../src/db/configured-migrations.js';
 import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
 

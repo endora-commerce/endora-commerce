@@ -48,9 +48,10 @@
  * rather than derived, and it is a **ruling** (D-160.7) rather than a fact about
  * the tree: five enumerated subpaths, no root export, no wildcard, with `db`,
  * `overlay` and `packages` deliberately unpublishable (§1.4f, §1.4l). It cannot
- * be derived from "a directory with an `index.ts`", because `src/db/index.ts`
- * exists and is the single hardest **A** in the contract — publishing it would
- * make the host import all 219 module-owned entity references.
+ * be derived from "a directory with an `index.ts`", because the platform's own
+ * `db/index.ts` exists and is the single hardest **A** in the contract —
+ * publishing it would make the host import all 219 module-owned entity
+ * references.
  *
  * It stops being written down the day the host `package.json` exists: its
  * `exports` map is the same five subpaths, authored once, and this constant is
@@ -65,12 +66,12 @@ import ts from 'typescript';
 /**
  * The platform directories the host publishes, in the order §2.1 lists them.
  *
- * A ruling (D-160.7), not a measurement — see the header. `db` is absent on
- * purpose and its absence is the whole of §1.4f: a reach into it is unpublished
- * by construction. `overlay` and `packages` were absent for the same reason and
- * are now **declared and host-internal** (`specs/110-instance-repository/` T113
- * and T114): the code moved into the package, so the application needed an
- * address for it, and the answer to "may a module name it" is still no — see
+ * A ruling (D-160.7), not a measurement — see the header. `db`, `overlay` and
+ * `packages` are absent on purpose and `db`'s absence is the whole of §1.4f: a
+ * reach into it is not public API. All three are now **declared and
+ * host-internal** (`specs/110-instance-repository/` T113, T114 and T116): the
+ * code moved into the package, so the application needed an address for it, and
+ * the answer to "may a module name it" is still no — see
  * {@link HOST_INTERNAL_SUBPATHS}, which is where that judgement is recorded.
  */
 export const PUBLISHED_SUBPATHS: readonly string[] = [
@@ -111,6 +112,17 @@ export const HOST_INTERNAL_SUBPATHS: Readonly<Record<string, string>> = {
     'sub-kernels, prime the registry cache, establish a tenant context. Reachable by a ' +
     'package that is not a module and nameable by no module at all, because a module that ' +
     'could name it could compose the platform that composes it.',
+  db:
+    'the ORM configuration, the migration ordering and the bootstrap ' +
+    '(`specs/110-instance-repository/` T116, FR-013): the naming strategy Principle VI is ' +
+    'enforced by, the order a migration corpus runs in, the two merges that fold an ' +
+    "installed package's entities and migrations into the committed core ones, the cached " +
+    "`MikroORM` bootstrap and the four migration verbs. Host-internal for `./composition`'s " +
+    'own reason one surface over: this is the code that decides which entity classes the ORM ' +
+    'registers and which migrations run at all, so a module that could name it could ' +
+    "configure — and eventually re-order — its siblings' schema. A module reaches its own " +
+    'schema through its own `./migrations` subpath and its entities through `./backend`, and ' +
+    'the committed registries it is configured over stay the host\'s (R7.4).',
   migrations:
     'the frozen historical prefix an execution order is computed from ' +
     '(`specs/110-instance-repository/contracts/instance-migration-order.md` R1.5). It is the ' +

@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { Migration20260816T203339CoreRetireCoreActivationSettings } from '../../../src/db/migrations/20260816T203339_core_retire_core_activation_settings.js';
+import { Migration20260816T203339CoreRetireCoreActivationSettings } from '@endora-commerce/platform/migrations';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 

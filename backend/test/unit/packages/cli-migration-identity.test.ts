@@ -31,7 +31,7 @@ import {
   segmentOf,
 } from '@endora-commerce/cli';
 
-import { BASELINE_THROUGH } from '../../../src/db/migration-order.js';
+import { BASELINE_THROUGH } from '@endora-commerce/platform/db';
 import {
   classNameFromFile,
   formatStamp,

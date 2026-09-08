@@ -2,13 +2,14 @@
 import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { BASELINE_THROUGH } from '../src/db/migration-order.js';
+import { BASELINE_THROUGH } from '@endora-commerce/platform/db';
 import {
   ModuleLayoutUnresolvableError,
   resolveModuleLayout,
   type ModuleTreeLayout,
 } from './lib/module-roots.js';
 import { packageRelativePathOf, type ModulePackage } from './lib/module-packages.js';
+import { platformSourceRootAt, PlatformRootUnresolvableError } from './lib/platform-root.js';
 import {
   collectMigrations,
   coreSources,
@@ -62,12 +63,36 @@ import {
 
 const here = dirname(fileURLToPath(import.meta.url));
 const backendRoot = resolve(here, '..');
-const coreMigrationsDir = resolve(backendRoot, 'src/db/migrations');
+const repoRoot = resolve(backendRoot, '..');
+
+/**
+ * Where a `core` migration lands — the platform's own `migrations/` directory
+ * (`specs/110-instance-repository/` T116, FR-013).
+ *
+ * It was `backend/src/db/migrations` until the twelve moved. The path is
+ * **resolved** rather than spelled: the platform is the one workspace member
+ * declaring `endora.type: "platform"`, and its source root comes off that
+ * declaration exactly as every module directory in this script does. A member
+ * that is not there is a refusal — a scaffolder that fell back to the old path
+ * would write a migration into a directory nothing walks, and an unregistered
+ * migration does not run.
+ */
+function resolveCoreMigrationsDir(): string {
+  const platformRoot = platformSourceRootAt(repoRoot);
+  if (platformRoot === null) {
+    throw new PlatformRootUnresolvableError(
+      'no workspace member declares `endora.type: "platform"`, so a `core` migration has ' +
+        'nowhere to land. The twelve cross-cutting migrations are the platform\'s own ' +
+        '(`specs/110-instance-repository/` R7.5) and a thirteenth joins them.',
+    );
+  }
+  return join(platformRoot, MIGRATIONS_DIRECTORY);
+}
 
 /** contracts/naming-convention.md §1 — the only recognizer any tool may use. */
 export const MIGRATION_FILE_RE = /^(\d{8}T\d{6})_([a-z0-9_]+)\.ts$/;
 
-/** The cross-cutting pseudo-module owning src/db/migrations/. */
+/** The cross-cutting pseudo-module owning the platform's own `migrations/`. */
 const CORE_MODULE_ID = 'core';
 
 /** contracts/naming-convention.md §1 — segment normalization. */
@@ -283,8 +308,8 @@ export interface MigrationTarget {
 /**
  * Where this module's migrations live — resolved from the module layout.
  *
- * Three shapes, and the module never has to say which it is in: `core` owns
- * `backend/src/db/migrations`; a workspace **package** keeps its migrations
+ * Three shapes, and the module never has to say which it is in: `core` owns the
+ * platform's own `migrations/`; a workspace **package** keeps its migrations
  * where its own `exports` map says (see {@link packageMigrationsDirectory});
  * anything else is a module directory under the application's source root, with
  * `migrations/` beside its `manifest.ts`.
@@ -300,7 +325,7 @@ export function migrationTargetFor(
   moduleId: string,
   layout: ModuleTreeLayout,
   packages: readonly ModulePackage[],
-  coreDirectory: string = coreMigrationsDir,
+  coreDirectory: string = resolveCoreMigrationsDir(),
 ): MigrationTarget {
   if (moduleId === CORE_MODULE_ID) {
     return { moduleId, directory: coreDirectory, owner: null };
@@ -386,7 +411,7 @@ export function listMigrationDirs(
   layout: ModuleTreeLayout,
   packages: readonly ModulePackage[],
 ): string[] {
-  const dirs = [coreMigrationsDir];
+  const dirs = [resolveCoreMigrationsDir()];
   for (const id of layout.registeredIds) {
     dirs.push(migrationTargetFor(id, layout, packages).directory);
   }

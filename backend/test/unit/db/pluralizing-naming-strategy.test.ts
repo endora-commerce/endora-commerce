@@ -3,7 +3,7 @@ import {
   PluralizingNamingStrategy,
   pluralize,
   toSnakeCase,
-} from '../../../src/db/pluralizing-naming-strategy.js';
+} from '@endora-commerce/platform/db';
 
 describe('toSnakeCase', () => {
   it.each([

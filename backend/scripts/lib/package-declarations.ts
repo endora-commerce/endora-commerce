@@ -94,7 +94,7 @@ import {
   scanNodeModulesRoots,
   type InstalledPackage,
 } from '../../src/packages/installed-packages.js';
-import { pluralize, toSnakeCase } from '../../src/db/pluralizing-naming-strategy.js';
+import { pluralize, toSnakeCase } from '@endora-commerce/platform/db';
 import { tenantClassifications, type ScopeClass } from '../../src/tenancy/org-scoped.decorator.js';
 import { declaredTableNames } from './sql-tables.js';
 import type { ReadCoverage } from './read-size.js';

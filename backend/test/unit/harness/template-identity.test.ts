@@ -80,11 +80,51 @@ interface FixtureTree {
   readonly seedSources?: boolean;
 }
 
+/**
+ * The `core` origin's directory root, relative to the tree the walk is given.
+ *
+ * Derived rather than spelled, because it moved: it was `src/db/migrations`
+ * until `specs/110-instance-repository/` T116 put the twelve in the platform
+ * package, so it is now `../packages/platform/src/migrations` — a path that
+ * **leaves** the tree it is joined to, which is why the fixture roots itself one
+ * directory in (see {@link fixtureTree}). Taking it from
+ * `MIGRATION_SOURCE_ROOTS` is what keeps these refusals proving something about
+ * the real derivation rather than about a literal that agrees with itself.
+ */
+const CORE_DIRECTORY_ROOT = ((): string => {
+  const root = MIGRATION_SOURCE_ROOTS.find(
+    (candidate) => candidate.origin === 'core' && candidate.kind === 'directory',
+  );
+  if (root === undefined) {
+    throw new Error(
+      'MIGRATION_SOURCE_ROOTS declares no `core` directory root, so these fixtures have ' +
+        'nowhere to write a core migration and every refusal below would fire for the ' +
+        'wrong reason.',
+    );
+  }
+  return root.path;
+})();
+
+/**
+ * A fixture checkout, with the tree the walk is pointed at **one directory in**.
+ *
+ * The roots are `backend/`-relative and one of them now escapes it, so a fixture
+ * rooted at the tmpdir itself would write the `core` directory into `/tmp`,
+ * shared between runs. The tmpdir is therefore the checkout and the returned
+ * root is its `backend/`, exactly as in the real tree.
+ */
+const FIXTURE_CHECKOUTS: string[] = [];
+
 async function fixtureTree(options: FixtureTree): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), 'b2b-289-'));
-  await mkdir(join(root, 'src/db/migrations'), { recursive: true });
+  const checkout = await mkdtemp(join(tmpdir(), 'b2b-289-'));
+  FIXTURE_CHECKOUTS.push(checkout);
+  const root = join(checkout, 'backend');
+  await mkdir(join(root, CORE_DIRECTORY_ROOT), { recursive: true });
   for (const [index, content] of (options.migrations ?? []).entries()) {
-    await writeFile(join(root, `src/db/migrations/2026010${index}T000000_core_probe.ts`), content);
+    await writeFile(
+      join(root, CORE_DIRECTORY_ROOT, `2026010${index}T000000_core_probe.ts`),
+      content,
+    );
   }
   const helpers = options.helpers ?? [];
   if (helpers.length > 0)
@@ -179,7 +219,13 @@ describe('a template is never identified from less than it holds', () => {
   const trees: string[] = [];
 
   afterAll(async () => {
-    for (const tree of trees) await rm(tree, { recursive: true, force: true });
+    // Both lists: the `core` directory root escapes the tree the walk is given,
+    // so a fixture's files are not all under the path it returns, and the
+    // checkout that holds them is registered by `fixtureTree` itself rather
+    // than inferred from a path shape here.
+    for (const tree of [...trees, ...FIXTURE_CHECKOUTS]) {
+      await rm(tree, { recursive: true, force: true });
+    }
   });
 
   it('refuses a walk that came back short of the registry, naming the origin', async () => {

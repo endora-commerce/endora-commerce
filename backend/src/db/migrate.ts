@@ -1,3 +1,5 @@
+import { runMigrationCommand } from '@endora-commerce/platform/db';
+
 import { initOrm, closeOrm } from './index.js';
 
 /**
@@ -10,54 +12,26 @@ import { initOrm, closeOrm } from './index.js';
  *   tsx src/db/migrate.ts pending    — list pending migrations
  *   tsx src/db/migrate.ts fresh      — drop the public schema and re-apply all
  *                                       migrations from scratch (test / dev only)
+ *
+ * **The four verbs are `@endora-commerce/platform/db`'s since T116; this is the
+ * entry point.** The split is
+ * `specs/115-lifecycle-container-move/contracts/operator-half.md` §1.1's, one
+ * surface over: a path four `package.json` scripts name — and that production
+ * runs as `node dist/db/migrate.js up` — is an operator-facing address, so it
+ * stays where the operator's documentation says it is, while the work behind it
+ * is the platform's and every instance runs the same four verbs.
  */
 
 async function main(): Promise<void> {
   const cmd = process.argv[2] ?? 'up';
   const orm = await initOrm();
-  const migrator = orm.getMigrator();
 
   try {
-    switch (cmd) {
-      case 'up': {
-        const applied = await migrator.up();
-        process.stdout.write(`applied ${applied.length} migration(s)\n`);
-        for (const m of applied) process.stdout.write(`  + ${m.name}\n`);
-        break;
-      }
-      case 'down': {
-        const reverted = await migrator.down();
-        process.stdout.write(`reverted ${reverted.length} migration(s)\n`);
-        for (const m of reverted) process.stdout.write(`  - ${m.name}\n`);
-        break;
-      }
-      case 'pending': {
-        const pending = await migrator.getPendingMigrations();
-        if (pending.length === 0) {
-          process.stdout.write('no pending migrations\n');
-        } else {
-          for (const m of pending) process.stdout.write(`  ~ ${m.name}\n`);
-        }
-        break;
-      }
-      case 'fresh': {
-        // Drop the entire schema by name rather than relying on
-        // `dropSchema()`, which only removes tables present in the current
-        // entity metadata. Tables that exist in the DB but are no longer (or
-        // not yet) reflected in metadata — e.g. pivot tables — would survive
-        // that path and make Migration001 fail with "relation already exists".
-        // A raw `DROP SCHEMA ... CASCADE` guarantees a clean slate.
-        const conn = orm.em.getConnection();
-        await conn.execute('drop schema public cascade; create schema public;');
-        const applied = await migrator.up();
-        process.stdout.write(`dropped and re-applied ${applied.length} migration(s)\n`);
-        break;
-      }
-      default: {
-        process.stderr.write(`unknown command: ${cmd}\n`);
-        process.exit(1);
-      }
-    }
+    const code = await runMigrationCommand(orm, cmd, {
+      out: (line) => process.stdout.write(line),
+      err: (line) => process.stderr.write(line),
+    });
+    if (code !== 0) process.exit(code);
   } finally {
     await closeOrm();
   }

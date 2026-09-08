@@ -1,7 +1,8 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
 
-import type { MigrationOrigin } from '../../src/db/migration-order.js';
+import { platformSourceRootAt } from '../../scripts/lib/platform-root.js';
+import type { MigrationOrigin } from '@endora-commerce/platform/db';
 
 /**
  * Static derivation of the cross-module foreign-key graph from migration SQL.
@@ -146,7 +147,7 @@ export interface MigrationSource {
   file: string;
   /** `YYYYMMDDTHHmmss` from the filename, or `undefined` if it does not parse. */
   timestamp: string | undefined;
-  /** Owning module id — `'core'` for `db/migrations/`. */
+  /** Owning module id — `'core'` for the platform's own `migrations/`. */
   moduleId: string;
   /**
    * The origin of the root this file was found under. `db/migrations/` is
@@ -399,20 +400,50 @@ function collectEntityOwners(
   return owners;
 }
 
+/**
+ * Where the `core` group's migrations are, for a walk rooted at `sourceRoot`.
+ *
+ * Exported because `migration-tables.ts` walks the same group and two answers
+ * to "where are the twelve" is two answers waiting to disagree.
+ */
+export function coreMigrationDirs(sourceRoot: string): string[] {
+  const platformRoot = platformSourceRootAt(resolve(sourceRoot, '..', '..'));
+  return [
+    join(sourceRoot, 'db', 'migrations'),
+    ...(platformRoot === null ? [] : [join(platformRoot, 'migrations')]),
+  ];
+}
+
 /** contracts/naming-convention.md §1 — the only recognizer any tool may use. */
 const MIGRATION_FILE_RE = /^(\d{8}T\d{6})_[a-z0-9_]+\.ts$/;
 
-/** Every migration source file: module-scoped directories plus src/db/migrations/. */
+/**
+ * Every migration source file: the `core` group's directories plus each
+ * module's.
+ *
+ * The `core` group has **two** possible homes and both are read, because this
+ * walk is driven with a fixture root as often as with the real one. The
+ * platform's own `migrations/` is where the twelve live since
+ * `specs/110-instance-repository/` T116; `<sourceRoot>/db/migrations` is where
+ * they lived before it and is what every fixture in `fk-graph.test.ts` still
+ * writes. A directory that is not there contributes nothing, and the real
+ * floor is `fk-dependency-drift.test.ts`', which refuses a scan that lost a
+ * module — reading both is what keeps that refusal about the tree rather than
+ * about which of two layouts the caller is on.
+ */
 function collectMigrationFiles(
   sourceRoot: string,
   modules: Map<string, ScannedModule>,
 ): MigrationSource[] {
-  const found: { path: string; moduleId: string; origin: MigrationOrigin }[] =
-    listTsFilesRecursive(join(sourceRoot, 'db', 'migrations')).map((path) => ({
+  const found: { path: string; moduleId: string; origin: MigrationOrigin }[] = coreMigrationDirs(
+    sourceRoot,
+  ).flatMap((directory) =>
+    listTsFilesRecursive(directory).map((path) => ({
       path,
       moduleId: 'core',
       origin: 'core' as const,
-    }));
+    })),
+  );
   for (const scanned of [...modules.values()]) {
     for (const path of listTsFilesUnderDirectoriesNamed(scanned.directory, 'migrations')) {
       countFile(modules, scanned.id);

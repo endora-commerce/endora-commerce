@@ -108,12 +108,21 @@ describe('the specifier the generator emits, per origin', () => {
     expect(rendered).toContain("from '../modules/blog/entities/post.entity.js'");
   });
 
-  it('carries both, in one artefact, from one walk', () => {
+  it('carries all three, in one artefact, from one walk', () => {
+    // Three origins since `specs/110-instance-repository/` T116, not two: a
+    // module still in the application's own tree is relative, a **`core`**
+    // migration is the platform's own and is named through the subpath that
+    // publishes it, and a packaged one is named through its package's. The
+    // middle one used to be relative too — it was `db/migrations/` — and the
+    // walk keys it at the top level of a source root now, which for the
+    // application is a directory that no longer exists.
     const rendered = emitMigrationsRegistry(
       collectMigrations(
         mergeSources(
           coreSources({
-            'db/migrations/20260810T101500_core_initial.ts':
+            'modules/blog/migrations/20260810T101500_blog_initial.ts':
+              'export class Migration20260810T101500BlogInitial {}\n',
+            'migrations/20260810T101500_core_initial.ts':
               'export class Migration20260810T101500CoreInitial {}\n',
           }),
           packageSources(alpha, { [MIGRATION_FILE]: MIGRATION_SOURCE }),
@@ -121,7 +130,8 @@ describe('the specifier the generator emits, per origin', () => {
       ),
     );
 
-    expect(rendered).toContain("from './migrations/20260810T101500_core_initial.js'");
+    expect(rendered).toContain("from '../modules/blog/migrations/20260810T101500_blog_initial.js'");
+    expect(rendered).toContain("from '@endora-commerce/platform/migrations'");
     expect(rendered).toContain("from '@endora-commerce/mod-alpha/migrations'");
     // And the packaged migration is attributed to the id its package declares,
     // not to a path segment: a hard uninstall reverts exactly the migrations
@@ -241,8 +251,16 @@ describe('overlay:check’s foreign verdict, exercised both ways (D-155.6)', () 
         mergeSources(
           packageSources(alpha, { [MIGRATION_FILE]: MIGRATION_SOURCE }),
           coreSources({
-            'db/migrations/20260810T101500_core_initial.ts':
-              'export class Migration20260810T101500CoreInitial {}\n',
+            // An application-tree module, so the artefact carries a relative
+            // specifier beside the two bare ones. It was a `core` migration
+            // until `specs/110-instance-repository/` T116 made those the
+            // platform's: a `core` entry would now render
+            // `@endora-commerce/platform/migrations`, and this fixture
+            // checkout declares no platform member, so the containment pass
+            // would report a second foreign site and this discrimination would
+            // be about the fixture rather than about the rule.
+            'modules/blog/migrations/20260810T101500_blog_initial.ts':
+              'export class Migration20260810T101500BlogInitial {}\n',
           }),
         ),
       ),

@@ -423,7 +423,7 @@ import {
   type SqlAccessDirection,
   type SqlAccessSyntax,
 } from './lib/sql-tables.js';
-import { pluralize, toSnakeCase } from '../src/db/pluralizing-naming-strategy.js';
+import { pluralize, toSnakeCase } from '@endora-commerce/platform/db';
 
 /**
  * The convention an `@Entity()` with no `tableName` follows, handed to

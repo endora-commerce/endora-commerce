@@ -1151,7 +1151,7 @@ test:backend:
     # (b2b_test_tpl) and this shard's own database (b2b_test_r_…) from it, and
     # migrates the template (issue #189). The postgres service container starts
     # empty on every pipeline, so this is still a genuine from-scratch
-    # application of the whole chain in the order `src/db/migration-order.ts`
+    # application of the whole chain in the order `migration-order.ts`
     # computes — which is the only thing covering the open block, whose
     # migrations are ordered by the module dependency graph rather than by
     # chronology (feature 081, SC-004); the shard then runs against a clone of
@@ -1317,9 +1317,12 @@ acceptance:package-schema:
         - backend/src/db/entities-registry.generated.ts
         - backend/src/db/configured-migrations.ts
         # Execution order (feature 081): a package's chain slots in at its
-        # module's topological position.
-        - backend/src/db/migration-order.ts
-        - backend/src/db/mikro-orm.config.ts
+        # module's topological position. The order, the ORM configuration and
+        # the two merges are `@endora-commerce/platform/db`'s since
+        # `specs/110-instance-repository/` T116, and the platform's own twelve
+        # migrations sit beside the `./migrations` barrel that publishes them.
+        - packages/platform/src/db/**/*
+        - packages/platform/src/migrations/**/*
         # Packaging manifests — every `package.json` in the tree, plus the two
         # files that decide what pnpm considers a workspace member. A package
         # accidentally becoming one is precisely the trap A8 refuses.

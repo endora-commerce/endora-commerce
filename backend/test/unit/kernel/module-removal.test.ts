@@ -10,7 +10,7 @@ import { createRootContainer, registerValues } from '../../../src/kernel/contain
 import { ALL_ENTITIES } from '../../../src/db/entities-registry.generated.js';
 import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
 import { BASELINE_MIGRATIONS } from '@endora-commerce/platform/migrations';
-import { orderMigrations, type MigrationRegistryEntry } from '../../../src/db/migration-order.js';
+import { orderMigrations, type MigrationRegistryEntry } from '@endora-commerce/platform/db';
 import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
 import { platformResidentModuleRoots } from '../../../scripts/lib/module-roots.js';
 import { platformSourceRootAt } from '../../../scripts/lib/platform-root.js';

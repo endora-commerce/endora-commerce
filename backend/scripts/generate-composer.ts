@@ -78,15 +78,17 @@ import {
   type ModulePackage,
 } from './lib/module-packages.js';
 import {
+  platformPackageNameOf,
   platformSourceRootAt,
   platformSubpathsAt,
   PlatformRootUnresolvableError,
 } from './lib/platform-root.js';
+import { barrelKeyOf } from './lib/platform-surface.js';
 import { declaresRegisterModule } from './lib/module-roots.js';
 // The order the published baseline list is rendered in is `orderMigrations`'
 // own (R1.3): one derivation, so the artefact cannot come to disagree with the
 // algorithm that reads it.
-import { BASELINE_THROUGH, historicalBaselineOrder } from '../src/db/migration-order.js';
+import { BASELINE_THROUGH, historicalBaselineOrder } from '@endora-commerce/platform/db';
 import { ADMIN_REGISTRY_ARTEFACT, findAliasMember } from './lib/admin-surfaces.js';
 import { nodeWorkspaceFs, workspaceMembers } from './lib/workspace-packages.js';
 import {
@@ -1349,8 +1351,8 @@ function readSourceTree(packages: readonly ModulePackage[] = modulePackages()): 
 /**
  * Import specifier from a file in `src/db/` to a source file (D-149).
  *
- * Relative for the application's own tree — `./migration-order.js` for a
- * sibling under `db/`, `../modules/blog/…` for anything else — and **bare** for
+ * Relative for the application's own tree — `./entities-registry.generated.js`
+ * for a sibling under `db/`, `../modules/blog/…` for anything else — and **bare** for
  * a module package, which is what keeps the artefact unchanged on the day that
  * package stops being a workspace member and starts being installed. The bare
  * form is derived from the package's own `exports` map rather than assembled
@@ -1358,8 +1360,36 @@ function readSourceTree(packages: readonly ModulePackage[] = modulePackages()): 
  */
 function specifierFor(file: string, owner: ModulePackage | null): string {
   if (owner !== null) return packageSpecifierFor(owner, file);
+  // The platform's own migrations are named through the subpath that publishes
+  // them, not through a relative path (`specs/110-instance-repository/` T116).
+  // Every other platform file the registries name stays relative and lands on a
+  // re-export shim, which is this function's paragraph above and unchanged: two
+  // of the six platform entity classes are off the published barrels by ruling
+  // (`ModuleRegistration` is **A** in host-package.md §1.3), so an address for
+  // them would be a widening D-160.7 refuses. A migration class carries none of
+  // that — `mikro_orm_migrations` persists the name, the `./migrations` barrel
+  // carries all twelve, and a relative specifier here would need twelve shims
+  // in a directory the application no longer owns.
+  if (CORE_MIGRATION_RE.test(file)) return platformSpecifier(PLATFORM_MIGRATION_SUBPATH);
   const asJs = file.replace(/\.ts$/, '.js');
   return asJs.startsWith('db/') ? `./${asJs.slice('db/'.length)}` : `../${asJs}`;
+}
+
+/**
+ * `<the platform's package name>/<subpath>`, read off the workspace rather than
+ * spelled: one member declares `endora.type: "platform"` and its name is what a
+ * consumer's bare specifier has to be (D-100).
+ */
+function platformSpecifier(subpath: string): string {
+  const name = platformPackageNameOf(workspaceMembers(repoRoot, nodeWorkspaceFs()));
+  if (name === null) {
+    throw new PlatformRootUnresolvableError(
+      'no workspace member declares `endora.type: "platform"`, so the twelve core ' +
+        'migrations have no specifier. A registry that omitted them would leave a fresh ' +
+        'database with no `settings`, no `module_registrations` and no `sales_channels`.',
+    );
+  }
+  return `${name}/${subpath}`;
 }
 
 /** One `@Entity`-decorated class, as the generator sees it. */
@@ -1616,7 +1646,7 @@ function classNameFromMigrationFile(filename: string): string {
 
 /** One migration file, as the generator sees it. */
 export interface DiscoveredMigration {
-  /** Owning module id — `core` for `src/db/migrations/`. */
+  /** Owning module id — `core` for the platform's own `migrations/`. */
   readonly moduleId: string;
   readonly className: string;
   /** Path of the migration file, relative to its own root. */
@@ -1625,8 +1655,21 @@ export interface DiscoveredMigration {
   readonly owner: ModulePackage | null;
 }
 
-/** `src/db/migrations/<file>` and `src/modules/<id>/migrations/<file>`. */
-const CORE_MIGRATION_RE = /^db\/migrations\/([^/]+\.ts)$/;
+/**
+ * The platform's own migrations and the application's module-owned ones.
+ *
+ * `CORE_MIGRATION_RE` reads `migrations/<file>` at the **top level of a source
+ * root**, which since `specs/110-instance-repository/` T116 can only be the
+ * platform's tree: the twelve cross-cutting migrations moved to
+ * `packages/platform/src/migrations/` beside the `./migrations` barrel that
+ * publishes them, and `backend/src/` has no top-level `migrations/` directory
+ * (`./migrations` is a declared platform subpath, so the application walk would
+ * skip one). They keep the module id `core`, keep their filenames and keep their
+ * class names — R7.5: `mikro_orm_migrations` persists the class name, so a
+ * rename makes every existing database see the migration as pending.
+ */
+const PLATFORM_MIGRATION_SUBPATH = 'migrations';
+const CORE_MIGRATION_RE = new RegExp(`^${PLATFORM_MIGRATION_SUBPATH}/([^/]+\\.ts)$`);
 const MODULE_MIGRATION_RE = /^modules\/([^/]+)\/migrations\/([^/]+\.ts)$/;
 const OVERLAY_MIGRATION_RE = /^apps\/[^/]+\/modules\/[^/]+\/migrations\//;
 
@@ -1688,6 +1731,11 @@ export function collectMigrations(
     const filename = packaged ? packaged[1]! : core ? core[1]! : owned![2]!;
     if (!MIGRATION_FILE_RE.test(filename)) {
       if (helperAllowList.has(migrationHelperKey(owner, file))) continue;
+      // The platform's `./migrations` barrel, on `isDeclaredEntryPoint`'s own
+      // reasoning one tree over: the subpath has to name a file, that file is
+      // the barrel re-exporting the classes, and the name comes off
+      // `barrelKeyOf` rather than being spelled here (D-100).
+      if (owner === null && core && file === barrelKeyOf(PLATFORM_MIGRATION_SUBPATH)) continue;
       // A package's `./migrations` subpath has to name a file, and that file is
       // the barrel re-exporting the classes — declared, not merely present, so
       // the exemption is derived from the package's own `exports` map instead of
@@ -1774,7 +1822,7 @@ export function emitMigrationsRegistry(migrations: readonly DiscoveredMigration[
   }
 
   return `${emitMigrationsHeader()}
-import type { MigrationClass, MigrationRegistryEntry } from './migration-order.js';
+import type { MigrationClass, MigrationRegistryEntry } from '@endora-commerce/platform/db';
 ${imports.join('\n')}
 
 export type { MigrationClass, MigrationRegistryEntry };

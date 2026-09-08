@@ -6,7 +6,7 @@
   "endora": {
     "type": "platform"
   },
-  "description": "The host package (feature 080, T042a). Publishes the surface an installed extension package compiles against: five enumerated subpaths, one per platform directory that has published API. No root export and no wildcard (D-160.7). Three further subpaths are host-internal and no module may name any of them (D-160.14): ./composition, the host composition surface; ./migrations, the frozen historical prefix an execution order is computed from (specs/110-instance-repository/, R1.5); ./lifecycle, the operator surface that drives the platform presence axis (specs/115-lifecycle-container-move/, D115-4); ./packages, installed extension-package discovery; and ./overlay, the loader that composes a deployment's client-only modules (specs/110-instance-repository/, T113 and T114).",
+  "description": "The host package (feature 080, T042a). Publishes the surface an installed extension package compiles against: five enumerated subpaths, one per platform directory that has published API. No root export and no wildcard (D-160.7). Three further subpaths are host-internal and no module may name any of them (D-160.14): ./composition, the host composition surface; ./db, the ORM configuration, the migration ordering and the bootstrap (specs/110-instance-repository/, T116); ./migrations, the platform's own twelve migrations and the frozen historical prefix an execution order is computed from (specs/110-instance-repository/, R1.5); ./lifecycle, the operator surface that drives the platform presence axis (specs/115-lifecycle-container-move/, D115-4); ./packages, installed extension-package discovery; and ./overlay, the loader that composes a deployment's client-only modules (specs/110-instance-repository/, T113 and T114).",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -40,6 +40,10 @@
     "./composition": {
       "types": "./dist/composition/index.d.ts",
       "default": "./dist/composition/index.js"
+    },
+    "./db": {
+      "types": "./dist/db/index.d.ts",
+      "default": "./dist/db/index.js"
     },
     "./migrations": {
       "types": "./dist/migrations/index.d.ts",
@@ -92,12 +96,14 @@
   },
   "peerDependencies": {
     "@mikro-orm/core": "^6",
+    "@mikro-orm/migrations": "^6",
     "@mikro-orm/postgresql": "^6",
     "fastify": "^5",
     "zod": "^4"
   },
   "devDependencies": {
     "@mikro-orm/core": "^6.6.13",
+    "@mikro-orm/migrations": "^6.6.13",
     "@mikro-orm/postgresql": "^6.6.13",
     "@types/node": "^22.9.0",
     "fastify": "^5.8.5",

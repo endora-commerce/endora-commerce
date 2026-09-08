@@ -7,7 +7,7 @@ import {
   ModuleLifecycleOrchestrator,
 } from '@endora-commerce/platform/lifecycle';
 import { BASELINE_MIGRATIONS } from '@endora-commerce/platform/migrations';
-import { orderMigrations } from '../../../src/db/migration-order.js';
+import { orderMigrations } from '@endora-commerce/platform/db';
 import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
 import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
 

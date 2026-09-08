@@ -1,57 +1,38 @@
-import { defineConfig, type Options } from '@mikro-orm/postgresql';
-import { Migrator } from '@mikro-orm/migrations';
-import { PluralizingNamingStrategy } from './pluralizing-naming-strategy.js';
-import { configuredEntities } from './configured-entities.js';
-import { configuredMigrations } from './configured-migrations.js';
-
 /**
- * MikroORM configuration for the B2B platform backend.
+ * The ORM configuration's **binding** — the two merges, the memo and the
+ * fourteen callers (`specs/110-instance-repository/` T116;
+ * `contracts/instance-repository.md` R7.4).
  *
- * - PostgreSQL driver (constitutional stack).
- * - Plural snake_case table names + snake_case columns (Principle VI) via the
- *   custom naming strategy in ./pluralizing-naming-strategy.ts (R-04).
- * - Migration ownership is module-local: each module keeps its migration files
- *   under src/modules/<module>/migrations/. Only the few genuinely cross-cutting
- *   bootstrap migrations (foundation/commerce init, module-lifecycle, tenant
- *   indexes) live in src/db/migrations/. Adding a migration means dropping a
- *   file in the owning module's migrations/ dir and regenerating — never here.
- * - Both registries stay explicit static-import lists rather than a filesystem
- *   glob: glob discovery needs runtime dynamic `import()` of .ts files, which
- *   Node's ESM loader cannot transform and which breaks under Vitest. Since
- *   feature 071's F2 the lists are *emitted* from a filesystem walk by
- *   scripts/generate-composer.ts and committed, so they are static imports
- *   nobody maintains by hand. The "registered ⇔ on-disk" round-trip is enforced
- *   by test/unit/db/migrations-registry.test.ts, and `overlay:check` fails on a
- *   committed artefact that drifted from the tree.
- * - Execution order is computed by ./migration-order.ts: a frozen historical
- *   prefix, then module by module in a topological order of the manifest
- *   dependency graph, each module's migrations contiguous and ascending by
- *   timestamp. See docs/docs/architecture/migrations.md.
+ * The configuration itself is `@endora-commerce/platform/db`'s since T116: the
+ * PostgreSQL driver, the naming strategy Principle VI is enforced by, the
+ * explicit entity list, the migrator options and the dependency-cycle warning.
+ * None of it varies between two instances.
+ *
+ * What is here is the wiring that does. The two merges above it read this
+ * build's committed registries, which the platform may not name (D-52/D-53), and
+ * the memoisation is a fact about one process rather than about the
+ * configuration.
  *
  * ## It is a factory, and awaiting it is the caller's job (feature 080, T033)
  *
- * Both registries above are **bare core**, and stay that way: an installed
- * extension package may ship entities and migrations (D-106.2), but which
- * packages an instance installed is a fact about the process rather than about
- * the tree, so the committed artefacts must not claim to know (D-119, confirmed
- * as D-155). The package half is therefore discovered at runtime, which makes
- * the merged configuration a promise — and the export an **async factory**
- * rather than a promise-valued default, so that importing this module (for a
- * type, say) starts no `node_modules` scan and no unhandled rejection. The two
- * merges live one file away each, in `configured-entities.ts` and
- * `configured-migrations.ts`, so this file is a few lines over them and the
- * fourteen call sites cannot each grow a merge of their own.
+ * The package half of both registries is discovered at runtime (D-119, confirmed
+ * as D-155), which makes the merged configuration a promise — and the export an
+ * **async factory** rather than a promise-valued default, so that importing this
+ * module (for a type, say) starts no `node_modules` scan and no unhandled
+ * rejection.
  *
- * Memoised, so those fourteen callers do not mean fourteen scans. That also
- * pins `DATABASE_URL` to whatever it names at the **first** call, which is the
+ * Memoised, so the fourteen callers do not mean fourteen scans. That also pins
+ * `DATABASE_URL` to whatever it names at the **first** call, which is the
  * pre-existing behaviour one step later: `test/helpers/test-db.ts` overrides
  * `clientUrl` on the object it gets, and the harness reads the migration order
  * through `configured-migrations.ts` precisely so that reading it costs no
  * connection.
  */
+import { mikroOrmConfigFrom } from '@endora-commerce/platform/db';
+import type { Options } from '@mikro-orm/postgresql';
 
-const databaseUrl = (): string =>
-  process.env['DATABASE_URL'] ?? 'postgresql://b2b:b2b@localhost:5432/b2b';
+import { configuredEntities } from './configured-entities.js';
+import { configuredMigrations } from './configured-migrations.js';
 
 let memoised: Promise<Options> | undefined;
 
@@ -61,44 +42,7 @@ export default async function mikroOrmConfig(): Promise<Options> {
       configuredEntities(),
       configuredMigrations(),
     ]);
-
-    // A dependency cycle is a diagnostic, not a throw: the graph is the primary
-    // ordering now, so refusing here would let one mis-declared manifest stop
-    // the whole platform's schema from migrating — and since a manifest can
-    // arrive from an installed package, that manifest may be a stranger's.
-    // Nothing in this file branches on it — warning is the whole reaction, and
-    // the platform boots and serves. The other two readers refuse instead, each
-    // where refusing costs nothing: test/unit/db/module-graph.test.ts fails the
-    // build on a cycle in the committed manifests, and the _lifecycle
-    // orchestrator refuses an install whose arrival closes one (FR-012).
-    // test/unit/db/migration-order-boot-warning.test.ts is the proof that this
-    // warning fires on a cycle and is silent without one.
-    for (const diagnostic of migrations.diagnostics) {
-      console.warn(diagnostic.message);
-    }
-
-    return defineConfig({
-      clientUrl: databaseUrl(),
-      namingStrategy: PluralizingNamingStrategy,
-      // Explicit class list, not a glob — glob discovery requires runtime
-      // dynamic `import()` of .ts files, which Node's ESM loader cannot
-      // transform and which breaks under Vitest. See
-      // src/db/entities-registry.generated.ts for the rationale and for what
-      // emits it, and src/db/configured-entities.ts for the package half.
-      entities: [...entities],
-      debug: process.env['NODE_ENV'] === 'development' && process.env['DB_DEBUG'] === 'true',
-      allowGlobalContext: false,
-      forceUndefined: true,
-      extensions: [Migrator],
-      migrations: {
-        migrationsList: migrations.migrations,
-        transactional: true,
-        disableForeignKeys: false,
-        allOrNothing: true,
-        emit: 'ts',
-        snapshot: false,
-      },
-    });
+    return mikroOrmConfigFrom({ entities, migrations });
   })();
   return memoised;
 }

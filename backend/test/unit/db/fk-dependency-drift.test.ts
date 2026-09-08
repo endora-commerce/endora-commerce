@@ -27,7 +27,7 @@ import {
 import { TABLE_OWNER_OVERRIDES } from './table-owner-overrides.js';
 import { ACKNOWLEDGED_FK_EDGES, type AcknowledgedFkEdge } from './acknowledged-fk-edges.js';
 import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
-import { BASELINE_THROUGH } from '../../../src/db/migration-order.js';
+import { BASELINE_THROUGH } from '@endora-commerce/platform/db';
 import { closureOf } from '../../../scripts/lib/manifest-dependencies.js';
 
 /**

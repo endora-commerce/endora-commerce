@@ -40,7 +40,7 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
         'that should be refreshing `newsletter`\'s system blocks is `newsletter`.\n\n' +
         '**And it works today by the alphabet.** Neither module declares the other, so the ' +
         'topological sort has no edge between them and falls through to its lexicographic ' +
-        'tie-break (`backend/src/db/migration-order.ts`); `newsletter` sorts before ' +
+        'tie-break (`@endora-commerce/platform/db`); `newsletter` sorts before ' +
         '`transactional_emails`, so the table exists when the `UPDATE` runs. Rename either ' +
         'module and a fresh install aborts on `relation "newsletter_email_blocks" does not ' +
         'exist` — inside the install of a module the platform refuses to run without.\n\n' +

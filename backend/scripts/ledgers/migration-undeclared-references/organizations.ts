@@ -32,7 +32,7 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
         'orchestrator refuses for an arriving module (`manifest-cycle`, exit 65). The kept ' +
         'direction is the tenancy one and that is a ruling, not an accident.\n\n' +
         '**The migration cannot be edited.** Its stamp, `20260717T151403`, is below ' +
-        '`BASELINE_THROUGH` (`20260801T000000`, `backend/src/db/migration-order.ts`), so it ' +
+        '`BASELINE_THROUGH` (`20260801T000000`, `@endora-commerce/platform/db`), so it ' +
         'sits in the frozen historical prefix; and every database that has applied it stores ' +
         'the class name, so it cannot be renamed or replaced either (AGENTS.md ' +
         '§ *Migrations* item 5).\n\n' +

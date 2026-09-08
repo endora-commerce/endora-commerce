@@ -53,7 +53,10 @@ import path from 'node:path';
  */
 const allowlist = [
   // Foundation + the migration itself
-  'backend/src/db/migrations/20260424T165847_core_foundation_init.ts',
+  // Re-pointed by `specs/110-instance-repository/` T116: the twelve core
+  // migrations are the platform's own now, beside the `./migrations` barrel
+  // that publishes them. The file, the class name and the SQL are unchanged.
+  'packages/platform/src/migrations/20260424T165847_core_foundation_init.ts',
   'packages/modules/catalog/src/migrations/20260505T060113_catalog_attribute_options_and_flags.ts',
   // Boundary helpers — accept + project the legacy shape
   'packages/modules/catalog/src/backend/services/catalog-admin.service.ts',

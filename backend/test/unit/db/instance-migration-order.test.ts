@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BASELINE_MIGRATIONS } from '@endora-commerce/platform/migrations';
 import { coreModuleDependencies } from '../../../src/db/configured-migrations.js';
-import { BASELINE_THROUGH, type MigrationRegistryEntry } from '../../../src/db/migration-order.js';
+import { BASELINE_THROUGH, type MigrationRegistryEntry } from '@endora-commerce/platform/db';
 import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
 import {
   compareOrders,

@@ -101,13 +101,23 @@ describe('migration:new resolves a module wherever it lives (spawned over a spli
     ).toBe(false);
   });
 
-  it('keeps --module core in backend/src/db/migrations', () => {
+  it("puts --module core in the platform's own migrations directory", () => {
+    // It was `backend/src/db/migrations` until `specs/110-instance-repository/`
+    // T116 moved the twelve beside the `./migrations` barrel that publishes
+    // them. The path is the scaffolder's own resolution — the one workspace
+    // member declaring `endora.type: "platform"` — which this fixture stages,
+    // so what is asserted is where the tool really writes rather than where a
+    // literal says it should.
     const result = scaffold('core');
     expect(result.status).toBe(0);
-    const directory = join(fixture.root, 'backend', 'src', 'db', 'migrations');
+    const directory = join(fixture.root, 'packages', 'platform', 'src', 'migrations');
     const written = readdirSync(directory).filter((name) => name.includes(PROBE_SLUG));
     expect(written).toEqual([expect.stringMatching(/^\d{8}T\d{6}_core_scaffold_roots_probe\.ts$/)]);
-    expect(result.output).toContain(`backend/src/db/migrations/${written[0]!}`);
+    expect(result.output).toContain(`packages/platform/src/migrations/${written[0]!}`);
+    // And not where it used to go: a scaffolder that fell back would write a
+    // file into a directory the generator no longer walks, and an unregistered
+    // migration does not run.
+    expect(existsSync(join(fixture.root, 'backend', 'src', 'db', 'migrations'))).toBe(false);
   });
 
   it('refuses an unknown id and names the real modules, not core alone', () => {
@@ -247,9 +257,11 @@ describe('migrationTargetFor — one derivation, three layouts', () => {
 
   it('keeps core on the directory the caller names', () => {
     const layout = layoutOver({});
-    expect(migrationTargetFor('core', layout, [], '/checkout/backend/src/db/migrations')).toEqual({
+    expect(
+      migrationTargetFor('core', layout, [], '/checkout/packages/platform/src/migrations'),
+    ).toEqual({
       moduleId: 'core',
-      directory: '/checkout/backend/src/db/migrations',
+      directory: '/checkout/packages/platform/src/migrations',
       owner: null,
     });
   });
@@ -278,15 +290,21 @@ describe('refuseUnregisterableTarget', () => {
     ).not.toThrow();
   });
 
-  it('accepts the core block', () => {
-    const directory = join(root, 'src', 'db', 'migrations');
+  it("accepts the core block, at the platform's own migrations root", () => {
+    // `specs/110-instance-repository/` T116: the twelve moved to
+    // `packages/platform/src/migrations/`, so the walked root the generator
+    // keys them under is the platform's source root and the key is
+    // `migrations/<file>`. The walk roots are the parameter here precisely so
+    // that this case names the layout it is about rather than the checkout's.
+    const platformSrc = join(root, 'packages', 'platform', 'src');
+    const directory = join(platformSrc, 'migrations');
     const core = buildScaffold({ moduleId: 'core', slug: 'probe', stamp: '20260901T090000' });
     expect(() =>
       refuseUnregisterableTarget(
         { moduleId: 'core', directory, owner: null },
         join(directory, core.filename),
         core,
-        [join(root, 'src')],
+        [join(root, 'src'), platformSrc],
       ),
     ).not.toThrow();
   });

@@ -11,9 +11,10 @@ import {
   type MigrationOrderError,
   type MigrationOrderResult,
   type MigrationRegistryEntry,
-} from '../../../src/db/migration-order.js';
+} from '@endora-commerce/platform/db';
 import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
 import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
+import { platformSourceRootAt } from '../../../scripts/lib/platform-root.js';
 
 /**
  * Invariants J1-J14 of
@@ -128,10 +129,30 @@ function shuffle<T>(items: readonly T[], random: () => number): T[] {
   return copy;
 }
 
+/**
+ * The file this section reads, resolved rather than spelled.
+ *
+ * It was `backend/src/db/migration-order.ts` until
+ * `specs/110-instance-repository/` T116 moved it into the platform package. A
+ * checkout with no platform member is a refusal: a purity assertion over a file
+ * that is not there would pass by throwing nothing only if the read were made
+ * tolerant, which is the direction that agrees with the defect.
+ */
+function migrationOrderSource(): string {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const platformRoot = platformSourceRootAt(resolve(here, '../../../..'));
+  if (platformRoot === null) {
+    throw new Error(
+      'no workspace member declares `endora.type: "platform"`, so `migration-order.ts` has ' +
+        'no home and its purity cannot be measured.',
+    );
+  }
+  return readFileSync(resolve(platformRoot, 'db', 'migration-order.ts'), 'utf8');
+}
+
 describe('migration-order module purity', () => {
   it('imports nothing but @mikro-orm/core types and the platform graph walk', () => {
-    const here = dirname(fileURLToPath(import.meta.url));
-    const source = readFileSync(resolve(here, '../../../src/db/migration-order.ts'), 'utf8');
+    const source = migrationOrderSource();
     const imports = [...source.matchAll(/^import\s+(?:type\s+)?[\s\S]*?from\s+'([^']+)';$/gm)].map(
       (match) => match[1]!,
     );
@@ -146,14 +167,16 @@ describe('migration-order module purity', () => {
     // owns (D-52/D-53). One implementation is what makes the member list an
     // operator reads in a refused install the member list this order reports;
     // two would be free to disagree.
-    expect(imports).toEqual(['@mikro-orm/core', '@endora-commerce/platform/lifecycle']);
-    expect(source).not.toContain("from '../modules/");
+    // Relative now that the file is inside the platform: a package naming
+    // itself by its own bare specifier resolves its `dist` beside its source,
+    // which is the duplication `check:singleton-identity` refuses.
+    expect(imports).toEqual(['@mikro-orm/core', '../lifecycle/services/dep-graph.js']);
+    expect(source).not.toContain("from '../../modules/");
     expect(source).not.toContain('mikro-orm.config');
   });
 
   it('carries no trace of the correction machinery feature 081 deleted', () => {
-    const here = dirname(fileURLToPath(import.meta.url));
-    const source = readFileSync(resolve(here, '../../../src/db/migration-order.ts'), 'utf8');
+    const source = migrationOrderSource();
 
     for (const gone of [
       'correctionHorizonDays',
