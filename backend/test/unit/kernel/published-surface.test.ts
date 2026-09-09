@@ -494,6 +494,21 @@ const NOT_PUBLISHED: Readonly<Record<string, string>> = {
  * classifies at, and the granularity the ruling's own table uses.
  */
 const HOST_COMPOSITION_SURFACE: Readonly<Record<string, readonly string[]>> = {
+  // `specs/110-instance-repository/` T118 (R1.4). Every other entry here is a
+  // piece a composition root uses to build a composition; this one **is** the
+  // composition, and it is on this subpath for the same reason the pieces are —
+  // a module that could name it could compose its siblings.
+  //
+  // `AppComposition` and `AppOrmLifecycle` are declared beside these four and
+  // are not on the barrel: R3.1a's second direction refuses a name no consumer
+  // outside the platform imports, and a caller builds that object literal
+  // without naming either type.
+  'composition/compose-app.ts': [
+    'composeApp',
+    'ComposeAppHandle',
+    'ComposeAppOptions',
+    'ComposedAppContext',
+  ],
   'http/server.ts': ['buildServer', 'ModulePlugin'],
   'http/interceptors/index.ts': ['ApiInterceptorRegistry'],
   'kernel/container.ts': [
@@ -707,11 +722,19 @@ describe('`./composition`, the subpath no module may name (D-160.14)', () => {
   const barrel = 'composition/index.ts';
   const expected = [...new Set(Object.values(HOST_COMPOSITION_SURFACE).flat())].sort();
 
-  it('exports exactly the 27 symbols the ruling names, and nothing else', () => {
+  it('exports exactly the symbols the ruling names, and nothing else', () => {
     // Both directions in one comparison, which is what makes T010's "the barrel
-    // exports the 27 and only the 27" an assertion rather than a review.
+    // exports these and only these" an assertion rather than a review.
+    //
+    // **The count is derived, not written** (D-100). It read `27` and was
+    // decremented and re-incremented by hand twice — once when T118 took
+    // `createRequestLanguageResolver` off and put the assembly on. A number in
+    // the assertion is a second statement of what the table above already says,
+    // and the two disagree the first time somebody edits one of them. What is
+    // asserted instead is that the table is not empty, which is the vacuous
+    // state a derived count would otherwise hide.
     expect([...new Set(barrelExports(barrel))].sort()).toEqual(expected);
-    expect(expected).toHaveLength(27);
+    expect(expected.length, 'the attribution table is empty').toBeGreaterThan(0);
   });
 
   it('exports each name out of the file the ruling attributes it to', () => {

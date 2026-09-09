@@ -825,6 +825,17 @@ export function endoraSpecifierResolutions(root: string): readonly EndoraSpecifi
  * checkout; the fixture refuses rather than staging a tree whose shims resolve
  * to nothing, because that failure is indistinguishable from a moved module
  * tree, which is the one thing this fixture exists to tell apart.
+ *
+ * **The two tsconfigs come too**, for the reason {@link copyTestKitPackage}
+ * gives about the kit and which `specs/110-instance-repository/` T118 made true
+ * of the platform as well: `composition.ts` delegates its composition to
+ * `@endora-commerce/platform/composition`, and `check-port-dependencies`
+ * follows that delegation to the composer's **source** — through the member's
+ * `exports` map and its `tsconfig.build.json` emit layout. A member with no
+ * build configuration is not an emitting member, so the specifier is owned by
+ * nobody and the check exits 2 naming a defect the fixture introduced. Measured
+ * on the split tree the moment production gained a delegate: *"no emitting
+ * workspace member owns '@endora-commerce/platform/composition'"*.
  */
 function copyPlatformPackage(root: string): void {
   const source = join(REPO_ROOT, 'packages', 'platform');
@@ -843,7 +854,9 @@ function copyPlatformPackage(root: string): void {
   // a path that never passes through `backend/`. That is why
   // `FIXTURE_NODE_MODULES` names this directory; the tree itself is installed
   // once, at the end, when the fixture knows which packages it holds.
-  cpSync(join(source, 'package.json'), join(destination, 'package.json'));
+  for (const file of ['package.json', 'tsconfig.json', 'tsconfig.build.json']) {
+    cpSync(join(source, file), join(destination, file));
+  }
   // `src` first and `dist` with the source's own timestamps, both (FR-011).
   // `emitted-freshness.ts` calls an artefact **stale** — exit 2 — when its
   // source is strictly newer, and `cpSync` stamps its copies with the moment it

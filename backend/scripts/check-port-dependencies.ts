@@ -1337,8 +1337,18 @@ export const ROOT_FILES: Readonly<Record<string, string>> = {
  * `exports` map and emit layout, so no package name and no `dist` is written
  * down here (D-100). A root that composes for itself has no entry and is read as
  * it always was.
+ *
+ * **`specs/110-instance-repository/` T118 gives production an entry for the same
+ * reason**, and it was measured the same way: with the assembly moved into
+ * `@endora-commerce/platform`'s `composeApp` and this map left at one member,
+ * the run reports **37** root issues — `redis`, `eventBus`, `commandBus`, the
+ * four `*RunWorkers` flags and the rest — every one of them a name the
+ * production composition does register, one package away. The binding is the
+ * **local** name: `composition.ts` exports a `composeApp` of its own, the
+ * reference deployment's, and aliases the platform's on the way in.
  */
 export const ROOT_DELEGATES_TO: Readonly<Record<string, string>> = {
+  production: 'composePlatformApp',
   harness: 'composeTestServer',
 };
 

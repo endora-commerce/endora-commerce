@@ -849,7 +849,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changesets go with them. The base was measured on `origin/master`, where the
     // census printed `0 drifted, 43 agree`, so every number below is this branch's
     // and none of it is a delta subtracted from a moving tree.
-    files: 2047,
+    // **`specs/110-instance-repository/` T118: +1 file.** `packages/platform/src/composition/compose-app.ts` — the assembly `composeApp` used to
+    // perform inside `backend/src/composition.ts`, moved whole. The application file keeps
+    // its path and its export, so the move itself nets to nothing across the two source
+    // roots this walk reads and the +1 is the new platform file alone.
+    // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 2047 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
+    files: 2048,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1032,7 +1037,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changesets go with them. The base was measured on `origin/master`, where the
     // census printed `0 drifted, 43 agree`, so every number below is this branch's
     // and none of it is a delta subtracted from a moving tree.
-    files: 2174,
+    // **`specs/110-instance-repository/` T118: +1 file.** `packages/platform/src/composition/compose-app.ts` — the assembly `composeApp` used to
+    // perform inside `backend/src/composition.ts`, moved whole. The application file keeps
+    // its path and its export, so the move itself nets to nothing across the two source
+    // roots this walk reads and the +1 is the new platform file alone.
+    // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 2174 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
+    files: 2175,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1467,7 +1477,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changesets go with them. The base was measured on `origin/master`, where the
     // census printed `0 drifted, 43 agree`, so every number below is this branch's
     // and none of it is a delta subtracted from a moving tree.
-    files: 5501,
+    // **`specs/110-instance-repository/` T118: +2 files.** The two sources the task adds —
+    // `packages/platform/src/composition/compose-app.ts`, the assembly moved out of
+    // `backend/src/composition.ts`, and
+    // `backend/test/unit/kernel/compose-app-contributions.test.ts`, its contribution-split
+    // ledger. The application file keeps its path, so the move nets to nothing.
+    // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 5501 here, so this branch's own contribution is +2. The new platform source and the new unit test; the changeset is markdown and this walk skips the check scripts, not the tree.
+    files: 5503,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1692,7 +1708,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changesets go with them. The base was measured on `origin/master`, where the
     // census printed `0 drifted, 43 agree`, so every number below is this branch's
     // and none of it is a delta subtracted from a moving tree.
-    files: 2316,
+    // **`specs/110-instance-repository/` T118: +1 file.** `packages/platform/src/composition/compose-app.ts` — the assembly `composeApp` used to
+    // perform inside `backend/src/composition.ts`, moved whole. The application file keeps
+    // its path and its export, so the move itself nets to nothing across the two source
+    // roots this walk reads and the +1 is the new platform file alone.
+    // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 2316 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
+    files: 2317,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -2001,7 +2022,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changesets go with them. The base was measured on `origin/master`, where the
     // census printed `0 drifted, 43 agree`, so every number below is this branch's
     // and none of it is a delta subtracted from a moving tree.
-    files: 2174,
+    // **`specs/110-instance-repository/` T118: +1 file.** `packages/platform/src/composition/compose-app.ts` — the assembly `composeApp` used to
+    // perform inside `backend/src/composition.ts`, moved whole. The application file keeps
+    // its path and its export, so the move itself nets to nothing across the two source
+    // roots this walk reads and the +1 is the new platform file alone.
+    // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 2174 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
+    files: 2175,
     sites: 260,
     sources: ['manifest-index'],
   },
@@ -2165,7 +2191,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changesets go with them. The base was measured on `origin/master`, where the
     // census printed `0 drifted, 43 agree`, so every number below is this branch's
     // and none of it is a delta subtracted from a moving tree.
-    files: 2174,
+    // **`specs/110-instance-repository/` T118: +1 file.** `packages/platform/src/composition/compose-app.ts` — the assembly `composeApp` used to
+    // perform inside `backend/src/composition.ts`, moved whole. The application file keeps
+    // its path and its export, so the move itself nets to nothing across the two source
+    // roots this walk reads and the +1 is the new platform file alone.
+    // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 2174 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
+    files: 2175,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2329,7 +2360,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changesets go with them. The base was measured on `origin/master`, where the
     // census printed `0 drifted, 43 agree`, so every number below is this branch's
     // and none of it is a delta subtracted from a moving tree.
-    files: 2174,
+    // **`specs/110-instance-repository/` T118: +1 file.** `packages/platform/src/composition/compose-app.ts` — the assembly `composeApp` used to
+    // perform inside `backend/src/composition.ts`, moved whole. The application file keeps
+    // its path and its export, so the move itself nets to nothing across the two source
+    // roots this walk reads and the +1 is the new platform file alone.
+    // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 2174 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
+    files: 2175,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -2487,8 +2523,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changesets go with them. The base was measured on `origin/master`, where the
     // census printed `0 drifted, 43 agree`, so every number below is this branch's
     // and none of it is a delta subtracted from a moving tree.
-    files: 699,
-    sites: 67,
+    // **`specs/110-instance-repository/` T118: +1 file.** `packages/platform/src/composition/compose-app.ts` — the assembly `composeApp` used to
+    // perform inside `backend/src/composition.ts`, moved whole. The application file keeps
+    // its path and its export, so the move itself nets to nothing across the two source
+    // roots this walk reads and the +1 is the new platform file alone.
+    // **`specs/110-instance-repository/` T118: sites 67 -> 68 (+1).** The environment reads
+    // moved from `backend/src/composition.ts` into the platform file, which this walk covers,
+    // and one is genuinely new: `compose-app.ts` reads `SETTINGS_SECRET_ENCRYPTION_KEY` at the
+    // settings-kernel call **and** at the warning beside it, where the application file read it
+    // once into a local. **The first draft of that file bound `const env = process.env` and
+    // this number fell to 58**, with `REDIS_URL` and `REVALIDATE_SECRET` reported as
+    // `unread-input` — an alias hides every read behind it, so each is spelled at its own site.
+    // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 699 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
+    files: 700,
+    sites: 68,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
     // anything a declaration does. A consumer counts as covered only when it
@@ -2628,7 +2676,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. This walk opens `backend/test/**` and takes the module's 42 new test files, less those outside its shape.
     // **`specs/113-module-owned-demo-data/` Phase 1: files 1620 -> 1621.** one file:
     // `test/integration/demo/demo-parity.test.ts`, the demo parity comparison.
-    files: 1621,
+    // **`specs/110-instance-repository/` T118: +1 file.**
+    // `backend/test/unit/kernel/compose-app-contributions.test.ts`, which holds the two
+    // sides of the contribution split disjoint and their union at 61. It is the only
+    // file this task adds under a test root.
+    files: 1622,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -2741,7 +2793,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The same `backend/test/**` population as `check-fixture-substitution.ts` above.
     // **`specs/113-module-owned-demo-data/` Phase 1: files 1620 -> 1621.** one file:
     // `test/integration/demo/demo-parity.test.ts`, the demo parity comparison.
-    files: 1621,
+    // **`specs/110-instance-repository/` T118: +1 file.**
+    // `backend/test/unit/kernel/compose-app-contributions.test.ts`, which holds the two
+    // sides of the contribution split disjoint and their union at 61. It is the only
+    // file this task adds under a test root.
+    files: 1622,
     sites: null,
     sources: [],
   },
@@ -2896,6 +2952,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five changesets. This walk reads the twelve non-test module files,
     // `demo-relocated-reference.ts` and `taxes`' `vitest.config.ts`.
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
+    // **`specs/110-instance-repository/` T118: +1 file.** `packages/platform/src/composition/compose-app.ts` — the assembly `composeApp` used to
+    // perform inside `backend/src/composition.ts`, moved whole. The application file keeps
+    // its path and its export, so the move itself nets to nothing across the two source
+    // roots this walk reads and the +1 is the new platform file alone.
+    // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 2174 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
     // **`specs/110-instance-repository/` T118a: sites 31 -> 103 (+72).** `files` does not
     // move at all — it is rule A's population, the whole of the source roots — and this
     // is the #235/#237 shape from the other side: the file count stands still while the
@@ -2914,9 +2975,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changesets go with them. The base was measured on `origin/master`, where the
     // census printed `0 drifted, 43 agree`, so every number below is this branch's
     // and none of it is a delta subtracted from a moving tree.
-    files: 2174,
+    // **A duplicate `files` key stood here.** The re-record that landed with T118 added a
+    // second one rather than editing this, and in an object literal the last wins — so the
+    // new value was dead and the census went on reading the old one. One key, measured on a
+    // pristine `origin/master` worktree at 2174, plus this branch's one new platform source.
+    files: 2175,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
-    sites: 103,
+    // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
+    // the platform's outward imports, and T118a had just widened it to every platform
+    // directory — so the assembly arriving in `packages/platform/src/composition/` brings its
+    // own imports into that walk: platform files 146 -> 147 and outward imports 98 -> 132,
+    // measured on `origin/master` before and on this branch after, never by subtracting a
+    // delta. `into-modules` stays 0, which is the whole of what T118's "Done when" asks.
+    sites: 137,
     // `platform-subpaths` is T118a's second author over rule B's population: the
     // platform's `exports` map is a different program's answer to "which directories
     // does this package have", and a published subpath naming no walked directory is a
@@ -4021,7 +4092,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changesets go with them. The base was measured on `origin/master`, where the
     // census printed `0 drifted, 43 agree`, so every number below is this branch's
     // and none of it is a delta subtracted from a moving tree.
-    files: 4933,
+    // **`specs/110-instance-repository/` T118: +1 file.** `packages/platform/src/composition/compose-app.ts` — the assembly `composeApp` used to
+    // perform inside `backend/src/composition.ts`, moved whole. The application file keeps
+    // its path and its export, so the move itself nets to nothing across the two source
+    // roots this walk reads and the +1 is the new platform file alone.
+    // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 4933 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
+    files: 4934,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -4654,7 +4730,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changesets go with them. The base was measured on `origin/master`, where the
     // census printed `0 drifted, 43 agree`, so every number below is this branch's
     // and none of it is a delta subtracted from a moving tree.
-    files: 8136,
+    // **`specs/110-instance-repository/` T118: +3 files.** The two sources above plus the
+    // changeset, because this walk's population is the whole repository rather than a
+    // source root.
+    // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 8136 here, so this branch's own contribution is +3. All three files this branch adds: the platform source, the unit test and the changeset. This walk opens the whole repository, which is why it is the entry that shows the branch's full net.
+    files: 8139,
     sites: null,
     sources: [],
     //
@@ -5020,8 +5100,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changesets go with them. The base was measured on `origin/master`, where the
     // census printed `0 drifted, 43 agree`, so every number below is this branch's
     // and none of it is a delta subtracted from a moving tree.
-    files: 2174,
-    sites: 214,
+    // **`specs/110-instance-repository/` T118: +1 file.** `packages/platform/src/composition/compose-app.ts` — the assembly `composeApp` used to
+    // perform inside `backend/src/composition.ts`, moved whole. The application file keeps
+    // its path and its export, so the move itself nets to nothing across the two source
+    // roots this walk reads and the +1 is the new platform file alone.
+    // **`specs/110-instance-repository/` T118: sites 214 -> 212 (-2).** Two port-shaped
+    // names left `backend/src/composition.ts` with the assembly — `settingsManifestCollectionPort`,
+    // whose one reader is the boot settings reconcile, and the envelope's `adminUserReadPort`
+    // accessor. Both are in `compose-app.ts` now and both are still judged: this walk's
+    // population is the source roots, the platform's among them, so the sites moved rather
+    // than went. `files` moves +1 in the same breath, which is what says so.
+    // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 2174 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
+    files: 2175,
+    sites: 212,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -5643,7 +5734,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The same `backend/test/**` population as the two entries above.
     // **`specs/113-module-owned-demo-data/` Phase 1: files 1620 -> 1621.** one file:
     // `test/integration/demo/demo-parity.test.ts`, the demo parity comparison.
-    files: 1621,
+    // **`specs/110-instance-repository/` T118: +1 file.**
+    // `backend/test/unit/kernel/compose-app-contributions.test.ts`, which holds the two
+    // sides of the contribution split disjoint and their union at 61. It is the only
+    // file this task adds under a test root.
+    files: 1622,
     sites: 163,
     sources: [],
   },
@@ -5859,7 +5954,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changesets go with them. The base was measured on `origin/master`, where the
     // census printed `0 drifted, 43 agree`, so every number below is this branch's
     // and none of it is a delta subtracted from a moving tree.
-    files: 2174,
+    // **`specs/110-instance-repository/` T118: +1 file.** `packages/platform/src/composition/compose-app.ts` — the assembly `composeApp` used to
+    // perform inside `backend/src/composition.ts`, moved whole. The application file keeps
+    // its path and its export, so the move itself nets to nothing across the two source
+    // roots this walk reads and the +1 is the new platform file alone.
+    // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 2174 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
+    files: 2175,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -5945,7 +6045,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changesets go with them. The base was measured on `origin/master`, where the
     // census printed `0 drifted, 43 agree`, so every number below is this branch's
     // and none of it is a delta subtracted from a moving tree.
-    files: 1727,
+    // **`specs/110-instance-repository/` T118: +1 file.**
+    // `backend/test/unit/kernel/compose-app-contributions.test.ts`, which holds the two
+    // sides of the contribution split disjoint and their union at 61. It is the only
+    // file this task adds under a test root.
+    // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 1727 here, so this branch's own contribution is +1. The new unit test; this walk opens `*.test.ts` only, so the platform source is outside it.
+    files: 1728,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -6147,7 +6252,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changesets go with them. The base was measured on `origin/master`, where the
     // census printed `0 drifted, 43 agree`, so every number below is this branch's
     // and none of it is a delta subtracted from a moving tree.
-    files: 2174,
+    // **`specs/110-instance-repository/` T118: +1 file.** `packages/platform/src/composition/compose-app.ts` — the assembly `composeApp` used to
+    // perform inside `backend/src/composition.ts`, moved whole. The application file keeps
+    // its path and its export, so the move itself nets to nothing across the two source
+    // roots this walk reads and the +1 is the new platform file alone.
+    // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 2174 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
+    files: 2175,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -6353,7 +6463,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changesets go with them. The base was measured on `origin/master`, where the
     // census printed `0 drifted, 43 agree`, so every number below is this branch's
     // and none of it is a delta subtracted from a moving tree.
-    files: 4524,
+    // **`specs/110-instance-repository/` T118: +2 files.** The two sources the task adds —
+    // `packages/platform/src/composition/compose-app.ts`, the assembly moved out of
+    // `backend/src/composition.ts`, and
+    // `backend/test/unit/kernel/compose-app-contributions.test.ts`, its contribution-split
+    // ledger. The application file keeps its path, so the move nets to nothing.
+    // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 4524 here, so this branch's own contribution is +2. The new platform source and the new unit test, both inside this walk.
+    files: 4526,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -6955,7 +7071,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changesets go with them. The base was measured on `origin/master`, where the
     // census printed `0 drifted, 43 agree`, so every number below is this branch's
     // and none of it is a delta subtracted from a moving tree.
-    files: 8196,
+    // **`specs/110-instance-repository/` T118: +3 files.** The two sources above plus the
+    // changeset, because this walk's population is the whole repository rather than a
+    // source root.
+    // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 8196 here, so this branch's own contribution is +3. Repo-wide, so the same three files as `check-nul-bytes.ts` above.
+    files: 8199,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -7267,7 +7387,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changesets go with them. The base was measured on `origin/master`, where the
     // census printed `0 drifted, 43 agree`, so every number below is this branch's
     // and none of it is a delta subtracted from a moving tree.
-    files: 6125,
+    // **`specs/110-instance-repository/` T118: +2 files.** The two sources the task adds —
+    // `packages/platform/src/composition/compose-app.ts`, the assembly moved out of
+    // `backend/src/composition.ts`, and
+    // `backend/test/unit/kernel/compose-app-contributions.test.ts`, its contribution-split
+    // ledger. The application file keeps its path, so the move nets to nothing.
+    // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 6125 here, so this branch's own contribution is +2. This scan reads source comments, so it takes the two `.ts` files and not the changeset markdown.
+    files: 6127,
     sites: null,
     sources: ['manifest-index'],
     //
