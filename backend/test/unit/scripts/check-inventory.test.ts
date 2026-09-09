@@ -134,6 +134,14 @@ import {
   validBundle,
   type FixtureModule,
 } from '../../helpers/bundle-pairing-fixture.js';
+import { DEMO_ASSET_BUDGET_BYTES } from '../../../scripts/check-demo-data-budget.js';
+import {
+  demoBudgetDiscrimination,
+  demoBudgetFindings,
+  demoBudgetShipping,
+  demoBudgetVacuous,
+  DEMO_BUDGET_COMPLIANT,
+} from '../../helpers/demo-data-budget-fixture.js';
 import {
   checkOffStateCoverage,
   harnessExportsCoverage,
@@ -9096,6 +9104,159 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
+    // `specs/113-module-owned-demo-data/` FR-016 / D-6, contract §7 — the
+    // owner's concern about feature 113 was **weight**, and it gets an
+    // instrument rather than a paragraph.
+    //
+    // **The trigger is a content class and not a byte count that creeps**, which
+    // is what makes an empty ledger the right ledger. `research.md` § R2.2
+    // measured it: today's demo catalogue is *generated*, so a catalogue of
+    // 10 000 products costs the same bytes as one of 200 — code does not grow
+    // the way the owner is worried about, assets do. So the subject is the
+    // **non-`.ts` demo asset**, no module in this tree ships one, and the check
+    // lands at zero with nothing to drain. `product_feeds`' 1.5 MB of bundled
+    // `.txt` is the weight class it is a tripwire against, and is deliberately
+    // outside this population: that directory is not a demo layer, and a budget
+    // over a whole package would read an unrelated `dist` growth as a demo
+    // finding (§7.2).
+    //
+    // **What ships is not this check's opinion.** `classifyAssetFile` — the one
+    // owner of that question since D-218 — answers it, so a ruling that puts
+    // `.jpg` in `RUNTIME_ASSET_EXTENSIONS` brings photographs inside the budget
+    // in the same run with no edit here, and three of its four answers ship
+    // nothing and are therefore outside the budget rather than exempt from it.
+    // Two of the discriminations below are exactly that boundary, and both
+    // assert the walk *read* the file, because "not budgeted" and "not looked
+    // at" print the same zero.
+    //
+    // Seven findings and seven proofs, each entering as a **package tree on
+    // disk with the manifest written as the emitted text a real run reads**
+    // (issue #130). The analysis is four steps before the arithmetic — read the
+    // artefact, resolve the shorthand `demo,`, pull the relative specifiers,
+    // map them back through the package's own `rootDir`/`outDir` — and a
+    // fixture handing in a byte count would prove the fifth and leave all four
+    // unproven.
+    script: 'backend/scripts/check-demo-data-budget.ts',
+    npmScript: 'check:demo-data-budget',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-demo-data-budget.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // Its population is every registered module's own directory, and the floor
+    // is `refuseVacuousModulePopulation` over it in `check:bundle-pairing`'s
+    // conjunction — the layout must place the module and the directory must be
+    // there — so a moved module tree is refused rather than reported clean.
+    residueGuard: 'derived-population',
+    red: {
+      'demo-assets-over-budget': top(() =>
+        demoBudgetFindings(
+          [DEMO_BUDGET_COMPLIANT, demoBudgetShipping('catalog', DEMO_ASSET_BUDGET_BYTES + 1)],
+          'demo-assets-over-budget',
+        ),
+      ),
+      // The inverse failure: bytes every client installs that no runner reads.
+      // The compliant module beside it is load-bearing rather than decorative —
+      // the layer paths this finding probes are derived from the *declaring*
+      // manifests, so a tree in which nobody declares one has no path to probe.
+      'undeclared-demo-assets': top(() =>
+        demoBudgetFindings(
+          [
+            DEMO_BUDGET_COMPLIANT,
+            {
+              id: 'blog',
+              declares: 'declined',
+              files: { 'backend/demo/data/rows.json': 'x'.repeat(64) },
+            },
+          ],
+          'undeclared-demo-assets',
+        ),
+      ),
+      // A finding and never a skip (issue #113): a layer that cannot be located
+      // is a layer whose bytes are not measured, and reading that as "zero
+      // bytes" agrees with every defect this check exists for.
+      'unlocatable-demo-layer': top(() =>
+        demoBudgetFindings(
+          [DEMO_BUDGET_COMPLIANT, { id: 'catalog', declares: 'declared' }],
+          'unlocatable-demo-layer',
+        ),
+      ),
+      // Also a finding rather than a skip, and for the sharper reason: read as
+      // *absent* the module moves into the `undeclared-demo-assets` population,
+      // where a correct demo layer is a violation — so the wrong answer is not
+      // merely silent, it is confidently wrong in the other direction.
+      'unreadable-demo-declaration': top(() =>
+        demoBudgetFindings(
+          [DEMO_BUDGET_COMPLIANT, { id: 'catalog', declares: 'computed' }],
+          'unreadable-demo-declaration',
+        ),
+      ),
+      'stale-budget-entry': top(() =>
+        demoBudgetFindings([DEMO_BUDGET_COMPLIANT], 'stale-budget-entry', {
+          taxes: { bytes: 1024 * 1024, reason: 'accepted while the catalogue was stored' },
+        }),
+      ),
+      'orphan-budget-entry': top(() =>
+        demoBudgetFindings([DEMO_BUDGET_COMPLIANT], 'orphan-budget-entry', {
+          gone: { bytes: 1024, reason: 'a module that has been renamed' },
+        }),
+      ),
+      'budget-entry-without-a-reason': top(() =>
+        demoBudgetFindings(
+          [DEMO_BUDGET_COMPLIANT, demoBudgetShipping('catalog', DEMO_ASSET_BUDGET_BYTES + 1)],
+          'budget-entry-without-a-reason',
+          { catalog: { bytes: DEMO_ASSET_BUDGET_BYTES * 4, reason: '   ' } },
+        ),
+      ),
+      // The conditional's vacuous state, as a red proof of the discrimination:
+      // with the obligation attached to the **first** module that declares demo
+      // data, "nobody declares any" is *vacuously clean* and a check that
+      // reported it as a pass would be the green that means "not looking".
+      'conditional-refuses-a-tree-declaring-nothing': top(() =>
+        demoBudgetVacuous([{ id: 'blog', declares: 'declined' }]),
+      ),
+      // D-218's boundary, in both directions and with the read asserted: the
+      // same bytes beside a `demo.test.ts` are a fixture that ships to nobody,
+      // and the walk still opened the file. Without the second half this reads
+      // exactly like a check that stopped walking.
+      'fixture-beside-a-test-is-not-budgeted': top(() =>
+        demoBudgetDiscrimination(
+          [
+            DEMO_BUDGET_COMPLIANT,
+            {
+              id: 'catalog',
+              declares: 'declared',
+              files: {
+                'backend/demo/seed.ts': 'export const seedDemo = () => undefined;\n',
+                'backend/demo/demo.test.ts': 'it("x", () => undefined);\n',
+                'backend/demo/big.json': 'x'.repeat(DEMO_ASSET_BUDGET_BYTES + 1),
+              },
+            },
+          ],
+          'big.json',
+        ),
+      ),
+      // The other half of "what ships is not this check's opinion": an
+      // extension nobody has ruled on stops the package build, so it reaches no
+      // client and is budgeted by nothing — and the walk read it.
+      'unruled-extension-is-not-budgeted': top(() =>
+        demoBudgetDiscrimination(
+          [
+            DEMO_BUDGET_COMPLIANT,
+            {
+              id: 'catalog',
+              declares: 'declared',
+              files: {
+                'backend/demo/seed.ts': 'export const seedDemo = () => undefined;\n',
+                'backend/demo/media/photo.jpg': 'x'.repeat(DEMO_ASSET_BUDGET_BYTES + 1),
+              },
+            },
+          ],
+          'photo.jpg',
+        ),
+      ),
+    },
+  },
+  {
     // Issue #240 — the wrong answer that looks like the right one. Four authors
     // wrote `normalize('NFD').replace(/\p{Diacritic}/gu, '')` inside a year and
     // all four shipped the same bug, because `ł` has no canonical
@@ -10352,6 +10513,11 @@ describe('every red proof enters at the top of the analysis', () => {
       // that its exemptions still discriminate. 50 correct sites are one
       // predicate mistake away from being ledger entries.
       'backend/scripts/check-default-language-prose.ts': 12,
+      // Seven findings, the conditional's own refusal, and the two D-218
+      // boundaries — a fixture beside a test and an extension nobody has ruled
+      // on, each asserting the walk **read** the file, because "not budgeted"
+      // and "not looked at" print the same zero.
+      'backend/scripts/check-demo-data-budget.ts': 10,
       // Two directions of a wrong code, three ways a target cannot be resolved,
       // and the ledger's stale direction.
       'backend/scripts/check-action-route-permissions.ts': 8,

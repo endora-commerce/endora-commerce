@@ -380,6 +380,61 @@ export const ESTATE: readonly EstateEntry[] = [
     tier: 'A',
   },
   {
+    id: 'check:demo-data-budget',
+    script: 'backend/scripts/check-demo-data-budget.ts',
+    // **`package`, and the subject is one package's own shipped bytes.** A
+    // module's demo layer is located from that module's own manifest artefact
+    // and measured in that module's own source tree; nothing about the answer
+    // needs a sibling, an owner map or an application. That is Tier **A** as
+    // the tier is defined — the package, `@endora-commerce/contracts` and
+    // `@endora-commerce/platform` — and `repository-only` would be the claim
+    // this file's own guard refuses, since the rule walks the module tree and a
+    // module package is one of those modules.
+    scope: 'package',
+    // **`pending`, and the phase is *named* rather than numbered** in
+    // `check:block-names`' idiom, because what a package-scope host is waiting
+    // for is neither of Tier B's two halves. It is a **relocation**: the
+    // question *"does this file ship"* has exactly one owner since D-218 —
+    // `classifyAssetFile` in `scripts/lib/runtime-assets.mjs`, the same function
+    // `copy-package-assets.mjs` and the manifest generator ask — and that file
+    // sits at the repository root, outside every package. A host in
+    // `@endora-commerce/cli` cannot reach it without a second copy of the
+    // classification, and a second copy is precisely the defect D-218 closed:
+    // two readers able to disagree about the same directory, one shipping a
+    // file the other refuses.
+    host: pending(
+      "the relocation of `scripts/lib/runtime-assets.mjs`' asset classification into " +
+        '`@endora-commerce/cli/lib/`, so that "does this file ship" keeps the one owner D-218 ' +
+        'gave it rather than gaining a package-scope copy',
+    ),
+    partial: [
+      {
+        signal: 'ledger reconciliation',
+        reason:
+          'the accepted per-module floors are **this repository’s** ledger, kept beside the ' +
+          'check; a lone package supplies none, so `stale-budget-entry`, ' +
+          '`orphan-budget-entry` and `budget-entry-without-a-reason` have no subject here ' +
+          'and the package is judged against the shared floor alone',
+      },
+      {
+        signal: 'undeclared-demo-assets',
+        reason:
+          'the demo-layer paths it probes are derived from *other* modules’ declarations, so ' +
+          'a lone package supplies none; a package that ships demo assets under a layer its ' +
+          'own manifest does not declare is invisible to this run',
+      },
+    ],
+    subjectDeclaration: {
+      kind: 'manifest-block',
+      declaration: 'a `demo` object in the module manifest',
+    },
+    // The declaration is read out of the manifest artefact the platform loads —
+    // `dist/manifest.js` for a module package (D-164) — so the run carries
+    // `emitted-freshness`' two refusals.
+    readsArtefact: true,
+    tier: 'A',
+  },
+  {
     id: 'check:diacritic-folds',
     script: 'backend/scripts/check-diacritic-folds.ts',
     scope: 'package',

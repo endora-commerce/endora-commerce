@@ -935,6 +935,24 @@ function copyContractsPackage(root: string): void {
   cpSync(built, join(destination, 'dist'), { recursive: true, preserveTimestamps: true });
 }
 
+/**
+ * The repository root's `scripts/lib/`, which a spawned check imports as code.
+ *
+ * `backend/scripts/lib/runtime-assets.ts` is a re-export of
+ * `scripts/lib/runtime-assets.mjs` — the one owner of "does this file ship"
+ * since D-218 — and `check-demo-data-budget.ts` reaches it for exactly that
+ * classification. Without this copy the spawn dies at module resolution with
+ * `ERR_MODULE_NOT_FOUND`, and the proof would then pass or fail for a reason
+ * that has nothing to do with a moved module tree. It is the same reasoning the
+ * `KEPT_MODULE_FILES` copy below states, one directory up: the fixture carries
+ * what a check *imports* and withholds what a check *walks*.
+ */
+function copyRootScriptLibrary(root: string): void {
+  const source = join(REPO_ROOT, 'scripts', 'lib');
+  if (!existsSync(source)) return;
+  cpSync(source, join(root, 'scripts', 'lib'), { recursive: true });
+}
+
 export function createMovedModuleTreeFixture(
   options: MovedModuleTreeOptions = {},
 ): MovedModuleTreeFixture {
@@ -964,6 +982,7 @@ export function createMovedModuleTreeFixture(
     'utf8',
   );
   cpSync(join(BACKEND_ROOT, 'scripts'), join(backend, 'scripts'), { recursive: true });
+  copyRootScriptLibrary(root);
   copyApplicationTests(backend);
   copyContractsPackage(root);
   copyPlatformPackage(root);
@@ -1542,6 +1561,7 @@ export function createSplitModuleTreeFixture(
   // a reason that has nothing to do with where the modules are.
   cpSync(join(BACKEND_ROOT, 'package.json'), join(backend, 'package.json'));
   cpSync(join(BACKEND_ROOT, 'scripts'), join(backend, 'scripts'), { recursive: true });
+  copyRootScriptLibrary(root);
   cpSync(join(BACKEND_ROOT, 'src'), join(backend, 'src'), { recursive: true });
   copyApplicationTests(backend);
   copyContractsPackage(root);

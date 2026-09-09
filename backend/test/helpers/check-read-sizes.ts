@@ -1483,7 +1483,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/test/unit/kernel/compose-app-contributions.test.ts`, its contribution-split
     // ledger. The application file keeps its path, so the move nets to nothing.
     // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 5501 here, so this branch's own contribution is +2. The new platform source and the new unit test; the changeset is markdown and this walk skips the check scripts, not the tree.
-    files: 5503,
+    // **`specs/113-module-owned-demo-data/` Phase 3 (the demo-data budget): files 5501 -> 5502 (+1).**
+    // One file — `test/helpers/demo-data-budget-fixture.ts`. The check's other
+    // three new files are outside its population by declaration:
+    // `backend/scripts` and `backend/test/unit/scripts` are excluded, being the
+    // trees whose job is to spell the shapes the rule refuses.
+    // **Re-measured on the union after rebasing onto `be22a122e`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file — it reads 5503 here — so this branch's own contribution is +1. Only the check's library: this walk excludes `backend/scripts` and `backend/test/unit/scripts`, which is where the check, its ledger and its companion test live.
+    files: 5504,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2680,7 +2686,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/test/unit/kernel/compose-app-contributions.test.ts`, which holds the two
     // sides of the contribution split disjoint and their union at 61. It is the only
     // file this task adds under a test root.
-    files: 1622,
+    // **`specs/113-module-owned-demo-data/` Phase 3 (the demo-data budget): files 1621 -> 1623 (+2).**
+    // The two `backend/test/**` files this phase adds: the companion test and its
+    // fixture builder.
+    // **Re-measured on the union after rebasing onto `be22a122e`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file — it reads 1622 here — so this branch's own contribution is +2. This walk opens `backend/test/**`, so it takes the companion test and its fixture helper.
+    files: 1624,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -2797,7 +2807,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/test/unit/kernel/compose-app-contributions.test.ts`, which holds the two
     // sides of the contribution split disjoint and their union at 61. It is the only
     // file this task adds under a test root.
-    files: 1622,
+    // **`specs/113-module-owned-demo-data/` Phase 3 (the demo-data budget): files 1621 -> 1623 (+2).**
+    // The two `backend/test/**` files this phase adds: the companion test and its
+    // fixture builder.
+    // **Re-measured on the union after rebasing onto `be22a122e`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file — it reads 1622 here — so this branch's own contribution is +2. The same `backend/test/**` population as `check-fixture-substitution.ts` above.
+    files: 1624,
     sites: null,
     sources: [],
   },
@@ -3038,7 +3052,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // opens for the two files that stay.
     // **300 -> 303** with T129b: two new ledger files (`undefined-class-renders.ts`, `unrendered-class-definitions.ts`) and the analysis that declares their type, all of them artefacts whose job is to carry a reason.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's manifest and the ledger shards that carry a reason naming it.
-    files: 306,
+    // **`specs/113-module-owned-demo-data/` Phase 3 (the demo-data budget): files 306 -> 307 (+1).**
+    // One file — `backend/scripts/check-demo-data-budget.ts`, which carries a
+    // ledger of its own (`DEMO_ASSETS_OVER_BUDGET`) and so joins the population of
+    // artefacts whose job is to carry a reason.
+    files: 307,
     // **2026-09-04: 14 -> 15.** One further named-subject lock claim.
     sites: 15,
     sources: ['manifest-index', 'contracts-barrel'],
@@ -3472,6 +3490,36 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // D-164's — a module package's manifest resolves at its build output, so
     // `docs: false` edited in a package's source and not rebuilt reads as absent.
     sources: ['manifest-index', 'sidebar-entries', 'emitted-manifests'],
+  },
+  'backend/scripts/check-demo-data-budget.ts': {
+    prefix: '[demo-data-budget]',
+    run: { kind: 'tsx', path: 'scripts/check-demo-data-budget.ts', args: [] },
+    // Every file the demo-layer walk enumerated — 32 when this landed: four
+    // files (`seed.ts`, `reset.ts`, `rows.ts`, `demo.test.ts`) in each of the
+    // eight modules that declare demo data, and nothing under the 64 that do
+    // not, because the probe finds no directory there. It moves by four when a
+    // module declares or withdraws a demo layer, and by one for every file
+    // written into one — including the `.ts` bodies, which is deliberate: this
+    // is what the walk *opened*, never what it budgeted.
+    files: 32,
+    // The shipped non-`.ts` demo assets, and **zero is the invariant rather
+    // than a blind run** — the whole of §7.5 is that this number is 0 today and
+    // the check locks it there. It is `files` that carries the floor: a walk
+    // that went blind while eight manifests still declare a layer is `files=0`,
+    // which `read-size.ts` refuses as `read-nothing`, and the check's own
+    // `demo-declarations` token refuses the case where one layer of the eight
+    // has moved.
+    sites: 0,
+    // `manifest-index` is issue #215's shared floor over the module walk, whose
+    // unit is the module's own directory. `demo-declarations` is the second
+    // author and the one this check needed: the expectation is the modules
+    // whose **manifest artefact** declares demo data without delegating it to a
+    // package, and the coverage is the layers the **filesystem** produced — two
+    // different readers of one question, so a demo layer that moved is a short
+    // walk rather than a clean line. `emitted-manifests` is
+    // `emitted-freshness`', omitted rather than printed `0/0` on a tree where
+    // every manifest came from source.
+    sources: ['manifest-index', 'demo-declarations', 'emitted-manifests'],
   },
   'backend/scripts/check-default-language-prose.ts': {
     prefix: '[default-language-prose]',
@@ -4734,7 +4782,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changeset, because this walk's population is the whole repository rather than a
     // source root.
     // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 8136 here, so this branch's own contribution is +3. All three files this branch adds: the platform source, the unit test and the changeset. This walk opens the whole repository, which is why it is the entry that shows the branch's full net.
-    files: 8139,
+    // **`specs/113-module-owned-demo-data/` Phase 3 (the demo-data budget): files 8136 -> 8142 (+6).**
+    // Six files: the check, its injected filesystem, the fixture builder, the
+    // companion test and the phase's two changesets. This walk is the whole
+    // repository, so it is the one that counts the `.md` as well.
+    // **Re-measured on the union after rebasing onto `be22a122e`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file — it reads 8139 here — so this branch's own contribution is +6. This branch adds six files: the check, its library, its ledger, its companion test, and two changesets. This walk opens the whole repository, so it is the entry that shows the full net.
+    files: 8145,
     sites: null,
     sources: [],
     //
@@ -5324,7 +5377,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changesets go with them. The base was measured on `origin/master`, where the
     // census printed `0 drifted, 43 agree`, so every number below is this branch's
     // and none of it is a delta subtracted from a moving tree.
-    files: 2471,
+    // **`specs/113-module-owned-demo-data/` Phase 3 (the demo-data budget): files 2471 -> 2473 (+2).**
+    // The two `backend/scripts/*.ts` files this phase adds — its application walk
+    // is the `RELATIVE_HOST_REACHES` half, whose population is the application
+    // tree and not only its `src`.
+    files: 2473,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -5738,7 +5795,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/test/unit/kernel/compose-app-contributions.test.ts`, which holds the two
     // sides of the contribution split disjoint and their union at 61. It is the only
     // file this task adds under a test root.
-    files: 1622,
+    // **`specs/113-module-owned-demo-data/` Phase 3 (the demo-data budget): files 1621 -> 1623 (+2).**
+    // The two `backend/test/**` files this phase adds: the companion test and its
+    // fixture builder.
+    // **Re-measured on the union after rebasing onto `be22a122e`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file — it reads 1622 here — so this branch's own contribution is +2. The same `backend/test/**` population as the two entries above.
+    files: 1624,
     sites: 163,
     sources: [],
   },
@@ -6050,7 +6111,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // sides of the contribution split disjoint and their union at 61. It is the only
     // file this task adds under a test root.
     // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 1727 here, so this branch's own contribution is +1. The new unit test; this walk opens `*.test.ts` only, so the platform source is outside it.
-    files: 1728,
+    // **`specs/113-module-owned-demo-data/` Phase 3 (the demo-data budget): files 1727 -> 1728 (+1).**
+    // One file — `test/unit/scripts/check-demo-data-budget.test.ts`. The fixture
+    // builder beside it is a helper and not a test.
+    // **Re-measured on the union after rebasing onto `be22a122e`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file — it reads 1728 here — so this branch's own contribution is +1. This walk opens `*.test.ts` only, so it takes the companion test and not the fixture helper beside it — which is what makes it differ by one from its three neighbours.
+    files: 1729,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -6469,7 +6534,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/test/unit/kernel/compose-app-contributions.test.ts`, its contribution-split
     // ledger. The application file keeps its path, so the move nets to nothing.
     // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 4524 here, so this branch's own contribution is +2. The new platform source and the new unit test, both inside this walk.
-    files: 4526,
+    // **`specs/113-module-owned-demo-data/` Phase 3 (the demo-data budget): files 4524 -> 4528 (+4).**
+    // The four `.ts` files this phase adds; its population is the workspace's
+    // sources, changesets excluded.
+    // **Re-measured on the union after rebasing onto `be22a122e`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file — it reads 4526 here — so this branch's own contribution is +4. The four new `.ts` sources.
+    files: 4530,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -7075,7 +7144,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changeset, because this walk's population is the whole repository rather than a
     // source root.
     // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 8196 here, so this branch's own contribution is +3. Repo-wide, so the same three files as `check-nul-bytes.ts` above.
-    files: 8199,
+    // **`specs/113-module-owned-demo-data/` Phase 3 (the demo-data budget): files 8196 -> 8202 (+6).**
+    // Six files, the same population as `check:nul-bytes`': four sources and two
+    // changesets.
+    // **Re-measured on the union after rebasing onto `be22a122e`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file — it reads 8199 here — so this branch's own contribution is +6. This branch adds six files: the check, its library, its ledger, its companion test, and two changesets. Repo-wide, so the same six.
+    files: 8205,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -7393,7 +7466,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/test/unit/kernel/compose-app-contributions.test.ts`, its contribution-split
     // ledger. The application file keeps its path, so the move nets to nothing.
     // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 6125 here, so this branch's own contribution is +2. This scan reads source comments, so it takes the two `.ts` files and not the changeset markdown.
-    files: 6127,
+    // **`specs/113-module-owned-demo-data/` Phase 3 (the demo-data budget): files 6125 -> 6129 (+4).**
+    // The four `.ts` files this phase adds. It reads comments, and the two
+    // changesets are `.md` outside `docs/docs/**`.
+    // **Re-measured on the union after rebasing onto `be22a122e`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file — it reads 6127 here — so this branch's own contribution is +4. The four new `.ts` sources; this scan reads source comments and the two changesets are markdown.
+    files: 6131,
     sites: null,
     sources: ['manifest-index'],
     //

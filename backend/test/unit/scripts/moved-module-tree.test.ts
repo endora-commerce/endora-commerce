@@ -109,6 +109,16 @@ const CHECKS: readonly MovedTreeCheck[] = [
   // that residue, find no Polish in it and print a clean line over 68 unjudged
   // modules.
   { script: 'check-default-language-prose.ts', args: [], prefix: '[default-language-prose]' },
+  // `specs/113-module-owned-demo-data/` FR-016. Its walk visits each registered
+  // module's **own directory** — `check:bundle-pairing`'s shape — and the
+  // residue here is the sharpest of the family, because the check's *own*
+  // subject is legitimately zero: no module ships a demo asset today, so
+  // `sites=0` is the invariant rather than a blind run and cannot carry the
+  // floor. Over a moved tree the index still answers for every module, none of
+  // the directories is there, and a check that asked "did I find any asset?"
+  // would print exactly the number it prints on a healthy tree. The floor is
+  // per module and refuses first.
+  { script: 'check-demo-data-budget.ts', args: [], prefix: '[demo-data-budget]' },
   { script: 'check-channel-resolution.ts', args: ['--enforce'], prefix: '[channel-resolution]' },
   { script: 'check-command-coverage.ts', args: ['--strict'], prefix: '[command-coverage]' },
   { script: 'check-container-imports.ts', args: [], prefix: '[container-imports]' },

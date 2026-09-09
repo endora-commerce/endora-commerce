@@ -572,6 +572,22 @@ quality:
     # per-module ledger under `scripts/ledgers/non-english-defaults/`, two-way
     # and expected to empty. What it refuses is the 42nd.
     - pnpm --filter backend run check:default-language-prose
+    # `specs/113-module-owned-demo-data/` FR-016 / D-6 — a per-module budget on
+    # shipped non-`.ts` demo assets. The owner's concern about that feature was
+    # weight, and this is the instrument rather than the paragraph: a module's
+    # demo data now lives in the module, so the bytes travel in every client's
+    # `node_modules` whether or not they ever seed a demo shop.
+    # The trigger is a **content class** and not a byte count that creeps.
+    # Today's demo catalogue is generated — a catalogue of 10 000 products costs
+    # the same bytes as one of 200 — so code does not grow the way the concern
+    # is about and assets do. `product_feeds`' 1.5 MB of bundled `.txt` is the
+    # weight class it is a tripwire against, and is outside the population: that
+    # directory is not a demo layer, and a budget over a whole package would
+    # read an unrelated `dist` growth as a demo finding.
+    # It lands with an **empty ledger** and zero findings, which is the argument
+    # for landing it: no module ships a non-`.ts` demo asset today, and that is
+    # the only moment at which a ledger is empty on arrival.
+    - pnpm --filter backend run check:demo-data-budget
     # `specs/098-storefront-ssr-seo-a11y-suite/` Phase 2 (FR-010…FR-014) — every
     # storefront route says whether a crawler may index it, and the sitemap and
     # the route table agree in both directions. Before it, the reference
