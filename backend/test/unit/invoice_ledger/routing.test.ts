@@ -16,18 +16,20 @@ function settingsMap(values: {
   channelKsef?: InvoiceLedgerKsefRouting;
 }): SettingsReadPort {
   return {
-    async get(code, salesChannelId) {
+    async get(code, salesChannelId, schema) {
       if (code === INVOICE_LEDGER_SETTING_CODES.NUMBERING_MODE) {
-        if (salesChannelId === CHANNEL_ID && values.channelNumbering !== undefined) {
-          return values.channelNumbering;
-        }
-        return values.instanceNumbering ?? 'endora';
+        const raw =
+          salesChannelId === CHANNEL_ID && values.channelNumbering !== undefined
+            ? values.channelNumbering
+            : (values.instanceNumbering ?? 'endora');
+        return schema.parse(raw);
       }
       if (code === INVOICE_LEDGER_SETTING_CODES.KSEF_ROUTING) {
-        if (salesChannelId === CHANNEL_ID && values.channelKsef !== undefined) {
-          return values.channelKsef;
-        }
-        return values.instanceKsef ?? 'native';
+        const raw =
+          salesChannelId === CHANNEL_ID && values.channelKsef !== undefined
+            ? values.channelKsef
+            : (values.instanceKsef ?? 'native');
+        return schema.parse(raw);
       }
       throw new Error(`unexpected setting ${code}`);
     },

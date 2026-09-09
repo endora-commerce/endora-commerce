@@ -146,8 +146,8 @@ function issueService(
   return new InvoiceService(
     ownEntitiesOnly(),
     readPort(orderRecord(), [orderItem()]),
-    { next: async () => 'FV 1/2026' } as ConstructorParameters<typeof InvoiceService>[2],
-    SELLER as ConstructorParameters<typeof InvoiceService>[3],
+    { next: async () => 'FV 1/2026' } as unknown as ConstructorParameters<typeof InvoiceService>[2],
+    SELLER as unknown as ConstructorParameters<typeof InvoiceService>[3],
     undefined,
     undefined,
     emailOnReady,

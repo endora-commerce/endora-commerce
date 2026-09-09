@@ -16,7 +16,6 @@ import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import { seedInvoiceableOrder } from '../../integration/invoices/helpers.js';
 import {
   ADMIN,
-  INFAKT_API_KEY,
   issueInvoice,
   prepareInfaktVatCopy,
   waitForDelivery,
