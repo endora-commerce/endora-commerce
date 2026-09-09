@@ -320,6 +320,8 @@ export class InvoiceService {
         `Invoice number ${number} is already issued.`,
       );
     }
+    // command-coverage-ignore: idempotent stamp of the vendor-assigned number
+    // the ledger webhook already claimed — same shape as `recordKsefAssignment`.
     inv.number = number;
     inv.status = 'ready';
     await em.persistAndFlush(inv);
@@ -334,6 +336,8 @@ export class InvoiceService {
     const inv = await em.findOne(Invoice, { id: invoiceId });
     if (!inv) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invoice not found.');
     if (Number(inv.paidTotal) >= Number(inv.total)) return;
+    // command-coverage-ignore: idempotent paidTotal projection of Infakt
+    // `invoice_paid` — the webhook receipt is the claim; this is the sole-writer stamp.
     inv.paidTotal = inv.total;
     await em.persistAndFlush(inv);
   }

@@ -68,6 +68,8 @@ export class InvoiceLedgerDeliveryService implements InvoiceLedgerDeliveryPort {
   }
 
   async enqueue(input: InvoiceLedgerEnqueueInput): Promise<LedgerDeliveryRecord> {
+    // command-coverage-ignore: ledger delivery queue stamp — the row is the
+    // worker's job token; connection / routing / retry stay on CommandBus.
     const em = this.emFactory();
     const existing = await em.findOne(InvoiceLedgerDelivery, {
       adapterId: input.adapterId,
@@ -97,6 +99,8 @@ export class InvoiceLedgerDeliveryService implements InvoiceLedgerDeliveryPort {
     error: string,
     opts?: { dead?: boolean },
   ): Promise<LedgerDeliveryRecord> {
+    // command-coverage-ignore: ledger delivery queue stamp for a copy that
+    // never leaves the platform (missing NIP, Infakt off, proforma).
     const em = this.emFactory();
     const existing = await em.findOne(InvoiceLedgerDelivery, {
       adapterId: input.adapterId,
@@ -124,6 +128,8 @@ export class InvoiceLedgerDeliveryService implements InvoiceLedgerDeliveryPort {
   }
 
   async markAwaitingRemote(id: string, asyncTaskId: string): Promise<void> {
+    // command-coverage-ignore: Infakt worker queue stamp — parks the delivery
+    // on the vendor async-task id until the webhook or poll completes.
     const em = this.emFactory();
     const row = await em.findOne(InvoiceLedgerDelivery, { id });
     if (!row) return;
@@ -138,6 +144,8 @@ export class InvoiceLedgerDeliveryService implements InvoiceLedgerDeliveryPort {
     remoteDocumentId: string,
     opts?: { originalInvoiceId?: string | null },
   ): Promise<void> {
+    // command-coverage-ignore: Infakt worker queue stamp plus the document-map
+    // projection the webhook lookup uses.
     const em = this.emFactory();
     const row = await em.findOne(InvoiceLedgerDelivery, { id });
     if (!row) return;
@@ -169,6 +177,8 @@ export class InvoiceLedgerDeliveryService implements InvoiceLedgerDeliveryPort {
   }
 
   async rememberClient(input: InvoiceLedgerClientMapInput): Promise<void> {
+    // command-coverage-ignore: Infakt worker stamp of the org → remote client
+    // map; not an operator write.
     const em = this.emFactory();
     let row = await em.findOne(InvoiceLedgerClientMap, {
       adapterId: input.adapterId,
@@ -234,6 +244,8 @@ export class InvoiceLedgerDeliveryService implements InvoiceLedgerDeliveryPort {
   }
 
   async markRemotePaid(id: string): Promise<void> {
+    // command-coverage-ignore: Infakt worker / webhook stamp that the remote
+    // invoice is paid — the invoices paidTotal write is the operator-visible one.
     const em = this.emFactory();
     const row = await em.findOne(InvoiceLedgerDelivery, { id });
     if (!row || row.remotePaidAt) return;
@@ -242,6 +254,7 @@ export class InvoiceLedgerDeliveryService implements InvoiceLedgerDeliveryPort {
   }
 
   async markFailed(id: string, error: string, opts?: { dead?: boolean }): Promise<void> {
+    // command-coverage-ignore: Infakt worker queue stamp for a mapped failure.
     const em = this.emFactory();
     const row = await em.findOne(InvoiceLedgerDelivery, { id });
     if (!row) return;
@@ -251,6 +264,7 @@ export class InvoiceLedgerDeliveryService implements InvoiceLedgerDeliveryPort {
   }
 
   async requeue(id: string): Promise<LedgerDeliveryRecord | null> {
+    // command-coverage-ignore: queue stamp inside the audited retry Command.
     const em = this.emFactory();
     const row = await em.findOne(InvoiceLedgerDelivery, { id });
     if (!row) return null;

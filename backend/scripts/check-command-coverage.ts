@@ -86,6 +86,8 @@ export const MIGRATED_MODULES: readonly string[] = [
   'product_feeds',
   'pim_ergonode',
   'pim_pimcore',
+  'invoice_ledger',
+  'infakt',
 ];
 
 /**

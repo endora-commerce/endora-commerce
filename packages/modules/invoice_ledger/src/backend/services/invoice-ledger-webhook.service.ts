@@ -206,6 +206,8 @@ export class InvoiceLedgerWebhookService implements InvoiceLedgerWebhookPort {
   }
 
   private async stampRemotePaid(deliveryId: string): Promise<void> {
+    // command-coverage-ignore: webhook queue stamp that the remote invoice is
+    // paid — mirrors `InvoiceLedgerDeliveryService.markRemotePaid`.
     const em = this.deps.emFactory();
     const row = await em.findOne(InvoiceLedgerDelivery, { id: deliveryId });
     if (!row) return;
