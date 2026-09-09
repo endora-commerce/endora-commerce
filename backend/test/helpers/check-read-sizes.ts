@@ -705,6 +705,56 @@ export interface RecordedReadSize {
  * agrees on this branch and re-recording it would have filed a number that did
  * not move.
  */
+/**
+ * **Re-recorded on 2026-09-09 by `specs/110-instance-repository/` T118c, the
+ * `assets_library` drain — fifteen entries, and every one of them moves for one of
+ * two reasons: one new file, or one drained closure.**
+ *
+ * The branch adds exactly two files —
+ * `packages/modules/cms/src/backend/asset-embed-resolver.test.ts` and one changeset
+ * — and modifies seven. It adds no platform source file and no application source
+ * file, which is what makes the arithmetic close by root and is how to check this
+ * record:
+ *
+ *   - a **whole-repository** walk gains 2: `check-nul-bytes` 8123 -> 8125 and
+ *     `check-naming.sh` 8183 -> 8185. `check-diacritic-folds` 5479 -> 5480 and
+ *     `check-language.sh` 6106 -> 6107 gain only 1 — the first reads
+ *     `.ts`/`.tsx`/`.js` and the changeset is `.md`, the second's markdown half is
+ *     `docs/docs/**`, which `.changeset/` is not under;
+ *   - a walk over the **module tree** gains 1: `check-admin-zones` 2715 -> 2716,
+ *     `check-class-vocabulary` 2813 -> 2814, `check-container-imports`
+ *     2185 -> 2186, `check-divergence` 2319 -> 2320, `check-singleton-identity`
+ *     4504 -> 4505 and `check-test-ownership` 1730 -> 1731 (in its *package* half:
+ *     `application=1486 packages=245`);
+ *   - `check-module-boundary` gains **2** for that same one file, measured by
+ *     parking it and re-running: that walk reaches a module package's sources under
+ *     more than one root.
+ *
+ * **The test file is co-located in the package rather than under `backend/test/`,
+ * and that is why this census looks the way it does.** It was written at
+ * `backend/test/unit/cms/asset-embed-resolver.test.ts` first, and
+ * `check:test-ownership` refused it as `misplaced-test` — one owner, no server
+ * (`specs/106-module-owned-tests/` §1). The first census was therefore a different
+ * one: four `backend/test/**` walks moved and no module walk did. It is recorded
+ * here because the two are the same file and a reader comparing this entry with
+ * `master` should know which of the two shapes produced these numbers.
+ *
+ * **The `sites` numbers are one seam and not one file**: the `cmsAssetResolver`
+ * closure this task drained out of `backend/src/composition.ts` and into `cms`' own
+ * registration. `check-port-dependencies` 1551 -> 1552 and `check-port-shape`
+ * 722 -> 723 are the `lazyPort<AssetsLibraryPort>(ctx, 'assetsLibraryPort')`
+ * resolution, a site in both; `check-port-catches` 212 -> 213 is the `catch` around
+ * it; `check-default-language-prose` 34428 -> 34429 is one more literal offered to
+ * its classifier. All four are new to these walks because their population is the
+ * module tree and the closure used to be in the application root, which none of
+ * them reads — the same code, counted for the first time rather than added.
+ *
+ * `check-platform-surface` and `check-kernel-boundary` are **not** in this list, and
+ * that is worth stating because the branch edits `backend/src/composition.ts`, which
+ * both read: it deletes lines from a file they were already counting and adds no file
+ * to either population, so both agreed on this branch and re-recording one would file
+ * a number that did not move.
+ */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
     prefix: '[action-route-permissions]',
@@ -1250,7 +1300,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changesets go with them. The base was measured on `origin/master`, where the
     // census printed `0 drifted, 43 agree`, so every number below is this branch's
     // and none of it is a delta subtracted from a moving tree.
-    files: 2185,
+    // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** files 2185
+    // -> 2186. the co-located test this branch adds,
+    // `packages/modules/cms/src/backend/asset-embed-resolver.test.ts`.
+    files: 2186,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -1585,7 +1638,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // same −27 and this one lands at 5479 rather than the 5506 recorded against a tree that
     // still held them. The two files this branch adds were already in the recorded value;
     // measured on the combined tree, never summed from the two sides' deltas.
-    files: 5479,
+    // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** files 5479
+    // -> 5480. the co-located test this branch adds,
+    // `packages/modules/cms/src/backend/asset-embed-resolver.test.ts`. This walk reads
+    // `.ts`/`.tsx`/`.js` over the whole repository and the changeset is `.md`, which is why
+    // it gains one where its whole-tree neighbours gain two.
+    files: 5480,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1831,7 +1889,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // conflict — the branch never touched it — so the recorded number was `master`'s alone,
     // and the one new platform source this branch adds moves it 2318 -> 2319 (+1). Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 2319,
+    // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** files 2319
+    // -> 2320. the co-located test this branch adds,
+    // `packages/modules/cms/src/backend/asset-embed-resolver.test.ts`.
+    files: 2320,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -3527,7 +3588,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changesets go with them. The base was measured on `origin/master`, where the
     // census printed `0 drifted, 43 agree`, so every number below is this branch's
     // and none of it is a delta subtracted from a moving tree.
-    files: 2715,
+    // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** files 2715
+    // -> 2716. the co-located test this branch adds,
+    // `packages/modules/cms/src/backend/asset-embed-resolver.test.ts`.
+    files: 2716,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
     sites: 56,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
@@ -3662,7 +3726,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changesets go with them. The base was measured on `origin/master`, where the
     // census printed `0 drifted, 43 agree`, so every number below is this branch's
     // and none of it is a delta subtracted from a moving tree.
-    files: 2813,
+    // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** files 2813
+    // -> 2814. the co-located test this branch adds,
+    // `packages/modules/cms/src/backend/asset-embed-resolver.test.ts`.
+    files: 2814,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -3952,7 +4019,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `ProductsList.tsx` moves it by **zero**, measured, which is why the total is
     // six and not more: its added strings are a permission code inside a call and a
     // translation key, neither of which this classifier counts as a site.
-    sites: 34428,
+    // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** sites 34428
+    // -> 34429. One more literal offered to the classifier by `cms`' new registration.
+    // `files` does not move: this walk reads a module's own sources and the test file is
+    // excluded from it.
+    sites: 34429,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -4440,7 +4511,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own base plus its +1, is two high against the combined tree: 4935 -> 4933. A read size is
     // a measurement of the tree the run walks, so it is re-measured here and never
     // reconciled textually out of the two conflicting sides.
-    files: 4933,
+    // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** files 4933
+    // -> 4935 and sites 12551 -> 12561, and **both numbers are one file**: the co-located
+    // test this branch adds,
+    // `packages/modules/cms/src/backend/asset-embed-resolver.test.ts`. Measured by parking
+    // that file and re-running, which reads 4933/12551 exactly. Two rather than one because
+    // this walk reaches a module package's sources under more than one root, so a file
+    // added there moves the count twice; the ten sites are its own import specifiers.
+    files: 4935,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -4500,7 +4578,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // merge request adds are in neither module walk root, so `files` moves by the
     // one this walk does see and `sites` moves the other way — which is the
     // #235/#237 shape, and the reason both numbers are recorded.
-    sites: 12551,
+    sites: 12561,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -5128,7 +5206,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // same −27 and this one lands at 8123 rather than the 8150 recorded against a tree that
     // still held them. The two files this branch adds were already in the recorded value;
     // measured on the combined tree, never summed from the two sides' deltas.
-    files: 8123,
+    // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** files 8123
+    // -> 8125 (+2). The test file and the changeset — this walk reads every file in the
+    // repository, so it is the one that counts the changeset, which is written last and is
+    // the easy half to forget.
+    files: 8125,
     sites: null,
     sources: [],
     //
@@ -5536,7 +5618,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // re-measured there after the rebase rather than carried across it — every one
     // of the sixteen entries this drain moves is the same twenty-seven files.
     files: 2147,
-    sites: 212,
+    // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** sites 212 ->
+    // 213. One site: `cms`' `cmsAssetResolver`, a `catch` around a `lazyPort` call. The
+    // drained contribution's `try/catch -> null` moved out of `backend/src/composition.ts`,
+    // which this walk does not read, into the module that owns the seam — the same closure
+    // counted for the first time rather than a new one. It is a site and not a violation:
+    // `rethrowIfModuleDisabled` is its first line. `files` does not move, this walk reading
+    // no `.test.ts`.
+    sites: 213,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -5610,7 +5699,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 1471 -> 1535.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
-    sites: 1551,
+    // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** sites 1551
+    // -> 1552. One resolution: `cms`' `lazyPort<AssetsLibraryPort>(ctx,
+    // 'assetsLibraryPort')`. The edge was already declared in that module's manifest, so
+    // the count moves and no verdict does.
+    sites: 1552,
     sources: ['manifest-index'],
   },
   // Two derivations, deliberately, because the check has two inputs that can be
@@ -5957,7 +6050,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 692 -> 721.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
-    sites: 722,
+    // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** sites 722 ->
+    // 723. The same one resolution, counted here as a `lazyPort` site.
+    sites: 723,
     sources: ['manifest-index', 'ports-subpaths'],
   },
   // Small on purpose: this population is the *workspace*, not a source tree —
@@ -6551,7 +6646,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // builder beside it is a helper and not a test.
     // **Re-measured on the union after rebasing onto `be22a122e`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file — it reads 1728 here — so this branch's own contribution is +1. This walk opens `*.test.ts` only, so it takes the companion test and not the fixture helper beside it — which is what makes it differ by one from its three neighbours.
     // **`fix/admin-image-root-scripts`: files 1729 -> 1730.** The two files this branch adds, `backend/test/helpers/dockerfile.ts` and `backend/test/unit/ci/image-root-script-supply.test.ts`; the four it modifies already existed. Attributed by parking the pair and re-running, never by subtracting: without them every recorded entry agrees. One, not two: this population is `.test.ts` files, and `test/helpers/dockerfile.ts` is not one.
-    files: 1730,
+    // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** files 1730
+    // -> 1731. the co-located test this branch adds,
+    // `packages/modules/cms/src/backend/asset-embed-resolver.test.ts`, counted in this
+    // walk's package half rather than its application half (`application=1486
+    // packages=245`). `sites` does not move.
+    files: 1731,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -7045,7 +7145,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // same −27 and this one lands at 4504 rather than the 4531 recorded against a tree that
     // still held them. The two files this branch adds were already in the recorded value;
     // measured on the combined tree, never summed from the two sides' deltas.
-    files: 4504,
+    // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** files 4504
+    // -> 4505. the co-located test this branch adds,
+    // `packages/modules/cms/src/backend/asset-embed-resolver.test.ts`. `sites` does not
+    // move: the file reaches its subject with a relative `./index.js` inside its own
+    // package, which is not a cross-package value reach.
+    files: 4505,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -7693,7 +7798,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // same −27 and this one lands at 8183 rather than the 8210 recorded against a tree that
     // still held them. The two files this branch adds were already in the recorded value;
     // measured on the combined tree, never summed from the two sides' deltas.
-    files: 8183,
+    // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** files 8183
+    // -> 8185 (+2). The test file and the changeset; a whole-repository walk.
+    files: 8185,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -8051,7 +8158,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // same −27 and this one lands at 6106 rather than the 6133 recorded against a tree that
     // still held them. The two files this branch adds were already in the recorded value;
     // measured on the combined tree, never summed from the two sides' deltas.
-    files: 6106,
+    // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** files 6106
+    // -> 6107. The test file. Its markdown half is `docs/docs/**`, so the changeset — a
+    // `.md` under `.changeset/` — is outside it, which is the asymmetry against
+    // `check-naming.sh` below.
+    files: 6107,
     sites: null,
     sources: ['manifest-index'],
     //

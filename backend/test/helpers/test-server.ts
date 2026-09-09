@@ -2597,14 +2597,12 @@ export async function setupBackendServer(
       // Feature 072 (T131) — the eight services `pim_ergonode` reads across a
       // module boundary. Seven are `catalog`'s and were constructed here a
       // second time, purely for this module, while `catalog` built its own;
-      // registering them means one instance each per composition. They go when
-      // `catalog` and `assets_library` convert.
-      composedModules.contribute({
-        // Mirrors `composition.ts`: the seven `catalog` services this block built a
-        // second time are that module's ports since T142. Only `assets_library`'s
-        // is left, and it drains when that module converts.
-        assetsLibraryService: assetsLibrary.handle.service,
-      });
+      // registering them means one instance each per composition.
+      //
+      // All eight are gone. `assetsLibraryService` was the last, and T118c
+      // retired it in both roots rather than moving it: `assets_library`
+      // provides `assetsLibraryPort`, `pim_ergonode` resolves that port, and the
+      // name was read by nobody.
 
       // Feature 047 — Transactional Emails.
       // Feature 072 (T126) — `payments` owns the payment-status notifier now and

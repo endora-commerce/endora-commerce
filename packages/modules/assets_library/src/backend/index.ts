@@ -72,8 +72,10 @@ export function registerModule(ctx: ModuleContext): void {
    * from `ctx.onBoot`, and boot hooks run regardless of effective state. As a
    * `providePort` this was a transient gate, so switching `assets_library` off
    * made all four hooks throw `MODULE_DISABLED` during composition and the
-   * backend stopped starting. A descriptor is inert; `assetsLibraryService`,
-   * which reads and writes assets, is the port and does fail closed.
+   * backend stopped starting. A descriptor is inert; `assetsLibraryPort`, which
+   * reads and writes assets, is the port and does fail closed. (That sentence
+   * named `assetsLibraryService` until T118c, which is the container name the
+   * roots contributed rather than a port — it was never gated, and it is gone.)
    *
    * Whether an entry is honoured while its contributor is absent is answered at
    * enumeration — see `services/reference-registry.ts`.
@@ -97,10 +99,27 @@ export function registerModule(ctx: ModuleContext): void {
   //
   // `assetsLibraryPort` is the narrow face of the library service that
   // `pim_ergonode` uses during an import — upload, read, patch the alternate
-  // text, soft-delete what an item stopped pointing at. It is registered here,
-  // by the module, where the existing `assetsLibraryService` name is still
-  // contributed by a composition root; the root's entry stays until Phase C
-  // retires it, and the two resolve the same instance.
+  // text, soft-delete what an item stopped pointing at. Since T118c it is also
+  // what `cms` resolves to turn an embedded asset id into the detail a
+  // storefront response carries.
+  //
+  // **Phase C has retired the root's entry** (`specs/110-instance-repository/`
+  // T118c). This note used to read *"the existing `assetsLibraryService` name is
+  // still contributed by a composition root; the root's entry stays until Phase
+  // C retires it, and the two resolve the same instance"*. Both roots
+  // contributed that name and, by the time it was drained, **no module resolved
+  // it**: `pim_ergonode` moved to this port at feature 075's cut and the second,
+  // ungated hold on the same service stayed behind. So the drain cost nothing
+  // and bought the one thing the duplicate could not have — there is now exactly
+  // one way in, and it is gated.
+  //
+  // What is still a composition's, and why it is not an omission: five reaches
+  // into this module remain in `backend/src/composition.ts`, and every one of
+  // them needs something this port does not publish — `resolveUrl` (three of
+  // them, two of those also folding in the host's public API base URL, which is
+  // no module's to know) or the storage adapters' byte-streaming surface
+  // (`invoices`' logo embed, `product_feeds`' artefact writer). Widening the
+  // port to cover them is a design decision, not this drain's.
   // ---------------------------------------------------------------------------
 
   ctx.di.providePort<AssetReadPort>(
