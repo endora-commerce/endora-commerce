@@ -2,16 +2,8 @@ import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   INFAKT_INSTANCE_CREDENTIAL_CODE,
-  INVOICE_COPY_HOST_PORT,
-  INVOICE_KSEF_ASSIGNMENT_PORT,
-  INVOICE_LEDGER_DELIVERY_PORT,
   INVOICE_LEDGER_DELIVERY_QUEUED_EVENT,
   INVOICE_LEDGER_MODULES,
-  INVOICE_LEDGER_REGISTRY_PORT,
-  INVOICE_LEDGER_ROUTING_PORT,
-  INVOICE_LEDGER_WEBHOOK_PORT,
-  INVOICE_NUMBERING_HOST_PORT,
-  INVOICE_PAID_HOST_PORT,
   infaktEnvironmentSchema,
   invoiceCorrectedEventSchema,
   invoiceIssuedEventSchema,
@@ -83,7 +75,7 @@ export function registerModule(ctx: ModuleContext): void {
     invoiceLedgerVendorModules: ctx.asValue(INVOICE_LEDGER_MODULES),
   });
   ctx.di.providePort<InvoiceLedgerRegistryPort>(
-    INVOICE_LEDGER_REGISTRY_PORT,
+    'invoiceLedgerRegistryPort',
     ctx
       .asFunction(
         ({ emFactory, invoiceLedgerPresence, invoiceLedgerVendorModules }: LedgerCradle) =>
@@ -97,11 +89,11 @@ export function registerModule(ctx: ModuleContext): void {
   );
 
   ctx.di.providePort<InvoiceLedgerRoutingPort>(
-    INVOICE_LEDGER_ROUTING_PORT,
+    'invoiceLedgerRoutingPort',
     ctx
       .asFunction(() => {
         const settings = lazyPort<SettingsReadPort>(ctx, 'settingsReadPort');
-        const registry = lazyPort<InvoiceLedgerRegistryPort>(ctx, INVOICE_LEDGER_REGISTRY_PORT);
+        const registry = lazyPort<InvoiceLedgerRegistryPort>(ctx, 'invoiceLedgerRegistryPort');
         return new InvoiceLedgerRoutingService(settings, registry);
       })
       .singleton(),
@@ -114,23 +106,23 @@ export function registerModule(ctx: ModuleContext): void {
   });
 
   ctx.di.providePort<InvoiceLedgerDeliveryPort>(
-    INVOICE_LEDGER_DELIVERY_PORT,
+    'invoiceLedgerDeliveryPort',
     ctx
       .asFunction(({ invoiceLedgerDeliveryService }: LedgerCradle) => invoiceLedgerDeliveryService)
       .singleton(),
   );
 
   ctx.di.providePort<InvoiceLedgerWebhookPort>(
-    INVOICE_LEDGER_WEBHOOK_PORT,
+    'invoiceLedgerWebhookPort',
     ctx
       .asFunction(({ emFactory }: LedgerCradle) => {
-        const deliveries = lazyPort<InvoiceLedgerDeliveryPort>(ctx, INVOICE_LEDGER_DELIVERY_PORT);
+        const deliveries = lazyPort<InvoiceLedgerDeliveryPort>(ctx, 'invoiceLedgerDeliveryPort');
         return new InvoiceLedgerWebhookService({
           emFactory,
           deliveries,
-          numbering: lazyPort<InvoiceNumberingHostPort>(ctx, INVOICE_NUMBERING_HOST_PORT),
-          paid: lazyPort<InvoicePaidHostPort>(ctx, INVOICE_PAID_HOST_PORT),
-          ksefAssignment: lazyPort<InvoiceKsefAssignmentPort>(ctx, INVOICE_KSEF_ASSIGNMENT_PORT),
+          numbering: lazyPort<InvoiceNumberingHostPort>(ctx, 'invoiceNumberingHostPort'),
+          paid: lazyPort<InvoicePaidHostPort>(ctx, 'invoicePaidHostPort'),
+          ksefAssignment: lazyPort<InvoiceKsefAssignmentPort>(ctx, 'invoiceKsefAssignmentPort'),
         });
       })
       .singleton(),
@@ -140,7 +132,7 @@ export function registerModule(ctx: ModuleContext): void {
     invoiceLedgerRoutingWrite: ctx
       .asFunction(({ emFactory, commandBus }: LedgerCradle) => {
         const settings = lazyPort<SettingsReadPort>(ctx, 'settingsReadPort');
-        const registry = lazyPort<InvoiceLedgerRegistryPort>(ctx, INVOICE_LEDGER_REGISTRY_PORT);
+        const registry = lazyPort<InvoiceLedgerRegistryPort>(ctx, 'invoiceLedgerRegistryPort');
         const routing = new InvoiceLedgerRoutingService(settings, registry);
         return new InvoiceLedgerRoutingWriteService(
           routing,
@@ -154,7 +146,7 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(({ invoiceLedgerDeliveryService, commandBus, eventBus }: LedgerCradle) => {
         return new InvoiceLedgerDeliveryAdminService(
           invoiceLedgerDeliveryService,
-          lazyPort<InvoiceCopyHostPort>(ctx, INVOICE_COPY_HOST_PORT),
+          lazyPort<InvoiceCopyHostPort>(ctx, 'invoiceCopyHostPort'),
           commandBus,
           eventBus,
         );
@@ -167,13 +159,13 @@ export function registerModule(ctx: ModuleContext): void {
     kind: 'invoice' | 'correction';
     salesChannelId: string | null;
   }): Promise<void> {
-    const routing = lazyPort<InvoiceLedgerRoutingPort>(ctx, INVOICE_LEDGER_ROUTING_PORT);
+    const routing = lazyPort<InvoiceLedgerRoutingPort>(ctx, 'invoiceLedgerRoutingPort');
     const channelId = input.salesChannelId;
     const numberingMode = await routing.numberingModeFor(channelId);
     const ksefAction = await routing.nativeKsefActionFor(channelId);
     const ksefRouting = ksefAction === 'skip' ? 'vendor' : 'native';
     const adapterId = await routing.activeVendorModuleId();
-    const deliveries = lazyPort<InvoiceLedgerDeliveryPort>(ctx, INVOICE_LEDGER_DELIVERY_PORT);
+    const deliveries = lazyPort<InvoiceLedgerDeliveryPort>(ctx, 'invoiceLedgerDeliveryPort');
     if (!adapterId) {
       if (ksefRouting === 'vendor') {
         await deliveries.enqueueClosed(
@@ -251,7 +243,7 @@ export function registerModule(ctx: ModuleContext): void {
     const event = payload as ModuleActivationChangedPayload;
     if (typeof event.moduleId !== 'string' || typeof event.active !== 'boolean') return;
     if (!LEDGER_VENDOR_IDS.has(event.moduleId)) return;
-    const registry = lazyPort<InvoiceLedgerRegistryPort>(ctx, INVOICE_LEDGER_REGISTRY_PORT);
+    const registry = lazyPort<InvoiceLedgerRegistryPort>(ctx, 'invoiceLedgerRegistryPort');
     if (event.active) {
       await registry.recordActive(event.moduleId, null);
     } else {

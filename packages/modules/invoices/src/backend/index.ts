@@ -18,13 +18,6 @@ import type {
   SettingsAdminPort,
   TransactionalEmailSender,
 } from '@endora-commerce/contracts';
-import {
-  INVOICE_COPY_HOST_PORT,
-  INVOICE_KSEF_ASSIGNMENT_PORT,
-  INVOICE_LEDGER_ROUTING_PORT,
-  INVOICE_NUMBERING_HOST_PORT,
-  INVOICE_PAID_HOST_PORT,
-} from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { effectiveState, lazyPort } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -190,14 +183,14 @@ export function registerModule(ctx: ModuleContext): void {
               if (!effectiveState.isPresent('invoice_ledger')) return 'endora';
               return lazyPort<InvoiceLedgerRoutingPort>(
                 ctx,
-                INVOICE_LEDGER_ROUTING_PORT,
+                'invoiceLedgerRoutingPort',
               ).numberingModeFor(salesChannelId);
             },
             activeVendorModuleId: async () => {
               if (!effectiveState.isPresent('invoice_ledger')) return null;
               return lazyPort<InvoiceLedgerRoutingPort>(
                 ctx,
-                INVOICE_LEDGER_ROUTING_PORT,
+                'invoiceLedgerRoutingPort',
               ).activeVendorModuleId();
             },
           },
@@ -218,19 +211,19 @@ export function registerModule(ctx: ModuleContext): void {
     ctx.asFunction(({ invoices }: InvoicesCradle) => invoices.handle.invoiceService).singleton(),
   );
   ctx.di.providePort<InvoiceNumberingHostPort>(
-    INVOICE_NUMBERING_HOST_PORT,
+    'invoiceNumberingHostPort',
     ctx.asFunction(({ invoices }: InvoicesCradle) => invoices.handle.invoiceService).singleton(),
   );
   ctx.di.providePort<InvoicePaidHostPort>(
-    INVOICE_PAID_HOST_PORT,
+    'invoicePaidHostPort',
     ctx.asFunction(({ invoices }: InvoicesCradle) => invoices.handle.invoiceService).singleton(),
   );
   ctx.di.providePort<InvoiceKsefAssignmentPort>(
-    INVOICE_KSEF_ASSIGNMENT_PORT,
+    'invoiceKsefAssignmentPort',
     ctx.asFunction(({ invoices }: InvoicesCradle) => invoices.handle.invoiceService).singleton(),
   );
   ctx.di.providePort<InvoiceCopyHostPort>(
-    INVOICE_COPY_HOST_PORT,
+    'invoiceCopyHostPort',
     ctx
       .asFunction(({ emFactory }: InvoicesCradle) => {
         const orders = lazyPort<OrderReadPort>(ctx, 'orderReadPort');
@@ -326,14 +319,14 @@ export function registerModule(ctx: ModuleContext): void {
                 if (!effectiveState.isPresent('invoice_ledger')) return 'endora';
                 return lazyPort<InvoiceLedgerRoutingPort>(
                   ctx,
-                  INVOICE_LEDGER_ROUTING_PORT,
+                  'invoiceLedgerRoutingPort',
                 ).numberingModeFor(salesChannelId);
               },
               activeVendorModuleId: async () => {
                 if (!effectiveState.isPresent('invoice_ledger')) return null;
                 return lazyPort<InvoiceLedgerRoutingPort>(
                   ctx,
-                  INVOICE_LEDGER_ROUTING_PORT,
+                  'invoiceLedgerRoutingPort',
                 ).activeVendorModuleId();
               },
             },
