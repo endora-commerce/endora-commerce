@@ -862,7 +862,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 113's T235 (the escape hatch's runner half): files 2045 -> 2046 (+1).**
     // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
     // probes a `demo.package` name and imports it in two separate steps (§6.4).
-    files: 2046,
+    // **`specs/110-instance-repository/` T118b: files 2048 -> 2049 (+1).** Two new source files and
+    // nothing else — `packages/contracts/src/actor.ts` (the session-free `Actor`)
+    // and `packages/platform/src/http/request-actor.ts` (the `declare module
+    // 'fastify'` block that puts it on the request). Nothing moved, nothing was
+    // deleted, and no site count follows: neither file makes a claim this walk
+    // judges. Attributed by running this census on a pristine `origin/master`
+    // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
+    // twenty entries below are this merge request's own and none is a subtraction.
+    // **Re-measured on the union after rebasing onto `0441ea466`.** Feature 113's T226 and
+    // T235 landed on `master` between this branch's base and the rebase — the seed corpus
+    // deleted, one platform source added — so the recorded value, which was this branch's
+    // own base plus its +1, is two high against the combined tree: 2049 -> 2047. A read size is
+    // a measurement of the tree the run walks, so it is re-measured here and never
+    // reconciled textually out of the two conflicting sides.
+    files: 2047,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1058,7 +1072,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 113's T235 (the escape hatch's runner half): files 2172 -> 2173 (+1).**
     // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
     // probes a `demo.package` name and imports it in two separate steps (§6.4).
-    files: 2173,
+    // **`specs/110-instance-repository/` T118b: files 2175 -> 2176 (+1).** Two new source files and
+    // nothing else — `packages/contracts/src/actor.ts` (the session-free `Actor`)
+    // and `packages/platform/src/http/request-actor.ts` (the `declare module
+    // 'fastify'` block that puts it on the request). Nothing moved, nothing was
+    // deleted, and no site count follows: neither file makes a claim this walk
+    // judges. Attributed by running this census on a pristine `origin/master`
+    // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
+    // twenty entries below are this merge request's own and none is a subtraction.
+    // **Re-measured on the union after rebasing onto `0441ea466`.** Feature 113's T226 and
+    // T235 landed on `master` between this branch's base and the rebase — the seed corpus
+    // deleted, one platform source added — so the recorded value, which was this branch's
+    // own base plus its +1, is two high against the combined tree: 2176 -> 2174. A read size is
+    // a measurement of the tree the run walks, so it is re-measured here and never
+    // reconciled textually out of the two conflicting sides.
+    files: 2174,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1513,7 +1541,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 113's T235 (the escape hatch's runner half): files 5501 -> 5502 (+1).**
     // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
     // probes a `demo.package` name and imports it in two separate steps (§6.4).
-    files: 5502,
+    // **`specs/110-instance-repository/` T118b: files 5504 -> 5506 (+2).** Two new source files and
+    // nothing else — `packages/contracts/src/actor.ts` (the session-free `Actor`)
+    // and `packages/platform/src/http/request-actor.ts` (the `declare module
+    // 'fastify'` block that puts it on the request). Nothing moved, nothing was
+    // deleted, and no site count follows: neither file makes a claim this walk
+    // judges. Attributed by running this census on a pristine `origin/master`
+    // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
+    // twenty entries below are this merge request's own and none is a subtraction.
+    // **Re-measured on the union after rebasing onto `0441ea466`.** Feature 113's T226 and
+    // T235 landed on `master` between this branch's base and the rebase — the seed corpus
+    // deleted, one platform source added — so the recorded value, which was this branch's
+    // own base plus its +1, is two high against the combined tree: 5506 -> 5504. A read size is
+    // a measurement of the tree the run walks, so it is re-measured here and never
+    // reconciled textually out of the two conflicting sides.
+    files: 5504,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1746,7 +1788,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 113's T235 (the escape hatch's runner half): files 2317 -> 2318 (+1).**
     // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
     // probes a `demo.package` name and imports it in two separate steps (§6.4).
-    files: 2318,
+    // **`specs/110-instance-repository/` T118b: files 2317 -> 2318 (+1).** Two new source files and
+    // nothing else — `packages/contracts/src/actor.ts` (the session-free `Actor`)
+    // and `packages/platform/src/http/request-actor.ts` (the `declare module
+    // 'fastify'` block that puts it on the request). Nothing moved, nothing was
+    // deleted, and no site count follows: neither file makes a claim this walk
+    // judges. Attributed by running this census on a pristine `origin/master`
+    // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
+    // twenty entries below are this merge request's own and none is a subtraction.
+    // **Re-measured on the union after rebasing onto `0441ea466`.** This entry carried no
+    // conflict — the branch never touched it — so the recorded number was `master`'s alone,
+    // and the one new platform source this branch adds moves it 2318 -> 2319 (+1). Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 2319,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -2068,7 +2122,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 113's T235 (the escape hatch's runner half): files 2172 -> 2173 (+1).**
     // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
     // probes a `demo.package` name and imports it in two separate steps (§6.4).
-    files: 2173,
+    // **`specs/110-instance-repository/` T118b: files 2175 -> 2176 (+1).** Two new source files and
+    // nothing else — `packages/contracts/src/actor.ts` (the session-free `Actor`)
+    // and `packages/platform/src/http/request-actor.ts` (the `declare module
+    // 'fastify'` block that puts it on the request). Nothing moved, nothing was
+    // deleted, and no site count follows: neither file makes a claim this walk
+    // judges. Attributed by running this census on a pristine `origin/master`
+    // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
+    // twenty entries below are this merge request's own and none is a subtraction.
+    // **Re-measured on the union after rebasing onto `0441ea466`.** Feature 113's T226 and
+    // T235 landed on `master` between this branch's base and the rebase — the seed corpus
+    // deleted, one platform source added — so the recorded value, which was this branch's
+    // own base plus its +1, is two high against the combined tree: 2176 -> 2174. A read size is
+    // a measurement of the tree the run walks, so it is re-measured here and never
+    // reconciled textually out of the two conflicting sides.
+    files: 2174,
     sites: 260,
     sources: ['manifest-index'],
   },
@@ -2245,7 +2313,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 113's T235 (the escape hatch's runner half): files 2172 -> 2173 (+1).**
     // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
     // probes a `demo.package` name and imports it in two separate steps (§6.4).
-    files: 2173,
+    // **`specs/110-instance-repository/` T118b: files 2175 -> 2176 (+1).** Two new source files and
+    // nothing else — `packages/contracts/src/actor.ts` (the session-free `Actor`)
+    // and `packages/platform/src/http/request-actor.ts` (the `declare module
+    // 'fastify'` block that puts it on the request). Nothing moved, nothing was
+    // deleted, and no site count follows: neither file makes a claim this walk
+    // judges. Attributed by running this census on a pristine `origin/master`
+    // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
+    // twenty entries below are this merge request's own and none is a subtraction.
+    // **Re-measured on the union after rebasing onto `0441ea466`.** Feature 113's T226 and
+    // T235 landed on `master` between this branch's base and the rebase — the seed corpus
+    // deleted, one platform source added — so the recorded value, which was this branch's
+    // own base plus its +1, is two high against the combined tree: 2176 -> 2174. A read size is
+    // a measurement of the tree the run walks, so it is re-measured here and never
+    // reconciled textually out of the two conflicting sides.
+    files: 2174,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2422,7 +2504,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 113's T235 (the escape hatch's runner half): files 2172 -> 2173 (+1).**
     // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
     // probes a `demo.package` name and imports it in two separate steps (§6.4).
-    files: 2173,
+    // **`specs/110-instance-repository/` T118b: files 2175 -> 2176 (+1).** Two new source files and
+    // nothing else — `packages/contracts/src/actor.ts` (the session-free `Actor`)
+    // and `packages/platform/src/http/request-actor.ts` (the `declare module
+    // 'fastify'` block that puts it on the request). Nothing moved, nothing was
+    // deleted, and no site count follows: neither file makes a claim this walk
+    // judges. Attributed by running this census on a pristine `origin/master`
+    // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
+    // twenty entries below are this merge request's own and none is a subtraction.
+    // **Re-measured on the union after rebasing onto `0441ea466`.** Feature 113's T226 and
+    // T235 landed on `master` between this branch's base and the rebase — the seed corpus
+    // deleted, one platform source added — so the recorded value, which was this branch's
+    // own base plus its +1, is two high against the combined tree: 2176 -> 2174. A read size is
+    // a measurement of the tree the run walks, so it is re-measured here and never
+    // reconciled textually out of the two conflicting sides.
+    files: 2174,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -2600,7 +2696,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 113's T235 (the escape hatch's runner half): files 697 -> 698 (+1).**
     // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
     // probes a `demo.package` name and imports it in two separate steps (§6.4).
-    files: 698,
+    // **`specs/110-instance-repository/` T118b: files 700 -> 701 (+1).** Two new source files and
+    // nothing else — `packages/contracts/src/actor.ts` (the session-free `Actor`)
+    // and `packages/platform/src/http/request-actor.ts` (the `declare module
+    // 'fastify'` block that puts it on the request). Nothing moved, nothing was
+    // deleted, and no site count follows: neither file makes a claim this walk
+    // judges. Attributed by running this census on a pristine `origin/master`
+    // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
+    // twenty entries below are this merge request's own and none is a subtraction.
+    // **Re-measured on the union after rebasing onto `0441ea466`.** Feature 113's T226 and
+    // T235 landed on `master` between this branch's base and the rebase — the seed corpus
+    // deleted, one platform source added — so the recorded value, which was this branch's
+    // own base plus its +1, is two high against the combined tree: 701 -> 699. A read size is
+    // a measurement of the tree the run walks, so it is re-measured here and never
+    // reconciled textually out of the two conflicting sides.
+    files: 699,
     sites: 68,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
@@ -3060,7 +3170,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 113's T235 (the escape hatch's runner half): files 2172 -> 2173 (+1).**
     // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
     // probes a `demo.package` name and imports it in two separate steps (§6.4).
-    files: 2173,
+    // **`specs/110-instance-repository/` T118b: files 2175 -> 2176 (+1).** Two new source files and
+    // nothing else — `packages/contracts/src/actor.ts` (the session-free `Actor`)
+    // and `packages/platform/src/http/request-actor.ts` (the `declare module
+    // 'fastify'` block that puts it on the request). Nothing moved, nothing was
+    // deleted, and no site count follows: neither file makes a claim this walk
+    // judges. Attributed by running this census on a pristine `origin/master`
+    // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
+    // twenty entries below are this merge request's own and none is a subtraction.
+    // **Re-measured on the union after rebasing onto `0441ea466`.** Feature 113's T226 and
+    // T235 landed on `master` between this branch's base and the rebase — the seed corpus
+    // deleted, one platform source added — so the recorded value, which was this branch's
+    // own base plus its +1, is two high against the combined tree: 2176 -> 2174. A read size is
+    // a measurement of the tree the run walks, so it is re-measured here and never
+    // reconciled textually out of the two conflicting sides.
+    files: 2174,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -3123,7 +3247,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // One file — `backend/scripts/check-demo-data-budget.ts`, which carries a
     // ledger of its own (`DEMO_ASSETS_OVER_BUDGET`) and so joins the population of
     // artefacts whose job is to carry a reason.
-    files: 307,
+    // **`specs/110-instance-repository/` T118b: files 307 -> 308 (+1).** Two new source files and
+    // nothing else — `packages/contracts/src/actor.ts` (the session-free `Actor`)
+    // and `packages/platform/src/http/request-actor.ts` (the `declare module
+    // 'fastify'` block that puts it on the request). Nothing moved, nothing was
+    // deleted, and no site count follows: neither file makes a claim this walk
+    // judges. Attributed by running this census on a pristine `origin/master`
+    // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
+    // twenty entries below are this merge request's own and none is a subtraction.
+    files: 308,
     // **2026-09-04: 14 -> 15.** One further named-subject lock claim.
     sites: 15,
     sources: ['manifest-index', 'contracts-barrel'],
@@ -4220,7 +4352,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 113's T235 (the escape hatch's runner half): files 4931 -> 4932 (+1).**
     // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
     // probes a `demo.package` name and imports it in two separate steps (§6.4).
-    files: 4932,
+    // **`specs/110-instance-repository/` T118b: files 4934 -> 4935 (+1).** Two new source files and
+    // nothing else — `packages/contracts/src/actor.ts` (the session-free `Actor`)
+    // and `packages/platform/src/http/request-actor.ts` (the `declare module
+    // 'fastify'` block that puts it on the request). Nothing moved, nothing was
+    // deleted, and no site count follows: neither file makes a claim this walk
+    // judges. Attributed by running this census on a pristine `origin/master`
+    // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
+    // twenty entries below are this merge request's own and none is a subtraction.
+    // **Re-measured on the union after rebasing onto `0441ea466`.** Feature 113's T226 and
+    // T235 landed on `master` between this branch's base and the rebase — the seed corpus
+    // deleted, one platform source added — so the recorded value, which was this branch's
+    // own base plus its +1, is two high against the combined tree: 4935 -> 4933. A read size is
+    // a measurement of the tree the run walks, so it is re-measured here and never
+    // reconciled textually out of the two conflicting sides.
+    files: 4933,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -4272,7 +4418,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `import('./pages/ProductEditor.js')` factory, so the module's second entry point
     // to one screen is a second specifier. Measured by removing the entry and
     // re-running, which returns both checks to their recorded values together.
-    sites: 12552,
+    // **`specs/110-instance-repository/` T118b: sites 12552 -> 12551 (-1).** One
+    // import specifier, and it is a *merge* rather than a removal:
+    // `packages/modules/auth/src/backend/plugin.ts` had a value import and a
+    // type-only import of `@endora-commerce/contracts` side by side once the
+    // actor types moved there, and they are one statement now. The two files this
+    // merge request adds are in neither module walk root, so `files` moves by the
+    // one this walk does see and `sites` moves the other way — which is the
+    // #235/#237 shape, and the reason both numbers are recorded.
+    sites: 12551,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -4871,7 +5025,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // This walk is the whole repository, so it reads the one platform source
     // (`packages/platform/src/demo/packages.ts`) and the two changesets this merge
     // request carries.
-    files: 8145,
+    // **`specs/110-instance-repository/` T118b: files 8145 -> 8148 (+3).** Two new source files and
+    // nothing else — `packages/contracts/src/actor.ts` (the session-free `Actor`)
+    // and `packages/platform/src/http/request-actor.ts` (the `declare module
+    // 'fastify'` block that puts it on the request). Nothing moved, nothing was
+    // deleted, and no site count follows: neither file makes a claim this walk
+    // judges. This walk reads the whole tree, so it takes a third file: the merge
+    // request's own changeset, which is written last, after the numbers have been
+    // read, and is the one that is easy to forget. Attributed by running this census on a pristine `origin/master`
+    // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
+    // twenty entries below are this merge request's own and none is a subtraction.
+    files: 8148,
     sites: null,
     sources: [],
     //
@@ -5256,7 +5420,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 113's T235 (the escape hatch's runner half): files 2172 -> 2173 (+1).**
     // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
     // probes a `demo.package` name and imports it in two separate steps (§6.4).
-    files: 2173,
+    // **`specs/110-instance-repository/` T118b: files 2175 -> 2176 (+1).** Two new source files and
+    // nothing else — `packages/contracts/src/actor.ts` (the session-free `Actor`)
+    // and `packages/platform/src/http/request-actor.ts` (the `declare module
+    // 'fastify'` block that puts it on the request). Nothing moved, nothing was
+    // deleted, and no site count follows: neither file makes a claim this walk
+    // judges. Attributed by running this census on a pristine `origin/master`
+    // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
+    // twenty entries below are this merge request's own and none is a subtraction.
+    // **Re-measured on the union after rebasing onto `0441ea466`.** Feature 113's T226 and
+    // T235 landed on `master` between this branch's base and the rebase — the seed corpus
+    // deleted, one platform source added — so the recorded value, which was this branch's
+    // own base plus its +1, is two high against the combined tree: 2176 -> 2174. A read size is
+    // a measurement of the tree the run walks, so it is re-measured here and never
+    // reconciled textually out of the two conflicting sides.
+    files: 2174,
     sites: 212,
     sources: ['manifest-index'],
   },
@@ -5536,7 +5714,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/113-module-owned-demo-data/` Phase 1: sites 1873 -> 1871.** T215 deletes
     // `src/seeds/dev-seed-guard.ts` and `src/seeds/seed-scope.ts`, and each was one
     // relative host reach — `ledger-size` falls 70 -> 68 with them.
-    sites: 1896,
+    // **`specs/110-instance-repository/` T118b: sites 1896 -> 1897 (+1).** Two new source files and
+    // nothing else — `packages/contracts/src/actor.ts` (the session-free `Actor`)
+    // and `packages/platform/src/http/request-actor.ts` (the `declare module
+    // 'fastify'` block that puts it on the request). Nothing moved, nothing was
+    // deleted, and no site count follows: neither file makes a claim this walk
+    // judges. Attributed by running this census on a pristine `origin/master`
+    // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
+    // twenty entries below are this merge request's own and none is a subtraction.
+    sites: 1897,
     // The third source is T060's floor: every module package whose manifest
     // declares the host package must have contributed a host reach to this walk.
     // The manifest is rendered from the bare specifiers the package's sources
@@ -5646,7 +5832,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changesets go with them. The base was measured on `origin/master`, where the
     // census printed `0 drifted, 43 agree`, so every number below is this branch's
     // and none of it is a delta subtracted from a moving tree.
-    files: 2039,
+    // **`specs/110-instance-repository/` T118b: files 2039 -> 2040 (+1).** Two new source files and
+    // nothing else — `packages/contracts/src/actor.ts` (the session-free `Actor`)
+    // and `packages/platform/src/http/request-actor.ts` (the `declare module
+    // 'fastify'` block that puts it on the request). Nothing moved, nothing was
+    // deleted, and no site count follows: neither file makes a claim this walk
+    // judges. Attributed by running this census on a pristine `origin/master`
+    // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
+    // twenty entries below are this merge request's own and none is a subtraction.
+    files: 2040,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 692 -> 721.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -6125,7 +6319,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 113's T235 (the escape hatch's runner half): files 2172 -> 2173 (+1).**
     // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
     // probes a `demo.package` name and imports it in two separate steps (§6.4).
-    files: 2173,
+    // **`specs/110-instance-repository/` T118b: files 2175 -> 2176 (+1).** Two new source files and
+    // nothing else — `packages/contracts/src/actor.ts` (the session-free `Actor`)
+    // and `packages/platform/src/http/request-actor.ts` (the `declare module
+    // 'fastify'` block that puts it on the request). Nothing moved, nothing was
+    // deleted, and no site count follows: neither file makes a claim this walk
+    // judges. Attributed by running this census on a pristine `origin/master`
+    // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
+    // twenty entries below are this merge request's own and none is a subtraction.
+    // **Re-measured on the union after rebasing onto `0441ea466`.** Feature 113's T226 and
+    // T235 landed on `master` between this branch's base and the rebase — the seed corpus
+    // deleted, one platform source added — so the recorded value, which was this branch's
+    // own base plus its +1, is two high against the combined tree: 2176 -> 2174. A read size is
+    // a measurement of the tree the run walks, so it is re-measured here and never
+    // reconciled textually out of the two conflicting sides.
+    files: 2174,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -6435,7 +6643,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 113's T235 (the escape hatch's runner half): files 2172 -> 2173 (+1).**
     // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
     // probes a `demo.package` name and imports it in two separate steps (§6.4).
-    files: 2173,
+    // **`specs/110-instance-repository/` T118b: files 2175 -> 2176 (+1).** Two new source files and
+    // nothing else — `packages/contracts/src/actor.ts` (the session-free `Actor`)
+    // and `packages/platform/src/http/request-actor.ts` (the `declare module
+    // 'fastify'` block that puts it on the request). Nothing moved, nothing was
+    // deleted, and no site count follows: neither file makes a claim this walk
+    // judges. Attributed by running this census on a pristine `origin/master`
+    // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
+    // twenty entries below are this merge request's own and none is a subtraction.
+    // **Re-measured on the union after rebasing onto `0441ea466`.** Feature 113's T226 and
+    // T235 landed on `master` between this branch's base and the rebase — the seed corpus
+    // deleted, one platform source added — so the recorded value, which was this branch's
+    // own base plus its +1, is two high against the combined tree: 2176 -> 2174. A read size is
+    // a measurement of the tree the run walks, so it is re-measured here and never
+    // reconciled textually out of the two conflicting sides.
+    files: 2174,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -6659,7 +6881,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 113's T235 (the escape hatch's runner half): files 4527 -> 4528 (+1).**
     // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
     // probes a `demo.package` name and imports it in two separate steps (§6.4).
-    files: 4528,
+    // **`specs/110-instance-repository/` T118b: files 4530 -> 4531 (+1).** Two new source files and
+    // nothing else — `packages/contracts/src/actor.ts` (the session-free `Actor`)
+    // and `packages/platform/src/http/request-actor.ts` (the `declare module
+    // 'fastify'` block that puts it on the request). Nothing moved, nothing was
+    // deleted, and no site count follows: neither file makes a claim this walk
+    // judges. Attributed by running this census on a pristine `origin/master`
+    // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
+    // twenty entries below are this merge request's own and none is a subtraction.
+    // **Re-measured on the union after rebasing onto `0441ea466`.** Feature 113's T226 and
+    // T235 landed on `master` between this branch's base and the rebase — the seed corpus
+    // deleted, one platform source added — so the recorded value, which was this branch's
+    // own base plus its +1, is two high against the combined tree: 4531 -> 4529. A read size is
+    // a measurement of the tree the run walks, so it is re-measured here and never
+    // reconciled textually out of the two conflicting sides.
+    files: 4529,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -7278,7 +7514,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // This walk is the whole repository, so it reads the one platform source
     // (`packages/platform/src/demo/packages.ts`) and the two changesets this merge
     // request carries.
-    files: 8205,
+    // **`specs/110-instance-repository/` T118b: files 8205 -> 8208 (+3).** Two new source files and
+    // nothing else — `packages/contracts/src/actor.ts` (the session-free `Actor`)
+    // and `packages/platform/src/http/request-actor.ts` (the `declare module
+    // 'fastify'` block that puts it on the request). Nothing moved, nothing was
+    // deleted, and no site count follows: neither file makes a claim this walk
+    // judges. This walk reads the whole tree, so it takes a third file: the merge
+    // request's own changeset, which is written last, after the numbers have been
+    // read, and is the one that is easy to forget. Attributed by running this census on a pristine `origin/master`
+    // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
+    // twenty entries below are this merge request's own and none is a subtraction.
+    files: 8208,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -7608,7 +7854,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 113's T235 (the escape hatch's runner half): files 6128 -> 6129 (+1).**
     // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
     // probes a `demo.package` name and imports it in two separate steps (§6.4).
-    files: 6129,
+    // **`specs/110-instance-repository/` T118b: files 6131 -> 6133 (+2).** Two new source files and
+    // nothing else — `packages/contracts/src/actor.ts` (the session-free `Actor`)
+    // and `packages/platform/src/http/request-actor.ts` (the `declare module
+    // 'fastify'` block that puts it on the request). Nothing moved, nothing was
+    // deleted, and no site count follows: neither file makes a claim this walk
+    // judges. Attributed by running this census on a pristine `origin/master`
+    // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
+    // twenty entries below are this merge request's own and none is a subtraction.
+    // **Re-measured on the union after rebasing onto `0441ea466`.** Feature 113's T226 and
+    // T235 landed on `master` between this branch's base and the rebase — the seed corpus
+    // deleted, one platform source added — so the recorded value, which was this branch's
+    // own base plus its +1, is two high against the combined tree: 6133 -> 6131. A read size is
+    // a measurement of the tree the run walks, so it is re-measured here and never
+    // reconciled textually out of the two conflicting sides.
+    files: 6131,
     sites: null,
     sources: ['manifest-index'],
     //

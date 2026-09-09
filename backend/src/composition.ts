@@ -70,16 +70,14 @@ import { absolutizePublicUrl } from './kernel/public-api-base-url.js';
 // The type is the platform's own port declaration; see `adminActorPromotion`
 // beside the other lazily-resolved ports.
 import type { AdminActorPromotion } from './kernel/ports/require-admin.js';
-// And a **type-only** reach into the same package, for what nothing else in
-// this file's program supplies: `request.actor` and `request.adminActor` are a
-// `declare module 'fastify'` block `auth` writes beside its plugin, so they
-// exist for this root only while it names that package. The value import above
-// was carrying it incidentally, which is how 30 reads of `request.actor` came
-// to depend on a function call. It is erased at build time and is one of the
-// module-package type reaches `specs/110-instance-repository/` T118 rewrites —
-// with the caveat that this one is an augmentation and not a shape, so it needs
-// relocating rather than re-spelling.
-import type { Actor } from '@endora-commerce/mod-auth/backend';
+// T118b — and **no** reach into that package for `request.actor` any more. This
+// import used to be `import type { Actor } from '@endora-commerce/mod-auth/backend'`,
+// whose real job was not the type: it dragged `auth`'s `declare module 'fastify'`
+// block into this file's program, because an ambient augmentation reaches a
+// program only if the file declaring it is *in* it. The block is the platform's
+// now (`@endora-commerce/platform/http`, arriving through the `./composition`
+// import below) and the shape is `@endora-commerce/contracts`'; a root that reads
+// `request.actor` names neither `auth` nor any other module for it.
 import { effectiveState } from './kernel/lifecycle/effective-state.js';
 // Feature 072 (T138) — `organizations` owns its services, its routes and its
 // two event subscriptions. T143a — the sales-rep assignment scope too: what is
@@ -787,24 +785,15 @@ async function contributeReferenceDeployment(
   // the asset resolver further below.
 
   // Feature 072 (T127) — `price_lists` owns its services and routes now. Two
-  // names stay a composition's: whether a wall-clock status sweeper runs, and
-  // how this deployment names a non-admin caller on an audit record. The
-  // pricing decoration (D-28) is contributed here too, when the deployment
-  // ships one.
+  // names used to stay a composition's; both have left. Whether a wall-clock
+  // status sweeper runs went with T118, and `priceListsAdminAuditContext` — how
+  // a non-admin caller is named on an audit record — with T118b. The pricing
+  // decoration (D-28) is contributed here, when the deployment ships one.
   //
   // T143a — `priceListsPricingCacheTtlMs` is gone: this file was importing the
   // module's own `DEFAULT_PRICING_CACHE_TTL_MS` to hand it back to the module.
   // The module defaults it now, and production wanting the shipped TTL says so
   // by contributing nothing.
-  composedModules.contribute({
-    priceListsAdminAuditContext: (request: FastifyRequest) => {
-      const actor = (request as { actor?: { kind: 'admin'; adminUserId: string } }).actor;
-      if (actor?.kind !== 'admin') {
-        return { actorAdminUserId: '00000000-0000-0000-0000-000000000000' };
-      }
-      return { actorAdminUserId: actor.adminUserId };
-    },
-  });
   // Feature 072 (T119) — `taxes` owns its service and routes now. T118 — the
   // cradle handle this root held is gone: `taxService` is read through
   // `reads()` at its one call site, which is a `providePort` name and so
@@ -897,12 +886,10 @@ async function contributeReferenceDeployment(
   // here: `credentials` declares the registry it owns, and each of the four
   // types is declared by the module whose manifest already claims it
   // (`credentials` for LLM and the e-mail adapter, `pim_ergonode`,
-  // `product_feeds`), from that module's own boot hook. What stays is how an
-  // admin actor is resolved from a request, which production and the harness
-  // genuinely answer differently.
-  composedModules.contribute({
-    adminContextResolver,
-  });
+  // `product_feeds`), from that module's own boot hook. T118b — and
+  // `adminContextResolver` with it, so this root contributes nothing for
+  // `credentials` at all. The local closure of that name survives because two
+  // *other* contributions below still call it.
   // `credentialsService` is resolved from the container where it is needed —
   // `product_feeds` read it as a port since T137, and it was this root's last
   // consumer.
@@ -977,11 +964,10 @@ async function contributeReferenceDeployment(
       },
       resolveAdminActor: (request: FastifyRequest) => {
         adminActorPromotion()(request);
-        // Read once, after the promotion, and named: `Actor` is what the
-        // augmentation declares `request.actor` to be, and naming it here is
-        // what keeps the type-only import above load-bearing rather than a
-        // bare `import type {}` a later tidy-up deletes.
-        const promoted: Actor = request.actor;
+        // Read once, after the promotion, and named — `adminActorPromotion`
+        // rewrites `request.actor` in place, so a second read of the property
+        // and this one are not obviously the same value to a reader.
+        const promoted = request.actor;
         if (promoted.kind !== 'admin') {
           throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
         }
@@ -1414,27 +1400,17 @@ async function contributeReferenceDeployment(
     // `requireCustomer` is NOT here any more: `auth` provides it as a port
     // (issue #43), for the same reason `requireAdmin` is not — re-registering
     // the name would replace a gated registration with a plain closure.
-    // Feature 072 (wave 2) — how this composition resolves the calling
-    // customer. Root-shaped as `requireCustomer` used to be: five
-    // modules take it as an option and each root spells it once.
-    customerContextResolver: customerResolver,
-    // Feature 072 (wave 3) — how this composition names the calling customer,
-    // as an id. The four payment gateways each declared an identically-shaped
-    // `resolveCustomerAccountId` option and this root spelled the same
-    // reference once per module.
-    customerAccountIdResolver: resolveCustomerAccountId,
+    // And `customerContextResolver`, `customerAccountIdResolver` and
+    // `adminAuditActorResolver` moved with T118b, along with six more that read
+    // `request.actor` and nothing else. They stayed behind through T118 only
+    // because the `declare module 'fastify'` block that puts `actor` on the
+    // request was `auth`'s; it is `@endora-commerce/platform/http`'s now, so a
+    // platform file may read what they read.
     // Feature 072 (T101) — inherited credit limits, owned by `organizations`,
     // which provides `organizationInheritancePort`. This entry is the root's
     // bridge to it and goes when the consumer resolves the port directly.
     // Feature 072 (T111) — the composed attribute read model, owned by
     // `catalog`. A root bridge, not a module that is unconverted.
-    // Feature 072 (wave 2) — how this composition names the acting admin for an
-    // audit record: the admin's id, or `null` for a non-admin caller. The ad
-    // modules each declared an identically-shaped `resolveAuditContext` option
-    // and both roots spelled the same closure once per module.
-    adminAuditActorResolver: (request: FastifyRequest) => ({
-      actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
-    }),
   });
   // `audit_logs` registers its own empty default for this name, so a value
   // written before `composeModules` would be overwritten by it (the same trap
@@ -1484,22 +1460,11 @@ async function contributeReferenceDeployment(
 
   // Feature 072 (T142) — `catalog` owns its services and routes now, and the
   // seven `pim_ergonode` reads through are its ports rather than a second
-  // instance built here. What stays a composition's: whether this process runs
-  // the bulk-operation consumer (Principle X), how this deployment names an
-  // acting admin on an audit record, and the three adapters that reach modules
-  // `catalog` must not read through directly.
+  // instance built here. What stays a composition's is the three adapters that
+  // reach modules `catalog` must not read through directly. The other two left:
+  // whether this process runs the bulk-operation consumer (Principle X) with
+  // T118, and `catalogAdminAuditContext` with T118b.
   composedModules.contribute({
-    catalogAdminAuditContext: (request: FastifyRequest) => {
-      if (request.actor.kind !== 'admin') {
-        // Auditing an anonymous mutation shouldn't happen — the admin gate
-        // refuses these — but if it ever does, fall back to a sentinel.
-        return { actorAdminUserId: '00000000-0000-0000-0000-000000000000' };
-      }
-      return {
-        actorAdminUserId: request.actor.adminUserId,
-        impersonatedCustomerAccountId: null,
-      };
-    },
     catalogExternalAvailability: async (productIds: string[], salesChannelId: string) => {
       // D-61 — the presence probe a `degrades-without` edge owes its owner
       // (D-44), and it belongs here because this closure is where the port is
@@ -1551,28 +1516,25 @@ async function contributeReferenceDeployment(
   });
 
   // Feature 072 (T141) — the two names `orders` still takes from a composition:
-  // which organizations a sales-rep admin may see (actor-shaped, owner `auth`),
-  // and the admin-editable sender, late-bound because `transactional_emails`
-  // publishes it after this module composes.
+  // which organizations a sales-rep admin may see, and the admin-editable
+  // sender, late-bound because `transactional_emails` publishes it after this
+  // module composes.
+  //
+  // T118b — the first is the **tenth** actor-shaped name and is the one that did
+  // not move with the other nine. It is not an actor read: `resolveAdminOrdersScope`
+  // asks `request.actor` for an admin id and then queries `admin_users` and
+  // `admin_roles` in raw SQL, deciding on `admin_roles.code === 'sales_representative'`.
+  // That is a module's table and a module's business rule, so the augmentation was
+  // never its only blocker, and putting it in `@endora-commerce/platform` would be
+  // the first SQL read of a module-owned table from inside the host — refused by
+  // nothing in the estate, because every check that judges that boundary reads
+  // *imports*. It also cannot travel alone: `buildTenantContext` below calls the
+  // same function for its admin arm and stays here for its own two container reads.
   composedModules.contribute({
     ordersAdminScopeResolver: resolveAdminOrdersScope,
   });
 
   composedModules.contribute({
-    cartActorResolver: (request: FastifyRequest) => {
-      if (request.actor.kind === 'customer') {
-        return {
-          customer: {
-            customerAccountId: request.actor.customerAccountId,
-            organizationId: request.actor.organizationId,
-          },
-        };
-      }
-      const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
-      const anon = cookies?.['b2b_cart_anon'];
-      if (anon) return { anonymousToken: anon };
-      return {};
-    },
     cartShoppingListBridge: {
       pushLineToShoppingList: async (input) => {
         if (!shoppingListService) {
@@ -1640,20 +1602,13 @@ async function contributeReferenceDeployment(
   // Feature 072 (T129) — the two adapters `inventory` reaches outside itself
   // through: the transactional-email sender that `transactional_emails`
   // announces late, and the Organization's warehouse assignment. Both are a
-  // root's to build; how this deployment names a non-admin caller on an audit
-  // record is too.
+  // root's to build. `inventoryAdminAuditContext` was a third and is the
+  // platform's since T118b — it read `request.actor` and nothing else.
   composedModules.contribute({
     // Feature 072 (T138) — the admin-editable sender `organizations` sends its
     // verification, invitation and new-registration emails through. A getter
     // because `transactional_emails` announces the sender well after this
     // point; same shape and owner as `inventoryTemplateEmail`.
-    inventoryAdminAuditContext: (request: FastifyRequest) => {
-      const actor = (request as { actor?: { kind: 'admin'; adminUserId: string } }).actor;
-      if (actor?.kind !== 'admin') {
-        return { actorAdminUserId: '00000000-0000-0000-0000-000000000000' };
-      }
-      return { actorAdminUserId: actor.adminUserId };
-    },
   });
 
   // Feature 026 — Admin notifications bell. The plugin only mounts read
@@ -1810,19 +1765,12 @@ async function contributeReferenceDeployment(
   // can reach the OrderListService (late-bound) and the RfqService for the
   // self-service order / RFQ history endpoints.
   // Feature 072 (T140) — `customers` owns its services, its routes and its
-  // three settings reads now. Three names stay a composition's: who is asking,
-  // who is moderating (both actor-shaped, owner `auth`), and the late-bound
-  // order-list service `orders` builds.
+  // three settings reads now. Two names stay a composition's: who is moderating
+  // — an actor read *plus* the same `admin_roles` query `ordersAdminScopeResolver`
+  // makes, which is why it stayed where that one did — and the late-bound
+  // order-list service `orders` builds. Who is *asking* (`customerActorResolver`)
+  // was the third and is the platform's since T118b.
   composedModules.contribute({
-    customerActorResolver: (request: FastifyRequest) => {
-      if (request.actor.kind !== 'customer') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-      }
-      return {
-        customerAccountId: request.actor.customerAccountId,
-        organizationId: request.actor.organizationId ?? null,
-      };
-    },
     customerModerationActorResolver: async (request: FastifyRequest) => {
       const actor = request.actor;
       if (actor.kind !== 'admin') {

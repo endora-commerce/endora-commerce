@@ -1,5 +1,9 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { ANONYMOUS_PRODUCT_AUDIENCE, type ProductAudience } from '@endora-commerce/contracts';
+import {
+  ANONYMOUS_PRODUCT_AUDIENCE,
+  type Actor,
+  type ProductAudience,
+} from '@endora-commerce/contracts';
 
 /**
  * The {@link ProductAudience} of a request, off the actor the auth plugin
@@ -33,20 +37,22 @@ import { ANONYMOUS_PRODUCT_AUDIENCE, type ProductAudience } from '@endora-commer
  * A request with no actor at all — a composition that mounted these routes
  * without the auth plugin — reads as anonymous, which is the fail-closed end.
  *
- * The actor is read through a **local** carrier rather than off the `fastify`
- * module augmentation, for the reason `TestActorCarrier` states about the
- * harness's `testActor`: the augmentation that adds `actor` to `FastifyRequest`
- * is declared in `modules/auth/plugin.ts`, so a platform file that depends on it
- * depends on a module (D-52/D-53) — and it does not compile at all once these
- * five directories are compiled as `@endora-commerce/platform`, where no module
- * is in the program. Nothing about the read changes: the cast was already there,
- * and the `undefined` branch below was already the answer for a request the auth
- * plugin never touched.
+ * The actor used to be read through a **local** inline shape rather than off the
+ * `fastify` module augmentation, because that augmentation was declared in
+ * `modules/auth/plugin.ts` — so a platform file depending on it depended on a
+ * module (D-52/D-53), and it did not compile at all once these directories were
+ * compiled as `@endora-commerce/platform`, where no module is in the program.
+ * T118b moved the declaration here (`./request-actor.js`) and the shape to
+ * `@endora-commerce/contracts`, so the restatement is gone and this reads the
+ * type every other consumer reads.
+ *
+ * The **widening** stays and is this site's own: `request.actor` is decorated
+ * by `auth`'s `onRequest` hook, and these routes can be mounted by a
+ * composition that never mounted the plugin. `undefined` was already the
+ * answer for such a request and is still the fail-closed one.
  */
 export function productAudienceOf(request: FastifyRequest): ProductAudience {
-  const actor = (request as FastifyRequest & { actor?: unknown }).actor as
-    | { kind: string; organizationId?: string | null }
-    | undefined;
+  const actor = request.actor as Actor | undefined;
   if (!actor) return ANONYMOUS_PRODUCT_AUDIENCE;
   if (actor.kind === 'customer') {
     return { organizationId: actor.organizationId ?? null, authenticated: true };

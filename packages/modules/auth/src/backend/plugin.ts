@@ -1,8 +1,18 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
-import { SESSION_COOKIE_NAME, ADMIN_SESSION_COOKIE_NAME } from '@endora-commerce/contracts';
+import {
+  SESSION_COOKIE_NAME,
+  ADMIN_SESSION_COOKIE_NAME,
+  type Actor,
+  type ActorAdmin,
+} from '@endora-commerce/contracts';
+// The `declare module 'fastify'` block that puts `actor` and `adminActor` on
+// `FastifyRequest` is the platform's since T118b
+// (`packages/platform/src/http/request-actor.ts`), and this side-effect import
+// is what puts it in *this* module's program — the writes below are the reason
+// this file needs it, and they are the only writes in the tree.
+import '@endora-commerce/platform/http';
 import type { SessionService } from './services/session-service.js';
-import type { Session } from './entities/session.entity.js';
 
 /**
  * Authentication plugin. Resolves the caller's identity into one of four forms and
@@ -11,49 +21,26 @@ import type { Session } from './entities/session.entity.js';
  * See research.md R-11, R-12 and contracts/README.md § Authentication.
  */
 
-export type ActorAnonymous = { kind: 'anonymous' };
-export type ActorCustomer = {
-  kind: 'customer';
-  customerAccountId: string;
-  /**
-   * Resolved fresh from the CustomerAccount when the auth plugin has an
-   * emFactory. Nullable post-feature-026 — guest-style Customer accounts
-   * have no Organization and fall back to platform defaults. Order
-   * placement and RFQ submission still require a non-null organizationId.
-   */
-  organizationId: string | null;
-  /** Non-null when the request is a Supplier employee acting on behalf of a Customer. */
-  impersonatorAdminUserId: string | null;
-  session: Session;
-};
-export type ActorAdmin = {
-  kind: 'admin';
-  adminUserId: string;
-  session: Session;
-};
-export type ActorApiKey = {
-  kind: 'api_key';
-  apiKeyId: string;
-  scopes: string[];
-  /**
-   * Feature 062 — distributor binding, resolved by ApiKeyService.authenticate.
-   * All three are set for a bound key, all null/absent for a legacy unbound
-   * key. The tenant-context hook derives single-org scope from them and the
-   * sales-channel resolver pins the channel (fail closed on header mismatch).
-   */
-  organizationId?: string | null;
-  salesChannelId?: string | null;
-  customerAccountId?: string | null;
-};
-export type Actor = ActorAnonymous | ActorCustomer | ActorAdmin | ActorApiKey;
-
-declare module 'fastify' {
-  interface FastifyRequest {
-    actor: Actor;
-    /** Admin session resolved from the dedicated admin cookie, if any. */
-    adminActor: ActorAdmin | null;
-  }
-}
+/*
+ * The four actor kinds and the `FastifyRequest` augmentation used to be
+ * declared here (`specs/110-instance-repository/` T118b).
+ *
+ * They are `@endora-commerce/contracts`' {@link Actor} and the platform's
+ * `src/http/request-actor.ts` now, and the move cost this module one field:
+ * `ActorCustomer` and `ActorAdmin` each carried the `Session` **entity**, which
+ * is what this package's own barrel gave as the reason the augmentation could
+ * not travel. Measured before the move, `actor.session` was read in **zero**
+ * files outside this package — the plugin wrote it on every authenticated
+ * request and nothing ever read it back — so what left is a write, not a
+ * capability. A consumer that wants the session asks for it through
+ * `AuthSessionPort` / `AuthSessionReadPort`, which carry `AuthSessionRecord`
+ * rather than the entity.
+ *
+ * What did **not** move is everything below: this module still owns the session
+ * table, the two cookies, the `onRequest` hook that decides which kind a
+ * request carries, and the two `decorateRequest` slots the declared names read
+ * from.
+ */
 
 export interface AuthPluginOptions {
   sessionService: SessionService;
@@ -170,7 +157,6 @@ async function authPluginImpl(app: FastifyInstance, opts: AuthPluginOptions): Pr
         request.adminActor = {
           kind: 'admin',
           adminUserId: resolvedAdmin.session.adminUserId,
-          session: resolvedAdmin.session,
         };
       }
     }
@@ -190,7 +176,6 @@ async function authPluginImpl(app: FastifyInstance, opts: AuthPluginOptions): Pr
             customerAccountId: session.customerAccountId,
             organizationId: orgId,
             impersonatorAdminUserId: session.impersonatorAdminUserId ?? null,
-            session,
           };
         } else if (resolved.kind === 'customer' && session.customerAccountId) {
           const orgId = opts.customerOrgResolver
@@ -201,7 +186,6 @@ async function authPluginImpl(app: FastifyInstance, opts: AuthPluginOptions): Pr
             customerAccountId: session.customerAccountId,
             organizationId: orgId,
             impersonatorAdminUserId: null,
-            session,
           };
         }
         // An admin-kind session in the customer cookie (legacy) is ignored;

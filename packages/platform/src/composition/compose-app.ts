@@ -60,7 +60,9 @@
 import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import { Redis } from 'ioredis';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import type {
+  Actor,
   AdminI18nTranslatePort,
   AdminUserReadPort,
   ModuleSettingsManifest,
@@ -73,7 +75,7 @@ import { discoverConfiguredMigrations } from '../db/configured-migrations.js';
 import { mikroOrmConfigFrom } from '../db/mikro-orm.config.js';
 import { createOrmBootstrap } from '../db/orm.js';
 import { EventBus } from '../events/bus.js';
-import type { ErrorEnvelopeOptions } from '../http/error-envelope.js';
+import { HttpError, type ErrorEnvelopeOptions } from '../http/error-envelope.js';
 import { ApiInterceptorRegistry } from '../http/interceptors/index.js';
 import type { ModulePlugin } from '../http/server.js';
 import { StorefrontRevalidator } from '../http/storefront-revalidator.js';
@@ -181,6 +183,30 @@ export interface AppComposition {
    */
   readonly manifests?: readonly RegisteredManifestEntry[];
 }
+
+/**
+ * The actor id an audit record carries when its writer could not name an admin
+ * (T118b).
+ *
+ * Three modules' audit contexts owe a non-null `actorAdminUserId` and are
+ * reached only behind an admin gate, so this is unreachable by design. It is a
+ * sentinel rather than a throw because the alternative is failing the write the
+ * record exists to describe, and it was the literal all three spelled inline
+ * before the nine moved here.
+ */
+const NON_ADMIN_AUDIT_ACTOR = '00000000-0000-0000-0000-000000000000';
+
+/**
+ * The cookie an anonymous shopper's cart is keyed by.
+ *
+ * Spelled here because `cartActorResolver` reads it and `@endora-commerce/contracts`
+ * publishes no constant for it — unlike the two session cookies, which it does.
+ * `carts` owns the name and sets it; `organizations` clears it on sign-out.
+ * Deliberately not "fixed" by publishing a fourth cookie constant in the same
+ * change: that is a contract addition with three other call sites to convert,
+ * and this move is not the place to decide it.
+ */
+const ANONYMOUS_CART_COOKIE = 'b2b_cart_anon';
 
 /** What every hook is handed once the modules have registered. */
 export interface ComposedAppContext {
@@ -791,6 +817,166 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
             secret: process.env['REVALIDATE_SECRET'],
           }).revalidate(tags),
       },
+    },
+  });
+
+  // --- the actor-shaped nine (T118b) ---------------------------------------
+  //
+  // Nine names that answer one question — *who is asking?* — off `request.actor`
+  // and nothing else. They stayed in `backend/src/composition.ts` through T118
+  // for a single reason: the `declare module 'fastify'` block that puts `actor`
+  // on `FastifyRequest` was `auth`'s, so a platform file reading it would have
+  // been a platform file depending on a module (D-52/D-53). T118b moved that
+  // declaration to `../http/request-actor.ts` and the shape to
+  // `@endora-commerce/contracts`, and the nine came with it. Their value
+  // expressions name no module, which is T118's criterion unchanged.
+  //
+  // The tenth actor-shaped name, `ordersAdminScopeResolver`, deliberately did
+  // **not** move, and the reason is written in `composition.ts` beside it: its
+  // body reads `admin_users` and `admin_roles` in raw SQL and decides on
+  // `admin_roles.code === 'sales_representative'`. That is a module's table and
+  // a module's business rule, not an actor read, and the augmentation was never
+  // its only blocker.
+  //
+  // **Where a widening appears below it is that site's own.** `request.actor` is
+  // decorated by `auth`'s `onRequest` hook; the three audit-context resolvers
+  // are called from surfaces a composition can mount without one, and answering
+  // the nil-UUID sentinel is what they already did. The five that throw already
+  // threw.
+  composedModules.contribute({
+    // Feature 072 (T143a) — how this platform resolves the acting admin for a
+    // module that takes one as an option. `credentials` is the original
+    // consumer; the shape is `{ adminUserId }` and the refusal is a 401.
+    adminContextResolver: (request: FastifyRequest): { adminUserId: string } => {
+      if (request.actor.kind !== 'admin') {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
+      }
+      return { adminUserId: request.actor.adminUserId };
+    },
+    // Feature 072 (wave 2) — how this platform names the acting admin on an
+    // audit record: the admin's id, or `null` for a non-admin caller. Six
+    // modules each declared an identically-shaped `resolveAuditContext` option
+    // and both roots spelled the same closure once per module.
+    adminAuditActorResolver: (request: FastifyRequest) => ({
+      actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
+    }),
+    // Feature 072 (T127) — `price_lists`' audit context. Unlike
+    // `adminAuditActorResolver` this one owes a non-null id, so a caller the
+    // admin gate should already have refused falls back to the nil UUID rather
+    // than to `null`.
+    priceListsAdminAuditContext: (request: FastifyRequest) => {
+      const actor = request.actor as Actor | undefined;
+      if (actor?.kind !== 'admin') {
+        return { actorAdminUserId: NON_ADMIN_AUDIT_ACTOR };
+      }
+      return { actorAdminUserId: actor.adminUserId };
+    },
+    // Feature 072 (T142) — `catalog`'s audit context. Same sentinel, plus the
+    // impersonation field that module's record carries.
+    catalogAdminAuditContext: (request: FastifyRequest) => {
+      const actor = request.actor as Actor | undefined;
+      if (actor?.kind !== 'admin') {
+        // Auditing an anonymous mutation shouldn't happen — the admin gate
+        // refuses these — but if it ever does, fall back to a sentinel.
+        return { actorAdminUserId: NON_ADMIN_AUDIT_ACTOR };
+      }
+      return {
+        actorAdminUserId: actor.adminUserId,
+        impersonatedCustomerAccountId: null,
+      };
+    },
+    // Feature 072 (T129) — `inventory`'s audit context.
+    inventoryAdminAuditContext: (request: FastifyRequest) => {
+      const actor = request.actor as Actor | undefined;
+      if (actor?.kind !== 'admin') {
+        return { actorAdminUserId: NON_ADMIN_AUDIT_ACTOR };
+      }
+      return { actorAdminUserId: actor.adminUserId };
+    },
+    /**
+     * Feature 072 (wave 2) — how this platform resolves the calling customer,
+     * for the five modules that take one as an option.
+     *
+     * **The refusal below asserts an invariant; it does not describe a business
+     * state** (D-178). It was a 422 `organization_required`, introduced by
+     * feature 026 US2 for accounts that were allowed to have no Organization.
+     * Every transacting customer has one — `customer_accounts.organization_id`
+     * is `NOT NULL` and an individual is backed by a personal organisation — so
+     * a caller reaching this branch is a broken invariant, and a 422 telling a
+     * buyer to attach an Organization they have no way to attach is a lie with
+     * a remedy attached.
+     *
+     * The guard is **kept** rather than deleted: `Actor`'s `organizationId` is
+     * `string | null` at this seam and the consumers' input type is
+     * `organizationId: string`, so removing the check would push `undefined`
+     * through silently. Routes that work *without* an Organization
+     * (cart-add, browsing, profile-read) take `cartActorResolver` or read
+     * `request.actor` themselves.
+     */
+    customerContextResolver: (
+      request: FastifyRequest,
+    ): {
+      customerAccountId: string;
+      organizationId: string;
+      impersonatorAdminUserId?: string | null;
+    } => {
+      if (request.actor.kind !== 'customer') {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+      }
+      if (!request.actor.organizationId) {
+        throw new HttpError(
+          500,
+          ERROR_CODES.INTERNAL,
+          'Invariant violated: a customer account has no Organization (Principle XI).',
+          { code: 'customer_account_organization_missing' },
+        );
+      }
+      return {
+        customerAccountId: request.actor.customerAccountId,
+        organizationId: request.actor.organizationId,
+        impersonatorAdminUserId: request.actor.impersonatorAdminUserId ?? null,
+      };
+    },
+    // Feature 072 (wave 3) — how this platform names the calling customer as an
+    // id. Unlike `customerContextResolver` it does not require an Organization:
+    // it asserts a customer session and nothing more. The four payment gateways
+    // each declared an identically-shaped `resolveCustomerAccountId` option.
+    customerAccountIdResolver: (request: FastifyRequest): string => {
+      if (request.actor.kind !== 'customer') {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+      }
+      return request.actor.customerAccountId;
+    },
+    // Feature 072 — `carts`' actor, which is the one that answers for an
+    // anonymous shopper too: a signed-in customer, else the anonymous cart
+    // cookie, else nothing at all. The empty answer is a cart the caller may
+    // still create.
+    cartActorResolver: (request: FastifyRequest) => {
+      if (request.actor.kind === 'customer') {
+        return {
+          customer: {
+            customerAccountId: request.actor.customerAccountId,
+            organizationId: request.actor.organizationId,
+          },
+        };
+      }
+      const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
+      const anon = cookies?.[ANONYMOUS_CART_COOKIE];
+      if (anon) return { anonymousToken: anon };
+      return {};
+    },
+    // Feature 072 (T140) — `customers`' own view of the calling customer:
+    // the account and its Organization, the second nullable. It is not
+    // `customerContextResolver` — self-service profile reads work for an
+    // account with no Organization, which is why this one does not assert one.
+    customerActorResolver: (request: FastifyRequest) => {
+      if (request.actor.kind !== 'customer') {
+        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+      }
+      return {
+        customerAccountId: request.actor.customerAccountId,
+        organizationId: request.actor.organizationId ?? null,
+      };
     },
   });
 

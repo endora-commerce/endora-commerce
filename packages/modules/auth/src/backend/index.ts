@@ -247,33 +247,36 @@ export const entities = [Session];
  * surface (D-171) and these are implementations.
  */
 /**
- * What `request.actor` **is**, and the Fastify augmentation that puts it there.
+ * What `request.actor` **is** — and it is no longer this package's to say
+ * (`specs/110-instance-repository/` T118b).
  *
- * Published by `specs/117-instance-bring-up/` FR-030, and the reason is worth
- * stating because it is not "somebody wanted the type". `plugin.ts` carries a
+ * `plugin.ts` used to declare the four actor kinds and a
  * `declare module 'fastify'` block adding `actor` and `adminActor` to
- * `FastifyRequest`; an ambient augmentation reaches a consumer's program only if
- * the file declaring it is *in* that program, and until now the only thing that
- * put it there for the production composition root was the root's **value**
- * import of `promoteAdminActor`. Retiring that import (FR-030) took the
- * augmentation with it and 30 reads of `request.actor` stopped compiling —
- * silently coupled, in the way a `declare module` block always is.
+ * `FastifyRequest`, and this barrel re-exported the five type names.
+ * `specs/117-instance-bring-up/` FR-030 published them for a real reason: an
+ * ambient augmentation reaches a consumer's program only if the file declaring
+ * it is *in* that program, and the production composition root was getting it
+ * incidentally through a **value** import of `promoteAdminActor`. Retiring that
+ * import took the augmentation with it and thirty reads of `request.actor`
+ * stopped compiling.
  *
- * So the carrier is named rather than incidental: a consumer that reads
- * `request.actor` writes a **type-only** import from this subpath, which is
- * erased at build time and is a boundary reach a platform-bound file may not
- * keep for ever. Relocating the augmentation itself is not this feature's — it
- * would take `Session` with it — and it is `specs/110-instance-repository/`
- * T118's real precondition rather than the type-to-contract rewrite FR-031
- * describes.
+ * The block said relocating the augmentation *"would take `Session` with it"*.
+ * That premise was false and is what T118b measured: across `packages/`,
+ * `backend/`, `admin/` and `storefront/`, `actor.session` was read in **zero**
+ * files outside this package. So the vocabulary is
+ * `@endora-commerce/contracts`' {@link Actor} — session-free, importing neither
+ * Fastify nor the ORM — and the augmentation is the platform's, on
+ * `@endora-commerce/platform/http`. A consumer names one of those two; neither
+ * is a boundary reach, and no consumer needs a type-only import of a module any
+ * more.
+ *
+ * The five names are **not** re-exported from here. A re-export of a
+ * `@endora-commerce/contracts` type on this package's `./backend` barrel is
+ * what `module-package-entity-surface.test.ts` refuses under D-168: it cannot
+ * follow the specifier, so whether a named entity class comes through it is
+ * unknown rather than false. That is the same rule that stopped this file
+ * re-exporting the two cookie names when the package landed.
  */
-export type {
-  Actor,
-  ActorAdmin,
-  ActorAnonymous,
-  ActorApiKey,
-  ActorCustomer,
-} from './plugin.js';
 
 export { SessionService } from './services/session-service.js';
 export { AuthSessionReadService, createAuthSessionPort } from './services/session-port.js';

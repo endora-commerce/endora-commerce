@@ -121,6 +121,23 @@ function contributedNames(path: string): string[] {
  * registration lazily, which is what every port read in a composition does.
  */
 const PLATFORM_CONTRIBUTIONS: readonly string[] = [
+  // T118b — the nine actor-shaped names. They answer *who is asking?* off
+  // `request.actor` and nothing else, and they stayed behind through T118 for a
+  // reason that was never about their value expressions: the
+  // `declare module 'fastify'` block that puts `actor` on `FastifyRequest` was
+  // `auth`'s, so a platform file reading it depended on a module. The block is
+  // `packages/platform/src/http/request-actor.ts` now and the shape is
+  // `@endora-commerce/contracts`', so the criterion above admits them unchanged.
+  'adminAuditActorResolver',
+  'adminContextResolver',
+  'cartActorResolver',
+  'catalogAdminAuditContext',
+  'customerAccountIdResolver',
+  'customerActorResolver',
+  'customerContextResolver',
+  'inventoryAdminAuditContext',
+  'priceListsAdminAuditContext',
+  // T118's twenty.
   'blogStorefrontDeps',
   'catalogRunBulkOperationWorker',
   'credentialsSettingsPort',
@@ -143,7 +160,43 @@ const PLATFORM_CONTRIBUTIONS: readonly string[] = [
   'webhooksRunWorkers',
 ];
 
+/**
+ * The tenth actor-shaped name, and why it is on neither list above.
+ *
+ * `specs/110-instance-repository/` T118b's "Done when" enumerated **ten**
+ * contributions to move and this file holds nine. `ordersAdminScopeResolver` is
+ * the tenth and it stays with the reference deployment, measured rather than
+ * deferred: `resolveAdminOrdersScope` reads `admin_users` and `admin_roles` in
+ * raw SQL and branches on `admin_roles.code === 'sales_representative'`. That is
+ * a module's table and a module's business rule, so its value expression **does**
+ * name a module in the only sense the criterion cares about, and the actor
+ * augmentation was never its only blocker. Moving it would have put the first SQL
+ * read of a module-owned table into `@endora-commerce/platform` — refused by no
+ * check in the estate, because every check that judges that boundary reads
+ * *imports*.
+ *
+ * It is also the half that cannot travel alone: the deployment's
+ * `buildTenantContext` calls the same function for the admin arm, and that
+ * mapping stays behind for its own reasons (`customerRollupScopePort` and
+ * `organizationTreeService`). Two copies of one query, or an export back out of
+ * the platform for the deployment to call, are both worse than one function in
+ * the root that owns both callers.
+ */
+const DEPLOYMENT_ACTOR_SHAPED: readonly string[] = ['ordersAdminScopeResolver'];
+
 describe('T118 — the contribution wiring is the platform’s and the values are not', () => {
+  it('leaves the tenth actor-shaped name with the deployment (T118b)', () => {
+    // Two directions. It must still be contributed — a name silently dropped
+    // is a module resolving a registration nobody wrote — and it must not have
+    // been swept into the platform's set along with the nine.
+    const deployment = new Set(contributedNames(productionPath));
+
+    for (const name of DEPLOYMENT_ACTOR_SHAPED) {
+      expect(deployment.has(name), `${name} is no longer contributed at all`).toBe(true);
+      expect(PLATFORM_CONTRIBUTIONS).not.toContain(name);
+    }
+  });
+
   it('holds exactly the names whose value expression names no module', () => {
     // Both directions in one comparison. A name added to `composeApp` and not
     // here is a value that crossed the boundary with nobody deciding; a name

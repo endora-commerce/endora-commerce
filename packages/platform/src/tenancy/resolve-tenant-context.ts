@@ -6,6 +6,34 @@ import type { TenantContext, TenantScopeNotices } from './tenant-context.js';
  * The context is computed server-side from the already-authenticated actor and
  * (for scoped admins) their assignment set. It is never taken from request
  * inputs. Kept as a pure function so it is trivially unit-testable.
+ *
+ * ## `TenantActorInput` is **not** `@endora-commerce/contracts`' `Actor`, and
+ * that survived T118b deliberately
+ *
+ * T118b collapsed three of the platform's four actor restatements — the two
+ * `*ActorSlice` interfaces and `product-audience.ts`' inline cast — because each
+ * existed for one reason, that D-52/D-53 forbade the platform an import of the
+ * module declaring the shape, and that reason is gone: the shape is
+ * `@endora-commerce/contracts`' and the `FastifyRequest` augmentation is
+ * `../http/request-actor.ts`'.
+ *
+ * This one is not that. It is the **input** of a derivation, not a reading of
+ * `request.actor`, and it differs from `Actor` in three ways that are the
+ * function's whole subject:
+ *
+ *  - {@link CustomerActorInput.rollupSubtreeOrganizationIds} is **server-derived**
+ *    — the caller resolves the buyer's org subtree and passes it. Putting it on
+ *    `Actor` would put a capability decision on the request's identity, which is
+ *    exactly what "never taken from request inputs" refuses.
+ *  - {@link ApiKeyActorInput} carries the binding and drops `scopes` and
+ *    `salesChannelId`: scope is a route gate's question and the channel is the
+ *    sales-channel resolver's, and neither reaches a tenant context.
+ *  - There is **no anonymous kind**. Anonymous traffic gets no tenant context;
+ *    the mapping's caller answers it before calling, and a fourth member here
+ *    would be a case this function has no answer for.
+ *
+ * So the two shapes agree on the fields they share and are different types on
+ * purpose. The caller that bridges them is the deployment's `buildTenantContext`.
  */
 
 export interface CustomerActorInput {
