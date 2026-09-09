@@ -1579,7 +1579,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // worktree at `7b70edf22`, whose census printed `0 drifted, 44 agree`, and
     // re-measured there after the rebase rather than carried across it — every one
     // of the sixteen entries this drain moves is the same twenty-seven files.
-    files: 5477,
+    // **`fix/admin-image-root-scripts`: files 5504 -> 5506.** The two files this branch adds, `backend/test/helpers/dockerfile.ts` and `backend/test/unit/ci/image-root-script-supply.test.ts`; the four it modifies already existed. Attributed by parking the pair and re-running, never by subtracting: without them every recorded entry agrees. Both new files are in this whole-tree walk.
+    // **Re-measured on the union after rebasing onto T119.** That task deleted the
+    // twenty-seven re-export shims this walk was reading, so every entry here moves by the
+    // same −27 and this one lands at 5479 rather than the 5506 recorded against a tree that
+    // still held them. The two files this branch adds were already in the recorded value;
+    // measured on the combined tree, never summed from the two sides' deltas.
+    files: 5479,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1672,7 +1678,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **530 -> 531** with T129b: one more `.replace()` candidate, the comment strip in `definedClasses`. `files` moved with it — this walk is the whole tree.
     // **-1, re-measured on the chained union.** The site is the one D-217/D-218 removes on the base this branch is now chained behind; this branch adds no fold and removes none.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The slug and fold sites the module's sources contain.
-    sites: 540,
+    // **`fix/admin-image-root-scripts`: sites 540 -> 543.** The two files this branch adds, `backend/test/helpers/dockerfile.ts` and `backend/test/unit/ci/image-root-script-supply.test.ts`; the four it modifies already existed. Attributed by parking the pair and re-running, never by subtracting: without them every recorded entry agrees. Three of the `.replace()` calls the two files write are patterns the `slug-run` predicate can read — line and path normalisation — and it clears all three; the population moves with the candidates, not with the findings.
+    sites: 543,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -2915,7 +2922,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The two `backend/test/**` files this phase adds: the companion test and its
     // fixture builder.
     // **Re-measured on the union after rebasing onto `be22a122e`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file — it reads 1622 here — so this branch's own contribution is +2. This walk opens `backend/test/**`, so it takes the companion test and its fixture helper.
-    files: 1624,
+    // **`fix/admin-image-root-scripts`: files 1624 -> 1626.** The two files this branch adds, `backend/test/helpers/dockerfile.ts` and `backend/test/unit/ci/image-root-script-supply.test.ts`; the four it modifies already existed. Attributed by parking the pair and re-running, never by subtracting: without them every recorded entry agrees. Both new files are under `backend/test/`.
+    files: 1626,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -2947,7 +2955,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `throw`, which keeps the absence visible, and this walk's population is reads bound
     // to a name rather than reads it has decided are the ORM's. Measured on
     // `origin/master` (578) and on this branch (579), never by subtracting a delta.
-    sites: 579,
+    // **`fix/admin-image-root-scripts`: sites 579 -> 580.** The two files this branch adds, `backend/test/helpers/dockerfile.ts` and `backend/test/unit/ci/image-root-script-supply.test.ts`; the four it modifies already existed. Attributed by parking the pair and re-running, never by subtracting: without them every recorded entry agrees. One more read-with-a-fallback site, in the two new files; it is not a fixture substitution and the check clears it.
+    sites: 580,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -3036,7 +3045,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The two `backend/test/**` files this phase adds: the companion test and its
     // fixture builder.
     // **Re-measured on the union after rebasing onto `be22a122e`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file — it reads 1622 here — so this branch's own contribution is +2. The same `backend/test/**` population as `check-fixture-substitution.ts` above.
-    files: 1624,
+    // **`fix/admin-image-root-scripts`: files 1624 -> 1626.** The two files this branch adds, `backend/test/helpers/dockerfile.ts` and `backend/test/unit/ci/image-root-script-supply.test.ts`; the four it modifies already existed. Attributed by parking the pair and re-running, never by subtracting: without them every recorded entry agrees. Both new files are under `backend/test/`; neither touches the harness.
+    files: 1626,
     sites: null,
     sources: [],
   },
@@ -5107,7 +5117,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // worktree at `7b70edf22`, whose census printed `0 drifted, 44 agree`, and
     // re-measured there after the rebase rather than carried across it — every one
     // of the sixteen entries this drain moves is the same twenty-seven files.
-    files: 8121,
+    // **`fix/admin-image-root-scripts`: files 8145 -> 8147.** The two files this branch adds, `backend/test/helpers/dockerfile.ts` and `backend/test/unit/ci/image-root-script-supply.test.ts`; the four it modifies already existed. Attributed by parking the pair and re-running, never by subtracting: without them every recorded entry agrees. The whole tree, and there is no changeset to make it three.
+    // **Re-measured on the union after rebasing onto `7b70edf22`.** Feature 110's T118b
+    // landed on `master` between this branch's base and the rebase, adding two sources
+    // this walk reads, so the recorded value describes neither tree on its own: 8147 -> 8150.
+    // Measured on the combined tree — a read size is a measurement of what the run walks,
+    // never a sum of the two sides' deltas.
+    // **Re-measured on the union after rebasing onto T119.** That task deleted the
+    // twenty-seven re-export shims this walk was reading, so every entry here moves by the
+    // same −27 and this one lands at 8123 rather than the 8150 recorded against a tree that
+    // still held them. The two files this branch adds were already in the recorded value;
+    // measured on the combined tree, never summed from the two sides' deltas.
+    files: 8123,
     sites: null,
     sources: [],
     //
@@ -6182,7 +6203,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The two `backend/test/**` files this phase adds: the companion test and its
     // fixture builder.
     // **Re-measured on the union after rebasing onto `be22a122e`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file — it reads 1622 here — so this branch's own contribution is +2. The same `backend/test/**` population as the two entries above.
-    files: 1624,
+    // **`fix/admin-image-root-scripts`: files 1624 -> 1626.** The two files this branch adds, `backend/test/helpers/dockerfile.ts` and `backend/test/unit/ci/image-root-script-supply.test.ts`; the four it modifies already existed. Attributed by parking the pair and re-running, never by subtracting: without them every recorded entry agrees. Both new files are under `backend/test/`; neither empties a table.
+    files: 1626,
     sites: 163,
     sources: [],
   },
@@ -6528,7 +6550,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // One file — `test/unit/scripts/check-demo-data-budget.test.ts`. The fixture
     // builder beside it is a helper and not a test.
     // **Re-measured on the union after rebasing onto `be22a122e`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file — it reads 1728 here — so this branch's own contribution is +1. This walk opens `*.test.ts` only, so it takes the companion test and not the fixture helper beside it — which is what makes it differ by one from its three neighbours.
-    files: 1729,
+    // **`fix/admin-image-root-scripts`: files 1729 -> 1730.** The two files this branch adds, `backend/test/helpers/dockerfile.ts` and `backend/test/unit/ci/image-root-script-supply.test.ts`; the four it modifies already existed. Attributed by parking the pair and re-running, never by subtracting: without them every recorded entry agrees. One, not two: this population is `.test.ts` files, and `test/helpers/dockerfile.ts` is not one.
+    files: 1730,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -7011,7 +7034,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // worktree at `7b70edf22`, whose census printed `0 drifted, 44 agree`, and
     // re-measured there after the rebase rather than carried across it — every one
     // of the sixteen entries this drain moves is the same twenty-seven files.
-    files: 4502,
+    // **`fix/admin-image-root-scripts`: files 4530 -> 4532.** The two files this branch adds, `backend/test/helpers/dockerfile.ts` and `backend/test/unit/ci/image-root-script-supply.test.ts`; the four it modifies already existed. Attributed by parking the pair and re-running, never by subtracting: without them every recorded entry agrees. Both new files sit under the application member, whose `test` tree is in this walk.
+    // **Re-measured on the union after rebasing onto `7b70edf22`.** Feature 110's T118b
+    // landed on `master` between this branch's base and the rebase, adding two sources
+    // this walk reads, so the recorded value describes neither tree on its own: 4532 -> 4531.
+    // Measured on the combined tree — a read size is a measurement of what the run walks,
+    // never a sum of the two sides' deltas.
+    // **Re-measured on the union after rebasing onto T119.** That task deleted the
+    // twenty-seven re-export shims this walk was reading, so every entry here moves by the
+    // same −27 and this one lands at 4504 rather than the 4531 recorded against a tree that
+    // still held them. The two files this branch adds were already in the recorded value;
+    // measured on the combined tree, never summed from the two sides' deltas.
+    files: 4504,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -7648,7 +7682,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // worktree at `7b70edf22`, whose census printed `0 drifted, 44 agree`, and
     // re-measured there after the rebase rather than carried across it — every one
     // of the sixteen entries this drain moves is the same twenty-seven files.
-    files: 8181,
+    // **`fix/admin-image-root-scripts`: files 8205 -> 8207.** The two files this branch adds, `backend/test/helpers/dockerfile.ts` and `backend/test/unit/ci/image-root-script-supply.test.ts`; the four it modifies already existed. Attributed by parking the pair and re-running, never by subtracting: without them every recorded entry agrees. The whole tree, and there is no changeset to make it three.
+    // **Re-measured on the union after rebasing onto `7b70edf22`.** Feature 110's T118b
+    // landed on `master` between this branch's base and the rebase, adding two sources
+    // this walk reads, so the recorded value describes neither tree on its own: 8207 -> 8210.
+    // Measured on the combined tree — a read size is a measurement of what the run walks,
+    // never a sum of the two sides' deltas.
+    // **Re-measured on the union after rebasing onto T119.** That task deleted the
+    // twenty-seven re-export shims this walk was reading, so every entry here moves by the
+    // same −27 and this one lands at 8183 rather than the 8210 recorded against a tree that
+    // still held them. The two files this branch adds were already in the recorded value;
+    // measured on the combined tree, never summed from the two sides' deltas.
+    files: 8183,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -8000,7 +8045,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // worktree at `7b70edf22`, whose census printed `0 drifted, 44 agree`, and
     // re-measured there after the rebase rather than carried across it — every one
     // of the sixteen entries this drain moves is the same twenty-seven files.
-    files: 6104,
+    // **`fix/admin-image-root-scripts`: files 6131 -> 6133.** The two files this branch adds, `backend/test/helpers/dockerfile.ts` and `backend/test/unit/ci/image-root-script-supply.test.ts`; the four it modifies already existed. Attributed by parking the pair and re-running, never by subtracting: without them every recorded entry agrees. Both new files carry comments, which is this walk's population.
+    // **Re-measured on the union after rebasing onto T119.** That task deleted the
+    // twenty-seven re-export shims this walk was reading, so every entry here moves by the
+    // same −27 and this one lands at 6106 rather than the 6133 recorded against a tree that
+    // still held them. The two files this branch adds were already in the recorded value;
+    // measured on the combined tree, never summed from the two sides' deltas.
+    files: 6106,
     sites: null,
     sources: ['manifest-index'],
     //

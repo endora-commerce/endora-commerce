@@ -33,6 +33,16 @@ RUN pnpm install --frozen-lockfile --filter admin... --filter @endora-commerce/c
 
 COPY packages/ packages/
 COPY admin/ admin/
+# A workspace package whose build runs a repository-root script — `tsc && node
+# ../../scripts/copy-package-assets.mjs` is the shape — needs that script inside the build
+# context, so `scripts/` is one of this image's inputs and not a developer convenience.
+# **Which packages those are is a property of the build closure below**, derived from every
+# member's manifest, and it moves without this file moving: `build:admin` of pipeline 13398
+# died on `Cannot find module '/app/scripts/copy-package-assets.mjs'` because a member of
+# the closure had grown such a build step while this Dockerfile had not grown this line.
+# Nothing in a source-tree check sees an absent one; the rule is
+# `backend/test/unit/ci/image-root-script-supply.test.ts`, over all three images.
+COPY scripts/ scripts/
 
 # Every `@endora-commerce/*` package resolves through its own `exports` map at `./dist` (feature 080,
 # T042), so all of admin's workspace dependencies are built, not just the one that ships a

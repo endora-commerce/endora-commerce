@@ -55,6 +55,23 @@ COPY storefront/ storefront/
 # checked nothing. Same shape as `backend/Dockerfile`'s missing `scripts/`:
 # a Dockerfile copying a subset while a build step needs a repo-root file.
 COPY eslint.config.js eslint.config.js
+# **No `COPY scripts/ scripts/` here, and that is a measurement rather than an omission.**
+# A workspace package whose build runs a repository-root script — `tsc && node
+# ../../scripts/copy-package-assets.mjs` is the shape — needs that script in the build
+# context, and `backend/Dockerfile` and `admin/Dockerfile` copy the whole directory for
+# exactly that reason. This image cannot: `storefront/tsconfig.json` includes `test/**`,
+# `test/tailwind-module-package-sources.test.ts` imports `../../scripts/tailwind-source-scan.ts`,
+# and that file imports `../backend/scripts/lib/workspace-packages.js` — which this image
+# deliberately does not carry. Measured on this tree: with the line, `next build` fails on
+# `Type error: Cannot find module '../backend/scripts/lib/workspace-packages.js'`; without
+# it, the image builds. A root script this image can never hold is not a supply.
+#
+# So this file supplies nothing here **because nothing in its build closure asks for
+# anything** — which is a derived fact, and one that moves without this file moving. That is
+# how `build:admin` broke in pipeline 13398. The day a package in
+# `storefront^...` grows such a build step,
+# `backend/test/unit/ci/image-root-script-supply.test.ts` goes red naming the path, and the
+# answer is a `COPY` of **that path**, not of the directory holding it.
 
 # Every `@endora-commerce/*` package resolves through its own `exports` map at `./dist` (feature 080,
 # T042), so all of the storefront's workspace dependencies are built, not just the one

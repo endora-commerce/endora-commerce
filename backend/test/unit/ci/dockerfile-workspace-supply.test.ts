@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { readCopy, readStages, type DockerStage } from '../../helpers/dockerfile.js';
+
 /**
  * Every workspace member an image builds was a member when that image installed.
  *
@@ -42,6 +44,10 @@ import { describe, expect, it } from 'vitest';
  *  2. the derivation it delegates to really does enumerate every member,
  *     including one nested a directory deeper than any that exists today —
  *     asserted by running the script, not by reading it.
+ *
+ * The Dockerfile reader itself is `test/helpers/dockerfile.ts`. It lived here
+ * until `image-root-script-supply.test.ts` became its second reader; two parsers
+ * over one file would be one population derived twice.
  */
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
@@ -131,80 +137,6 @@ const DOCKERFILES = builtDockerfiles(CI_SOURCE);
 // Reading a Dockerfile
 // --------------------------------------------------------------------------
 
-interface Instruction {
-  readonly keyword: string;
-  /** Everything after the keyword, with line continuations joined. */
-  readonly rest: string;
-}
-
-interface Stage {
-  readonly name: string | null;
-  readonly instructions: readonly Instruction[];
-}
-
-function readStages(source: string): readonly Stage[] {
-  const joined: Instruction[] = [];
-  let pending = '';
-  for (const raw of source.split('\n')) {
-    const line = raw.replace(/\r$/, '');
-    if (/^\s*#/.test(line) && pending === '') continue;
-    const continued = /\\\s*$/.test(line);
-    pending += (pending === '' ? '' : ' ') + line.replace(/\\\s*$/, '').trim();
-    if (continued) continue;
-    const statement = pending.trim();
-    pending = '';
-    if (statement === '') continue;
-    const head = /^(\w+)\s+([\s\S]*)$/.exec(statement);
-    if (head === null) continue;
-    joined.push({ keyword: head[1]!.toUpperCase(), rest: head[2]!.trim() });
-  }
-
-  const stages: Stage[] = [];
-  let current: Instruction[] = [];
-  let name: string | null = null;
-  let opened = false;
-  const flush = (): void => {
-    if (opened) stages.push({ name, instructions: current });
-    current = [];
-    name = null;
-  };
-  for (const instruction of joined) {
-    if (instruction.keyword === 'FROM') {
-      flush();
-      opened = true;
-      const alias = /\sAS\s+(\S+)\s*$/i.exec(` ${instruction.rest}`);
-      name = alias === null ? null : alias[1]!;
-      continue;
-    }
-    if (opened) current.push(instruction);
-  }
-  flush();
-  return stages;
-}
-
-interface CopyInstruction {
-  readonly fromStage: string | null;
-  readonly sources: readonly string[];
-}
-
-function readCopy(instruction: Instruction): CopyInstruction | null {
-  if (instruction.keyword !== 'COPY') return null;
-  const tokens = instruction.rest.split(/\s+/).filter((token) => token !== '');
-  let fromStage: string | null = null;
-  const positional: string[] = [];
-  for (const token of tokens) {
-    const flag = /^--from=(.+)$/.exec(token);
-    if (flag !== null) {
-      fromStage = flag[1]!;
-      continue;
-    }
-    if (token.startsWith('--')) continue;
-    positional.push(token.replace(/^"|"$/g, ''));
-  }
-  // The last positional is the destination.
-  return { fromStage, sources: positional.slice(0, -1) };
-}
-
 /** `packages/contracts/package.json` → `packages/contracts`; `package.json` → `.`. */
 function memberOfManifestPath(path: string): string | null {
   if (!path.endsWith('package.json')) return null;
@@ -221,7 +153,7 @@ function memberOfManifestPath(path: string): string | null {
  * builds its output some other way, is not credited — it is reported as
  * unreadable, because a supply this test cannot read agrees with everything.
  */
-function derivesEveryManifest(stage: Stage): boolean {
+function derivesEveryManifest(stage: DockerStage): boolean {
   const copiesWholeContext = stage.instructions.some((instruction) => {
     const copy = readCopy(instruction);
     return copy !== null && copy.fromStage === null && copy.sources.length === 1 && copy.sources[0] === '.';
