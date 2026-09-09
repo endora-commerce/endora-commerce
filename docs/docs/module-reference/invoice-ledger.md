@@ -32,6 +32,11 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | `organizations` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `sales_channels` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `settings` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
+| `credentials` | no | refuses-without `credentialsService` — VAT copy cannot freeze the Infakt environment while credentials are off. |
+| `invoices` | no | degrades-without `invoiceCopyHostPort` — Delivery list shows invoice ids without numbers while invoices is off. |
+| `invoices` | no | refuses-without `invoiceKsefAssignmentPort` — Webhook apply cannot record Infakt KSeF numbers while invoices is off. |
+| `invoices` | no | refuses-without `invoiceNumberingHostPort` — Webhook apply cannot write vendor-assigned numbers while invoices is off. |
+| `invoices` | no | refuses-without `invoicePaidHostPort` — Webhook apply cannot stamp paid from Infakt while invoices is off. |
 
 ## Permissions
 
