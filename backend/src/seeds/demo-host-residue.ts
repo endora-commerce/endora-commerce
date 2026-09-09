@@ -6,10 +6,11 @@
  * it: the cross-module **wiring**, which went to `demo-composition.ts` because a
  * step that touches more than one module's rows may live in no module (§5.1),
  * and the entry point, which stayed behind as a script. What is left is the
- * corpus — categories, attributes, 200 products, composites, images,
- * attachments, the identities, the delivery and payment methods, the second
- * warehouse and the Polish VAT rate — every block of which writes exactly one
- * module's tables from literals.
+ * corpus — the two sales channels, the category tree, the attributes, 200
+ * products, the composites, their images and attachments — every block of which
+ * writes exactly one module's tables from literals. The identities, the
+ * delivery and payment methods, the second warehouse and the Polish VAT rate
+ * have all left it (T220, T222, T223).
  *
  * **It is a residue, and its size is the measure of the work left.** Phase 2
  * empties it batch by batch: each module declares its demo data in its own
@@ -30,30 +31,13 @@
  * something the other has already decided.
  */
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { SALES_REPRESENTATIVE_PERMISSIONS } from './seeded-role-permissions.js';
 import { entities as catalogEntities } from '@endora-commerce/mod-catalog/backend';
 import type { Product as ProductRow } from '../../../packages/modules/catalog/dist/backend/entities/product.entity.js';
 import type { Category as CategoryRow } from '../../../packages/modules/catalog/dist/backend/entities/category.entity.js';
 import type { AttributeSetAttribute as AttributeSetAttributeRow } from '../../../packages/modules/catalog/dist/backend/entities/attribute-set-attribute.entity.js';
 import { createAttributeFixture } from './attribute-fixtures.js';
 import { SalesChannel } from '../kernel/sales-channels/sales-channel.entity.js';
-import { entities as creditLimitsEntities } from '@endora-commerce/mod-credit-limits/backend';
-import { entities as organizationsEntities } from '@endora-commerce/mod-organizations/backend';
-import { entities as adminUsersEntities } from '@endora-commerce/mod-admin-users/backend';
-import { entities as adminRolesEntities } from '@endora-commerce/mod-admin-roles/backend';
 import { entityNamed } from '../packages/package-entity-lookup.js';
-// The row shapes for the three classes above. A module package publishes its
-// entities as one array and no class by name (D-168), so the *value* comes off
-// the array and the *type* comes from the entity's declaration inside the
-// package's built artefact — the emitted `.d.ts`, because this file is in a
-// build whose `rootDir` is `src/` and a `.ts` outside it is TS6059 even for an
-// `import type`. Nothing is constructed: `import type` erases, so there is no
-// second copy of anything (D-160.6.1). See `src/packages/package-entity-lookup.ts`.
-import type { CreditLimit as CreditLimitRow } from '../../../packages/modules/credit_limits/dist/backend/entities/credit-limit.entity.js';
-import type { Organization as OrganizationRow } from '../../../packages/modules/organizations/dist/backend/entities/organization.entity.js';
-import type { AdminUser as AdminUserRow } from '../../../packages/modules/admin_users/dist/backend/entities/admin-user.entity.js';
-import type { AdminRole as AdminRoleRow } from '../../../packages/modules/admin_roles/dist/backend/entities/admin-role.entity.js';
-import { hashPassword } from '../kernel/crypto/password-hasher.js';
 
 /**
  * `catalog`'s three entity classes, taken off the package's published `entities`
@@ -84,11 +68,6 @@ const AttributeSetAttribute = entityNamed<AttributeSetAttributeRow>(
   'AttributeSetAttribute',
   '@endora-commerce/mod-catalog/backend',
 );
-
-export const DEMO_ADMIN_EMAIL = 'admin@demo.local';
-export const DEMO_ADMIN_PASSWORD = 'ChangeMe!123';
-const DEMO_ORG_NAME = 'Acme B2B (demo)';
-const DEMO_ORG_TAX_ID = 'PL5210000099';
 
 const PRODUCT_COUNT = 200;
 const COLOR_VALUES = ['red', 'green', 'blue', 'black', 'white'];
@@ -227,6 +206,19 @@ export interface HostResidueSummary {
  * the operator added. A truncate cannot tell a demo row from an operator's, and
  * that is exactly why it may not be the withdrawal for a table this file has
  * stopped writing.
+ *
+ * **T222 took four more off it, and one of them is the sharpest case in the
+ * whole list.** `admin_roles`, `admin_users` and `organizations` are their own
+ * modules' now, and `customer_accounts` goes with them because the buyer has
+ * been the composition's since Phase 1 and this file has not written that table
+ * since. `organizations` is the one worth naming: an organisation is the tenant
+ * every buyer, address, cart, quote request and order hangs off (Principle XI),
+ * so `truncate organizations cascade` took a developer's entire test tenancy
+ * with it, silently, on every `seed:dev` — and the `credit_limits` rows it
+ * removed through the same cascade are withdrawn by the composition's own step
+ * now. `admin_roles` is the second: `blog` and `cms` seed a role apiece from
+ * their boot hooks and share that table, and the cascade from it reached
+ * `admin_users`.
  */
 export async function resetHostModuleResidue(em: EntityManager): Promise<void> {
   const conn = em.getConnection();
@@ -256,10 +248,6 @@ export async function resetHostModuleResidue(em: EntityManager): Promise<void> {
       megamenus,
       categories,
       sales_channels,
-      customer_accounts,
-      organizations,
-      admin_users,
-      admin_roles,
       price_list_assignments,
       price_list_items,
       price_lists
@@ -387,32 +375,6 @@ export async function seedHostModuleResidue(em: EntityManager): Promise<HostResi
   }
   await em.persistAndFlush(leaves);
 
-  // The remaining entity classes come from packages, and a module package publishes
-  // one `entities` array and no class by name (D-168). `entityNamed` takes each
-  // off the array the ORM itself registered — `entities-registry.generated.ts`
-  // imports the same export — under the row type imported above, so the payloads
-  // below are checked against the entity actually being created rather than
-  // against whichever constituent of the array's union TypeScript picks.
-  const CreditLimit = entityNamed<CreditLimitRow>(
-    creditLimitsEntities,
-    'CreditLimit',
-    '@endora-commerce/mod-credit-limits/backend',
-  );
-  const Organization = entityNamed<OrganizationRow>(
-    organizationsEntities,
-    'Organization',
-    '@endora-commerce/mod-organizations/backend',
-  );
-  const AdminUser = entityNamed<AdminUserRow>(
-    adminUsersEntities,
-    'AdminUser',
-    '@endora-commerce/mod-admin-users/backend',
-  );
-  const AdminRole = entityNamed<AdminRoleRow>(
-    adminRolesEntities,
-    'AdminRole',
-    '@endora-commerce/mod-admin-roles/backend',
-  );
   // --- Product attributes ---------------------------------------------
   // Feature 061 — a product attribute is a product-host Custom Field
   // definition + a catalog extension row; the fixture helper creates the pair.
@@ -736,98 +698,20 @@ export async function seedHostModuleResidue(em: EntityManager): Promise<HostResi
     }
   }
 
-  // --- Demo Organization + buyer --------------------------------------
-  const adminPasswordHash = await hashPassword(DEMO_ADMIN_PASSWORD);
-
-  const platformRole = em.create(AdminRole, {
-    code: 'platform_admin',
-    name: 'Platform Admin',
-    permissions: ['*'],
-  });
-  await em.persistAndFlush(platformRole);
-
-  const demoAdmin = em.create(AdminUser, {
-    email: DEMO_ADMIN_EMAIL,
-    passwordHash: adminPasswordHash,
-    firstName: 'Demo',
-    lastName: 'Admin',
-    adminRoleId: platformRole.id,
-    status: 'active',
-  });
-  await em.persistAndFlush(demoAdmin);
-
-  // Feature 008 — sales_representative role + two demo accounts so the
-  // quickstart can exercise assignment-scoped visibility.
-  const salesRepRole = em.create(AdminRole, {
-    code: 'sales_representative',
-    name: 'Sales representative',
-    permissions: [...SALES_REPRESENTATIVE_PERMISSIONS],
-  });
-  await em.persistAndFlush(salesRepRole);
-
-  const salesRepAdmin = em.create(AdminUser, {
-    email: 'sales-rep@demo.local',
-    passwordHash: adminPasswordHash,
-    firstName: 'Anna',
-    lastName: 'Wiśniewska',
-    adminRoleId: salesRepRole.id,
-    status: 'active',
-  });
-  const salesRepOther = em.create(AdminUser, {
-    email: 'sales-rep-other@demo.local',
-    passwordHash: adminPasswordHash,
-    firstName: 'Tomasz',
-    lastName: 'Nowak',
-    adminRoleId: salesRepRole.id,
-    status: 'active',
-  });
-  await em.persistAndFlush([salesRepAdmin, salesRepOther]);
-
-  const demoOrg = em.create(Organization, {
-    name: DEMO_ORG_NAME,
-    taxId: DEMO_ORG_TAX_ID,
-    status: 'active',
-    vatStatus: 'vat_payer',
-    registeredAddress: {
-      street: 'ul. Demo 1',
-      city: 'Warszawa',
-      postalCode: '00-001',
-      country: 'PL',
-    },
-  });
-  await em.persistAndFlush(demoOrg);
-
-  // The demo buyer's account is the **composition's** and not this block's,
-  // and the schema is what forces it: `customer_accounts.organization_id` is
-  // `NOT NULL` (Principle XI), so there is no "create the account, then join
-  // it" to lift — the account and its organisation are created together, and
-  // the composition is the only place that holds both. See step 5 of
-  // `demo-composition.ts`.
-
-  // --- The granted credit limit (T166) --------------------------------
+  // The demo administrators, the two roles they hold, the demo organisation and
+  // the credit limit granted to it are their own modules' demo data now
+  // (feature 113, T222).
   //
-  // The delivery method and the two payment methods that used to open this
-  // block are `delivery_methods`' and `payment_methods`' own demo data now
-  // (feature 113, T220): each module declares it in its `manifest.ts` and
-  // creates it from its own `src/backend/demo/`.
+  // `admin_roles`, `admin_users` and `organizations` each declare theirs in
+  // their own `manifest.ts` and create them from their own `src/backend/demo/`.
+  // The two **links** the block used to write in the same statements are the
+  // instance composition's, because each is two modules' rows at once: which
+  // account holds which role is step 6 of `demo-composition.ts`, and the grant
+  // against the demo organisation is step 7.
   //
-  // The grant stays, and it is not a leftover. `credit_limits` owns the row and
-  // `organizations` owns the party it is granted to, so it is two modules' rows
-  // in one statement — a composition step (contract §5.1) and no module's demo
-  // data. It sits here beside the organisation it needs until batch 3 decides
-  // where it goes.
-  //
-  // It is what makes `payment_methods`' `credit_limit` method visible at all:
-  // checkout hides that method from a buyer whose organization holds no grant,
-  // and again when the cart exceeds what is available. Without this row the
-  // demo would offer an option no seeded buyer can ever see, which is the same
-  // "capability reads as missing" the method was seeded to fix.
-  const demoCreditLimit = em.create(CreditLimit, {
-    organizationId: demoOrg.id,
-    grantedAmount: '50000.00',
-    currency: 'PLN',
-  });
-  await em.persistAndFlush(demoCreditLimit);
+  // The demo buyer's account was already the composition's, since Phase 1:
+  // `customer_accounts.organization_id` is `NOT NULL` (Principle XI), so there
+  // is no "create the account, then join it" to lift — see step 5.
 
   // `inventory`'s second warehouse and its channel assignments are that
   // module's own demo data now (T223).

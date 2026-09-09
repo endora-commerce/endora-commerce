@@ -9,7 +9,7 @@ import {
 } from '../../helpers/test-server.js';
 import { AdminRole, AdminUser, PaymentMethod } from '../../helpers/package-entities.js';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
-import { SALES_REPRESENTATIVE_PERMISSIONS } from '../../../src/seeds/seeded-role-permissions.js';
+import { SALES_REPRESENTATIVE_PERMISSIONS } from '@endora-commerce/mod-admin-roles/backend';
 
 /**
  * `payment_methods` owns its own authority.

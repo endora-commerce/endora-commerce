@@ -329,15 +329,22 @@ const FINGERPRINTS: Readonly<Record<string, string>> = {
  * backend boots"*.
  *
  * It is a two-way ledger and not a filter: a table that stops being reconciled
- * fails here, and so does one that starts. Magnitudes are deliberately not
+ * fails here, and so does one that starts. **`admin_roles` left it with feature
+ * 113's T222**, and the entry is worth recording as retired rather than quietly
+ * deleted: it was here because the host's `demo reset` truncated that table, so
+ * the reference path lost `blog_manager` and `content_manager` and never got
+ * them back while the composed path's second boot re-seeded them. T222 replaced
+ * that truncate with `admin_roles`' own code-filtered withdrawal, which leaves
+ * both roles standing on both sides — so the deltas now agree and this table is
+ * back under the **exact** fingerprint comparison rather than the subset one.
+ * That matters more here than the tidiness: `admin_roles` is a table T222
+ * moves, and comparing it loosely would have been the batch weakening the one
+ * instrument that can see it. Magnitudes are deliberately not
  * recorded — `cms_hook_sales_channels` is one row per shipped CMS hook and
  * moves whenever a module adds one — but for a table the reference run also
  * writes, every reference row must still be present, which is asserted below.
  */
 const BOOT_RECONCILED: Readonly<Record<string, string>> = {
-  admin_roles:
-    "`blog` and `cms` seed a `blog_manager` and a `content_manager` role from their own " +
-    'boot hooks. The demo adds `platform_admin` and `sales_representative` on both paths.',
   audit_log_entries:
     'the sales-channel reconciler records its own promotion, and the second boot has a ' +
     'channel to promote.',

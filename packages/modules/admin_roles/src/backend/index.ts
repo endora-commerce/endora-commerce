@@ -185,5 +185,19 @@ export const entities = [
  * host-facing half of the permission estate, and it has to be the same half the
  * platform composed or a scanner reports on a catalogue nobody enforces.
  */
+/**
+ * The permission list the demo's `sales_representative` role carries (feature
+ * 113, T222).
+ *
+ * It was `backend/src/seeds/seeded-role-permissions.ts`, and it is published
+ * here because six `test/contract/*\/permission-authority.test.ts` files assert
+ * what that role may reach and must read **the list the seed actually writes**,
+ * not a copy of it. Since T222 the seed that writes it is this module's own
+ * demo body, so this is where the list lives and this is the door those tests
+ * name. It is a `readonly string[]` of catalogue codes — no entity, so D-168
+ * does not bar it — and `demo/rows.ts` carries nothing else on its graph.
+ */
+export { SALES_REPRESENTATIVE_PERMISSIONS } from './demo/rows.js';
+
 export { PermissionCatalogueService, listAssignablePermissionCodes } from './services/permission-catalogue.service.js';
 export { ConstantResolver, defaultScanRoots, scanEnforcedPermissionCodes, scanEnforcedPermissionGates } from './permission-inventory.js';

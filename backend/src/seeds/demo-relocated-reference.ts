@@ -45,6 +45,10 @@ import {
 } from '@endora-commerce/mod-inventory/backend';
 import { entities as paymentMethodsEntities } from '@endora-commerce/mod-payment-methods/backend';
 import { entities as taxesEntities } from '@endora-commerce/mod-taxes/backend';
+import { entities as adminRolesEntities } from '@endora-commerce/mod-admin-roles/backend';
+import { entities as adminUsersEntities } from '@endora-commerce/mod-admin-users/backend';
+import { entities as creditLimitsEntities } from '@endora-commerce/mod-credit-limits/backend';
+import { entities as organizationsEntities } from '@endora-commerce/mod-organizations/backend';
 import { entityNamed } from '../packages/package-entity-lookup.js';
 // The row shapes for the three classes below — an `import type` of the
 // declaration inside each package's **built** artefact, for the reason
@@ -57,7 +61,12 @@ import type { PaymentMethod as PaymentMethodRow } from '../../../packages/module
 import type { Tax as TaxRow } from '../../../packages/modules/taxes/dist/backend/entities/tax.entity.js';
 import type { Warehouse as WarehouseRow } from '../../../packages/modules/inventory/dist/backend/entities/warehouse.entity.js';
 import type { WarehouseChannelAssignment as WarehouseChannelAssignmentRow } from '../../../packages/modules/inventory/dist/backend/entities/warehouse-channel-assignment.entity.js';
+import type { AdminRole as AdminRoleRow } from '../../../packages/modules/admin_roles/dist/backend/entities/admin-role.entity.js';
+import type { AdminUser as AdminUserRow } from '../../../packages/modules/admin_users/dist/backend/entities/admin-user.entity.js';
+import type { CreditLimit as CreditLimitRow } from '../../../packages/modules/credit_limits/dist/backend/entities/credit-limit.entity.js';
+import type { Organization as OrganizationRow } from '../../../packages/modules/organizations/dist/backend/entities/organization.entity.js';
 import { SalesChannel } from '../kernel/sales-channels/sales-channel.entity.js';
+import { hashPassword } from '../kernel/crypto/password-hasher.js';
 
 const DeliveryMethod = entityNamed<DeliveryMethodRow>(
   deliveryMethodsEntities,
@@ -80,6 +89,59 @@ const WarehouseChannelAssignment = entityNamed<WarehouseChannelAssignmentRow>(
   'WarehouseChannelAssignment',
   '@endora-commerce/mod-inventory/backend',
 );
+const AdminRole = entityNamed<AdminRoleRow>(
+  adminRolesEntities,
+  'AdminRole',
+  '@endora-commerce/mod-admin-roles/backend',
+);
+const AdminUser = entityNamed<AdminUserRow>(
+  adminUsersEntities,
+  'AdminUser',
+  '@endora-commerce/mod-admin-users/backend',
+);
+const CreditLimit = entityNamed<CreditLimitRow>(
+  creditLimitsEntities,
+  'CreditLimit',
+  '@endora-commerce/mod-credit-limits/backend',
+);
+const Organization = entityNamed<OrganizationRow>(
+  organizationsEntities,
+  'Organization',
+  '@endora-commerce/mod-organizations/backend',
+);
+
+/**
+ * The demo administrator's sign-in details, on the **reference** path.
+ *
+ * `dev-catalog-seed.ts` prints them, and it imports them from here rather than
+ * from `demo-host-residue.ts` because this is where the block that creates the
+ * account now lives on that path. On the composed path `admin_users` reports
+ * the same pair as a `DemoCredential` and the runner formats it (§3.7); these
+ * two constants are the frozen copy and go with the file at T226.
+ */
+export const DEMO_ADMIN_EMAIL = 'admin@demo.local';
+export const DEMO_ADMIN_PASSWORD = 'ChangeMe!123';
+
+/** The demo organisation's own two literals, frozen with the block below. */
+const DEMO_ORG_NAME = 'Acme B2B (demo)';
+const DEMO_ORG_TAX_ID = 'PL5210000099';
+
+/**
+ * The sales representative's permission list, as the host block wrote it.
+ *
+ * A **literal copy** and not an import of
+ * `@endora-commerce/mod-admin-roles/backend`'s exported constant, deliberately:
+ * the two sides of the parity comparison have to be different code, and a
+ * reference side that imported the module's own list could not see a change to
+ * it. That is this whole file's reason, applied to the one value in it that has
+ * a published twin.
+ */
+const SALES_REPRESENTATIVE_PERMISSIONS: readonly string[] = [
+  'rfqs:handle',
+  'organizations:read.assigned',
+  'catalog:read',
+  'price_lists:read',
+];
 
 /**
  * Create the rows the modules below now create for themselves.
@@ -205,4 +267,99 @@ export async function seedRelocatedDemoReference(em: EntityManager): Promise<voi
     }
   }
   await em.flush();
+
+  // ── T222, batch 3 ────────────────────────────────────────────────────────
+  // `admin_roles`, `admin_users` and `organizations`, plus the two links that
+  // are the composition's on the composed path: the role each administrator
+  // holds, and the credit limit granted to the demo organisation. Verbatim from
+  // `demo-host-residue.ts`.
+  //
+  // **The links are written inline here and are steps 6 and 7 there**, and that
+  // asymmetry is the freeze working rather than a divergence: this file is one
+  // program with every row in hand, so it assigns a role id in the same
+  // statement that creates the account, exactly as the host block did. The
+  // composed path cannot — `admin_users` may not write `admin_roles`' id and
+  // `admin_roles` may not create an account — so it creates the two sides
+  // separately and joins them afterwards. The comparison is over the database
+  // both produce, which is what makes the two shapes checkable against each
+  // other at all.
+
+  // --- Demo Organization + buyer --------------------------------------
+  const adminPasswordHash = await hashPassword(DEMO_ADMIN_PASSWORD);
+
+  const platformRole = em.create(AdminRole, {
+    code: 'platform_admin',
+    name: 'Platform Admin',
+    permissions: ['*'],
+  });
+  await em.persistAndFlush(platformRole);
+
+  const demoAdmin = em.create(AdminUser, {
+    email: DEMO_ADMIN_EMAIL,
+    passwordHash: adminPasswordHash,
+    firstName: 'Demo',
+    lastName: 'Admin',
+    adminRoleId: platformRole.id,
+    status: 'active',
+  });
+  await em.persistAndFlush(demoAdmin);
+
+  // Feature 008 — sales_representative role + two demo accounts so the
+  // quickstart can exercise assignment-scoped visibility.
+  const salesRepRole = em.create(AdminRole, {
+    code: 'sales_representative',
+    name: 'Sales representative',
+    permissions: [...SALES_REPRESENTATIVE_PERMISSIONS],
+  });
+  await em.persistAndFlush(salesRepRole);
+
+  const salesRepAdmin = em.create(AdminUser, {
+    email: 'sales-rep@demo.local',
+    passwordHash: adminPasswordHash,
+    firstName: 'Anna',
+    lastName: 'Wiśniewska',
+    adminRoleId: salesRepRole.id,
+    status: 'active',
+  });
+  const salesRepOther = em.create(AdminUser, {
+    email: 'sales-rep-other@demo.local',
+    passwordHash: adminPasswordHash,
+    firstName: 'Tomasz',
+    lastName: 'Nowak',
+    adminRoleId: salesRepRole.id,
+    status: 'active',
+  });
+  await em.persistAndFlush([salesRepAdmin, salesRepOther]);
+
+  const demoOrg = em.create(Organization, {
+    name: DEMO_ORG_NAME,
+    taxId: DEMO_ORG_TAX_ID,
+    status: 'active',
+    vatStatus: 'vat_payer',
+    registeredAddress: {
+      street: 'ul. Demo 1',
+      city: 'Warszawa',
+      postalCode: '00-001',
+      country: 'PL',
+    },
+  });
+  await em.persistAndFlush(demoOrg);
+
+  // --- The granted credit limit (T166) --------------------------------
+  //
+  // On the composed path it is step 7 of `demo-composition.ts` — `credit_limits`
+  // owns the row and `organizations` owns the party it is granted to, so it is
+  // two modules' rows in one statement and no module's demo data (§5.1).
+  //
+  // It is what makes `payment_methods`' `credit_limit` method visible at all:
+  // checkout hides that method from a buyer whose organization holds no grant,
+  // and again when the cart exceeds what is available. Without this row the
+  // demo would offer an option no seeded buyer can ever see, which is the same
+  // "capability reads as missing" the method was seeded to fix.
+  const demoCreditLimit = em.create(CreditLimit, {
+    organizationId: demoOrg.id,
+    grantedAmount: '50000.00',
+    currency: 'PLN',
+  });
+  await em.persistAndFlush(demoCreditLimit);
 }

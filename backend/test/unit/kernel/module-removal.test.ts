@@ -267,7 +267,21 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // an option no seeded buyer could ever see, because checkout filters the
   // method on a granted limit against the cart total. The seed therefore
   // grants one too, which is what puts this module here.
-  credit_limits: ['src/seeds/demo-host-residue.ts'],
+  //
+  // **Feature 113's T222 re-pointed this entry and freed nothing**, exactly as
+  // T220 and T223 did before it and for the same reason: a moved demo block is
+  // *frozen* rather than deleted, because `demo-parity.test.ts` can only see a
+  // batch while its two sides are different code. What replaced
+  // `demo-host-residue.ts` here is the frozen copy in
+  // `demo-relocated-reference.ts` — plus, new with this batch,
+  // `demo-composition.ts`, which now holds the two **links** the host block used
+  // to write inline: which administrator holds which role, and the credit limit
+  // granted to the demo organisation. Both are two modules' rows in one
+  // statement, so both are composition steps (contract §5.1), and the
+  // composition names the entity classes to write them. The reference entry
+  // retires at T226; the composition one is the composition doing its job and is
+  // not expected to drain at all.
+  credit_limits: ['src/seeds/demo-composition.ts', 'src/seeds/demo-relocated-reference.ts'],
   // ── Feature 113's T220 re-pointed three of these and freed none ───────────
   //
   // `delivery_methods`, `payment_methods` and `taxes` own their demo rows now:
@@ -322,7 +336,21 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // entry drained when that module was packaged and nothing in that merge
   // request read this file — the standing shape of this ledger's failures, and
   // the reason the entry is recorded as corrected rather than quietly deleted.
-  organizations: ['src/seeds/demo-composition.ts', 'src/seeds/demo-host-residue.ts'],
+  //
+  // **Feature 113's T222 re-pointed this entry and freed nothing**, exactly as
+  // T220 and T223 did before it and for the same reason: a moved demo block is
+  // *frozen* rather than deleted, because `demo-parity.test.ts` can only see a
+  // batch while its two sides are different code. What replaced
+  // `demo-host-residue.ts` here is the frozen copy in
+  // `demo-relocated-reference.ts` — plus, new with this batch,
+  // `demo-composition.ts`, which now holds the two **links** the host block used
+  // to write inline: which administrator holds which role, and the credit limit
+  // granted to the demo organisation. Both are two modules' rows in one
+  // statement, so both are composition steps (contract §5.1), and the
+  // composition names the entity classes to write them. The reference entry
+  // retires at T226; the composition one is the composition doing its job and is
+  // not expected to drain at all.
+  organizations: ['src/seeds/demo-composition.ts', 'src/seeds/demo-relocated-reference.ts'],
 
   // `composition.ts` reaches into `email` once: for the `EmailCradle` type it
   // resolves the mailer with. It disappears when the mailer's consumers resolve
@@ -366,7 +394,21 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // retire it was never the thing holding it. Recorded here rather than quietly
   // deleted, because a reason nobody can check is how a ledger stops being
   // evidence.
-  admin_roles: ['src/seeds/demo-host-residue.ts'],
+  //
+  // **Feature 113's T222 re-pointed this entry and freed nothing**, exactly as
+  // T220 and T223 did before it and for the same reason: a moved demo block is
+  // *frozen* rather than deleted, because `demo-parity.test.ts` can only see a
+  // batch while its two sides are different code. What replaced
+  // `demo-host-residue.ts` here is the frozen copy in
+  // `demo-relocated-reference.ts` — plus, new with this batch,
+  // `demo-composition.ts`, which now holds the two **links** the host block used
+  // to write inline: which administrator holds which role, and the credit limit
+  // granted to the demo organisation. Both are two modules' rows in one
+  // statement, so both are composition steps (contract §5.1), and the
+  // composition names the entity classes to write them. The reference entry
+  // retires at T226; the composition one is the composition doing its job and is
+  // not expected to drain at all.
+  admin_roles: ['src/seeds/demo-composition.ts', 'src/seeds/demo-relocated-reference.ts'],
   // `prompt_actions` (wave 1) — the inverted case, and the reason this ledger is
   // worth keeping. Its `composition.ts` reference was never a leftover of the
   // conversion: three *other* modules contributed into the registry it owns, and
@@ -442,7 +484,21 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // than this one. The seed entry stays: it constructs `AdminUser`, so it names
   // the row type inside this package's built artefact, which carries the
   // `modules/admin_users/` substring this scan reads.
-  admin_users: ['src/seeds/demo-host-residue.ts'],
+  //
+  // **Feature 113's T222 re-pointed this entry and freed nothing**, exactly as
+  // T220 and T223 did before it and for the same reason: a moved demo block is
+  // *frozen* rather than deleted, because `demo-parity.test.ts` can only see a
+  // batch while its two sides are different code. What replaced
+  // `demo-host-residue.ts` here is the frozen copy in
+  // `demo-relocated-reference.ts` — plus, new with this batch,
+  // `demo-composition.ts`, which now holds the two **links** the host block used
+  // to write inline: which administrator holds which role, and the credit limit
+  // granted to the demo organisation. Both are two modules' rows in one
+  // statement, so both are composition steps (contract §5.1), and the
+  // composition names the entity classes to write them. The reference entry
+  // retires at T226; the composition one is the composition doing its job and is
+  // not expected to drain at all.
+  admin_users: ['src/seeds/demo-composition.ts', 'src/seeds/demo-relocated-reference.ts'],
   // `settings` needs no entry and gets none, since feature 080's T040b — this
   // module is now **absent** from the ledger, which is the strongest state a
   // key can reach.

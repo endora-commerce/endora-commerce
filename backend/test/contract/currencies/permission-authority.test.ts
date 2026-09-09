@@ -8,7 +8,7 @@ import {
 } from '../../helpers/test-server.js';
 import { AdminRole, AdminUser, Currency } from '../../helpers/package-entities.js';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
-import { SALES_REPRESENTATIVE_PERMISSIONS } from '../../../src/seeds/seeded-role-permissions.js';
+import { SALES_REPRESENTATIVE_PERMISSIONS } from '@endora-commerce/mod-admin-roles/backend';
 
 /**
  * `currencies` owns its own authority, and its own routes.

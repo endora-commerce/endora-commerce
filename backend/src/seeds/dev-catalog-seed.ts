@@ -69,12 +69,12 @@ import {
   DEMO_BUYER_EMAIL,
   DEMO_BUYER_PASSWORD,
 } from './demo-composition.js';
+import { seedHostModuleResidue } from './demo-host-residue.js';
 import {
   DEMO_ADMIN_EMAIL,
   DEMO_ADMIN_PASSWORD,
-  seedHostModuleResidue,
-} from './demo-host-residue.js';
-import { seedRelocatedDemoReference } from './demo-relocated-reference.js';
+  seedRelocatedDemoReference,
+} from './demo-relocated-reference.js';
 
 async function main(): Promise<void> {
   // command-coverage-ignore: the development seed. `mustBeNonProduction()` on

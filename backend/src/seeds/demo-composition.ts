@@ -57,6 +57,9 @@ import {
   DEFAULT_WAREHOUSE_ID,
 } from '@endora-commerce/mod-inventory/backend';
 import { entities as customerAccountsEntities } from '@endora-commerce/mod-customer-accounts/backend';
+import { entities as adminRolesEntities } from '@endora-commerce/mod-admin-roles/backend';
+import { entities as adminUsersEntities } from '@endora-commerce/mod-admin-users/backend';
+import { entities as creditLimitsEntities } from '@endora-commerce/mod-credit-limits/backend';
 import { entities as organizationsEntities } from '@endora-commerce/mod-organizations/backend';
 import { DefaultPriceListMigrator } from '@endora-commerce/mod-price-lists/backend';
 import { CatalogProductReadService } from '@endora-commerce/mod-catalog/backend';
@@ -76,6 +79,9 @@ import type { StockLevel as StockLevelRow } from '../../../packages/modules/inve
 import type { Warehouse as WarehouseRow } from '../../../packages/modules/inventory/dist/backend/entities/warehouse.entity.js';
 import type { CustomerAccount as CustomerAccountRow } from '../../../packages/modules/customer_accounts/dist/backend/entities/customer-account.entity.js';
 import type { Organization as OrganizationRow } from '../../../packages/modules/organizations/dist/backend/entities/organization.entity.js';
+import type { AdminRole as AdminRoleRow } from '../../../packages/modules/admin_roles/dist/backend/entities/admin-role.entity.js';
+import type { AdminUser as AdminUserRow } from '../../../packages/modules/admin_users/dist/backend/entities/admin-user.entity.js';
+import type { CreditLimit as CreditLimitRow } from '../../../packages/modules/credit_limits/dist/backend/entities/credit-limit.entity.js';
 
 const Category = entityNamed<CategoryRow>(
   catalogEntities,
@@ -122,6 +128,21 @@ const Organization = entityNamed<OrganizationRow>(
   'Organization',
   '@endora-commerce/mod-organizations/backend',
 );
+const AdminRole = entityNamed<AdminRoleRow>(
+  adminRolesEntities,
+  'AdminRole',
+  '@endora-commerce/mod-admin-roles/backend',
+);
+const AdminUser = entityNamed<AdminUserRow>(
+  adminUsersEntities,
+  'AdminUser',
+  '@endora-commerce/mod-admin-users/backend',
+);
+const CreditLimit = entityNamed<CreditLimitRow>(
+  creditLimitsEntities,
+  'CreditLimit',
+  '@endora-commerce/mod-credit-limits/backend',
+);
 
 /**
  * The demo shop's own vocabulary, which is this file's to hold.
@@ -141,6 +162,25 @@ export const DEMO_BUYER_EMAIL = 'buyer@demo-org.example';
 export const DEMO_BUYER_PASSWORD = 'ChangeMe!123';
 const DEMO_ORG_TAX_ID = 'PL5210000099';
 const DEMO_MENU_NAME = 'Main navigation';
+
+/**
+ * Which demo administrator holds which role (feature 113, T222).
+ *
+ * The instance's own statement about its shop, in the file that holds every
+ * other one: `admin_users` creates the accounts and `admin_roles` creates the
+ * roles, and neither may write the other's table, so the pairing has nowhere
+ * else to live (§5.1). Keyed on the natural keys both modules assign — an
+ * e-mail address and a role code — because ids are minted per run.
+ */
+const DEMO_ADMIN_ROLE_ASSIGNMENTS: readonly { readonly email: string; readonly roleCode: string }[] =
+  [
+    { email: 'admin@demo.local', roleCode: 'platform_admin' },
+    { email: 'sales-rep@demo.local', roleCode: 'sales_representative' },
+    { email: 'sales-rep-other@demo.local', roleCode: 'sales_representative' },
+  ];
+
+/** What the demo organisation may buy on account, and in which currency. */
+const DEMO_CREDIT_LIMIT = { grantedAmount: '50000.00', currency: 'PLN' } as const;
 const KRAKOW_WAREHOUSE_CODE = 'pl-krk';
 /** Every product the demo seeds slugs itself `demo-<leaf>-<index>`. */
 const DEMO_PRODUCT_SLUG_PREFIX = 'demo-';
@@ -505,6 +545,86 @@ const STEPS: readonly CompositionStep[] = [
       const buyer = await em.findOne(CustomerAccount, { email: DEMO_BUYER_EMAIL });
       if (buyer === null) return;
       await em.removeAndFlush(buyer);
+    },
+  },
+  {
+    // ── 6. the demo administrators take their roles ───────────────────────
+    // An `admin_users` row carrying an `admin_roles` id is two modules' rows
+    // in one statement, so which account holds which role is the instance's
+    // statement and not either module's (§5.1). `admin_users` creates the
+    // three accounts with no role, `admin_roles` creates the two roles, and
+    // this step joins them by the natural keys both assign.
+    //
+    // **It is an update and not a creation, which is the difference from step
+    // 5.** `AdminUser.adminRoleId` is nullable, so the account exists before
+    // it has a role and the split is available;
+    // `customer_accounts.organization_id` is `NOT NULL`, so there the
+    // composition has to create the row outright. The schema decides which
+    // shape a link takes, not a preference.
+    name: 'demo administrators take their roles',
+    modules: ['admin_users', 'admin_roles'],
+    async apply(em) {
+      const roles = await em.find(AdminRole, {
+        code: { $in: DEMO_ADMIN_ROLE_ASSIGNMENTS.map((row) => row.roleCode) },
+      });
+      const byCode = new Map(roles.map((role) => [role.code, role]));
+      for (const assignment of DEMO_ADMIN_ROLE_ASSIGNMENTS) {
+        const role = byCode.get(assignment.roleCode);
+        const account = await em.findOne(AdminUser, { email: assignment.email });
+        // A role the demo did not create, or an account it did not create, is
+        // an instance the operator has already changed. Skipped rather than
+        // repaired: this step joins what is there and creates neither side.
+        if (role === undefined || account === null) continue;
+        account.adminRoleId = role.id;
+      }
+      await em.flush();
+    },
+    async withdraw(em) {
+      // The link and only the link. The accounts are `admin_users`' to remove
+      // and the roles are `admin_roles`' — and unassigning first is what
+      // leaves no row referencing a role either of them is about to delete.
+      const accounts = await em.find(AdminUser, {
+        email: { $in: DEMO_ADMIN_ROLE_ASSIGNMENTS.map((row) => row.email) },
+      });
+      for (const account of accounts) account.adminRoleId = null;
+      await em.flush();
+    },
+  },
+  {
+    // ── 7. the credit limit granted to the demo organisation ──────────────
+    // `credit_limits` owns the row and `organizations` owns the party it is
+    // granted to, so the grant is two modules' rows in one statement and no
+    // module's demo data (§5.1).
+    //
+    // It is what makes `payment_methods`' `credit_limit` method visible at
+    // all: checkout hides that method from a buyer whose organisation holds no
+    // grant, and again when the cart exceeds what is available. Without this
+    // row the demo would offer an option no seeded buyer can ever see.
+    name: 'credit limit granted to the demo organisation',
+    modules: ['credit_limits', 'organizations'],
+    async apply(em) {
+      const organization = await em.findOne(Organization, { taxId: DEMO_ORG_TAX_ID });
+      if (organization === null) return;
+      const existing = await em.findOne(CreditLimit, { organizationId: organization.id });
+      // One row per organisation is a unique index on that table, so a second
+      // run must probe rather than insert.
+      if (existing !== null) return;
+      em.create(CreditLimit, {
+        organizationId: organization.id,
+        grantedAmount: DEMO_CREDIT_LIMIT.grantedAmount,
+        currency: DEMO_CREDIT_LIMIT.currency,
+      });
+      await em.flush();
+    },
+    async withdraw(em) {
+      // By the organisation the demo created, in SQL rather than through the
+      // ORM: `CreditLimit` is `@OrgScoped`, and a withdrawal that depended on
+      // the ambient tenant would remove a different set on a different scope.
+      await em.getConnection().execute(
+        `delete from credit_limits where organization_id in
+           (select id from organizations where tax_id = ?)`,
+        [DEMO_ORG_TAX_ID],
+      );
     },
   },
 ];
