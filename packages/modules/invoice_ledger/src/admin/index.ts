@@ -1,4 +1,5 @@
 import {
+  zoneComponent,
   type AdminContributions,
 } from '@endora-commerce/admin-kit/contributions';
 
@@ -37,5 +38,11 @@ export const contributions: AdminContributions = {
       weight: 611,
       requiredPermission: READ_PERMISSION,
     },
+  ],
+  zones: [
+    zoneComponent('invoice.detail.after', () => import('./zones/InvoiceLedgerRemoteIdPanel.js'), {
+      weight: 90,
+      requiredPermission: READ_PERMISSION,
+    }),
   ],
 };

@@ -38,6 +38,8 @@
   "deliveries.loading": "Wczytywanie dostaw.",
   "deliveries.noError": "Brak",
   "deliveries.loadMore": "Wczytaj więcej",
+  "invoicePanel.title": "Dokument księgi",
+  "invoicePanel.remoteDocumentId": "Zdalny identyfikator dokumentu",
   "adminRoles.permission.invoice_ledger:read": "Podgląd dostaw księgi faktur",
   "adminRoles.permission.invoice_ledger:write": "Zarządzanie księgą faktur",
   "errors.INVOICE_LEDGER_VENDOR_ALREADY_ACTIVE": "Inny dostawca księgi faktur jest już aktywny ({activeModuleId}). Najpierw go wyłącz.",

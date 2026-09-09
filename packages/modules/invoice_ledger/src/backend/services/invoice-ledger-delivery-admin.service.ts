@@ -55,6 +55,7 @@ export class InvoiceLedgerDeliveryAdminService {
         status: row.status,
         lastError: mappedDeliveryError(row.lastError ?? null),
         environment: row.environment,
+        remoteDocumentId: row.remoteDocumentId ?? null,
         updatedAt: row.updatedAt.toISOString(),
       })),
       pagination: {

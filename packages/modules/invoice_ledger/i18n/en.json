@@ -38,6 +38,8 @@
   "deliveries.loading": "Loading deliveries.",
   "deliveries.noError": "None",
   "deliveries.loadMore": "Load more",
+  "invoicePanel.title": "Ledger document",
+  "invoicePanel.remoteDocumentId": "Remote document id",
   "adminRoles.permission.invoice_ledger:read": "View invoice ledger deliveries",
   "adminRoles.permission.invoice_ledger:write": "Manage invoice ledger",
   "errors.INVOICE_LEDGER_VENDOR_ALREADY_ACTIVE": "Another invoice ledger vendor is already active ({activeModuleId}). Switch it off first.",

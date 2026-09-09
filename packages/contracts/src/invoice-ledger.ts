@@ -232,6 +232,7 @@ export const invoiceLedgerDeliveryListItemSchema = z.object({
   status: invoiceLedgerDeliveryStatusSchema,
   lastError: z.string().nullable(),
   environment: z.string(),
+  remoteDocumentId: z.string().nullable(),
   updatedAt: z.string().datetime(),
 });
 export type InvoiceLedgerDeliveryListItem = z.infer<typeof invoiceLedgerDeliveryListItemSchema>;
