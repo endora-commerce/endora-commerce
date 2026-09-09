@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -6,6 +7,7 @@ import {
   analyzeClosure,
   analyzePlatformImports,
   analyzeSource,
+  bareModuleOwnerOf,
   collectSources,
   RELATION_DECORATOR_HINT,
   importFindingKey,
@@ -17,11 +19,13 @@ import {
   platformRootOf,
   stalePending,
   staleDraining,
+  platformRootsOf,
   KERNEL_MODULE_IMPORTS_TO_DRAIN,
   PENDING_RELOCATION,
-  PLATFORM_ROOTS,
+  type PlatformScope,
 } from '../../../scripts/check-kernel-boundary.js';
 import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
+import { platformSubpathsAt } from '../../../scripts/lib/platform-root.js';
 import { inTreeRelationTarget } from '../../helpers/in-tree-relation-target.js';
 
 /** Every root the check itself walks — resolved, never spelled (T040a). */
@@ -272,16 +276,41 @@ describe('the pending-relocation ratchet', () => {
  * paths. These fixtures name the real one so that the resolution they exercise
  * is the resolution a run performs.
  */
-const PLATFORM_ROOT = join(BACKEND_ROOT, '..', 'packages', 'platform', 'src');
+const PLATFORM_ROOT = MODULE_LAYOUT.platformRoot;
+if (PLATFORM_ROOT === null) {
+  throw new Error('no workspace member declares `endora.type: "platform"` — rules B and C have no subject');
+}
 const kernelFile = (relative: string): string => join(PLATFORM_ROOT, 'kernel', relative);
 const srcFile = (relative: string): string => join(PLATFORM_ROOT, relative);
+
+/**
+ * The population rule B judges, derived exactly as a run derives it (T118a).
+ *
+ * The proofs below hand this scope in with their source text, so a directory
+ * that drops out of {@link platformRootsOf} reds that directory's proof instead
+ * of passing quietly — which is the whole reason the fixture is source text plus
+ * the real derivation rather than a fabricated root list.
+ */
+const PLATFORM_ROOTS = platformRootsOf(PLATFORM_ROOT);
+const SCOPE: PlatformScope = {
+  root: PLATFORM_ROOT,
+  roots: PLATFORM_ROOTS,
+  modulePackageNames: MODULE_LAYOUT.modulePackageNames,
+};
+
+/** The npm name a module publishes under, by id — derived, never spelled. */
+const packageNameOf = (moduleId: string): string => {
+  const entry = [...MODULE_LAYOUT.modulePackageNames].find(([, id]) => id === moduleId);
+  if (entry === undefined) throw new Error(`no module package declares id '${moduleId}'`);
+  return entry[0];
+};
 
 describe('analyzePlatformImports', () => {
   it('finds a value import into a module and names its bindings', () => {
     const findings = analyzePlatformImports(
       "import { ModuleDisabledError } from '../../modules/_lifecycle/plugin-helpers.js';",
       kernelFile('ports/provide.ts'),
-      PLATFORM_ROOT,
+      SCOPE,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({
@@ -297,7 +326,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       "import type { Organization } from '../../modules/organizations/entities/organization.entity.js';",
       kernelFile('ports/organizations.ts'),
-      PLATFORM_ROOT,
+      SCOPE,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]?.targetOwner).toBe('organizations');
@@ -308,7 +337,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       'export type Org = import("../../modules/organizations/entities/organization.entity.js").Organization;',
       kernelFile('ports/organizations.ts'),
-      PLATFORM_ROOT,
+      SCOPE,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({ targetOwner: 'organizations', kind: 'import-type' });
@@ -319,7 +348,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       "export { Category } from '../modules/catalog/entities/category.entity.js';",
       kernelFile('index.ts'),
-      PLATFORM_ROOT,
+      SCOPE,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({ targetOwner: 'catalog', kind: 'export' });
@@ -330,7 +359,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       "const m = await import('../modules/catalog/backend.js');",
       kernelFile('compose.ts'),
-      PLATFORM_ROOT,
+      SCOPE,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({ targetOwner: 'catalog', kind: 'dynamic' });
@@ -340,7 +369,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       "const m = require('../modules/catalog/backend.js');",
       kernelFile('compose.ts'),
-      PLATFORM_ROOT,
+      SCOPE,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({ targetOwner: 'catalog', kind: 'require' });
@@ -350,7 +379,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       "import { thing } from '../apps/example/modules/example_overlay/service.js';",
       kernelFile('compose.ts'),
-      PLATFORM_ROOT,
+      SCOPE,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]?.targetOwner).toBe('example_overlay');
@@ -365,7 +394,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       "import { divergence } from '../apps/example/divergence.js';",
       kernelFile('compose.ts'),
-      PLATFORM_ROOT,
+      SCOPE,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]?.targetOwner).toBe('apps/example');
@@ -376,7 +405,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       "import { scopedEm } from '../tenancy/scoped-em.js';",
       kernelFile('container.ts'),
-      PLATFORM_ROOT,
+      SCOPE,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]?.targetOwner).toBeNull();
@@ -387,7 +416,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       ["import { asFunction } from 'awilix';", "import { x } from './container.js';"].join('\n'),
       kernelFile('ports/provide.ts'),
-      PLATFORM_ROOT,
+      SCOPE,
     );
     expect(findings).toEqual([]);
   });
@@ -396,7 +425,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       "import { registerPort } from '../../kernel/ports/provide.js';",
       join(BACKEND_ROOT, 'src/modules/catalog/backend.ts'),
-      PLATFORM_ROOT,
+      SCOPE,
     );
     expect(findings).toEqual([]);
   });
@@ -405,7 +434,7 @@ describe('analyzePlatformImports', () => {
     const findings = analyzePlatformImports(
       "import { gone } from '../modules/catalog/services/deleted-yesterday.js';",
       kernelFile('compose.ts'),
-      PLATFORM_ROOT,
+      SCOPE,
     );
     expect(findings).toHaveLength(1);
     expect(isImportViolation(findings[0]!)).toBe(true);
@@ -413,31 +442,53 @@ describe('analyzePlatformImports', () => {
 });
 
 /**
- * Rule B widened to the platform roots (D-53). The kernel cannot compile without
- * these three peers — five kernel entities take `@GlobalEntity()` from
- * `src/tenancy` and four kernel files take `HttpError` from `src/http` as a
- * value — so a peer that may import a module is a kernel that imports modules
- * with one extra hop.
+ * Rule B widened to the platform roots (D-53), and widened again to **every**
+ * directory the platform keeps (`specs/110-instance-repository/` T118a).
+ *
+ * D-52 put the three peers on the list because the kernel cannot compile without
+ * them — five kernel entities take `@GlobalEntity()` from `src/tenancy` and four
+ * kernel files take `HttpError` from `src/http` as a value — so a peer that may
+ * import a module is a kernel that imports modules with one extra hop. That
+ * argument counted hops between source directories that might become different
+ * packages. They did not: all fourteen compile into one artefact behind one
+ * dependency list, so the hop is zero and the answer is the package.
  */
 describe('analyzePlatformImports over the platform roots', () => {
-  it('declares the four roots the rule walks', () => {
-    expect([...PLATFORM_ROOTS]).toEqual(['kernel', 'http', 'events', 'tenancy']);
+  it('walks every directory the platform keeps, and derives them from the platform', () => {
+    // Not an expected list: the assertion is that the roots *are* the platform's
+    // directories, which is what makes the eleventh one judged by existing. A
+    // literal here would be the four-element constant this replaced, one
+    // population larger (D-100).
+    expect([...PLATFORM_ROOTS]).toEqual(
+      readdirSync(PLATFORM_ROOT, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => entry.name)
+        .sort(),
+    );
+    // The four the rule started with are still in it, which is the half a
+    // derivation could silently lose.
+    expect(PLATFORM_ROOTS).toEqual(expect.arrayContaining(['kernel', 'http', 'events', 'tenancy']));
   });
 
   it('names the root a file belongs to, and nothing outside them', () => {
-    expect(platformRootOf(kernelFile('compose.ts'), PLATFORM_ROOT)).toBe('kernel');
-    expect(platformRootOf(srcFile('http/error-envelope.ts'), PLATFORM_ROOT)).toBe('http');
-    expect(platformRootOf(srcFile('events/bus.ts'), PLATFORM_ROOT)).toBe('events');
-    expect(platformRootOf(srcFile('tenancy/scoped-em.ts'), PLATFORM_ROOT)).toBe('tenancy');
-    expect(platformRootOf(srcFile('db/entities-registry.generated.ts'), PLATFORM_ROOT)).toBeNull();
-    expect(platformRootOf(moduleFile('catalog/backend.ts'), PLATFORM_ROOT)).toBeNull();
+    expect(platformRootOf(kernelFile('compose.ts'), SCOPE)).toBe('kernel');
+    expect(platformRootOf(srcFile('http/error-envelope.ts'), SCOPE)).toBe('http');
+    expect(platformRootOf(srcFile('events/bus.ts'), SCOPE)).toBe('events');
+    expect(platformRootOf(srcFile('tenancy/scoped-em.ts'), SCOPE)).toBe('tenancy');
+    // `db` is a root since T118a — the four-element literal is what answered
+    // `null` here, and that answer was the hole.
+    expect(platformRootOf(srcFile('db/orm-bootstrap.ts'), SCOPE)).toBe('db');
+    expect(platformRootOf(srcFile('composition/index.ts'), SCOPE)).toBe('composition');
+    // Outside the platform entirely: the application's own tree and a module's.
+    expect(platformRootOf(join(BACKEND_ROOT, 'src/composition.ts'), SCOPE)).toBeNull();
+    expect(platformRootOf(moduleFile('catalog/backend.ts'), SCOPE)).toBeNull();
   });
 
   it('refuses the one hop that made the kernel rule cosmetic — a peer naming a module', () => {
     const findings = analyzePlatformImports(
       "import { ERROR_TRANSLATION_KEYS } from '../modules/_i18n/services/error-translation.js';",
       srcFile('http/error-envelope.ts'),
-      PLATFORM_ROOT,
+      SCOPE,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({ targetOwner: '_i18n', kind: 'import', line: 1 });
@@ -448,7 +499,7 @@ describe('analyzePlatformImports over the platform roots', () => {
     const fromTenancy = analyzePlatformImports(
       "import type { Organization } from '../modules/organizations/entities/organization.entity.js';",
       srcFile('tenancy/org-scoped.decorator.ts'),
-      PLATFORM_ROOT,
+      SCOPE,
     );
     expect(fromTenancy).toHaveLength(1);
     expect(fromTenancy[0]?.targetOwner).toBe('organizations');
@@ -456,7 +507,7 @@ describe('analyzePlatformImports over the platform roots', () => {
     const fromEvents = analyzePlatformImports(
       "const m = await import('../modules/catalog/backend.js');",
       srcFile('events/bus.ts'),
-      PLATFORM_ROOT,
+      SCOPE,
     );
     expect(fromEvents).toHaveLength(1);
     expect(fromEvents[0]).toMatchObject({ targetOwner: 'catalog', kind: 'dynamic' });
@@ -466,7 +517,7 @@ describe('analyzePlatformImports over the platform roots', () => {
     const outward = analyzePlatformImports(
       "import { HttpError } from '../kernel/index.js';",
       srcFile('http/server.ts'),
-      PLATFORM_ROOT,
+      SCOPE,
     );
     expect(outward).toHaveLength(1);
     expect(outward[0]?.targetOwner).toBeNull();
@@ -476,7 +527,7 @@ describe('analyzePlatformImports over the platform roots', () => {
       analyzePlatformImports(
         "import { HttpError } from './error-envelope.js';",
         srcFile('http/server.ts'),
-        PLATFORM_ROOT,
+        SCOPE,
       ),
     ).toEqual([]);
   });
@@ -485,33 +536,188 @@ describe('analyzePlatformImports over the platform roots', () => {
     const [finding] = analyzePlatformImports(
       "import { ERROR_TRANSLATION_KEYS } from '../modules/_i18n/services/error-translation.js';",
       srcFile('http/error-envelope.ts'),
-      PLATFORM_ROOT,
+      SCOPE,
     );
     expect(importFindingKey(finding!)).toBe(
       'packages/platform/src/http/error-envelope.ts:../modules/_i18n/services/error-translation.js -> _i18n',
     );
   });
 
-  it('says nothing about src/db, src/commands or src/overlay — they are not platform roots', () => {
-    // `src/db` names every module by construction — F2 of the packaging
-    // roadmap made both registries generated, so the names are emitted from a
-    // tree walk rather than typed, but they are still there. `src/commands`
-    // sits *above* the kernel, so D-57 flags it for F4 rather than folding it
-    // in here.
-    expect(
-      analyzePlatformImports(
+  it('refuses src/db, src/commands and src/overlay — D-57 left them open and F4 closed it', () => {
+    // The inverse of the assertion that stood here, and each carve-out's own
+    // premise is what retired it. `src/db` was excluded because it "imports
+    // every module by construction": `packages/platform/src/db/` imports none,
+    // the two generated registries having stayed in `backend/src` when T116
+    // moved the ORM configuration, the ordering and the bootstrap. `src/overlay`
+    // was excluded as "per-deployment resolution": T114/T114a made the overlay
+    // root and the id claims parameters, so it derives no deployment path. And
+    // D-57 left `src/commands` open in as many words — "a real open item F4 must
+    // close".
+    for (const file of [
+      srcFile('db/orm-bootstrap.ts'),
+      srcFile('commands/command-bus.ts'),
+      srcFile('overlay/overlay-runtime.ts'),
+    ]) {
+      const findings = analyzePlatformImports(
         "import { Category } from '../modules/catalog/entities/category.entity.js';",
-        srcFile('db/entities-registry.generated.ts'),
-        PLATFORM_ROOT,
-      ),
-    ).toEqual([]);
-    expect(
-      analyzePlatformImports(
-        "import { Category } from '../modules/catalog/entities/category.entity.js';",
-        srcFile('commands/command-bus.ts'),
-        PLATFORM_ROOT,
-      ),
-    ).toEqual([]);
+        file,
+        SCOPE,
+      );
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.targetOwner).toBe('catalog');
+      expect(isImportViolation(findings[0]!)).toBe(true);
+    }
+  });
+
+  /**
+   * One red proof per platform directory, over the **derived** roots.
+   *
+   * `describe.each` rather than fourteen written-out cases: the population is
+   * the derivation's, so the directory that arrives next brings its own proof
+   * and no list here goes stale (D-100). Ten of these — `cli`, `commands`,
+   * `composition`, `db`, `demo`, `env`, `lifecycle`, `migrations`, `overlay`,
+   * `packages` — were outside the rule entirely until T118a, `composition/`
+   * being the one T118 puts `composeApp` in.
+   *
+   * **A derivation that narrows makes these proofs *disappear* rather than go
+   * red**, which is why the completeness assertion above them is load-bearing
+   * rather than decorative: it is what fails when `platformRootsOf` stops
+   * listing the platform, and a vanished test asserts nothing. Measured, with
+   * the four-element literal restored: 84 tests become 64, eight of them red,
+   * and twenty simply gone.
+   */
+  describe.each(PLATFORM_ROOTS)('the %s directory', (root) => {
+    it('refuses a relative reach into a module', () => {
+      const findings = analyzePlatformImports(
+        "import { blogService } from '../modules/blog/services/blog.service.js';",
+        srcFile(`${root}/reach.ts`),
+        SCOPE,
+      );
+      expect(findings).toHaveLength(1);
+      expect(findings[0]).toMatchObject({ targetOwner: 'blog', kind: 'import' });
+      expect(isImportViolation(findings[0]!)).toBe(true);
+    });
+
+    it('refuses a module package by its bare name', () => {
+      const findings = analyzePlatformImports(
+        `import { registerModule } from '${packageNameOf('blog')}/backend';`,
+        srcFile(`${root}/reach.ts`),
+        SCOPE,
+      );
+      expect(findings).toHaveLength(1);
+      expect(findings[0]).toMatchObject({ targetOwner: 'blog', kind: 'import' });
+      expect(isImportViolation(findings[0]!)).toBe(true);
+    });
+  });
+});
+
+/**
+ * The bare half of rule B's predicate (T118a).
+ *
+ * The paragraph it replaced said there was no `@endora-commerce/mod-*` package
+ * yet and that F4 would need a predicate over package names. F4 is closed,
+ * `backend/src/modules/` holds nothing but a `README.md`, and the bare name is
+ * therefore the **only** spelling by which a platform file can reach a module —
+ * so a widened population judged by a relative-only predicate would be a green
+ * over the live shape.
+ */
+describe('bareModuleOwnerOf', () => {
+  const NAMES = MODULE_LAYOUT.modulePackageNames;
+
+  it('names the module a bare package specifier reaches', () => {
+    expect(bareModuleOwnerOf(packageNameOf('blog'), NAMES)).toBe('blog');
+  });
+
+  it('reads a subpath as the same reach — both put one entry in a dependency list', () => {
+    expect(bareModuleOwnerOf(`${packageNameOf('catalog')}/backend`, NAMES)).toBe('catalog');
+    expect(bareModuleOwnerOf(`${packageNameOf('catalog')}/ports`, NAMES)).toBe('catalog');
+  });
+
+  it('says nothing about a third-party dependency or the platform itself', () => {
+    expect(bareModuleOwnerOf('awilix', NAMES)).toBeNull();
+    expect(bareModuleOwnerOf('@endora-commerce/contracts', NAMES)).toBeNull();
+    expect(bareModuleOwnerOf('@endora-commerce/platform/kernel', NAMES)).toBeNull();
+  });
+
+  it('says nothing about a relative specifier — that is the other half', () => {
+    expect(bareModuleOwnerOf('../modules/blog/backend.js', NAMES)).toBeNull();
+  });
+
+  it('matches the declared name and never a prefix habit', () => {
+    // A `mod-` regex would be a derived fact written down (D-100) and would
+    // answer wrongly for the first package not named that way. Nothing outside
+    // the map is a module, whatever it is called.
+    expect(bareModuleOwnerOf('@endora-commerce/mod-not-a-member', NAMES)).toBeNull();
+    expect(bareModuleOwnerOf('@endora-commerce/mod-not-a-member', new Map())).toBeNull();
+  });
+
+  it('refuses every specifier shape from a platform file, not only a value import', () => {
+    const name = packageNameOf('orders');
+    const shapes: Readonly<Record<string, string>> = {
+      // `import type` reports as `import`: the shared walker keeps the
+      // distinction and rules B and C collapse it, because they report *where* a
+      // specifier points and only mention how it was written. It is a violation
+      // either way — a type-only import does not erase from a `package.json`.
+      import: `import type { OrderService } from '${name}/backend';`,
+      export: `export { orders } from '${name}/backend';`,
+      dynamic: `const m = await import('${name}/backend');`,
+      require: `const m = require('${name}/backend');`,
+      'import-type': `export type S = import('${name}/backend').OrderService;`,
+    };
+    for (const [kind, source] of Object.entries(shapes)) {
+      const findings = analyzePlatformImports(source, srcFile('composition/index.ts'), SCOPE);
+      expect(findings).toHaveLength(1);
+      expect(findings[0]).toMatchObject({ targetOwner: 'orders', kind });
+      expect(isImportViolation(findings[0]!)).toBe(true);
+    }
+  });
+
+  it('keys a bare reach on the specifier the file wrote', () => {
+    const [finding] = analyzePlatformImports(
+      `import { registerModule } from '${packageNameOf('blog')}/backend';`,
+      srcFile('composition/index.ts'),
+      SCOPE,
+    );
+    expect(importFindingKey(finding!)).toBe(
+      `packages/platform/src/composition/index.ts:${packageNameOf('blog')}/backend -> blog`,
+    );
+  });
+});
+
+/**
+ * The derivation itself (T118a). Its fixture is a directory tree rather than
+ * source text, because a directory listing is what it reads.
+ */
+describe('platformRootsOf', () => {
+  it('lists the directories and nothing else, sorted', () => {
+    const fixture = mkdtempSync(join(tmpdir(), 'platform-roots-'));
+    mkdirSync(join(fixture, 'kernel'));
+    mkdirSync(join(fixture, 'composition'));
+    writeFileSync(join(fixture, 'index.ts'), 'export {};\n');
+    expect(platformRootsOf(fixture)).toEqual(['composition', 'kernel']);
+    rmSync(fixture, { recursive: true, force: true });
+  });
+
+  it('answers nothing for a platform with no directory — the run refuses on it', () => {
+    // Not a pass over an empty population: `main` prints "holds no directory"
+    // and exits 2, for the reason a `platformRoot` of `null` does.
+    const fixture = mkdtempSync(join(tmpdir(), 'platform-roots-empty-'));
+    expect(platformRootsOf(fixture)).toEqual([]);
+    rmSync(fixture, { recursive: true, force: true });
+  });
+
+  it('covers every subpath the platform publishes — the run refuses a short walk', () => {
+    // The `exports` map is the second author on the `read:` line, and this is
+    // the reconciliation it is there for: a published subpath naming no walked
+    // directory is a walk that has lost part of the platform. The disagreement
+    // runs the other way by design — `src/demo/` is a directory with no subpath
+    // — which is why the map is the corroboration and not the derivation.
+    const declared = platformSubpathsAt(MODULE_LAYOUT.repoRoot);
+    expect(declared.length).toBeGreaterThan(0);
+    for (const subpath of declared) {
+      expect(PLATFORM_ROOTS).toContain(subpath.split('/')[0]);
+    }
+    expect(PLATFORM_ROOTS.filter((root) => !declared.includes(root))).toContain('demo');
   });
 });
 
@@ -525,6 +731,7 @@ describe('analyzeClosure', () => {
   const tree = (entries: Readonly<Record<string, string>>, roots: readonly string[]) => ({
     roots,
     read: (file: string): string | null => entries[file] ?? null,
+    modulePackageNames: MODULE_LAYOUT.modulePackageNames,
   });
 
   it('follows a peer to the module behind it and prints the chain', () => {
@@ -615,6 +822,48 @@ describe('analyzeClosure', () => {
     expect(violations[0]?.targetOwner).toBe('catalog');
   });
 
+  it('reports a bare module package as a chain ending in the specifier', () => {
+    // The closure follows relative edges and cannot follow this one — a package
+    // resolves through its own `exports` map — so it reports the edge and stops,
+    // which is what it already does at the module boundary. Without it a chain
+    // could reach a module by name and rule C would walk straight past it.
+    const { violations } = analyzeClosure(
+      tree(
+        {
+          [kernelFile('compose.ts')]: "import { e } from '../composition/index.js';",
+          [srcFile('composition/index.ts')]:
+            `import { registerModule } from '${packageNameOf('blog')}/backend';`,
+        },
+        [kernelFile('compose.ts')],
+      ),
+    );
+    expect(violations).toHaveLength(1);
+    expect(violations[0]?.targetOwner).toBe('blog');
+    expect(violations[0]?.chain).toEqual([
+      'packages/platform/src/kernel/compose.ts',
+      'packages/platform/src/composition/index.ts',
+      `${packageNameOf('blog')}/backend`,
+    ]);
+  });
+
+  it('walks past a third-party bare specifier without reporting it', () => {
+    const { violations, files } = analyzeClosure(
+      tree(
+        {
+          [kernelFile('container.ts')]: [
+            "import { asFunction } from 'awilix';",
+            "import { s } from '@endora-commerce/contracts';",
+            "import { x } from '../tenancy/scoped-em.js';",
+          ].join('\n'),
+          [srcFile('tenancy/scoped-em.ts')]: 'export const x = 1;',
+        },
+        [kernelFile('container.ts')],
+      ),
+    );
+    expect(violations).toEqual([]);
+    expect(files).toHaveLength(2);
+  });
+
   it('walks a file once, however many roots reach it', () => {
     const { violations } = analyzeClosure(
       tree(
@@ -648,7 +897,7 @@ describe('the kernel→module import ledger', () => {
     const [organization] = analyzePlatformImports(
       "import type { Organization } from '../../modules/organizations/entities/organization.entity.js';",
       kernelFile('ports/organizations.ts'),
-      PLATFORM_ROOT,
+      SCOPE,
     );
     expect(importFindingKey(organization!)).toBe(ORGANIZATION_ENTRY);
     expect(isDraining(organization!)).toBe(false);

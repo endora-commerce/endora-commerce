@@ -830,6 +830,26 @@ const MODULE_FILE = join(BACKEND_ROOT, 'src/modules/blog/backend.ts');
 const PLATFORM_ROOT = join(BACKEND_ROOT, '..', 'packages', 'platform', 'src');
 const KERNEL_FILE = join(PLATFORM_ROOT, 'kernel/thing.ts');
 /**
+ * A directory the four-element literal did not cover — `composition/` is where
+ * `specs/110-instance-repository/` T118 puts `composeApp`, and until T118a a
+ * module import in it was refused by nothing in the estate.
+ */
+const COMPOSITION_FILE = join(PLATFORM_ROOT, 'composition/index.ts');
+/**
+ * Rule B's scope, entering at the top of the analysis (issue #130).
+ *
+ * A run derives both members — the roots by listing the platform's directories,
+ * the names from the members declaring `endora.type: "module"`. A proof supplies
+ * them, so the four proofs below exercise the predicate rather than the
+ * derivation; the derivation's own proofs are in
+ * `test/unit/kernel/boundary-check.test.ts`.
+ */
+const PLATFORM_SCOPE = {
+  root: PLATFORM_ROOT,
+  roots: ['composition', 'kernel'],
+  modulePackageNames: new Map([['@endora-commerce/mod-blog', 'blog']]),
+};
+/**
  * Rule A resolves its target as a **file on disk**, so this proof needs an entity
  * the application tree really holds — derived rather than named, and shared with
  * `test/unit/kernel/boundary-check.test.ts`, whose four fixtures rest on the same
@@ -5663,9 +5683,18 @@ const CHECKS: readonly CheckEntry[] = [
   },
   {
     // Three independent rules in one script (A: ORM relations, B: platform-root
-    // imports, C: the kernel's transitive closure), so three proofs. B and C are
-    // deliberately not redundant — each covers the other's blind spot — and a
-    // single proof would let either go dark behind the other's red.
+    // imports, C: the kernel's transitive closure), so at least three proofs. B
+    // and C are deliberately not redundant — each covers the other's blind spot
+    // — and a single proof would let either go dark behind the other's red.
+    //
+    // B carries three of the five, because `specs/110-instance-repository/`
+    // T118a moved two things about it that fail apart: the **population**, from
+    // a four-element literal to every directory the platform keeps, and the
+    // **predicate**, which gained the bare name of a module package. Either one
+    // alone is a green over the live shape — a widened population judged by a
+    // relative-only predicate sees nothing, `backend/src/modules/` holding
+    // nothing but a `README.md` since F4 closed, and the bare predicate over the
+    // old four leaves `composition/` outside the rule.
     script: 'backend/scripts/check-kernel-boundary.ts',
     npmScript: 'check:kernel-boundary',
     job: 'quality',
@@ -5682,7 +5711,29 @@ const CHECKS: readonly CheckEntry[] = [
           analyzePlatformImports(
             "import { blogService } from '../modules/blog/services/blog.service.js';\n",
             KERNEL_FILE,
-            PLATFORM_ROOT,
+            PLATFORM_SCOPE,
+          ).filter(isImportViolation).length,
+      ),
+      // T118a: the population is every platform directory, not the four the
+      // literal named. `composition/` is the destination T118's own "done when"
+      // cites this check for.
+      'rule-b-widened-root': top(
+        () =>
+          analyzePlatformImports(
+            "import { blogService } from '../modules/blog/services/blog.service.js';\n",
+            COMPOSITION_FILE,
+            PLATFORM_SCOPE,
+          ).filter(isImportViolation).length,
+      ),
+      // T118a: the bare name, which since F4 closed is the only spelling by
+      // which a platform file can reach a module. A relative-only predicate over
+      // a widened population is a green over the live shape.
+      'rule-b-bare-module-package': top(
+        () =>
+          analyzePlatformImports(
+            "import { registerModule } from '@endora-commerce/mod-blog/backend';\n",
+            COMPOSITION_FILE,
+            PLATFORM_SCOPE,
           ).filter(isImportViolation).length,
       ),
       'rule-c-closure': top(() => {
@@ -5694,6 +5745,7 @@ const CHECKS: readonly CheckEntry[] = [
         return analyzeClosure({
           roots: [join(PLATFORM_ROOT, 'kernel/index.ts')],
           read: (file) => sources[file] ?? null,
+          modulePackageNames: PLATFORM_SCOPE.modulePackageNames,
         }).violations.length;
       }),
     },
@@ -10377,7 +10429,13 @@ describe('every red proof enters at the top of the analysis', () => {
       // the check had recognised since the day it landed.
       'backend/scripts/check-fixture-substitution.ts': 11,
       'backend/scripts/check-harness-teardown.ts': 8,
-      'backend/scripts/check-kernel-boundary.ts': 3,
+      // Three rules, plus T118a's two: rule B's **population** became every
+      // platform directory and its **predicate** gained a module package's bare
+      // name, and either alone is a green over the live shape — a widened
+      // population judged relatively sees nothing now that `backend/src/modules/`
+      // holds a `README.md`, and the bare predicate over the old four leaves
+      // `composition/` outside the rule.
+      'backend/scripts/check-kernel-boundary.ts': 5,
       // Two spellings of the lock claim, the one that never writes the word,
       // the converse, and the derivation that has to move with the manifests.
       // Plus issue #279's one for the source the population was missing: a

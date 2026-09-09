@@ -30,27 +30,105 @@
  *
  * ## Rule B — import specifiers, over the platform roots (D-37, widened by D-53)
  *
- * No file under a **platform root** — `src/kernel`, `src/http`, `src/events`,
- * `src/tenancy` ({@link PLATFORM_ROOTS}) — may name an import specifier
- * resolving into `src/modules/` or `src/apps/`. `src/apps/` is on the forbidden
- * side because an overlay module is an ordinary lifecycle participant (feature
- * 057) and a decoration is per-deployment code: a kernel that reaches into
- * either is a kernel that differs per deployment. The reverse direction —
+ * No file under a **platform root** may name an import specifier that reaches a
+ * module. Two spellings, because a module has two addresses: a **relative**
+ * specifier resolving into `src/modules/` or `src/apps/`, and the **bare** npm
+ * name of a module package. `src/apps/` is on the forbidden side because an
+ * overlay module is an ordinary lifecycle participant (feature 057) and a
+ * decoration is per-deployment code: a platform that reaches into either is a
+ * platform that differs per deployment. The reverse direction —
  * module→platform — is always allowed and has no rule.
  *
- * The three peers are on the list because the kernel cannot compile without
- * them: five kernel entities take `@GlobalEntity()` from `src/tenancy` and four
- * kernel files take `HttpError` from `src/http` as a **value**. A dependency the
- * kernel cannot compile without, which is itself permitted to import a module,
- * is a kernel that imports modules with one extra hop — in package terms the
- * cycle `kernel → http → mod-i18n → kernel`, and F4's stated precondition is
- * that packages are not cyclic (D-52).
+ * ### The roots are derived, and every directory of the platform is one
  *
- * `src/db`, `src/overlay` and `src/commands` are deliberately **not** roots:
- * `src/db` names every module by construction and F2 of the packaging roadmap
- * replaces it with a generator, `src/overlay` is per-deployment resolution, and
- * `src/commands` sits *above* the kernel rather than under it — it already
- * satisfies the rule, and D-57 leaves its package home to F4.
+ * {@link platformRootsOf} lists the directories of the platform member's own
+ * source root — the member declaring `endora: { type: "platform" }`, located by
+ * `lib/platform-root.ts` — so the platform is judged whole and the next
+ * directory is judged by existing. It was a four-element literal until
+ * `specs/110-instance-repository/` T118a, and the tree grew past it: fourteen
+ * directories against four roots, so ten of them — `cli`, `commands`,
+ * `composition`, `db`, `demo`, `env`, `lifecycle`, `migrations`, `overlay`,
+ * `packages` — were outside D-52/D-53 entirely, and a `@endora-commerce/mod-*`
+ * import in `composition/` was refused by nothing in the estate.
+ * `check:platform-surface` judges reaches *into* the platform and
+ * `check:module-boundary`'s populations are the module walk roots and the admin
+ * host, so neither of them covers the direction this rule exists for.
+ *
+ * **Why the directories and not the `exports` map**, which is the other
+ * derivation available and is already read here as the corroborating source. The
+ * map answers *what may a consumer name*, which is reachability; this rule's
+ * question is *what is the platform*, which is membership of the artefact. The
+ * two came apart the moment they were measured: `src/demo/` (feature 113, D-209)
+ * has no subpath of its own — its own barrel says so, and cites D-52/D-53 three
+ * lines later as the reason nothing in it imports a module — so keying the
+ * boundary on the map would leave outside it the one directory that states the
+ * prohibition in its own header. The map also fails **open**: a directory added
+ * without an entry enlarges the unjudged set silently, which is how the four
+ * became ten. Two further candidates and what each gets wrong: the **barrels**
+ * (a directory holding `index.ts`) agree with the directories today by
+ * coincidence, and are a population defined by the presence of a habit — issue
+ * #244's shape, where a directory without a barrel drops out with no error; and
+ * `tsconfig.build.json`'s `include` reads `["src/**\/*"]`, so it declares the
+ * whole tree and discriminates nothing, and parsing it would add a reader for a
+ * constant answer.
+ *
+ * The map is kept as the **independent second author** on the `read:` line
+ * (`platform-subpaths:<covered>/<declared>`): every subpath the package
+ * publishes must name a directory this walk produced, and one that does not is
+ * exit 2, because a published subpath the walk cannot see is a walk that has
+ * lost part of the platform.
+ *
+ * ### Why all fourteen owe the prohibition
+ *
+ * D-52 put the three peers on the list because the kernel cannot compile without
+ * them — five kernel entities take `@GlobalEntity()` from `src/tenancy` and four
+ * kernel files take `HttpError` from `src/http` as a **value** — so a peer
+ * permitted to import a module is a kernel importing a module with **one extra
+ * hop**, in package terms the cycle `kernel → http → mod-i18n → kernel`, against
+ * F4's stated precondition that packages are not cyclic.
+ *
+ * That argument counted hops between *source directories that might become
+ * different packages*. They did not: `packages/platform/tsconfig.build.json`
+ * sets `rootDir: ./src` over an `include` of `src/**\/*`, the manifest publishes
+ * `files: ["dist"]`, and every module package depends on the one artefact that
+ * comes out. So a module specifier **anywhere** under the platform's source root
+ * puts a `@endora-commerce/mod-*` entry in the platform's own `dependencies`,
+ * and the cycle closes at **zero** hops whichever directory wrote it. The hop
+ * the peer argument counted no longer exists, which is why the answer is the
+ * whole package rather than a longer list of peers.
+ *
+ * This retires D-57's three carve-outs rather than widening past them, and each
+ * one's own premise is what retired it. D-57 excluded `src/db` because it
+ * "imports every module by construction" — `packages/platform/src/db/` imports
+ * none, the two generated registries having stayed in `backend/src` when T116
+ * moved the ORM configuration, the ordering and the bootstrap. It excluded
+ * `src/overlay` as "per-deployment resolution" — the platform's `overlay/` is
+ * the loader, and T114/T114a made the overlay root and the id claims
+ * **parameters**, so it derives no deployment path. And it left `src/commands`
+ * open in as many words: *"adding it to D-53's platform-root set costs zero
+ * violations and would ratchet that property … a real open item F4 must close"*.
+ * F4 is closed and the directory is in the package. Measured on the tree that
+ * widened it: zero violations, which is the cheapest moment to lock an
+ * invariant.
+ *
+ * ### The bare specifier
+ *
+ * The paragraph this replaced read *"there is no `@endora-commerce/mod-*`
+ * package yet, so a bare specifier cannot reach a module; F4 will need a second
+ * predicate over package names. Not built speculatively"*. That is a retiring
+ * condition and it has been met — the modules are packages and
+ * `backend/src/modules/` holds nothing but a `README.md`, so the **bare name is
+ * now the only spelling a platform file can reach a module by**, and a widened
+ * population judged by a relative-only predicate would be a green over the live
+ * shape. The names are `layout.modulePackageNames`, derived from the members
+ * declaring `endora: { type: "module", id }` and shared with
+ * `check-module-boundary.ts`; nothing here reads a name's spelling, because a
+ * `mod-` prefix rule would be a derived fact written down (D-100) and would
+ * answer wrongly for the first package not named that way. A subpath of such a
+ * name (`@endora-commerce/mod-blog/backend`) is the same reach as the name
+ * itself. An **installed** module package is outside the predicate and stays
+ * there: it is not a workspace member, so this repository has no derivation that
+ * names it, and inventing one would be a list.
  *
  * ## Rule C — the kernel's transitive closure (D-53)
  *
@@ -103,9 +181,10 @@
  * use: **`*.test.ts` under a platform root is not scanned.** A colocated test
  * may import a fixture and is not the artefact packaging cares about.
  *
- * **Relative specifiers only, for now.** There is no `@endora-commerce/mod-*`
- * package yet, so a bare specifier cannot reach a module; F4 will need a second
- * predicate over package names. Not built speculatively (Principle IV).
+ * **Both spellings, since `specs/110-instance-repository/` T118a.** A relative
+ * specifier resolving into `src/modules/` or `src/apps/`, and the bare npm name
+ * of a module package — see *The bare specifier* under rule B for why the second
+ * arrived and what it deliberately does not reach.
  *
  * Static analysis through the TypeScript compiler API — a specifier mentioned in
  * a comment or a string literal is not a finding; no database, no new
@@ -137,31 +216,90 @@ import {
 } from './lib/module-population.js';
 import { reportReadSize } from './lib/read-size.js';
 import { requireModuleLayout } from './lib/module-roots.js';
+import { platformSubpathsAt } from './lib/platform-root.js';
 
 export * from '@endora-commerce/cli/rules/kernel-boundary.js';
 
 const BACKEND_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
 
 /**
- * The platform roots rule B walks (D-53): the kernel and the three peers it
- * cannot compile without. Order is the reporting order, `kernel` first.
+ * The directories of the platform's own source root — rule B's roots, derived
+ * (`specs/110-instance-repository/` T118a; see *The roots are derived* above).
+ *
+ * A plain listing, deliberately: every directory the platform keeps is part of
+ * the artefact it publishes, so the next one is judged the day it exists and
+ * there is nothing to remember. It is sorted for a stable reporting order and
+ * for nothing else — the four-element literal this replaced documented `kernel`
+ * first, which was a presentation habit standing in for a population.
+ *
+ * Empty is a **refusal** at the call site and never an empty population: the
+ * whole of rules B and C is the platform.
  */
-export const PLATFORM_ROOTS = ['kernel', 'http', 'events', 'tenancy'] as const;
-export type PlatformRoot = (typeof PLATFORM_ROOTS)[number];
+export function platformRootsOf(platformRoot: string): readonly string[] {
+  return readdirSync(platformRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+}
 
 /**
- * Which platform root owns `file`, or `null` for anything outside all four.
+ * Everything rule B needs to judge one file, handed in as one value.
  *
- * `platformRoot` is the directory holding them and is passed in rather than
- * matched by name (the relocation). It used to be a `/src/<root>/` substring
- * test, which after the move matched two trees: the platform's own sources in
- * `@endora-commerce/platform`, and the re-export shims left at the old
- * `backend/src/<root>/` paths. Reading the shims as platform files is not a
- * missed finding but a wrong one — every shim names the package's build output,
- * so rule B saw 63 outward imports where the platform has 25.
+ * A record rather than three parameters because it is what a red proof supplies
+ * at the top of the analysis: the fixture is source text plus the scope, and the
+ * scope a proof builds is the one a real run builds — {@link platformRootsOf}
+ * over the real platform — so a directory dropping out of the derivation reds
+ * that directory's proof rather than passing quietly.
  */
-export function platformRootOf(file: string, platformRoot: string): PlatformRoot | null {
-  return PLATFORM_ROOTS.find((root) => file.startsWith(`${join(platformRoot, root)}/`)) ?? null;
+export interface PlatformScope {
+  /** The platform's source directory, e.g. `packages/platform/src`. */
+  readonly root: string;
+  /** Its directories — {@link platformRootsOf}. */
+  readonly roots: readonly string[];
+  /**
+   * npm name → module id, for the bare half of the predicate.
+   *
+   * `layout.modulePackageNames`, derived from the members declaring
+   * `endora: { type: "module", id }`. Empty means "this workspace has no module
+   * package", which is a fixture tree; a real run refuses it.
+   */
+  readonly modulePackageNames: ReadonlyMap<string, string>;
+}
+
+/**
+ * Which platform root owns `file`, or `null` for anything outside the platform.
+ *
+ * The root directory is passed in rather than matched by name (the relocation).
+ * It used to be a `/src/<root>/` substring test, which after the move matched
+ * two trees: the platform's own sources in `@endora-commerce/platform`, and the
+ * re-export shims left at the old `backend/src/<root>/` paths. Reading the shims
+ * as platform files is not a missed finding but a wrong one — every shim names
+ * the package's build output, so rule B saw 63 outward imports where the four
+ * roots it then walked had 25. Both numbers are that measurement's and neither
+ * describes today's population, which is every directory the platform keeps.
+ */
+export function platformRootOf(file: string, scope: PlatformScope): string | null {
+  return scope.roots.find((root) => file.startsWith(`${join(scope.root, root)}/`)) ?? null;
+}
+
+/**
+ * The module a **bare** specifier reaches, or `null`.
+ *
+ * Matched against the names the workspace's module packages declare, never
+ * against a `mod-` prefix: the prefix is a derived fact that would be written
+ * down here (D-100), and it answers wrongly for the first package not named that
+ * way. A subpath of a module package (`…/mod-blog/backend`) is the same reach as
+ * the bare name, because both put the same entry in a `dependencies` block.
+ */
+export function bareModuleOwnerOf(
+  specifier: string,
+  modulePackageNames: ReadonlyMap<string, string>,
+): string | null {
+  if (specifier.startsWith('.')) return null;
+  for (const [name, id] of modulePackageNames) {
+    if (specifier === name || specifier.startsWith(`${name}/`)) return id;
+  }
+  return null;
 }
 
 
@@ -266,13 +404,19 @@ function resolveSpecifier(file: string, specifier: string): string {
 }
 
 /**
- * Every relative import in `source` that leaves its own platform root.
+ * Every import in `source` that leaves its own platform root for somewhere this
+ * rule has an opinion about.
  *
- * Findings include the allowed ones (another platform root), so the summary can
- * report both counts and `--list` can tag each; {@link isImportViolation} is what
- * partitions them. Returns nothing for a file outside every platform root — the
- * module→platform direction is not this rule's business, and neither `src/db`
- * nor `src/commands` is a root (D-57).
+ * Two spellings, one finding shape. A **relative** specifier that leaves the
+ * file's own root is reported whether or not it is a violation — another
+ * platform root is allowed, and the allowed ones are what lets the summary
+ * report both counts and `--list` tag each; {@link isImportViolation} is what
+ * partitions them. A **bare** specifier is reported only when it names a module
+ * package: every other one is a third-party dependency and no business of this
+ * rule, and counting them would inflate `sites` with `awilix` and `pino`.
+ *
+ * Returns nothing for a file outside every platform root — the module→platform
+ * direction is not this rule's business.
  *
  * The target is **not** gated on existing on disk: a platform file importing a
  * path that no longer exists must fail loudly, not pass silently.
@@ -280,28 +424,31 @@ function resolveSpecifier(file: string, specifier: string): string {
 export function analyzePlatformImports(
   source: string,
   file: string,
-  platformRoot: string,
+  scope: PlatformScope,
 ): PlatformImportFinding[] {
-  const root = platformRootOf(file, platformRoot);
+  const root = platformRootOf(file, scope);
   if (!root) return [];
-  const ownRoot = join(platformRoot, root);
+  const ownRoot = join(scope.root, root);
 
   return namedSpecifiers(source, file).flatMap((specifier) => {
-    if (!specifier.text.startsWith('.')) return [];
+    const common = {
+      file,
+      specifier: specifier.text,
+      bindings: specifier.bindings,
+      kind: reportedKind(specifier.kind),
+      line: specifier.line,
+    };
+    if (!specifier.text.startsWith('.')) {
+      const targetOwner = bareModuleOwnerOf(specifier.text, scope.modulePackageNames);
+      // `resolved` is the specifier itself: a bare name resolves through the
+      // package's own `exports` map, so there is no path to report and the
+      // honest answer is what the file wrote.
+      return targetOwner === null ? [] : [{ ...common, resolved: specifier.text, targetOwner }];
+    }
     const resolved = resolveSpecifier(file, specifier.text);
     // Inside its own root the import is internal, whichever root that is.
     if (resolved.startsWith(`${ownRoot}/`)) return [];
-    return [
-      {
-        file,
-        specifier: specifier.text,
-        resolved,
-        targetOwner: forbiddenOwnerOf(resolved),
-        bindings: specifier.bindings,
-        kind: reportedKind(specifier.kind),
-        line: specifier.line,
-      },
-    ];
+    return [{ ...common, resolved, targetOwner: forbiddenOwnerOf(resolved) }];
   });
 }
 
@@ -412,6 +559,15 @@ export interface ClosureInput {
   readonly roots: readonly string[];
   /** Reads a file, or answers `null` when it is not on disk. */
   readonly read: (file: string) => string | null;
+  /**
+   * npm name → module id, so a chain ending in a **bare** module specifier is
+   * reported like one ending in a relative path.
+   *
+   * Required rather than defaulted: an empty default would make a caller that
+   * forgot it silently blind to the one spelling a platform file can reach a
+   * packaged module by, which is the fail-open direction.
+   */
+  readonly modulePackageNames: ReadonlyMap<string, string>;
 }
 
 export interface ClosureResult {
@@ -451,7 +607,24 @@ export function analyzeClosure(input: ClosureInput): ClosureResult {
     if (source === null) continue;
 
     for (const specifier of namedSpecifiers(source, file)) {
-      if (!specifier.text.startsWith('.')) continue;
+      if (!specifier.text.startsWith('.')) {
+        // A bare module specifier ends the chain here: there is nothing to
+        // follow — the package resolves through its own `exports` map, and what
+        // lies behind it is that module's graph, exactly as for a relative edge.
+        const bareOwner = bareModuleOwnerOf(specifier.text, input.modulePackageNames);
+        if (bareOwner === null) continue;
+        violations.push({
+          chain: [...chainTo(file), specifier.text],
+          file,
+          specifier: specifier.text,
+          resolved: specifier.text,
+          targetOwner: bareOwner,
+          bindings: specifier.bindings,
+          kind: reportedKind(specifier.kind),
+          line: specifier.line,
+        });
+        continue;
+      }
       const resolved = resolveSpecifier(file, specifier.text);
       const targetOwner = forbiddenOwnerOf(resolved);
       if (targetOwner !== null) {
@@ -518,9 +691,25 @@ async function main(): Promise<void> {
     );
     process.exit(2);
   }
-  const platformFiles = PLATFORM_ROOTS.flatMap((root) => walkKernel(join(platformRoot, root)));
+  // The population, derived from the platform's own directories (T118a). Empty
+  // is a stop for the reason `platformRoot === null` is: rules B and C *are* the
+  // platform, and a walk over none of it prints `violations=0`.
+  const roots = platformRootsOf(platformRoot);
+  if (roots.length === 0) {
+    console.error(
+      `[kernel-boundary] ${platformRoot} holds no directory — the platform is rules B and C's ` +
+        'whole population, and a pass over none is not a pass',
+    );
+    process.exit(2);
+  }
+  const scope: PlatformScope = {
+    root: platformRoot,
+    roots,
+    modulePackageNames: layout.modulePackageNames,
+  };
+  const platformFiles = roots.flatMap((root) => walkKernel(join(platformRoot, root)));
   const outward = platformFiles.flatMap((f) =>
-    analyzePlatformImports(readFileSync(f, 'utf8'), f, platformRoot),
+    analyzePlatformImports(readFileSync(f, 'utf8'), f, scope),
   );
   const intoModules = outward.filter(isImportViolation);
   const importViolations = intoModules.filter((f) => !isDraining(f));
@@ -529,6 +718,7 @@ async function main(): Promise<void> {
   const closure = analyzeClosure({
     roots: walkKernel(join(platformRoot, 'kernel')),
     read: (file) => (existsSync(file) ? readFileSync(file, 'utf8') : null),
+    modulePackageNames: layout.modulePackageNames,
   });
   const closureViolations = closure.violations.filter((v) => !isDraining(v));
   const closureDraining = closure.violations.filter(isDraining);
@@ -546,7 +736,7 @@ async function main(): Promise<void> {
     for (const f of intoModules) {
       const tag = isDraining(f) ? 'draining ' : 'FORBIDDEN';
       console.log(
-        `${tag} ${platformRootOf(f.file, platformRoot)} → ${f.targetOwner}: ` +
+        `${tag} ${platformRootOf(f.file, scope)} → ${f.targetOwner}: ` +
           `${rel(f.file)}:${f.line} ${f.specifier}`,
       );
     }
@@ -592,6 +782,18 @@ async function main(): Promise<void> {
     }
   }
   if (platformFiles.length === 0) vacuous.push('no files under the platform roots (rule B)');
+  // The bare half of rule B's predicate. No module package means no name a
+  // platform file could reach a module by, which on this repository is a walk
+  // that has lost the module tree rather than a repository without modules.
+  // It is pushed here rather than refused earlier so that the module-population
+  // reason above is in the same message: a moved module tree has to be *named*
+  // as one, walk size included, and not answered with a consequence of it.
+  if (layout.modulePackageNames.size === 0) {
+    vacuous.push(
+      'no workspace member declares `endora.type: "module"` — the bare specifier is the only ' +
+        'spelling a platform file can reach a packaged module by (rule B)',
+    );
+  }
   if (closure.files.length === 0) vacuous.push('empty kernel import closure (rule C)');
   if (vacuous.length > 0) {
     console.error(
@@ -605,11 +807,28 @@ async function main(): Promise<void> {
   // C's closure are subsets of it, and both are on their own lines below — and
   // `sites` is the units judged, the ORM relations of rule A plus the outward
   // imports of rule B.
+  // The platform's `exports` map is the second author over rule B's population
+  // (T118a). This walk derives the roots by listing the platform's directories;
+  // the map is a different program's answer to "which directories does this
+  // package have", so a subpath naming a directory the walk did not produce is a
+  // walk that has lost part of the platform — `read-size.ts` refuses it as a
+  // short walk. The two disagree in the other direction by design: `src/demo/`
+  // is a directory with no subpath, which is why the map is the corroboration
+  // and not the derivation.
+  const declaredSubpaths = platformSubpathsAt(layout.repoRoot);
   reportReadSize({
     prefix: '[kernel-boundary]',
     files: files.length,
     sites: findings.length + outward.length,
-    coverage: coverage === null ? [] : [coverage],
+    coverage: [
+      ...(coverage === null ? [] : [coverage]),
+      {
+        source: 'platform-subpaths',
+        expected: declaredSubpaths.length,
+        covered: declaredSubpaths.filter((subpath) => roots.includes(subpath.split('/')[0]!))
+          .length,
+      },
+    ],
   });
   console.log(
     `[kernel-boundary] sources=${files.length} relation files=${relationFiles.length} ` +
@@ -649,10 +868,11 @@ async function main(): Promise<void> {
 
   if (importViolations.length > 0) {
     console.error(
-      '\nRule B — a platform file (src/kernel, src/http, src/events, src/tenancy) importing ' +
-        'from src/modules/ or src/apps/. The platform owns shapes and infrastructure; a kernel ' +
-        'that depends on a removable module is not a kernel, and neither is one whose peer does ' +
-        '(docs/docs/architecture/kernel.md § The boundary). Move the shape into src/kernel/, ' +
+      `\nRule B — a platform file (${roots.join(', ')}) naming a module, by relative path ` +
+        'into src/modules/ or src/apps/ or by a module package\'s bare name. The platform owns ' +
+        'shapes and infrastructure; every one of those directories compiles into one published ' +
+        'artefact with one dependency list, so a module named in any of them is a package cycle ' +
+        '(docs/docs/architecture/kernel.md § The boundary). Move the shape into the platform, ' +
         'take it by injection from the composition root, or declare it in ' +
         'KERNEL_MODULE_IMPORTS_TO_DRAIN with a reason and an owner:',
     );
