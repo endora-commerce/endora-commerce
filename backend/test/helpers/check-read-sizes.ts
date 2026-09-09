@@ -942,7 +942,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** files 2020
     // -> 2021. One file, the module source this task extracts,
     // `packages/modules/cms/src/backend/services/asset-embed-resolver.ts`.
-    files: 2021,
+    // **T119a: 2020 -> 2011.** the nine re-export shims `specs/110-instance-repository/`
+    // T119a deleted from `backend/src`
+    // (`http/interceptors/{dispatch,registry,route-table,validation}.ts`,
+    // `kernel/i18n/request-language.ts`, `kernel/lifecycle/unique-module-ids.ts`,
+    // `kernel/logging.ts`, `kernel/request-scope-hook.ts` and
+    // `kernel/sales-channels/sales-channels-cache.ts`).
+    // **Re-measured on the union after rebasing onto T118c's `assets_library` drain.** That
+    // merge request extracts `cms`' asset-embed resolver into a module source, adds its
+    // co-located test and a contract test, and carries a changeset — files this walk reads,
+    // and none of them counted in the 2011 recorded against the tree before it. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 2012,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1163,7 +1174,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** files 2147
     // -> 2148. One file, the module source this task extracts,
     // `packages/modules/cms/src/backend/services/asset-embed-resolver.ts`.
-    files: 2148,
+    // **T119a: 2147 -> 2138.** the nine re-export shims `specs/110-instance-repository/`
+    // T119a deleted from `backend/src`
+    // (`http/interceptors/{dispatch,registry,route-table,validation}.ts`,
+    // `kernel/i18n/request-language.ts`, `kernel/lifecycle/unique-module-ids.ts`,
+    // `kernel/logging.ts`, `kernel/request-scope-hook.ts` and
+    // `kernel/sales-channels/sales-channels-cache.ts`).
+    // **Re-measured on the union after rebasing onto T118c's `assets_library` drain.** That
+    // merge request extracts `cms`' asset-embed resolver into a module source, adds its
+    // co-located test and a contract test, and carries a changeset — files this walk reads,
+    // and none of them counted in the 2138 recorded against the tree before it. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 2139,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1316,7 +1338,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and none of it is a delta subtracted from a moving tree.
     // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** files 2185
     // -> 2187 (+2). that module source and its co-located test.
-    files: 2187,
+    // **T119a: 2185 -> 2190.** +5, `_lifecycle`'s five co-located tests, for
+    // `check-admin-zones`' reason.
+    // **Re-measured on the union after rebasing onto T118c's `assets_library` drain.** That
+    // merge request extracts `cms`' asset-embed resolver into a module source, adds its
+    // co-located test and a contract test, and carries a changeset — files this walk reads,
+    // and none of them counted in the 2190 recorded against the tree before it. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 2192,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -1443,7 +1472,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/115-lifecycle-container-move/` Phase 3: 5284 -> 5287 (+3).** The two
     // files the manifest-registry move adds under `packages/platform/src/lifecycle/`
     // — `manifest-registry.ts` and the relocated `services/module-id-claims.ts` —
-    // plus `test/unit/_lifecycle/manifest-registry.test.ts`. `backend/src` does not
+    // plus `packages/platform/src/lifecycle/manifest-registry.test.ts`. `backend/src` does not
     // move: the binding and the claims re-export both keep their paths.
     // **The service-unavailable notice: 5284 -> 5288.** The four source files
     // the storefront's `503` answer adds — the notice's `page.tsx`, the
@@ -1655,7 +1684,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // -> 5482 (+3). The three `.ts` files. This walk reads `.ts`/`.tsx`/`.js` over the
     // whole repository and the changeset is `.md`, which is why it gains three where its
     // whole-tree neighbours gain four.
-    files: 5482,
+    // **T119a: 5479 -> 5472.** Three movements over the whole tree: -9 for the nine
+    // re-export shims `specs/110-instance-repository/` T119a deleted from `backend/src`
+    // (`http/interceptors/{dispatch,registry,route-table,validation}.ts`,
+    // `kernel/i18n/request-language.ts`, `kernel/lifecycle/unique-module-ids.ts`,
+    // `kernel/logging.ts`, `kernel/request-scope-hook.ts` and
+    // `kernel/sales-channels/sales-channels-cache.ts`), then -50 and +50 as the moved test
+    // files change address rather than existence, and +2 for
+    // `packages/platform/vitest.config.ts` and `vitest.setup.ts`.
+    // **Re-measured on the union after rebasing onto T118c's `assets_library` drain.** That
+    // merge request extracts `cms`' asset-embed resolver into a module source, adds its
+    // co-located test and a contract test, and carries a changeset — files this walk reads,
+    // and none of them counted in the 5472 recorded against the tree before it. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 5475,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1903,7 +1945,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the combined tree, never summed from the two sides' deltas.
     // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** files 2319
     // -> 2321 (+2). that module source and its co-located test.
-    files: 2321,
+    // **T119a: 2319 -> 2369.** +50. Its owner map is built over `layout.sourceRoots`,
+    // which includes `packages/platform/src`, so the fifty moved test files arrive in this
+    // walk; nothing about the overlay population moved.
+    // **Re-measured on the union after rebasing onto T118c's `assets_library` drain.** That
+    // merge request extracts `cms`' asset-embed resolver into a module source, adds its
+    // co-located test and a contract test, and carries a changeset — files this walk reads,
+    // and none of them counted in the 2369 recorded against the tree before it. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 2371,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -2250,7 +2300,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** files 2147
     // -> 2148. One file, the module source this task extracts,
     // `packages/modules/cms/src/backend/services/asset-embed-resolver.ts`.
-    files: 2148,
+    // **T119a: 2147 -> 2138.** the nine re-export shims `specs/110-instance-repository/`
+    // T119a deleted from `backend/src`
+    // (`http/interceptors/{dispatch,registry,route-table,validation}.ts`,
+    // `kernel/i18n/request-language.ts`, `kernel/lifecycle/unique-module-ids.ts`,
+    // `kernel/logging.ts`, `kernel/request-scope-hook.ts` and
+    // `kernel/sales-channels/sales-channels-cache.ts`).
+    // **Re-measured on the union after rebasing onto T118c's `assets_library` drain.** That
+    // merge request extracts `cms`' asset-embed resolver into a module source, adds its
+    // co-located test and a contract test, and carries a changeset — files this walk reads,
+    // and none of them counted in the 2138 recorded against the tree before it. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 2139,
     sites: 260,
     sources: ['manifest-index'],
   },
@@ -2452,7 +2513,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** files 2147
     // -> 2148. One file, the module source this task extracts,
     // `packages/modules/cms/src/backend/services/asset-embed-resolver.ts`.
-    files: 2148,
+    // **T119a: 2147 -> 2138.** the nine re-export shims `specs/110-instance-repository/`
+    // T119a deleted from `backend/src`
+    // (`http/interceptors/{dispatch,registry,route-table,validation}.ts`,
+    // `kernel/i18n/request-language.ts`, `kernel/lifecycle/unique-module-ids.ts`,
+    // `kernel/logging.ts`, `kernel/request-scope-hook.ts` and
+    // `kernel/sales-channels/sales-channels-cache.ts`).
+    // **Re-measured on the union after rebasing onto T118c's `assets_library` drain.** That
+    // merge request extracts `cms`' asset-embed resolver into a module source, adds its
+    // co-located test and a contract test, and carries a changeset — files this walk reads,
+    // and none of them counted in the 2138 recorded against the tree before it. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 2139,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2654,7 +2726,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** files 2147
     // -> 2148. One file, the module source this task extracts,
     // `packages/modules/cms/src/backend/services/asset-embed-resolver.ts`.
-    files: 2148,
+    // **T119a: 2147 -> 2138.** the nine re-export shims `specs/110-instance-repository/`
+    // T119a deleted from `backend/src`
+    // (`http/interceptors/{dispatch,registry,route-table,validation}.ts`,
+    // `kernel/i18n/request-language.ts`, `kernel/lifecycle/unique-module-ids.ts`,
+    // `kernel/logging.ts`, `kernel/request-scope-hook.ts` and
+    // `kernel/sales-channels/sales-channels-cache.ts`).
+    // **Re-measured on the union after rebasing onto T118c's `assets_library` drain.** That
+    // merge request extracts `cms`' asset-embed resolver into a module source, adds its
+    // co-located test and a contract test, and carries a changeset — files this walk reads,
+    // and none of them counted in the 2138 recorded against the tree before it. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 2139,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -2854,7 +2937,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // worktree at `7b70edf22`, whose census printed `0 drifted, 44 agree`, and
     // re-measured there after the rebase rather than carried across it — every one
     // of the sixteen entries this drain moves is the same twenty-seven files.
-    files: 672,
+    // **T119a: 672 -> 663.** the nine re-export shims `specs/110-instance-repository/`
+    // T119a deleted from `backend/src`
+    // (`http/interceptors/{dispatch,registry,route-table,validation}.ts`,
+    // `kernel/i18n/request-language.ts`, `kernel/lifecycle/unique-module-ids.ts`,
+    // `kernel/logging.ts`, `kernel/request-scope-hook.ts` and
+    // `kernel/sales-channels/sales-channels-cache.ts`).
+    files: 663,
     sites: 68,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
@@ -2961,7 +3050,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Stacked on the CI-gate branch: +3.** That branch adds the gate-coverage
     // test and its two analysis helpers.
     // **`specs/115-lifecycle-container-move/` Phase 3: 1571 -> 1572 (+1).** One file,
-    // `test/unit/_lifecycle/manifest-registry.test.ts`: the moved derivation's proof,
+    // `packages/platform/src/lifecycle/manifest-registry.test.ts`: the moved derivation's proof,
     // driven over three suppliers it builds, at the package specifier an instance
     // would write.
     // **`specs/117-instance-bring-up/` Phases 1-2: +2 files.** The two tests this feature adds under
@@ -3008,7 +3097,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // -> 1627. One file,
     // `backend/test/contract/cms/storefront-asset-embed.contract.test.ts`; this walk's
     // population is `backend/test/**`.
-    files: 1627,
+    // **`specs/110-instance-repository/` T119a: 1626 -> 1576.** the fifty unit test files
+    // T119a moved out of `backend/test/unit/` and into `packages/platform/src`, beside the
+    // sources they cover.
+    // **Re-measured on the union after rebasing onto T118c's `assets_library` drain.** That
+    // merge request extracts `cms`' asset-embed resolver into a module source, adds its
+    // co-located test and a contract test, and carries a changeset — files this walk reads,
+    // and none of them counted in the 1576 recorded against the tree before it. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 1577,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -3041,7 +3138,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // to a name rather than reads it has decided are the ORM's. Measured on
     // `origin/master` (578) and on this branch (579), never by subtracting a delta.
     // **`fix/admin-image-root-scripts`: sites 579 -> 580.** The two files this branch adds, `backend/test/helpers/dockerfile.ts` and `backend/test/unit/ci/image-root-script-supply.test.ts`; the four it modifies already existed. Attributed by parking the pair and re-running, never by subtracting: without them every recorded entry agrees. One more read-with-a-fallback site, in the two new files; it is not a fixture substitution and the check clears it.
-    sites: 580,
+    // **T119a: sites 580 -> 578.** Two read-with-a-fallback sites travelled with those
+    // fifty files; the site count falling while this walk's file count falls with it is
+    // the same population leaving, not the #235/#237 shape.
+    sites: 578,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -3088,7 +3188,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Stacked on the CI-gate branch: +3.** That branch adds the gate-coverage
     // test and its two analysis helpers.
     // **`specs/115-lifecycle-container-move/` Phase 3: 1571 -> 1572 (+1).** One file,
-    // `test/unit/_lifecycle/manifest-registry.test.ts`: the moved derivation's proof,
+    // `packages/platform/src/lifecycle/manifest-registry.test.ts`: the moved derivation's proof,
     // driven over three suppliers it builds, at the package specifier an instance
     // would write.
     // **`specs/117-instance-bring-up/` Phases 1-2: +2 files.** The two tests this feature adds under
@@ -3134,7 +3234,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** files 1626
     // -> 1627. One file, the new contract test; this walk's population is
     // `backend/test/**`.
-    files: 1627,
+    // **T119a: 1626 -> 1576.** the fifty unit test files T119a moved out of
+    // `backend/test/unit/` and into `packages/platform/src`, beside the sources they
+    // cover.
+    // **Re-measured on the union after rebasing onto T118c's `assets_library` drain.** That
+    // merge request extracts `cms`' asset-embed resolver into a module source, adds its
+    // co-located test and a contract test, and carries a changeset — files this walk reads,
+    // and none of them counted in the 1576 recorded against the tree before it. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 1577,
     sites: null,
     sources: [],
   },
@@ -3352,7 +3460,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // not move: the new file's outward imports are `@endora-commerce/contracts` and the
     // platform, and this walk's third population is the platform's outward imports, not a
     // module's.
-    files: 2148,
+    // **T119a: 2147 -> 2138.** the nine re-export shims `specs/110-instance-repository/`
+    // T119a deleted from `backend/src`
+    // (`http/interceptors/{dispatch,registry,route-table,validation}.ts`,
+    // `kernel/i18n/request-language.ts`, `kernel/lifecycle/unique-module-ids.ts`,
+    // `kernel/logging.ts`, `kernel/request-scope-hook.ts` and
+    // `kernel/sales-channels/sales-channels-cache.ts`).
+    // **Re-measured on the union after rebasing onto T118c's `assets_library` drain.** That
+    // merge request extracts `cms`' asset-embed resolver into a module source, adds its
+    // co-located test and a contract test, and carries a changeset — files this walk reads,
+    // and none of them counted in the 2138 recorded against the tree before it. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 2139,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -3623,7 +3742,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and none of it is a delta subtracted from a moving tree.
     // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** files 2715
     // -> 2717 (+2). that module source and its co-located test.
-    files: 2717,
+    // **T119a: 2715 -> 2720.** +5, `_lifecycle`'s own co-located tests: five of the fifty
+    // moved files landed in `packages/platform/src/lifecycle`, which this check walks as a
+    // module root.
+    // **Re-measured on the union after rebasing onto T118c's `assets_library` drain.** That
+    // merge request extracts `cms`' asset-embed resolver into a module source, adds its
+    // co-located test and a contract test, and carries a changeset — files this walk reads,
+    // and none of them counted in the 2720 recorded against the tree before it. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 2722,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
     sites: 56,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
@@ -3763,7 +3890,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and none of it is a delta subtracted from a moving tree.
     // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** files 2813
     // -> 2815 (+2). that module source and its co-located test.
-    files: 2815,
+    // **T119a: 2813 -> 2818.** +5, `_lifecycle`'s five co-located tests, for
+    // `check-admin-zones`' reason.
+    // **Re-measured on the union after rebasing onto T118c's `assets_library` drain.** That
+    // merge request extracts `cms`' asset-embed resolver into a module source, adds its
+    // co-located test and a contract test, and carries a changeset — files this walk reads,
+    // and none of them counted in the 2818 recorded against the tree before it. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 2820,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -4551,7 +4685,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // reads 4933 exactly; this walk reaches a module package's sources under more than one
     // root, so a file added there moves the count twice. The nine sites are those two
     // files' own import specifiers.
-    files: 4937,
+    // **T119a: 4933 -> 4988.** +55, and it is two populations rather than one: the schema
+    // walk over `layout.sourceRoots` gains the fifty moved test files, and the module walk
+    // gains the five of them that landed in `packages/platform/src/lifecycle`, which is
+    // `_lifecycle`'s own module directory.
+    // **Re-measured on the union after rebasing onto T118c's `assets_library` drain.** That
+    // merge request extracts `cms`' asset-embed resolver into a module source, adds its
+    // co-located test and a contract test, and carries a changeset — files this walk reads,
+    // and none of them counted in the 4988 recorded against the tree before it. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 4992,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -4907,7 +5050,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/115-lifecycle-container-move/` Phase 3: 7748 -> 7752 (+4).** The two
     // files the manifest-registry move adds under `packages/platform/src/lifecycle/`
     // — `manifest-registry.ts` and the relocated `services/module-id-claims.ts` —
-    // plus `test/unit/_lifecycle/manifest-registry.test.ts` and this branch's own
+    // plus `packages/platform/src/lifecycle/manifest-registry.test.ts` and this branch's own
     // changeset, which this walk takes because its population is the whole
     // repository. `backend/src` does not move: the binding and the claims
     // re-export both keep their paths.
@@ -5242,7 +5385,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** files 8123
     // -> 8127 (+4). All four files this branch adds, the changeset included — this walk
     // reads every file in the repository.
-    files: 8127,
+    // **T119a: 8123 -> 8117.** The whole repository: -9 shims, -50 and +50 for the moved
+    // test files, +2 for `packages/platform/vitest.config.ts` and `vitest.setup.ts`, and
+    // +1 for `tsconfig.test.json`, which this walk opens because its population is a
+    // deny-list rather than an extension allow-list.
+    // **T119a's changeset: 8117 -> 8118.** One markdown file under `.changeset/`, which
+    // this walk opens because its population is a deny-list rather than an extension
+    // allow-list.
+    // **Re-measured on the union after rebasing onto T118c's `assets_library` drain.** That
+    // merge request extracts `cms`' asset-embed resolver into a module source, adds its
+    // co-located test and a contract test, and carries a changeset — files this walk reads,
+    // and none of them counted in the 8118 recorded against the tree before it. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 8122,
     sites: null,
     sources: [],
     //
@@ -5657,8 +5812,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // module that owns the seam — the same code counted for the first time rather than a
     // new site. It is a site and not a violation: `rethrowIfModuleDisabled` is its first
     // line.
-    files: 2148,
+    // **T119a: 2147 -> 2138.** the nine re-export shims `specs/110-instance-repository/`
+    // T119a deleted from `backend/src`
+    // (`http/interceptors/{dispatch,registry,route-table,validation}.ts`,
+    // `kernel/i18n/request-language.ts`, `kernel/lifecycle/unique-module-ids.ts`,
+    // `kernel/logging.ts`, `kernel/request-scope-hook.ts` and
+    // `kernel/sales-channels/sales-channels-cache.ts`).
+    // **Re-measured on the union after rebasing onto T118c's `assets_library` drain.** That
+    // **Re-measured on the union after rebasing onto T118c's `assets_library` drain.** That
+    // merge request extracts `cms`' asset-embed resolver into a module source, adds its
+    // co-located test and a contract test, and carries a changeset — files this walk reads,
+    // and none of them counted in the 212 recorded against the tree before it. Measured on
+    // the combined tree, never summed from the two sides' deltas.
     sites: 213,
+    // co-located test and a contract test, and carries a changeset — files this walk reads,
+    // and none of them counted in the 2138 recorded against the tree before it. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 2139,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -5898,7 +6068,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `@endora-commerce/platform/kernel`, a published barrel symbol. This entry is in the
     // census **because the extraction added a module source**; the branch's earlier shape
     // moved neither number, which is what the header below is about.
-    files: 2444,
+    // **T119a: 2443 -> 2434.** the nine re-export shims `specs/110-instance-repository/`
+    // T119a deleted from `backend/src`
+    // (`http/interceptors/{dispatch,registry,route-table,validation}.ts`,
+    // `kernel/i18n/request-language.ts`, `kernel/lifecycle/unique-module-ids.ts`,
+    // `kernel/logging.ts`, `kernel/request-scope-hook.ts` and
+    // `kernel/sales-channels/sales-channels-cache.ts`).
+    // **Re-measured on the union after rebasing onto T118c's `assets_library` drain.** That
+    // merge request extracts `cms`' asset-embed resolver into a module source, adds its
+    // co-located test and a contract test, and carries a changeset — files this walk reads,
+    // and none of them counted in the 2434 recorded against the tree before it. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 2435,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -5967,10 +6148,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` T119 (the shim drain): sites 1897 -> 1870 (-27).**
     // One site per deleted shim — each was a single `export *` into the platform,
     // which is the whole of its contribution to this walk — so `ledger-size` falls
-    // 68 -> 41 by the same twenty-seven and `host-reaches` follows it to 41/41. The
+    // **Re-measured on the union after rebasing onto T118c's `assets_library` drain.** That
+    // merge request extracts `cms`' asset-embed resolver into a module source, adds its
+    // co-located test and a contract test, and carries a changeset — files this walk reads,
+    // and none of them counted in the 1861 recorded against the tree before it. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    sites: 1862,
     // count moves with the file count here because the reaches that went are exactly
     // the files that went.
-    sites: 1871,
+    // **T119a: sites 1870 -> 1861.** The same nine files, each the single relative
+    // specifier its shim held; `ledger-size` falls 41 -> 32 in the same merge request.
     // The third source is T060's floor: every module package whose manifest
     // declares the host package must have contributed a host reach to this walk.
     // The manifest is rendered from the bare specifiers the package's sources
@@ -6299,7 +6486,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Stacked on the CI-gate branch: +3.** That branch adds the gate-coverage
     // test and its two analysis helpers.
     // **`specs/115-lifecycle-container-move/` Phase 3: 1571 -> 1572 (+1).** One file,
-    // `test/unit/_lifecycle/manifest-registry.test.ts`: the moved derivation's proof,
+    // `packages/platform/src/lifecycle/manifest-registry.test.ts`: the moved derivation's proof,
     // driven over three suppliers it builds, at the package specifier an instance
     // would write.
     // **`specs/117-instance-bring-up/` Phases 1-2: +2 files.** The two tests this feature adds under
@@ -6345,7 +6532,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** files 1626
     // -> 1627. One file, the new contract test; this walk's population is
     // `backend/test/**`.
-    files: 1627,
+    // **T119a: 1626 -> 1576.** the fifty unit test files T119a moved out of
+    // `backend/test/unit/` and into `packages/platform/src`, beside the sources they
+    // cover.
+    // **Re-measured on the union after rebasing onto T118c's `assets_library` drain.** That
+    // merge request extracts `cms`' asset-embed resolver into a module source, adds its
+    // co-located test and a contract test, and carries a changeset — files this walk reads,
+    // and none of them counted in the 1576 recorded against the tree before it. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 1577,
     sites: 163,
     sources: [],
   },
@@ -6599,7 +6794,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** files 2147
     // -> 2148. One file, the module source this task extracts,
     // `packages/modules/cms/src/backend/services/asset-embed-resolver.ts`.
-    files: 2148,
+    // **T119a: 2147 -> 2138.** the nine re-export shims `specs/110-instance-repository/`
+    // T119a deleted from `backend/src`
+    // (`http/interceptors/{dispatch,registry,route-table,validation}.ts`,
+    // `kernel/i18n/request-language.ts`, `kernel/lifecycle/unique-module-ids.ts`,
+    // `kernel/logging.ts`, `kernel/request-scope-hook.ts` and
+    // `kernel/sales-channels/sales-channels-cache.ts`).
+    // **Re-measured on the union after rebasing onto T118c's `assets_library` drain.** That
+    // merge request extracts `cms`' asset-embed resolver into a module source, adds its
+    // co-located test and a contract test, and carries a changeset — files this walk reads,
+    // and none of them counted in the 2138 recorded against the tree before it. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 2139,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -6633,7 +6839,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Stacked on the CI-gate branch: +1.** That branch adds the gate-coverage
     // test and its two analysis helpers — one of the three is a test file, which is all this walk takes.
     // **`specs/115-lifecycle-container-move/` Phase 3: 1650 -> 1651 (+1).** One file,
-    // `test/unit/_lifecycle/manifest-registry.test.ts`: the moved derivation's proof,
+    // `packages/platform/src/lifecycle/manifest-registry.test.ts`: the moved derivation's proof,
     // driven over three suppliers it builds, at the package specifier an instance
     // would write.
     // **`specs/117-instance-bring-up/` Phases 1-2: +2 files.** The two tests this feature adds under
@@ -6701,7 +6907,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (`application=1487 packages=245`). The contract test is the repository's by
     // derivation and not by placement: it calls `setupBackendServer`, so `composesServer`
     // is true (`specs/106-module-owned-tests/` §1).
-    files: 1732,
+    // **T119a: 1730 -> 1685.** Two movements that do not cancel: the fifty unit test files
+    // T119a moved out of `backend/test/unit/` and into `packages/platform/src`, beside the
+    // sources they cover (-50), and five of them land in
+    // `packages/platform/src/lifecycle`, which is `_lifecycle`'s module directory, so this
+    // check counts them on the package side (+5).
+    // **Re-measured on the union after rebasing onto T118c's `assets_library` drain.** That
+    // merge request extracts `cms`' asset-embed resolver into a module source, adds its
+    // co-located test and a contract test, and carries a changeset — files this walk reads,
+    // and none of them counted in the 1685 recorded against the tree before it. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 1687,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -6941,7 +7157,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** files 2147
     // -> 2148. One file, the module source this task extracts,
     // `packages/modules/cms/src/backend/services/asset-embed-resolver.ts`.
-    files: 2148,
+    // **T119a: 2147 -> 2138.** the nine re-export shims `specs/110-instance-repository/`
+    // T119a deleted from `backend/src`
+    // (`http/interceptors/{dispatch,registry,route-table,validation}.ts`,
+    // `kernel/i18n/request-language.ts`, `kernel/lifecycle/unique-module-ids.ts`,
+    // `kernel/logging.ts`, `kernel/request-scope-hook.ts` and
+    // `kernel/sales-channels/sales-channels-cache.ts`).
+    // **Re-measured on the union after rebasing onto T118c's `assets_library` drain.** That
+    // merge request extracts `cms`' asset-embed resolver into a module source, adds its
+    // co-located test and a contract test, and carries a changeset — files this walk reads,
+    // and none of them counted in the 2138 recorded against the tree before it. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 2139,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -7021,7 +7248,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/115-lifecycle-container-move/` Phase 3: 4323 -> 4326 (+3).** The two
     // files the manifest-registry move adds under `packages/platform/src/lifecycle/`
     // — `manifest-registry.ts` and the relocated `services/module-id-claims.ts` —
-    // plus `test/unit/_lifecycle/manifest-registry.test.ts`. `backend/src` does not
+    // plus `packages/platform/src/lifecycle/manifest-registry.test.ts`. `backend/src` does not
     // move: the binding and the claims re-export both keep their paths.
     // **`specs/115-lifecycle-container-move/` Phase 4: 4326 -> 4327 (+1).** The divergence
     // split (D115-3) is net one file. `packages/platform/src/lifecycle/divergence-declaration.ts`
@@ -7203,7 +7430,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test. `sites` does not move — the unit test reaches its subject with a relative
     // `./asset-embed-resolver.js` inside its own package, which is not a cross-package
     // value reach.
-    files: 4507,
+    // **T119a: 4504 -> 4495.** the nine re-export shims `specs/110-instance-repository/`
+    // T119a deleted from `backend/src`
+    // (`http/interceptors/{dispatch,registry,route-table,validation}.ts`,
+    // `kernel/i18n/request-language.ts`, `kernel/lifecycle/unique-module-ids.ts`,
+    // `kernel/logging.ts`, `kernel/request-scope-hook.ts` and
+    // `kernel/sales-channels/sales-channels-cache.ts`). The fifty moved test files do not
+    // appear here in either direction: this walk skips `*.test.ts`, so they were invisible
+    // where they were and are invisible where they went.
+    // **Re-measured on the union after rebasing onto T118c's `assets_library` drain.** That
+    // merge request extracts `cms`' asset-embed resolver into a module source, adds its
+    // co-located test and a contract test, and carries a changeset — files this walk reads,
+    // and none of them counted in the 4495 recorded against the tree before it. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 4498,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -7540,7 +7780,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/115-lifecycle-container-move/` Phase 3: 7808 -> 7812 (+4).** The two
     // files the manifest-registry move adds under `packages/platform/src/lifecycle/`
     // — `manifest-registry.ts` and the relocated `services/module-id-claims.ts` —
-    // plus `test/unit/_lifecycle/manifest-registry.test.ts` and this branch's own
+    // plus `packages/platform/src/lifecycle/manifest-registry.test.ts` and this branch's own
     // changeset, which this walk takes because its population is the whole
     // repository. `backend/src` does not move: the binding and the claims
     // re-export both keep their paths.
@@ -7858,7 +8098,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // added-then-committed file is counted whether or not it is on disk. The branch's first
     // shape put its test at a path this one abandons, and an unstaged measurement read 8188
     // — one too many, for the deleted file the index still held.
-    files: 8187,
+    // **T119a: 8183 -> 8177.** -9 shims, -50 and +50 for the moved test files, +2
+    // `vitest.*.ts` and +1 `tsconfig.test.json`.
+    // **T119a's changeset: 8177 -> 8178.** The one markdown file this branch adds under
+    // `.changeset/`; `check-language.sh` does not move, its own roots not reaching that
+    // directory.
+    // **Re-measured on the union after rebasing onto T118c's `assets_library` drain.** That
+    // merge request extracts `cms`' asset-embed resolver into a module source, adds its
+    // co-located test and a contract test, and carries a changeset — files this walk reads,
+    // and none of them counted in the 8178 recorded against the tree before it. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 8182,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -8007,7 +8257,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/115-lifecycle-container-move/` Phase 3: 5822 -> 5825 (+3).** The two
     // files the manifest-registry move adds under `packages/platform/src/lifecycle/`
     // — `manifest-registry.ts` and the relocated `services/module-id-claims.ts` —
-    // plus `test/unit/_lifecycle/manifest-registry.test.ts`. `backend/src` does not
+    // plus `packages/platform/src/lifecycle/manifest-registry.test.ts`. `backend/src` does not
     // move: the binding and the claims re-export both keep their paths.
     // **The service-unavailable notice: 5822 -> 5826.** The same four source
     // files. All four carry English comments; the notice's Polish copy is in
@@ -8220,7 +8470,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // -> 6109 (+3). The three `.ts` files. Its markdown half is `docs/docs/**`, so a `.md`
     // under `.changeset/` is outside it, which is the asymmetry against `check-naming.sh`
     // below.
-    files: 6109,
+    // **T119a: 6106 -> 6099.** -9 shims, -50 and +50 for the moved test files, +2 for the
+    // package's two new `vitest.*.ts` files.
+    // **Re-measured on the union after rebasing onto T118c's `assets_library` drain.** That
+    // merge request extracts `cms`' asset-embed resolver into a module source, adds its
+    // co-located test and a contract test, and carries a changeset — files this walk reads,
+    // and none of them counted in the 6099 recorded against the tree before it. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 6102,
     sites: null,
     sources: ['manifest-index'],
     //

@@ -7,7 +7,7 @@ import {
 import { EventBus } from '@endora-commerce/platform/events';
 import { subscribeForModule } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { SalesChannelsCache } from '../../../src/kernel/sales-channels/sales-channels-cache.js';
+import { SalesChannelsCache } from '@endora-commerce/platform/kernel';
 import { SalesChannelResolverService } from '../../../src/kernel/sales-channels/sales-channel-resolver.service.js';
 import { salesChannelsServiceFor } from '../../helpers/sales-channels-service.js';
 

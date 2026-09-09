@@ -578,7 +578,7 @@ describe('@CustomerScoped rows are not disclosed to an allowed-set administrator
     // landed and `NewsletterSubscriber` took its place; this file now holds no
     // column-less exemplar at all, because every class it fixtures carries the
     // column. The refusing arm keeps its own proof in
-    // `test/unit/tenancy/tenant-context.test.ts`, which calls
+    // `packages/platform/src/tenancy/tenant-context.test.ts`, which calls
     // `customerFilterCond('absent')` directly.
     //
     // It enters at the EntityManager for the reason the `Cart` and `Comparison`

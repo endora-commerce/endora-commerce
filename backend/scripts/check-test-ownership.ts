@@ -154,7 +154,7 @@
  * judges — see {@link vacuousTestOwnership}.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, posix, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -887,6 +887,33 @@ function readPackage(directory: string): { readonly testScript: string | null } 
   }
 }
 
+/**
+ * The workspace member that owns a module's directory — the nearest ancestor
+ * holding a `package.json`, `repoRoot` included as the stop.
+ *
+ * The configuration question this check asks (*does anything run these test
+ * files?*) is answered by a **member**, never by the module's own directory:
+ * `test` scripts and `vitest.config.ts` are a manifest's, and only a module that
+ * *is* a package has one of its own. `_lifecycle` is the case that proves it —
+ * a registered module that is deliberately not a package (D-160.11), whose
+ * sources are `@endora-commerce/platform`'s at `packages/platform/src/lifecycle`
+ * — and `specs/110-instance-repository/` T119a is when it acquired co-located
+ * tests. Reading the module directory reported it as shipping five test files
+ * nothing runs, while `packages/platform/package.json`'s `test` script was
+ * running them all along. A core module still under the application's own source
+ * root resolves to `backend` on the same walk, which is the right answer there
+ * too.
+ */
+function owningMemberOf(directory: string, repoRoot: string): string {
+  let current = directory;
+  for (;;) {
+    if (existsSync(join(current, 'package.json'))) return current;
+    const parent = dirname(current);
+    if (parent === current || current === repoRoot) return directory;
+    current = parent;
+  }
+}
+
 function readIfPresent(path: string): string | null {
   try {
     return readFileSync(path, 'utf8');
@@ -943,12 +970,13 @@ async function main(): Promise<void> {
       if (text === null) continue;
       files.push({ key: keyOf(path), text, root: 'module-package', moduleId });
     }
+    const member = owningMemberOf(directory, layout.repoRoot);
     packages.push({
       moduleId,
       key: keyOf(directory),
       testFiles: found.length,
-      testScript: readPackage(directory).testScript,
-      vitestConfig: readIfPresent(join(directory, 'vitest.config.ts')),
+      testScript: readPackage(member).testScript,
+      vitestConfig: readIfPresent(join(member, 'vitest.config.ts')),
     });
   }
   const packageFiles = files.length - applicationFiles;

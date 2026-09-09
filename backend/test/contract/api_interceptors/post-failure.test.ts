@@ -10,7 +10,7 @@ import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
  * Feature 060 / US2 (T016) — an unexpected post-interceptor failure is
  * fail-closed: the client gets the standard 500 INTERNAL envelope. Log
  * attribution for failures is covered at the unit level in
- * test/unit/http/interceptors/dispatch.test.ts (fake logger capture).
+ * packages/platform/src/http/interceptors/dispatch.test.ts (fake logger capture).
  */
 
 const FIXTURE_MODULE = 'interceptor_fixture';
