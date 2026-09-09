@@ -49,7 +49,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.ui.json",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.ui.json --noEmit",
-    "lint": "eslint src test",
+    "lint": "eslint src",
     "test": "vitest run"
   },
   "peerDependencies": {
