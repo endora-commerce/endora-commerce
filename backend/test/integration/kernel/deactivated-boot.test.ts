@@ -207,7 +207,7 @@ describe('the production composition root boots with modules switched off', () =
     process.env['BACKEND_ROLE'] = 'api';
 
     const { composeApp } = await import('../../../src/composition.js');
-    const { buildServer } = await import('../../../src/http/server.js');
+    const { buildServer } = await import('@endora-commerce/platform/composition');
 
     // A **third** composition, against the budget `production-boot.test.ts`
     // states, and it buys a stated premise rather than another case.

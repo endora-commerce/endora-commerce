@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { EventBus } from '../../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 import { bridgeEventHandler } from '../../../../packages/modules/webhooks/src/backend/services/event-bridge.js';
 import { BRIDGED_EVENT_TYPES } from '../../../../packages/modules/webhooks/src/backend/index.js';
 import { WebhookService } from '../../../../packages/modules/webhooks/src/backend/services/webhook-service.js';

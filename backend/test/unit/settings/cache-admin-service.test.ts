@@ -4,7 +4,7 @@ import {
   CacheAdminService,
   CACHE_NAMESPACES,
 } from '../../../../packages/modules/settings/src/backend/services/cache-admin.service.js';
-import { InProcessCacheRegistry } from '../../../src/kernel/cache/in-process-cache-registry.js';
+import { InProcessCacheRegistry } from '@endora-commerce/platform/kernel';
 
 /**
  * In-memory Redis fake implementing just the surface CacheAdminService uses:

@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { RegisterOrganizationRequest } from '@endora-commerce/contracts';
-import { EventBus } from '../../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 
 import type { DictionaryValidator } from '../../../../packages/modules/dictionaries/src/backend/services/dictionary-validator.js';

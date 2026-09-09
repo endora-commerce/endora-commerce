@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EventBus } from '../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 import { createRootContainer } from '../../src/kernel/container.js';
 import {
   ForeignDecorationError,
@@ -7,7 +7,7 @@ import {
   type ModuleContext,
 } from '../../src/kernel/module-context.js';
 import { composeModules, type ModuleEntry } from '../../src/kernel/compose.js';
-import { ApiInterceptorRegistry } from '../../src/http/interceptors/index.js';
+import { ApiInterceptorRegistry } from '@endora-commerce/platform/composition';
 import { loadOverlayModuleEntries } from '../../src/overlay/overlay-runtime.js';
 
 /**

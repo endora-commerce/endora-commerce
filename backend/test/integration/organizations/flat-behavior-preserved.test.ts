@@ -22,7 +22,7 @@ import {
   DEFAULT_PRICE_LIST_ID,
 } from '../../../../packages/modules/price_lists/src/backend/services/default-price-list-migration.js';
 import { CreditLimitService } from '../../../../packages/modules/credit_limits/src/backend/services/credit-limit-service.js';
-import { EventBus } from '../../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 import { neighbourReadPorts } from '../../helpers/price-list-neighbour-ports.js';
 import { Order } from '../../helpers/package-entities.js';
 

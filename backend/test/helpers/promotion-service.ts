@@ -3,8 +3,8 @@ import type {
   CatalogPromoAttributePort,
   DictionaryValidator,
 } from '@endora-commerce/contracts';
-import type { AuditLogService } from '../../src/kernel/audit/audit-log-service.js';
-import type { OrganizationReadPort } from '../../src/kernel/ports/organizations.js';
+import type { AuditLogService } from '@endora-commerce/platform/composition';
+import type { OrganizationReadPort } from '@endora-commerce/platform/kernel';
 import type { SalesChannelMembershipService } from '../../src/kernel/sales-channels/sales-channel-membership.service.js';
 import { PromotionService } from '../../../packages/modules/promotions/src/backend/services/promotion-service.js';
 import type { BackendServerHandle } from './test-server.js';

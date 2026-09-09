@@ -1,14 +1,14 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { SALES_CHANNEL_AUDIT_ACTIONS } from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { EventBus } from '../../../src/events/bus.js';
-import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
+import { EventBus } from '@endora-commerce/platform/events';
+import { AuditLogService } from '@endora-commerce/platform/composition';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { SalesChannelAttributionRegistry } from '../../../../packages/modules/sales_channels/src/backend/services/sales-channel-attribution-registry.js';
 import { SalesChannelsService } from '../../../../packages/modules/sales_channels/src/backend/services/sales-channels.service.js';
 import { dictionaryValidatorFor } from '../../helpers/dictionary-services.js';
 import { SalesChannelMembershipService } from '../../../src/kernel/sales-channels/sales-channel-membership.service.js';
-import { DefaultChannelReconciler } from '../../../src/kernel/sales-channels/default-channel-reconciler.js';
+import { DefaultChannelReconciler } from '@endora-commerce/platform/composition';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Product } from '../../helpers/package-entities.js';
 

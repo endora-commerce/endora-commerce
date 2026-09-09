@@ -1,5 +1,5 @@
 import type { CatalogCategoryReadPort, CatalogProductReadPort } from '@endora-commerce/contracts';
-import type { SalesChannelMembershipPort } from '../../src/kernel/ports/sales-channel.js';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import type { BackendServerHandle } from './test-server.js';
 
 /**

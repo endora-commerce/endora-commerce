@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { EventBus } from '../../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 import { getTenantContext } from '../../../src/tenancy/tenant-context.js';
 import { createRootContainer, registerValues } from '../../../src/kernel/container.js';
 import {

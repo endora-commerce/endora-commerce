@@ -13,7 +13,7 @@ import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helper
 import { ANONYMOUS_PRODUCT_AUDIENCE, ERROR_CODES } from '@endora-commerce/contracts';
 import { Cart } from '../../../../packages/modules/carts/src/backend/entities/cart.entity.js';
 import { CartItem } from '../../../../packages/modules/carts/src/backend/entities/cart-item.entity.js';
-import type { SalesChannelMembershipPort } from '../../../src/kernel/ports/sales-channel.js';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { CartConversionService } from '../../../../packages/modules/carts/src/backend/services/cart-conversion-service.js';
 import { CartUpsellService } from '../../../../packages/modules/carts/src/backend/services/cart-upsell-service.js';
 import { CartOrganizationVisibilityService } from '../../../../packages/modules/carts/src/backend/services/cart-organization-visibility-service.js';

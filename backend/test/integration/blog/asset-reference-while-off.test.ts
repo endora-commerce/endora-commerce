@@ -7,7 +7,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { withModuleOff } from '../../helpers/off-state.js';
-import { EventBus } from '../../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 import { createRootContainer, registerValues } from '../../../src/kernel/container.js';
 import { composeModules } from '../../../src/kernel/compose.js';
 import { AssetReferenceRegistry } from '../../../../packages/modules/assets_library/src/backend/services/reference-registry.js';

@@ -4,7 +4,7 @@ import type {
   SettingWriteValidator,
 } from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { EventBus } from '../../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 import { HttpError } from '../../../src/http/error-envelope.js';
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';

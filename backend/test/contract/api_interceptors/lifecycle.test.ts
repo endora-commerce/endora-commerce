@@ -5,7 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import type { ApiInterceptorRegistry } from '../../../src/http/interceptors/index.js';
+import type { ApiInterceptorRegistry } from '@endora-commerce/platform/composition';
 
 /**
  * Feature 060 / US3 (T019) — deterministic ordering across builds and

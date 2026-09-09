@@ -1,12 +1,12 @@
 import type { FastifyRequest } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@endora-commerce/contracts';
-import { EventBus } from '../../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 import { HttpError } from '../../../src/http/error-envelope.js';
 import { composeModules } from '../../../src/kernel/compose.js';
 import { createRootContainer } from '../../../src/kernel/container.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import type { RequireCustomerGuard } from '../../../src/kernel/ports/require-customer.js';
+import type { RequireCustomerGuard } from '@endora-commerce/platform/kernel';
 import { registerModule as registerAuth } from '@endora-commerce/mod-auth/backend';
 import { createRequireCustomer } from '@endora-commerce/mod-auth/backend';
 

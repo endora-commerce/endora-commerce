@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
 import type { Worker } from 'bullmq';
 import { registerErrorEnvelope } from '../../../src/http/error-envelope.js';
-import { EventBus } from '../../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { createRootContainer, registerValues } from '../../../src/kernel/container.js';
 import {

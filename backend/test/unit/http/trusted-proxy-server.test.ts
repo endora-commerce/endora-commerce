@@ -7,7 +7,7 @@
 import type { FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { buildServer } from '../../../src/http/server.js';
+import { buildServer } from '@endora-commerce/platform/composition';
 import type { TrustedProxy } from '../../../src/http/trusted-proxy.js';
 
 const FORWARDED_CLIENT_IP = '203.0.113.7';

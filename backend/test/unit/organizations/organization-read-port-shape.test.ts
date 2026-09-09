@@ -10,7 +10,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   OrganizationReadPort,
   OrganizationSnapshot,
-} from '../../../src/kernel/ports/organizations.js';
+} from '@endora-commerce/platform/kernel';
 import { OrganizationContextService } from '../../../../packages/modules/organizations/src/backend/services/organization-context-service.js';
 import { organizationStatusSchema } from '@endora-commerce/contracts';
 

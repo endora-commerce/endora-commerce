@@ -13,7 +13,7 @@
 //     Scale by starting N worker processes — BullMQ's atomic job claim keeps
 //     them from double-processing.
 
-import { buildServer } from './http/server.js';
+import { buildServer } from '@endora-commerce/platform/composition';
 import { composeApp } from './composition.js';
 import { deploymentRoot } from './overlay/overlay-roots.js';
 

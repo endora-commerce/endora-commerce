@@ -8,7 +8,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 // this process and `check:singleton-identity`'s conjunct 1 is false.
 import { AdminUser } from '../../../../packages/modules/admin_users/src/backend/entities/admin-user.entity.js';
 import { describe, expect, it } from 'vitest';
-import { hashPassword } from '../../../src/kernel/crypto/password-hasher.js';
+import { hashPassword } from '@endora-commerce/platform/kernel';
 import { createAdminPasswordVerificationPort } from '../../../../packages/modules/admin_users/src/backend/services/admin-user-ports.js';
 
 /**

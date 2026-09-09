@@ -5,7 +5,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { Redis } from 'ioredis';
 import { defineModuleManifest } from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
+import { AuditLogService } from '@endora-commerce/platform/composition';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { TranslationBundle } from '../../helpers/package-entities.js';

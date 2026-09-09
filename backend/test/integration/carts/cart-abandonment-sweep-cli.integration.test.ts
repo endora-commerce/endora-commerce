@@ -10,7 +10,7 @@ import { CartAbandonmentWorker } from '../../../../packages/modules/carts/src/ba
 
 import { CartAuditService } from '../../../../packages/modules/carts/src/backend/services/cart-audit-service.js';
 
-import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
+import { AuditLogService } from '@endora-commerce/platform/composition';
 
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
 

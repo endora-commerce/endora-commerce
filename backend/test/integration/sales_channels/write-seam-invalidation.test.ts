@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { EventBus } from '../../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 import { subscribeForModule } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { SalesChannelsCache } from '../../../src/kernel/sales-channels/sales-channels-cache.js';

@@ -9,7 +9,7 @@ import {
   createModuleRegistrationSink,
   type ModuleRegistrationSink,
 } from '../../../src/kernel/module-context.js';
-import { EventBus } from '../../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import {
   pauseWorkersFor,

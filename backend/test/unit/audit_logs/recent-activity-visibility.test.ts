@@ -3,7 +3,7 @@ import {
   ModuleRecentActivitySchema,
   recentActivityVisibilitySettingCode,
 } from '@endora-commerce/contracts';
-import type { SettingsReadPort, SettingsReadResult } from '../../../src/kernel/ports/settings.js';
+import type { SettingsReadPort, SettingsReadResult } from '@endora-commerce/platform/kernel';
 import {
   RecentActivityCatalog,
   type RecentActivityDeclarationSource,

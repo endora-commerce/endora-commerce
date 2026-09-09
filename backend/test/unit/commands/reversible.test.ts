@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { applyUndo, type RevertHandlers, type RevertRecord } from '../../../src/commands/reversible.js';
+import { applyUndo, type RevertHandlers, type RevertRecord } from '@endora-commerce/platform/commands';
 
 /**
  * Pure unit tests for the undo engine (feature 054, US2 / FR-006/FR-013/FR-014).

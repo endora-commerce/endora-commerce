@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { composeApp } from '../../../src/composition.js';
 import { deploymentRoot } from '../../../src/overlay/overlay-roots.js';
-import { buildServer } from '../../../src/http/server.js';
+import { buildServer } from '@endora-commerce/platform/composition';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 

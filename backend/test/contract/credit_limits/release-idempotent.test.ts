@@ -6,7 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import { seedCreditLimitWithActiveReservation } from '../../helpers/seed-credit-limit.js';
 import { CreditLimitService } from '../../../../packages/modules/credit_limits/src/backend/services/credit-limit-service.js';
-import { EventBus } from '../../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 
 /**

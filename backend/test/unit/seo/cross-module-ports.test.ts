@@ -9,7 +9,7 @@ import type {
   CmsPageReadPort,
   CmsPageRecord,
 } from '@endora-commerce/contracts';
-import type { SalesChannelMembershipPort } from '../../../src/kernel/ports/sales-channel.js';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { MetaTagResolverService } from '../../../../packages/modules/seo/src/backend/services/meta-tag-resolver.service.js';
 import { SitemapGeneratorService } from '../../../../packages/modules/seo/src/backend/services/sitemap-generator.service.js';
 

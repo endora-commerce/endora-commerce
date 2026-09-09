@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { EventBus } from '../../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 import { createRootContainer } from '../../../src/kernel/container.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { actorFromContext, resolveCommandActor } from '../../../src/commands/actor.js';
+import { actorFromContext, resolveCommandActor } from '@endora-commerce/platform/commands';
 import {
   MissingTenantContextError,
   runWithTenantContext,

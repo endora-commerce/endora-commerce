@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { createRootContainer } from '../../../src/kernel/container.js';
-import type { SalesChannelMembershipPort } from '../../../src/kernel/ports/sales-channel.js';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import type { CachedChannel } from '../../../src/kernel/sales-channels/sales-channels-cache.js';
 import {
   outOfRequestChannel,
   productIdsInRequestChannel,
-} from '../../../src/kernel/sales-channels/request-channel-assortment.js';
+} from '@endora-commerce/platform/kernel';
 import { enterPlatformScope } from '../../../src/kernel/scope.js';
 import { systemTenantContext } from '../../../src/tenancy/resolve-tenant-context.js';
 

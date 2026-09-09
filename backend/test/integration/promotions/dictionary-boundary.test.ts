@@ -10,9 +10,9 @@ import {
   unreachableCatalogPorts,
   unreachableOrganizationStatus,
 } from '../../helpers/promotion-service.js';
-import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
+import { AuditLogService } from '@endora-commerce/platform/composition';
 import { SalesChannelMembershipService } from '../../../src/kernel/sales-channels/sales-channel-membership.service.js';
-import { EventBus } from '../../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 
 describe('Promotions dictionary boundary', () => {
   let db: TestDb;

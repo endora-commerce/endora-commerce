@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { MfaLoginPort } from '@endora-commerce/contracts';
-import { EventBus } from '../../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 import { createRootContainer } from '../../../src/kernel/container.js';
 import { lazyPort } from '../../../src/kernel/index.js';
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';

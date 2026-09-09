@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { EventBus } from '../../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 import { SearchIndexer, indexUidFor } from '../../../../packages/modules/search/src/backend/services/search-indexer.js';
 import { SearchEventSubscriber } from '../../../../packages/modules/search/src/backend/services/search-event-subscriber.js';
 import { Product } from '../../helpers/package-entities.js';

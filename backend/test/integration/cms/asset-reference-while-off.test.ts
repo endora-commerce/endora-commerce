@@ -13,7 +13,7 @@ import {
 
 import { withModuleOff } from '../../helpers/off-state.js';
 
-import { EventBus } from '../../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 
 import { createRootContainer, registerValues } from '../../../src/kernel/container.js';
 

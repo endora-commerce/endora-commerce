@@ -414,7 +414,7 @@ async function phaseBoot(): Promise<AssertionResult[]> {
  */
 async function phaseInstall(): Promise<AssertionResult[]> {
   const { initOrm, closeOrm } = await import('../../src/db/index.js');
-  const { AuditLogService } = await import('../../src/kernel/audit/audit-log-service.js');
+  const { AuditLogService } = await import('@endora-commerce/platform/composition');
   const { ModuleLifecycleOrchestrator, buildStaticRegistry } = await import(
     '@endora-commerce/platform/lifecycle'
   );
@@ -524,7 +524,7 @@ async function phaseGate(active: boolean): Promise<AssertionResult[]> {
 
   const { composeApp } = await import('../../src/composition.js');
   const { deploymentRoot } = await import('../../src/overlay/overlay-roots.js');
-  const { buildServer } = await import('../../src/http/server.js');
+  const { buildServer } = await import('@endora-commerce/platform/composition');
   const composition = await composeApp({ deploymentRoot: deploymentRoot() });
   try {
     const app = await buildServer({
@@ -591,7 +591,7 @@ async function phaseGate(active: boolean): Promise<AssertionResult[]> {
  */
 async function phaseUninstall(): Promise<AssertionResult[]> {
   const { initOrm, closeOrm } = await import('../../src/db/index.js');
-  const { AuditLogService } = await import('../../src/kernel/audit/audit-log-service.js');
+  const { AuditLogService } = await import('@endora-commerce/platform/composition');
   const { ModuleLifecycleOrchestrator, buildStaticRegistry } = await import(
     '@endora-commerce/platform/lifecycle'
   );

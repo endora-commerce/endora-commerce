@@ -13,7 +13,7 @@ import {
   ModuleLifecycleOrchestrator,
 } from '@endora-commerce/platform/lifecycle';
 import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
-import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
+import { AuditLogService } from '@endora-commerce/platform/composition';
 import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
 import {
   coreMigrationOwnership,

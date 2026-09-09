@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EventBus } from '../../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 import { createRootContainer } from '../../../src/kernel/container.js';
 import type { ModuleContext } from '../../../src/kernel/module-context.js';
 import { composeModules, type ModuleEntry } from '../../../src/kernel/compose.js';
