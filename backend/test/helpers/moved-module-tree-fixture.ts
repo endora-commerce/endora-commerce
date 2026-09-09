@@ -68,7 +68,14 @@ const RESIDUE_ROOTS: readonly string[] = [
   'apps',
   'commands',
   'db',
-  'events',
+  // `'events'` stood here until `specs/110-instance-repository/` T119. The
+  // directory held one file — the `events/bus.ts` re-export shim — and its 76
+  // consumers now name `@endora-commerce/platform/events`, so `backend/src/events/`
+  // is gone and `cpSync` of it is `ENOENT` rather than an empty copy. Every root
+  // here reaches that state as its last shim drains, and the entry goes with the
+  // directory: this list is what the application's `src/` actually holds, and a
+  // name that survives its directory refuses the fixture for a reason that has
+  // nothing to do with a moved module tree.
   'http',
   'kernel',
   // Feature 080, D-160.11's second half. `_lifecycle`'s **host half** stayed

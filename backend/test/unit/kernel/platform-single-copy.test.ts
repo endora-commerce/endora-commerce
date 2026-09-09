@@ -16,6 +16,16 @@
  * output the `exports` map serves, and the same 57 values are now the same 57
  * objects.
  *
+ * **That 57 is a residue that shrinks, and the shrinking is the point.** A value
+ * is comparable only while the application still spells it twice, so every shim
+ * `specs/110-instance-repository/` T119 deletes takes its names out of the
+ * comparison — 57 -> 51 at the first batch, and 0 on the day
+ * `RELATIVE_HOST_REACHES` empties, when every published subpath is `unshimmed`
+ * and this file's second assertion has no subject left. That is not a weakening
+ * to plan around: the hazard is a **second** spelling, and a subpath with one
+ * spelling cannot hold two objects. What must not shrink is `distinct`, which
+ * stays empty over whatever population survives.
+ *
  * It is inverted rather than deleted because the property is not self-evident
  * and nothing else in the tree holds it. Two specifier shapes for one set of
  * files is a standing hazard — a `paths` alias, a second `dist`, a shim
@@ -198,13 +208,20 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     // `demo-command.ts`, is the application's own and forwards to nothing, so
     // the probe's forwarding filter is what keeps it out of a walk that
     // imports what it finds.
-    expect([...measurement.unshimmed].sort()).toEqual(['env', 'migrations']);
+    //
+    // **`./events` joined them with `specs/110-instance-repository/` T119, and
+    // it is the first subpath to arrive here by *draining* rather than by never
+    // having had a shim.** `backend/src/events/` held exactly one file,
+    // `bus.ts`, and its 76 consumers now name the bare specifier — so the
+    // directory is gone and the subpath has one spelling. Every subpath above
+    // reaches this state as its last shim goes; `unshimmed` growing is the
+    // ledger emptying, seen from the other side.
+    expect([...measurement.unshimmed].sort()).toEqual(['env', 'events', 'migrations']);
     expect(comparisons.map((entry) => entry.subpath)).toEqual([
       'cli',
       'commands',
       'composition',
       'db',
-      'events',
       'http',
       'kernel',
       'lifecycle',
@@ -276,12 +293,24 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
   // than the assertion relaxed: it is the whole point of this file that the
   // count is exact, and a `toBeGreaterThan` here would make the next real
   // duplication invisible.
-  it('shares 57 values across the five published subpaths, which is every one the duplication used to hold apart', () => {
-    // Not a target and not a floor somebody chose: it is the number the
-    // superseded `host-package-copy.test.ts` measured as *distinct*, over this
-    // same population, and it is here so that the inversion is visible as one
-    // rather than as a new test that happens to pass. It moves when a barrel
-    // does — update it with the barrel, never to make a run green.
+  it('shares 51 values across the five published subpaths, which is every one still spelled twice', () => {
+    // Not a target and not a floor somebody chose: it opened at **57**, the
+    // number the superseded `host-package-copy.test.ts` measured as *distinct*
+    // over this same population, and it is here so that the inversion is visible
+    // as one rather than as a new test that happens to pass. It moves when a
+    // barrel does — update it with the barrel, never to make a run green.
+    //
+    // **And it moves when a shim goes, which is not the same event and is the
+    // reason the title no longer says "every one the duplication used to hold
+    // apart".** A name is comparable only while the application spells it twice.
+    // `specs/110-instance-repository/` T119 took 57 -> 51 by deleting shims and
+    // by touching no barrel at all: `./events` lost its only shim and left the
+    // comparison entirely (-1), and six of `./http`'s twelve went, taking five
+    // of its six comparable names with them (-5). Re-recorded rather than
+    // relaxed, for this comment's own reason — a `toBeGreaterThan` here would
+    // make the next real duplication invisible — and it reaches **0** when the
+    // ledger empties, at which point this assertion retires with its subject
+    // rather than being weakened to keep it.
     //
     // It is summed over the **five published** subpaths and not over every
     // comparison, which is what preserves that provenance: no host-internal
@@ -292,7 +321,7 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     const total = comparisons
       .filter((entry) => published.has(entry.subpath))
       .reduce((sum, entry) => sum + entry.shared.length, 0);
-    expect(total).toBe(57);
+    expect(total).toBe(51);
   });
 
   /**

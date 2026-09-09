@@ -1363,13 +1363,21 @@ function specifierFor(file: string, owner: ModulePackage | null): string {
   // The platform's own migrations are named through the subpath that publishes
   // them, not through a relative path (`specs/110-instance-repository/` T116).
   // Every other platform file the registries name stays relative and lands on a
-  // re-export shim, which is this function's paragraph above and unchanged: two
-  // of the six platform entity classes are off the published barrels by ruling
-  // (`ModuleRegistration` is **A** in host-package.md §1.3), so an address for
-  // them would be a widening D-160.7 refuses. A migration class carries none of
-  // that — `mikro_orm_migrations` persists the name, the `./migrations` barrel
-  // carries all twelve, and a relative specifier here would need twelve shims
-  // in a directory the application no longer owns.
+  // re-export shim, which is this function's paragraph above and unchanged:
+  // **one** of the six platform entity classes is off the published barrels by
+  // ruling — `ModuleRegistration`, **A** in host-package.md §1.3 — so an address
+  // for it would be a widening D-160.7 refuses, and the registry names all six
+  // the one way that works for all six. (This comment read *two* until
+  // `specs/110-instance-repository/` T119 measured it: `AuditLogEntry`,
+  // `SalesChannel`, `Setting`, `SettingGroup` and `SettingValue` are all on
+  // `./kernel` today. The behaviour is unaffected — one class with no address is
+  // as binding as two — which is exactly why nobody re-derived the count.)
+  // Those five shims are therefore held open by this function alone, and they
+  // retire when it learns to name the barrel where there is one; T119 left them
+  // rather than teach a generator a per-symbol conditional in a drain.
+  // A migration class carries none of that — `mikro_orm_migrations` persists the
+  // name, the `./migrations` barrel carries all twelve, and a relative specifier
+  // here would need twelve shims in a directory the application no longer owns.
   if (CORE_MIGRATION_RE.test(file)) return platformSpecifier(PLATFORM_MIGRATION_SUBPATH);
   const asJs = file.replace(/\.ts$/, '.js');
   return asJs.startsWith('db/') ? `./${asJs.slice('db/'.length)}` : `../${asJs}`;
