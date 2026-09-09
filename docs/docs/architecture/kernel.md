@@ -54,24 +54,54 @@ a module, is a kernel that imports modules with one extra hop — in package ter
 the cycle `kernel → http → mod-i18n → kernel`, and F4's stated precondition is
 that packages are not cyclic.
 
-`src/db`, `src/overlay` and `src/commands` are **not** covered: `src/db` names
-every module by construction (F2 of the packaging roadmap replaces it with a
-generator), `src/overlay` is per-deployment resolution, and `src/commands` sits
-*above* the kernel — it already satisfies the rule, and D-57 leaves its package
-home to F4. Whether a peer becomes a directory *inside* the kernel package is
-F4's layout decision, deliberately not taken here (D-56).
+### The subject is now the whole package, not a list of peers
+
+D-57 left three directories out — `src/db` "names every module by construction",
+`src/overlay` is "per-deployment resolution", and `src/commands` sits *above* the
+kernel, which D-57 flagged as "a real open item F4 must close". All three were
+directories of the **application** when that was written, and each premise went
+with the relocation: `packages/platform/src/db/` imports no module (the generated
+registries stayed in `backend/src`), the platform's `overlay/` is the loader and
+takes the overlay root and the id claims as parameters, and F4 is closed.
+
+More than that, the argument the peer rule rests on has changed shape. *One extra
+hop* counted hops between source directories that might become **different
+packages**. They did not: `@endora-commerce/platform` compiles every one of its
+directories into a single artefact (`rootDir: ./src`, `files: ["dist"]`) behind a
+single `dependencies` block, and every module package depends on it. So a module
+specifier anywhere under `packages/platform/src` closes the cycle at **zero**
+hops, whichever directory writes it, and the answer is the package rather than a
+longer list of peers.
 
 **That rule is enforced.** `backend/scripts/check-kernel-boundary.ts` carries
 three rules over the one principle. **Rule A** refuses an ORM relation from the
-kernel into a module. **Rule B** (D-37, widened by D-53) refuses an import
-specifier naming a module from any file under a **platform root** — `src/kernel`,
-`src/http`, `src/events`, `src/tenancy`. **Rule C** (D-53) refuses one anywhere in
-the kernel's transitive import closure, however many hops away.
+kernel into a module. **Rule B** (D-37, widened by D-53, widened again by
+`specs/110-instance-repository/` T118a) refuses an import specifier naming a
+module from any file under a **platform root**. **Rule C** (D-53) refuses one
+anywhere in the kernel's transitive import closure, however many hops away.
+
+**Rule B's roots are derived and are not written down anywhere** — they are the
+directories of the workspace member declaring `endora: { type: "platform" }`, so
+the next platform directory is judged by existing. They were a four-element
+literal until T118a, against a platform that had grown to fourteen directories:
+ten of them were outside the rule entirely, `composition/` among them, which is
+where `composeApp` lives. The platform's `exports` map is the obvious alternative
+derivation and is deliberately **not** the one used — it answers *what may a
+consumer name*, and `src/demo/` is a real platform directory with no subpath of
+its own — but it is kept as the check's independent corroboration, so a published
+subpath naming no walked directory is exit 2.
+
+**Rule B refuses both spellings of a module's address**: a relative specifier
+into `src/modules/` or `src/apps/`, and the **bare npm name** of a module package.
+The second arrived with T118a on the check's own retiring condition — it had said
+a bare specifier could not reach a module because no module package existed — and
+since F4 closed, `backend/src/modules/` holds nothing but a `README.md`, so the
+bare name is the only spelling left.
 
 B and C are deliberately not redundant, and each covers the other's blind spot: B
-is a list, and issue #92 existed precisely because a peer was never put on a list;
-C has no list to forget, but is blind to the six peer files the kernel does not
-currently reach. B's message names a line, C's names a chain.
+is a population, and issue #92 existed precisely because a peer was never put on
+a list; C has no population to lose, but is blind to the peer files the kernel
+does not currently reach. B's message names a line, C's names a chain.
 
 Both see every shape a specifier takes — `import`, `import type`,
 `export … from`, dynamic `import()`, `require()`, and the inline

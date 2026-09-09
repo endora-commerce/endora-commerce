@@ -2563,7 +2563,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // zero here — measured at the commit before it, which read the same number.
     // **`specs/113-module-owned-demo-data/` Phase 1: sites 577 -> 578.** the same file: it
     // reads the database, which is this walk's finer population.
-    sites: 578,
+    // **`specs/110-instance-repository/` T118a: sites 578 -> 579.** One site, and it is
+    // not a database read: `packageNameOf` in `test/unit/kernel/boundary-check.test.ts`
+    // looks a module package's npm name up with `[...map].find(…)`, and `find` is in this
+    // check's `DB_READS` vocabulary. It is a site and not a finding — the fallback is a
+    // `throw`, which keeps the absence visible, and this walk's population is reads bound
+    // to a name rather than reads it has decided are the ORM's. Measured on
+    // `origin/master` (578) and on this branch (579), never by subtracting a delta.
+    sites: 579,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -2800,9 +2807,24 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `demo-relocated-reference.ts` and `taxes`' `vitest.config.ts`.
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
     files: 2163,
+    // **`specs/110-instance-repository/` T118a: sites 31 -> 103 (+72).** `files` does not
+    // move at all — it is rule A's population, the whole of the source roots — and this
+    // is the #235/#237 shape from the other side: the file count stands still while the
+    // finer population trebles. Rule B's roots stopped being the four-element literal
+    // `['kernel', 'http', 'events', 'tenancy']` and became the platform's own
+    // directories, all fourteen, so its walk went 74 -> 146 files and its outward
+    // imports 26 -> 98. The 72 sites are those 72 imports: every one of them was
+    // already on disk and outside the rule. Measured on `origin/master` before the
+    // change and on this branch after it, never by subtracting a delta.
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
-    sites: 31,
-    sources: ['manifest-index'],
+    sites: 103,
+    // `platform-subpaths` is T118a's second author over rule B's population: the
+    // platform's `exports` map is a different program's answer to "which directories
+    // does this package have", and a published subpath naming no walked directory is a
+    // short walk rather than a clean one. It reconciles 13/13 and cannot reconcile 14 —
+    // `src/demo/` is a directory with no subpath of its own, which is exactly why the
+    // map is the corroboration and the directory listing is the derivation.
+    sources: ['manifest-index', 'platform-subpaths'],
   },
   'backend/scripts/check-lock-claims.ts': {
     prefix: '[lock-claims]',
