@@ -4214,6 +4214,56 @@
         }
       }
     },
+    "/api/v1/admin/pim-akeneo/connection": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/pim-akeneo/connection/skip-bootstrap": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/pim-akeneo/runs": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/pim-akeneo/runs/{runId}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/pim-ergonode/attribute-mappings": {
       "get": {
         "responses": {
@@ -5046,6 +5096,22 @@
     },
     "/api/v1/admin/product-feeds/{id}/token/rotate": {
       "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/products/{id}/pim-akeneo/protections": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
         "responses": {
           "200": {
             "description": "OK"
@@ -7778,6 +7844,60 @@
     },
     "/api/v1/payu/storefront-config": {
       "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/pim-akeneo/connections/{connectionId}/full-deliveries": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/pim-akeneo/connections/{connectionId}/full-deliveries/{deliveryId}/batches": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/pim-akeneo/connections/{connectionId}/full-deliveries/{deliveryId}/complete": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/pim-akeneo/connections/{connectionId}/live-records": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/pim-akeneo/connections/{connectionId}/lookups/{collection}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/pim-akeneo/connections/{connectionId}/probe": {
+      "post": {
         "responses": {
           "200": {
             "description": "OK"
