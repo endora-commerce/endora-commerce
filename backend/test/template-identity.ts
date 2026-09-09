@@ -205,10 +205,19 @@ function isMigrationSource(name: string, extension: '.ts' | '.js'): boolean {
  * of these gives the next run a template of its own instead of a database
  * somebody else's branch seeded. A missing entry is a hard failure, not a
  * skipped input.
+ *
+ * The reconciler's entry is `backend/`-relative and leaves the repository root,
+ * exactly as the §4 migration helper's does: the file itself has been
+ * `@endora-commerce/platform`'s since the platform relocation, and
+ * `src/kernel/sales-channels/default-channel-reconciler.ts` named the re-export
+ * shim over it until `specs/110-instance-repository/` T119 deleted that shim.
+ * Naming the shim was never wrong and was never quite right either — a shim's
+ * bytes do not change when the reconciler's do, so the digest was folding in a
+ * file that could not move it. This names the implementation.
  */
 export const TEMPLATE_SEED_SOURCES = [
   'test/template-seed.ts',
-  'src/kernel/sales-channels/default-channel-reconciler.ts',
+  '../packages/platform/src/kernel/sales-channels/default-channel-reconciler.ts',
 ] as const;
 
 /** One file read out of a migration root. */

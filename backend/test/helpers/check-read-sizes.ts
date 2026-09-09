@@ -854,6 +854,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // its path and its export, so the move itself nets to nothing across the two source
     // roots this walk reads and the +1 is the new platform file alone.
     // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 2047 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 2048 -> 2021 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not.
     // **Feature 113's T226: files 2048 -> 2045 (-3).** The corpus is gone —
     // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
@@ -1064,6 +1069,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // its path and its export, so the move itself nets to nothing across the two source
     // roots this walk reads and the +1 is the new platform file alone.
     // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 2174 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 2175 -> 2148 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not.
     // **Feature 113's T226: files 2175 -> 2172 (-3).** The corpus is gone —
     // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
@@ -1533,6 +1543,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/scripts` and `backend/test/unit/scripts` are excluded, being the
     // trees whose job is to spell the shapes the rule refuses.
     // **Re-measured on the union after rebasing onto `be22a122e`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file — it reads 5503 here — so this branch's own contribution is +1. Only the check's library: this walk excludes `backend/scripts` and `backend/test/unit/scripts`, which is where the check, its ledger and its companion test live.
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 5504 -> 5477 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not.
     // **Feature 113's T226: files 5504 -> 5501 (-3).** The corpus is gone —
     // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
@@ -2114,6 +2129,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // its path and its export, so the move itself nets to nothing across the two source
     // roots this walk reads and the +1 is the new platform file alone.
     // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 2174 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 2175 -> 2148 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not.
     // **Feature 113's T226: files 2175 -> 2172 (-3).** The corpus is gone —
     // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
@@ -2305,6 +2325,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // its path and its export, so the move itself nets to nothing across the two source
     // roots this walk reads and the +1 is the new platform file alone.
     // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 2174 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 2175 -> 2148 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not.
     // **Feature 113's T226: files 2175 -> 2172 (-3).** The corpus is gone —
     // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
@@ -2496,6 +2521,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // its path and its export, so the move itself nets to nothing across the two source
     // roots this walk reads and the +1 is the new platform file alone.
     // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 2174 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 2175 -> 2148 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not.
     // **Feature 113's T226: files 2175 -> 2172 (-3).** The corpus is gone —
     // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
@@ -2688,6 +2718,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this number fell to 58**, with `REDIS_URL` and `REVALIDATE_SECRET` reported as
     // `unread-input` — an alias hides every read behind it, so each is spelled at its own site.
     // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 699 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 700 -> 673 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not.
     // **Feature 113's T226: files 700 -> 697 (-3).** The corpus is gone —
     // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
@@ -3162,6 +3197,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // second one rather than editing this, and in an object literal the last wins — so the
     // new value was dead and the census went on reading the old one. One key, measured on a
     // pristine `origin/master` worktree at 2174, plus this branch's one new platform source.
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 2175 -> 2148 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not.
     // **Feature 113's T226: files 2175 -> 2172 (-3).** The corpus is gone —
     // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
@@ -5016,6 +5056,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // companion test and the phase's two changesets. This walk is the whole
     // repository, so it is the one that counts the `.md` as well.
     // **Re-measured on the union after rebasing onto `be22a122e`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file — it reads 8139 here — so this branch's own contribution is +6. This branch adds six files: the check, its library, its ledger, its companion test, and two changesets. This walk opens the whole repository, so it is the entry that shows the full net.
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 8145 -> 8118 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not.
     // **Feature 113's T226: files 8145 -> 8142 (-3).** The corpus is gone —
     // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
@@ -5412,6 +5457,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // population is the source roots, the platform's among them, so the sites moved rather
     // than went. `files` moves +1 in the same breath, which is what says so.
     // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 2174 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 2175 -> 2148 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not.
     // **Feature 113's T226: files 2175 -> 2172 (-3).** The corpus is gone —
     // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
@@ -5651,6 +5701,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The two `backend/scripts/*.ts` files this phase adds — its application walk
     // is the `RELATIVE_HOST_REACHES` half, whose population is the application
     // tree and not only its `src`.
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 2473 -> 2446 (-27).**
+    // Twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // are deleted — the ones whose whole consumer set could name a symbol a barrel
+    // already carries. The 193 consumer specifiers the drain re-points are almost all
+    // under `backend/test/**`, which this walk does not read, so the file count moves by
+    // exactly the shims and by nothing else.
     // **Feature 113's T226: files 2473 -> 2470 (-3).** The corpus is gone —
     // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
@@ -5714,6 +5770,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/113-module-owned-demo-data/` Phase 1: sites 1873 -> 1871.** T215 deletes
     // `src/seeds/dev-seed-guard.ts` and `src/seeds/seed-scope.ts`, and each was one
     // relative host reach — `ledger-size` falls 70 -> 68 with them.
+    // **`specs/110-instance-repository/` T119 (the shim drain): sites 1896 -> 1869 (-27).**
+    // One site per deleted shim — each was a single `export *` into the platform, which
+    // is the whole of its contribution to this walk — so `ledger-size` falls 68 -> 41 by
+    // the same twenty-seven. The count moves with the file count here because the reaches
+    // that went are exactly the files that went.
     // **`specs/110-instance-repository/` T118b: sites 1896 -> 1897 (+1).** Two new source files and
     // nothing else — `packages/contracts/src/actor.ts` (the session-free `Actor`)
     // and `packages/platform/src/http/request-actor.ts` (the `declare module
@@ -6311,6 +6372,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // its path and its export, so the move itself nets to nothing across the two source
     // roots this walk reads and the +1 is the new platform file alone.
     // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 2174 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 2175 -> 2148 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not.
     // **Feature 113's T226: files 2175 -> 2172 (-3).** The corpus is gone —
     // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
@@ -6635,6 +6701,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // its path and its export, so the move itself nets to nothing across the two source
     // roots this walk reads and the +1 is the new platform file alone.
     // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 2174 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 2175 -> 2148 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not.
     // **Feature 113's T226: files 2175 -> 2172 (-3).** The corpus is gone —
     // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
@@ -6873,6 +6944,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The four `.ts` files this phase adds; its population is the workspace's
     // sources, changesets excluded.
     // **Re-measured on the union after rebasing onto `be22a122e`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file — it reads 4526 here — so this branch's own contribution is +4. The four new `.ts` sources.
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 4530 -> 4503 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not.
     // **Feature 113's T226: files 4530 -> 4527 (-3).** The corpus is gone —
     // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
@@ -7505,6 +7581,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Six files, the same population as `check:nul-bytes`': four sources and two
     // changesets.
     // **Re-measured on the union after rebasing onto `be22a122e`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file — it reads 8199 here — so this branch's own contribution is +6. This branch adds six files: the check, its library, its ledger, its companion test, and two changesets. Repo-wide, so the same six.
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 8205 -> 8178 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not.
     // **Feature 113's T226: files 8205 -> 8202 (-3).** The corpus is gone —
     // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
@@ -7846,6 +7927,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The four `.ts` files this phase adds. It reads comments, and the two
     // changesets are `.md` outside `docs/docs/**`.
     // **Re-measured on the union after rebasing onto `be22a122e`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file — it reads 6127 here — so this branch's own contribution is +4. The four new `.ts` sources; this scan reads source comments and the two changesets are markdown.
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 6131 -> 6104 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not.
     // **Feature 113's T226: files 6131 -> 6128 (-3).** The corpus is gone —
     // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
