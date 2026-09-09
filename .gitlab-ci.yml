@@ -70,6 +70,41 @@
 #                      the job refuses; it is written into `.npmrc` as `${ENDORA_NPM_TOKEN}`,
 #                      an environment reference pnpm expands, so no file holds the value.
 
+# ---------------------------------------------------------------------------
+# A scheduled pipeline is not cancelled by the next merge.
+#
+# `default: interruptible: true` below makes every job in this file eligible for
+# GitLab's redundant-pipeline cancellation, which is right for a merge request —
+# a superseded run costs the shared runner and tells nobody anything. It is
+# wrong for the nightly, and measurably so: pipeline 13361, the first scheduled
+# run ever, started at 00:03, ran for 2 h 17 m, and was cancelled at 04:41,
+# five seconds after a push to `master` created pipeline 13362.
+#
+# What that cost is the whole point of the schedule. `test:backend` shards five
+# ways and the shards *serialise* (`resource_group: backend-suite`), so they are
+# last in the queue by construction — all five were `canceled`, and the job the
+# nightly exists to run had not started. The three jobs that did report were the
+# ones that finish early.
+#
+# So a nightly that is cancellable is a nightly that runs on days nobody merges,
+# which is not a property anybody wants to depend on. `on_new_commit: none`
+# says: a new commit on this ref does not cancel a scheduled pipeline. Every
+# other pipeline keeps today's behaviour, which is why the second rule is a bare
+# `when: always` rather than a narrower one — this block must change *what is
+# cancelled* and not *what is created*.
+#
+# `interruptible: false` on `test:backend` was the alternative and is worse: it
+# would also stop a superseded **push** pipeline's suite from being cancelled,
+# which is three hours of a shared runner spent on a commit that is no longer
+# the tip.
+# ---------------------------------------------------------------------------
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      auto_cancel:
+        on_new_commit: none
+    - when: always
+
 stages:
   - quality
   - test

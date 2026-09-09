@@ -1,7 +1,7 @@
 {
   "$comment": [
     "The recorded state of the `endora new storefront` acceptance criterion",
-    "(specs/071-modular-packaging/roadmap.md \u00a7 F7). `acceptance:storefront-scaffold:ci`",
+    "(specs/071-modular-packaging/roadmap.md § F7). `acceptance:storefront-scaffold:ci`",
     "compares a run to this file and fails on drift in EITHER direction: a newly-red",
     "assertion fails, and so does a newly-green one nobody recorded. An unrecorded pass",
     "is a criterion whose meaning moved without anybody reading it.",
@@ -11,14 +11,14 @@
     "seven of nine because the capability it measures did not exist yet, and this one",
     "measures a capability that turned out to be one manifest line short of working.",
     "The roadmap named this criterion as the half that `could not be sized without",
-    "trying it` \u2014 whether a scaffolded storefront builds from packed tarballs depends on",
+    "trying it` — whether a scaffolded storefront builds from packed tarballs depends on",
     "how much of the packages' `exports` maps and `use client` boundaries survive an",
     "install that is not a workspace link. Measured: all of it. The one thing that did",
     "not survive was the reference storefront's own manifest, which declared none of the",
     "eight `@tiptap/*` packages its build resolves from the workspace root.",
     "",
     "A6 is `pass` because the job boots a backend for it. A run with no",
-    "PUBLIC_API_BASE_URL records `unmeasured` instead \u2014 never a pass \u2014 because a boot",
+    "PUBLIC_API_BASE_URL records `unmeasured` instead — never a pass — because a boot",
     "with no backend measures the storefront's error page rather than the storefront.",
     "If this job ever stops booting one, A6 drifts to `unmeasured` and fails, which is",
     "the direction that keeps the headline claim honest.",
@@ -27,21 +27,21 @@
     "STATES BELOW ARE UNCHANGED BECAUSE OF IT RATHER THAN IN SPITE OF IT. Feature 117",
     "removed the storefront's invented defaults and gave `endora new storefront` a",
     "four-tier input resolution ending in a refusal. This criterion had been invoking",
-    "it with no inputs at all \u2014 correct only while the defaults existed \u2014 so from the",
+    "it with no inputs at all — correct only while the defaults existed — so from the",
     "moment they went the command refused, the run exited 2, and all six assertions",
     "were unrun. That is the state this record exists to refuse, and no comparison",
     "against it could see it: a run that cannot measure never reaches the comparison.",
     "It supplies them as flags, which is tier 1, and the choice is deliberate: the",
     "copy's `.env` is what the command now writes and what `next build` and `next",
-    "start` read, so a harness that pre-placed that file \u2014 tier 2, which the command",
-    "also supports \u2014 would be supplying an artefact whose production is part of what",
+    "start` read, so a harness that pre-placed that file — tier 2, which the command",
+    "also supports — would be supplying an artefact whose production is part of what",
     "A5 and A6 measure. Which inputs, and what value each gets, is derived: the",
     "population is `storefront/environment-inputs.mjs`, the values are",
     "`storefront/.env.example`, and a required input neither reaches is a refusal",
     "rather than a value the harness makes up. One is: `NEXT_PUBLIC_SITE_URL` is",
-    "declared required and is supplied by nothing in this tree \u2014 not `.env.example`,",
+    "declared required and is supplied by nothing in this tree — not `.env.example`,",
     "not the Dockerfile's build arguments, not `build:storefront`, not",
-    "`compose.prod.yml` \u2014 so it carries a stand-in whose value is the storefront's own",
+    "`compose.prod.yml` — so it carries a stand-in whose value is the storefront's own",
     "fallback, and the entry retires the day any derivation reaches it.",
     "",
     "SINCE 2026-09-06 A6 IS TWO BOOTS AND ITS `pass` MEANS MORE THAN IT DID. The state",
@@ -49,47 +49,47 @@
     "backend through the variables the instance's own `.env.example` declares, and then",
     "boots it a second time with those same variables aimed at an address nothing listens",
     "on. A pass needs the first boot below 500 and the second at or above it. Until this",
-    "landed the harness exported `PUBLIC_API_BASE_URL` \u2014 the *backend's* variable, for the",
+    "landed the harness exported `PUBLIC_API_BASE_URL` — the *backend's* variable, for the",
     "public origin its gateway callbacks need, and one no file in the storefront has ever",
-    "read \u2014 so the instance fell back to the `http://localhost:3001` its fetchers compile",
+    "read — so the instance fell back to the `http://localhost:3001` its fetchers compile",
     "in. A6 was therefore green whenever the run's backend happened to sit on that address",
     "and red whenever it sat anywhere else, in both cases for a reason belonging to the",
     "harness rather than to the criterion. The probe is what stops the green meaning `the",
     "fallback answered`: a second boot whose configuration reaches nothing has to fail, or",
     "the first answer proves nothing and the assertion is `unmeasured`.",
     "",
-    "SINCE 2026-09-04 THE RECORD IS PER SUPPLY ROUTE (feature 104, \u00a7 1.6). The six",
+    "SINCE 2026-09-04 THE RECORD IS PER SUPPLY ROUTE (feature 104, § 1.6). The six",
     "assertions are the same under both; what differs is how the instance got its",
     "`@endora-commerce/*` packages, and `A3 pass` therefore means two different things.",
     "`tarball` packs them out of this checkout and pins them through `pnpm.overrides`;",
     "`registry` installs the semver ranges the scaffold wrote, from a real registry,",
     "through the `.npmrc` `endora new storefront --registry` emits. The mode is chosen",
-    "by ENDORA_NPM_REGISTRY in the environment, so a run with no registry variables \u2014",
-    "every local run, and the CI job as it stands \u2014 takes the tarball route.",
+    "by ENDORA_NPM_REGISTRY in the environment, so a run with no registry variables —",
+    "every local run, and the CI job as it stands — takes the tarball route.",
     "",
-    "`registry` is recorded `unrun`, and that is a state rather than a placeholder \u2014 but",
+    "`registry` is recorded `unrun`, and that is a state rather than a placeholder — but",
     "its reason has changed and the old one was measurably false by 2026-09-06. It read",
     "`no version of the three packages is on the rehearsal registry ... every manifest",
     "still reads 0.0.0`, and that stopped being true when they published at `0.7.0`: job",
-    "43527, on master at 1d906d15a, took the registry route and reported `A3 PASS \u2014 pnpm",
+    "43527, on master at 1d906d15a, took the registry route and reported `A3 PASS — pnpm",
     "install succeeded outside the checkout, resolving 3 published ranges`. The mode runs,",
     "and it runs on every master pipeline, because ENDORA_NPM_REGISTRY is protected and a",
     "merge-request pipeline resolves it to nothing. What is still true is the refusal:",
     "recording seven predicted states is the one thing this file exists to refuse, and the",
     "one measured run of the route measured the environment defect the 2026-09-07 entry",
-    "below removes \u2014 so its A5 and A6 are states of the harness rather than of the",
+    "below removes — so its A5 and A6 are states of the harness rather than of the",
     "criterion, and writing them here would record a claim that a scaffolded storefront is",
     "*expected* not to build. This machine cannot make an honest run of it either: the",
     "registry and its token are protected CI variables and `projects/:id/variables` answers",
-    "403. So the record arrives, as it always would have, from the first real run \u2014 the",
-    "master pipeline of the merge that lands the repair \u2014 which drifts and names every",
+    "403. So the record arrives, as it always would have, from the first real run — the",
+    "master pipeline of the merge that lands the repair — which drifts and names every",
     "state it measured.",
     "",
     "SINCE 2026-09-06 THERE IS AN A7, AND IT IS THE ONLY ASSERTION IN THIS FILE THAT",
     "READS THE PAGE RATHER THAN THE STATUS LINE. `NEXT_PUBLIC_SITE_URL` was declared",
     "required by `storefront/environment-inputs.mjs` and supplied by nothing in the",
-    "deployment path \u2014 not `.env.example`, not the Dockerfile's build arguments, not",
-    "`build:storefront`, not `compose.prod.yml` \u2014 so every image this repository built",
+    "deployment path — not `.env.example`, not the Dockerfile's build arguments, not",
+    "`build:storefront`, not `compose.prod.yml` — so every image this repository built",
     "served canonicals, a sitemap and a robots.txt naming the `http://localhost:3000`",
     "its reader falls back to, and the build reported success. The stand-in this file's",
     "previous entry describes was exactly that finding, parked; it has retired.",
@@ -102,7 +102,7 @@
     "",
     "THE ADDRESS DERIVATION CHANGED UNDER BOTH A6 AND A7, AND THE SIX EARLIER STATES",
     "ARE UNCHANGED BECAUSE OF IT. Which variables name the backend was read off the",
-    "*shape* of a value in `.env.example` \u2014 an absolute http(s) URL \u2014 which was right",
+    "*shape* of a value in `.env.example` — an absolute http(s) URL — which was right",
     "only while that file declared no address but the backend's. Supplying the public",
     "origin there makes it wrong: A6 would have pointed the shop's canonical origin at",
     "the API host, and `endora new storefront` would have told a client, in a file they",
@@ -112,7 +112,7 @@
     "",
     "SINCE 2026-09-07 THE RECORD IS ALSO REPRODUCIBLE, WHICH IT HAD NEVER BEEN. Every",
     "state above was measured on a developer's machine, and A5 had not passed once in",
-    "CI \u2014 163 runs of `acceptance:storefront-scaffold` since it landed, of which zero",
+    "CI — 163 runs of `acceptance:storefront-scaffold` since it landed, of which zero",
     "succeeded. The difference was one variable this criterion inherited and handed on:",
     "NODE_ENV=development, which the job sets job-wide and correctly, for the *backend*",
     "it boots. Next loads the copy's `.env` and does not override a variable the process",
@@ -120,7 +120,24 @@
     "of what `endora new storefront` wrote. The criterion now withholds every name the",
     "copy's own declaration says its process reads, and the report says which. Nothing",
     "in this record moved, and that is the finding: a recorded state nobody could",
-    "reproduce is a recorded state that says less than it looks like."
+    "reproduce is a recorded state that says less than it looks like.",
+    "",
+    "A5 is recorded `fail` in the registry mode, and A6/A7 `unmeasured` behind it, from",
+    "pipeline 13361 — the first scheduled run. It is the platform changing rather than",
+    "something breaking, which is the distinction this file's own rule turns on.",
+    "`storefront/app/globals.css` imports `@endora-commerce/page-builder-core/tailwind.css`.",
+    "That subpath exists in this repository and was added on 2026-09-07 by e27bf6cf9, so a",
+    "tarball built from the checkout carries it — which is why the tarball mode's seven",
+    "states are untouched and still true. The registry serves `page-builder-core@0.7.0`",
+    "published before that commit, and the version did not move because nothing has been",
+    "released since: the registry's 0.7.0 and this repository's 0.7.0 are not the same",
+    "package. `next build` then fails resolving the import, and A6 and A7 have no build to",
+    "boot, which is why they are `unmeasured` rather than `fail` — they were not run.",
+    "",
+    "Retiring condition: the next publication. This entry is not a judgement that the",
+    "scaffold is wrong, and it must not be read as licensing a scaffold that stops",
+    "building — the moment the registry carries the export, A5 returns to `pass` and this",
+    "record moves back with it, in the merge request that publishes."
   ],
   "modes": {
     "tarball": {
@@ -142,9 +159,9 @@
         "A2": "pass",
         "A3": "pass",
         "A4": "pass",
-        "A5": "pass",
-        "A6": "pass",
-        "A7": "pass"
+        "A5": "fail",
+        "A6": "unmeasured",
+        "A7": "unmeasured"
       }
     }
   },
@@ -152,12 +169,12 @@
     {
       "on": "2026-09-07",
       "what": "the registry route was measured for the first time, and it passes on all seven",
-      "detail": "Pipeline 13121, job 43730, on `master` at `e3dd43635`: `mode=registry pass=7 fail=0 unmeasured=0 of 7`. This is the run the previous `unrun` reason was waiting for, and it is the first honest one: the only earlier measurement (job 43527) was made while the criterion handed the instance the harness's own `NODE_ENV=development`, so its `A5 fail` described that defect and not this supply route. !1482 repaired it by withholding the harness's environment from the instance's processes, and this run reports the withholding in its own notes. What it establishes is the route's whole point: a storefront scaffolded from the private registry installs outside this checkout resolving three published ranges, builds, serves `/` with 200 against the backend it was configured with and 503 where nothing listens, and carries the canonical origin it was built with. The record was left `unrun` rather than predicted so that this entry could come from a measurement \u2014 which is why the run that produced it was red: an unrecorded pass is drift in the direction nobody watches."
+      "detail": "Pipeline 13121, job 43730, on `master` at `e3dd43635`: `mode=registry pass=7 fail=0 unmeasured=0 of 7`. This is the run the previous `unrun` reason was waiting for, and it is the first honest one: the only earlier measurement (job 43527) was made while the criterion handed the instance the harness's own `NODE_ENV=development`, so its `A5 fail` described that defect and not this supply route. !1482 repaired it by withholding the harness's environment from the instance's processes, and this run reports the withholding in its own notes. What it establishes is the route's whole point: a storefront scaffolded from the private registry installs outside this checkout resolving three published ranges, builds, serves `/` with 200 against the backend it was configured with and 503 where nothing listens, and carries the canonical origin it was built with. The record was left `unrun` rather than predicted so that this entry could come from a measurement — which is why the run that produced it was red: an unrecorded pass is drift in the direction nobody watches."
     },
     {
       "on": "2026-09-06",
       "what": "A6 gained a discrimination probe, and the harness started configuring the instance with the variables the instance declares",
-      "detail": "The six states are unchanged. `boot()` set PUBLIC_API_BASE_URL, which is the backend's own variable and which the storefront reads nowhere, so every A6 measured the compiled-in `http://localhost:3001` fallback: 200 when the run's backend sat there, 500 when it sat anywhere else. Measured on master at http://127.0.0.1:3101 \u2014 `A6 FAIL ... answered / with 500` \u2014 against a scaffolded instance that serves 200 the moment BACKEND_BASE_URL names the same backend. The names now come off the instance's own `.env.example` through the derivation `endora new storefront` prints in its next steps, they reach `next build` as well as `next start` because Next inlines a NEXT_PUBLIC_ variable at build time, and a second boot against an address nothing listens on has to fail before the first is read as a pass."
+      "detail": "The six states are unchanged. `boot()` set PUBLIC_API_BASE_URL, which is the backend's own variable and which the storefront reads nowhere, so every A6 measured the compiled-in `http://localhost:3001` fallback: 200 when the run's backend sat there, 500 when it sat anywhere else. Measured on master at http://127.0.0.1:3101 — `A6 FAIL ... answered / with 500` — against a scaffolded instance that serves 200 the moment BACKEND_BASE_URL names the same backend. The names now come off the instance's own `.env.example` through the derivation `endora new storefront` prints in its next steps, they reach `next build` as well as `next start` because Next inlines a NEXT_PUBLIC_ variable at build time, and a second boot against an address nothing listens on has to fail before the first is read as a pass."
     },
     {
       "on": "2026-09-03",
@@ -167,22 +184,27 @@
     {
       "on": "2026-09-04",
       "what": "the record became per supply route; `tarball` keeps its six measured states, `registry` arrives unrun",
-      "detail": "Feature 104 \u00a7 1.6. The criterion gained a second mode that installs from a registry rather than from packed tarballs, selected by ENDORA_NPM_REGISTRY. The tarball mode is unchanged in every respect \u2014 same six assertions, same states, still the default \u2014 and its block is the previous `assertions` object moved under it. Nothing about the two-way drift rule changed; what changed is which block a run is compared against."
+      "detail": "Feature 104 § 1.6. The criterion gained a second mode that installs from a registry rather than from packed tarballs, selected by ENDORA_NPM_REGISTRY. The tarball mode is unchanged in every respect — same six assertions, same states, still the default — and its block is the previous `assertions` object moved under it. Nothing about the two-way drift rule changed; what changed is which block a run is compared against."
     },
     {
       "on": "2026-09-06",
       "what": "the run supplies the five inputs the command requires; the six states are unchanged",
-      "detail": "Measured on this branch against a backend at http://127.0.0.1:3101: `mode=tarball pass=6 fail=0 unmeasured=0 of 6`, with the command reporting `[inputs] resolved: total=5 flags=5 env-file=0 prompted=0 generated=0 defaulted=0`. On master the same invocation exited 2 \u2014 `endora: 5 required inputs are not set, and this run cannot ask for them` \u2014 with every assertion unrun. Nothing about the six assertions changed and nothing about the two-way drift rule changed; what changed is that the criterion now hands the command the inputs it declares required, deriving both the population and the values from the storefront's own files. `backend/test/unit/acceptance/storefront-scaffold-assertions.test.ts` holds the derivation to that declaration in the fast suite, so the next required input added without a value the criterion can reach fails in seconds rather than after an install, a build and two boots."
+      "detail": "Measured on this branch against a backend at http://127.0.0.1:3101: `mode=tarball pass=6 fail=0 unmeasured=0 of 6`, with the command reporting `[inputs] resolved: total=5 flags=5 env-file=0 prompted=0 generated=0 defaulted=0`. On master the same invocation exited 2 — `endora: 5 required inputs are not set, and this run cannot ask for them` — with every assertion unrun. Nothing about the six assertions changed and nothing about the two-way drift rule changed; what changed is that the criterion now hands the command the inputs it declares required, deriving both the population and the values from the storefront's own files. `backend/test/unit/acceptance/storefront-scaffold-assertions.test.ts` holds the derivation to that declaration in the fast suite, so the next required input added without a value the criterion can reach fails in seconds rather than after an install, a build and two boots."
     },
     {
       "on": "2026-09-06",
       "what": "A7 arrives, and it is measured rather than predicted: the served canonical names the origin the instance was built with",
-      "detail": "`NEXT_PUBLIC_SITE_URL` was declared required by `storefront/environment-inputs.mjs` and supplied by nothing in the deployment path, so every image this repository built served canonicals, a sitemap and a robots.txt naming `http://localhost:3000` while the build reported success. Measured on this branch against a backend at http://127.0.0.1:3711: `mode=tarball pass=7 fail=0 unmeasured=0 of 7`, with A7 reading `<link rel=\"canonical\" href=\"https://shop.acceptance.invalid\">` out of the page the configured boot served. The value reaches that build through the `.env` the command wrote from the flag the run supplied \u2014 declared, resolved, written, inlined, served \u2014 rather than through a variable the harness exported over the top of it, which is what makes A7 a measurement of the chain and not of one export. The origin is deliberately not the compiled-in one, so the pass cannot be the fallback's; a canonical carrying the fallback is a red criterion that names it. Separately and by hand, on the reference storefront built with `NEXT_PUBLIC_SITE_URL=https://shop.example.com`: `/` served that canonical, `/sitemap.xml` those `<loc>`s and `/robots.txt` `Sitemap: https://shop.example.com/sitemap.xml` \u2014 the third being the surface no container environment could ever have repaired, because Next prerenders it into the image."
+      "detail": "`NEXT_PUBLIC_SITE_URL` was declared required by `storefront/environment-inputs.mjs` and supplied by nothing in the deployment path, so every image this repository built served canonicals, a sitemap and a robots.txt naming `http://localhost:3000` while the build reported success. Measured on this branch against a backend at http://127.0.0.1:3711: `mode=tarball pass=7 fail=0 unmeasured=0 of 7`, with A7 reading `<link rel=\"canonical\" href=\"https://shop.acceptance.invalid\">` out of the page the configured boot served. The value reaches that build through the `.env` the command wrote from the flag the run supplied — declared, resolved, written, inlined, served — rather than through a variable the harness exported over the top of it, which is what makes A7 a measurement of the chain and not of one export. The origin is deliberately not the compiled-in one, so the pass cannot be the fallback's; a canonical carrying the fallback is a red criterion that names it. Separately and by hand, on the reference storefront built with `NEXT_PUBLIC_SITE_URL=https://shop.example.com`: `/` served that canonical, `/sitemap.xml` those `<loc>`s and `/robots.txt` `Sitemap: https://shop.example.com/sitemap.xml` — the third being the surface no container environment could ever have repaired, because Next prerenders it into the image."
     },
     {
       "on": "2026-09-07",
       "what": "the seven tarball states did not move, and for the first time a CI run can reproduce them: the criterion stopped handing the instance this harness's environment; the `registry` block keeps `unrun` and loses a reason that had gone false",
-      "detail": "A5 had never once passed in CI. 163 runs of `acceptance:storefront-scaffold` since it landed on 2026-09-03 \u2014 124 canceled, 27 failed, 12 skipped, 0 succeeded \u2014 and the earliest that reached A5 at all (job 40410, master 10a0ab9d, 2026-09-04) failed with the same sentence as the latest (job 43544, MR !1479, ca43192c5): `<Html> should not be imported outside of pages/_document`, from the prerender of `/404`. It is not a regression of any branch and it was never about the packages the instance installs. Reproduced here by exporting NODE_ENV=development and varying nothing else \u2014 same checkout, same install, byte-identical message down to the chunk offset `2303.js:6:1351` \u2014 and isolated to Next itself: a four-file `app/` with no dependency of this repository in it fails identically under `next build`, and passes with NODE_ENV unset, `production` or `test`. The mechanism, measured rather than inferred: `next build` inlines `process.env.NODE_ENV` as `\"production\"` into the server bundle it emits, so the emitted `_document.js` and `_error.js` name `pages.runtime.prod`, while the render worker reads the real NODE_ENV and loads `pages.runtime.dev` \u2014 two module instances of Next's vendored pages runtime, two `React.createContext()` calls, and an `<Html>` consuming the context the other one provides. The variable reached that build because this criterion inherited `process.env` into the instance's install, build and boot, and the job sets NODE_ENV=development job-wide for the *backend* it boots, which is correct and stays: with NODE_ENV=production that backend refuses its own boot over an unset SESSION_COOKIE_SECRET. So the repair is at the seam, not in the storefront, not in the scaffold's output and not in a dependency range: a process run inside the instance is given the instance's environment, with every name the copy's own `environment-inputs.mjs` says its process reads withheld unless this run deliberately supplied it. Measured on this branch with NODE_ENV=development exported and a backend at http://127.0.0.1:3711 \u2014 the CI shape exactly \u2014 `mode=tarball pass=7 fail=0 unmeasured=0 of 7`, `the run agrees with the recorded expectation`, with the report naming `withheld NODE_ENV`. The population is the declaration and never a list, so it tightens by itself when the storefront declares another variable; `backend/test/unit/acceptance/storefront-scaffold-assertions.test.ts` holds the rule in the fast suite and asserts that the reference storefront still declares NODE_ENV, which is what stops the coverage lapsing in silence. The supply route was never the variable and it is worth writing down which measurement says so: the same failure occurred under *both*. Job 43527 (master, registry) resolved three published ranges from the real registry and failed A5; job 43544 (!1479, tarball) installed three packed files and failed A5 with the identical message. Two dependency-resolution paths, one build failure \u2014 so the scaffolded instance having no lockfile, which is real and is filed as a finding of its own, is not what breaks this build. The `registry` block's `why` is rewritten in the same breath because it claimed the opposite: it said the packages were unpublished at `0.0.0`, which 43527's own A3 refutes. It stays `unrun` because the only run of that route measured this defect, and this tree cannot make a better one \u2014 the registry and its token are protected variables, `projects/:id/variables` is 403 here, and `resolveMode` rightly refuses a registry with no token instead of attempting an anonymous install. The first master pipeline after this merge is the author of that block: it will drift, and the drift line names every state it measured."
+      "detail": "A5 had never once passed in CI. 163 runs of `acceptance:storefront-scaffold` since it landed on 2026-09-03 — 124 canceled, 27 failed, 12 skipped, 0 succeeded — and the earliest that reached A5 at all (job 40410, master 10a0ab9d, 2026-09-04) failed with the same sentence as the latest (job 43544, MR !1479, ca43192c5): `<Html> should not be imported outside of pages/_document`, from the prerender of `/404`. It is not a regression of any branch and it was never about the packages the instance installs. Reproduced here by exporting NODE_ENV=development and varying nothing else — same checkout, same install, byte-identical message down to the chunk offset `2303.js:6:1351` — and isolated to Next itself: a four-file `app/` with no dependency of this repository in it fails identically under `next build`, and passes with NODE_ENV unset, `production` or `test`. The mechanism, measured rather than inferred: `next build` inlines `process.env.NODE_ENV` as `\"production\"` into the server bundle it emits, so the emitted `_document.js` and `_error.js` name `pages.runtime.prod`, while the render worker reads the real NODE_ENV and loads `pages.runtime.dev` — two module instances of Next's vendored pages runtime, two `React.createContext()` calls, and an `<Html>` consuming the context the other one provides. The variable reached that build because this criterion inherited `process.env` into the instance's install, build and boot, and the job sets NODE_ENV=development job-wide for the *backend* it boots, which is correct and stays: with NODE_ENV=production that backend refuses its own boot over an unset SESSION_COOKIE_SECRET. So the repair is at the seam, not in the storefront, not in the scaffold's output and not in a dependency range: a process run inside the instance is given the instance's environment, with every name the copy's own `environment-inputs.mjs` says its process reads withheld unless this run deliberately supplied it. Measured on this branch with NODE_ENV=development exported and a backend at http://127.0.0.1:3711 — the CI shape exactly — `mode=tarball pass=7 fail=0 unmeasured=0 of 7`, `the run agrees with the recorded expectation`, with the report naming `withheld NODE_ENV`. The population is the declaration and never a list, so it tightens by itself when the storefront declares another variable; `backend/test/unit/acceptance/storefront-scaffold-assertions.test.ts` holds the rule in the fast suite and asserts that the reference storefront still declares NODE_ENV, which is what stops the coverage lapsing in silence. The supply route was never the variable and it is worth writing down which measurement says so: the same failure occurred under *both*. Job 43527 (master, registry) resolved three published ranges from the real registry and failed A5; job 43544 (!1479, tarball) installed three packed files and failed A5 with the identical message. Two dependency-resolution paths, one build failure — so the scaffolded instance having no lockfile, which is real and is filed as a finding of its own, is not what breaks this build. The `registry` block's `why` is rewritten in the same breath because it claimed the opposite: it said the packages were unpublished at `0.0.0`, which 43527's own A3 refutes. It stays `unrun` because the only run of that route measured this defect, and this tree cannot make a better one — the registry and its token are protected variables, `projects/:id/variables` is 403 here, and `resolveMode` rightly refuses a registry with no token instead of attempting an anonymous install. The first master pipeline after this merge is the author of that block: it will drift, and the drift line names every state it measured."
+    },
+    {
+      "on": "2026-09-09",
+      "what": "A5 goes `fail` in the registry mode, A6 and A7 `unmeasured` behind it — the repository moved ahead of the registry",
+      "detail": "Pipeline 13361, the first scheduled run, measured `next build` failing on `./app/globals.css` in the registry mode: it imports `@endora-commerce/page-builder-core/tailwind.css`, a subpath e27bf6cf9 added on 2026-09-07, and the published 0.7.0 predates it while the version number did not move. The tarball mode is untouched and still records seven passes, because a tarball packs the checkout. Retires at the next publication."
     }
   ]
 }
