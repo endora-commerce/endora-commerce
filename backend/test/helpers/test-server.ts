@@ -166,7 +166,12 @@ import type { FeedDeliveryAdapter } from '../../../packages/modules/product_feed
 import { FeedDeliveryError, type FeedDeliveryProtocol } from '@endora-commerce/contracts';
 import type { PimErgonodeCradle } from '@endora-commerce/mod-pim-ergonode/backend';
 import type { PimUnopimCradle } from '@endora-commerce/mod-pim-unopim/backend';
-import type { InfaktHttpPort, PimConnectorRegistryPort } from '@endora-commerce/contracts';
+import type {
+  InfaktHttpPort,
+  InvoiceLedgerRegistryPort,
+  PimConnectorRegistryPort,
+} from '@endora-commerce/contracts';
+import type { LedgerActivationPresenceReader } from '../../../packages/modules/invoice_ledger/src/backend/services/invoice-ledger-registry.service.js';
 import type { ErgonodeClientPort } from '../../../packages/modules/pim_ergonode/src/backend/services/ergonode-client.port.js';
 import type { ErgonodeMediaFetcherPort } from '../../../packages/modules/pim_ergonode/src/backend/services/ergonode-media-fetcher.js';
 import type { UnopimMediaFetcherPort } from '../../../packages/modules/pim_unopim/src/backend/services/unopim-media-fetcher.js';
@@ -301,6 +306,19 @@ export interface BackendServerOptions {
    */
   infaktHttp?: InfaktHttpPort;
   /**
+   * Feature 119 / US10 — extra invoice-ledger vendor ids for the mutex
+   * registry. Production `INVOICE_LEDGER_MODULES` stays Infakt-only; a
+   * second production vendor is a later spec. Mutex contract tests inject
+   * `ledger_fixture` here.
+   */
+  invoiceLedgerVendorModules?: readonly { id: string }[];
+  /**
+   * Feature 119 / US10 — presence reader for the mutex registry. Defaults
+   * to `effectiveState` inside the module. Tests that mark a sibling
+   * operator-active without a second module package pass a wrapper.
+   */
+  invoiceLedgerPresence?: LedgerActivationPresenceReader;
+  /**
    * Feature 072 (T073) — arm the cross-process pub/sub path: subscribe the
    * second Redis client to the custom-field and module-state channels.
    *
@@ -395,6 +413,8 @@ export interface BackendServerHandle {
   ksef: KsefCradle['ksef']['handle'];
   /** Feature 119 — drive the Infakt delivery processor (no BullMQ in this harness). */
   infakt: { processDelivery: (deliveryId: string) => Promise<void> };
+  /** Feature 119 — shared invoice-ledger vendor mutex port. */
+  invoiceLedgerRegistry: InvoiceLedgerRegistryPort;
   /** Feature 067 — Product Feed handle (feeds, generation, runs, token cache). */
   productFeeds: ProductFeedsCradle['productFeeds']['handle'];
   /** Feature 068 — Ergonode PIM handle (source client seam, queue gate). */
@@ -1936,6 +1956,14 @@ export async function setupBackendServer(
         // Feature 119 — `invoice_ledger` and `infakt` compose through MODULES.
         // This contribution only replaces Infakt HTTP when a test scripts it.
         ...(options.infaktHttp ? { infaktHttp: options.infaktHttp } : {}),
+        // US10 — mutex extras stay off the production table. Tests that need
+        // a sibling inject it here (`ledger_fixture` / `other_ledger_vendor`).
+        ...(options.invoiceLedgerPresence
+          ? { invoiceLedgerPresence: options.invoiceLedgerPresence }
+          : {}),
+        ...(options.invoiceLedgerVendorModules
+          ? { invoiceLedgerVendorModules: options.invoiceLedgerVendorModules }
+          : {}),
       });
 
       // Feature 072 (T136) — `carts` owns its thirteen services and three route
@@ -2587,6 +2615,9 @@ export async function setupBackendServer(
           }
         ).infaktDeliveryProcessor.process(deliveryId),
     },
+    invoiceLedgerRegistry: (
+      container.cradle as unknown as { invoiceLedgerRegistryPort: InvoiceLedgerRegistryPort }
+    ).invoiceLedgerRegistryPort,
     productFeeds: (container.cradle as unknown as ProductFeedsCradle).productFeeds.handle,
     pimErgonode: (container.cradle as unknown as PimErgonodeCradle).pimErgonode.handle,
     pimConnectorRegistry: (

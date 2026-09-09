@@ -15,7 +15,7 @@ export interface LedgerActivationPresenceReader {
   isOperatorActivated(moduleId: string): boolean;
 }
 
-const defaultPresenceReader: LedgerActivationPresenceReader = {
+export const defaultInvoiceLedgerPresence: LedgerActivationPresenceReader = {
   isOperatorActivated(moduleId) {
     return effectiveState.presence(moduleId)?.operatorActivated ?? false;
   },
@@ -24,7 +24,7 @@ const defaultPresenceReader: LedgerActivationPresenceReader = {
 export class InvoiceLedgerRegistryService implements InvoiceLedgerRegistryPort {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly presence: LedgerActivationPresenceReader = defaultPresenceReader,
+    private readonly presence: LedgerActivationPresenceReader = defaultInvoiceLedgerPresence,
     private readonly modules: readonly { id: string }[] = INVOICE_LEDGER_MODULES,
   ) {}
 

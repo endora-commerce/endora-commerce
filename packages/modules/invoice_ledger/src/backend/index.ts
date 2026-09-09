@@ -44,7 +44,11 @@ import {
   INVOICE_LEDGER_VENDOR_KSEF_ABSENT_MESSAGE,
   InvoiceLedgerDeliveryService,
 } from './services/invoice-ledger-delivery.service.js';
-import { InvoiceLedgerRegistryService } from './services/invoice-ledger-registry.service.js';
+import {
+  defaultInvoiceLedgerPresence,
+  InvoiceLedgerRegistryService,
+  type LedgerActivationPresenceReader,
+} from './services/invoice-ledger-registry.service.js';
 import { InvoiceLedgerRoutingService } from './services/invoice-ledger-routing.service.js';
 import { InvoiceLedgerWebhookService } from './services/invoice-ledger-webhook.service.js';
 
@@ -60,6 +64,8 @@ interface LedgerCradle {
   readonly invoiceLedgerRoutingWrite: InvoiceLedgerRoutingWriteService;
   readonly invoiceLedgerDeliveryService: InvoiceLedgerDeliveryService;
   readonly invoiceLedgerDeliveryAdmin: InvoiceLedgerDeliveryAdminService;
+  readonly invoiceLedgerPresence: LedgerActivationPresenceReader;
+  readonly invoiceLedgerVendorModules: readonly { id: string }[];
 }
 
 interface ModuleActivationChangedPayload {
@@ -72,10 +78,21 @@ const LEDGER_VENDOR_IDS: ReadonlySet<string> = new Set(
 );
 
 export function registerModule(ctx: ModuleContext): void {
+  ctx.di.register({
+    invoiceLedgerPresence: ctx.asValue(defaultInvoiceLedgerPresence),
+    invoiceLedgerVendorModules: ctx.asValue(INVOICE_LEDGER_MODULES),
+  });
   ctx.di.providePort<InvoiceLedgerRegistryPort>(
     INVOICE_LEDGER_REGISTRY_PORT,
     ctx
-      .asFunction(({ emFactory }: LedgerCradle) => new InvoiceLedgerRegistryService(emFactory))
+      .asFunction(
+        ({ emFactory, invoiceLedgerPresence, invoiceLedgerVendorModules }: LedgerCradle) =>
+          new InvoiceLedgerRegistryService(
+            emFactory,
+            invoiceLedgerPresence,
+            invoiceLedgerVendorModules,
+          ),
+      )
       .singleton(),
   );
 
