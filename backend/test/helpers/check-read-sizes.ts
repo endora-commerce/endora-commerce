@@ -840,7 +840,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five changesets. This walk reads the twelve non-test module files,
     // `demo-relocated-reference.ts` and `taxes`' `vitest.config.ts`.
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
-    files: 2036,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T222 + T224):
+    // files 2036 -> 2047.** The two batches add **16** module-package source files — four
+    // modules' `src/backend/demo/` (`admin_roles`, `admin_users`, `organizations`,
+    // `catalog`), each a `rows`, a `seed`, a `reset` and a co-located test — and
+    // delete one, `backend/src/seeds/seeded-role-permissions.ts`, whose constant is
+    // published on `@endora-commerce/mod-admin-roles/backend` instead. Seven
+    // changesets go with them. The base was measured on `origin/master`, where the
+    // census printed `0 drifted, 43 agree`, so every number below is this branch's
+    // and none of it is a delta subtracted from a moving tree.
+    files: 2047,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1014,7 +1023,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five changesets. This walk reads the twelve non-test module files,
     // `demo-relocated-reference.ts` and `taxes`' `vitest.config.ts`.
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
-    files: 2163,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T222 + T224):
+    // files 2163 -> 2174.** The two batches add **16** module-package source files — four
+    // modules' `src/backend/demo/` (`admin_roles`, `admin_users`, `organizations`,
+    // `catalog`), each a `rows`, a `seed`, a `reset` and a co-located test — and
+    // delete one, `backend/src/seeds/seeded-role-permissions.ts`, whose constant is
+    // published on `@endora-commerce/mod-admin-roles/backend` instead. Seven
+    // changesets go with them. The base was measured on `origin/master`, where the
+    // census printed `0 drifted, 43 agree`, so every number below is this branch's
+    // and none of it is a delta subtracted from a moving tree.
+    files: 2174,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1076,7 +1094,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copy of the moved blocks that keeps the demo parity comparison a comparison — and
     // five changesets. This walk reads the twelve non-test module files and `taxes`'
     // `vitest.config.ts`; it reads `.ts` and not `*.test.ts`.
-    files: 1685,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T222 + T224):
+    // files 1685 -> 1697.** The two batches add **16** module-package source files — four
+    // modules' `src/backend/demo/` (`admin_roles`, `admin_users`, `organizations`,
+    // `catalog`), each a `rows`, a `seed`, a `reset` and a co-located test — and
+    // delete one, `backend/src/seeds/seeded-role-permissions.ts`, whose constant is
+    // published on `@endora-commerce/mod-admin-roles/backend` instead. Seven
+    // changesets go with them. The base was measured on `origin/master`, where the
+    // census printed `0 drifted, 43 agree`, so every number below is this branch's
+    // and none of it is a delta subtracted from a moving tree.
+    files: 1697,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -1144,7 +1171,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copy of the moved blocks that keeps the demo parity comparison a comparison — and
     // five changesets. This walk reads the sixteen module `.ts` files plus
     // `demo-relocated-reference.ts`.
-    files: 2169,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T222 + T224):
+    // files 2169 -> 2185.** The two batches add **16** module-package source files — four
+    // modules' `src/backend/demo/` (`admin_roles`, `admin_users`, `organizations`,
+    // `catalog`), each a `rows`, a `seed`, a `reset` and a co-located test — and
+    // delete one, `backend/src/seeds/seeded-role-permissions.ts`, whose constant is
+    // published on `@endora-commerce/mod-admin-roles/backend` instead. Seven
+    // changesets go with them. The base was measured on `origin/master`, where the
+    // census printed `0 drifted, 43 agree`, so every number below is this branch's
+    // and none of it is a delta subtracted from a moving tree.
+    files: 2185,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -1422,7 +1458,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five changesets. This walk reads the seventeen `.ts` files plus `taxes`' new
     // `vitest.config.ts`; the five changesets are markdown.
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
-    files: 5486,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T222 + T224):
+    // files 5486 -> 5501.** The two batches add **16** module-package source files — four
+    // modules' `src/backend/demo/` (`admin_roles`, `admin_users`, `organizations`,
+    // `catalog`), each a `rows`, a `seed`, a `reset` and a co-located test — and
+    // delete one, `backend/src/seeds/seeded-role-permissions.ts`, whose constant is
+    // published on `@endora-commerce/mod-admin-roles/backend` instead. Seven
+    // changesets go with them. The base was measured on `origin/master`, where the
+    // census printed `0 drifted, 43 agree`, so every number below is this branch's
+    // and none of it is a delta subtracted from a moving tree.
+    files: 5501,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1638,7 +1683,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five changesets. This walk reads the sixteen module `.ts` files plus
     // `demo-relocated-reference.ts`.
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
-    files: 2300,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T222 + T224):
+    // files 2300 -> 2316.** The two batches add **16** module-package source files — four
+    // modules' `src/backend/demo/` (`admin_roles`, `admin_users`, `organizations`,
+    // `catalog`), each a `rows`, a `seed`, a `reset` and a co-located test — and
+    // delete one, `backend/src/seeds/seeded-role-permissions.ts`, whose constant is
+    // published on `@endora-commerce/mod-admin-roles/backend` instead. Seven
+    // changesets go with them. The base was measured on `origin/master`, where the
+    // census printed `0 drifted, 43 agree`, so every number below is this branch's
+    // and none of it is a delta subtracted from a moving tree.
+    files: 2316,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -1938,7 +1992,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five changesets. This walk reads the twelve non-test module files,
     // `demo-relocated-reference.ts` and `taxes`' `vitest.config.ts`.
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
-    files: 2163,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T222 + T224):
+    // files 2163 -> 2174.** The two batches add **16** module-package source files — four
+    // modules' `src/backend/demo/` (`admin_roles`, `admin_users`, `organizations`,
+    // `catalog`), each a `rows`, a `seed`, a `reset` and a co-located test — and
+    // delete one, `backend/src/seeds/seeded-role-permissions.ts`, whose constant is
+    // published on `@endora-commerce/mod-admin-roles/backend` instead. Seven
+    // changesets go with them. The base was measured on `origin/master`, where the
+    // census printed `0 drifted, 43 agree`, so every number below is this branch's
+    // and none of it is a delta subtracted from a moving tree.
+    files: 2174,
     sites: 260,
     sources: ['manifest-index'],
   },
@@ -2093,7 +2156,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five changesets. This walk reads the twelve non-test module files,
     // `demo-relocated-reference.ts` and `taxes`' `vitest.config.ts`.
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
-    files: 2163,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T222 + T224):
+    // files 2163 -> 2174.** The two batches add **16** module-package source files — four
+    // modules' `src/backend/demo/` (`admin_roles`, `admin_users`, `organizations`,
+    // `catalog`), each a `rows`, a `seed`, a `reset` and a co-located test — and
+    // delete one, `backend/src/seeds/seeded-role-permissions.ts`, whose constant is
+    // published on `@endora-commerce/mod-admin-roles/backend` instead. Seven
+    // changesets go with them. The base was measured on `origin/master`, where the
+    // census printed `0 drifted, 43 agree`, so every number below is this branch's
+    // and none of it is a delta subtracted from a moving tree.
+    files: 2174,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2248,7 +2320,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five changesets. This walk reads the twelve non-test module files,
     // `demo-relocated-reference.ts` and `taxes`' `vitest.config.ts`.
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
-    files: 2163,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T222 + T224):
+    // files 2163 -> 2174.** The two batches add **16** module-package source files — four
+    // modules' `src/backend/demo/` (`admin_roles`, `admin_users`, `organizations`,
+    // `catalog`), each a `rows`, a `seed`, a `reset` and a co-located test — and
+    // delete one, `backend/src/seeds/seeded-role-permissions.ts`, whose constant is
+    // published on `@endora-commerce/mod-admin-roles/backend` instead. Seven
+    // changesets go with them. The base was measured on `origin/master`, where the
+    // census printed `0 drifted, 43 agree`, so every number below is this branch's
+    // and none of it is a delta subtracted from a moving tree.
+    files: 2174,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -2397,7 +2478,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five changesets. This walk reads `backend/src/seeds/demo-relocated-reference.ts`,
     // and nothing else.
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
-    files: 700,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T222 + T224):
+    // files 700 -> 699.** The two batches add **16** module-package source files — four
+    // modules' `src/backend/demo/` (`admin_roles`, `admin_users`, `organizations`,
+    // `catalog`), each a `rows`, a `seed`, a `reset` and a co-located test — and
+    // delete one, `backend/src/seeds/seeded-role-permissions.ts`, whose constant is
+    // published on `@endora-commerce/mod-admin-roles/backend` instead. Seven
+    // changesets go with them. The base was measured on `origin/master`, where the
+    // census printed `0 drifted, 43 agree`, so every number below is this branch's
+    // and none of it is a delta subtracted from a moving tree.
+    files: 699,
     sites: 67,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
@@ -2806,7 +2896,6 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five changesets. This walk reads the twelve non-test module files,
     // `demo-relocated-reference.ts` and `taxes`' `vitest.config.ts`.
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
-    files: 2163,
     // **`specs/110-instance-repository/` T118a: sites 31 -> 103 (+72).** `files` does not
     // move at all — it is rule A's population, the whole of the source roots — and this
     // is the #235/#237 shape from the other side: the file count stands still while the
@@ -2816,6 +2905,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // imports 26 -> 98. The 72 sites are those 72 imports: every one of them was
     // already on disk and outside the rule. Measured on `origin/master` before the
     // change and on this branch after it, never by subtracting a delta.
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T222 + T224):
+    // files 2163 -> 2174.** The two batches add **16** module-package source files — four
+    // modules' `src/backend/demo/` (`admin_roles`, `admin_users`, `organizations`,
+    // `catalog`), each a `rows`, a `seed`, a `reset` and a co-located test — and
+    // delete one, `backend/src/seeds/seeded-role-permissions.ts`, whose constant is
+    // published on `@endora-commerce/mod-admin-roles/backend` instead. Seven
+    // changesets go with them. The base was measured on `origin/master`, where the
+    // census printed `0 drifted, 43 agree`, so every number below is this branch's
+    // and none of it is a delta subtracted from a moving tree.
+    files: 2174,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     sites: 103,
     // `platform-subpaths` is T118a's second author over rule B's population: the
@@ -3057,7 +3156,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copy of the moved blocks that keeps the demo parity comparison a comparison — and
     // five changesets. This walk reads the sixteen module `.ts` files plus
     // `demo-relocated-reference.ts`.
-    files: 2699,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T222 + T224):
+    // files 2699 -> 2715.** The two batches add **16** module-package source files — four
+    // modules' `src/backend/demo/` (`admin_roles`, `admin_users`, `organizations`,
+    // `catalog`), each a `rows`, a `seed`, a `reset` and a co-located test — and
+    // delete one, `backend/src/seeds/seeded-role-permissions.ts`, whose constant is
+    // published on `@endora-commerce/mod-admin-roles/backend` instead. Seven
+    // changesets go with them. The base was measured on `origin/master`, where the
+    // census printed `0 drifted, 43 agree`, so every number below is this branch's
+    // and none of it is a delta subtracted from a moving tree.
+    files: 2715,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
     sites: 56,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
@@ -3134,7 +3242,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copy of the moved blocks that keeps the demo parity comparison a comparison — and
     // five changesets. This walk reads the twelve non-test module files and `taxes`'
     // `vitest.config.ts`; it reads `.ts` and not `*.test.ts`.
-    files: 2078,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T222 + T224):
+    // files 2078 -> 2090.** The two batches add **16** module-package source files — four
+    // modules' `src/backend/demo/` (`admin_roles`, `admin_users`, `organizations`,
+    // `catalog`), each a `rows`, a `seed`, a `reset` and a co-located test — and
+    // delete one, `backend/src/seeds/seeded-role-permissions.ts`, whose constant is
+    // published on `@endora-commerce/mod-admin-roles/backend` instead. Seven
+    // changesets go with them. The base was measured on `origin/master`, where the
+    // census printed `0 drifted, 43 agree`, so every number below is this branch's
+    // and none of it is a delta subtracted from a moving tree.
+    files: 2090,
     // The finer population, and it is the one that moves when nothing else does
     // (issues #235/#237): tree sites, unreadable sites, renderer-map sites, the
     // block declarations and the declared `(key, context)` sections. A block
@@ -3174,7 +3291,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copy of the moved blocks that keeps the demo parity comparison a comparison — and
     // five changesets. This walk reads the sixteen module `.ts` files plus
     // `demo-relocated-reference.ts`.
-    files: 2797,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T222 + T224):
+    // files 2797 -> 2813.** The two batches add **16** module-package source files — four
+    // modules' `src/backend/demo/` (`admin_roles`, `admin_users`, `organizations`,
+    // `catalog`), each a `rows`, a `seed`, a `reset` and a co-located test — and
+    // delete one, `backend/src/seeds/seeded-role-permissions.ts`, whose constant is
+    // published on `@endora-commerce/mod-admin-roles/backend` instead. Seven
+    // changesets go with them. The base was measured on `origin/master`, where the
+    // census printed `0 drifted, 43 agree`, so every number below is this branch's
+    // and none of it is a delta subtracted from a moving tree.
+    files: 2813,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -3357,7 +3483,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // blocks that keeps the demo parity comparison a comparison — and five changesets.
     // This walk reads the twelve non-test module files and `taxes`' `vitest.config.ts`; it
     // reads `.ts` and not `*.test.ts`.
-    files: 1697,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T222 + T224):
+    // files 1697 -> 1709, sites 34256 -> 34428.** The two batches add **16** module-package source files — four
+    // modules' `src/backend/demo/` (`admin_roles`, `admin_users`, `organizations`,
+    // `catalog`), each a `rows`, a `seed`, a `reset` and a co-located test — and
+    // delete one, `backend/src/seeds/seeded-role-permissions.ts`, whose constant is
+    // published on `@endora-commerce/mod-admin-roles/backend` instead. Seven
+    // changesets go with them. The base was measured on `origin/master`, where the
+    // census printed `0 drifted, 43 agree`, so every number below is this branch's
+    // and none of it is a delta subtracted from a moving tree.
+    files: 1709,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -3425,7 +3560,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `ProductsList.tsx` moves it by **zero**, measured, which is why the total is
     // six and not more: its added strings are a permission code inside a call and a
     // translation key, neither of which this classifier counts as a site.
-    sites: 34256,
+    sites: 34428,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -3877,7 +4012,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // This walk reads the seventeen `.ts` files, counted once per walk that reaches them,
     // plus `taxes`' `vitest.config.ts`.
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
-    files: 4902,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T222 + T224):
+    // files 4902 -> 4933, sites 12448 -> 12552.** The two batches add **16** module-package source files — four
+    // modules' `src/backend/demo/` (`admin_roles`, `admin_users`, `organizations`,
+    // `catalog`), each a `rows`, a `seed`, a `reset` and a co-located test — and
+    // delete one, `backend/src/seeds/seeded-role-permissions.ts`, whose constant is
+    // published on `@endora-commerce/mod-admin-roles/backend` instead. Seven
+    // changesets go with them. The base was measured on `origin/master`, where the
+    // census printed `0 drifted, 43 agree`, so every number below is this branch's
+    // and none of it is a delta subtracted from a moving tree.
+    files: 4933,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -3929,7 +4073,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `import('./pages/ProductEditor.js')` factory, so the module's second entry point
     // to one screen is a second specifier. Measured by removing the entry and
     // re-running, which returns both checks to their recorded values together.
-    sites: 12448,
+    sites: 12552,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -4501,7 +4645,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five changesets. This walk reads every one of them — this walk is the whole
     // repository.
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. Repo-wide, so it takes the source and the changeset both.
-    files: 8114,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T222 + T224):
+    // files 8114 -> 8136.** The two batches add **16** module-package source files — four
+    // modules' `src/backend/demo/` (`admin_roles`, `admin_users`, `organizations`,
+    // `catalog`), each a `rows`, a `seed`, a `reset` and a co-located test — and
+    // delete one, `backend/src/seeds/seeded-role-permissions.ts`, whose constant is
+    // published on `@endora-commerce/mod-admin-roles/backend` instead. Seven
+    // changesets go with them. The base was measured on `origin/master`, where the
+    // census printed `0 drifted, 43 agree`, so every number below is this branch's
+    // and none of it is a delta subtracted from a moving tree.
+    files: 8136,
     sites: null,
     sources: [],
     //
@@ -4858,7 +5011,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five changesets. This walk reads the twelve non-test module files,
     // `demo-relocated-reference.ts` and `taxes`' `vitest.config.ts`.
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
-    files: 2163,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T222 + T224):
+    // files 2163 -> 2174.** The two batches add **16** module-package source files — four
+    // modules' `src/backend/demo/` (`admin_roles`, `admin_users`, `organizations`,
+    // `catalog`), each a `rows`, a `seed`, a `reset` and a co-located test — and
+    // delete one, `backend/src/seeds/seeded-role-permissions.ts`, whose constant is
+    // published on `@endora-commerce/mod-admin-roles/backend` instead. Seven
+    // changesets go with them. The base was measured on `origin/master`, where the
+    // census printed `0 drifted, 43 agree`, so every number below is this branch's
+    // and none of it is a delta subtracted from a moving tree.
+    files: 2174,
     sites: 214,
     sources: ['manifest-index'],
   },
@@ -4920,11 +5082,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // — the frozen copy of the moved blocks that keeps the demo parity comparison a
     // comparison — and five changesets. This walk reads the twelve non-test module files
     // and `taxes`' `vitest.config.ts`; it reads `.ts` and not `*.test.ts`.
-    files: 1929,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T222 + T224):
+    // files 1929 -> 1941, sites 1543 -> 1551.** The two batches add **16** module-package source files — four
+    // modules' `src/backend/demo/` (`admin_roles`, `admin_users`, `organizations`,
+    // `catalog`), each a `rows`, a `seed`, a `reset` and a co-located test — and
+    // delete one, `backend/src/seeds/seeded-role-permissions.ts`, whose constant is
+    // published on `@endora-commerce/mod-admin-roles/backend` instead. Seven
+    // changesets go with them. The base was measured on `origin/master`, where the
+    // census printed `0 drifted, 43 agree`, so every number below is this branch's
+    // and none of it is a delta subtracted from a moving tree.
+    files: 1941,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 1471 -> 1535.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
-    sites: 1543,
+    sites: 1551,
     sources: ['manifest-index'],
   },
   // Two derivations, deliberately, because the check has two inputs that can be
@@ -5053,7 +5224,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // blocks that keeps the demo parity comparison a comparison — and five changesets.
     // This walk reads the twelve non-test module files and `taxes`' `vitest.config.ts`; it
     // reads `.ts` and not `*.test.ts`.
-    files: 2460,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T222 + T224):
+    // files 2460 -> 2471, sites 1884 -> 1896.** The two batches add **16** module-package source files — four
+    // modules' `src/backend/demo/` (`admin_roles`, `admin_users`, `organizations`,
+    // `catalog`), each a `rows`, a `seed`, a `reset` and a co-located test — and
+    // delete one, `backend/src/seeds/seeded-role-permissions.ts`, whose constant is
+    // published on `@endora-commerce/mod-admin-roles/backend` instead. Seven
+    // changesets go with them. The base was measured on `origin/master`, where the
+    // census printed `0 drifted, 43 agree`, so every number below is this branch's
+    // and none of it is a delta subtracted from a moving tree.
+    files: 2471,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -5111,7 +5291,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/113-module-owned-demo-data/` Phase 1: sites 1873 -> 1871.** T215 deletes
     // `src/seeds/dev-seed-guard.ts` and `src/seeds/seed-scope.ts`, and each was one
     // relative host reach — `ledger-size` falls 70 -> 68 with them.
-    sites: 1884,
+    sites: 1896,
     // The third source is T060's floor: every module package whose manifest
     // declares the host package must have contributed a host reach to this walk.
     // The manifest is rendered from the bare specifiers the package's sources
@@ -5212,7 +5392,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copy of the moved blocks that keeps the demo parity comparison a comparison — and
     // five changesets. This walk reads the twelve non-test module files and `taxes`'
     // `vitest.config.ts`; it reads `.ts` and not `*.test.ts`.
-    files: 2027,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T222 + T224):
+    // files 2027 -> 2039.** The two batches add **16** module-package source files — four
+    // modules' `src/backend/demo/` (`admin_roles`, `admin_users`, `organizations`,
+    // `catalog`), each a `rows`, a `seed`, a `reset` and a co-located test — and
+    // delete one, `backend/src/seeds/seeded-role-permissions.ts`, whose constant is
+    // published on `@endora-commerce/mod-admin-roles/backend` instead. Seven
+    // changesets go with them. The base was measured on `origin/master`, where the
+    // census printed `0 drifted, 43 agree`, so every number below is this branch's
+    // and none of it is a delta subtracted from a moving tree.
+    files: 2039,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 692 -> 721.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -5661,7 +5850,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five changesets. This walk reads the twelve non-test module files,
     // `demo-relocated-reference.ts` and `taxes`' `vitest.config.ts`.
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
-    files: 2163,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T222 + T224):
+    // files 2163 -> 2174.** The two batches add **16** module-package source files — four
+    // modules' `src/backend/demo/` (`admin_roles`, `admin_users`, `organizations`,
+    // `catalog`), each a `rows`, a `seed`, a `reset` and a co-located test — and
+    // delete one, `backend/src/seeds/seeded-role-permissions.ts`, whose constant is
+    // published on `@endora-commerce/mod-admin-roles/backend` instead. Seven
+    // changesets go with them. The base was measured on `origin/master`, where the
+    // census printed `0 drifted, 43 agree`, so every number below is this branch's
+    // and none of it is a delta subtracted from a moving tree.
+    files: 2174,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -5738,7 +5936,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copy of the moved blocks that keeps the demo parity comparison a comparison — and
     // five changesets. This walk reads the four co-located demo tests, which is the whole
     // of what this walk sees of the branch.
-    files: 1723,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T222 + T224):
+    // files 1723 -> 1727, sites 1103 -> 1109.** The two batches add **16** module-package source files — four
+    // modules' `src/backend/demo/` (`admin_roles`, `admin_users`, `organizations`,
+    // `catalog`), each a `rows`, a `seed`, a `reset` and a co-located test — and
+    // delete one, `backend/src/seeds/seeded-role-permissions.ts`, whose constant is
+    // published on `@endora-commerce/mod-admin-roles/backend` instead. Seven
+    // changesets go with them. The base was measured on `origin/master`, where the
+    // census printed `0 drifted, 43 agree`, so every number below is this branch's
+    // and none of it is a delta subtracted from a moving tree.
+    files: 1727,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -5760,7 +5967,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // specifiers it gains add nothing back. `files` is untouched at 1715: no test file
     // arrived or left.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's co-located tests and the declared run that owns them.
-    sites: 1103,
+    sites: 1109,
     // Two independent authors. `manifest-index` is issue #215's shared floor
     // over the module walk, whose unit is the module's own directory rather than
     // a test file — 14 of the 70 packages ship no test and a floor over test
@@ -5931,7 +6138,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five changesets. This walk reads the twelve non-test module files,
     // `demo-relocated-reference.ts` and `taxes`' `vitest.config.ts`.
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
-    files: 2163,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T222 + T224):
+    // files 2163 -> 2174.** The two batches add **16** module-package source files — four
+    // modules' `src/backend/demo/` (`admin_roles`, `admin_users`, `organizations`,
+    // `catalog`), each a `rows`, a `seed`, a `reset` and a co-located test — and
+    // delete one, `backend/src/seeds/seeded-role-permissions.ts`, whose constant is
+    // published on `@endora-commerce/mod-admin-roles/backend` instead. Seven
+    // changesets go with them. The base was measured on `origin/master`, where the
+    // census printed `0 drifted, 43 agree`, so every number below is this branch's
+    // and none of it is a delta subtracted from a moving tree.
+    files: 2174,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -6128,7 +6344,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five changesets. This walk reads the seventeen `.ts` files plus `taxes`' new
     // `vitest.config.ts`; the five changesets are markdown.
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The one new platform source.
-    files: 4509,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T222 + T224):
+    // files 4509 -> 4524.** The two batches add **16** module-package source files — four
+    // modules' `src/backend/demo/` (`admin_roles`, `admin_users`, `organizations`,
+    // `catalog`), each a `rows`, a `seed`, a `reset` and a co-located test — and
+    // delete one, `backend/src/seeds/seeded-role-permissions.ts`, whose constant is
+    // published on `@endora-commerce/mod-admin-roles/backend` instead. Seven
+    // changesets go with them. The base was measured on `origin/master`, where the
+    // census printed `0 drifted, 43 agree`, so every number below is this branch's
+    // and none of it is a delta subtracted from a moving tree.
+    files: 4524,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -6721,7 +6946,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five changesets. This walk reads every one of them — this walk is the whole
     // repository.
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. Repo-wide, and the same two files as `check-nul-bytes.ts` above.
-    files: 8174,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T222 + T224):
+    // files 8174 -> 8196.** The two batches add **16** module-package source files — four
+    // modules' `src/backend/demo/` (`admin_roles`, `admin_users`, `organizations`,
+    // `catalog`), each a `rows`, a `seed`, a `reset` and a co-located test — and
+    // delete one, `backend/src/seeds/seeded-role-permissions.ts`, whose constant is
+    // published on `@endora-commerce/mod-admin-roles/backend` instead. Seven
+    // changesets go with them. The base was measured on `origin/master`, where the
+    // census printed `0 drifted, 43 agree`, so every number below is this branch's
+    // and none of it is a delta subtracted from a moving tree.
+    files: 8196,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -7024,7 +7258,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // five changesets. This walk reads the seventeen `.ts` files plus `taxes`' new
     // `vitest.config.ts`; the five changesets are markdown.
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. This scan reads source comments, so it takes the `.ts` and not the changeset markdown.
-    files: 6110,
+    // **Feature 113 Phase 2 (`specs/113-module-owned-demo-data/`, T222 + T224):
+    // files 6110 -> 6125.** The two batches add **16** module-package source files — four
+    // modules' `src/backend/demo/` (`admin_roles`, `admin_users`, `organizations`,
+    // `catalog`), each a `rows`, a `seed`, a `reset` and a co-located test — and
+    // delete one, `backend/src/seeds/seeded-role-permissions.ts`, whose constant is
+    // published on `@endora-commerce/mod-admin-roles/backend` instead. Seven
+    // changesets go with them. The base was measured on `origin/master`, where the
+    // census printed `0 drifted, 43 agree`, so every number below is this branch's
+    // and none of it is a delta subtracted from a moving tree.
+    files: 6125,
     sites: null,
     sources: ['manifest-index'],
     //

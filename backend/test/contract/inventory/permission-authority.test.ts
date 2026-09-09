@@ -10,7 +10,7 @@ import {
 import { AdminRole, AdminUser, Warehouse } from '../../helpers/package-entities.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
-import { SALES_REPRESENTATIVE_PERMISSIONS } from '../../../src/seeds/seeded-role-permissions.js';
+import { SALES_REPRESENTATIVE_PERMISSIONS } from '@endora-commerce/mod-admin-roles/backend';
 
 /**
  * `inventory` owns its own authority.

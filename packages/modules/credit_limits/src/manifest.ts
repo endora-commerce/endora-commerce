@@ -63,6 +63,20 @@ export const manifest = defineModuleManifest({
       weight: 400,
     },
   ],
+  /**
+   * Nothing to demonstrate of its own (feature 113, T222 — contract §1.2).
+   *
+   * The demo shop does have a granted credit limit, and it is not this module's
+   * demo data: a grant's whole content is a reference to an `organizations` row,
+   * so it is two modules' rows in one statement and belongs to whoever owns the
+   * instance (§5.1). It is a step of `backend/src/seeds/demo-composition.ts`,
+   * guarded on both modules, and this module does not declare `organizations` —
+   * §2.3's rule that `demo` may not become a way of acquiring a dependency.
+   *
+   * `false` rather than absent, because the two are different states: this is a
+   * decision that the module owes nothing, not a module nobody has looked at.
+   */
+  demo: false,
   activation: { settingCode: 'credit_limits.enabled', default: true },
   /**
    * This module's first i18n bundle — D-129's remaining sweep, MR 5.

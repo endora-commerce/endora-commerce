@@ -50,6 +50,7 @@ import type { DemoComposition, DemoCompositionResult } from '../demo/index.js';
 import { SalesChannel } from '../kernel/sales-channels/sales-channel.entity.js';
 import { hashPassword } from '../kernel/crypto/password-hasher.js';
 import { entityNamed } from '../packages/package-entity-lookup.js';
+import { createAttributeFixture, findAttributeDefinitionByKey } from './attribute-fixtures.js';
 import { entities as catalogEntities } from '@endora-commerce/mod-catalog/backend';
 import { entities as megamenuEntities } from '@endora-commerce/mod-megamenu/backend';
 import {
@@ -57,6 +58,9 @@ import {
   DEFAULT_WAREHOUSE_ID,
 } from '@endora-commerce/mod-inventory/backend';
 import { entities as customerAccountsEntities } from '@endora-commerce/mod-customer-accounts/backend';
+import { entities as adminRolesEntities } from '@endora-commerce/mod-admin-roles/backend';
+import { entities as adminUsersEntities } from '@endora-commerce/mod-admin-users/backend';
+import { entities as creditLimitsEntities } from '@endora-commerce/mod-credit-limits/backend';
 import { entities as organizationsEntities } from '@endora-commerce/mod-organizations/backend';
 import { DefaultPriceListMigrator } from '@endora-commerce/mod-price-lists/backend';
 import { CatalogProductReadService } from '@endora-commerce/mod-catalog/backend';
@@ -76,6 +80,11 @@ import type { StockLevel as StockLevelRow } from '../../../packages/modules/inve
 import type { Warehouse as WarehouseRow } from '../../../packages/modules/inventory/dist/backend/entities/warehouse.entity.js';
 import type { CustomerAccount as CustomerAccountRow } from '../../../packages/modules/customer_accounts/dist/backend/entities/customer-account.entity.js';
 import type { Organization as OrganizationRow } from '../../../packages/modules/organizations/dist/backend/entities/organization.entity.js';
+import type { AdminRole as AdminRoleRow } from '../../../packages/modules/admin_roles/dist/backend/entities/admin-role.entity.js';
+import type { AdminUser as AdminUserRow } from '../../../packages/modules/admin_users/dist/backend/entities/admin-user.entity.js';
+import type { CreditLimit as CreditLimitRow } from '../../../packages/modules/credit_limits/dist/backend/entities/credit-limit.entity.js';
+import type { AttributeSetAttribute as AttributeSetAttributeRow } from '../../../packages/modules/catalog/dist/backend/entities/attribute-set-attribute.entity.js';
+import type { CustomFieldDefinition as CustomFieldDefinitionRow } from '../../../packages/modules/custom_fields/dist/backend/entities/custom-field-definition.entity.js';
 
 const Category = entityNamed<CategoryRow>(
   catalogEntities,
@@ -122,6 +131,26 @@ const Organization = entityNamed<OrganizationRow>(
   'Organization',
   '@endora-commerce/mod-organizations/backend',
 );
+const AdminRole = entityNamed<AdminRoleRow>(
+  adminRolesEntities,
+  'AdminRole',
+  '@endora-commerce/mod-admin-roles/backend',
+);
+const AdminUser = entityNamed<AdminUserRow>(
+  adminUsersEntities,
+  'AdminUser',
+  '@endora-commerce/mod-admin-users/backend',
+);
+const CreditLimit = entityNamed<CreditLimitRow>(
+  creditLimitsEntities,
+  'CreditLimit',
+  '@endora-commerce/mod-credit-limits/backend',
+);
+const AttributeSetAttribute = entityNamed<AttributeSetAttributeRow>(
+  catalogEntities,
+  'AttributeSetAttribute',
+  '@endora-commerce/mod-catalog/backend',
+);
 
 /**
  * The demo shop's own vocabulary, which is this file's to hold.
@@ -141,6 +170,191 @@ export const DEMO_BUYER_EMAIL = 'buyer@demo-org.example';
 export const DEMO_BUYER_PASSWORD = 'ChangeMe!123';
 const DEMO_ORG_TAX_ID = 'PL5210000099';
 const DEMO_MENU_NAME = 'Main navigation';
+
+/**
+ * Which demo administrator holds which role (feature 113, T222).
+ *
+ * The instance's own statement about its shop, in the file that holds every
+ * other one: `admin_users` creates the accounts and `admin_roles` creates the
+ * roles, and neither may write the other's table, so the pairing has nowhere
+ * else to live (§5.1). Keyed on the natural keys both modules assign — an
+ * e-mail address and a role code — because ids are minted per run.
+ */
+const DEMO_ADMIN_ROLE_ASSIGNMENTS: readonly { readonly email: string; readonly roleCode: string }[] =
+  [
+    { email: 'admin@demo.local', roleCode: 'platform_admin' },
+    { email: 'sales-rep@demo.local', roleCode: 'sales_representative' },
+    { email: 'sales-rep-other@demo.local', roleCode: 'sales_representative' },
+  ];
+
+/** What the demo organisation may buy on account, and in which currency. */
+const DEMO_CREDIT_LIMIT = { grantedAmount: '50000.00', currency: 'PLN' } as const;
+
+/**
+ * The demo's product attributes (feature 113, T224).
+ *
+ * Each one is a `custom_field_definitions` row paired 1:1 with a
+ * `product_attributes` extension row — `custom_fields`' table and `catalog`'s,
+ * written in one call — so the whole vocabulary is the composition's (§5.1).
+ * That is a **correction to §3.3**, which proposed splitting the pair between
+ * the two modules with an advisory `after` edge: `catalog` would have had to
+ * read `custom_field_definitions` to find the id its extension row references,
+ * and §2.2 forbids a demo body reading another module's table. The split has no
+ * implementation, and the pair has always been composition — `attribute-
+ * fixtures.ts` says so in its own header, and calling it from here is what keeps
+ * FR-019's one copy of the helper.
+ *
+ * The set membership below is `catalog`'s `attribute_set_attributes`, which
+ * references the same definition and is therefore the same step's.
+ */
+const DEMO_PRODUCT_ATTRIBUTES: readonly Parameters<typeof createAttributeFixture>[1][] = [
+  {
+    key: 'color',
+    label: { 'en-US': 'Color' },
+    labelDefault: 'Color',
+    valueType: 'enum',
+    isSearchable: true,
+    isFilterable: true,
+    sortOrder: 0,
+    options: ['red', 'green', 'blue', 'black', 'white'].map((value, index) => ({
+      value,
+      labelDefault: value,
+      sortOrder: index,
+    })),
+  },
+  {
+    key: 'material',
+    label: { 'en-US': 'Material' },
+    labelDefault: 'Material',
+    valueType: 'enum',
+    isFilterable: true,
+    sortOrder: 1,
+    options: ['steel', 'aluminium', 'plastic', 'wood', 'glass'].map((value, index) => ({
+      value,
+      labelDefault: value,
+      sortOrder: index,
+    })),
+  },
+  {
+    key: 'weight_kg',
+    label: { 'en-US': 'Weight (kg)' },
+    labelDefault: 'Weight (kg)',
+    valueType: 'number',
+    isFilterable: true,
+    sortOrder: 2,
+  },
+  {
+    key: 'certification',
+    label: { 'en-US': 'Certification' },
+    labelDefault: 'Certification',
+    valueType: 'string',
+    isSearchable: true,
+    sortOrder: 3,
+  },
+  {
+    key: 'internal_sku_notes',
+    label: { 'en-US': 'Internal SKU notes' },
+    labelDefault: 'Internal SKU notes',
+    valueType: 'string',
+    isSearchable: true,
+    sortOrder: 4,
+  },
+  // Feature 002 — sample attributes of the new API-form types so the admin UI
+  // editor can demonstrate `multiselect` and `price` paths.
+  {
+    key: 'compatible_systems',
+    label: { 'en-US': 'Compatible systems' },
+    labelDefault: 'Compatible systems',
+    valueType: 'multiselect',
+    isSearchable: true,
+    isFilterable: true,
+    sortOrder: 5,
+    options: ['windows', 'macos', 'linux'].map((value, index) => ({
+      value,
+      labelDefault: value,
+      sortOrder: index,
+    })),
+  },
+  {
+    key: 'manufacturer_price',
+    label: { 'en-US': 'Manufacturer price' },
+    labelDefault: 'Manufacturer price',
+    valueType: 'price',
+    isFilterable: true,
+    displayAsSlider: true,
+    sortOrder: 6,
+  },
+];
+
+/**
+ * The system Default Attribute Set, created by a migration with a fixed id.
+ *
+ * Membership is definition-keyed (feature 061), so assigning to it is the same
+ * two-module write as the attribute itself.
+ */
+const DEFAULT_ATTRIBUTE_SET_ID = 'defa0017-0000-4000-8000-000000000000';
+
+/**
+ * `?, ?, ?` for a list bound one value at a time.
+ *
+ * Written out rather than `= any(?)`: MikroORM's connection binds an array by
+ * **expanding** it into a comma-separated list, so `any(?)` becomes
+ * `any('a', 'b')` and Postgres refuses it — measured on the first composed run
+ * of the attachment step.
+ */
+function placeholders(count: number): string {
+  return new Array(count).fill('?').join(', ');
+}
+
+/** The label each gallery position carries, in the order the demo mints them. */
+const GALLERY_POSITION_LABELS = ['base_image', 'small_image', 'thumbnail'];
+
+/** The two documents the demo attaches to its first three products. */
+const DEMO_ATTACHMENT_ASSETS = [
+  {
+    filename: 'sample-certificate.pdf',
+    typeCode: 'certificate',
+    sizeBytes: 102400,
+    url: 'https://example.test/sample-certificate.pdf',
+    name: 'CE Marking',
+    description: 'Manufacturer-issued conformity statement.',
+  },
+  {
+    filename: 'sample-tech-spec.pdf',
+    typeCode: 'tech_spec',
+    sizeBytes: 204800,
+    url: 'https://example.test/sample-tech-spec.pdf',
+    name: 'Datasheet',
+    description: null,
+  },
+] as const;
+
+/**
+ * A demo product's creation index, read back off its own slug.
+ *
+ * The host block held the products in an array and used the array index for the
+ * image count and for the first three attachments' numbering. Once each module
+ * seeds itself there is no such array, so the index is recovered from the slug
+ * the demo mints — `demo-<leaf>-<i padded to 4>` — which is the same
+ * query-shaped read the bridge step already makes for the leaf (§ R3(b)).
+ * `null` for a slug that does not carry one, which is every composite.
+ */
+function demoProductOrdinal(slug: string): number | null {
+  const tail = slug.slice(DEMO_PRODUCT_SLUG_PREFIX.length).split('-')[1];
+  if (tail === undefined || !/^[0-9]{4}$/.test(tail)) return null;
+  const parsed = Number(tail);
+  return Number.isNaN(parsed) || parsed < 1 ? null : parsed;
+}
+
+/** The demo's simple products, in the order the host block created them. */
+async function demoSimpleProducts(em: EntityManager): Promise<ProductRow[]> {
+  const products = await em.find(Product, {
+    slug: { $like: `${DEMO_PRODUCT_SLUG_PREFIX}%` },
+  });
+  return products
+    .filter((product) => demoProductOrdinal(product.slug) !== null)
+    .sort((left, right) => demoProductOrdinal(left.slug)! - demoProductOrdinal(right.slug)!);
+}
 const KRAKOW_WAREHOUSE_CODE = 'pl-krk';
 /** Every product the demo seeds slugs itself `demo-<leaf>-<index>`. */
 const DEMO_PRODUCT_SLUG_PREFIX = 'demo-';
@@ -193,6 +407,73 @@ interface CompositionStep {
   withdraw(em: EntityManager): Promise<void>;
 }
 
+/**
+ * The demo's placeholder product art (feature 113, T224).
+ *
+ * Moved here from `dev-catalog-seed.ts` with the block that uses it, and the
+ * block is a **composition step**: every image mints an `assets` row —
+ * `assets_library`'s table — and hands its id to four of `catalog`'s, so it is
+ * two modules' rows in one statement (§5.1). T224's task text expected all four
+ * content helpers to move into `catalog`; two of them describe an asset rather
+ * than a product, and they went where the rows go.
+ *
+ * The images are inline `data:image/svg+xml`, built in-process: re-seeding is
+ * stable, nothing is fetched at render time, and a generated catalogue costs the
+ * same shipped bytes at 200 products as at 10 000 — which is the property the
+ * Phase 3 budget assumes.
+ */
+/** Deterministic background colour (hex, no #) per leaf slug for demo images. */
+function leafImageColor(slug: string): string {
+  const palette: Record<string, string> = {
+    screws: '1f6feb',
+    bolts: '8250df',
+    wrenches: 'bf8700',
+    drills: 'cf222e',
+    cables: '1a7f37',
+    sensors: '0969da',
+    gloves: 'bc4c00',
+    helmets: '6e7781',
+  };
+  return palette[slug] ?? '30363d';
+}
+
+/**
+ * Line-art product glyphs (viewBox 0 0 100 100, fill none, stroke) mirroring
+ * the Storefront UI reference project (`specs/b2b-platform-storefront-ui/
+ * project/industria-icons.jsx` → `ProductGlyph`). Keyed by demo leaf slug; the
+ * default `box` glyph covers anything else. These replace the old
+ * `placehold.co` text tiles with the design's own minimalist product art.
+ */
+const LEAF_GLYPHS: Record<string, string> = {
+  screws: `<ellipse cx="50" cy="16" rx="18" ry="6"/><line x1="40" y1="16" x2="60" y2="16"/><path d="M40 20 V64 L50 86 L60 64 V20"/><line x1="40" y1="30" x2="60" y2="26"/><line x1="40" y1="42" x2="60" y2="38"/><line x1="40" y1="54" x2="60" y2="50"/>`,
+  bolts: `<polygon points="34 16 50 8 66 16 66 34 50 42 34 34"/><line x1="50" y1="8" x2="50" y2="42"/><rect x="42" y="42" width="16" height="46" rx="1"/><line x1="42" y1="52" x2="58" y2="52"/><line x1="42" y1="62" x2="58" y2="62"/><line x1="42" y1="72" x2="58" y2="72"/>`,
+  wrenches: `<path d="M70 14 a16 16 0 0 1 14 22 l-44 44 a8 8 0 0 1 -12 -12 l44 -44 a16 16 0 0 1 -2 -10 z"/><circle cx="78" cy="22" r="3"/>`,
+  drills: `<rect x="44" y="10" width="12" height="16"/><path d="M44 26 h12 v40 l-6 20 -6 -20 z"/><path d="M44 34 l12 6 M44 46 l12 6 M44 58 l12 6"/>`,
+  cables: `<path d="M14 30 C 30 30, 30 70, 50 70 S 70 30, 86 30"/><path d="M14 38 C 30 38, 30 78, 50 78 S 70 38, 86 38"/><path d="M14 46 C 30 46, 30 86, 50 86 S 70 46, 86 46"/>`,
+  sensors: `<circle cx="50" cy="50" r="14"/><rect x="36" y="50" width="28" height="30" rx="2" transform="rotate(-90 50 50)"/><line x1="76" y1="36" x2="86" y2="36"/><line x1="76" y1="50" x2="86" y2="50"/><line x1="76" y1="64" x2="86" y2="64"/><circle cx="50" cy="50" r="5"/>`,
+  gloves: `<path d="M34 86 V50 c0 -4 6 -4 6 0 V34 c0 -5 7 -5 7 0 v14 M47 48 V26 c0 -5 7 -5 7 0 v22 M54 48 V30 c0 -5 7 -5 7 0 v18 M61 48 V40 c0 -6 8 -5 8 2 v14 c0 18 -8 30 -18 30 H44 c-6 0 -10 -4 -10 -10 Z"/><line x1="34" y1="70" x2="69" y2="70"/>`,
+  helmets: `<path d="M20 64 a30 30 0 0 1 60 0 Z"/><path d="M40 36 q10 -6 20 0"/><line x1="50" y1="34" x2="50" y2="64"/><rect x="16" y="64" width="68" height="8" rx="4"/>`,
+};
+const DEFAULT_GLYPH = `<rect x="20" y="30" width="60" height="50" rx="4"/><line x1="20" y1="44" x2="80" y2="44"/>`;
+
+/**
+ * Build an `data:image/svg+xml` product placeholder: a soft category-tinted
+ * panel with the leaf's line-art glyph centred (60% box, matching the
+ * reference `.gallery__main` layout) and a small monospace position index so
+ * the 2–3 gallery images of a product stay visually distinct.
+ */
+function productPlaceholderSvg(leafSlug: string, bgHex: string, index: number): string {
+  const glyph = LEAF_GLYPHS[leafSlug] ?? DEFAULT_GLYPH;
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="800" height="800">` +
+    `<rect width="100" height="100" fill="#fbfbfc"/>` +
+    `<circle cx="50" cy="50" r="30" fill="#${bgHex}" opacity="0.06"/>` +
+    `<g fill="none" stroke="#9ca3af" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" transform="translate(20 20) scale(0.6)">${glyph}</g>` +
+    `<text x="92" y="94" font-size="6" fill="#c7ccd1" text-anchor="end" font-family="monospace">${String(index + 1).padStart(2, '0')}</text>` +
+    `</svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
 /** The categories the menu names, by slug, from the database. */
 async function categoriesBySlug(em: EntityManager): Promise<Map<string, CategoryRow>> {
   const wanted = MENU_SECTIONS.flatMap((section) => [section.slug, ...section.leaves]);
@@ -237,6 +518,11 @@ const STEPS: readonly CompositionStep[] = [
     name: 'megamenu over the category tree',
     modules: ['megamenu', 'catalog'],
     async apply(em) {
+      // Idempotent by the name this step creates the menu under, on contract
+      // §2.4's terms — a composition step is as re-runnable as a module body or
+      // it is the one thing that stops a second `endora demo seed` (SC-007).
+      const held = await em.findOne(Megamenu, { name: DEMO_MENU_NAME });
+      if (held !== null) return;
       const categories = await categoriesBySlug(em);
       const menu = em.create(Megamenu, {
         name: DEMO_MENU_NAME,
@@ -353,17 +639,24 @@ const STEPS: readonly CompositionStep[] = [
         channelRows.push('(?, ?)');
         channelParams.push(channel.id, product.id);
       }
+      // `on conflict do nothing` rather than a probe, and the difference
+      // matters here: both of these are pure join tables with a composite
+      // primary key, so a **partially** bridged catalogue — a product added
+      // after the last run — finishes bridging on the next one, which a
+      // whole-table probe would skip.
       if (categoryRows.length > 0) {
         await conn.execute(
           `insert into product_categories (product_id, category_id)
-            values ${categoryRows.join(', ')}`,
+            values ${categoryRows.join(', ')}
+            on conflict do nothing`,
           categoryParams,
         );
       }
       if (channelRows.length > 0) {
         await conn.execute(
           `insert into sales_channel_products (sales_channel_id, product_id)
-            values ${channelRows.join(', ')}`,
+            values ${channelRows.join(', ')}
+            on conflict do nothing`,
           channelParams,
         );
       }
@@ -505,6 +798,360 @@ const STEPS: readonly CompositionStep[] = [
       const buyer = await em.findOne(CustomerAccount, { email: DEMO_BUYER_EMAIL });
       if (buyer === null) return;
       await em.removeAndFlush(buyer);
+    },
+  },
+  {
+    // ── 6. the product attributes and their Default-set membership ────────
+    // A product attribute is a `custom_field_definitions` row paired 1:1 with a
+    // `product_attributes` extension row (feature 061), created in one call, so
+    // it is two modules' rows in one statement and no module's demo data
+    // (§5.1). `attribute-fixtures.ts` is that call and is the one copy of it
+    // (FR-019); its own header says a file writing both tables is composition.
+    //
+    // It runs after `catalog`'s products rather than before them, which the
+    // host block did the other way round. Nothing depends on the order:
+    // `products.attributeValues` is a JSONB blob naming these attributes by key
+    // with no reference to them at all.
+    name: 'product attributes over the demo catalogue',
+    modules: ['catalog', 'custom_fields'],
+    async apply(em) {
+      const definitions: CustomFieldDefinitionRow[] = [];
+      for (const attribute of DEMO_PRODUCT_ATTRIBUTES) {
+        const existing = await findAttributeDefinitionByKey(em, attribute.key);
+        if (existing !== null) {
+          definitions.push(existing);
+          continue;
+        }
+        const { definition } = await createAttributeFixture(em, attribute);
+        definitions.push(definition);
+      }
+
+      // Feature 002 — every seeded attribute joins the system Default set, so
+      // the admin Product editor lists them out of the box.
+      for (const [index, definition] of definitions.entries()) {
+        const existing = await em.findOne(AttributeSetAttribute, {
+          attributeSetId: DEFAULT_ATTRIBUTE_SET_ID,
+          customFieldDefinitionId: definition.id,
+        });
+        if (existing !== null) continue;
+        em.persist(
+          em.create(AttributeSetAttribute, {
+            attributeSetId: DEFAULT_ATTRIBUTE_SET_ID,
+            customFieldDefinitionId: definition.id,
+            position: index,
+          }),
+        );
+      }
+      await em.flush();
+    },
+    async withdraw(em) {
+      // By the seven keys this step created, and in the order the references
+      // run. The host's reset deleted **every** product-host definition, which
+      // took an operator's own attributes with it.
+      const conn = em.getConnection();
+      const keys = DEMO_PRODUCT_ATTRIBUTES.map((attribute) => attribute.key);
+      await conn.execute(
+        `delete from attribute_set_attributes where custom_field_definition_id in
+           (select id from custom_field_definitions
+             where entity_type = 'product' and key in (${placeholders(keys.length)}))`,
+        keys,
+      );
+      await conn.execute(
+        `delete from product_attributes where custom_field_definition_id in
+           (select id from custom_field_definitions
+             where entity_type = 'product' and key in (${placeholders(keys.length)}))`,
+        keys,
+      );
+      await conn.execute(
+        `delete from custom_field_options where definition_id in
+           (select id from custom_field_definitions
+             where entity_type = 'product' and key in (${placeholders(keys.length)}))`,
+        keys,
+      );
+      await conn.execute(
+        `delete from custom_field_definitions where entity_type = 'product'
+            and key in (${placeholders(keys.length)})`,
+        keys,
+      );
+    },
+  },
+  {
+    // ── 7. the product images ─────────────────────────────────────────────
+    // Two or three placeholder images per simple product, so storefront cards
+    // and the PDP render real `<img>` tags out of the box. Each mints an
+    // `assets` row — `assets_library`'s table — and hands its id to
+    // `product_assets`, `gallery_items` and `gallery_item_labels`, all
+    // `catalog`'s: two modules' rows in one statement (§5.1).
+    //
+    // The gallery rows mirror the legacy `product_assets` ones so a seeded
+    // product looks identical to one whose photos an operator uploaded through
+    // the Assets Library — without them the admin Product card's Gallery table
+    // reads empty while the storefront falls back to the legacy rows.
+    name: 'placeholder images for the demo catalogue',
+    modules: ['catalog', 'assets_library'],
+    async apply(em) {
+      const conn = em.getConnection();
+      const products = await demoSimpleProducts(em);
+      const held = await conn.execute<{ n: string }[]>(
+        `select count(*)::text as n from product_assets where product_id in
+           (select id from products where slug like ?)`,
+        [`${DEMO_PRODUCT_SLUG_PREFIX}%`],
+      );
+      // Idempotent by a probe on the join rather than per product: the images
+      // are one deterministic batch, so either the demo has them or it has not.
+      if (Number(held[0]?.n ?? '0') > 0 || products.length === 0) return;
+
+      const assetRows: string[] = [];
+      const assetParams: unknown[] = [];
+      const productAssetRows: string[] = [];
+      const productAssetParams: unknown[] = [];
+      const galleryRows: string[] = [];
+      const galleryParams: unknown[] = [];
+      const labelRows: string[] = [];
+      const labelParams: unknown[] = [];
+      for (const [index, product] of products.entries()) {
+        const leafSlug = product.slug.slice(DEMO_PRODUCT_SLUG_PREFIX.length).split('-')[0]!;
+        const background = leafImageColor(leafSlug);
+        const imageCount = 2 + (index % 2); // 2 or 3 images per product
+        for (let position = 0; position < imageCount; position++) {
+          const assetId = crypto.randomUUID();
+          const url = productPlaceholderSvg(leafSlug, background, position);
+          assetRows.push(`(?, 'image', ?, 'image/svg+xml', ?, ?, now(), now())`);
+          assetParams.push(
+            assetId,
+            `${product.slug}-${position + 1}.svg`,
+            Buffer.byteLength(url),
+            url,
+          );
+          productAssetRows.push('(?, ?, ?)');
+          productAssetParams.push(product.id, assetId, position);
+
+          const galleryItemId = crypto.randomUUID();
+          galleryRows.push('(?, ?, ?, ?, now(), now())');
+          galleryParams.push(galleryItemId, product.id, assetId, position);
+          const label = GALLERY_POSITION_LABELS[position];
+          if (label) {
+            labelRows.push('(?, ?, ?)');
+            labelParams.push(galleryItemId, product.id, label);
+          }
+        }
+      }
+      await conn.execute(
+        `insert into assets (id, kind, filename, mime_type, size_bytes, storage_url, created_at, updated_at)
+         values ${assetRows.join(', ')}`,
+        assetParams,
+      );
+      await conn.execute(
+        `insert into product_assets (product_id, asset_id, position) values ${productAssetRows.join(', ')}`,
+        productAssetParams,
+      );
+      await conn.execute(
+        `insert into gallery_items (id, product_id, asset_id, position, created_at, updated_at)
+         values ${galleryRows.join(', ')}`,
+        galleryParams,
+      );
+      await conn.execute(
+        `insert into gallery_item_labels (gallery_item_id, product_id, label) values ${labelRows.join(', ')}`,
+        labelParams,
+      );
+    },
+    async withdraw(em) {
+      // The asset ids are collected before the joins that name them go, because
+      // afterwards nothing in the database says which `assets` rows were the
+      // demo's. An operator's own upload against a demo product is a different
+      // row and survives: only assets this step created carry both a demo
+      // product's slug in their filename and the `.svg` the generator writes.
+      const conn = em.getConnection();
+      const like = `${DEMO_PRODUCT_SLUG_PREFIX}%`;
+      const assets = await conn.execute<{ id: string }[]>(
+        `select a.id from assets a
+           join product_assets pa on pa.asset_id = a.id
+           join products p on p.id = pa.product_id
+          where p.slug like ? and a.filename = p.slug || '-' || (pa.position + 1) || '.svg'`,
+        [like],
+      );
+      const ids = assets.map((row) => row.id);
+      await conn.execute(
+        `delete from gallery_item_labels where product_id in
+           (select id from products where slug like ?)`,
+        [like],
+      );
+      await conn.execute(
+        `delete from gallery_items where product_id in
+           (select id from products where slug like ?)`,
+        [like],
+      );
+      await conn.execute(
+        `delete from product_assets where product_id in
+           (select id from products where slug like ?)`,
+        [like],
+      );
+      if (ids.length > 0) {
+        await conn.execute(
+          `delete from assets where id in (${placeholders(ids.length)})`,
+          ids,
+        );
+      }
+    },
+  },
+  {
+    // ── 8. the sample attachments ─────────────────────────────────────────
+    // Two PDF assets attached to the first three simple products as a
+    // certificate and a tech spec, so the storefront PDP renders its
+    // AttachmentsList without an operator uploading anything. Same two modules
+    // as the images, and the same reason it is a step (§5.1).
+    //
+    // The attachment **types** are `catalog`'s own, created by a migration; a
+    // deployment that removed one gets the other's attachments and no error,
+    // which is the degrade the host block already took.
+    name: 'sample attachments for the demo catalogue',
+    modules: ['catalog', 'assets_library'],
+    async apply(em) {
+      const conn = em.getConnection();
+      const products = (await demoSimpleProducts(em)).slice(0, 3);
+      if (products.length === 0) return;
+      const productIds = products.map((product) => product.id);
+      const held = await conn.execute<{ n: string }[]>(
+        `select count(*)::text as n from product_attachments
+          where product_id in (${placeholders(productIds.length)})`,
+        productIds,
+      );
+      if (Number(held[0]?.n ?? '0') > 0) return;
+
+      const assetIdByFilename = new Map<string, string>();
+      const assetRows: string[] = [];
+      const assetParams: unknown[] = [];
+      for (const asset of DEMO_ATTACHMENT_ASSETS) {
+        const assetId = crypto.randomUUID();
+        assetIdByFilename.set(asset.filename, assetId);
+        assetRows.push(`(?, 'pdf', ?, 'application/pdf', ?, ?, now(), now())`);
+        assetParams.push(assetId, asset.filename, asset.sizeBytes, asset.url);
+      }
+      await conn.execute(
+        `insert into assets (id, kind, filename, mime_type, size_bytes, storage_url, created_at, updated_at)
+         values ${assetRows.join(', ')}`,
+        assetParams,
+      );
+
+      const typeCodes = DEMO_ATTACHMENT_ASSETS.map((asset) => asset.typeCode);
+      const types = await conn.execute<{ id: string; code: string }[]>(
+        `select id, code from attachment_types where code in (${placeholders(typeCodes.length)})`,
+        typeCodes,
+      );
+      const typeIdByCode = new Map(types.map((row) => [row.code, row.id]));
+      for (const [index, product] of products.entries()) {
+        for (const [position, asset] of DEMO_ATTACHMENT_ASSETS.entries()) {
+          const typeId = typeIdByCode.get(asset.typeCode);
+          if (typeId === undefined) continue;
+          await conn.execute(
+            `insert into product_attachments (id, product_id, asset_id, attachment_type_id, name, description, position, created_at, updated_at)
+             values (?, ?, ?, ?, ?, ?, ?, now(), now())`,
+            [
+              crypto.randomUUID(),
+              product.id,
+              assetIdByFilename.get(asset.filename),
+              typeId,
+              `${asset.name} ${index + 1}`,
+              asset.description,
+              position,
+            ],
+          );
+        }
+      }
+    },
+    async withdraw(em) {
+      const conn = em.getConnection();
+      await conn.execute(
+        `delete from product_attachments where product_id in
+           (select id from products where slug like ?)`,
+        [`${DEMO_PRODUCT_SLUG_PREFIX}%`],
+      );
+      const filenames = DEMO_ATTACHMENT_ASSETS.map((asset) => asset.filename);
+      await conn.execute(
+        `delete from assets where kind = 'pdf'
+           and filename in (${placeholders(filenames.length)})`,
+        filenames,
+      );
+    },
+  },
+  {
+    // ── 6. the demo administrators take their roles ───────────────────────
+    // An `admin_users` row carrying an `admin_roles` id is two modules' rows
+    // in one statement, so which account holds which role is the instance's
+    // statement and not either module's (§5.1). `admin_users` creates the
+    // three accounts with no role, `admin_roles` creates the two roles, and
+    // this step joins them by the natural keys both assign.
+    //
+    // **It is an update and not a creation, which is the difference from step
+    // 5.** `AdminUser.adminRoleId` is nullable, so the account exists before
+    // it has a role and the split is available;
+    // `customer_accounts.organization_id` is `NOT NULL`, so there the
+    // composition has to create the row outright. The schema decides which
+    // shape a link takes, not a preference.
+    name: 'demo administrators take their roles',
+    modules: ['admin_users', 'admin_roles'],
+    async apply(em) {
+      const roles = await em.find(AdminRole, {
+        code: { $in: DEMO_ADMIN_ROLE_ASSIGNMENTS.map((row) => row.roleCode) },
+      });
+      const byCode = new Map(roles.map((role) => [role.code, role]));
+      for (const assignment of DEMO_ADMIN_ROLE_ASSIGNMENTS) {
+        const role = byCode.get(assignment.roleCode);
+        const account = await em.findOne(AdminUser, { email: assignment.email });
+        // A role the demo did not create, or an account it did not create, is
+        // an instance the operator has already changed. Skipped rather than
+        // repaired: this step joins what is there and creates neither side.
+        if (role === undefined || account === null) continue;
+        account.adminRoleId = role.id;
+      }
+      await em.flush();
+    },
+    async withdraw(em) {
+      // The link and only the link. The accounts are `admin_users`' to remove
+      // and the roles are `admin_roles`' — and unassigning first is what
+      // leaves no row referencing a role either of them is about to delete.
+      const accounts = await em.find(AdminUser, {
+        email: { $in: DEMO_ADMIN_ROLE_ASSIGNMENTS.map((row) => row.email) },
+      });
+      for (const account of accounts) account.adminRoleId = null;
+      await em.flush();
+    },
+  },
+  {
+    // ── 7. the credit limit granted to the demo organisation ──────────────
+    // `credit_limits` owns the row and `organizations` owns the party it is
+    // granted to, so the grant is two modules' rows in one statement and no
+    // module's demo data (§5.1).
+    //
+    // It is what makes `payment_methods`' `credit_limit` method visible at
+    // all: checkout hides that method from a buyer whose organisation holds no
+    // grant, and again when the cart exceeds what is available. Without this
+    // row the demo would offer an option no seeded buyer can ever see.
+    name: 'credit limit granted to the demo organisation',
+    modules: ['credit_limits', 'organizations'],
+    async apply(em) {
+      const organization = await em.findOne(Organization, { taxId: DEMO_ORG_TAX_ID });
+      if (organization === null) return;
+      const existing = await em.findOne(CreditLimit, { organizationId: organization.id });
+      // One row per organisation is a unique index on that table, so a second
+      // run must probe rather than insert.
+      if (existing !== null) return;
+      em.create(CreditLimit, {
+        organizationId: organization.id,
+        grantedAmount: DEMO_CREDIT_LIMIT.grantedAmount,
+        currency: DEMO_CREDIT_LIMIT.currency,
+      });
+      await em.flush();
+    },
+    async withdraw(em) {
+      // By the organisation the demo created, in SQL rather than through the
+      // ORM: `CreditLimit` is `@OrgScoped`, and a withdrawal that depended on
+      // the ambient tenant would remove a different set on a different scope.
+      await em.getConnection().execute(
+        `delete from credit_limits where organization_id in
+           (select id from organizations where tax_id = ?)`,
+        [DEMO_ORG_TAX_ID],
+      );
     },
   },
 ];

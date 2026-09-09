@@ -1,5 +1,37 @@
-import { defineModuleManifest, type ModuleCliCommand } from '@endora-commerce/contracts';
+import {
+  defineModuleManifest,
+  type ModuleCliCommand,
+  type ModuleDemoManifest,
+} from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
+
+/**
+ * The demo data this module owns (feature 113, T222 — contract §1.3).
+ *
+ * A typed `const` rather than an inline object literal: declared inline the
+ * parameter infers from the schema and is `never`, so the author loses
+ * `context.ctx: ModuleContext`.
+ *
+ * Both bodies are reached by a **relative `await import()`** (§1.4), in
+ * `cliCommands.run`'s shape and for `cliCommands`' reason: a manifest is loaded
+ * by every process that composes the platform and by the check scripts that
+ * import the generated index, so a demo body imported at the top of this file
+ * would be a service graph pulled into all of them. It needs no `exports`
+ * subpath and no `files` entry (§1.5).
+ *
+ * **The role each account holds is not here.** An `admin_users` row carrying an
+ * `admin_roles` id is two modules' rows in one statement, so the assignment is a
+ * composition step (§5.1) and belongs to whoever owns the instance. The column
+ * is nullable, which is what makes that split available at all.
+ *
+ * The sign-in details come back as `DemoSeedResult.credentials`, so the runner
+ * formats them once (§3.7) instead of the seed printing them itself.
+ */
+const demo: ModuleDemoManifest<ModuleContext> = {
+  summary: 'Three administrator accounts to sign in to the Admin UI with.',
+  seed: async (context) => (await import('./backend/demo/seed.js')).seedDemo(context),
+  reset: async (context) => (await import('./backend/demo/reset.js')).resetDemo(context),
+};
 
 /**
  * Admin Users module — manifest backfill (Module Lifecycle, feature 018).
@@ -149,6 +181,7 @@ export const manifest = defineModuleManifest({
     },
   ],
   permissions: [{ code: 'customers:impersonate', label: 'Impersonate customers' }],
+  demo,
   // Feature 072/073 (Constitution XVII) — this module owns the admin login
   // route, the admin session and the impersonation flow. Switched off, nobody
   // can sign in to the Admin UI, including to switch it back on: the one
