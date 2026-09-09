@@ -224,6 +224,47 @@ export interface ModuleDemoManifest<Ctx = unknown> {
    * the name has to be unmistakably not the lifecycle one.
    */
   after?: readonly string[] | undefined;
+  /**
+   * The package this module's demo data lives in — **the escape hatch** (§6,
+   * D-5), and a package **name as a string**, never an `import` specifier.
+   *
+   * ## Why a string, and it is measured rather than stylistic
+   *
+   * A module package's `package.json` is generated
+   * (`backend/scripts/lib/module-package-manifest.ts`), and `peerNamesOf`
+   * records every specifier `namedSpecifiers` yields **with no filter on kind**
+   * — a walk that recognises `dynamic-import`
+   * (`packages/cli/src/lib/specifiers.ts`, `callee.kind ===
+   * ts.SyntaxKind.ImportKeyword`). So a literal
+   * `await import('@endora-commerce/mod-<id>-demo')` written anywhere in the
+   * module's sources is emitted as a **required** peer, and pnpm then installs
+   * the demo package for every client — the exact opposite of what this field
+   * is for. Both halves re-verified against those two files on 2026-09-09.
+   *
+   * The name is therefore resolved by the **runner**, whose resolution the
+   * specifier walk does not read. It is the same reason `cliCommands` keeps its
+   * body behind a relative `await import()` rather than a top-level one.
+   *
+   * ## What a runner owes it, and the state of that half
+   *
+   * §6.3 requires three answers and forbids collapsing the second into the
+   * third: *resolvable and loads* — this module's demo data is the package's;
+   * *not resolvable* — reported by name as **not installed**, the module
+   * contributes nothing and the run continues; *resolvable and fails to load* —
+   * a failure, per §3.8. §6.4 requires the probe to happen **before** the
+   * import, because a bare `catch` around both turns a broken demo package into
+   * a silent "not installed", which is the fail-open shape
+   * `check:port-catches` refuses one seam over.
+   *
+   * **That half is not built yet** (feature 113, T235). The declaration is here
+   * because `check:demo-data-budget` names this field as an over-budget
+   * module's remedy (§7.6) and reads it, reporting a module that names a
+   * package as delegating its demo data — but
+   * `packages/platform/src/demo/runner.ts` does not resolve it, so declaring it
+   * today records an intent and changes no behaviour. Do not take the hatch
+   * until the runner answers §6.3's three ways.
+   */
+  package?: string | undefined;
 }
 
 /**
@@ -248,6 +289,12 @@ export const ModuleDemoManifestSchema = z.object({
   seed: demoBodySchema<ModuleDemoManifest<never>['seed']>('seed'),
   reset: demoBodySchema<ModuleDemoManifest<never>['reset']>('reset'),
   after: z.array(z.string().regex(moduleIdRe)).readonly().optional(),
+  // §6.1. A **name**, so the schema is `z.string()` and deliberately carries no
+  // scope or prefix rule: `@endora-commerce/mod-<id>-demo` is this repository's
+  // convention and a third-party module's demo package is named by its author.
+  // A pattern here would be a derived fact written down (D-100) that answers
+  // wrongly for the first package that is not ours.
+  package: z.string().min(1).optional(),
 });
 
 /**

@@ -178,13 +178,33 @@ describe('defineModuleManifest — demo declaration (feature 113, contract §1)'
     it('refuses an unknown key rather than carrying it', () => {
       const parsed = ModuleDemoDeclarationSchema.parse({
         ...demoDeclaration(),
-        // `package` is designed (§6) and deliberately not implemented in
-        // Phase 0 — D-5 says the escape hatch is not taken now and §6.5 says
-        // taking it changes nothing else. A stripped key is what says so.
+        installer: '@endora-commerce/mod-fixture-installer',
+      });
+      expect(parsed).not.toBe(false);
+      expect(Object.keys(parsed as object)).not.toContain('installer');
+    });
+
+    it('carries `package`, the escape hatch (§6.1, feature 113 T235)', () => {
+      // **This assertion is the inverse of the one Phase 0 wrote**, and the
+      // premise moved rather than the rule. That test read *"`package` is
+      // designed (§6) and deliberately not implemented in Phase 0 — a stripped
+      // key is what says so"*, which was exactly right while the field did not
+      // exist; T235 takes it, so a stripped key would now be the schema
+      // silently dropping a declaration an author wrote. The unknown-key rule
+      // it was standing in for is asserted above, over a key nothing declares.
+      //
+      // The **runner** half of §6 is not built — `packages/platform/src/demo/`
+      // does not resolve the name — so the field records an intent and changes
+      // no behaviour today. `check:demo-data-budget` reads it, as an
+      // over-budget module's remedy (§7.6).
+      const parsed = ModuleDemoDeclarationSchema.parse({
+        ...demoDeclaration(),
         package: '@endora-commerce/mod-fixture-demo',
       });
       expect(parsed).not.toBe(false);
-      expect(Object.keys(parsed as object)).not.toContain('package');
+      expect((parsed as { package?: string }).package).toBe(
+        '@endora-commerce/mod-fixture-demo',
+      );
     });
   });
 });
