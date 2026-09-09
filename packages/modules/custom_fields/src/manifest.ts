@@ -86,6 +86,28 @@ export const manifest = defineModuleManifest({
   // the platform gives to "add a field" instead of a bespoke column. Switching
   // it off does not remove a capability a client chose, it makes the values
   // already stored against every host entity unreachable.
+  /**
+   * Nothing to demonstrate of its own (feature 113, T224 — contract §1.2).
+   *
+   * The demo shop does have seven product-host custom-field definitions, and
+   * they are not this module's demo data: a product attribute is one of those
+   * definitions paired 1:1 with a `catalog` extension row and written in one
+   * call (feature 061), so it is two modules' rows in one statement and belongs
+   * to whoever owns the instance (§5.1). It is a step of
+   * `backend/src/seeds/demo-composition.ts`, guarded on both modules, and this
+   * module does not declare `catalog` — §2.3's rule that `demo` may not become a
+   * way of acquiring a dependency.
+   *
+   * That is a **correction to §3.3**, which proposed that this module seed the
+   * definitions and `catalog` seed the extensions behind an advisory `after`
+   * edge. `catalog` would then have had to read `custom_field_definitions` to
+   * find the id its extension row references, which §2.2 forbids, so the split
+   * has no implementation.
+   *
+   * `false` rather than absent, because the two are different states: this is a
+   * decision that the module owes nothing, not a module nobody has looked at.
+   */
+  demo: false,
   activation: {
     nonDeactivatable: true,
     reason:

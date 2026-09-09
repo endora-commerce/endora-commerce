@@ -85,7 +85,7 @@ async function main(): Promise<void> {
   const orm = await initOrm();
   const em = orm.em.fork();
 
-  const residue = await seedHostModuleResidue(em);
+  await seedHostModuleResidue(em);
 
   // The blocks that have already reached their own modules, in the frozen copy
   // this script — and nothing else — runs. `endora demo seed` invokes the
@@ -94,7 +94,7 @@ async function main(): Promise<void> {
   // over. See `demo-relocated-reference.ts` for why the copy exists: without
   // it a moved block leaves the reference side of that comparison, and a batch
   // that dropped a column would be as green as one that did not.
-  await seedRelocatedDemoReference(em);
+  const reference = await seedRelocatedDemoReference(em);
 
   // The wiring that spans modules — the megamenu over the category tree, the
   // two bridge tables, the price-list backfill, the stock spread and the
@@ -111,8 +111,8 @@ async function main(): Promise<void> {
   console.log('');
   console.log('=== Dev seed complete ===');
   console.log('');
-  console.log(`Products       : ${residue.products}`);
-  console.log(`Categories     : ${residue.categoryNodes} nodes`);
+  console.log(`Products       : ${reference.products}`);
+  console.log(`Categories     : ${reference.categoryNodes} nodes`);
   console.log(`Sales Channels : pl_retail (public), pl_b2b_vip (logged-in only)`);
   console.log(`Warehouses     : default (system), pl-krk (Magazyn Kraków)`);
   console.log(`Taxes          : pl_vat_23 (23% on PL, default)`);

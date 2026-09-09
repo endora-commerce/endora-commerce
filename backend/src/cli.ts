@@ -168,8 +168,10 @@ async function hostResidue(verb: 'seed' | 'reset', em: EntityManager): Promise<s
   const summary = await seedHostModuleResidue(em);
   return (
     `\nHost-held demo rows (not yet owned by their modules): ` +
-    `${summary.products} products in ${summary.categoryNodes} category nodes, ` +
-    `plus the identities, methods and warehouses the shop needs.\n`
+    `${summary.salesChannels} sales channels.\n` +
+    `They are the kernel's table, so no module can declare them, and they have ` +
+    `to exist before any module's demo body runs — see the header of ` +
+    `\`src/seeds/demo-host-residue.ts\`.\n`
   );
 }
 

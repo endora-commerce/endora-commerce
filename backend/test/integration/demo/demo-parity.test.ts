@@ -339,7 +339,32 @@ const FINGERPRINTS: Readonly<Record<string, string>> = {
  * back under the **exact** fingerprint comparison rather than the subset one.
  * That matters more here than the tidiness: `admin_roles` is a table T222
  * moves, and comparing it loosely would have been the batch weakening the one
- * instrument that can see it. Magnitudes are deliberately not
+ * instrument that can see it.
+ *
+ * **`blog_categories` and `blog_category_sales_channels` left with T224**, and
+ * that pair is worth recording in full because it is a repair whose residue is
+ * visible. They were here because `blog`'s boot hook seeds a `Default` category
+ * and binds it to every channel that exists, and the host's `demo reset`
+ * destroyed the category through a `truncate assets cascade` —
+ * `blog_categories.main_image_asset_id` references `assets` — so the reference
+ * path lost it for good while the composed path's second boot built it again.
+ *
+ * T224 took `assets` off that truncate, because the demo's own assets are
+ * withdrawn by the composition step that creates them. The category therefore
+ * survives a demo reset, which is what `seed-default-category.ts` asks for in
+ * its own words (FR-004: *"admin edits to name / slug / scope / description /
+ * image / metadata are preserved"*) and which the demo had been violating on
+ * every run.
+ *
+ * **What does not survive is its channel binding**, because the residue still
+ * truncates `sales_channels` cascade, and that hook deliberately does not
+ * re-attach a channel to an existing category — *"avoids re-attaching a channel
+ * an admin has intentionally detached"*. So after a reset the demo's blog
+ * category is bound to nothing. That is the last block's truncate doing what
+ * every other truncate in this file has already been repaired out of doing, and
+ * it retires with the sales-channel block itself — see T226 and the header of
+ * `backend/src/seeds/demo-host-residue.ts`. Both databases see it identically,
+ * so it is a finding about the reset rather than about parity. Magnitudes are deliberately not
  * recorded — `cms_hook_sales_channels` is one row per shipped CMS hook and
  * moves whenever a module adds one — but for a table the reference run also
  * writes, every reference row must still be present, which is asserted below.
@@ -348,8 +373,6 @@ const BOOT_RECONCILED: Readonly<Record<string, string>> = {
   audit_log_entries:
     'the sales-channel reconciler records its own promotion, and the second boot has a ' +
     'channel to promote.',
-  blog_categories: "`blog` seeds a default category once a sales channel exists.",
-  blog_category_sales_channels: 'and binds it to that channel.',
   cms_hook_sales_channels:
     'one row per shipped CMS hook per channel — the boot binds every hook to the channel ' +
     'the demo created.',

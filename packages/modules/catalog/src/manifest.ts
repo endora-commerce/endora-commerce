@@ -1,7 +1,39 @@
 import {
   defineModuleManifest,
   defineModuleRecentActivity,
+  type ModuleDemoManifest,
 } from '@endora-commerce/contracts';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
+
+/**
+ * The demo data this module owns (feature 113, T224 — contract §1.3).
+ *
+ * A typed `const` rather than an inline object literal: declared inline the
+ * parameter infers from the schema and is `never`, so the author loses
+ * `context.ctx: ModuleContext`.
+ *
+ * Both bodies are reached by a **relative `await import()`** (§1.4), in
+ * `cliCommands.run`'s shape and for `cliCommands`' reason: a manifest is loaded
+ * by every process that composes the platform and by the check scripts that
+ * import the generated index, so a demo body imported at the top of this file
+ * would be a service graph pulled into all of them. It needs no `exports`
+ * subpath and no `files` entry (§1.5).
+ *
+ * **The catalogue is generated, not shipped.** 200 products, their descriptions
+ * and their images are built in process, so this module ships no non-`.ts` demo
+ * asset at all — which is what the Phase 3 budget assumes.
+ *
+ * **What is not here.** The attributes (a `custom_fields` definition paired to
+ * one of this module's extension rows), the placeholder images and the sample
+ * attachments (each mints an `assets_library` asset), and every join table a
+ * product hangs off. All of them write two modules' rows in one statement, so
+ * all of them are composition steps (§5.1).
+ */
+const demo: ModuleDemoManifest<ModuleContext> = {
+  summary: 'A three-level category tree, 200 generated products and three composites.',
+  seed: async (context) => (await import('./backend/demo/seed.js')).seedDemo(context),
+  reset: async (context) => (await import('./backend/demo/reset.js')).resetDemo(context),
+};
 
 /**
  * Catalog module — feature 002 (and predecessors).
@@ -224,6 +256,7 @@ export const manifest = defineModuleManifest({
   // read as an omission; the lock says the same thing on purpose and with a
   // reason. Products, variants and categories are what a commerce platform is
   // for: their absence does not reduce it, it makes it something else.
+  demo,
   activation: {
     nonDeactivatable: true,
     reason:

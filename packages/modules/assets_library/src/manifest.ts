@@ -121,6 +121,21 @@ export const manifest = defineModuleManifest({
   // decision: product images, CMS media and e-mail assets all resolve here, and
   // "we do not want files" is not something a client chooses — it is something
   // a deployment does by mistake.
+  /**
+   * Nothing to demonstrate of its own (feature 113, T224 — contract §1.2).
+   *
+   * The demo shop does hold ~500 assets, and not one of them is this module's
+   * demo data: every one is minted inside a loop over `catalog`'s products and
+   * its id handed straight to `product_assets`, `gallery_items`,
+   * `gallery_item_labels` or `product_attachments`. An asset with no product to
+   * belong to would demonstrate nothing, and an asset that has one is two
+   * modules' rows in one statement — a composition step (§5.1), and one whose
+   * filename and generated image are derived from the product it hangs off.
+   *
+   * `false` rather than absent, because the two are different states: this is a
+   * decision that the module owes nothing, not a module nobody has looked at.
+   */
+  demo: false,
   activation: {
     nonDeactivatable: true,
     reason:

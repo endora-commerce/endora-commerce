@@ -204,10 +204,20 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // carries the `modules/catalog/` substring this scan reads. So the reference
   // is real — deleting the package breaks the **build** — and it is not runtime
   // coupling, because the type imports erase.
+  //
+  // **T224 re-pointed the third entry and freed nothing**, on §3.2a.1's
+  // convention: the whole catalogue block — the tree, the 200 products, the
+  // composites and their structure — is `catalog`'s own demo data now, and the
+  // copy `demo-parity.test.ts` compares it against is frozen in
+  // `demo-relocated-reference.ts`. The `demo-composition.ts` entry grew a second
+  // reason with the same batch: three blocks that sat inside that one became
+  // composition steps, so the composition now names `Product`, `Category` and
+  // `AttributeSetAttribute` to write the attributes, the images and the
+  // attachments.
   catalog: [
     'src/seeds/attribute-fixtures.ts',
     'src/seeds/demo-composition.ts',
-    'src/seeds/demo-host-residue.ts',
+    'src/seeds/demo-relocated-reference.ts',
   ],
   // The three modules the dev seed holds and nothing else does. Each is a plain
   // entity import in the seed — a warehouse, a stock level, a delivery method,
@@ -229,7 +239,15 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // real: deleting the package breaks the **build**. It is not runtime coupling —
   // the type imports erase — and it retires on the same condition as the
   // `delivery_methods` / `payment_methods` / `taxes` block below.
-  custom_fields: ['src/seeds/attribute-fixtures.ts'],
+  // **T224 added the second entry**, and it is a conversion arriving rather than
+  // a residue growing: a product attribute is a `custom_field_definitions` row
+  // paired to one of `catalog`'s extension rows in one call, so it is a
+  // composition step (contract §5.1) and the composition is where it now lives.
+  // `demo-composition.ts` calls `attribute-fixtures.ts` — the one copy of that
+  // helper, FR-019 — and the substring this scan reads comes in through the row
+  // type that helper's own file already names. Both entries retire together,
+  // with the test kit (`specs/109-backend-test-kit/`).
+  custom_fields: ['src/seeds/attribute-fixtures.ts', 'src/seeds/demo-composition.ts'],
   // `inventory` moved with T223 and, like the three below, was re-pointed
   // rather than freed: the warehouse block is frozen in the reference file the
   // parity comparison needs, and the composition still spreads stock across the
