@@ -45,6 +45,40 @@ export const INVOICE_LEDGER_ROUTING_PORT = 'invoiceLedgerRoutingPort' as const;
 export const INVOICE_LEDGER_DELIVERY_PORT = 'invoiceLedgerDeliveryPort' as const;
 export const INVOICE_LEDGER_WEBHOOK_PORT = 'invoiceLedgerWebhookPort' as const;
 export const INVOICE_LEDGER_DELIVERY_QUEUED_EVENT = 'invoice_ledger.delivery.queued.v1' as const;
+export const INVOICE_LEDGER_VENDOR_FREEZE_REGISTRY = 'invoiceLedgerVendorFreezeRegistry' as const;
+
+export const INVOICE_LEDGER_VENDOR_KSEF_ABSENT_MESSAGE =
+  'KSeF is delegated to the ledger vendor but no vendor is active.';
+export const INVOICE_LEDGER_UNREADABLE_VENDOR_ERROR =
+  'The ledger vendor returned an unreadable error.';
+export const INVOICE_LEDGER_ASYNC_CREATE_FAILED_MESSAGE =
+  'The ledger vendor could not create this invoice.';
+export const INVOICE_LEDGER_VENDOR_KSEF_SEND_FAILED_MESSAGE =
+  'The ledger vendor could not send this invoice to KSeF.';
+
+export interface InvoiceLedgerVendorFreeze {
+  credentialCode: string;
+  environment: 'sandbox' | 'production';
+}
+
+/**
+ * Container name: `invoiceLedgerVendorFreezeRegistry`. Owner: `invoice_ledger`.
+ *
+ * A contribution seam (plain `di.register`, not `providePort`). Vendors push a
+ * freeze resolver keyed by `adapterId` from a boot hook. Ledger HTTP stays out
+ * of this registry; each vendor reads its own credentials.
+ */
+export interface InvoiceLedgerVendorFreezeRegistryPort {
+  register(
+    adapterId: string,
+    resolve: (salesChannelId: string | null) => Promise<InvoiceLedgerVendorFreeze>,
+    module: string,
+  ): void;
+  resolve(
+    adapterId: string,
+    salesChannelId: string | null,
+  ): Promise<InvoiceLedgerVendorFreeze | null>;
+}
 
 /**
  * Known invoice-ledger vendor modules and their activation setting codes.
@@ -170,14 +204,20 @@ export interface InvoiceLedgerDeliveryPort {
   }): Promise<string | null>;
   findDocumentRemoteId(input: { adapterId: string; invoiceId: string }): Promise<string | null>;
   /**
-   * T089 unique-map: exactly one row for `(adapter_id, remote_document_id)`.
-   * Zero or two-plus matches return null.
+   * T089 unique-map: exactly one row for
+   * `(adapter_id, remote_document_id, environment, credential_code)` when those
+   * are named. Omit environment / credential_code when the caller cannot name
+   * the company — zero or two-plus matches on the remaining key return null.
    */
   lookupUniqueMappedInvoice(input: {
     adapterId: string;
     remoteDocumentId: string;
+    environment?: 'sandbox' | 'production';
+    credentialCode?: string;
   }): Promise<{ invoiceId: string } | null>;
   markRemotePaid(id: string): Promise<void>;
+  /** Keep status `queued` and persist a mapped wait sentence on `last_error`. */
+  recordQueuedWait(id: string, error: string): Promise<void>;
 }
 
 /**

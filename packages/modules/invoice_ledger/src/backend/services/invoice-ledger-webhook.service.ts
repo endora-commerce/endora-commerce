@@ -1,14 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type {
-  InvoiceKsefAssignmentPort,
-  InvoiceLedgerDeliveryPort,
-  InvoiceLedgerWebhookEventInput,
-  InvoiceLedgerWebhookPort,
-  InvoiceNumberingHostPort,
-  InvoicePaidHostPort,
-  LedgerDeliveryRecord,
+import {
+  INVOICE_LEDGER_ASYNC_CREATE_FAILED_MESSAGE,
+  INVOICE_LEDGER_VENDOR_KSEF_SEND_FAILED_MESSAGE,
+  type InvoiceKsefAssignmentPort,
+  type InvoiceLedgerDeliveryPort,
+  type InvoiceLedgerWebhookEventInput,
+  type InvoiceLedgerWebhookPort,
+  type InvoiceNumberingHostPort,
+  type InvoicePaidHostPort,
+  type LedgerDeliveryRecord,
 } from '@endora-commerce/contracts';
+import { mappedDeliveryError } from './mapped-delivery-error.js';
 import { enterSystemScope } from '@endora-commerce/platform/kernel';
 import { InvoiceLedgerDocumentMap } from '../entities/invoice-ledger-document-map.entity.js';
 import { InvoiceLedgerDelivery } from '../entities/invoice-ledger-delivery.entity.js';
@@ -129,7 +132,7 @@ export class InvoiceLedgerWebhookService implements InvoiceLedgerWebhookPort {
       if (delivery) {
         await this.deps.deliveries.markFailed(
           delivery.id,
-          input.errorMessage ?? 'Infakt KSeF send failed.',
+          mappedDeliveryError(input.errorMessage) ?? INVOICE_LEDGER_VENDOR_KSEF_SEND_FAILED_MESSAGE,
         );
       }
       return 'applied';
@@ -164,7 +167,7 @@ export class InvoiceLedgerWebhookService implements InvoiceLedgerWebhookPort {
     if (!delivery) return 'acknowledged';
     await this.deps.deliveries.markFailed(
       delivery.id,
-      input.errorMessage ?? 'Infakt async invoice creation failed.',
+      mappedDeliveryError(input.errorMessage) ?? INVOICE_LEDGER_ASYNC_CREATE_FAILED_MESSAGE,
     );
     return 'applied';
   }
@@ -180,11 +183,14 @@ export class InvoiceLedgerWebhookService implements InvoiceLedgerWebhookPort {
       if (row) return this.deps.deliveries.getById(row.id);
     }
     if (input.remoteDocumentId) {
-      const row = await this.deps.emFactory().findOne(InvoiceLedgerDelivery, {
+      const rows = await this.deps.emFactory().find(InvoiceLedgerDelivery, {
         adapterId: input.adapterId,
         remoteDocumentId: input.remoteDocumentId,
       });
-      if (row) return this.deps.deliveries.getById(row.id);
+      if (rows.length !== 1) return null;
+      const id = rows[0]?.id;
+      if (!id) return null;
+      return this.deps.deliveries.getById(id);
     }
     return null;
   }

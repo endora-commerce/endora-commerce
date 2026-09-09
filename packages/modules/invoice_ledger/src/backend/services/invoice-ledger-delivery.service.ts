@@ -1,5 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
+  INVOICE_LEDGER_VENDOR_KSEF_ABSENT_MESSAGE,
   type InvoiceLedgerClientMapInput,
   type InvoiceLedgerDeliveryAttempt,
   type InvoiceLedgerDeliveryPort,
@@ -51,8 +52,7 @@ function appendAttempt(
   row.lastError = mappedDeliveryError(error);
 }
 
-export const INVOICE_LEDGER_VENDOR_KSEF_ABSENT_MESSAGE =
-  'KSeF is delegated to the ledger vendor but no vendor is active.';
+export { INVOICE_LEDGER_VENDOR_KSEF_ABSENT_MESSAGE };
 
 export class InvoiceLedgerDeliveryService implements InvoiceLedgerDeliveryPort {
   constructor(private readonly emFactory: () => EntityManager) {}
@@ -233,14 +233,35 @@ export class InvoiceLedgerDeliveryService implements InvoiceLedgerDeliveryPort {
   async lookupUniqueMappedInvoice(input: {
     adapterId: string;
     remoteDocumentId: string;
+    environment?: 'sandbox' | 'production';
+    credentialCode?: string;
   }): Promise<{ invoiceId: string } | null> {
-    const maps = await this.emFactory().find(InvoiceLedgerDocumentMap, {
+    const where: {
+      adapterId: string;
+      remoteDocumentId: string;
+      environment?: 'sandbox' | 'production';
+      credentialCode?: string;
+    } = {
       adapterId: input.adapterId,
       remoteDocumentId: input.remoteDocumentId,
-    });
+    };
+    if (input.environment) where.environment = input.environment;
+    if (input.credentialCode) where.credentialCode = input.credentialCode;
+    const maps = await this.emFactory().find(InvoiceLedgerDocumentMap, where);
     if (maps.length !== 1) return null;
     const invoiceId = maps[0]?.invoiceId;
     return invoiceId ? { invoiceId } : null;
+  }
+
+  async recordQueuedWait(id: string, error: string): Promise<void> {
+    // command-coverage-ignore: Infakt worker queue stamp — the correction
+    // stays queued until the original remote id exists; last_error is the wait.
+    const em = this.emFactory();
+    const row = await em.findOne(InvoiceLedgerDelivery, { id });
+    if (!row) return;
+    row.status = 'queued';
+    appendAttempt(row, 'queued', error);
+    await em.flush();
   }
 
   async markRemotePaid(id: string): Promise<void> {
