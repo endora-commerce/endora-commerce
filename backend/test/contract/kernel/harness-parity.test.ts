@@ -70,7 +70,18 @@ const harness = readFileSync(harnessPath, 'utf8');
 const production = readFileSync(`${backendSrc}composition.ts`, 'utf8');
 
 /* -------------------------------------------------------------------------- *
- * The harness root is two files (feature 109, Phase 1c).
+ * **Each** root is two files — the harness since feature 109's Phase 1c, and
+ * production since `specs/110-instance-repository/` T118.
+ *
+ * The asymmetry that used to be here was the transitional state, not the
+ * design: the harness delegated its host-shaped half to `composeTestServer`
+ * while production still wrote the same sequence out. T118 moved production's
+ * into `composeApp`, so both roots are now *what they supply* plus *what
+ * composes it*, and every population below that asks "what does this root's
+ * composition do" reads the pair. The populations that ask "what does this
+ * root's own file name" — the module value-import ledger, the spellings T075
+ * pins — keep reading the root, which is the split `COMPOSITION_SOURCES` and
+ * `ROOT_SOURCES` have always been.
  * -------------------------------------------------------------------------- */
 
 const BACKEND_ROOT = resolve(backendSrc, '..');
@@ -251,8 +262,26 @@ const HARNESS_COMPOSER = delegatedComposerOf(
   'composeTestServer',
 );
 
+/**
+ * Production's composer, found the same way (T118).
+ *
+ * The binding is the **local** name, which is `composePlatformApp`: this file
+ * exports a `composeApp` of its own — the reference deployment's — and aliases
+ * the platform's on the way in, so a resolver keyed on the imported name would
+ * find the export instead of the import.
+ */
+const PRODUCTION_COMPOSER = delegatedComposerOf(
+  production,
+  `${backendSrc}composition.ts`,
+  'composePlatformApp',
+  'composeApp',
+);
+
 /** The composition the harness performs: what it supplies, plus what composes it. */
 const harnessComposition = `${harness}\n${HARNESS_COMPOSER.source}`;
+
+/** The same, for production. */
+const productionComposition = `${production}\n${PRODUCTION_COMPOSER.source}`;
 
 /**
  * The two roots, each as **the whole composition it performs**.
@@ -262,7 +291,7 @@ const harnessComposition = `${harness}\n${HARNESS_COMPOSER.source}`;
  * question about `test-server.ts` and not about the kit.
  */
 const COMPOSITION_SOURCES: ReadonlyArray<readonly ['production' | 'harness', string]> = [
-  ['production', production],
+  ['production', productionComposition],
   ['harness', harnessComposition],
 ];
 
@@ -293,7 +322,19 @@ function moduleFactories(source: string): Set<string> {
  * make every ledger below vacuously correct, which is the one way this file can
  * report green while looking at nothing (issue #113).
  */
-const COMPOSITION_FUNCTIONS = { production: 'composeApp', harness: 'setupBackendServer' } as const;
+const COMPOSITION_FUNCTIONS = {
+  production: 'composeApp',
+  /**
+   * The contribution callback production hands its composer (T118).
+   *
+   * It is a second function of the **same file** rather than a second file, and
+   * it exists so the 41 module-named contributions keep the indentation they
+   * had while they were `composeApp`'s own body. `compositionTimeCalls` walks
+   * one function's statements, so it has to be named here or its steps vanish.
+   */
+  productionContribution: 'contributeReferenceDeployment',
+  harness: 'setupBackendServer',
+} as const;
 
 /** Every named binding a root imports as a value — the callables it did not write itself. */
 function importedValueNames(source: string): Set<string> {
@@ -572,9 +613,17 @@ describe('T075 — a converted module costs no test-helper edit', () => {
  */
 describe('083 — both roots resolve a request language through one function', () => {
   it('each root delegates the envelope rather than assembling one', () => {
+    // Read over the **composition** rather than the root's own file
+    // (`specs/110-instance-repository/` T118). Production's three inputs are
+    // `composeApp`'s now, because all three are the composition's own — the
+    // manifest routing it derived, and two container names read against
+    // contract types — and there was nothing deployment-specific in them to
+    // hand over. The harness's are its own and stay in its file. What the two
+    // owe each other is unchanged and is what this still measures: exactly one
+    // delegation each, and neither reconstructing any part of the policy.
     for (const [root, source] of [
-      ['harness', harness],
-      ['production', production],
+      ['harness', harnessComposition],
+      ['production', productionComposition],
     ] as const) {
       const code = codeOnly(source);
       const delegated = [...code.matchAll(/composeErrorEnvelopeOptions\(/g)].length;
@@ -670,7 +719,13 @@ const PRODUCTION_ONLY_MODULES: Readonly<Record<string, string>> = {};
 
 describe('T076 — the drift between the roots is an exact ledger', () => {
   it('lists every construct production builds and the harness does not', () => {
-    const missing = [...constructedNames(production)]
+    // Both sides are the whole composition (T118). `StorefrontRevalidator` is
+    // built inside `composeApp` rather than in this root's own file since the
+    // twenty platform contributions moved, and a population that still read the
+    // file would have reported the entry stale — a divergence closing because
+    // the code that performs it moved one package over, which is exactly the
+    // reading feature 109 rejected for the harness.
+    const missing = [...constructedNames(productionComposition)]
       .filter((name) => !constructedNames(harnessComposition).has(name))
       .sort();
 
@@ -678,8 +733,8 @@ describe('T076 — the drift between the roots is an exact ledger', () => {
   });
 
   it('lists every module factory production composes and the harness does not', () => {
-    const missing = [...moduleFactories(production)]
-      .filter((name) => !moduleFactories(harness).has(name))
+    const missing = [...moduleFactories(productionComposition)]
+      .filter((name) => !moduleFactories(harnessComposition).has(name))
       .sort();
 
     expect(missing).toEqual(Object.keys(PRODUCTION_ONLY_MODULES).sort());
@@ -753,13 +808,29 @@ describe('T076 — the drift between the roots is an exact ledger', () => {
     // *names* `loadModulePresence()` in the comment explaining why it seeds the
     // cache instead of calling it. A population that read the mention as a call
     // would report the divergence closed by the very sentence documenting it.
-    const productionSteps = bootSteps(production, COMPOSITION_FUNCTIONS.production);
-    // Two functions for the harness, because its composition is two files: what
-    // `setupBackendServer` performs itself, and what `composeTestServer`
-    // performs on its behalf. `compositionTimeCalls` walks a *function's* own
-    // statements, so a union is the honest way to ask "what does this root's
-    // composition do" — a single call over the concatenated pair would find one
-    // of the two and report the other's steps as divergences that are not there.
+    // Two functions per root, because each root's composition is two files:
+    // what it performs itself, and what its composer performs on its behalf.
+    // `compositionTimeCalls` walks a *function's* own statements, so a union is
+    // the honest way to ask "what does this root's composition do" — a single
+    // call over the concatenated pair would find one of the two and report the
+    // other's steps as divergences that are not there.
+    const productionSteps = new Set([
+      ...bootSteps(
+        production,
+        COMPOSITION_FUNCTIONS.production,
+        new Set([PRODUCTION_COMPOSER.binding]),
+      ),
+      // T118 split this root's own half in two: `composeApp` supplies, and
+      // `contributeReferenceDeployment` holds the 41 contributions and the
+      // locals they are built from. Both run during composition — the second is
+      // the callback the first hands over — so both are walked. The harness
+      // needs no equivalent line because its contributions are inline in
+      // `setupBackendServer`, and a split that lost `configuredMigrations` and
+      // `lifecycleModuleFromStaticEntries` from this population would have
+      // reported two live divergences as closed by an indentation decision.
+      ...bootSteps(production, COMPOSITION_FUNCTIONS.productionContribution),
+      ...bootSteps(PRODUCTION_COMPOSER.source, PRODUCTION_COMPOSER.compositionFunction),
+    ]);
     const harnessSteps = new Set([
       ...bootSteps(harness, COMPOSITION_FUNCTIONS.harness, new Set([HARNESS_COMPOSER.binding])),
       ...bootSteps(HARNESS_COMPOSER.source, HARNESS_COMPOSER.compositionFunction),
@@ -770,7 +841,15 @@ describe('T076 — the drift between the roots is an exact ledger', () => {
     expect(productionSteps.has('composeModules')).toBe(true);
     expect(harnessSteps.has('composeModules')).toBe(true);
 
-    const missing = [...productionSteps].filter((step) => !harnessSteps.has(step)).sort();
+    // Each root's own delegate binding is not a step it performs; it is *how*
+    // it performs them, and the delegate's steps are unioned in above. Counting
+    // it would record `composePlatformApp` as a divergence from
+    // `composeTestServer` — two names for the same delegation, which is the one
+    // thing both roots now do identically.
+    const delegates = new Set([PRODUCTION_COMPOSER.binding, HARNESS_COMPOSER.binding]);
+    const missing = [...productionSteps]
+      .filter((step) => !harnessSteps.has(step) && !delegates.has(step))
+      .sort();
 
     expect(missing).toEqual(Object.keys(PRODUCTION_ONLY_BOOT_STEPS).sort());
     for (const [step, cost] of Object.entries(PRODUCTION_ONLY_BOOT_STEPS)) {
@@ -1537,13 +1616,14 @@ interface CompositionRoot {
  * composer over two hand-written entries and owe nothing to a module they do
  * not compose.
  *
- * `requiresGeneratedList` is what lets the **delegated composer** into this
+ * `requiresGeneratedList` is what lets a **delegated composer** into this
  * population without letting those dozen unit tests in with it (feature 109,
- * Phase 1c). The kit composes whichever list its caller hands it — the generated
- * one, when the caller is this repository's harness — so it owes every seam that
+ * Phase 1c; `specs/110-instance-repository/` T118). A composer composes
+ * whichever list its caller hands it — the generated one, when the caller is
+ * this repository's harness or its production root — so it owes every seam that
  * list uses, unconditionally and with nothing to import. It is not a general
- * relaxation: the only directory it is applied to is the one
- * {@link delegatedComposerOf} reached by following the harness's own import
+ * relaxation: the only directories it is applied to are the ones
+ * {@link delegatedComposerOf} reached by following a root's own import
  * specifier, so a file becomes exempt from the second half by being the composer
  * a root delegates to, and by nothing else.
  */
@@ -1606,7 +1686,9 @@ function compositionRootsIn(
 
 const COMPOSITION_ROOTS = [
   ...compositionRootsIn([join(BACKEND_ROOT, 'src'), join(BACKEND_ROOT, 'test')]),
-  ...compositionRootsIn([HARNESS_COMPOSER.dir], { requiresGeneratedList: false }),
+  ...compositionRootsIn([PRODUCTION_COMPOSER.dir, HARNESS_COMPOSER.dir], {
+    requiresGeneratedList: false,
+  }),
 ].sort((left, right) => left.path.localeCompare(right.path));
 
 /** The optional members of one options interface, by name. */
@@ -1815,19 +1897,20 @@ describe('112 — every composition root mounts every seam the composed list use
     // state that let three of them go red at once, so it has to fail rather
     // than quietly assert less.
     const paths = COMPOSITION_ROOTS.map((root) => root.path);
-    expect(paths, 'the production root composes the generated list').toContain(
-      relative(REPO_ROOT, join(backendSrc, 'composition.ts')),
-    );
-    // The harness composes the generated list **through the kit** since feature
-    // 109's Phase 1c, so what has to be in this population is the composer it
-    // delegates to. That the list it hands over is the generated one is pinned
-    // by T075's first assertion, over `test-server.ts`' own text; what is pinned
-    // here is that the composition performing it was found and judged.
-    const composerDir = `${relative(REPO_ROOT, HARNESS_COMPOSER.dir)}/`;
-    expect(
-      paths.filter((path) => path.startsWith(composerDir)),
-      `no file under ${composerDir} composes — the harness delegates there and nothing judged it`,
-    ).not.toEqual([]);
+    // **Both** roots compose the generated list through a composer now — the
+    // harness through the kit since feature 109's Phase 1c, production through
+    // `composeApp` since `specs/110-instance-repository/` T118 — so what has to
+    // be in this population is the composer each delegates to. That the list
+    // each hands over is the generated one is pinned by T075's assertions over
+    // the roots' own text; what is pinned here is that the composition
+    // performing it was found and judged.
+    for (const composer of [PRODUCTION_COMPOSER, HARNESS_COMPOSER]) {
+      const composerDir = `${relative(REPO_ROOT, composer.dir)}/`;
+      expect(
+        paths.filter((path) => path.startsWith(composerDir)),
+        `no file under ${composerDir} composes — a root delegates there and nothing judged it`,
+      ).not.toEqual([]);
+    }
     expect(
       paths.length,
       `only ${paths.length} composition roots found (${paths.join(', ')}). This assertion ` +

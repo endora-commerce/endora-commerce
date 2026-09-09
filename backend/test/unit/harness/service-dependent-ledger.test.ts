@@ -267,6 +267,19 @@ interface MisfiledIntegrationTest {
 }
 
 const MISFILED_INTEGRATION_TESTS: Readonly<Record<string, MisfiledIntegrationTest>> = {
+  'test/integration/kernel/public-api-base-url-boot.test.ts': {
+    scope: 'unit',
+    reason:
+      'Asserts that `composeApp()` refuses a production boot with no `PUBLIC_API_BASE_URL`, ' +
+      'which is the guard on its **first line** — before the ORM, before Redis, before any ' +
+      'module. Measured under `BACKEND_TEST_SERVICES=none`: 2 of 2 pass, in 0.4 s, with the ' +
+      'service URLs pointed at an unreachable port. It was never III(c) and the screen only ' +
+      'called it service-bound because the file it imports used to construct a Redis client ' +
+      'a hundred lines below the assertion; `specs/110-instance-repository/` T118 moved that ' +
+      'construction into `@endora-commerce/platform` and the screen stopped seeing it, which ' +
+      'is how a correct classification came to be visible. Its sibling ' +
+      '`production-boot.test.ts` is the opposite case and is in the ledger below.',
+  },
   'test/integration/_lifecycle/boot-cycle-detect.integration.test.ts': {
     scope: 'unit',
     reason:
@@ -394,11 +407,20 @@ const MISFILED_INTEGRATION_TESTS: Readonly<Record<string, MisfiledIntegrationTes
  * check built on one would recommend putting these two files in a job with no
  * database.
  *
- * Both reach the platform through `await import('../../../src/composition.js')`
- * inside a hook — a **dynamic** specifier, which the closure walk above does not
- * follow and no import walk can follow in general. `research.md` §2.3 records a
- * second shape with the same property, `execFile('pnpm', ['exec', 'tsx', …])` in
- * two `_lifecycle` CLI contract tests.
+ * Two of them reach the platform through
+ * `await import('../../../src/composition.js')` inside a hook — a **dynamic**
+ * specifier, which the closure walk above does not follow and no import walk can
+ * follow in general. `research.md` §2.3 records a second shape with the same
+ * property, `execFile('pnpm', ['exec', 'tsx', …])` in two `_lifecycle` CLI
+ * contract tests.
+ *
+ * `production-boot.test.ts` is a **third** shape and it arrived on its own
+ * (`specs/110-instance-repository/` T118): a perfectly ordinary static import of
+ * `src/composition.js`, which the walk does follow — into a file that now
+ * delegates its assembly to `@endora-commerce/platform/composition`, a bare
+ * specifier the walk stops at. That is the same fail-open the two dynamic
+ * entries demonstrate, reached by a route nobody would have predicted, and it is
+ * the argument for R5 rather than for teaching the screen a fourth trick.
  *
  * An entry retires by the screen learning to see the file, which is the stale
  * direction swept below.
@@ -414,6 +436,15 @@ const SERVICE_BOUND_BEYOND_THE_SCREEN: Readonly<Record<string, string>> = {
     'and asserts the refusal names it. Measured under `BACKEND_TEST_SERVICES=none`: 3 of 5 ' +
     'cases fail, because the composition dies for the wrong reason before the assertion is ' +
     'reached. Correctly III(c).',
+  'test/integration/kernel/production-boot.test.ts':
+    'It does what `src/index.ts` does minus `listen()` — a full `composeApp()` against the ' +
+    'real database, then `buildServer()` — so it reaches PostgreSQL and Redis through the ' +
+    'production composition root. Since `specs/110-instance-repository/` T118 that root ' +
+    'delegates its assembly to `@endora-commerce/platform`, and the closure screen does not ' +
+    'follow a **bare** package specifier, so the connections it opens are one package past ' +
+    'the last import the walk can resolve. Measured under `BACKEND_TEST_SERVICES=none`: ' +
+    '`connect ECONNREFUSED 127.0.0.1:1`, the `beforeAll` fails and all 4 cases are skipped. ' +
+    'Correctly III(c).',
   'test/integration/demo/demo-parity.test.ts':
     'It provisions three PostgreSQL databases of its own with `pg` and spawns the migration ' +
     'runner and both seeds as child processes, so it reaches the database through a client ' +

@@ -2,9 +2,7 @@ import type { AssetsLibraryCradle } from '@endora-commerce/mod-assets-library/ba
 import type { CartShoppingListBridge } from '@endora-commerce/mod-carts/backend';
 import type { FastifyRequest } from 'fastify';
 import { randomUUID } from 'crypto';
-import { Redis } from 'ioredis';
 import { z } from 'zod';
-import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES, type ProductAvailability } from '@endora-commerce/contracts';
 // Feature 080 (T052) — the contract types for the seven ports that replaced
 // this root's five entity-class reads. Types only: what a root resolves is a
@@ -30,21 +28,14 @@ import type {
   EmailMailerPort,
   OrderReadPort,
   OrganizationTaxProfilePort,
-  SettingsManifestCollectionPort,
   TaxServicePort,
 } from '@endora-commerce/contracts';
 import { HttpError } from './http/error-envelope.js';
 import type { ModulePlugin } from './http/server.js';
-import { ApiInterceptorRegistry } from './http/interceptors/index.js';
-import type { ErrorEnvelopeOptions } from './http/error-envelope.js';
 import { initOrm, closeOrm } from './db/index.js';
-import { EventBus } from './events/bus.js';
-import { CommandBus } from './commands/index.js';
-import { forkScopedEm } from './tenancy/scoped-em.js';
 import { type TenantContext } from './tenancy/tenant-context.js';
 import { resolveTenantContext, systemTenantContext } from './tenancy/resolve-tenant-context.js';
 import { enterSystemScope } from './kernel/scope.js';
-import { registerRequestScopeHook } from './kernel/request-scope-hook.js';
 // Feature 072 — the generated module list. D-45 collapsed the early/late split
 // into a single pass: registration resolves nothing (`kernel/compose.ts`'s
 // `registering` guard), so the order modules register in carries no meaning,
@@ -63,32 +54,12 @@ import { MODULES } from './composition.generated.js';
 // `ModuleContext` because 67 do: `ComposeAppHandle.contextFor` hands one out, so
 // a CLI command's body resolves with `lazyPort(ctx, …)` exactly as `backend.ts`
 // does (T042b, D-157.12 item 2).
-import {
-  configuredPublicApiBaseUrl,
-  resolvePublicApiBaseUrl,
-  type ModuleContext,
-} from './kernel/index.js';
-// The composition machinery, by relative path. T042c took it off the barrel: a
-// packaged module never builds a container, composes a module list or refuses a
-// boot, so publishing these would put the host's own wiring into
-// `@endora-commerce/platform`'s contract. This root is *inside* that package,
-// which is exactly why the relative path is available to it and not to a module.
-// `KernelContainer` is here for the same reason — `ComposeAppHandle` exposes the
-// container to the CLI entry point, which is host code, not a module.
-import { composeModules } from './kernel/compose.js';
-import {
-  createRootContainer,
-  registerOrm,
-  registerValues,
-  type KernelContainer,
-} from './kernel/container.js';
-import { createRegistrationOwnership } from './kernel/module-context.js';
-import { platformLogger } from './kernel/logging.js';
-import { requiredModulesFrom } from './kernel/lifecycle/required-modules.js';
-import {
-  absolutizePublicUrl,
-  assertPublicApiBaseUrlConfigured,
-} from './kernel/public-api-base-url.js';
+import { configuredPublicApiBaseUrl, resolvePublicApiBaseUrl } from './kernel/index.js';
+// T118 — the composition machinery left this file with the assembly it served.
+// What remains of the platform here is what the contributions below are built
+// from, and every one of them is reached by a **relative** path because this
+// application is where those shims still live (`RELATIVE_HOST_REACHES`, T119).
+import { absolutizePublicUrl } from './kernel/public-api-base-url.js';
 // Feature 117 (FR-030) — actor promotion arrives as a **container name** now,
 // not as an import. `auth` still owns the implementation for the reason its own
 // barrel gives: promotion reads `request.adminActor` and writes `request.actor`,
@@ -109,10 +80,7 @@ import type { AdminActorPromotion } from './kernel/ports/require-admin.js';
 // with the caveat that this one is an augmentation and not a shape, so it needs
 // relocating rather than re-spelling.
 import type { Actor } from '@endora-commerce/mod-auth/backend';
-import { AuditLogService } from './kernel/audit/audit-log-service.js';
-import { publishStateChanged, registryCache } from './kernel/lifecycle/registry-cache.js';
 import { effectiveState } from './kernel/lifecycle/effective-state.js';
-import { StorefrontRevalidator } from './http/storefront-revalidator.js';
 // Feature 072 (T138) — `organizations` owns its services, its routes and its
 // two event subscriptions. T143a — the sales-rep assignment scope too: what is
 // left here is the actor half of the orders/RFQ visibility question, which only
@@ -138,9 +106,6 @@ import type { ProductFeedsBridge } from '@endora-commerce/mod-product-feeds/back
 import type { MfaActorBridge } from '@endora-commerce/mod-mfa/backend';
 import type { TargetValidatorDeps } from '@endora-commerce/mod-megamenu/backend';
 import type { StorefrontDeps } from '@endora-commerce/mod-megamenu/backend';
-import { composeSettingsKernel } from './kernel/settings/compose.js';
-import { ManifestReconciler } from './kernel/settings/manifest-reconciler.js';
-import { composeSalesChannelsKernel } from './kernel/sales-channels/compose.js';
 import { DefaultChannelReconciler } from './kernel/sales-channels/default-channel-reconciler.js';
 // Feature 046 — Progressive Web App.
 import type { PwaBridge } from '@endora-commerce/mod-pwa/backend';
@@ -158,17 +123,21 @@ import { SalesChannel } from './kernel/sales-channels/sales-channel.entity.js';
 // is exactly what this file is, and it is the spelling that leaves no new shim
 // behind: `RELATIVE_HOST_REACHES` is the ledger T119 drains, and a repair that
 // added to it would be moving in the wrong direction.
-import { composeErrorEnvelopeOptions } from '@endora-commerce/platform/composition';
+//
+// T118 — and this is where the assembly itself now comes from. `composeApp` is
+// aliased on the way in because this file exports one of its own: the platform
+// composes any deployment, and the export below is *this* deployment's, which
+// is the platform's plus the module list, the artefacts and the contributions
+// only this repository has (R1.4).
 import {
-  lifecycleModuleFromStaticEntries,
-  loadModulePresence,
-} from '@endora-commerce/platform/lifecycle';
+  composeApp as composePlatformApp,
+  type ComposeAppHandle,
+  type ComposeAppOptions,
+  type ComposedAppContext,
+} from '@endora-commerce/platform/composition';
+import { lifecycleModuleFromStaticEntries } from '@endora-commerce/platform/lifecycle';
 import { loadDivergenceDeclaration } from './overlay/divergence-loader.js';
-import {
-  deploymentShippedEntries,
-  resolvedManifestEntries,
-  type RegisteredManifestEntry,
-} from './lifecycle/registered-manifests.js';
+import { resolvedManifestEntries } from './lifecycle/registered-manifests.js';
 // Feature 057 — per-deployment overlay resolution (build/composition-time).
 import { loadOverlayModuleEntries } from './overlay/overlay-runtime.js';
 // Feature 080 — installed extension packages, discovered at runtime (D-155).
@@ -191,14 +160,8 @@ import { configuredMigrations } from './db/configured-migrations.js';
 // member. It was `_i18n`'s and had no consumer inside `_i18n`; what stays that
 // module's is `translate`, resolved out of the container below. The routing is
 // derived from manifests, the translation is a service.
-import {
-  buildErrorTranslationTargets,
-  describeErrorCodeCollisions,
-} from './kernel/i18n/error-translation.js';
-import type { ModuleSettingsManifest } from '@endora-commerce/contracts';
-
 /**
- * Production composition root.
+ * The reference deployment's composition root.
  *
  * Wires every business module against:
  *   - the real auth plugin (cookie / Bearer token → `request.actor`)
@@ -209,90 +172,37 @@ import type { ModuleSettingsManifest } from '@endora-commerce/contracts';
  * The dev script (`pnpm --filter backend run dev`) and the prod entry
  * (`backend/src/index.ts`) both call `composeApp({ deploymentRoot })` and then
  * `buildServer({ … modules: composition.modules })`.
+ *
+ * **`ComposeAppOptions` and `ComposeAppHandle` are the platform's** since
+ * `specs/110-instance-repository/` T118, and are re-exported here so the entry
+ * points, the CLI and the boot tests keep one import. Their doc blocks moved
+ * with them: a shape every deployment shares is documented where every
+ * deployment reads it.
  */
+export type { ComposeAppHandle, ComposeAppOptions };
 
 /**
- * The composition inputs an entry point supplies — the values no composed file
- * can derive for itself.
+ * The two seams this deployment fills in during the contribution window.
  *
- * Today there is one, and it is `specs/110-instance-repository/`'s
- * `contracts/application-root-supplier.md` R1.1 in full.
+ * Both need the composed container, and the container does not exist until
+ * every module has registered — so the values are written inside the window and
+ * read after it closes: `scopedPlugins` when the platform assembles the plugin
+ * chain, `buildTenantContext` on the first request. It is the shape
+ * `test/helpers/test-server.ts` spells as `let container!: KernelContainer`,
+ * one indirection wider because the contributions live in a function of their
+ * own rather than in the callback.
  */
-export interface ComposeAppOptions {
+interface DeploymentSeams {
+  /** Route plugins mounted **after** the request-scope hook. */
+  readonly scopedPlugins: ModulePlugin[];
   /**
-   * The absolute path of the directory that holds `apps/`.
+   * The actor → `TenantContext` mapping (Principle XI).
    *
-   * **A composition input, not a container contribution** (R2.1). The proof is
-   * an ordering rather than a preference: this root is needed by
-   * `loadOverlayModuleEntries` and `loadDivergenceDeclaration` some 250 lines
-   * above `composeModules`, and the overlay entries it locates are *spread into
-   * the module list that call receives* — so a value deciding which modules
-   * exist cannot arrive through D-45's window, which opens on the return value
-   * of `composeModules` once every module has registered.
-   *
-   * **It is required, and that is the point.** In this repository the answer is
-   * `overlay-roots.ts`' one expression and it would be easy to default to; in an
-   * instance the platform came out of `node_modules` and any default it could
-   * compute names a directory holding no `apps/` at all — silently, because an
-   * absent declaration and an empty one are deliberately the same answer and an
-   * overlay module nobody can see is skipped with no warning (D-165 step C). A
-   * required parameter is what turns that into a compile error at the one place
-   * that knows: the entry point. R2.4 refuses an environment variable for the
-   * same reason and R2.5 refuses a module-scope singleton.
+   * The hook that installs it is the platform's and is installed on every
+   * composition; only the mapping is here, because it reads `request.actor` —
+   * `auth`'s `declare module 'fastify'` block, which T118b relocates.
    */
-  readonly deploymentRoot: string;
-}
-
-export interface ComposeAppHandle {
-  orm: MikroORM;
-  redis: Redis;
-  modules: ModulePlugin[];
-  errorEnvelope: ErrorEnvelopeOptions;
-  /** Feature 054 — the Command Bus, exposed so migrated module wiring can consume it. */
-  commandBus: CommandBus;
-  /**
-   * Feature 060 — the API interceptor registry. index.ts passes it to
-   * `buildServer({ apiInterceptors })`; modules receive it through their
-   * factory options / OverlayModuleContext and register during composition.
-   */
-  apiInterceptors: ApiInterceptorRegistry;
-  /**
-   * Feature 080 (T042b, D-157.12 item 1) — the composed kernel container.
-   *
-   * The harness handle has exposed it since feature 072 and this one did not,
-   * which made the production root the odd one out among the two roots
-   * `harness-parity.test.ts` holds to each other. Passing it is mandatory
-   * rather than convenient for anything that opens a scope over this
-   * composition: `composeApp` deliberately does **not** call `setRootContainer`
-   * (see the reason at the container's construction below), so an
-   * `enterSystemScope` with no `container` branches off a process-wide root
-   * that has nothing registered.
-   */
-  container: KernelContainer;
-  /**
-   * Feature 080 (T042b, D-157.12 item 2) — a post-registration `ModuleContext`
-   * for one composed module, forwarded from `ComposedModules.contextFor`.
-   *
-   * The host's CLI runner is its caller: a module-declared command receives a
-   * `ModuleContext` rather than a cradle, so its body resolves with
-   * `lazyPort<T>(ctx, 'literalName')` and `check:port-dependencies` keeps its
-   * line of sight (D-157.7).
-   */
-  contextFor: (moduleId: string) => ModuleContext;
-  /**
-   * Feature 080 (T042b) — the instance-resolved manifest set this composition
-   * was actually built from: core, this deployment's overlay modules and every
-   * installed package.
-   *
-   * Exposed rather than re-derived by the caller. `resolvedManifestEntries()`
-   * is memoised per `node_modules` root and would answer the same, but a
-   * second call is a second answer waiting to disagree with the first — and the
-   * property that makes a package's declared command reachable at all is that
-   * the host reads the commands off the **same** entries it composed.
-   */
-  resolvedModules: readonly RegisteredManifestEntry[];
-  /** Closes the ORM + redis connection; call from a SIGTERM handler. */
-  dispose: () => Promise<void>;
+  buildTenantContext?: (request: FastifyRequest) => Promise<TenantContext>;
 }
 
 /**
@@ -420,91 +330,40 @@ function anyLabel(name: unknown): string {
   return '';
 }
 
+/**
+ * The reference deployment's composition root.
+ *
+ * `specs/110-instance-repository/` T118 moved the **assembly** into
+ * `@endora-commerce/platform` (R1.4): the ORM, the container, the host values,
+ * the presence load, the two sub-kernels, the one `composeModules` pass, the
+ * request-scope hook, the settings reconcile, the boot phase and the error
+ * envelope are one function there, and every deployment runs the same one.
+ *
+ * What is left here is what only *this* deployment knows, and it is four things:
+ * the compiled-in module list, the artefacts that list was generated from, this
+ * repository's ORM configuration, and the 41 contributions whose value
+ * expressions name a module — which the platform may not hold (D-52/D-53) and
+ * which therefore arrive through the contribution callback.
+ *
+ * **An instance holds none of this** (R2.4). It calls `composeApp` with a
+ * deployment root and no callback, so no file in a client's tree contributes a
+ * value over a name a module defaults. This file is not an instance; it is the
+ * reference deployment, which is a different thing.
+ */
 export async function composeApp(options: ComposeAppOptions): Promise<ComposeAppHandle> {
   const { deploymentRoot } = options;
-  // Issue #218 — before anything is opened, refuse a production boot with no
-  // public origin. `PUBLIC_API_BASE_URL` is what every payment-gateway callback
-  // URL, public product-feed URL and newsletter confirmation link is built on,
-  // and its old `http://localhost:3001` default produced a wrong-but-plausible
-  // URL nothing logged and nothing refused. Both deployment entry points
-  // (`index.ts`, `worker.ts`) go through this function, so one line covers both
-  // — and `index.ts` already turns a throw from here into a "this is almost
-  // always a configuration problem" message plus `exit(1)`.
-  assertPublicApiBaseUrlConfigured();
-
-  const orm = await initOrm();
-  // Feature 050 — the single EM-injection seam. `forkScopedEm` is a bare
-  // `orm.em.fork()`: it stamps NOTHING, because the tenant filters read the
-  // ambient TenantContext from AsyncLocalStorage **when the query is built**
-  // (`tenancy/filters.ts`), not when the manager is forked. That is what makes
-  // the EntityManager stateless with respect to tenancy, and it is the property
-  // the whole request seam rests on — a fork taken in one context and used in
-  // another is scoped by the context it is *used* in (feature 072, T038; see
-  // `test/integration/tenancy/fault-injection.test.ts`). The seam is inert until
-  // an entity is classified (@OrgScoped/@CustomerScoped attach the filters).
-  const em = (): EntityManager => forkScopedEm(orm);
-
-  // Feature 072 — the kernel container. Modules composed through
-  // `composeModules` register into it; the deployment values assembled below
-  // are handed to that call and register nothing themselves.
-  //
-  // It is deliberately **not** installed as the process root
-  // (`setRootContainer`). Doing so makes every `enterPlatformScope` branch a
-  // child off this graph, and a scope is what lives in an `AsyncLocalStorage`
-  // store — so every retained store starts pinning a whole composed
-  // application. `ctx.cradle()` therefore resolves through this container
-  // directly, which is also the better contract while two roots exist: what a
-  // name resolves to is a property of the composition, not of where the call
-  // happens.
-  //
-  // Phase 4 measured the cost: the suite died with `JavaScript heap out of
-  // memory` at file 78 of 930 with the root installed. Phase 5 re-measured it
-  // on the generated composer — the condition its deferral was pinned to — and
-  // the answer did not move: file 72 of 930, 348 s, 5.1 GB. It could not have.
-  // Production composes one application per process; the **test harness
-  // composes 555 per run**, and that is what the retention scales with. The
-  // number to change is the number of live compositions, which belongs to the
-  // harness convergence (T070–T077), not to this file.
-  const container = createRootContainer();
-  registerOrm(container, orm);
-  // One ledger for the whole boot, so two modules composed in different
-  // `composeModules` calls still collide loudly on a shared registration name.
-  const registrationOwnership = createRegistrationOwnership();
-
-  const redisUrl = process.env['REDIS_URL'] ?? 'redis://localhost:6379';
-  const redis = new Redis(redisUrl, { maxRetriesPerRequest: null, lazyConnect: false });
-  // Principle X deployment dial. BACKEND_ROLE controls whether this process
-  // runs queue consumers (workers):
-  //   - unset / 'all'    → API + co-located workers (default single-VPS)
-  //   - 'api'            → HTTP only; workers run in a separate `pnpm worker`
-  //   - 'worker'         → workers only (set by src/worker.ts; no HTTP listen)
-  const backendRole = process.env['BACKEND_ROLE'] ?? 'all';
-  const runWorkers = backendRole !== 'api';
-  // Feature 018 — separate ioredis client for the module-state pub/sub
-  // channel. ioredis multiplexes commands and subscriptions on different
-  // sockets, so we keep them on different clients to avoid the "subscribed
-  // mode" command restriction on the main client.
-  const redisSubscriber = new Redis(redisUrl, {
-    maxRetriesPerRequest: null,
-    lazyConnect: false,
-  });
-
-  const auditLogService = new AuditLogService(em);
 
   // Feature 057 — resolve the per-deployment overlay once. For a bare-core
-  // build (no DEPLOYMENT / no overlay dir) all of these are empty and the wiring
-  // below is byte-for-byte unchanged. `resolvedRegistry` = the hand-maintained
-  // core registry + overlay-only modules (the core array is never edited).
+  // build (no DEPLOYMENT / no overlay dir) all of these are empty and the
+  // wiring below is byte-for-byte unchanged.
+  //
   // D-104 — one implementation of "the deployment-resolved manifest set", and
   // one of "the deployment's composed modules". Both are runtime discoveries
   // over the deployment root, because both answers depend on which deployment
   // this process runs as rather than on the tree a generator was run against.
-  // This root used to merge the manifests itself while `resolvedManifestEntries()`
-  // merged them again from the generated index; the one under test was not the
-  // one that ran.
   const resolvedRegistry = await resolvedManifestEntries();
   const overlayModuleEntries = await loadOverlayModuleEntries(process.env, deploymentRoot);
-  // Feature 107 — read once and used twice, by `loadModulePresence` below for
+  // Feature 107 — read once and used twice, by the presence load below for
   // D-101's declared omissions and by `composeModules` for the decoration
   // order. Two loads would be two `import()`s of one file answering one
   // question, which is the shape this repository refuses everywhere else.
@@ -515,130 +374,112 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // thing that knows a package is here.
   const packageModuleEntries = await loadPackageModuleEntries();
 
-  // Feature 090 Phase 2 — which bundle holds which error code's sentence,
-  // derived from the manifests this deployment resolved rather than from a table
-  // (`specs/090-module-owned-error-codes/contracts/error-code-declaration.md` §4).
-  // `resolvedRegistry` is core plus this deployment's overlay modules plus every
-  // installed package, which is exactly the input the contract names, and
-  // activation is deliberately not consulted: a code owned by a switchable module
-  // is raised by other modules too, so a switched-off `carts` must not cost
-  // `orders` its checkout sentence.
-  //
-  // Reported here rather than at the injection site because a collision is a
-  // fact about the composition and an operator has to be able to read it before
-  // the first request that renders wrong — and it is `warn` rather than a
-  // refusal: §3.3's severity gradient reserves a refused boot for the
-  // irreversible, and the blast radius of a contested code is one sentence.
-  const errorTranslation = buildErrorTranslationTargets(resolvedRegistry);
-  if (errorTranslation.collisions.length > 0) {
-    platformLogger().warn(
-      { collisions: errorTranslation.collisions.length },
-      'error codes are claimed by more than one module and therefore route to none of ' +
-        `them:\n${describeErrorCodeCollisions(errorTranslation.collisions)}`,
-    );
-  }
+  // The two seams the contribution callback fills in, because both need the
+  // composed container and the container does not exist until every module has
+  // registered. They are a mutable object for the reason the harness's are
+  // `let` (`test/helpers/test-server.ts`): the value is read after the window
+  // closes — `scopedPlugins` when the platform assembles the plugin chain,
+  // `buildTenantContext` on the first request — and never during it.
+  const seams: DeploymentSeams = { scopedPlugins: [] };
 
-  // Feature 072 (D-38) — module presence is a **composition input**, so it is
-  // loaded here: before the first module registers, and therefore before any
-  // boot hook, plugin body or worker registration asks for it. It used to be
-  // warmed inside `_lifecycle`'s plugin body, which runs in `buildServer` —
-  // after all of them — and the platform stopped booting the moment a boot hook
-  // resolved a gated port, because the cache still answered "not installed" for
-  // everything.
-  //
-  // Awaited and fatal, and that costs nothing new: `initOrm()` above already
-  // makes a reachable PostgreSQL a boot precondition. Arming the Redis pub/sub
-  // side is separate (`registryCache.watch()`, from `_lifecycle`'s plugin) and
-  // must never fail a boot — a lost notification channel means stale, not off.
-  await enterSystemScope(
-    'boot: load module presence',
-    // The **entries**, not their manifests: `loadModulePresence` narrows the
-    // first-boot insert to what this build ships (D-157.6(b)), and `filePath` is
-    // what says which entry that is. Everything else it does — both D-101
-    // refusals, the gating graph, the activation declarations, the cache itself
-    // — still reads the whole resolved set.
-    // `declaredOmissions` is this root's to supply since D-160.11: the platform
-    // may not read `src/overlay/`, and which deployment this process runs as is
-    // a fact about the process rather than about the tree.
-    async () =>
-      loadModulePresence({
-        em,
-        entries: resolvedRegistry,
-        declaredOmissions: divergenceDeclaration.omittedModules.map((entry) => entry.moduleId),
-      }),
-    { entryPoint: 'boot' },
-  );
-
-  const eventBus = new EventBus();
-
-  // Feature 054 (Principle XIII) — the Command Bus: the single, guaranteed audit
-  // writer for sensitive writes. It forks the scoped EM, runs the write + one
-  // audit insert co-transactionally, and dispatches the domain event on commit.
-  // Threaded into module factories alongside `eventBus` as writes are migrated.
-  const commandBus = new CommandBus(orm, auditLogService, eventBus);
-
-  // Feature 060 — API interceptor registry. Modules register pre/post
-  // interceptors against endpoints owned by other modules; execution is
-  // lifecycle-gated per interceptor via the enabled-set cache predicate.
-  const apiInterceptors = new ApiInterceptorRegistry({
-    isModuleEnabled: (moduleId) => registryCache.isEnabled(moduleId),
-  });
-
-  // Feature 072 — the **host values** this root owns outright. No module
-  // registers a default for any of them, so they have no contribution window
-  // (D-45's one-slot rule is about overwriting a module's default) and are
-  // registered where the value comes into existence rather than after
-  // `composeModules`. Everything a module does default is contributed below,
-  // between that call and `runBootHooks()`.
-  registerValues(container, {
-    redis,
-    // Feature 072 (T125) — the interceptor registry, so `_lifecycle` can serve
-    // the read-only diagnostics screen over it. It was already declared
-    // platform-owned; until this conversion nothing resolved it by name, so
-    // nothing noticed that no root registered it.
-    apiInterceptors,
-    // The module's `ctx.onBoot` schedule reconcile resolves this (T131), and
-    // nothing else in this file has an opinion about it.
-    pimErgonodeRunWorkers: runWorkers,
-    pimAkeneoRunWorkers: runWorkers,
-    pimPimcoreRunWorkers: runWorkers,
-    pimUnopimRunWorkers: runWorkers,
-    productFeedsRunWorkers: runWorkers,
-    pimAkeneoPublicBaseUrl: resolvePublicApiBaseUrl(),
-    productFeedsPublicBaseUrl: resolvePublicApiBaseUrl(),
-    productFeedsTokenEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'],
-    // The one connection ioredis has put into subscriber mode. Shared, because
-    // a subscriber connection cannot serve commands: a per-module one would
-    // cost a socket per module and buy nothing.
-    redisSubscriber,
-    // Modules announce on it; `ctx.subscribe` receives on it. A module that
-    // publishes needs it as a registration, not just as a composer option.
-    eventBus,
-    // The audited write path (Principle XIII). A converted module resolves it
-    // like any other platform service.
-    commandBus,
-    // The resolved registry — core manifests plus this deployment's overlay
-    // modules. `admin_roles` builds the permission catalogue from it and cannot
-    // see it itself: which modules a deployment ships is a composition-root
-    // input, not something a module decides.
-    resolvedModuleRegistry: resolvedRegistry,
-    auditLogService,
-    // Feature 072 (T138) — the three `organizations` inputs no module defaults.
-    //
-    // `customerOrganizationIdResolver` is the actor half of what used to be
-    // `buildOrgAllowListResolver`: who is asking, as a bare Organization id.
-    // Soft by contract — `null` for anonymous traffic *and* for a Customer with
-    // no Organization — which is why it cannot reuse `customerContextResolver`,
-    // that one throwing 401/422 for both. Catching that to mean "unrestricted"
-    // is the fail-open hazard this split exists to remove.
-    customerOrganizationIdResolver: (request: FastifyRequest): string | null => {
-      const actor = (request as { actor?: { kind: string; organizationId?: string | null } }).actor;
-      return actor?.kind === 'customer' ? (actor.organizationId ?? null) : null;
+  return composePlatformApp({
+    deploymentRoot,
+    composition: {
+      // Feature 072 — the **generated** module list. Nothing about these
+      // modules is named here any more: the list is a walk of the tree, so
+      // adding a module is adding a folder and removing one is deleting it.
+      //
+      // D-103/D-104 — the deployment's overlay modules are appended to this one
+      // list, not composed by a second path, and T031 puts the instance's
+      // installed packages after them for the same reason. Order is not a
+      // privilege: registration resolves nothing (the `registering` guard), and
+      // a package gets no decoration exemption.
+      modules: [...MODULES, ...overlayModuleEntries, ...packageModuleEntries],
+      manifests: resolvedRegistry,
+      // T116 — this build's ORM configuration, which runs through
+      // `./mikro-orm.config.js` to the two committed registries. They are facts
+      // about this repository's tree (D-160.3) and the platform may not name
+      // them, so it is handed the opener and the closer instead.
+      orm: { open: initOrm, close: closeOrm },
     },
-    storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
-    // No verification-token probe outside the harness.
-    organizationsExposeTestProbe: false,
+    // Feature 107 (FR-040/FR-041) — the wrapping order this deployment declares
+    // for a registration more than one of its overlay modules decorates, from
+    // `backend/src/apps/<deployment>/divergence.ts`. Checked, never applied.
+    decorationOrder: divergenceDeclaration.decorationOrder,
+    // D-101 — and the omissions from the same declaration, which the presence
+    // load reads. The platform may not locate the file (D115-3), so the value
+    // is supplied rather than read.
+    declaredOmissions: divergenceDeclaration.omittedModules.map((entry) => entry.moduleId),
+    values: {
+      // Feature 072 (T138) — the actor half of what used to be
+      // `buildOrgAllowListResolver`: who is asking, as a bare Organization id.
+      // Soft by contract — `null` for anonymous traffic *and* for a Customer
+      // with no Organization — which is why it cannot reuse
+      // `customerContextResolver`, that one throwing 401/422 for both. Catching
+      // that to mean "unrestricted" is the fail-open hazard this split exists
+      // to remove.
+      //
+      // A host value rather than a contribution: no module defaults it, so it
+      // has no window. It stays here rather than moving with the assembly
+      // because it reads `request.actor`, which is `auth`'s `declare module
+      // 'fastify'` block — T118b's subject.
+      customerOrganizationIdResolver: (request: FastifyRequest): string | null => {
+        const actor = (request as { actor?: { kind: string; organizationId?: string | null } })
+          .actor;
+        return actor?.kind === 'customer' ? (actor.organizationId ?? null) : null;
+      },
+    },
+    // Feature 050 — establish the ambient TenantContext for every request from
+    // the already-authenticated actor (never from request inputs). The mapping
+    // is this deployment's until T118b relocates the `request.actor`
+    // augmentation; the *hook* is the platform's and always installed.
+    buildTenantContext: async (request: FastifyRequest): Promise<TenantContext> => {
+      if (seams.buildTenantContext === undefined) {
+        throw new Error(
+          'the reference deployment did not install its tenant-context mapping — a request ' +
+            'reached the scope hook before the contribution window ran, which cannot happen ' +
+            'through composeApp and means this root was assembled by hand (Principle XI).',
+        );
+      }
+      return seams.buildTenantContext(request);
+    },
+    scopedPlugins: seams.scopedPlugins,
+    contribute: (ctx) => contributeReferenceDeployment(ctx, seams),
   });
+}
+
+/**
+ * The 41 contributions whose value expression names a module, plus the locals
+ * they are built from.
+ *
+ * A separate function rather than an inline callback, so the block below keeps
+ * the indentation — and therefore the diff — it had while it was
+ * `composeApp`'s own body. Everything it needs comes off the composed context;
+ * it constructs nothing the platform already built.
+ *
+ * `specs/075-cross-module-decoupling-sweep/` Phase C is what drains it: each
+ * entry retires as a `lazyPort` in the owning module's own registration, with
+ * the edge in that module's manifest `dependencies` (T118c).
+ */
+async function contributeReferenceDeployment(
+  ctx: ComposedAppContext,
+  seams: DeploymentSeams,
+): Promise<void> {
+  const {
+    container,
+    em,
+    redis,
+    eventBus,
+    auditLogService,
+    settings,
+    salesChannels,
+    orm,
+    redisSubscriber,
+    resolvedModules: resolvedRegistry,
+    composed: composedModules,
+  } = ctx;
+  const { scopedPlugins } = seams;
+
   // T143a — `search`'s full-reindex port, read lazily. `catalog` triggers a
   // reindex when an attribute's `searchable` flag flips, and the module that
   // owns the indexer is the one that must answer for it.
@@ -689,13 +530,6 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     (container.cradle as never as { promoteAdminActor: AdminActorPromotion })
       .promoteAdminActor;
 
-  const settingsManifestCollectionPort = (): SettingsManifestCollectionPort =>
-    (
-      container.cradle as never as {
-        settingsManifestCollectionPort: SettingsManifestCollectionPort;
-      }
-    ).settingsManifestCollectionPort;
-
   const assetReadPort = (): AssetReadPort =>
     (container.cradle as never as { assetReadPort: AssetReadPort }).assetReadPort;
 
@@ -720,100 +554,6 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     };
   } => container.cradle as never;
 
-  // Where this call sits no longer decides whether a cache is fresh, and that
-  // is the point of D-93. It used to: the sales-channel cache invalidator
-  // subscribed to the EventBus, `EventBus.dispatch` awaits its handlers in
-  // registration order, and composing it before the modules was the one
-  // ordering this root still had to get right (D-45).
-  //
-  // The settings cache stopped depending on it under issue #45 and the channel
-  // cache under D-93: both drops happen at the write seam, awaited after the
-  // flush and before the emit, so no registration order — and no buffered
-  // `EventBus.run` scope, which is what `CommandBus.run` opens around
-  // `sales_channel.set_default` — can defer one past a read.
-  //
-  // Channel *resolution* is kernel infrastructure for the reason T110 gave:
-  // every channel-scoped read depends on it (Principle XII), so it must keep
-  // working whether or not an operator wants the administration screens. The
-  // module owns the admin CRUD service and its routes, and composes itself.
-  const salesChannels = composeSalesChannelsKernel({
-    emFactory: em,
-    eventBus,
-    redis,
-    auditLogService,
-  });
-  // Feature 072 (T118) — the universal settings *reader* is kernel
-  // infrastructure: almost every module calls `SettingsService.get`, so it
-  // cannot be gated on whether an operator wants the settings screens. The
-  // module owns the admin write service, the cache-clear action, the four
-  // storefront resolvers and its routes, and composes itself.
-  const settings = composeSettingsKernel({
-    emFactory: em,
-    redis,
-    ...(process.env['SETTINGS_SECRET_ENCRYPTION_KEY']
-      ? { secretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] }
-      : {}),
-  });
-
-  // Feature 072 — the **generated** module list, composed in one pass (D-45).
-  // Nothing about these modules is named here any more: the list is a walk of
-  // the tree, so adding a module is adding a folder and removing one is
-  // deleting it. Registration resolves nothing, so this call has no opinion
-  // about the order the composer emitted; the boot hooks it collects run once,
-  // at the bottom of this function, after every contribution below.
-  //
-  // D-103/D-104 — the deployment's overlay modules are **appended to this one
-  // list**, not composed by a second path. That keeps D-45 exactly as it is
-  // (one registration pass, one contribution slot, one `runBootHooks()`) and
-  // makes "overlay last, so a deployment's decoration wins" structural: the
-  // core list is frozen and the deployment's entries come after it, rather than
-  // the ordering being a property of a generator's sort.
-  //
-  // T031 — and the instance's installed packages after them, in the same one
-  // list and for the same reasons. Order is not a privilege here: registration
-  // resolves nothing (the `registering` guard), and a package gets no
-  // decoration exemption, so "last" buys it nothing a core module does not
-  // have.
-  const composedModules = composeModules(
-    [...MODULES, ...overlayModuleEntries, ...packageModuleEntries],
-    {
-      container,
-      eventBus,
-      // Issue #269 — composition runs before `buildServer`, so there is no
-      // `app.log` yet. This is late-bound rather than a snapshot: `buildServer`
-      // attaches the application's own pino instance the moment it exists, and
-      // every line written after that lands there. It used to be the bare global
-      // `console` — unstructured, uncorrelated, and outside the stream a
-      // deployment ships.
-      log: platformLogger(),
-      interceptorRegistry: apiInterceptors,
-      ownership: registrationOwnership,
-      // Issue #258 — the modules this deployment is required to have, derived
-      // from the manifest set it resolved above rather than written down (D-100).
-      // The composer refuses before the first module registers when one of them
-      // is missing, which is what stops a first boot from dying in whichever
-      // module's boot hook happened to need it first.
-      requiredModules: requiredModulesFrom(resolvedRegistry.map((e) => e.manifest)),
-      // Feature 107 (FR-040/FR-041) — the wrapping order this deployment
-      // declares for a registration more than one of its overlay modules
-      // decorates, from `backend/src/apps/<deployment>/divergence.ts`.
-      //
-      // **Checked, never applied.** The composer emits in its own order and
-      // drains decorations once; this asserts that the resulting order was the
-      // intended one and refuses when the two disagree. Making the declaration
-      // authoritative would put a hand-written array in front of the composer's
-      // topological emission, which is two orderings of one thing waiting to
-      // disagree.
-      //
-      // The field has existed on `ComposeModulesOptions` since feature 072 and
-      // was passed by no composition root: `AmbiguousDecorationError` told its
-      // reader there was no way to declare the order, correctly, because the
-      // file its doc block named (`endora.config.ts`) was never built. This is
-      // the supply, and that message changes with it — the coupling
-      // `compose.ts`' doc block records.
-      decorationOrder: divergenceDeclaration.decorationOrder,
-    },
-  );
 
   // Feature 072 (T094) — one `CustomerAuthService` for the composition.
   // `customers` and `organizations` each built their own and the MFA argument
@@ -950,17 +690,6 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // was ever a deployment decision, and the consumer built here was the one
   // part of the module nothing could switch off, draining the queue and writing
   // `webhook_deliveries` rows with `webhooks` disabled.
-  composedModules.contribute({ webhooksRunWorkers: runWorkers });
-
-  // Feature 072 (T078) — the auth plugin is `auth`'s own contribution now,
-  // collected by `ctx.rootPlugin` because it decorates `request.actor` for the
-  // whole application rather than contributing routes. The two resolvers it
-  // reads are registered below, once the modules that own them exist; the
-  // plugin reads them per request, so the order is not a race.
-  const authModulePlugin: ModulePlugin = async (app) => {
-    for (const plugin of composedModules.sink.rootPlugins) await plugin(app);
-  };
-
   // Feature 042 / D-96 — the MFA login port is the consumers' resolution, not
   // this root's.
   //
@@ -1048,22 +777,6 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // Feature 072 (T110) — the channel-resolution names. The kernel itself is
   // composed above `composeModules`, for the subscriber ordering; what belongs
   // here is the registration, in the one contribution slot.
-  composedModules.contribute({
-    salesChannelsCache: salesChannels.cache,
-    // The kernel-reserved membership port. `payment_methods` and
-    // `delivery_methods` resolve it to auto-bind a new method to the system
-    // default channel; both read it when their routes register, which is well
-    // after this line.
-    salesChannelMembershipPort: salesChannels.membershipService,
-    // The channel resolver itself. `inventory` has resolved this name since
-    // T129 and neither root registered it, so the channel-scoped storefront
-    // stock read threw `AwilixResolutionError` on its first call — in
-    // production only, because the harness exercises no channel-scoped read.
-    // It went unseen because the name is on `PLATFORM_OWNED_NAMES`, and
-    // `check-port-dependencies` skips those rather than verifying them (#49).
-    salesChannelResolutionPort: salesChannels.resolver,
-  });
-
   // Feature 014 — CMS module (Pages, Blocks, Templates, Hooks, Page
   // Builder). Phase 2 ships module instantiation + seeded-Hook
   // reconciliation; admin/storefront routes land in subsequent phases.
@@ -1084,7 +797,6 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // The module defaults it now, and production wanting the shipped TTL says so
   // by contributing nothing.
   composedModules.contribute({
-    priceListsEnableStatusSweeper: true,
     priceListsAdminAuditContext: (request: FastifyRequest) => {
       const actor = (request as { actor?: { kind: 'admin'; adminUserId: string } }).actor;
       if (actor?.kind !== 'admin') {
@@ -1164,21 +876,6 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     },
   });
 
-  // Feature 072 (T118) — the settings names. The kernel itself is composed
-  // above `composeModules`, for the subscriber ordering; what belongs here is
-  // the registration, in the one contribution slot.
-  composedModules.contribute({
-    settingsSecretEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'],
-    // Feature 073 — the effective-state reader. Registered here rather than
-    // imported inside the module so the dependency direction stays declared in
-    // a root: `_lifecycle` reads this module's `Setting` rows, and this module
-    // reads nothing of `_lifecycle`'s.
-    settingsModulePresence: {
-      presenceOf: (moduleId: string) => effectiveState.presenceOf(moduleId),
-      activationControlOwner: (code: string) => effectiveState.activationControlOwner(code),
-    },
-  });
-
   // Secret settings (e.g. prompt_actions API keys) are AES-256-GCM encrypted
   // at rest with SETTINGS_SECRET_ENCRYPTION_KEY. The key is read from the
   // environment once at boot — so a value added to `.env` only takes effect
@@ -1205,9 +902,6 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // genuinely answer differently.
   composedModules.contribute({
     adminContextResolver,
-    // US2 — the delete-integrity guard reaches settings only through this port
-    // (Principle I): `SettingsService.listReferencesToConfiguration`.
-    credentialsSettingsPort: settings.settingsService,
   });
   // `credentialsService` is resolved from the container where it is needed —
   // `product_feeds` read it as a port since T137, and it was this root's last
@@ -1270,7 +964,6 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     // D-48 — the system-default channel, which always exists. It used to be
     // `?? null`, which switched MFA policy resolution to the platform-wide
     // settings tier on a branch that cannot be taken.
-    mfaDefaultChannelIdResolver: async () => (await salesChannels.resolver.getSystemDefault()).id,
     mfaSocialAccountResolvers: mfaSocialResolvers,
     mfaActorBridge: {
       resolveCustomerActor: (request: FastifyRequest) => {
@@ -1439,56 +1132,59 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   } => container.cradle as never;
 
   // Feature 050 — establish the ambient TenantContext for every request from the
-  // already-authenticated actor (never from request inputs). Registered right
-  // after auth so its onRequest runs after `request.actor` is set and applies
-  // globally (mirrors the auth plugin). See specs/050-org-tenant-scoping/.
+  // already-authenticated actor (never from request inputs). It runs after auth
+  // so `request.actor` is set, and applies globally.
   //
-  // Feature 072 (T027) — the same hook now also opens the request's resolution
-  // scope; `registerRequestScopeHook` owns the shape, shared with the test
-  // harness so the two cannot drift.
-  const tenantContextModulePlugin: ModulePlugin = async (app) => {
-    const buildContext = async (request: FastifyRequest): Promise<TenantContext> => {
-      const actor = request.actor;
-      if (actor.kind === 'customer') {
-        const orgId =
-          actor.organizationId && actor.organizationId.length > 0 ? actor.organizationId : null;
-        // Feature 056 (T032) — a roll-up-enabled customer widens to its org
-        // subtree (server-derived). Absent the capability, stays single-org.
-        const rollupSubtree = await customerRollupScopePort().resolveSubtreeIds(
-          actor.customerAccountId,
-          orgId,
-          (id) => organizationTreeService().subtreeIds(id),
-        );
-        return resolveTenantContext({
-          kind: 'customer',
-          customerAccountId: actor.customerAccountId,
-          organizationId: orgId,
-          impersonatorAdminUserId: actor.impersonatorAdminUserId,
-          ...(rollupSubtree && rollupSubtree.length > 0
-            ? { rollupSubtreeOrganizationIds: rollupSubtree }
-            : {}),
-        });
-      }
-      if (actor.kind === 'admin') {
-        const scope = await resolveAdminOrdersScope(request);
-        return resolveTenantContext({ kind: 'admin', adminUserId: actor.adminUserId }, scope);
-      }
-      // Feature 062 — a BOUND api key pins the request to its organization +
-      // designated service account; an unbound key keeps the legacy trusted
-      // system scope (its only surface is the global-entity PIM path).
-      if (actor.kind === 'api_key') {
-        return resolveTenantContext({
-          kind: 'api_key',
-          apiKeyId: actor.apiKeyId,
-          organizationId: actor.organizationId ?? null,
-          customerAccountId: actor.customerAccountId ?? null,
-        });
-      }
-      // anonymous: trusted platform read scope. Guest-owned rows are
-      // scoped by their own token mechanism, not by the tenant filter.
-      return systemTenantContext(`actor:${actor.kind}`);
-    };
-    await registerRequestScopeHook(app, { buildTenantContext: buildContext });
+  // Feature 072 (T027) — the hook that installs it also opens the request's
+  // resolution scope, and `registerRequestScopeHook` owns that shape, shared
+  // with the test kit so the two cannot drift.
+  //
+  // T118 — the *hook* is the platform's and is installed on every composition
+  // whatever this line does. What is handed over is the **mapping**: it reads
+  // `request.actor`, which exists only because `auth` writes a
+  // `declare module 'fastify'` block, and a platform file that named that
+  // package would be the D-52/D-53 reach `composeApp` moved out of. T118b
+  // relocates the augmentation and this closure goes with it.
+  seams.buildTenantContext = async (request: FastifyRequest): Promise<TenantContext> => {
+    const actor = request.actor;
+    if (actor.kind === 'customer') {
+      const orgId =
+        actor.organizationId && actor.organizationId.length > 0 ? actor.organizationId : null;
+      // Feature 056 (T032) — a roll-up-enabled customer widens to its org
+      // subtree (server-derived). Absent the capability, stays single-org.
+      const rollupSubtree = await customerRollupScopePort().resolveSubtreeIds(
+        actor.customerAccountId,
+        orgId,
+        (id) => organizationTreeService().subtreeIds(id),
+      );
+      return resolveTenantContext({
+        kind: 'customer',
+        customerAccountId: actor.customerAccountId,
+        organizationId: orgId,
+        impersonatorAdminUserId: actor.impersonatorAdminUserId,
+        ...(rollupSubtree && rollupSubtree.length > 0
+          ? { rollupSubtreeOrganizationIds: rollupSubtree }
+          : {}),
+      });
+    }
+    if (actor.kind === 'admin') {
+      const scope = await resolveAdminOrdersScope(request);
+      return resolveTenantContext({ kind: 'admin', adminUserId: actor.adminUserId }, scope);
+    }
+    // Feature 062 — a BOUND api key pins the request to its organization +
+    // designated service account; an unbound key keeps the legacy trusted
+    // system scope (its only surface is the global-entity PIM path).
+    if (actor.kind === 'api_key') {
+      return resolveTenantContext({
+        kind: 'api_key',
+        apiKeyId: actor.apiKeyId,
+        organizationId: actor.organizationId ?? null,
+        customerAccountId: actor.customerAccountId ?? null,
+      });
+    }
+    // anonymous: trusted platform read scope. Guest-owned rows are
+    // scoped by their own token mechanism, not by the tenant filter.
+    return systemTenantContext(`actor:${actor.kind}`);
   };
 
   // Feature 062 — read-only inventory accessors backing the external catalog
@@ -1496,27 +1192,6 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // cumulative on-hand → display band). Standalone instances: reads only,
   // no event emission, no audit.
 
-  const modules: ModulePlugin[] = [
-    // Feature 072 — every module's route contribution, in the generated order.
-    //
-    // They sit ahead of the three root plugins, and that is not an ordering
-    // claim: `buildServer` calls each of these with the root instance, so an
-    // `onRequest` hook any of them adds is a root hook, and Fastify assembles a
-    // route's hook chain when the application is readied rather than when the
-    // route is registered. D-45 measured it — a root hook added after an
-    // encapsulated child still runs for that child's routes — which is why the
-    // 26 modules that used to be "early" have always authenticated correctly
-    // despite mounting before `authModulePlugin`.
-    ...composedModules.sink.plugins,
-    authModulePlugin,
-    tenantContextModulePlugin,
-  ];
-
-  // Feature 005 — Sales Channels plugin (resolver middleware on every
-  // /api/v1/* request). The reconciler + module instantiation happen
-  // earlier so other modules' compositions can consume the membership
-  // service; here we only push the plugin into the routes array.
-  modules.push(salesChannels.plugin);
 
   // Feature 004 — Settings module. The plugin is pushed here; the
   // service handle was constructed up at the inventory site so other
@@ -1562,7 +1237,6 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // as one bridge: a composition knows how to reach `assets_library` and
   // `sales_channels`, or it does not.
   composedModules.contribute({
-    pwaRunWorkers: runWorkers,
     pwaBridge: {
       assetUpload: {
         upload: async (input) => {
@@ -1732,18 +1406,11 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     // switched off. Both roots carried the entry until the root-registration
     // check started reading them (T118).
     // `redis` is registered further up, where the client is created.
-    // The kernel's `SettingsService` already implements the read port; the
-    // adapter object this replaces existed only to narrow it.
-    settingsReadPort: settings.settingsService,
-    // The same cache, seen from the writing side (issue #45). The `settings`
-    // module owns the one write seam, so it is the one place that can drop the
-    // cache *as part of* the write instead of announcing the write and hoping a
-    // subscriber gets there first.
-    settingsCache: settings.cache,
-    // Which channel a global-scope settings read resolves against. It is a
-    // property of the deployment — the system-default channel, or the env
-    // fallback when none is configured yet — not of any module, and this root
-    // had spelled the same expression out four times.
+    // Which channel a global-scope settings read resolves against, the two
+    // settings names and the sales-channel code⇄id bridge all moved with the
+    // assembly (T118): every one of them is a sub-kernel's object, and a
+    // deployment that had to contribute one would be writing the platform's own
+    // wiring.
     // `requireCustomer` is NOT here any more: `auth` provides it as a port
     // (issue #43), for the same reason `requireAdmin` is not — re-registering
     // the name would replace a gated registration with a plain closure.
@@ -1768,42 +1435,6 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     adminAuditActorResolver: (request: FastifyRequest) => ({
       actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
     }),
-    // Feature 072 (wave 2) — the connection a module may build a BullMQ
-    // producer queue on. Deliberately a different name from `redis`: the test
-    // harness registers `redis` but must NOT hand a queue to these modules, and
-    // "no queue in this composition" is a statement a root should be able to
-    // make rather than something inferred from a missing option.
-    moduleQueueRedis: redis,
-    // Feature 072 (wave 2) — the sales-channel code⇄id lookup `google_analytics`
-    // resolves. Owned by `sales_channels`; this is a root bridge to its port.
-    salesChannelCodeIdPort: {
-      idByCode: async (code: string) => (await salesChannels.resolver.getByCode(code))?.id ?? null,
-      codeById: async (id: string) => {
-        const { items } = await reads().salesChannelsService.list({});
-        return items.find((c) => c.id === id)?.code ?? null;
-      },
-    },
-    /**
-     * The channel a **channel-scoped** settings read resolves against outside a
-     * request (worker, boot hook, CLI): the deployment's system-default sales
-     * channel.
-     *
-     * D-48 removed the `?? null` — the resolver cannot fail to find a default,
-     * so this cannot answer "none". The return type stays `string | null`
-     * because the *seam* still admits one: a composition may register a
-     * resolver of its own that has no channel to offer, and
-     * `test/integration/quote_requests/settings-channel.test.ts` exercises
-     * exactly that, pinning D-43's warn-once degrade. What is gone is a
-     * resolver silently switching tier on an impossible branch.
-     *
-     * A read that is not per-storefront at all does not call this: it passes
-     * `null` to `settingsReadPort.get` deliberately, for a platform-wide read.
-     */
-    settingsChannelResolver: async (): Promise<string | null> =>
-      (await salesChannels.resolver.getSystemDefault()).id,
-    // Blog ships no storefront ports today — the factory defaulted this to `{}`
-    // and neither composition root ever passed one.
-    blogStorefrontDeps: undefined,
   });
   // `audit_logs` registers its own empty default for this name, so a value
   // written before `composeModules` would be overwritten by it (the same trap
@@ -1858,7 +1489,6 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // acting admin on an audit record, and the three adapters that reach modules
   // `catalog` must not read through directly.
   composedModules.contribute({
-    catalogRunBulkOperationWorker: runWorkers,
     catalogAdminAuditContext: (request: FastifyRequest) => {
       if (request.actor.kind !== 'admin') {
         // Auditing an anonymous mutation shouldn't happen — the admin gate
@@ -2005,7 +1635,6 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // sweep, and `price_lists`' resolver, which the module narrows to a
   // suggestion price.
   composedModules.contribute({
-    searchRunWorkers: runWorkers,
   });
 
   // Feature 072 (T129) — the two adapters `inventory` reaches outside itself
@@ -2470,8 +2099,6 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // admin routes. Coupling (settings, sales channels, default channel) is
   // injected so the module stays isolated (Principle I).
 
-  modules.push();
-
   // Feature 048 — Newsletter. Own-infrastructure bulk email: subscriber
   // signup (per-channel opt-in), campaigns, automations, and a configurable
   // sending provider. Channel/mailer/settings coupling is injected here so the
@@ -2563,33 +2190,12 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // routes now. The root only reads the two the platform consumes.
 
 
-  // Feature 020 — Admin Command Palette actions registry. Built before
-  // the lifecycle so its reconciler can be plugged into the orchestrator
-  // at construction time.
-  // Feature 072 (T099) — `admin_actions` owns its service, its reconcile and
-  // its routes now. The operator presence axis stays a root's to supply:
-  // which modules a deployment ships is not this module's business.
-  composedModules.contribute({
-    // Issue #225 — the reading and its generation, contributed as one value.
-    // The palette memoises what the reading produced, so a root that handed
-    // over the reading alone would hand over a cache nothing can drop: the
-    // pub/sub message that announces a flip arrives while `refreshFromDb` is
-    // still in flight, and the snapshot rebuilt on it is built from the
-    // presence before the flip.
-    modulePresenceProbe: {
-      // Issue #187 — the platform axis, which the palette used to read by
-      // joining `module_registrations` itself. `?? false` where the operator
-      // axis defaults `true`, and the asymmetry is the tri-state rather than an
-      // oversight: `presence()` answers `undefined` only for an id neither the
-      // registry nor the manifests know, and an action row naming one is an
-      // orphan the join had no row to match either.
-      isPlatformAvailable: (moduleId: string): boolean =>
-        effectiveState.presence(moduleId)?.platformAvailable ?? false,
-      isActivated: (moduleId: string): boolean =>
-        effectiveState.presence(moduleId)?.operatorActivated ?? true,
-      version: (): number => effectiveState.presenceVersion(),
-    },
-  });
+  // Feature 020 — Admin Command Palette actions registry. Feature 072 (T099) —
+  // `admin_actions` owns its service, its reconcile and its routes now, and
+  // T118 moved `modulePresenceProbe` with the assembly: the reading is
+  // `effectiveState`'s and the generation is the registry cache's, so neither
+  // half names a module and a deployment that had to contribute it would be
+  // writing the platform's own wiring.
 
   const lifecycle = lifecycleModuleFromStaticEntries(
     {
@@ -2630,28 +2236,16 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   );
   lifecycleRef = lifecycle;
   // Feature 072 (T125) — `_lifecycle` registers its own routes now, through
-  // `ctx.ungatedRoutes`. Two names stay a composition's, and both genuinely
-  // differ: this deployment boots an orchestrator (the harness does not, because
-  // it never populates `module_registrations`), and a committed flip propagates
-  // by refreshing from the database and dropping the storefront's cache.
+  // `ctx.ungatedRoutes`. One name stays a composition's and it genuinely
+  // differs: this deployment boots an orchestrator, and the harness does not,
+  // because it never populates `module_registrations`.
+  //
+  // T118 — `lifecycleActivationPropagation` left with the assembly. How a
+  // committed flip propagates is the Command Bus, the registry cache and the
+  // storefront revalidator, none of which is a module, so every deployment gets
+  // the same answer rather than each writing it out.
   composedModules.contribute({
     lifecycleOrchestrator: lifecycle.handle.orchestrator,
-    lifecycleActivationPropagation: {
-      commandBus,
-      propagation: {
-        // The writing process refreshes itself rather than waiting on its own
-        // pub/sub round trip, so the very next request it serves sees the
-        // new state.
-        refreshLocalState: () => registryCache.refreshFromDb(em),
-        publishStateChanged: (payload: Parameters<typeof publishStateChanged>[1]) =>
-          publishStateChanged(redis, payload),
-        revalidateStorefront: (tags: string[]) =>
-          new StorefrontRevalidator({
-            baseUrl: process.env['STOREFRONT_BASE_URL'],
-            secret: process.env['REVALIDATE_SECRET'],
-          }).revalidate(tags),
-      },
-    },
   });
   // Feature 072 (T089) — the accessor `_i18n` walks to reconcile every module's
   // translation bundles. It stays an accessor rather than the registry itself
@@ -2665,7 +2259,7 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
 
   // The boot half only: reconciling first-boot registrations, warming the
   // registry cache and resuming workers. Its routes are the module's own now.
-  modules.push(lifecycle.plugin);
+  scopedPlugins.push(lifecycle.plugin);
 
   // Feature 043 — prompt assistant for the admin command palette.
   //
@@ -2682,128 +2276,4 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // so `catalog` pushes from its own boot hook like the other five and this
   // root stops naming `catalog/prompt-tools.js` at all.
 
-  // Feature 004 / T024 — Boot-time manifest reconciliation. Walks every
-  // module's settings manifest and inserts any missing groups/settings
-  // idempotently before the HTTP layer starts serving requests. NEVER deletes
-  // (R-1); destructive uninstall is CLI-only.
-  // Derived from the module registry, not hand-listed: a module that declared
-  // `settings:` but was forgotten in a literal array never got its rows, so
-  // /settings silently omitted it (see collectRegisteredSettingsManifests).
-  // linkedin_ads / meta_ads / tpay / payu / cms need no entry here — registering
-  // their manifests is enough.
-  // Feature 075, Phase C — the registry is passed in rather than imported by
-  // `settings`. Which modules a deployment ships is this root's input, which is
-  // why `resolvedModuleRegistry` is a platform-owned name.
-  //
-  // Feature 080 (T046) — the argument was bare-core `REGISTERED_MANIFESTS`,
-  // recorded here as "a cut and not a widening". The cut had a live cost on the
-  // operator axis (Principle XVII): an **overlay** module's presence is
-  // converged by `loadModulePresence` above, so no `install` ever runs for it
-  // and this reconcile is the only author its activation Setting can have.
-  // `example_overlay` declares one and never got a row — it was installed,
-  // gated and switchable in every respect except that the operator had nothing
-  // to switch.
-  //
-  // The population is therefore `deploymentShippedEntries`, the same split
-  // D-157.6(b) ruled for the first-boot insert and the same function, not a
-  // second copy of the origin test (D-100). A **package** is excluded for a
-  // reason of its own rather than for symmetry: since D-157.6(b) it has exactly
-  // one author, `install`, which reconciles its settings inside the operation
-  // that also applies its migrations — so reconciling them here as well would
-  // let a `SettingCodeConflict` in something an operator merely `pnpm add`ed
-  // abort this boot.
-  const settingsManifests: ModuleSettingsManifest[] = settingsManifestCollectionPort().collect(
-    deploymentShippedEntries(resolvedRegistry),
-  );
-  const reconcilerEm = em();
-  const reconciler = new ManifestReconciler(reconcilerEm);
-  const reconciliation = await enterSystemScope(
-    'boot: reconcile module settings manifests',
-    () => reconciler.apply(settingsManifests),
-    { entryPoint: 'boot' },
-  );
-  for (const m of reconciliation.perModule) {
-    if (m.orphanSettings.length > 0 || m.orphanGroups.length > 0) {
-      // Boot-time logging path; the Fastify logger is not yet available here.
-      console.warn(
-        `[settings] orphan rows for module "${m.moduleCode}": ` +
-          `${m.orphanSettings.length} settings, ${m.orphanGroups.length} groups`,
-      );
-    }
-    eventBus.emit('settings.module_reconciled', {
-      eventId: `settings.module_reconciled:${m.moduleCode}:${Date.now()}`,
-      occurredAt: new Date().toISOString(),
-      moduleCode: m.moduleCode,
-      addedCount: m.addedGroups + m.addedSettings,
-      updatedCount: m.updatedGroups + m.updatedSettings,
-      orphanCount: m.orphanGroups.length + m.orphanSettings.length,
-    } as never);
-  }
-
-  // The explicit boot phase (FR-021), run **once**, after every registration
-  // and every contribution above and before `index.ts` calls `buildServer`
-  // (D-45). That is what makes the rule statable in one sentence: a boot hook
-  // may resolve anything, and a root contribution goes between `composeModules`
-  // and this line.
-  //
-  // Why one phase rather than several: a contribution registered *after* a boot
-  // hook has already run is invisible to that hook, which reads the owning
-  // module's default instead and reports nothing — no error, no warning, a
-  // value that is simply the wrong one. Any split of this phase reopens that
-  // window for every name a module defaults; D-45 counted six live ones when it
-  // closed the split (`organizationsLoginHook`, `ksefVerificationResolver`,
-  // `newsletterEmailBranding`, `shoppingListServiceSink`, `lifecycleOrchestrator`,
-  // `promptActionsBulkProgressResolver`). One `composeModules` call, one
-  // contribution slot, one `runBootHooks()` is what keeps that unspellable.
-  //
-  // Issue #52 — and this line is what closes the slot: every
-  // `composedModules.contribute(…)` below it throws
-  // `ContributionWindowClosedError` naming the rule, rather than landing
-  // somewhere no hook will read.
-  await composedModules.runBootHooks();
-
-  return {
-    orm,
-    redis,
-    modules,
-    commandBus,
-    apiInterceptors,
-    container,
-    // Bound to the composed object rather than re-implemented: a second way to
-    // build a module's context is a second answer about what that module
-    // resolves (T042b).
-    contextFor: (moduleId) => composedModules.contextFor(moduleId),
-    resolvedModules: resolvedRegistry,
-    // T118 — the assembly is the platform's, and what this root supplies is the
-    // three things only a composition holds: its own resolved routing table and
-    // the two gated ports the envelope's callbacks read. The twenty lines that
-    // stood here stood character-for-character in the harness as well, which is
-    // the drift `harness-parity.test.ts` exists for and which issue #234 already
-    // paid for once — both roots read `if (request.actor.kind !== 'admin')
-    // return null`, so every Polish error sentence the platform ships was
-    // unreachable for a buyer, in production and in every test at once.
-    errorEnvelope: composeErrorEnvelopeOptions({
-      errorTranslationTargets: errorTranslation.targets,
-      adminUserReadPort: () => identityPorts().adminUserReadPort,
-      translate: () => reads().adminI18nService,
-    }),
-    dispose: async () => {
-      // Feature 062 — drain the webhook delivery pipeline before dropping the
-      // Redis connections (graceful shutdown). Every part of that is the
-      // container's job since T143a: `ctx.subscribe` unsubscribes with the
-      // module, the queue registration carries its own disposer, and the
-      // delivery worker is `webhooks`' own. Disposing the container runs those
-      // disposers — for every module, not only this one — and it runs *before*
-      // the Redis sockets go, which is the ordering the drain needs.
-      //
-      // The call is new here, and its absence was a quiet leak: production
-      // never disposed the container at all, so the BullMQ producer queue
-      // T098 moved into the module was never closed on shutdown. The harness
-      // has always disposed it (`teardownBackendServer`).
-      await container.dispose();
-      redis.disconnect();
-      redisSubscriber.disconnect();
-      await closeOrm();
-    },
-  };
 }

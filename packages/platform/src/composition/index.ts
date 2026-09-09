@@ -5,16 +5,22 @@
  *
  * ## What is on it
  *
- * The **27** platform symbols a composition root needs and no published barrel
- * carries. They were derived two independent ways that agree — a parse of the
- * five barrels' `ExportDeclaration` nodes, and a `tsc` compile of 165 one-line
- * consumers (33 names × 5 subpaths) against the built package's `exports` map,
- * which gives 159 errors and six resolutions. Build the server, open the
- * container, register the ORM, compose the settings and sales-channel kernels,
- * reconcile the manifests and the default channel, prime the registry cache,
- * establish or fork a tenant context, attach the logger. **Not one of them is an
- * assertion, a fixture or a matcher**, which is why the subpath is called
- * `composition` and not `testing` (§2.7.4).
+ * The platform symbols a composition root needs and no published barrel
+ * carries. The original set was derived two independent ways that agree — a
+ * parse of the five barrels' `ExportDeclaration` nodes, and a `tsc` compile of
+ * one-line consumers against the built package's `exports` map. Build the
+ * server, open the container, register the ORM, compose the settings and
+ * sales-channel kernels, reconcile the manifests and the default channel, prime
+ * the registry cache, establish or fork a tenant context, attach the logger —
+ * and, since `specs/110-instance-repository/` T118, **perform the composition
+ * itself**. **Not one of them is an assertion, a fixture or a matcher**, which
+ * is why the subpath is called `composition` and not `testing` (§2.7.4).
+ *
+ * **How many that is is not written here** (D-100). It read *"the 27"* in three
+ * places in this file and in the assertion that checks it, and T118 moved the
+ * number twice inside one merge request. `HOST_COMPOSITION_SURFACE` in
+ * `test/unit/kernel/published-surface.test.ts` is the attribution table, and
+ * the barrel is held to it in both directions.
  *
  * ## The rule it carries: no module may name it, ever
  *
@@ -33,8 +39,8 @@
  *
  * It is not a widening of the public surface. §1.3's classification is not
  * re-opened, the five public barrels gain nothing, and no entry is deleted from
- * `published-surface.test.ts`' `NOT_PUBLISHED` — 15 of these 27 are in it. The
- * decisive measurement is that **all 27 have zero module-package consumers**,
+ * `published-surface.test.ts`' `NOT_PUBLISHED`. The decisive measurement is that
+ * **every one of them has zero module-package consumers**,
  * production or test, so publishing any of them would be publishing supported
  * API on the strength of a *harness's* necessity: D-160.8's failure mode
  * arriving through a door D-160.8 did not think to watch.
@@ -59,6 +65,24 @@
  * `backend/test/helpers/test-server.ts` reached it by, so the ruling's own
  * table and this barrel are read against each other symbol by symbol.
  */
+
+// --- the composition itself ----------------------------------------------
+// `specs/110-instance-repository/` T118 (R1.4). Every other name here is a
+// piece a composition root uses to build a composition; this one **is** the
+// composition — the assembly sequence a deployment used to write out, and the
+// single contribution slot it hands its own values through.
+//
+// `AppComposition` and `AppOrmLifecycle` are deliberately **not** here.
+// R3.1a's second direction: a name no consumer outside the platform imports is
+// surface parked against a future need. Both are reachable through
+// `ComposeAppOptions` for `tsc`, and a caller builds the object literal without
+// naming either — measured on the one consumer there is.
+export {
+  composeApp,
+  type ComposeAppHandle,
+  type ComposeAppOptions,
+  type ComposedAppContext,
+} from './compose-app.js';
 
 // --- http ---------------------------------------------------------------
 export { buildServer, type ModulePlugin } from '../http/server.js';

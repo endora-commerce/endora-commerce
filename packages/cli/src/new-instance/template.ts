@@ -41,16 +41,21 @@
  *
  * ## What this build cannot yet write, said here rather than discovered
  *
- * The backend member's wiring names four symbols the platform does not publish
- * today — `composeApp`, `configuredMigrations`, `configuredEntities` and
- * `resolvedManifestEntries` — because `specs/110-instance-repository/`
- * **Phase 2 (T113…T118) has not landed** and they are still `backend/src`'s.
- * Each exists under that name; what is forward-looking is the **subpath**.
- * §2.3 states the position for the first of them: *"`composeApp` is imported, never written (R1.2). Until 110 T118 splits
- * `composition.ts` there is nothing to import it from … the reason A4 is red on
- * purpose rather than absent."* Every **specifier** written below is a subpath
- * the platform's `exports` map declares today, so the template is what T139's
- * T1 asks for now and becomes executable the moment Phase 2 lands.
+ * The backend member's wiring names four symbols the platform publishes on
+ * `./composition` and `./db`. `composeApp` is one of them since T118 — the
+ * position §2.3 stated (*"`composeApp` is imported, never written (R1.2)"*) is
+ * met, and the file below supplies the one argument that composition takes:
+ * `deploymentRoot`, the directory holding `apps/`, which no package can derive
+ * because in an instance the platform came out of `node_modules`
+ * (`contracts/application-root-supplier.md` R1.1). **No contribute callback is
+ * supplied and there is nowhere in this tree to write one** — R2.4 — so a
+ * client's instance contributes over no name a module defaults.
+ *
+ * `configuredMigrations`, `configuredEntities` and `resolvedManifestEntries`
+ * are `./db`'s and `./lifecycle`'s under other names; the ORM configuration
+ * below is the one place an instance restates its own artefacts, and it has
+ * none, so the platform's `*From` factories answer over the packages it
+ * installed.
  *
  * §2.3's sixth wiring file, `backend/src/cli.ts`, is a different case and is
  * **not written**. T117 has since landed and the *dispatcher* now has an
@@ -501,10 +506,9 @@ export function devDependenciesFor(input: PlanInput): readonly (readonly [string
  * The backend member's wiring — R1.4's whole population.
  *
  * Each file is the smallest expression that hands the platform something it
- * cannot derive: a database handle, a process's argv, a port. Every **symbol**
- * named below exists in this repository today; what does not yet exist is the
- * **subpath** three of them are reached through, because Phase 2 has not landed
- * — see this file's header. A symbol that exists nowhere is not written at all:
+ * cannot derive: a database handle, a process's argv, a port, **a root
+ * directory**. Every symbol named below is on a subpath the platform's
+ * `exports` map declares. A symbol that exists nowhere is not written at all:
  * `backend/src/cli.ts` is §2.3's sixth wiring file and is reported as an
  * omission rather than rendered against a name somebody would have had to
  * invent for it.
@@ -518,6 +522,8 @@ function backendWiring(input: PlanInput): readonly PlannedFile[] {
     kind: 'wiring',
     member: 'backend',
     content: `// The API process. It reads the environment, composes, and listens.
+import { fileURLToPath } from 'node:url';
+
 import { buildServer, composeApp } from '${scope}platform/composition';
 
 const port = Number(process.env['PORT'] ?? 3001);
@@ -527,7 +533,13 @@ if (sessionCookieSecret === '') {
   process.exit(1);
 }
 
-const composition = await composeApp();
+// The directory that holds \`apps/\` — this workspace's root, one level up from
+// the backend member. It is the one thing the platform cannot derive for
+// itself, and it is deliberately a required argument rather than a default that
+// would silently name a directory holding no \`apps/\` at all.
+const deploymentRoot = fileURLToPath(new URL('../..', import.meta.url));
+
+const composition = await composeApp({ deploymentRoot });
 const app = await buildServer({
   sessionCookieSecret,
   openApi: { title: '${input.name}', version: '0.0.0', serverUrl: \`http://localhost:\${port}\` },
@@ -554,6 +566,8 @@ await app.listen({ port, host: '0.0.0.0' });
     kind: 'wiring',
     member: 'backend',
     content: `// The queue-consumer process (Principle X). Same composition, no listen.
+import { fileURLToPath } from 'node:url';
+
 import { buildServer, composeApp } from '${scope}platform/composition';
 
 process.env['BACKEND_ROLE'] = 'worker';
@@ -563,7 +577,9 @@ if (sessionCookieSecret === '') {
   process.exit(1);
 }
 
-const composition = await composeApp();
+const deploymentRoot = fileURLToPath(new URL('../..', import.meta.url));
+
+const composition = await composeApp({ deploymentRoot });
 const app = await buildServer({
   sessionCookieSecret,
   openApi: { title: '${input.name} worker', version: '0.0.0', serverUrl: 'http://localhost' },
