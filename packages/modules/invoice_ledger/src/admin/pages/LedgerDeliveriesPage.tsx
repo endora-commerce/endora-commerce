@@ -9,6 +9,7 @@ import { ResponsiveTable, type ResponsiveColumn } from '@endora-commerce/admin-k
 import { ApiError, formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { invoiceLedgerAdminClient } from '../api/ledger-client.js';
+import { mergeLedgerDeliveryPages } from './merge-delivery-pages.js';
 
 const RETRYABLE: readonly InvoiceLedgerDeliveryStatus[] = ['failed', 'dead'];
 
@@ -33,7 +34,7 @@ export function LedgerDeliveriesPage(): ReactNode {
         ...(status ? { status } : {}),
         ...(cursor ? { cursor } : {}),
       });
-      setItems(res.data);
+      setItems((prev) => (cursor ? mergeLedgerDeliveryPages(prev, res.data) : res.data));
       setHasMore(res.pagination.hasMore);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('error.loadDeliveries'));
