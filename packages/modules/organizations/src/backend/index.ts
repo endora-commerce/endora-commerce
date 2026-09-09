@@ -18,6 +18,7 @@ import type {
   OrganizationDetailsPort,
   OrganizationInheritancePort,
   OrganizationRestrictionPort,
+  OrganizationTaxProfilePort,
   PersonalOrganizationPort,
   PriceListReadPort,
   TemplateEmailPort,
@@ -155,19 +156,21 @@ import { OrganizationWarehouseLink } from './entities/organization-warehouse-lin
 
 /** What `organizations` resolves from the container, and the names it owns. */
 /**
- * The Organization facts a VAT rate depends on, as this module answers them.
+ * `OrganizationTaxProfilePort` was declared here and is
+ * `@endora-commerce/contracts`' since `specs/110-instance-repository/` T118.
+ * That is a correction rather than a relocation: it is a `providePort` name, so
+ * its type argument is a contract type and never the provider's own file
+ * (composition checklist item 3), and every consumer of the port had to name
+ * this package to spell the type it resolves.
  *
- * `country` is nullable because the caller's fallback is a business rule
- * (`'PL'`, in the Quote Requests resolver) and belongs where that rule is
- * written, not here — a port that invented a country would make an unregistered
- * address indistinguishable from a Polish one.
+ * It is deliberately **not** re-exported from here. A transitional
+ * `export type { … }` was written and withdrawn: the barrel then re-exports a
+ * name whose source is another package, and
+ * `test/unit/packages/module-package-entity-surface.test.ts` refuses that as
+ * `unresolvable-reexport` — whether the barrel carries an entity class by name
+ * becomes *unknown* rather than false, which is the direction D-168 may not be
+ * wrong in. Two spellings for one type was the wrong shape anyway.
  */
-export interface OrganizationTaxProfilePort {
-  taxProfileOf(organizationId: string): Promise<{
-    vatStatus: 'vat_payer' | 'vat_exempt' | 'reverse_charge';
-    country: string | null;
-  } | null>;
-}
 
 export interface OrganizationsCradle {
   readonly emFactory: () => EntityManager;

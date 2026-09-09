@@ -829,3 +829,36 @@ export interface VatValidator {
     countryCode?: string | undefined;
   }): Promise<VatValidationResult>;
 }
+
+/**
+ * Container name: `organizationTaxProfilePort`. Owner: `organizations`.
+ *
+ * The Organization facts a VAT rate depends on (T143c).
+ *
+ * `country` is nullable because the caller's fallback is a business rule
+ * (`'PL'`, in the Quote Requests resolver) and belongs where that rule is
+ * written, not here — a port that invented a country would make an
+ * unregistered address indistinguishable from a Polish one.
+ *
+ * Deliberately not a widening of the kernel's `OrganizationSnapshot`. That
+ * shape is the tenancy projection every module reads; a tax profile is one
+ * consumer's question, and D-55 settled the snapshot at what its callers
+ * actually use.
+ *
+ * **Owner off:** the seam fails closed — resolving the port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`. The Quote
+ * Requests tax closure deliberately carries no `catch` (issue #84): quoting
+ * 0 % on an operator's behalf is worse than failing.
+ *
+ * It is declared here rather than in `organizations`' own `./backend` because
+ * a port's type argument is a contract type and never the provider's file
+ * (composition checklist item 3). The production composition root resolves this
+ * name, and `specs/110-instance-repository/` T118 moves that read into
+ * `@endora-commerce/platform`, where naming a module is D-52/D-53's refusal.
+ */
+export interface OrganizationTaxProfilePort {
+  taxProfileOf(organizationId: string): Promise<{
+    vatStatus: 'vat_payer' | 'vat_exempt' | 'reverse_charge';
+    country: string | null;
+  } | null>;
+}

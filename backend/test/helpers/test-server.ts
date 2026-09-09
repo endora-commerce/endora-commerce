@@ -79,6 +79,10 @@ import type {
   CustomerPasswordVerificationPort,
   CustomerRollupScopePort,
   OrderReadPort,
+  // T118 — `organizations` declared this and no longer does: it is the type
+  // argument of a `providePort` name, so it is a contract type. The production
+  // root spells it the same way.
+  OrganizationTaxProfilePort,
   SettingsManifestCollectionPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -101,10 +105,7 @@ import {
 // cradle typed by one and a getter typed by the other is TS2322. It erases,
 // so nothing is loaded twice (D-160.6.1) — `check:singleton-identity` asks
 // about value reaches, and this is not one.
-import type {
-  OrganizationsCradle,
-  OrganizationTaxProfilePort,
-} from '../../../packages/modules/organizations/src/backend/index.js';
+import type { OrganizationsCradle } from '../../../packages/modules/organizations/src/backend/index.js';
 import type { OrganizationModerationService } from '../../../packages/modules/organizations/src/backend/services/organization-moderation-service.js';
 import type { OrganizationContextService } from '../../../packages/modules/organizations/src/backend/services/organization-context-service.js';
 import type { OrganizationRestrictionService } from '../../../packages/modules/organizations/src/backend/services/organization-restriction-service.js';
@@ -187,7 +188,7 @@ import type { PimPimcoreCradle } from '@endora-commerce/mod-pim-pimcore/backend'
 import type { KsefApiClientPort } from '../../../packages/modules/ksef/src/backend/integrations/ksef-client.interface.js';
 import type { PwaBridge, PwaCradle } from '../../../packages/modules/pwa/src/backend/index.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
-import { createRequestLanguageResolver } from '@endora-commerce/platform/composition';
+import { composeErrorEnvelopeOptions } from '@endora-commerce/platform/composition';
 import type { ComparisonsCradle } from '../../../packages/modules/comparisons/src/backend/index.js';
 // `catalog`'s two service types name the package's **`dist`**, unlike the other
 // packaged modules above, and the difference is not cosmetic: the values these
@@ -2738,29 +2739,21 @@ export async function setupBackendServer(
         version: 'test',
         serverUrl: 'http://localhost',
       },
-      errorEnvelope: {
+      // `specs/110-instance-repository/` T118 — the same assembly production
+      // calls, and now literally the same code rather than the same twenty
+      // lines written twice. What stood here was byte-identical to the
+      // production root's, which is the drift this file's own
+      // `harness-parity.test.ts` exists to refuse: the `request.testActor` read
+      // it once carried was the residual difference between the two roots, and
+      // issue #234 is what a shared *defect* in the pair costs — both spelled
+      // `if (request.actor.kind !== 'admin') return null`, so no test could see
+      // it. `registerTestAuth` mirrors every resolved actor onto `request.actor`
+      // (`test-actors.ts`), so the shared ladder answers correctly here.
+      errorEnvelope: composeErrorEnvelopeOptions({
         errorTranslationTargets: errorTranslation.targets,
-        // The same call production makes, from the same kernel function (D-137).
-        // The `request.testActor` read this replaces was the residual drift
-        // between the two roots: `registerTestAuth` mirrors every resolved actor
-        // onto `request.actor` too (`test-actors.ts`), so the shared resolver
-        // answers correctly here, and `harness-parity.test.ts` pins that neither
-        // root grows a second spelling of the ladder.
-        resolvePreferredLanguage: createRequestLanguageResolver({
-          adminPreferredLanguage: async (adminUserId) =>
-            (await identityPorts().adminUserReadPort.findById(adminUserId))?.preferredLanguage ??
-            null,
-        }),
-        translateErrorMessage: async ({ moduleId, key, language, originalMessage, params }) => {
-          const translated = await adminI18nCradle.adminI18nService.translate(
-            moduleId,
-            key,
-            language,
-            params,
-          );
-          return translated === `${moduleId}.${key}` ? originalMessage : translated;
-        },
-      },
+        adminUserReadPort: () => identityPorts().adminUserReadPort,
+        translate: () => adminI18nCradle.adminI18nService,
+      }),
     },
   });
 

@@ -660,6 +660,51 @@ export interface RecordedReadSize {
  * have, so the `endora new storefront` criterion went red on A5 with
  * `MODULE_NOT_FOUND` and A6 had no build to boot.
  */
+/**
+ * **Re-recorded on 2026-09-08 by `specs/110-instance-repository/` T118 —
+ * eighteen entries, every one of them `+1`, and the +1 is one file.**
+ *
+ * The branch adds exactly one source file,
+ * `packages/platform/src/kernel/i18n/error-envelope-options.ts`, and modifies
+ * seven. That single addition is the whole of the movement, and the arithmetic
+ * closes by root, which is how to check this record:
+ *
+ *   - a **whole-tree** walk gains 2 — the source file and this row's own
+ *     changeset: `check-nul-bytes` 8089 -> 8091 and `check-naming.sh`
+ *     8149 -> 8151. `check-diacritic-folds` 5467 -> 5468 and `check-language.sh`
+ *     6091 -> 6092 gain only 1, being the same arithmetic without the
+ *     changeset, which is the file that is easy to forget because it is written
+ *     last, after the numbers have been read;
+ *   - a walk whose roots **include the platform's own sources** gains 1 — the
+ *     platform is one of the packages `layout.sourceRoots` produces: the family
+ *     at 2148 -> 2149 (`check-kernel-boundary`, `check-channel-resolution`,
+ *     `check-entity-tenant-classification`, `check-entry-presence`,
+ *     `check-entry-scope`, `check-port-catches`, `check-subscribe-seam` and
+ *     `check-transaction-context`), plus `check-action-route-permissions`
+ *     2021 -> 2022, `check-divergence` 2282 -> 2283, `check-env-inputs`
+ *     698 -> 699, `check-module-boundary` 4866 -> 4867 and
+ *     `check-singleton-identity` 4490 -> 4491;
+ *   - a walk over **module sources only** does not move at all, which is the
+ *     fact that makes the attribution provable rather than argued:
+ *     `check-command-coverage`, `check-container-imports` and
+ *     `check-port-dependencies` all agree, because the new file is the
+ *     platform's and no module's.
+ *
+ * Two `sites` numbers move and each is exactly one site, from a different
+ * commit of the same branch. `check-kernel-boundary` 30 -> 31 is the new file's
+ * own `@endora-commerce/contracts` import — a platform outward import, which is
+ * that check's third population. `check-port-shape` 721 -> 722 is the *first*
+ * commit's: `OrganizationTaxProfilePort` moved out of
+ * `organizations`' `./backend` into `@endora-commerce/contracts`, and a
+ * published container name is a site there. Its `files` does not move, the
+ * declaration having been counted at its old address too.
+ *
+ * `check-platform-surface` is **not** in this list and that is worth stating,
+ * because it reads the platform and would be the first place to look: its
+ * recorded `files` already covers the tree the new file joined, so the entry
+ * agrees on this branch and re-recording it would have filed a number that did
+ * not move.
+ */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
     prefix: '[action-route-permissions]',
@@ -787,7 +832,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` — against the two `src/seeds/` re-export shims T215
     // deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. The same two files.
-    files: 2021,
+    files: 2022,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -953,7 +998,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` — against the two `src/seeds/` re-export shims T215
     // deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. The same two files.
-    files: 2148,
+    files: 2149,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1339,7 +1384,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` and `test/integration/demo/demo-parity.test.ts` —
     // against the two `src/seeds/` re-export shims T215 deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. The same two files.
-    files: 5467,
+    files: 5468,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1547,7 +1592,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // +2 is the platform's new `cli/index.ts` barrel plus the shim. Measured by
     // parking this branch's three new files and re-running: every recorded value
     // below came back exactly.
-    files: 2282,
+    files: 2283,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -1839,7 +1884,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` — against the two `src/seeds/` re-export shims T215
     // deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. The same two files.
-    files: 2148,
+    files: 2149,
     sites: 260,
     sources: ['manifest-index'],
   },
@@ -1986,7 +2031,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` — against the two `src/seeds/` re-export shims T215
     // deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. The same two files.
-    files: 2148,
+    files: 2149,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2133,7 +2178,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` — against the two `src/seeds/` re-export shims T215
     // deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. The same two files.
-    files: 2148,
+    files: 2149,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -2274,7 +2319,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` — against the two `src/seeds/` re-export shims T215
     // deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. Both of those two are in this walk's population.
-    files: 698,
+    files: 699,
     sites: 67,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
@@ -2668,8 +2713,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` — against the two `src/seeds/` re-export shims T215
     // deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. The same two files.
-    files: 2148,
-    sites: 30,
+    files: 2149,
+    sites: 31,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-lock-claims.ts': {
@@ -3685,7 +3730,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` — against the two `src/seeds/` re-export shims T215
     // deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. Only the barrel lands in this walk's population, which is why it moves by one where its neighbours move by two.
-    files: 4866,
+    files: 4867,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -4301,7 +4346,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` and `test/integration/demo/demo-parity.test.ts` —
     // against the two `src/seeds/` re-export shims T215 deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. Decomposed by measuring the base rather than by arithmetic: `feat/110-t117-cli-to-platform` itself reads 8086 here, so +2 of the move against this branch's earlier record is the base's and the remaining +3 is this branch's own net — eight files added, five deleted.
-    files: 8089,
+    files: 8091,
     sites: null,
     sources: [],
     //
@@ -4650,7 +4695,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // measured with `PORT_CATCH_WHY=1`: `runSteps` in `src/seeds/demo-composition.ts`, a
     // local the analysis reads as a port-bearing alias. It is a site and not a violation.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. The same two files.
-    files: 2148,
+    files: 2149,
     sites: 214,
     sources: ['manifest-index'],
   },
@@ -4986,7 +5031,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 692 -> 721.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
-    sites: 721,
+    sites: 722,
     sources: ['manifest-index', 'ports-subpaths'],
   },
   // Small on purpose: this population is the *workspace*, not a source tree —
@@ -5423,7 +5468,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` — against the two `src/seeds/` re-export shims T215
     // deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. The same two files.
-    files: 2148,
+    files: 2149,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -5678,7 +5723,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` — against the two `src/seeds/` re-export shims T215
     // deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. The same two files.
-    files: 2148,
+    files: 2149,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -5867,7 +5912,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` and `test/integration/demo/demo-parity.test.ts` —
     // against the two `src/seeds/` re-export shims T215 deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. The same two files.
-    files: 4490,
+    files: 4491,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -6452,7 +6497,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` and `test/integration/demo/demo-parity.test.ts` —
     // against the two `src/seeds/` re-export shims T215 deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. Repo-wide, and decomposed the same way: the base reads 8146, so +2 is the base's and +3 is this branch's net.
-    files: 8149,
+    files: 8151,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -6747,7 +6792,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `src/demo/composition-loader.ts` and `test/integration/demo/demo-parity.test.ts` —
     // against the two `src/seeds/` re-export shims T215 deletes.
     // **Re-measured on the chained base, and this delta is not this branch's.** It is now rebased onto `feat/110-t117-cli-to-platform` (T117), which moves the module-command dispatcher into the platform: the move nets to nothing across the two source roots, and what it adds is the platform's `cli` barrel and the shim left at the old path. This scan reads source comments. The base reads 6089 here, so the whole of this +2 is this branch's own sources; the changeset markdown is not in this population.
-    files: 6091,
+    files: 6092,
     sites: null,
     sources: ['manifest-index'],
     //
