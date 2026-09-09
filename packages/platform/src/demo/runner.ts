@@ -34,6 +34,11 @@ import {
   type DemoPlanCounts,
   type DemoPlanSkip,
 } from './plan.js';
+import {
+  createDemoPackageResolver,
+  demoBodyFromPackage,
+  type DemoPackageResolver,
+} from './packages.js';
 
 /**
  * The cross-module wiring, supplied by whoever owns the instance (§5, D-209).
@@ -125,10 +130,30 @@ export interface DemoModuleOutcome {
   readonly notes: readonly string[];
 }
 
+/**
+ * A module the escape hatch's package is not installed for (§6.3's **second**
+ * answer, feature 113 T235).
+ *
+ * A skip and never a failure: the module contributes nothing, the run
+ * continues, and the report names the package so an operator can install it.
+ * It is a kind of its own rather than a second `reason` on
+ * {@link DemoPlanSkip} because that type is `plan.ts`', decidable with no
+ * module system, and this one is not — collapsing them would put a resolution
+ * this file performs into a type that promises never to perform one.
+ */
+export interface DemoPackageSkip {
+  readonly moduleId: string;
+  readonly reason: 'demo-package-not-installed';
+  readonly package: string;
+}
+
+/** Everything the run did not do, and why. */
+export type DemoRunSkip = DemoPlanSkip | DemoPackageSkip;
+
 export interface DemoRunResult {
   readonly mode: DemoMode;
   readonly modules: readonly DemoModuleOutcome[];
-  readonly skipped: readonly DemoPlanSkip[];
+  readonly skipped: readonly DemoRunSkip[];
   readonly counts: DemoPlanCounts;
   readonly credentials: readonly DemoCredential[];
   readonly diagnostics: readonly string[];
@@ -187,6 +212,14 @@ export interface RunDemoInput {
   /** The composition's own context factory — `ComposeAppHandle.contextFor`. */
   readonly contextFor: (moduleId: string) => unknown;
   readonly composition?: DemoComposition;
+  /**
+   * How a `demo.package` name is resolved (§6, T235).
+   *
+   * Defaults to {@link createDemoPackageResolver} over the working directory,
+   * which for `endora demo seed` is the instance root. A host that runs from
+   * somewhere else, and a test asserting §6.3's three answers, passes its own.
+   */
+  readonly demoPackages?: DemoPackageResolver;
 }
 
 async function invoke(
@@ -265,15 +298,39 @@ export async function runDemo(input: RunDemoInput): Promise<DemoRunResult> {
 
   const modules: DemoModuleOutcome[] = [];
   const credentials: DemoCredential[] = [];
+  const skipped: DemoRunSkip[] = [...plan.skipped];
+  const packages = input.demoPackages ?? createDemoPackageResolver();
   for (const step of plan.steps) {
-    // The context is built here and nowhere earlier: §3.5's gate is upstream of
-    // it, in `planDemoRun`.
-    const context = { ctx: input.contextFor(step.moduleId) } as ModuleDemoContext<never>;
+    // §6.4's **probe**, and it sits here — outside the `try`, before a context
+    // exists — for §3.5's reason one field over: a module whose demo package
+    // is not installed contributes nothing, so nothing is built for it. The
+    // import is inside the `try` below, so a package that is installed and
+    // broken reaches §6.3's third answer and cannot be mistaken for this one.
+    const packageName = step.demo.package;
+    if (packageName !== undefined && !packages.isInstalled(packageName)) {
+      skipped.push({
+        moduleId: step.moduleId,
+        reason: 'demo-package-not-installed',
+        package: packageName,
+      });
+      continue;
+    }
     try {
-      const { entities, result } = await invoke(input.mode, step.demo, context);
+      // §6.3's first answer, *"the module's demo data is the package's"*: when
+      // a package loads, its body replaces the declaration's. It has to — §6.2
+      // bars the module's own sources from naming the package at all, so the
+      // declared `seed` and `reset` could not reach the data if they wanted to.
+      const demo =
+        packageName === undefined
+          ? step.demo
+          : demoBodyFromPackage(await packages.load(packageName), step.moduleId, packageName);
+      // The context is built here and nowhere earlier: §3.5's gate is upstream
+      // of it, in `planDemoRun`.
+      const context = { ctx: input.contextFor(step.moduleId) } as ModuleDemoContext<never>;
+      const { entities, result } = await invoke(input.mode, demo, context);
       modules.push({
         moduleId: step.moduleId,
-        summary: step.demo.summary,
+        summary: demo.summary,
         entities,
         notes: result.notes ?? [],
       });
@@ -282,7 +339,8 @@ export async function runDemo(input: RunDemoInput): Promise<DemoRunResult> {
       // Unconditional, and the only statement in the block: nothing is
       // swallowed and no error is classified here. `DemoRunFailedError` adds
       // the module's name, which is the whole of §3.8, and keeps the original
-      // as its `cause`.
+      // as its `cause` — including the import's own throw, which is §6.3's
+      // third answer and must never be read as its second.
       throw new DemoRunFailedError(step.moduleId, input.mode, error);
     }
   }
@@ -297,7 +355,7 @@ export async function runDemo(input: RunDemoInput): Promise<DemoRunResult> {
   return {
     mode: plan.mode,
     modules,
-    skipped: plan.skipped,
+    skipped,
     counts: plan.counts,
     // The modules' first and the composition's after, which is the order they
     // were created in. A module's own account is its own rows; the

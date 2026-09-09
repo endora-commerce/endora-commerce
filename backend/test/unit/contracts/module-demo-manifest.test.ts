@@ -193,10 +193,11 @@ describe('defineModuleManifest — demo declaration (feature 113, contract §1)'
       // silently dropping a declaration an author wrote. The unknown-key rule
       // it was standing in for is asserted above, over a key nothing declares.
       //
-      // The **runner** half of §6 is not built — `packages/platform/src/demo/`
-      // does not resolve the name — so the field records an intent and changes
-      // no behaviour today. `check:demo-data-budget` reads it, as an
-      // over-budget module's remedy (§7.6).
+      // The **runner** half of §6 is built too (T235):
+      // `packages/platform/src/demo/packages.ts` probes the name and imports it
+      // in two separate steps, and `test/unit/demo/demo-runner.test.ts` asserts
+      // §6.3's three answers are distinguishable. `check:demo-data-budget`
+      // reads the field as an over-budget module's remedy (§7.6).
       const parsed = ModuleDemoDeclarationSchema.parse({
         ...demoDeclaration(),
         package: '@endora-commerce/mod-fixture-demo',

@@ -45,7 +45,15 @@ export {
   type DemoComposition,
   type DemoCompositionResult,
   type DemoModuleOutcome,
+  type DemoPackageSkip,
   type DemoRunResult,
+  type DemoRunSkip,
   type RunDemoInput,
 } from './runner.js';
+export {
+  createDemoPackageResolver,
+  demoBodyFromPackage,
+  DemoPackageShapeError,
+  type DemoPackageResolver,
+} from './packages.js';
 export { formatDemoReport } from './report.js';

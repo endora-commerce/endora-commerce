@@ -1,10 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  DemoPackageShapeError,
   DemoRunFailedError,
+  createDemoPackageResolver,
+  demoBodyFromPackage,
   formatDemoReport,
   runDemo,
+  unwrapDemoFailure,
   type DemoComposition,
   type DemoManifestEntry,
+  type DemoPackageResolver,
 } from '../../../src/demo/index.js';
 import type { ModuleDemoManifest } from '@endora-commerce/contracts';
 
@@ -426,5 +431,215 @@ describe('formatDemoReport — §3.7', () => {
     const report = formatDemoReport(result);
     expect(report).toContain('the megamenu over the category tree');
     expect(report).toContain('megamenu is not present');
+  });
+});
+
+
+/**
+ * The escape hatch (feature 113, T235 —
+ * `contracts/module-demo-data-layer.md` §6).
+ *
+ * §6.3 requires **three** answers and forbids collapsing the second into the
+ * third, and §6.4 requires the probe to happen before the import. Both are
+ * asserted here rather than inferred from the code's shape, because the whole
+ * defect the clause is written against — a broken demo package reading as an
+ * absent one — is invisible in a run that has no broken package in it.
+ */
+function body(summary: string): ModuleDemoManifest<never> {
+  return {
+    summary,
+    seed: async () => ({ created: [{ entity: 'Declared', count: 1 }] }),
+    reset: async () => ({ removed: [] }),
+  };
+}
+
+/** A module whose demo data lives in a package. */
+function delegating(id: string, packageName: string): DemoManifestEntry {
+  return { id, dependencies: [], demo: { ...body('the declaration'), package: packageName } };
+}
+
+const PACKAGE_BODY = {
+  demo: {
+    summary: "the package's own demo data",
+    seed: async () => ({ created: [{ entity: 'FromPackage', count: 7 }] }),
+    reset: async () => ({ removed: [{ entity: 'FromPackage', count: 7 }] }),
+  },
+};
+
+function resolver(over: Partial<DemoPackageResolver>): DemoPackageResolver {
+  return {
+    isInstalled: () => true,
+    load: async () => PACKAGE_BODY,
+    ...over,
+  };
+}
+
+describe('demo.package — the escape hatch (§6.3, §6.4)', () => {
+  it('runs the package’s body instead of the declaration’s when it loads', async () => {
+    const result = await runDemo({
+      mode: 'seed',
+      entries: [delegating('catalog', '@endora-commerce/mod-catalog-demo')],
+      isPresent: present,
+      contextFor,
+      demoPackages: resolver({}),
+    });
+    // §6.3's first row in its own words: *"the module's demo data is the
+    // package's"*. The declaration's `seed` would have reported `Declared 1`,
+    // and it must not run at all — §6.2 bars the module's own sources from
+    // naming the package, so the declared body could not reach the data.
+    expect(result.modules).toEqual([
+      {
+        moduleId: 'catalog',
+        summary: "the package's own demo data",
+        entities: [{ entity: 'FromPackage', count: 7 }],
+        notes: [],
+      },
+    ]);
+    expect(result.skipped).toEqual([]);
+  });
+
+  it('reports an uninstalled package by name, and the run continues', async () => {
+    const loads = vi.fn(async () => PACKAGE_BODY);
+    const build = vi.fn(contextFor);
+    const result = await runDemo({
+      mode: 'seed',
+      entries: [
+        delegating('catalog', '@endora-commerce/mod-catalog-demo'),
+        entry('taxes', body('the VAT rule')),
+      ],
+      isPresent: present,
+      contextFor: build,
+      demoPackages: resolver({ isInstalled: (name) => !name.endsWith('-demo'), load: loads }),
+    });
+    // §6.3's second row: a skip, never an error, and never a silence. The
+    // second module still runs — *"the run continues"* is the clause.
+    expect(result.skipped).toEqual([
+      {
+        moduleId: 'catalog',
+        reason: 'demo-package-not-installed',
+        package: '@endora-commerce/mod-catalog-demo',
+      },
+    ]);
+    expect(result.modules.map((module) => module.moduleId)).toEqual(['taxes']);
+    // Nothing was imported and nothing was built for it: the probe is upstream
+    // of both (§6.4, and §3.5's reasoning one field over).
+    expect(loads).not.toHaveBeenCalled();
+    expect(build).not.toHaveBeenCalledWith('catalog');
+  });
+
+  it('fails the run when the package is installed and throws on load', async () => {
+    // §6.3's third row, and the whole reason §6.4 exists: this state and the
+    // one above are *different answers*, and a single `catch` around a bare
+    // import would report this one as "not installed" and continue.
+    const broken = new Error('Cannot find module ./rows.js');
+    const run = runDemo({
+      mode: 'seed',
+      entries: [delegating('catalog', '@endora-commerce/mod-catalog-demo')],
+      isPresent: present,
+      contextFor,
+      demoPackages: resolver({
+        load: async () => {
+          throw broken;
+        },
+      }),
+    });
+    await expect(run).rejects.toThrow(DemoRunFailedError);
+    await expect(run).rejects.toThrow(/catalog/);
+    // The original survives as the `cause`, unmodified, so an entry point's
+    // existing discrimination sees what it saw before this layer existed.
+    await expect(run.catch((error: unknown) => unwrapDemoFailure(error))).resolves.toBe(broken);
+  });
+
+  it('refuses a package that loads but carries no demo body', async () => {
+    const run = runDemo({
+      mode: 'seed',
+      entries: [delegating('catalog', '@endora-commerce/mod-catalog-demo')],
+      isPresent: present,
+      contextFor,
+      demoPackages: resolver({ load: async () => ({ notDemo: true }) }),
+    });
+    await expect(run).rejects.toThrow(DemoRunFailedError);
+    // Its own error, so the message names the field to fix rather than being a
+    // `TypeError` from the first call.
+    await expect(
+      run.catch((error: unknown) => unwrapDemoFailure(error)),
+    ).resolves.toBeInstanceOf(DemoPackageShapeError);
+  });
+
+  it('withdraws through the package too', async () => {
+    const result = await runDemo({
+      mode: 'reset',
+      entries: [delegating('catalog', '@endora-commerce/mod-catalog-demo')],
+      isPresent: present,
+      contextFor,
+      demoPackages: resolver({}),
+    });
+    // §6.5: taking the hatch changes nothing else, and `reset` is not an
+    // exception — the package's `reset` is what runs.
+    expect(result.modules[0]?.entities).toEqual([{ entity: 'FromPackage', count: 7 }]);
+  });
+
+  it('tells the operator to install a package rather than to switch a module on', async () => {
+    const result = await runDemo({
+      mode: 'seed',
+      entries: [
+        delegating('catalog', '@endora-commerce/mod-catalog-demo'),
+        entry('megamenu', body('a demo menu')),
+      ],
+      isPresent: (id) => id !== 'megamenu',
+      contextFor,
+      demoPackages: resolver({ isInstalled: () => false }),
+    });
+    const report = formatDemoReport(result);
+    // The two skips ask for two different actions, and a report that merged
+    // them would send an operator to the module screen, where `catalog` is on
+    // and nothing is wrong.
+    expect(report).toContain('@endora-commerce/mod-catalog-demo');
+    expect(report).toMatch(/catalog — its demo data lives in/);
+    expect(report).toMatch(/megamenu — not present/);
+  });
+});
+
+describe('demoBodyFromPackage — what a demo package owes (§6.1)', () => {
+  it('takes the summary, seed and reset, and nothing else', () => {
+    const taken = demoBodyFromPackage(PACKAGE_BODY, 'catalog', '@endora-commerce/mod-catalog-demo');
+    expect(Object.keys(taken).sort()).toEqual(['reset', 'seed', 'summary']);
+  });
+
+  it('refuses each incomplete shape, naming what is wrong', () => {
+    const cases: readonly [unknown, RegExp][] = [
+      [{}, /exports no `demo`/],
+      [{ demo: 'yes' }, /not an object/],
+      [{ demo: { seed: () => {}, reset: () => {} } }, /no `summary`/],
+      [{ demo: { summary: 'x', seed: () => {} } }, /not a function/],
+    ];
+    for (const [loaded, message] of cases) {
+      expect(() =>
+        demoBodyFromPackage(loaded, 'catalog', '@endora-commerce/mod-catalog-demo'),
+      ).toThrow(message);
+    }
+  });
+
+  it('does not read the package’s own `after`', () => {
+    // Ordering is `planDemoRun`'s, decided from the declarations before
+    // anything is loaded — a package's `after` would arrive after the sequence
+    // it wants to change.
+    const taken = demoBodyFromPackage(
+      { demo: { ...PACKAGE_BODY.demo, after: ['inventory'] } },
+      'catalog',
+      '@endora-commerce/mod-catalog-demo',
+    );
+    expect(taken.after).toBeUndefined();
+  });
+});
+
+describe('createDemoPackageResolver — the default (§6.4)', () => {
+  it('probes without evaluating, and answers false for a package that is not there', () => {
+    const resolve = createDemoPackageResolver();
+    // A real probe against this checkout: `vitest` is installed here and a
+    // package by this name is not, so the two answers are decided by
+    // resolution alone and neither evaluates anything.
+    expect(resolve.isInstalled('vitest')).toBe(true);
+    expect(resolve.isInstalled('@endora-commerce/mod-nothing-demo')).toBe(false);
   });
 });

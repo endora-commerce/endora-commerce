@@ -56,9 +56,17 @@ export function formatDemoReport(result: DemoRunResult): string {
     lines.push('');
     lines.push('Skipped, and why:');
     for (const skip of result.skipped) {
+      // Two reasons, printed apart, because they ask the operator for two
+      // different things: switch the module on, or install a package. Reading
+      // an uninstalled demo package as "not present" would send them to the
+      // module screen, where the module is on and nothing is wrong (§6.3).
       lines.push(
-        `  ${skip.moduleId} — not present in this instance (either not installed, or ` +
-          `switched off by an operator).`,
+        skip.reason === 'demo-package-not-installed'
+          ? `  ${skip.moduleId} — its demo data lives in '${skip.package}', which is not ` +
+              `installed in this instance. The module itself is present; install that ` +
+              `package to seed its demo data.`
+          : `  ${skip.moduleId} — not present in this instance (either not installed, or ` +
+              `switched off by an operator).`,
       );
     }
   }

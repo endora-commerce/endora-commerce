@@ -859,7 +859,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
     // block, and the frozen copy the parity comparison read against. Nothing is added
     // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
-    files: 2045,
+    // **Feature 113's T235 (the escape hatch's runner half): files 2045 -> 2046 (+1).**
+    // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
+    // probes a `demo.package` name and imports it in two separate steps (§6.4).
+    files: 2046,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1052,7 +1055,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
     // block, and the frozen copy the parity comparison read against. Nothing is added
     // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
-    files: 2172,
+    // **Feature 113's T235 (the escape hatch's runner half): files 2172 -> 2173 (+1).**
+    // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
+    // probes a `demo.package` name and imports it in two separate steps (§6.4).
+    files: 2173,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1504,7 +1510,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
     // block, and the frozen copy the parity comparison read against. Nothing is added
     // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
-    files: 5501,
+    // **Feature 113's T235 (the escape hatch's runner half): files 5501 -> 5502 (+1).**
+    // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
+    // probes a `demo.package` name and imports it in two separate steps (§6.4).
+    files: 5502,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1734,7 +1743,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // its path and its export, so the move itself nets to nothing across the two source
     // roots this walk reads and the +1 is the new platform file alone.
     // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 2316 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
-    files: 2317,
+    // **Feature 113's T235 (the escape hatch's runner half): files 2317 -> 2318 (+1).**
+    // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
+    // probes a `demo.package` name and imports it in two separate steps (§6.4).
+    files: 2318,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -2053,7 +2065,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
     // block, and the frozen copy the parity comparison read against. Nothing is added
     // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
-    files: 2172,
+    // **Feature 113's T235 (the escape hatch's runner half): files 2172 -> 2173 (+1).**
+    // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
+    // probes a `demo.package` name and imports it in two separate steps (§6.4).
+    files: 2173,
     sites: 260,
     sources: ['manifest-index'],
   },
@@ -2227,7 +2242,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
     // block, and the frozen copy the parity comparison read against. Nothing is added
     // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
-    files: 2172,
+    // **Feature 113's T235 (the escape hatch's runner half): files 2172 -> 2173 (+1).**
+    // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
+    // probes a `demo.package` name and imports it in two separate steps (§6.4).
+    files: 2173,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2401,7 +2419,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
     // block, and the frozen copy the parity comparison read against. Nothing is added
     // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
-    files: 2172,
+    // **Feature 113's T235 (the escape hatch's runner half): files 2172 -> 2173 (+1).**
+    // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
+    // probes a `demo.package` name and imports it in two separate steps (§6.4).
+    files: 2173,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -2576,7 +2597,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
     // block, and the frozen copy the parity comparison read against. Nothing is added
     // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
-    files: 697,
+    // **Feature 113's T235 (the escape hatch's runner half): files 697 -> 698 (+1).**
+    // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
+    // probes a `demo.package` name and imports it in two separate steps (§6.4).
+    files: 698,
     sites: 68,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
@@ -3033,7 +3057,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
     // block, and the frozen copy the parity comparison read against. Nothing is added
     // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
-    files: 2172,
+    // **Feature 113's T235 (the escape hatch's runner half): files 2172 -> 2173 (+1).**
+    // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
+    // probes a `demo.package` name and imports it in two separate steps (§6.4).
+    files: 2173,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -4190,7 +4217,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
     // block, and the frozen copy the parity comparison read against. Nothing is added
     // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
-    files: 4931,
+    // **Feature 113's T235 (the escape hatch's runner half): files 4931 -> 4932 (+1).**
+    // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
+    // probes a `demo.package` name and imports it in two separate steps (§6.4).
+    files: 4932,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -4837,7 +4867,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
     // block, and the frozen copy the parity comparison read against. Nothing is added
     // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
-    files: 8142,
+    // **Feature 113's T235 (the escape hatch's runner half): files 8142 -> 8145 (+3).**
+    // This walk is the whole repository, so it reads the one platform source
+    // (`packages/platform/src/demo/packages.ts`) and the two changesets this merge
+    // request carries.
+    files: 8145,
     sites: null,
     sources: [],
     //
@@ -5219,7 +5253,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
     // block, and the frozen copy the parity comparison read against. Nothing is added
     // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
-    files: 2172,
+    // **Feature 113's T235 (the escape hatch's runner half): files 2172 -> 2173 (+1).**
+    // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
+    // probes a `demo.package` name and imports it in two separate steps (§6.4).
+    files: 2173,
     sites: 212,
     sources: ['manifest-index'],
   },
@@ -6085,7 +6122,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
     // block, and the frozen copy the parity comparison read against. Nothing is added
     // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
-    files: 2172,
+    // **Feature 113's T235 (the escape hatch's runner half): files 2172 -> 2173 (+1).**
+    // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
+    // probes a `demo.package` name and imports it in two separate steps (§6.4).
+    files: 2173,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -6392,7 +6432,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
     // block, and the frozen copy the parity comparison read against. Nothing is added
     // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
-    files: 2172,
+    // **Feature 113's T235 (the escape hatch's runner half): files 2172 -> 2173 (+1).**
+    // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
+    // probes a `demo.package` name and imports it in two separate steps (§6.4).
+    files: 2173,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -6613,7 +6656,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
     // block, and the frozen copy the parity comparison read against. Nothing is added
     // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
-    files: 4527,
+    // **Feature 113's T235 (the escape hatch's runner half): files 4527 -> 4528 (+1).**
+    // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
+    // probes a `demo.package` name and imports it in two separate steps (§6.4).
+    files: 4528,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -7228,7 +7274,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
     // block, and the frozen copy the parity comparison read against. Nothing is added
     // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
-    files: 8202,
+    // **Feature 113's T235 (the escape hatch's runner half): files 8202 -> 8205 (+3).**
+    // This walk is the whole repository, so it reads the one platform source
+    // (`packages/platform/src/demo/packages.ts`) and the two changesets this merge
+    // request carries.
+    files: 8205,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -7555,7 +7605,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
     // block, and the frozen copy the parity comparison read against. Nothing is added
     // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
-    files: 6128,
+    // **Feature 113's T235 (the escape hatch's runner half): files 6128 -> 6129 (+1).**
+    // One platform source, `packages/platform/src/demo/packages.ts`: the resolver that
+    // probes a `demo.package` name and imports it in two separate steps (§6.4).
+    files: 6129,
     sites: null,
     sources: ['manifest-index'],
     //

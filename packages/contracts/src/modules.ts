@@ -245,7 +245,7 @@ export interface ModuleDemoManifest<Ctx = unknown> {
    * specifier walk does not read. It is the same reason `cliCommands` keeps its
    * body behind a relative `await import()` rather than a top-level one.
    *
-   * ## What a runner owes it, and the state of that half
+   * ## What a runner owes it
    *
    * §6.3 requires three answers and forbids collapsing the second into the
    * third: *resolvable and loads* — this module's demo data is the package's;
@@ -256,13 +256,21 @@ export interface ModuleDemoManifest<Ctx = unknown> {
    * a silent "not installed", which is the fail-open shape
    * `check:port-catches` refuses one seam over.
    *
-   * **That half is not built yet** (feature 113, T235). The declaration is here
-   * because `check:demo-data-budget` names this field as an over-budget
-   * module's remedy (§7.6) and reads it, reporting a module that names a
-   * package as delegating its demo data — but
-   * `packages/platform/src/demo/runner.ts` does not resolve it, so declaring it
-   * today records an intent and changes no behaviour. Do not take the hatch
-   * until the runner answers §6.3's three ways.
+   * `packages/platform/src/demo/{packages,runner}.ts` answer all three
+   * (feature 113, T235). The probe is `require.resolve`, which does not
+   * evaluate; the import is a separate call, in the one `try` whose `catch`
+   * re-throws unconditionally as `DemoRunFailedError`.
+   *
+   * ## What the package owes back
+   *
+   * It exports **`demo`**: an object with a `summary` string and `seed` and
+   * `reset` functions — the shape declared here, minus the two fields that stay
+   * the module's. When it loads it *replaces* this declaration's `summary`,
+   * `seed` and `reset`, which it must, because §6.2 bars the module's own
+   * sources from naming the package at all and a declared body therefore could
+   * not reach the data. `after` is **not** read from the package: ordering is
+   * decided from the declarations before anything is loaded, so a package's own
+   * would arrive after the sequence it wants to change.
    */
   package?: string | undefined;
 }
