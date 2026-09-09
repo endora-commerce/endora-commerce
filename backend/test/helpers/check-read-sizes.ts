@@ -854,7 +854,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // its path and its export, so the move itself nets to nothing across the two source
     // roots this walk reads and the +1 is the new platform file alone.
     // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 2047 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
-    files: 2048,
+    // **Feature 113's T226: files 2048 -> 2045 (-3).** The corpus is gone —
+    // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
+    // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
+    // block, and the frozen copy the parity comparison read against. Nothing is added
+    // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
+    files: 2045,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1042,7 +1047,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // its path and its export, so the move itself nets to nothing across the two source
     // roots this walk reads and the +1 is the new platform file alone.
     // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 2174 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
-    files: 2175,
+    // **Feature 113's T226: files 2175 -> 2172 (-3).** The corpus is gone —
+    // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
+    // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
+    // block, and the frozen copy the parity comparison read against. Nothing is added
+    // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
+    files: 2172,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1489,7 +1499,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/scripts` and `backend/test/unit/scripts` are excluded, being the
     // trees whose job is to spell the shapes the rule refuses.
     // **Re-measured on the union after rebasing onto `be22a122e`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file — it reads 5503 here — so this branch's own contribution is +1. Only the check's library: this walk excludes `backend/scripts` and `backend/test/unit/scripts`, which is where the check, its ledger and its companion test live.
-    files: 5504,
+    // **Feature 113's T226: files 5504 -> 5501 (-3).** The corpus is gone —
+    // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
+    // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
+    // block, and the frozen copy the parity comparison read against. Nothing is added
+    // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
+    files: 5501,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2033,7 +2048,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // its path and its export, so the move itself nets to nothing across the two source
     // roots this walk reads and the +1 is the new platform file alone.
     // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 2174 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
-    files: 2175,
+    // **Feature 113's T226: files 2175 -> 2172 (-3).** The corpus is gone —
+    // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
+    // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
+    // block, and the frozen copy the parity comparison read against. Nothing is added
+    // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
+    files: 2172,
     sites: 260,
     sources: ['manifest-index'],
   },
@@ -2202,7 +2222,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // its path and its export, so the move itself nets to nothing across the two source
     // roots this walk reads and the +1 is the new platform file alone.
     // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 2174 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
-    files: 2175,
+    // **Feature 113's T226: files 2175 -> 2172 (-3).** The corpus is gone —
+    // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
+    // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
+    // block, and the frozen copy the parity comparison read against. Nothing is added
+    // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
+    files: 2172,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2371,7 +2396,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // its path and its export, so the move itself nets to nothing across the two source
     // roots this walk reads and the +1 is the new platform file alone.
     // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 2174 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
-    files: 2175,
+    // **Feature 113's T226: files 2175 -> 2172 (-3).** The corpus is gone —
+    // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
+    // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
+    // block, and the frozen copy the parity comparison read against. Nothing is added
+    // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
+    files: 2172,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -2541,7 +2571,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this number fell to 58**, with `REDIS_URL` and `REVALIDATE_SECRET` reported as
     // `unread-input` — an alias hides every read behind it, so each is spelled at its own site.
     // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 699 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
-    files: 700,
+    // **Feature 113's T226: files 700 -> 697 (-3).** The corpus is gone —
+    // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
+    // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
+    // block, and the frozen copy the parity comparison read against. Nothing is added
+    // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
+    files: 697,
     sites: 68,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
@@ -2993,7 +3028,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // second one rather than editing this, and in an object literal the last wins — so the
     // new value was dead and the census went on reading the old one. One key, measured on a
     // pristine `origin/master` worktree at 2174, plus this branch's one new platform source.
-    files: 2175,
+    // **Feature 113's T226: files 2175 -> 2172 (-3).** The corpus is gone —
+    // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
+    // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
+    // block, and the frozen copy the parity comparison read against. Nothing is added
+    // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
+    files: 2172,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -4145,7 +4185,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // its path and its export, so the move itself nets to nothing across the two source
     // roots this walk reads and the +1 is the new platform file alone.
     // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 4933 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
-    files: 4934,
+    // **Feature 113's T226: files 4934 -> 4931 (-3).** The corpus is gone —
+    // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
+    // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
+    // block, and the frozen copy the parity comparison read against. Nothing is added
+    // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
+    files: 4931,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -4787,7 +4832,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // companion test and the phase's two changesets. This walk is the whole
     // repository, so it is the one that counts the `.md` as well.
     // **Re-measured on the union after rebasing onto `be22a122e`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file — it reads 8139 here — so this branch's own contribution is +6. This branch adds six files: the check, its library, its ledger, its companion test, and two changesets. This walk opens the whole repository, so it is the entry that shows the full net.
-    files: 8145,
+    // **Feature 113's T226: files 8145 -> 8142 (-3).** The corpus is gone —
+    // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
+    // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
+    // block, and the frozen copy the parity comparison read against. Nothing is added
+    // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
+    files: 8142,
     sites: null,
     sources: [],
     //
@@ -5164,7 +5214,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // population is the source roots, the platform's among them, so the sites moved rather
     // than went. `files` moves +1 in the same breath, which is what says so.
     // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 2174 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
-    files: 2175,
+    // **Feature 113's T226: files 2175 -> 2172 (-3).** The corpus is gone —
+    // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
+    // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
+    // block, and the frozen copy the parity comparison read against. Nothing is added
+    // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
+    files: 2172,
     sites: 212,
     sources: ['manifest-index'],
   },
@@ -5381,7 +5436,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The two `backend/scripts/*.ts` files this phase adds — its application walk
     // is the `RELATIVE_HOST_REACHES` half, whose population is the application
     // tree and not only its `src`.
-    files: 2473,
+    // **Feature 113's T226: files 2473 -> 2470 (-3).** The corpus is gone —
+    // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
+    // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
+    // block, and the frozen copy the parity comparison read against. Nothing is added
+    // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
+    files: 2470,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -6020,7 +6080,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // its path and its export, so the move itself nets to nothing across the two source
     // roots this walk reads and the +1 is the new platform file alone.
     // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 2174 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
-    files: 2175,
+    // **Feature 113's T226: files 2175 -> 2172 (-3).** The corpus is gone —
+    // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
+    // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
+    // block, and the frozen copy the parity comparison read against. Nothing is added
+    // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
+    files: 2172,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -6322,7 +6387,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // its path and its export, so the move itself nets to nothing across the two source
     // roots this walk reads and the +1 is the new platform file alone.
     // **Re-measured on the union after rebasing onto `fe45ed589`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file, never by subtracting deltas: that tree reads 2174 here, so this branch's own contribution is +1. The one new platform source, `packages/platform/src/composition/compose-app.ts`; the application file keeps its path and its export, so the move itself nets to nothing across the two roots.
-    files: 2175,
+    // **Feature 113's T226: files 2175 -> 2172 (-3).** The corpus is gone —
+    // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
+    // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
+    // block, and the frozen copy the parity comparison read against. Nothing is added
+    // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
+    files: 2172,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -6538,7 +6608,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The four `.ts` files this phase adds; its population is the workspace's
     // sources, changesets excluded.
     // **Re-measured on the union after rebasing onto `be22a122e`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file — it reads 4526 here — so this branch's own contribution is +4. The four new `.ts` sources.
-    files: 4530,
+    // **Feature 113's T226: files 4530 -> 4527 (-3).** The corpus is gone —
+    // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
+    // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
+    // block, and the frozen copy the parity comparison read against. Nothing is added
+    // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
+    files: 4527,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -7148,7 +7223,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Six files, the same population as `check:nul-bytes`': four sources and two
     // changesets.
     // **Re-measured on the union after rebasing onto `be22a122e`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file — it reads 8199 here — so this branch's own contribution is +6. This branch adds six files: the check, its library, its ledger, its companion test, and two changesets. Repo-wide, so the same six.
-    files: 8205,
+    // **Feature 113's T226: files 8205 -> 8202 (-3).** The corpus is gone —
+    // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
+    // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
+    // block, and the frozen copy the parity comparison read against. Nothing is added
+    // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
+    files: 8202,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -7470,7 +7550,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The four `.ts` files this phase adds. It reads comments, and the two
     // changesets are `.md` outside `docs/docs/**`.
     // **Re-measured on the union after rebasing onto `be22a122e`.** Attributed by measuring the base on a pristine `origin/master` worktree carrying no stray ignored file — it reads 6127 here — so this branch's own contribution is +4. The four new `.ts` sources; this scan reads source comments and the two changesets are markdown.
-    files: 6131,
+    // **Feature 113's T226: files 6131 -> 6128 (-3).** The corpus is gone —
+    // `backend/src/seeds/` loses `dev-catalog-seed.ts`, `demo-host-residue.ts` and
+    // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
+    // block, and the frozen copy the parity comparison read against. Nothing is added
+    // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
+    files: 6128,
     sites: null,
     sources: ['manifest-index'],
     //

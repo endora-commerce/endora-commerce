@@ -8,9 +8,9 @@
  * nothing and fails closed (`tenancy/filters.ts`). §3.4 puts that responsibility
  * on the **runner** and takes it off every module's body: a module's demo data
  * is not an entry point, so it neither opens a scope nor remembers to. That is
- * stricter than what it replaces — `dev-catalog-seed.ts` is a declared program
- * in `check:entry-scope`'s population and has to remember `enterSystemScope`
- * itself.
+ * stricter than what it replaced — the developer seed script this feature
+ * retired was a declared program in `check:entry-scope`'s population and had to
+ * remember `enterSystemScope` itself.
  *
  * ## Why `system`, and why that changes nothing the run produces
  *
@@ -37,15 +37,6 @@
  * reasons live here, because they are the sentences the escape-hatch record
  * carries and a test asserts what an operator would actually read.
  */
-
-/**
- * The legacy `pnpm --filter backend run seed:dev` reason.
- *
- * Kept verbatim while that script exists (FR-013: the replacement exists before
- * the removal). Phase 1 deletes it with the script it names.
- */
-export const SEED_SCOPE_REASON =
-  'cli: dev catalog seed — truncates and repopulates the demo catalog across every module';
 
 /** `endora demo seed` — every effectively present module's demo rows, plus the composition. */
 export const DEMO_SEED_SCOPE_REASON =

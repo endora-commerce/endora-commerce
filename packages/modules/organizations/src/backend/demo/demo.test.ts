@@ -2,8 +2,9 @@
  * The properties of a demo body that no database comparison can see (feature
  * 113, T222 — contract §2.4, §2.5 and §5.1).
  *
- * `test/integration/demo/demo-parity.test.ts` seeds two databases and diffs
- * them, which is what says this row is the row the host used to write. It cannot
+ * `test/integration/demo/demo-shop.test.ts` seeds a throwaway database and
+ * holds every table the seed moves to a recorded delta, which is what says
+ * this row is still there. It cannot
  * say that a second call creates nothing, and it cannot say that the withdrawal
  * is filtered — which on this table is the assertion that matters most: an
  * organisation is the tenant every buyer, address, cart and order hangs off, so

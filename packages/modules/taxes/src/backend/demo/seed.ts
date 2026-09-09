@@ -1,7 +1,7 @@
 /**
  * `taxes`' demo data (feature 113, T220 — contract §2).
  *
- * The block that used to sit at the bottom of `dev-catalog-seed.ts`' 887-line
+ * The block that used to sit at the bottom of the host seed's 887-line
  * `main()`, in the module that owns the table. It writes `taxes` and nothing
  * else (§2.1), reads no other module's table and resolves no port (§2.2), so
  * declaring it added no entry to this module's manifest `dependencies` (§2.3).

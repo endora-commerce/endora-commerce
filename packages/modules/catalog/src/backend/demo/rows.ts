@@ -4,10 +4,10 @@
  * One place holding the data and the generators, imported by both bodies:
  * `seed.ts` creates these rows and `reset.ts` withdraws exactly them, by the
  * slugs and SKU prefix `seed` assigns (contract §2.5). The values are
- * `dev-catalog-seed.ts`' verbatim, moved rather than rewritten —
- * `backend/src/seeds/demo-relocated-reference.ts` holds the block this replaced
- * and `test/integration/demo/demo-parity.test.ts` compares the two databases row
- * for row while both exist.
+ * the host seed's verbatim, moved rather than rewritten. The frozen copy the
+ * parity comparison read them against is deleted with that comparison (T226);
+ * what holds them now is `test/integration/demo/demo-shop.test.ts`' recorded
+ * delta.
  *
  * ## Why a generator rather than 200 literals
  *

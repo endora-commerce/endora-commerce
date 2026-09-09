@@ -53,8 +53,8 @@ import type { EntityClass } from '@mikro-orm/core';
  * still joins the program. A `.d.ts` does not: declaration files are exempt from
  * the `rootDir` check, so the emitted declaration inside the package's own
  * `dist` is the one spelling a file in this build may name. This file is in that
- * build: `deploy/README.md` documents running the dev seed as
- * `node dist/seeds/dev-catalog-seed.js`, and D-165 makes the compiled tree the
+ * build: `deploy/README.md` documents running the demo seed as
+ * `node dist/cli.js demo seed`, and D-165 makes the compiled tree the
  * production path.
  *
  * That is not a workaround wearing a rule's clothes. The `.d.ts` inside `dist`

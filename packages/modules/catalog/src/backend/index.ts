@@ -934,10 +934,10 @@ export const entities = [
 /**
  * The catalogue read surface a host program needs, published **by name**.
  *
- * `src/seeds/dev-catalog-seed.ts` hands a `CatalogProductReadService` to
+ * `src/seeds/demo-composition.ts` hands a `CatalogProductReadService` to
  * `price_lists`' `DefaultPriceListMigrator`, and `src/seeds/attribute-fixtures.ts`
  * maps a legacy attribute value type onto the unified custom-field model. Both are
- * host programs in the **compiled** build (`node dist/seeds/dev-catalog-seed.js`,
+ * host programs in the **compiled** build (`node dist/cli.js demo seed`,
  * documented in `deploy/README.md`), so neither may name this package's source: a
  * filesystem path would evaluate the file a second time, and `backend/tsconfig.build.json`
  * sets `rootDir: ./src`, which is TS6059 for a `.ts` outside it even under `import type`.

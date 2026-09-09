@@ -225,6 +225,137 @@ describe('runDemo — the composition seam (§5.5)', () => {
     expect(calls).toEqual(['withdraw', 'catalog']);
   });
 
+  it('applies the foundation before the first module seed (§5.5a)', async () => {
+    // The blocker feature 113's T226 was held on, as a sequence: a row a
+    // module's own body **reads** has to exist before that body runs. Measured
+    // in the shop rather than here: `inventory` enumerates every sales channel
+    // and assigns its warehouse to each, so a channel created in `apply`
+    // arrives after the read and loses its assignment with nothing failing.
+    const calls: string[] = [];
+    const result = await runDemo({
+      mode: 'seed',
+      entries: [
+        entry('catalog', {
+          summary: 'x',
+          seed: async () => {
+            calls.push('catalog');
+            return { created: [] };
+          },
+          reset: async () => ({ removed: [] }),
+        }),
+      ],
+      isPresent: present,
+      contextFor,
+      composition: {
+        ...composition(calls),
+        applyFoundation: async () => {
+          calls.push('applyFoundation');
+          return { applied: ["the demo's sales channels"], skipped: [] };
+        },
+        withdrawFoundation: async () => {
+          calls.push('withdrawFoundation');
+          return { applied: ["the demo's sales channels"], skipped: [] };
+        },
+      },
+    });
+    expect(calls).toEqual(['applyFoundation', 'catalog', 'apply']);
+    // One list, in execution order: the two phases are reported as one result
+    // because an operator reads a sequence.
+    expect(result.composition?.applied).toEqual([
+      "the demo's sales channels",
+      'the megamenu over the category tree',
+    ]);
+  });
+
+  it('withdraws the foundation after the last module reset (§5.5a)', async () => {
+    // The exact reverse of the seed, and the position is what lets the
+    // withdrawal be a filtered delete: taking the foundation away first would
+    // remove rows the modules' rows reference, through the database's cascade
+    // rather than through the module that owns them.
+    const calls: string[] = [];
+    await runDemo({
+      mode: 'reset',
+      entries: [
+        entry('catalog', {
+          summary: 'x',
+          seed: async () => ({ created: [] }),
+          reset: async () => {
+            calls.push('catalog');
+            return { removed: [] };
+          },
+        }),
+      ],
+      isPresent: present,
+      contextFor,
+      composition: {
+        ...composition(calls),
+        applyFoundation: async () => {
+          calls.push('applyFoundation');
+          return { applied: [], skipped: [] };
+        },
+        withdrawFoundation: async () => {
+          calls.push('withdrawFoundation');
+          return { applied: [], skipped: [] };
+        },
+      },
+    });
+    expect(calls).toEqual(['withdraw', 'catalog', 'withdrawFoundation']);
+  });
+
+  it('leaves a composition that declares no foundation exactly as it was', async () => {
+    // §5.5a is additive: the phase is optional, and a composition written
+    // against the Phase-0 interface must produce the result it produced before
+    // the phase existed — including the report's shape (§6.5).
+    const calls: string[] = [];
+    const result = await runDemo({
+      mode: 'seed',
+      entries: [],
+      isPresent: present,
+      contextFor,
+      composition: composition(calls),
+    });
+    expect(calls).toEqual(['apply']);
+    expect(result.composition).toEqual({
+      applied: ['the megamenu over the category tree'],
+      skipped: [],
+    });
+  });
+
+  it('reports the credentials a composition created beside the modules\' own', async () => {
+    // The demo buyer is created by a composition step and by nothing else —
+    // `customer_accounts.organization_id` is `NOT NULL` (Principle XI) — so
+    // until this field existed the composed report printed three of the four
+    // sign-ins and said nothing about the fourth.
+    const result = await runDemo({
+      mode: 'seed',
+      entries: [
+        entry('admin_users', {
+          summary: 'x',
+          seed: async () => ({
+            created: [],
+            credentials: [{ label: 'Administrator', value: 'admin@demo.local / pw' }],
+          }),
+          reset: async () => ({ removed: [] }),
+        }),
+      ],
+      isPresent: present,
+      contextFor,
+      composition: {
+        apply: async () => ({
+          applied: ['the buyer joins the organisation'],
+          skipped: [],
+          credentials: [{ label: 'Organization Admin', value: 'buyer@demo.example / pw' }],
+        }),
+        withdraw: async () => ({ applied: [], skipped: [] }),
+      },
+    });
+    expect(result.credentials).toEqual([
+      { label: 'Administrator', value: 'admin@demo.local / pw' },
+      { label: 'Organization Admin', value: 'buyer@demo.example / pw' },
+    ]);
+    expect(formatDemoReport(result)).toContain('buyer@demo.example / pw');
+  });
+
   it('runs with no composition at all — Phase 0 over zero modules', async () => {
     const result = await runDemo({
       mode: 'seed',

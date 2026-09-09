@@ -7,10 +7,10 @@
  * `content_manager` with it — two roles `blog` and `cms` seed from their own
  * boot hooks, which share this table with the demo and are not the demo's.
  *
- * The values are `dev-catalog-seed.ts`' verbatim, moved rather than rewritten:
- * `backend/src/seeds/demo-relocated-reference.ts` holds the block this replaced
- * and `test/integration/demo/demo-parity.test.ts` compares the two databases
- * row for row while both exist.
+ * The values are the host seed's verbatim, moved rather than rewritten. The
+ * frozen copy the parity comparison read them against is deleted with that
+ * comparison (T226); what holds them now is
+ * `test/integration/demo/demo-shop.test.ts`' recorded delta.
  *
  * ## Why the sales representative's permission list is here and is exported
  *

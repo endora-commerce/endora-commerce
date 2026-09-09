@@ -3,9 +3,10 @@
  *
  * One place holding the data, imported by both bodies: `seed.ts` creates these
  * rows and `reset.ts` withdraws exactly them, by the `code` they are keyed on
- * (contract §2.5). The values are `dev-catalog-seed.ts`' verbatim — the block
- * they replace is kept in `backend/src/seeds/demo-relocated-reference.ts` as
- * the parity comparison's reference side until the corpus goes (T226).
+ * (contract §2.5). The values are the host seed's verbatim; the frozen copy
+ * that was the parity comparison's reference side went with the corpus at
+ * T226, and `test/integration/demo/demo-shop.test.ts`' recorded delta is what
+ * holds them now.
  */
 
 /** One demo delivery method, in `DeliveryMethod`'s own field names. */

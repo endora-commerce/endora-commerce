@@ -132,10 +132,11 @@ cd /opt/b2b
 export IMAGE_TAG=<deployed-sha>
 docker compose --env-file .env -f compose.prod.yml run --rm \
   -e ALLOW_DEV_SEED_IN_PRODUCTION=true backend \
-  node dist/seeds/dev-catalog-seed.js
+  node dist/cli.js demo seed
 ```
 
-Without that `-e`, the script refuses to run under `NODE_ENV=production` and says so.
+Without that `-e`, the command refuses to run under `NODE_ENV=production` and says so.
+`node dist/cli.js demo reset` withdraws exactly what it created.
 
 ---
 

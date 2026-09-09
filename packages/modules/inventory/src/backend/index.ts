@@ -536,7 +536,7 @@ export const entities = [
  * The warehouse↔channel reconciler and this module's system warehouse id,
  * published **by name** on `./backend`.
  *
- * `src/seeds/dev-catalog-seed.ts` runs the reconciler, and a host program is
+ * The host's demo composition runs the reconciler, and a host program is
  * composed against this package's `dist` while the ORM is registered from the
  * same `entities` array above — so a filesystem path into this file's source
  * would evaluate `warehouse.entity.ts` a second time and the reconciler would

@@ -4,7 +4,7 @@
  * `contracts/accessibility-floor.md` §4.3 and §4.5's fifth refusal).
  *
  * Four of the storefront's eight indexable route types take a slug. This script
- * runs after `seed:dev`, against the same throwaway database, and answers one
+ * runs after `endora demo seed`, against the same throwaway database, and answers one
  * question per kind: **what is there for this route type to be about?** It
  * discovers what the catalogue seed already produced and creates what nothing
  * else does — a published blog post and a published page-builder CMS page —
@@ -22,7 +22,7 @@
  * ## Why it writes SQL
  *
  * It is a seed, in `backend/scripts/`, outside every module boundary — the same
- * position `src/seeds/dev-catalog-seed.ts` holds and for the same reason: a
+ * position `src/seeds/demo-composition.ts` holds and for the same reason: a
  * fixture composed of a dozen modules' rows is a composition root's job. Plain
  * SQL rather than the entity classes because nothing here needs the unit of
  * work, and because a script that imports eleven module packages to insert
@@ -109,7 +109,7 @@ async function defaultChannel(execute: Execute): Promise<ChannelRow> {
   if (channel === undefined) {
     throw new Error(
       'no active sales channel. This database has never been seeded, so there is nothing for ' +
-        'any storefront route to be about — run `seed:dev` first.',
+        'any storefront route to be about — run `endora demo seed` first.',
     );
   }
   return channel;
@@ -118,7 +118,7 @@ async function defaultChannel(execute: Execute): Promise<ChannelRow> {
 /**
  * The shop's own identity, so the home page has an `Organization` to emit.
  *
- * `seed:dev` leaves `shop.name` and its siblings at their empty default, and
+ * The demo seed leaves `shop.name` and its siblings at their empty default, and
  * `OrganizationJsonLd` deliberately renders **nothing** for a shop with no name
  * — an `Organization` with an empty `name` is worse than none. So a run against
  * the bare development seed reported the home page as declaring `Organization`
@@ -126,7 +126,7 @@ async function defaultChannel(execute: Execute): Promise<ChannelRow> {
  * page. A conformance fixture has to be a shop somebody could plausibly run.
  *
  * **It counts what it wrote, and that is the point rather than a flourish.**
- * These rows are *created by the platform's own boot*, not by `seed:dev`, so on
+ * These rows are *created by the platform's own boot*, not by the demo seed, so on
  * a database that has never had the backend run against it the `update` below
  * matches nothing — and an `update` that matches nothing is silent. That is
  * exactly how this returned after it had been fixed once: the run was green
@@ -259,9 +259,12 @@ async function blogPost(execute: Execute, channel: ChannelRow): Promise<Subject 
   }
 
   // The scope rows are written on **every** run, not only when the post is
-  // created, and that is the whole of this function's idempotence. `seed:dev`
-  // truncates `sales_channels`, which cascades these join rows away while
-  // leaving `blog_posts` — a different module's table — untouched. A script
+  // created, and that is the whole of this function's idempotence. The demo
+  // seed's withdrawal removes a sales channel it created, which cascades these
+  // join rows away while leaving `blog_posts` — a different module's table —
+  // untouched. (It used to *truncate* that table, which took every channel;
+  // feature 113's T226 narrowed it to the one the demo makes, and the hazard
+  // this comment is about survives the narrowing.) A script
   // that took "the post exists" for "the post is reachable" therefore wrote a
   // post nothing serves, and the run reported the blog route type as a page
   // with no `<h1>` rather than as a fixture that was never linked. Measured.

@@ -4,10 +4,11 @@
  *
  * One place holding the data, imported by both bodies: `seed.ts` creates these
  * accounts and `reset.ts` withdraws exactly them, by the `email` they are keyed
- * on (contract §2.5). The values are `dev-catalog-seed.ts`' verbatim, moved
- * rather than rewritten — `backend/src/seeds/demo-relocated-reference.ts` holds
- * the block this replaced, and `test/integration/demo/demo-parity.test.ts`
- * compares the two databases row for row while both exist.
+ * on (contract §2.5). The values are the host seed's verbatim, moved rather
+ * than rewritten; the frozen copy the parity comparison read them against is
+ * deleted with that comparison (T226), and
+ * `test/integration/demo/demo-shop.test.ts`' recorded delta is what holds them
+ * now.
  *
  * ## The role each account holds is deliberately not here
  *

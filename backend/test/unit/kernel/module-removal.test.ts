@@ -131,53 +131,49 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // excluded from the scan for the same reason every other generated artefact
   // is: deleting a module's directory and regenerating removes the reference.
   //
-  // The result is that **36 of the 65 modules are removable by deleting the
-  // directory**, against four before. Everything below is a reference from a
+  // The result is that most modules are removable by deleting the directory,
+  // against four before — **how many is not written here**, because the ledger
+  // below is what says it and the two numbers that used to stand in this
+  // sentence went stale in every batch that drained an entry (D-100). The
+  // ledger's own size answers it. Everything in it is a reference from a
   // composition root, which is the residue shape F3 and F4 are scoped to
   // finish — no central list holds a module any more.
   //
-  // ── `src/seeds/` — twelve entries this scan could not see before ──────────
+  // ── `src/seeds/` — twelve entries, and feature 113 answered all of them ───
   //
-  // **Feature 113's T211 split the file the twelve entries named, so every one
-  // of them was re-pointed and none was freed.** `dev-catalog-seed.ts` is now
-  // three: the entry point, which names no module; `demo-composition.ts`, the
-  // five steps that touch more than one module's rows; and
-  // `demo-host-residue.ts`, the demo rows whose modules have not taken them
-  // back yet. A module the composition wires and the residue seeds — `catalog`,
-  // `inventory`, `organizations` — is held by both, which is the split doing
-  // exactly what it says on the tin rather than a new coupling.
+  // T211 split the one 887-line file the twelve named; every batch of Phase 2
+  // then moved one module's demo block into that module's own
+  // `src/backend/demo/` and *froze* a verbatim copy of it, because the parity
+  // comparison that judged each batch could only see one while its two sides
+  // were different code. So batch after batch re-pointed entries and freed
+  // none — recorded here at the time, each in place.
   //
-  // What retires these entries is now known and scheduled, which it was not
-  // when the paragraph below was written: feature 113's Phase 2 moves each
-  // module's block into that module's own `src/backend/demo/`, and its entry
-  // here goes with the block. The residue file is deleted when the last one
-  // does (T226), and `demo-composition.ts`' own entries retire with it or
-  // survive as the composition's — a composition naming modules is a
-  // composition root doing its job, and this file records it rather than
-  // objecting to it.
+  // **T226 is where they came due.** The frozen copy and the legacy entry
+  // point are deleted, and with them `delivery_methods`, `payment_methods` and
+  // `taxes` leave this ledger outright while five more lose their second
+  // entry. What survives is `src/seeds/demo-composition.ts`, this instance's
+  // demo composition, and `src/seeds/attribute-fixtures.ts`, the single copy of
+  // the attribute helper (FR-019). Neither is expected to drain: a composition
+  // naming modules is a composition root doing its job, and this file records
+  // it rather than objecting to it.
   //
-  // Feature 075 moved `dev-catalog-seed.ts` and `attribute-fixtures.ts` out of
+  // Feature 075 moved the dev seed and `attribute-fixtures.ts` out of
   // `src/modules/catalog/seeds/` and into `src/seeds/`, beside `composition.ts`.
-  // The dev seed writes megamenus, organisations, customer accounts, admin
-  // users and roles, delivery methods, payment methods, taxes, a default price
-  // list, warehouses and stock: two of the twelve modules it names are
-  // `catalog`, so it is a composition of the platform's demo data and belongs
-  // where a composition root belongs.
+  // The seed wrote megamenus, organisations, customer accounts, admin users and
+  // roles, delivery methods, payment methods, taxes, a default price list,
+  // warehouses and stock: two of the twelve modules it named were `catalog`, so
+  // it was a composition of the platform's demo data and belonged where a
+  // composition root belongs.
   //
-  // **The lines it adds below are not new residue.** The seed named all twelve
+  // **The lines it added were not new residue.** The seed named all twelve
   // modules before the move too, and this scan missed every one of them: its
   // needle is the substring `modules/<id>/`, and from inside
   // `src/modules/catalog/seeds/` the specifier read `../../megamenu/entities/…`
   // — module-relative, so no `modules/` segment to match. That is the same
   // normalisation bug feature 075's FR-004 records as having produced a 2.2×
   // undercount elsewhere. The move did not create the coupling; it made the
-  // coupling addressable, which is the only way it ever gets paid off.
-  //
-  // What retires them is not another cut: it is the seed reading a
-  // deployment-composed set of writers rather than twelve entity classes, or
-  // — the honest cheap answer — the day a developer bootstrap stops needing to
-  // exist because `db:fresh` seeds from fixtures. Neither is F3 work, and
-  // neither is served by moving the file somewhere this test cannot walk.
+  // coupling addressable, which is the only way it ever gets paid off — and
+  // feature 113 is what paid it.
   //
   // `catalog` (wave 4, T142), now two entries rather than three (feature 080,
   // T040b). **`src/composition.ts` is gone and is a real retirement**: its one
@@ -205,20 +201,16 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // is real — deleting the package breaks the **build** — and it is not runtime
   // coupling, because the type imports erase.
   //
-  // **T224 re-pointed the third entry and freed nothing**, on §3.2a.1's
-  // convention: the whole catalogue block — the tree, the 200 products, the
-  // composites and their structure — is `catalog`'s own demo data now, and the
-  // copy `demo-parity.test.ts` compares it against is frozen in
-  // `demo-relocated-reference.ts`. The `demo-composition.ts` entry grew a second
-  // reason with the same batch: three blocks that sat inside that one became
-  // composition steps, so the composition now names `Product`, `Category` and
-  // `AttributeSetAttribute` to write the attributes, the images and the
-  // attachments.
-  catalog: [
-    'src/seeds/attribute-fixtures.ts',
-    'src/seeds/demo-composition.ts',
-    'src/seeds/demo-relocated-reference.ts',
-  ],
+  // **T224 re-pointed a third entry, T226 freed it.** The whole catalogue
+  // block — the tree, the 200 products, the composites and their structure —
+  // is `catalog`'s own demo data now, and the frozen copy the parity
+  // comparison read it against is deleted with the comparison. What remains
+  // are the two entries that are not residue at all: `attribute-fixtures.ts`,
+  // the single copy of the attribute helper (FR-019), and the composition,
+  // which names `Product`, `Category` and `AttributeSetAttribute` to write the
+  // attributes, the images and the attachments — three blocks that became
+  // composition steps with T224 because each writes two modules' rows at once.
+  catalog: ['src/seeds/attribute-fixtures.ts', 'src/seeds/demo-composition.ts'],
   // The three modules the dev seed holds and nothing else does. Each is a plain
   // entity import in the seed — a warehouse, a stock level, a delivery method,
   // and the custom-field definition half of a product attribute.
@@ -248,12 +240,11 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // type that helper's own file already names. Both entries retire together,
   // with the test kit (`specs/109-backend-test-kit/`).
   custom_fields: ['src/seeds/attribute-fixtures.ts', 'src/seeds/demo-composition.ts'],
-  // `inventory` moved with T223 and, like the three below, was re-pointed
-  // rather than freed: the warehouse block is frozen in the reference file the
-  // parity comparison needs, and the composition still spreads stock across the
-  // warehouse this module's demo body creates. The second entry is the
-  // composition doing its job and is not expected to drain at all.
-  inventory: ['src/seeds/demo-composition.ts', 'src/seeds/demo-relocated-reference.ts'],
+  // `inventory` moved with T223 and was re-pointed rather than freed; T226
+  // freed the re-pointed half with the reference file. What is left is the
+  // composition spreading stock across the warehouse this module's demo body
+  // creates — the composition doing its job, and not expected to drain at all.
+  inventory: ['src/seeds/demo-composition.ts'],
   // ── Criterion 7's cost, and it is a cost of a decision rather than a defect ─
   //
   // The three entries below came back on 2026-08-25 with !997, and the comment
@@ -276,54 +267,45 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   //
   // So these are references, and they are ledgered rather than argued away:
   // deleting one of these packages breaks the **build**. What they are not is
-  // runtime coupling — the imports erase, and `grep -c 'packages/modules'
-  // dist/seeds/dev-catalog-seed.js` is **0**, measured. They retire when the
-  // developer bootstrap stops needing to construct entities at all, which is
-  // the same condition the `src/seeds/` block above already names.
+  // runtime coupling — the imports erase, and `grep -c 'packages/modules'` over
+  // the composition's compiled output is **0**, measured. They retire when the
+  // composition stops needing to construct entities at all, which is the same
+  // condition the `src/seeds/` block above already names.
   // `credit_limits` joined on 2026-08-25 with !1021, and for a reason worth
   // keeping: seeding the `credit_limit` payment method alone would have added
   // an option no seeded buyer could ever see, because checkout filters the
   // method on a granted limit against the cart total. The seed therefore
   // grants one too, which is what puts this module here.
   //
-  // **Feature 113's T222 re-pointed this entry and freed nothing**, exactly as
-  // T220 and T223 did before it and for the same reason: a moved demo block is
-  // *frozen* rather than deleted, because `demo-parity.test.ts` can only see a
-  // batch while its two sides are different code. What replaced
-  // `demo-host-residue.ts` here is the frozen copy in
-  // `demo-relocated-reference.ts` — plus, new with this batch,
-  // `demo-composition.ts`, which now holds the two **links** the host block used
-  // to write inline: which administrator holds which role, and the credit limit
-  // granted to the demo organisation. Both are two modules' rows in one
-  // statement, so both are composition steps (contract §5.1), and the
-  // composition names the entity classes to write them. The reference entry
-  // retires at T226; the composition one is the composition doing its job and is
-  // not expected to drain at all.
-  credit_limits: ['src/seeds/demo-composition.ts', 'src/seeds/demo-relocated-reference.ts'],
-  // ── Feature 113's T220 re-pointed three of these and freed none ───────────
+  // **Feature 113's T222 re-pointed this entry, T226 freed the re-pointed
+  // half.** A moved demo block was *frozen* rather than deleted while the
+  // parity comparison existed, because that comparison could only see a batch
+  // while its two sides were different code; T226 deletes both the frozen copy
+  // and the comparison, and what is left here is `demo-composition.ts`, which
+  // holds the two **links** the host block used to write inline: which
+  // administrator holds which role, and the credit limit granted to the demo
+  // organisation. Both are two modules' rows in one statement, so both are
+  // composition steps (contract §5.1), and the composition names the entity
+  // classes to write them. That is the composition doing its job and is not
+  // expected to drain at all.
+  credit_limits: ['src/seeds/demo-composition.ts'],
+  // ── `delivery_methods`, `payment_methods` and `taxes` are **gone** ────────
   //
-  // `delivery_methods`, `payment_methods` and `taxes` own their demo rows now:
-  // each declares them in its own `manifest.ts` and creates them from its own
-  // `src/backend/demo/`, and the block left `demo-host-residue.ts` in the same
-  // merge request. T220's *"done when"* predicted the three entries below would
-  // be **gone**, and they are not — they moved one file across.
+  // Three entries deleted rather than re-pointed, and they are the first this
+  // feature has freed outright. T220 moved those three modules' demo rows into
+  // their own `src/backend/demo/` and predicted the entries would go; they did
+  // not, because a moved block was *frozen* verbatim in
+  // `src/seeds/demo-relocated-reference.ts` so that the parity comparison —
+  // which diffs two seeded databases and can therefore only see a batch while
+  // its two sides are different code — kept working. The entity type imports
+  // that held these entries went with the frozen copy.
   //
-  // The reason is the comparison rather than the conversion.
-  // `test/integration/demo/demo-parity.test.ts` is the only thing that can say
-  // whether a moved block still writes the rows it used to, and it works by
-  // diffing two seeded databases — so it is only worth something while the two
-  // sides are different code. A block deleted outright leaves the reference
-  // side, its table drops out of the derived population, and a batch that lost
-  // a column is as green as one that did not. So the block is *frozen* in
-  // `src/seeds/demo-relocated-reference.ts`, which `dev-catalog-seed.ts` alone
-  // runs, and the entity type imports that hold these entries went with it.
-  //
-  // They therefore retire at T226, with the reference file and the legacy entry
-  // point, rather than one batch at a time. That is a correction to the task
-  // list and it is recorded there too.
-  delivery_methods: ['src/seeds/demo-relocated-reference.ts'],
-  payment_methods: ['src/seeds/demo-relocated-reference.ts'],
-  taxes: ['src/seeds/demo-relocated-reference.ts'],
+  // T226 deletes the frozen copy and the legacy entry point, so nothing under
+  // `backend/src/` names these three packages any more. **Nothing in this file
+  // could have said so**: moving a module's demo block does not edit this
+  // ledger, so the batch that frees an entry is structurally the batch that
+  // cannot see it go stale — which is why every batch of this feature re-runs
+  // it, and why this one found three.
   // `orders` needs no entry and gets none, since feature 080's T052. Its single
   // reference was `import { Order } from './modules/orders/entities/order.entity.js'`,
   // read by one `em.findOne` inside a bridge the root contributes; D-168 gives a
@@ -355,20 +337,17 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // request read this file — the standing shape of this ledger's failures, and
   // the reason the entry is recorded as corrected rather than quietly deleted.
   //
-  // **Feature 113's T222 re-pointed this entry and freed nothing**, exactly as
-  // T220 and T223 did before it and for the same reason: a moved demo block is
-  // *frozen* rather than deleted, because `demo-parity.test.ts` can only see a
-  // batch while its two sides are different code. What replaced
-  // `demo-host-residue.ts` here is the frozen copy in
-  // `demo-relocated-reference.ts` — plus, new with this batch,
-  // `demo-composition.ts`, which now holds the two **links** the host block used
-  // to write inline: which administrator holds which role, and the credit limit
-  // granted to the demo organisation. Both are two modules' rows in one
-  // statement, so both are composition steps (contract §5.1), and the
-  // composition names the entity classes to write them. The reference entry
-  // retires at T226; the composition one is the composition doing its job and is
-  // not expected to drain at all.
-  organizations: ['src/seeds/demo-composition.ts', 'src/seeds/demo-relocated-reference.ts'],
+  // **Feature 113's T222 re-pointed this entry, T226 freed the re-pointed
+  // half.** A moved demo block was *frozen* verbatim while the parity
+  // comparison existed, because that comparison could only see a batch while
+  // its two sides were different code; T226 deletes the frozen copy and the
+  // comparison together. What is left is `demo-composition.ts`, which holds the
+  // two **links** the host block used to write inline: which administrator
+  // holds which role, and the credit limit granted to the demo organisation.
+  // Both are two modules' rows in one statement, so both are composition steps
+  // (contract §5.1), and the composition names the entity classes to write
+  // them. That is the composition doing its job and is not expected to drain.
+  organizations: ['src/seeds/demo-composition.ts'],
 
   // `composition.ts` reaches into `email` once: for the `EmailCradle` type it
   // resolves the mailer with. It disappears when the mailer's consumers resolve
@@ -413,20 +392,17 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // deleted, because a reason nobody can check is how a ledger stops being
   // evidence.
   //
-  // **Feature 113's T222 re-pointed this entry and freed nothing**, exactly as
-  // T220 and T223 did before it and for the same reason: a moved demo block is
-  // *frozen* rather than deleted, because `demo-parity.test.ts` can only see a
-  // batch while its two sides are different code. What replaced
-  // `demo-host-residue.ts` here is the frozen copy in
-  // `demo-relocated-reference.ts` — plus, new with this batch,
-  // `demo-composition.ts`, which now holds the two **links** the host block used
-  // to write inline: which administrator holds which role, and the credit limit
-  // granted to the demo organisation. Both are two modules' rows in one
-  // statement, so both are composition steps (contract §5.1), and the
-  // composition names the entity classes to write them. The reference entry
-  // retires at T226; the composition one is the composition doing its job and is
-  // not expected to drain at all.
-  admin_roles: ['src/seeds/demo-composition.ts', 'src/seeds/demo-relocated-reference.ts'],
+  // **Feature 113's T222 re-pointed this entry, T226 freed the re-pointed
+  // half.** A moved demo block was *frozen* verbatim while the parity
+  // comparison existed, because that comparison could only see a batch while
+  // its two sides were different code; T226 deletes the frozen copy and the
+  // comparison together. What is left is `demo-composition.ts`, which holds the
+  // two **links** the host block used to write inline: which administrator
+  // holds which role, and the credit limit granted to the demo organisation.
+  // Both are two modules' rows in one statement, so both are composition steps
+  // (contract §5.1), and the composition names the entity classes to write
+  // them. That is the composition doing its job and is not expected to drain.
+  admin_roles: ['src/seeds/demo-composition.ts'],
   // `prompt_actions` (wave 1) — the inverted case, and the reason this ledger is
   // worth keeping. Its `composition.ts` reference was never a leftover of the
   // conversion: three *other* modules contributed into the registry it owns, and
@@ -503,20 +479,17 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // the row type inside this package's built artefact, which carries the
   // `modules/admin_users/` substring this scan reads.
   //
-  // **Feature 113's T222 re-pointed this entry and freed nothing**, exactly as
-  // T220 and T223 did before it and for the same reason: a moved demo block is
-  // *frozen* rather than deleted, because `demo-parity.test.ts` can only see a
-  // batch while its two sides are different code. What replaced
-  // `demo-host-residue.ts` here is the frozen copy in
-  // `demo-relocated-reference.ts` — plus, new with this batch,
-  // `demo-composition.ts`, which now holds the two **links** the host block used
-  // to write inline: which administrator holds which role, and the credit limit
-  // granted to the demo organisation. Both are two modules' rows in one
-  // statement, so both are composition steps (contract §5.1), and the
-  // composition names the entity classes to write them. The reference entry
-  // retires at T226; the composition one is the composition doing its job and is
-  // not expected to drain at all.
-  admin_users: ['src/seeds/demo-composition.ts', 'src/seeds/demo-relocated-reference.ts'],
+  // **Feature 113's T222 re-pointed this entry, T226 freed the re-pointed
+  // half.** A moved demo block was *frozen* verbatim while the parity
+  // comparison existed, because that comparison could only see a batch while
+  // its two sides were different code; T226 deletes the frozen copy and the
+  // comparison together. What is left is `demo-composition.ts`, which holds the
+  // two **links** the host block used to write inline: which administrator
+  // holds which role, and the credit limit granted to the demo organisation.
+  // Both are two modules' rows in one statement, so both are composition steps
+  // (contract §5.1), and the composition names the entity classes to write
+  // them. That is the composition doing its job and is not expected to drain.
+  admin_users: ['src/seeds/demo-composition.ts'],
   // `settings` needs no entry and gets none, since feature 080's T040b — this
   // module is now **absent** from the ledger, which is the strongest state a
   // key can reach.

@@ -49,6 +49,46 @@ export interface DemoComposition {
   apply(): Promise<DemoCompositionResult>;
   /** Runs before any module's `reset` (§5.5). */
   withdraw(): Promise<DemoCompositionResult>;
+  /**
+   * The **foundation**: rows every module's demo body already assumes, created
+   * before the first `seed` (§5.5a, feature 113 T226).
+   *
+   * ## Why a second phase exists, measured rather than argued
+   *
+   * §5.5's single after-the-modules position is right for *wiring* — a step
+   * that joins two modules' rows can only run once both exist. It is wrong for
+   * a row a module's body **reads**, and this repository holds exactly one:
+   * the demo's two sales channels. `sales_channels` is the kernel's table, so
+   * no module may declare it as demo data (§2.1) and the kernel carries no
+   * `demo` field; and `inventory`'s body does `em.find(SalesChannel, {})` and
+   * assigns the demo warehouse to every channel it finds. Created in `apply`,
+   * the second channel arrives after that read has happened and
+   * `pl_b2b_vip` silently loses its `warehouse_channel_assignments` row.
+   *
+   * Measured before this phase existed: `inventory` reports
+   * `WarehouseChannelAssignment 2` on a seed where the channels precede it and
+   * would report 1 where they do not, with nothing failing.
+   *
+   * It is **optional**, and an instance that declares none is an ordinary
+   * instance rather than a degraded one — §5.6's rule for a composition that is
+   * absent entirely, one level down. A composition written against the
+   * Phase-0 interface keeps working unchanged, which is §6.5's property applied
+   * to this interface rather than to the hatch.
+   */
+  applyFoundation?(): Promise<DemoCompositionResult>;
+  /**
+   * The mirror of {@link DemoComposition.applyFoundation}: runs **after** the
+   * last module's `reset` (§5.5a).
+   *
+   * The position is forced rather than chosen. A withdrawal is the reverse of
+   * the sequence that built it, so the foundation goes last — and here that is
+   * the difference between a filtered delete and a cascade: withdrawing the
+   * demo's sales channels *before* `inventory`'s `reset` would take that
+   * module's assignment rows with them through the database rather than
+   * through the module that owns them, which is an unfiltered destruction by
+   * another name.
+   */
+  withdrawFoundation?(): Promise<DemoCompositionResult>;
 }
 
 /**
@@ -62,6 +102,19 @@ export interface DemoComposition {
 export interface DemoCompositionResult {
   readonly applied: readonly string[];
   readonly skipped: readonly { readonly step: string; readonly reason: string }[];
+  /**
+   * Sign-in details this composition created, merged into the run's own list
+   * and formatted once by {@link formatDemoReport} (feature 113, T226).
+   *
+   * A composition creates accounts a module cannot: `customer_accounts.
+   * organization_id` is `NOT NULL` under Principle XI, so the demo buyer is
+   * created by a composition step and by nothing else, and until this field
+   * existed the only thing that could print its password was the legacy seed
+   * script — which this task deletes. Without it the composed path would have
+   * printed three of the four pairs and said nothing about the fourth, which
+   * is the silent half-report §3.7 is written against.
+   */
+  readonly credentials?: readonly DemoCredential[];
 }
 
 /** What one module contributed. */
@@ -79,7 +132,14 @@ export interface DemoRunResult {
   readonly counts: DemoPlanCounts;
   readonly credentials: readonly DemoCredential[];
   readonly diagnostics: readonly string[];
-  /** Absent when the caller supplied no composition. */
+  /**
+   * Absent when the caller supplied no composition.
+   *
+   * Both phases (§5.5a) are here, concatenated in the order they ran: the
+   * foundation's steps and the wiring's are one list because an operator reads
+   * a sequence, and the step name — the composition's own sentence — is what
+   * says which is which.
+   */
   readonly composition?: DemoCompositionResult;
 }
 
@@ -146,11 +206,35 @@ async function invoke(
 }
 
 /**
+ * The phases of one run, as a single result.
+ *
+ * Concatenation in execution order, and it has one property worth naming: an
+ * empty phase contributes nothing, so a composition that declares no foundation
+ * produces exactly the result it produced before the phase existed. That is
+ * what makes §5.5a additive rather than a change to what an operator reads.
+ */
+function mergePhases(phases: readonly DemoCompositionResult[]): DemoCompositionResult {
+  const credentials = phases.flatMap((phase) => phase.credentials ?? []);
+  return {
+    applied: phases.flatMap((phase) => phase.applied),
+    skipped: phases.flatMap((phase) => phase.skipped),
+    ...(credentials.length === 0 ? {} : { credentials }),
+  };
+}
+
+/**
  * Run one demo pass and report it.
  *
- * The sequence is §3's, in full: plan (which decides presence), then each
- * module in order, with the composition applied after the last `seed` or
- * withdrawn before the first `reset` (§5.5).
+ * The sequence is §3's and §5.5a's, in full: plan (which decides presence),
+ * then the foundation, then each module in order, then the wiring —
+ *
+ * ```
+ * seed   applyFoundation? -> module seed  (dependency order) -> apply
+ * reset  withdraw         -> module reset (reverse order)    -> withdrawFoundation?
+ * ```
+ *
+ * — so `reset` is the exact reverse of `seed` at every position, which is the
+ * property that lets a withdrawal be a filtered delete rather than a cascade.
  */
 export async function runDemo(input: RunDemoInput): Promise<DemoRunResult> {
   const plan = planDemoRun({
@@ -159,9 +243,24 @@ export async function runDemo(input: RunDemoInput): Promise<DemoRunResult> {
     isPresent: input.isPresent,
   });
 
-  let composition: DemoCompositionResult | undefined;
-  if (input.composition && input.mode === 'reset') {
-    composition = await input.composition.withdraw();
+  // Every phase this run executes, in the order it executed them. The two
+  // phases are reported as **one** result rather than as a pair, and that is a
+  // decision rather than a shortcut: a step's name is the composition's own
+  // sentence, an operator reads the list as a sequence, and §6.5's *"the
+  // report's shape"* is a property this feature keeps. `phases` is what the
+  // merge is built from so that the merge itself is one statement.
+  const phases: DemoCompositionResult[] = [];
+  const runPhase = async (
+    phase: (() => Promise<DemoCompositionResult>) | undefined,
+  ): Promise<void> => {
+    if (phase === undefined) return;
+    phases.push(await phase.call(input.composition));
+  };
+
+  if (input.mode === 'reset') {
+    await runPhase(input.composition?.withdraw);
+  } else {
+    await runPhase(input.composition?.applyFoundation);
   }
 
   const modules: DemoModuleOutcome[] = [];
@@ -188,16 +287,22 @@ export async function runDemo(input: RunDemoInput): Promise<DemoRunResult> {
     }
   }
 
-  if (input.composition && input.mode === 'seed') {
-    composition = await input.composition.apply();
+  if (input.mode === 'seed') {
+    await runPhase(input.composition?.apply);
+  } else {
+    await runPhase(input.composition?.withdrawFoundation);
   }
 
+  const composition = phases.length === 0 ? undefined : mergePhases(phases);
   return {
     mode: plan.mode,
     modules,
     skipped: plan.skipped,
     counts: plan.counts,
-    credentials,
+    // The modules' first and the composition's after, which is the order they
+    // were created in. A module's own account is its own rows; the
+    // composition's is the one no module could create.
+    credentials: [...credentials, ...(composition?.credentials ?? [])],
     diagnostics: plan.diagnostics,
     ...(composition === undefined ? {} : { composition }),
   };
