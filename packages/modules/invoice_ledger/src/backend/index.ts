@@ -1,22 +1,19 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
-  INFAKT_INSTANCE_CREDENTIAL_CODE,
   INVOICE_LEDGER_DELIVERY_QUEUED_EVENT,
   INVOICE_LEDGER_MODULES,
-  infaktEnvironmentSchema,
   invoiceCorrectedEventSchema,
   invoiceIssuedEventSchema,
-  type CredentialsPort,
   type InvoiceCopyHostPort,
   type InvoiceKsefAssignmentPort,
   type InvoiceLedgerDeliveryPort,
   type InvoiceLedgerDeliveryQueuedEvent,
   type InvoiceLedgerRegistryPort,
+  type InvoiceLedgerVendorFreezeRegistryPort,
   type InvoiceLedgerWebhookPort,
   type InvoiceNumberingHostPort,
   type InvoicePaidHostPort,
-  infaktChannelCredentialCode,
   type InvoiceLedgerRoutingPort,
   type SettingsAdminPort,
 } from '@endora-commerce/contracts';
@@ -36,6 +33,7 @@ import {
   INVOICE_LEDGER_VENDOR_KSEF_ABSENT_MESSAGE,
   InvoiceLedgerDeliveryService,
 } from './services/invoice-ledger-delivery.service.js';
+import { InvoiceLedgerVendorFreezeRegistry } from './services/invoice-ledger-vendor-freeze-registry.js';
 import {
   defaultInvoiceLedgerPresence,
   InvoiceLedgerRegistryService,
@@ -58,6 +56,7 @@ interface LedgerCradle {
   readonly invoiceLedgerDeliveryAdmin: InvoiceLedgerDeliveryAdminService;
   readonly invoiceLedgerPresence: LedgerActivationPresenceReader;
   readonly invoiceLedgerVendorModules: readonly { id: string }[];
+  readonly invoiceLedgerVendorFreezeRegistry: InvoiceLedgerVendorFreezeRegistryPort;
 }
 
 interface ModuleActivationChangedPayload {
@@ -73,6 +72,9 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     invoiceLedgerPresence: ctx.asValue(defaultInvoiceLedgerPresence),
     invoiceLedgerVendorModules: ctx.asValue(INVOICE_LEDGER_MODULES),
+    invoiceLedgerVendorFreezeRegistry: ctx
+      .asFunction(() => new InvoiceLedgerVendorFreezeRegistry())
+      .singleton(),
   });
   ctx.di.providePort<InvoiceLedgerRegistryPort>(
     'invoiceLedgerRegistryPort',
@@ -174,7 +176,7 @@ export function registerModule(ctx: ModuleContext): void {
             invoiceId: input.invoiceId,
             kind: input.kind,
             salesChannelId: channelId,
-            credentialCode: INFAKT_INSTANCE_CREDENTIAL_CODE,
+            credentialCode: INVOICE_LEDGER_MODULES[0].id,
             environment: 'sandbox',
             numberingMode,
             ksefRouting,
@@ -186,18 +188,12 @@ export function registerModule(ctx: ModuleContext): void {
       }
       return;
     }
-    let credentialCode =
-      adapterId === 'infakt' ? INFAKT_INSTANCE_CREDENTIAL_CODE : adapterId;
-    const credentials = lazyPort<CredentialsPort>(ctx, 'credentialsService');
-    if (adapterId === 'infakt' && channelId) {
-      const overrideCode = infaktChannelCredentialCode(channelId);
-      const override = await credentials.getByCode(overrideCode);
-      if (override) credentialCode = overrideCode;
-    }
-    const stored = await credentials.getByCode(credentialCode);
-    const envField = stored?.fields.find((field) => field.key === 'environment');
-    const parsedEnv = infaktEnvironmentSchema.safeParse(envField?.value);
-    const environment = parsedEnv.success ? parsedEnv.data : 'sandbox';
+    const freeze = ctx.cradle<LedgerCradle>().invoiceLedgerVendorFreezeRegistry;
+    const frozen = (await freeze.resolve(adapterId, channelId)) ?? {
+      credentialCode: adapterId,
+      environment: 'sandbox' as const,
+    };
+    const { credentialCode, environment } = frozen;
 
     const row = await deliveries.enqueue({
       adapterId,
