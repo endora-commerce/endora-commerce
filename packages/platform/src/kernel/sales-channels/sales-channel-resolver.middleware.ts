@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, type Actor, type ActorApiKey } from '@endora-commerce/contracts';
 import { HttpError } from '../../http/error-envelope.js';
 import { getCurrentPlatformScope } from '../scope.js';
 import type { CachedChannel } from './sales-channels-cache.js';
@@ -62,22 +62,23 @@ export interface SalesChannelResolverPluginOptions {
 }
 
 /**
- * The slice of the ambient actor this middleware reads (feature 062). The
- * production shape is `ActorApiKey` from the auth plugin; the test harness
- * mirrors it. Kept structural so the middleware does not import the auth
- * module's internals.
+ * The bound api-key actor behind a request, or `null` (feature 062).
+ *
+ * This read went through a private `ApiKeyActorSlice` interface until T118b —
+ * *"kept structural so the middleware does not import the auth module's
+ * internals"*, which was D-52/D-53 stated in the middleware's own words. The
+ * shape is `@endora-commerce/contracts`' now and the augmentation is the
+ * platform's, so there is nothing left to restate.
+ *
+ * The **widening** is this site's own and stays: the middleware is an
+ * `onRequest` hook and a composition that mounts no auth plugin decorates
+ * nothing, so an absent actor is `null` — an unbound key, which is the
+ * unpinned path and what a request with no key already got.
  */
-interface ApiKeyActorSlice {
-  kind: string;
-  apiKeyId: string;
-  salesChannelId?: string | null;
-}
-
-function boundApiKeyActor(request: FastifyRequest): ApiKeyActorSlice | null {
-  const actor = (request as { actor?: { kind?: string } }).actor;
-  if (!actor || actor.kind !== 'api_key') return null;
-  const candidate = actor as ApiKeyActorSlice;
-  return candidate.salesChannelId ? candidate : null;
+function boundApiKeyActor(request: FastifyRequest): ActorApiKey | null {
+  const actor = request.actor as Actor | undefined;
+  if (actor?.kind !== 'api_key') return null;
+  return actor.salesChannelId ? actor : null;
 }
 
 const HEADER_NAME = 'x-sales-channel';

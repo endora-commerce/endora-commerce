@@ -1,5 +1,10 @@
 import type { FastifyRequest } from 'fastify';
-import { LANGUAGE_FALLBACK, SUPPORTED_LANGUAGES, type SupportedLanguage } from '@endora-commerce/contracts';
+import {
+  LANGUAGE_FALLBACK,
+  SUPPORTED_LANGUAGES,
+  type Actor,
+  type SupportedLanguage,
+} from '@endora-commerce/contracts';
 import { currentSalesChannel } from '../sales-channels/sales-channel-resolver.middleware.js';
 
 /**
@@ -75,21 +80,6 @@ export interface RequestLanguageDeps {
    * seam. {@link createRequestLanguageResolver} does not catch it.
    */
   adminPreferredLanguage: (adminUserId: string) => Promise<string | null>;
-}
-
-/**
- * The slice of the ambient actor this resolver reads.
- *
- * Structural, like the sales-channel middleware's own actor slice: the kernel
- * may not import `src/modules/` (D-52), and `request.actor` is typed
- * non-optional by the auth plugin's module augmentation — but a response
- * serialised before that hook ran carries none, so the property is read as
- * optional here. The resolver runs while an error is being rendered; throwing
- * would mean failing to render an error with another error.
- */
-interface ActorSlice {
-  kind?: string;
-  adminUserId?: string;
 }
 
 /**
@@ -175,7 +165,19 @@ export function createRequestLanguageResolver(
   deps: RequestLanguageDeps,
 ): (request: FastifyRequest) => Promise<SupportedLanguage> {
   return async (request: FastifyRequest): Promise<SupportedLanguage> => {
-    const actor = (request as { actor?: ActorSlice }).actor;
+    // `Actor | undefined` rather than `Actor`, and the widening is this site's
+    // rather than the declaration's (T118b). `request.actor` is decorated by
+    // `auth`'s `onRequest` hook, and this resolver runs while an error is being
+    // **serialised** — a reply Fastify rejected before that hook ran carries no
+    // decoration at all. Throwing here would mean failing to render an error
+    // with another error, so the absent case falls through to the rungs below.
+    //
+    // Until T118b this read went through a private `ActorSlice` interface,
+    // declared here because D-52 forbids the kernel an import of `auth`. The
+    // shape is `@endora-commerce/contracts`' now and the augmentation is the
+    // platform's own, so the restatement is gone and this reads the type every
+    // other consumer reads.
+    const actor = request.actor as Actor | undefined;
 
     // The admin arm reads the stored preference and nothing else (D-132).
     // `admin/src/App.tsx` renders the chrome from `preferredLanguage ?? 'en'`

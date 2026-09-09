@@ -26,7 +26,24 @@
  *    installed package has no relationship to that harness.
  *  - `ApiInterceptorRegistry` (`interceptors/`) — `ctx.interceptors` is the
  *    composed seam.
+ *
+ * **One import here is not an export**, and it is load-bearing rather than
+ * stylistic. `./request-actor.js` declares `request.actor` and
+ * `request.adminActor` on `FastifyRequest` and exports no symbol at all; an
+ * ambient augmentation reaches a program only if the file declaring it is *in*
+ * that program, so the barrel imports it for its side effect and every consumer
+ * of this subpath gets the declaration without naming a file
+ * (`specs/110-instance-repository/` T118b).
+ *
+ * Deleting it does not break a build *here* — the platform compiles as one
+ * program and `include` puts that file in it whatever anybody imports — it
+ * breaks `request.actor` in every consumer at once. Measured: with the line
+ * commented out and every package rebuilt, `pnpm --filter backend run
+ * typecheck` reports **29** `TS2339: Property 'actor' does not exist` against
+ * **0** with it.
  */
+import './request-actor.js';
+
 export { HttpError } from './error-envelope.js';
 export { productAudienceOf, markPersonalisedPricing } from './product-audience.js';
 export { StorefrontRevalidator } from './storefront-revalidator.js';
