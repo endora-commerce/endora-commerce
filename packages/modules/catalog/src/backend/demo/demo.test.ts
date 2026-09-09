@@ -2,9 +2,9 @@
  * The properties of a demo body that no database comparison can see (feature
  * 113, T224 — contract §2.4, §2.5 and §5.1).
  *
- * `test/integration/demo/demo-parity.test.ts` seeds two databases and diffs
- * them, which is what says these 203 products and 13 categories are the rows the
- * host used to write. It cannot say that a second call creates nothing, and it
+ * `test/integration/demo/demo-shop.test.ts` seeds a throwaway database and
+ * holds every table the seed moves to a recorded delta, which is what says
+ * these 203 products and 13 categories are still there and still that many. It cannot say that a second call creates nothing, and it
  * cannot say that the withdrawal is *filtered* — which on this module's tables
  * is the assertion that matters most, because what a `delete from products`
  * takes on a developer's machine is a catalogue somebody has been building.

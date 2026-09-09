@@ -27,11 +27,7 @@ export {
   TEST_DATABASE_NAME_PATTERN,
   type SeedTargetVerdict,
 } from './guard.js';
-export {
-  DEMO_RESET_SCOPE_REASON,
-  DEMO_SEED_SCOPE_REASON,
-  SEED_SCOPE_REASON,
-} from './scope.js';
+export { DEMO_RESET_SCOPE_REASON, DEMO_SEED_SCOPE_REASON } from './scope.js';
 export {
   planDemoRun,
   type DemoManifestEntry,
@@ -49,7 +45,15 @@ export {
   type DemoComposition,
   type DemoCompositionResult,
   type DemoModuleOutcome,
+  type DemoPackageSkip,
   type DemoRunResult,
+  type DemoRunSkip,
   type RunDemoInput,
 } from './runner.js';
+export {
+  createDemoPackageResolver,
+  demoBodyFromPackage,
+  DemoPackageShapeError,
+  type DemoPackageResolver,
+} from './packages.js';
 export { formatDemoReport } from './report.js';

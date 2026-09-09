@@ -301,7 +301,7 @@ export const entities = [
  * The one-off migrator that creates this module's system price list and fills
  * it from the catalog, published **by name** on `./backend`.
  *
- * `src/seeds/dev-catalog-seed.ts` runs it, and a host program is composed
+ * The host's demo composition runs it, and a host program is composed
  * against this package's `dist` while the ORM is registered from the same
  * `entities` array above — so a filesystem path into this file's source would
  * evaluate `price-list.entity.ts` a second time and the migrator would

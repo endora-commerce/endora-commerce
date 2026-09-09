@@ -6,10 +6,10 @@
  * (contract §2.5) — the column the installation declares unique, and the one the
  * instance composition already resolves the demo organisation by.
  *
- * The values are `dev-catalog-seed.ts`' verbatim, moved rather than rewritten:
- * `backend/src/seeds/demo-relocated-reference.ts` holds the block this replaced
- * and `test/integration/demo/demo-parity.test.ts` compares the two databases row
- * for row while both exist.
+ * The values are the host seed's verbatim, moved rather than rewritten. The
+ * frozen copy the parity comparison read them against is deleted with that
+ * comparison (T226); what holds them now is
+ * `test/integration/demo/demo-shop.test.ts`' recorded delta.
  *
  * ## What is not here
  *

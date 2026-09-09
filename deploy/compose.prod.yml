@@ -257,7 +257,7 @@ services:
   # override themselves, at the moment they mean it (see deploy/README.md):
   #   docker compose --env-file .env -f compose.prod.yml run --rm \
   #     -e ALLOW_DEV_SEED_IN_PRODUCTION=true backend \
-  #     node dist/seeds/dev-catalog-seed.js
+  #     node dist/cli.js demo seed
 
 networks:
   # Stack-private network for all services (DB/cache/search + apps talk here).

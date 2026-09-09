@@ -24,7 +24,7 @@ import type { ProductAttribute as ProductAttributeRow } from '../../../packages/
  * (Principle I). Seeds are composition-level bootstrap, like migrations.
  *
  * Feature 075 took that sentence at its word and moved the file out of
- * `src/modules/catalog/seeds/`. Its two consumers are `dev-catalog-seed.ts`
+ * `src/modules/catalog/seeds/`. Its two consumers are `demo-composition.ts`
  * beside it and `test/helpers/seed-catalog.ts`; no runtime path reaches it. A
  * file that writes both `custom_field_definitions` and `product_attributes` in
  * one call is composition, and composition is allowed to name modules — which
@@ -111,9 +111,9 @@ export async function createAttributeFixture(
   em: EntityManager,
   input: AttributeFixtureInput,
 ): Promise<AttributeFixture> {
-  // command-coverage-ignore: development fixture data. Reached only from
-  // `dev-catalog-seed` and from tests, never from a request or
-  // a worker — there is no operator and no production database behind it.
+  // command-coverage-ignore: development fixture data. Reached only from the
+  // demo composition and from tests, never from a request or a worker — there
+  // is no operator and no production database behind it.
   const triple = legacyToCfType(input.valueType);
   const definition = em.create(CustomFieldDefinition, {
     entityType: 'product',

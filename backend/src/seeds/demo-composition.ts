@@ -4,8 +4,18 @@
  *
  * **§5.1** — *"any demo wiring that touches more than one module's rows is a
  * composition step and MUST NOT live in any module."* These are those steps,
- * lifted out of `dev-catalog-seed.ts`' 887-line `main()`, which was one
+ * lifted out of the developer seed script's 887-line `main()`, which was one
  * function holding both a dozen modules' demo rows and the wiring between them.
+ *
+ * ## Two phases, and one of them is narrow on purpose (§5.5a)
+ *
+ * `STEPS` is the wiring and runs **after** every module's `seed`; it can only
+ * run there, because a step that joins two modules' rows needs both to exist.
+ * `FOUNDATION_STEPS` runs **before** the first `seed` and holds exactly what a
+ * module's own body **reads** and no module may own — today the demo's two
+ * sales channels, which are the kernel's table and which `inventory`'s body
+ * enumerates to place its warehouse. The withdrawals are the exact reverse:
+ * the wiring first, the foundation last.
  *
  * ## Why this had to come out before any module moved
  *
@@ -40,13 +50,14 @@
  * shop has no menu, and the operator reads why.
  *
  * The presence oracle is a **parameter**. The composed CLI passes
- * `effectiveState.isPresent`; `dev-catalog-seed.ts`, which composes no platform
- * and has no registry cache to ask, passes its own — see the note at its call
- * site. A cold cache answers `false` for everything (fail-closed, correctly),
- * so a script that never composed must not consult one.
+ * `effectiveState.isPresent`, which is the conjunction of both presence axes.
+ * A caller that composed no platform has no registry cache to ask, and a cold
+ * cache answers `false` for everything (fail-closed, correctly), so such a
+ * caller must pass its own oracle rather than consult one.
  */
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { DemoComposition, DemoCompositionResult } from '../demo/index.js';
+import type { DemoCredential } from '@endora-commerce/contracts';
 import { SalesChannel } from '../kernel/sales-channels/sales-channel.entity.js';
 import { hashPassword } from '../kernel/crypto/password-hasher.js';
 import { entityNamed } from '../packages/package-entity-lookup.js';
@@ -163,12 +174,16 @@ const AttributeSetAttribute = entityNamed<AttributeSetAttributeRow>(
  * database: the seeded categories carry no `sort_order` and their ids are
  * random, so "read them back sorted" would silently reorder the menu.
  *
- * The buyer's credentials are here because step 5 creates the account;
- * `dev-catalog-seed.ts` imports them for the sign-in block it prints.
+ * The buyer's credentials are here because step 5 creates the account, and
+ * that step declares them so the runner prints them beside the modules' own
+ * (`DemoCompositionResult.credentials`, feature 113 T226).
  */
 export const DEMO_BUYER_EMAIL = 'buyer@demo-org.example';
 export const DEMO_BUYER_PASSWORD = 'ChangeMe!123';
 const DEMO_ORG_TAX_ID = 'PL5210000099';
+/** The demo's two sales channels, by the codes the foundation step assigns. */
+const DEMO_RETAIL_CHANNEL_CODE = 'pl_retail';
+const DEMO_VIP_CHANNEL_CODE = 'pl_b2b_vip';
 const DEMO_MENU_NAME = 'Main navigation';
 
 /**
@@ -403,6 +418,15 @@ export interface DemoCompositionDeps {
 interface CompositionStep {
   readonly name: string;
   readonly modules: readonly string[];
+  /**
+   * Sign-in details this step creates, reported when — and only when — it runs.
+   *
+   * Declared rather than returned: they are constants of this instance's demo,
+   * so a step that was skipped for an absent module must not advertise an
+   * account nobody can sign in with, and that falls out of collecting them at
+   * the same place the step is applied.
+   */
+  readonly credentials?: readonly DemoCredential[];
   apply(em: EntityManager): Promise<void>;
   withdraw(em: EntityManager): Promise<void>;
 }
@@ -410,8 +434,8 @@ interface CompositionStep {
 /**
  * The demo's placeholder product art (feature 113, T224).
  *
- * Moved here from `dev-catalog-seed.ts` with the block that uses it, and the
- * block is a **composition step**: every image mints an `assets` row —
+ * Moved here from the developer seed script with the block that uses it, and
+ * the block is a **composition step**: every image mints an `assets` row —
  * `assets_library`'s table — and hands its id to four of `catalog`'s, so it is
  * two modules' rows in one statement (§5.1). T224's task text expected all four
  * content helpers to move into `catalog`; two of them describe an asset rather
@@ -506,6 +530,125 @@ async function systemDefaultChannel(em: EntityManager): Promise<SalesChannel> {
   }
   return channel;
 }
+
+/**
+ * The **foundation** (§5.5a, feature 113 T226): rows every module's demo body
+ * already assumes, created before the first `seed` and withdrawn after the last
+ * `reset`.
+ *
+ * One step, and the population is not expected to grow: a step belongs here
+ * only when a module's own body **reads** what it creates and no module may own
+ * it. Everything else is wiring and belongs after the modules, where it can see
+ * the rows they wrote.
+ *
+ * This block was `backend/src/seeds/demo-host-residue.ts` — the last of the
+ * 887-line `main()` — and it stayed there through four batches because it had
+ * nowhere to go: `sales_channels` is the kernel's table, so §2.1 admits no
+ * module declaration and the kernel carries no `demo` field, and the
+ * composition's only position was *after* every module's `seed` while
+ * `inventory`'s body reads every channel. The platform's runner grew the phase
+ * (§5.5a) and the block moved here, which is where every other ownerless demo
+ * write in this feature already lives.
+ */
+const FOUNDATION_STEPS: readonly CompositionStep[] = [
+  {
+    // ── 0. the demo's two sales channels ──────────────────────────────────
+    //
+    // The public retail channel doubles as the system default so header-less
+    // requests (anonymous storefront, direct API hits) resolve here instead of
+    // tripping the resolver's "registry empty" guard. Without it the reconciler
+    // would promote the lexically-first channel — `pl_b2b_vip`, logged-in only,
+    // the wrong default for a storefront.
+    name: "the demo's two sales channels",
+    // No module. `sales_channels` is the kernel's table and the kernel has no
+    // activation control to ask about, so this step's guard has nothing to
+    // guard and the empty list says so — `absent` is empty, the step always
+    // runs. That is the same statement `CompositionStep`'s own doc block makes
+    // about `modules` deliberately not listing the kernel.
+    modules: [],
+    async apply(em) {
+      // The retail channel **adopts the instance's system-default channel if
+      // there already is one**, and creates it otherwise. Both branches are
+      // reached in practice and the difference is the database, not the entry
+      // point: one of the boot reconcilers inserts a `default` system-default
+      // channel into an empty table (D-47…D-51 — exactly one always exists, and
+      // the platform is what guarantees it), so a composed run finds one.
+      //
+      // Creating a second one is not an option: `sales_channels_one_system_default`
+      // is a real unique index and the insert fails outright. Nor is leaving the
+      // platform's placeholder beside the demo's own channel: `sales_channel_id`
+      // is what every channel-scoped setting, warehouse assignment and product
+      // binding is keyed on, so a demo that ignores the incumbent leaves the
+      // instance's *actual* default channel selling nothing.
+      const incumbent = await em.findOne(SalesChannel, { systemDefault: true });
+      const retail =
+        incumbent ??
+        em.create(SalesChannel, {
+          code: DEMO_RETAIL_CHANNEL_CODE,
+          systemDefault: true,
+          defaultLanguage: 'pl-PL',
+          defaultCurrency: 'PLN',
+        });
+      retail.code = DEMO_RETAIL_CHANNEL_CODE;
+      retail.name = { 'en-US': 'PL Retail', 'pl-PL': 'PL Retail' };
+      retail.isPublic = true;
+      retail.languages = ['pl-PL', 'en-US'];
+      retail.defaultLanguage = 'pl-PL';
+      retail.currencies = ['PLN', 'EUR'];
+      retail.defaultCurrency = 'PLN';
+      retail.active = true;
+      retail.status = 'active';
+      em.persist(retail);
+      // Probed rather than created outright — contract §2.4's idempotence
+      // applied to a composition step. Until T224 this line was the *only*
+      // thing in a demo seed a second run could not survive.
+      const existingVip = await em.findOne(SalesChannel, { code: DEMO_VIP_CHANNEL_CODE });
+      const b2bVip =
+        existingVip ??
+        em.create(SalesChannel, {
+          code: DEMO_VIP_CHANNEL_CODE,
+          name: { 'en-US': 'PL B2B VIP', 'pl-PL': 'PL B2B VIP' },
+          isPublic: false,
+          languages: ['pl-PL', 'en-US'],
+          defaultLanguage: 'pl-PL',
+          currencies: ['PLN', 'EUR'],
+          defaultCurrency: 'PLN',
+        });
+      await em.persistAndFlush([retail, b2bVip]);
+    },
+    async withdraw(em) {
+      // **The VIP channel only, and the asymmetry is the adoption above.**
+      // `pl_retail` is the instance's own system-default channel wearing the
+      // demo's name: the demo did not create it and must not delete it —
+      // exactly one system-default channel always exists (D-47…D-51), so a
+      // withdrawal that removed it would take the platform's own invariant
+      // away and leave every channel-scoped setting pointing at nothing.
+      //
+      // This replaces a `truncate sales_channels cascade`, which did remove it,
+      // and the repair is the same one T213, T222 and T224 each made one table
+      // at a time. Measured on a throwaway database before this landed: a
+      // `demo reset` left `sales_channels` at 0 and `price_lists` at 0 — the
+      // second being the platform's own `default` list, created by a migration
+      // and destroyed by the same statement.
+      const conn = em.getConnection();
+      // The assignment rows first, and by hand rather than by cascade: there is
+      // **no foreign key** on `warehouse_channel_assignments.sales_channel_id`,
+      // so the truncate this replaces left them dangling — measured, three
+      // orphan rows pointing at channels that no longer existed. `inventory`'s
+      // own `reset` has already removed the demo warehouse's; these are the
+      // *system* warehouse's, made by that module's reconciler for a channel
+      // this step created, and they go with the channel that caused them.
+      await conn.execute(
+        `delete from warehouse_channel_assignments where sales_channel_id in
+           (select id from sales_channels where code = ?)`,
+        [DEMO_VIP_CHANNEL_CODE],
+      );
+      await conn.execute(`delete from sales_channels where code = ?`, [
+        DEMO_VIP_CHANNEL_CODE,
+      ]);
+    },
+  },
+];
 
 const STEPS: readonly CompositionStep[] = [
   {
@@ -768,6 +911,12 @@ const STEPS: readonly CompositionStep[] = [
     // own doc block says the account and its organisation are created in one
     // transaction. The composition is the only place that holds both.
     name: 'demo buyer joins the demo organisation',
+    // The one sign-in the composed report could not print until T226 opened the
+    // platform: the buyer is created here and by nothing else, because
+    // `customer_accounts.organization_id` is `NOT NULL` (Principle XI).
+    credentials: [
+      { label: 'Organization Admin', value: `${DEMO_BUYER_EMAIL} / ${DEMO_BUYER_PASSWORD}` },
+    ],
     modules: ['customer_accounts', 'organizations'],
     async apply(em) {
       const organization = await em.findOne(Organization, { taxId: DEMO_ORG_TAX_ID });
@@ -1179,13 +1328,15 @@ function absenceReason(absent: readonly string[]): string {
 export function createDemoComposition(deps: DemoCompositionDeps): DemoComposition {
   const runSteps = async (
     direction: 'apply' | 'withdraw',
+    steps: readonly CompositionStep[],
   ): Promise<DemoCompositionResult> => {
     const applied: string[] = [];
     const skipped: { step: string; reason: string }[] = [];
+    const credentials: DemoCredential[] = [];
     // `withdraw` unwinds in the reverse of the order `apply` built (§5.5's
     // shape, one level down): the bridges and the stock hang off rows the
     // steps above them assume.
-    const ordered = direction === 'apply' ? STEPS : [...STEPS].reverse();
+    const ordered = direction === 'apply' ? steps : [...steps].reverse();
     for (const step of ordered) {
       const absent = step.modules.filter((moduleId) => !deps.isPresent(moduleId));
       if (absent.length > 0) {
@@ -1194,15 +1345,28 @@ export function createDemoComposition(deps: DemoCompositionDeps): DemoCompositio
       }
       await step[direction](deps.em);
       applied.push(step.name);
+      // Only on the way in: a withdrawal that advertised a sign-in has just
+      // deleted the account behind it.
+      if (direction === 'apply' && step.credentials) credentials.push(...step.credentials);
     }
-    return { applied, skipped };
+    return { applied, skipped, ...(credentials.length === 0 ? {} : { credentials }) };
   };
 
   return {
-    apply: () => runSteps('apply'),
-    withdraw: () => runSteps('withdraw'),
+    apply: () => runSteps('apply', STEPS),
+    withdraw: () => runSteps('withdraw', STEPS),
+    // §5.5a. Declared rather than omitted even though `FOUNDATION_STEPS` holds
+    // one step: the phase is what the runner calls, and an instance that grows
+    // a second foundation step must not also have to remember to wire it.
+    applyFoundation: () => runSteps('apply', FOUNDATION_STEPS),
+    withdrawFoundation: () => runSteps('withdraw', FOUNDATION_STEPS),
   };
 }
 
 /** The step names, for a test that asserts the composition's shape. */
 export const DEMO_COMPOSITION_STEP_NAMES: readonly string[] = STEPS.map((step) => step.name);
+
+/** The foundation's step names (§5.5a), in the order they run. */
+export const DEMO_FOUNDATION_STEP_NAMES: readonly string[] = FOUNDATION_STEPS.map(
+  (step) => step.name,
+);

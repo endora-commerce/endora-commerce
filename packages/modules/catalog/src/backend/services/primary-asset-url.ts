@@ -31,8 +31,9 @@ import type { AssetReadPort } from '@endora-commerce/contracts';
  *
  * **Is the legacy fallback dead?** Asked and answered while hoisting these
  * reads to the page (issue #263): no. Nothing in the application writes
- * `product_assets` — the only `insert` in the tree is `dev-catalog-seed.ts`,
- * which mirrors every row it writes into `gallery_items` — but the table is
+ * `product_assets` — the only `insert` in the tree is the host's demo
+ * composition, which mirrors every row it writes into `gallery_items` — but the
+ * table is
  * still *read* on the PDP (`ProductDetail.assets`), still rendered by the
  * storefront gallery and by the admin product editor, and the seeded rows
  * outlive their gallery twins: deleting a gallery item through the admin

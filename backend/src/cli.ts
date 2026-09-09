@@ -61,7 +61,6 @@ import {
   isDemoInvocation,
   parseDemoVerb,
 } from './cli/demo-command.js';
-import type { EntityManager } from '@mikro-orm/postgresql';
 import { composeApp } from './composition.js';
 import { deploymentRoot } from './overlay/overlay-roots.js';
 import { ModuleDisabledError } from './kernel/lifecycle/plugin-helpers.js';
@@ -77,10 +76,6 @@ import {
   unwrapDemoFailure,
 } from './demo/index.js';
 import { loadDemoComposition } from './demo/composition-loader.js';
-import {
-  resetHostModuleResidue,
-  seedHostModuleResidue,
-} from './seeds/demo-host-residue.js';
 
 const USAGE = `usage: endora <module id> <command> [args…]
        endora <module id> <command> --help
@@ -133,48 +128,16 @@ dependency graph gives, and then applies this instance's composition.
  *     body resolves the same services — and the same deployment decorations —
  *     the running server does.
  *  3. **One system scope for the whole run** (§3.4), so no module's demo body is
- *     its own entry point. That is stricter than `dev-catalog-seed.ts`, which
- *     opens its own scope around its own `main` and has to remember to.
+ *     its own entry point, and no module's body has to remember to open one.
  *
  * Presence is decided inside `runDemo`, from the declaration and before a
  * context is built (§3.5) — the rule `runModuleCommand` already applies one
  * command at a time, applied here once per declaring module.
  *
- * There is no composition passed yet: Phase 1 replaces `dev-catalog-seed.ts`
- * with one and hands it in here. Until then the run is every declaring module
- * and nothing else, which over zero declaring modules is the state Phase 0 is
- * measured against — it completes and says so.
+ * The composition is loaded from this instance's own tree and handed in
+ * (§5.2). An instance that has none is an ordinary instance: every present
+ * module still seeds its own rows and the notice below says so once (§5.6).
  */
-/**
- * Run the host's own demo residue, and say what it did (feature 113, T213).
- *
- * `demo-host-residue.ts` holds the demo rows whose modules have not taken them
- * back yet. It is not a module and it declares no `demo` manifest field, so
- * `runDemo` cannot reach it — it is run here instead, in a module's place: on
- * the way in before the composition is applied, on the way out after it is
- * withdrawn. Both are `runDemo`'s own order for a module (§5.5), applied to the
- * one pile that is not one.
- *
- * It reports as a line rather than as a module outcome, deliberately: a
- * `DemoModuleOutcome` for a fictitious module would put a name in the report
- * that no manifest carries, and an operator reading `demo-host-residue —
- * seeded` would go looking for a module by that name.
- */
-async function hostResidue(verb: 'seed' | 'reset', em: EntityManager): Promise<string> {
-  if (verb === 'reset') {
-    await resetHostModuleResidue(em);
-    return "\nThis instance's remaining host-held demo rows were withdrawn.\n";
-  }
-  const summary = await seedHostModuleResidue(em);
-  return (
-    `\nHost-held demo rows (not yet owned by their modules): ` +
-    `${summary.salesChannels} sales channels.\n` +
-    `They are the kernel's table, so no module can declare them, and they have ` +
-    `to exist before any module's demo body runs — see the header of ` +
-    `\`src/seeds/demo-host-residue.ts\`.\n`
-  );
-}
-
 async function runDemoCommand(
   verb: 'seed' | 'reset',
   resolved: Awaited<ReturnType<typeof resolvedManifestEntries>>,
@@ -201,13 +164,12 @@ async function runDemoCommand(
           em,
           isPresent: (id) => effectiveState.isPresent(id),
         });
-        // Feature 113 T213 — the **host residue**: the demo rows that have not
-        // reached their own modules yet. It runs exactly where a module's own
-        // body runs, which is what keeps this command and `seed:dev` producing
-        // one shop while Phase 2 drains it: before the composition is applied
-        // on the way in, after it is withdrawn on the way out (§5.5). It
-        // shrinks batch by batch and the calls go with the last block.
-        const residue = await hostResidue(verb, em);
+        // Feature 113 T226 — there is no host residue left to run. Every demo
+        // row this repository seeds is now either a module's own (its
+        // `manifest.ts` declares it) or the composition's, including the two
+        // sales channels, which are the kernel's table and reach the database
+        // through the composition's **foundation** phase (§5.5a) because
+        // `inventory`'s body reads them.
         const result = await runDemo({
           mode: verb,
           entries,
@@ -215,13 +177,7 @@ async function runDemoCommand(
           contextFor: composition.contextFor,
           ...(found.found ? { composition: found.composition } : {}),
         });
-        // The residue first when seeding and last when withdrawing, so the
-        // report reads in the order the work happened. Without it an operator
-        // reads "No module contributed demo data" above the 200 products the
-        // residue just wrote.
-        if (verb === 'seed') process.stdout.write(residue.trimStart());
         process.stdout.write(formatDemoReport(result));
-        if (verb === 'reset') process.stdout.write(residue);
         // §5.6, once and enumerating nothing.
         if (!found.found) process.stdout.write(`\n${found.notice}\n`);
         return 0;
