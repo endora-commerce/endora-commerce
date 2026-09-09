@@ -870,7 +870,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // judges. Attributed by running this census on a pristine `origin/master`
     // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
     // twenty entries below are this merge request's own and none is a subtraction.
-    files: 2049,
+    // **Re-measured on the union after rebasing onto `0441ea466`.** Feature 113's T226 and
+    // T235 landed on `master` between this branch's base and the rebase — the seed corpus
+    // deleted, one platform source added — so the recorded value, which was this branch's
+    // own base plus its +1, is two high against the combined tree: 2049 -> 2047. A read size is
+    // a measurement of the tree the run walks, so it is re-measured here and never
+    // reconciled textually out of the two conflicting sides.
+    files: 2047,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1074,7 +1080,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // judges. Attributed by running this census on a pristine `origin/master`
     // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
     // twenty entries below are this merge request's own and none is a subtraction.
-    files: 2176,
+    // **Re-measured on the union after rebasing onto `0441ea466`.** Feature 113's T226 and
+    // T235 landed on `master` between this branch's base and the rebase — the seed corpus
+    // deleted, one platform source added — so the recorded value, which was this branch's
+    // own base plus its +1, is two high against the combined tree: 2176 -> 2174. A read size is
+    // a measurement of the tree the run walks, so it is re-measured here and never
+    // reconciled textually out of the two conflicting sides.
+    files: 2174,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1537,7 +1549,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // judges. Attributed by running this census on a pristine `origin/master`
     // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
     // twenty entries below are this merge request's own and none is a subtraction.
-    files: 5506,
+    // **Re-measured on the union after rebasing onto `0441ea466`.** Feature 113's T226 and
+    // T235 landed on `master` between this branch's base and the rebase — the seed corpus
+    // deleted, one platform source added — so the recorded value, which was this branch's
+    // own base plus its +1, is two high against the combined tree: 5506 -> 5504. A read size is
+    // a measurement of the tree the run walks, so it is re-measured here and never
+    // reconciled textually out of the two conflicting sides.
+    files: 5504,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1778,7 +1796,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // judges. Attributed by running this census on a pristine `origin/master`
     // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
     // twenty entries below are this merge request's own and none is a subtraction.
-    files: 2318,
+    // **Re-measured on the union after rebasing onto `0441ea466`.** This entry carried no
+    // conflict — the branch never touched it — so the recorded number was `master`'s alone,
+    // and the one new platform source this branch adds moves it 2318 -> 2319 (+1). Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 2319,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -2108,7 +2130,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // judges. Attributed by running this census on a pristine `origin/master`
     // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
     // twenty entries below are this merge request's own and none is a subtraction.
-    files: 2176,
+    // **Re-measured on the union after rebasing onto `0441ea466`.** Feature 113's T226 and
+    // T235 landed on `master` between this branch's base and the rebase — the seed corpus
+    // deleted, one platform source added — so the recorded value, which was this branch's
+    // own base plus its +1, is two high against the combined tree: 2176 -> 2174. A read size is
+    // a measurement of the tree the run walks, so it is re-measured here and never
+    // reconciled textually out of the two conflicting sides.
+    files: 2174,
     sites: 260,
     sources: ['manifest-index'],
   },
@@ -2293,7 +2321,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // judges. Attributed by running this census on a pristine `origin/master`
     // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
     // twenty entries below are this merge request's own and none is a subtraction.
-    files: 2176,
+    // **Re-measured on the union after rebasing onto `0441ea466`.** Feature 113's T226 and
+    // T235 landed on `master` between this branch's base and the rebase — the seed corpus
+    // deleted, one platform source added — so the recorded value, which was this branch's
+    // own base plus its +1, is two high against the combined tree: 2176 -> 2174. A read size is
+    // a measurement of the tree the run walks, so it is re-measured here and never
+    // reconciled textually out of the two conflicting sides.
+    files: 2174,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2478,7 +2512,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // judges. Attributed by running this census on a pristine `origin/master`
     // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
     // twenty entries below are this merge request's own and none is a subtraction.
-    files: 2176,
+    // **Re-measured on the union after rebasing onto `0441ea466`.** Feature 113's T226 and
+    // T235 landed on `master` between this branch's base and the rebase — the seed corpus
+    // deleted, one platform source added — so the recorded value, which was this branch's
+    // own base plus its +1, is two high against the combined tree: 2176 -> 2174. A read size is
+    // a measurement of the tree the run walks, so it is re-measured here and never
+    // reconciled textually out of the two conflicting sides.
+    files: 2174,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -2664,7 +2704,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // judges. Attributed by running this census on a pristine `origin/master`
     // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
     // twenty entries below are this merge request's own and none is a subtraction.
-    files: 701,
+    // **Re-measured on the union after rebasing onto `0441ea466`.** Feature 113's T226 and
+    // T235 landed on `master` between this branch's base and the rebase — the seed corpus
+    // deleted, one platform source added — so the recorded value, which was this branch's
+    // own base plus its +1, is two high against the combined tree: 701 -> 699. A read size is
+    // a measurement of the tree the run walks, so it is re-measured here and never
+    // reconciled textually out of the two conflicting sides.
+    files: 699,
     sites: 68,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
@@ -3132,7 +3178,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // judges. Attributed by running this census on a pristine `origin/master`
     // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
     // twenty entries below are this merge request's own and none is a subtraction.
-    files: 2176,
+    // **Re-measured on the union after rebasing onto `0441ea466`.** Feature 113's T226 and
+    // T235 landed on `master` between this branch's base and the rebase — the seed corpus
+    // deleted, one platform source added — so the recorded value, which was this branch's
+    // own base plus its +1, is two high against the combined tree: 2176 -> 2174. A read size is
+    // a measurement of the tree the run walks, so it is re-measured here and never
+    // reconciled textually out of the two conflicting sides.
+    files: 2174,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -4308,7 +4360,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // judges. Attributed by running this census on a pristine `origin/master`
     // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
     // twenty entries below are this merge request's own and none is a subtraction.
-    files: 4935,
+    // **Re-measured on the union after rebasing onto `0441ea466`.** Feature 113's T226 and
+    // T235 landed on `master` between this branch's base and the rebase — the seed corpus
+    // deleted, one platform source added — so the recorded value, which was this branch's
+    // own base plus its +1, is two high against the combined tree: 4935 -> 4933. A read size is
+    // a measurement of the tree the run walks, so it is re-measured here and never
+    // reconciled textually out of the two conflicting sides.
+    files: 4933,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -5370,7 +5428,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // judges. Attributed by running this census on a pristine `origin/master`
     // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
     // twenty entries below are this merge request's own and none is a subtraction.
-    files: 2176,
+    // **Re-measured on the union after rebasing onto `0441ea466`.** Feature 113's T226 and
+    // T235 landed on `master` between this branch's base and the rebase — the seed corpus
+    // deleted, one platform source added — so the recorded value, which was this branch's
+    // own base plus its +1, is two high against the combined tree: 2176 -> 2174. A read size is
+    // a measurement of the tree the run walks, so it is re-measured here and never
+    // reconciled textually out of the two conflicting sides.
+    files: 2174,
     sites: 212,
     sources: ['manifest-index'],
   },
@@ -6263,7 +6327,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // judges. Attributed by running this census on a pristine `origin/master`
     // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
     // twenty entries below are this merge request's own and none is a subtraction.
-    files: 2176,
+    // **Re-measured on the union after rebasing onto `0441ea466`.** Feature 113's T226 and
+    // T235 landed on `master` between this branch's base and the rebase — the seed corpus
+    // deleted, one platform source added — so the recorded value, which was this branch's
+    // own base plus its +1, is two high against the combined tree: 2176 -> 2174. A read size is
+    // a measurement of the tree the run walks, so it is re-measured here and never
+    // reconciled textually out of the two conflicting sides.
+    files: 2174,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -6581,7 +6651,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // judges. Attributed by running this census on a pristine `origin/master`
     // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
     // twenty entries below are this merge request's own and none is a subtraction.
-    files: 2176,
+    // **Re-measured on the union after rebasing onto `0441ea466`.** Feature 113's T226 and
+    // T235 landed on `master` between this branch's base and the rebase — the seed corpus
+    // deleted, one platform source added — so the recorded value, which was this branch's
+    // own base plus its +1, is two high against the combined tree: 2176 -> 2174. A read size is
+    // a measurement of the tree the run walks, so it is re-measured here and never
+    // reconciled textually out of the two conflicting sides.
+    files: 2174,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -6813,7 +6889,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // judges. Attributed by running this census on a pristine `origin/master`
     // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
     // twenty entries below are this merge request's own and none is a subtraction.
-    files: 4531,
+    // **Re-measured on the union after rebasing onto `0441ea466`.** Feature 113's T226 and
+    // T235 landed on `master` between this branch's base and the rebase — the seed corpus
+    // deleted, one platform source added — so the recorded value, which was this branch's
+    // own base plus its +1, is two high against the combined tree: 4531 -> 4529. A read size is
+    // a measurement of the tree the run walks, so it is re-measured here and never
+    // reconciled textually out of the two conflicting sides.
+    files: 4529,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -7780,7 +7862,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // judges. Attributed by running this census on a pristine `origin/master`
     // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
     // twenty entries below are this merge request's own and none is a subtraction.
-    files: 6133,
+    // **Re-measured on the union after rebasing onto `0441ea466`.** Feature 113's T226 and
+    // T235 landed on `master` between this branch's base and the rebase — the seed corpus
+    // deleted, one platform source added — so the recorded value, which was this branch's
+    // own base plus its +1, is two high against the combined tree: 6133 -> 6131. A read size is
+    // a measurement of the tree the run walks, so it is re-measured here and never
+    // reconciled textually out of the two conflicting sides.
+    files: 6131,
     sites: null,
     sources: ['manifest-index'],
     //
