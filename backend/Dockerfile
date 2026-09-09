@@ -76,12 +76,18 @@ RUN pnpm install --frozen-lockfile --filter backend...
 # --- Source ---
 COPY packages/ packages/
 COPY backend/ backend/
-# A module package that ships runtime assets builds as `tsc && node
-# ../../../scripts/copy-package-assets.mjs` (criterion 8), so the repo-root
-# scripts directory is part of the build context and not a developer
-# convenience. Without it the image build dies on the first such package —
-# `product_feeds` today — and the boot gate is the only thing that sees it,
-# because nothing in a source-tree check builds an image.
+# A workspace package whose build runs a repository-root script — `tsc && node
+# ../../../scripts/copy-package-assets.mjs` is the shape (criterion 8) — needs
+# that script inside the build context, so `scripts/` is one of this image's
+# inputs and not a developer convenience. **Which packages those are is a
+# property of the build closure below**, derived from every member's manifest,
+# and it moves without this file moving: `build:admin` of pipeline 13398 died on
+# `Cannot find module '/app/scripts/copy-package-assets.mjs'` because a member of
+# that image's closure had grown such a build step while its Dockerfile had not
+# grown this line, which this one had carried for months. Nothing in a
+# source-tree check sees an absent one — the boot gate builds *this* image, and
+# `backend/test/unit/ci/image-root-script-supply.test.ts` is the rule over all
+# three.
 COPY scripts/ scripts/
 
 # `backend^...` is the backend's workspace-dependency closure without the backend itself:
