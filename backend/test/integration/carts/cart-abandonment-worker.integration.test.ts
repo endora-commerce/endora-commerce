@@ -3,7 +3,7 @@ import { afterAll, beforeAll, beforeEach, afterEach, describe, expect, it, vi } 
 
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 
-import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
+import { AuditLogService } from '@endora-commerce/platform/composition';
 
 import { CartAuditService } from '../../../../packages/modules/carts/src/backend/services/cart-audit-service.js';
 

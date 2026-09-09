@@ -4,7 +4,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   InProcessCacheRegistry,
   inProcessCaches,
-} from '../../../src/kernel/cache/in-process-cache-registry.js';
+} from '@endora-commerce/platform/kernel';
 import {
   ModuleRegistryCache,
   STATE_CHANGED_CHANNEL,

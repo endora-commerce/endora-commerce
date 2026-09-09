@@ -6,7 +6,7 @@ import {
   createModuleContext,
   createModuleRegistrationSink,
 } from '../../../src/kernel/module-context.js';
-import { EventBus } from '../../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
 import { registerModule } from '../../../../packages/modules/google_tag_manager/src/backend/index.js';

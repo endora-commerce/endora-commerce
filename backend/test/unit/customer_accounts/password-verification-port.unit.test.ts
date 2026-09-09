@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { describe, expect, it } from 'vitest';
-import { hashPassword } from '../../../src/kernel/crypto/password-hasher.js';
+import { hashPassword } from '@endora-commerce/platform/kernel';
 // This test constructs the service itself, over a stubbed `EntityManager`, and
 // its stub compares the class it is handed by **identity**. So the entity has
 // to be the copy the service under test holds — the package's own source, the

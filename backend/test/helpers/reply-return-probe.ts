@@ -16,7 +16,7 @@
  * swallows the crash — exactly the way `app.inject()` hides it from the suite.
  */
 import type { FastifyInstance } from 'fastify';
-import { buildServer } from '../../src/http/server.js';
+import { buildServer } from '@endora-commerce/platform/composition';
 
 const mode = process.argv[2];
 

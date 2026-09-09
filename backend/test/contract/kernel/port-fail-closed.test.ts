@@ -1,14 +1,14 @@
 import Fastify from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@endora-commerce/contracts';
-import { EventBus } from '../../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 import { composeModules } from '../../../src/kernel/compose.js';
 import { createRootContainer, type KernelContainer } from '../../../src/kernel/container.js';
 import type { ModuleContext } from '../../../src/kernel/module-context.js';
-import type { OrganizationReadPort } from '../../../src/kernel/ports/organizations.js';
+import type { OrganizationReadPort } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '../../../src/kernel/ports/require-admin.js';
-import type { SalesChannelResolutionPort } from '../../../src/kernel/ports/sales-channel.js';
-import type { SettingsReadPort } from '../../../src/kernel/ports/settings.js';
+import type { SalesChannelResolutionPort } from '@endora-commerce/platform/kernel';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { registerErrorEnvelope } from '../../../src/http/error-envelope.js';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';

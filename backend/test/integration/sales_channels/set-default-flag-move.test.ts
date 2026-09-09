@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import type { CommandActor } from '../../../src/commands/command.js';
-import { DefaultChannelReconciler } from '../../../src/kernel/sales-channels/default-channel-reconciler.js';
+import type { CommandActor } from '@endora-commerce/platform/commands';
+import { DefaultChannelReconciler } from '@endora-commerce/platform/composition';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { makeSetSystemDefaultChannelCommand } from '../../../../packages/modules/sales_channels/src/backend/commands/set-default.command.js';
 

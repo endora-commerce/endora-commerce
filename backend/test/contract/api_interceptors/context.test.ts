@@ -11,7 +11,7 @@ import {
 } from '../../helpers/test-actors.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { getTenantContext, type TenantContext } from '../../../src/tenancy/tenant-context.js';
-import { forkScopedEm } from '../../../src/tenancy/scoped-em.js';
+import { forkScopedEm } from '@endora-commerce/platform/composition';
 import { ShoppingList, type ShoppingListRow } from '../../helpers/package-entities.js';
 
 /**

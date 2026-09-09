@@ -5,7 +5,7 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 
-import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
+import { AuditLogService } from '@endora-commerce/platform/composition';
 
 import { CartAuditService } from '../../../../packages/modules/carts/src/backend/services/cart-audit-service.js';
 

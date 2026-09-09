@@ -7,7 +7,7 @@ import { SessionService } from '@endora-commerce/mod-auth/backend';
 import { createAuthSessionPort } from '@endora-commerce/mod-auth/backend';
 import { CustomerRegistrationService } from '../../../../packages/modules/customers/src/backend/services/customer-registration-service.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
-import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
+import { AuditLogService } from '@endora-commerce/platform/composition';
 import {
   customerAccountLifecycleWriteFor,
   personalOrganizationProvisionFor,

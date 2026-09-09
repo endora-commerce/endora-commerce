@@ -22,7 +22,7 @@ import type {
   OrderRecord,
   ShippingAdapter,
 } from '@endora-commerce/contracts';
-import type { AuditPort, RecordAuditInput } from '../../../src/kernel/ports/audit.js';
+import type { AuditPort, RecordAuditInput } from '@endora-commerce/platform/kernel';
 import { ShippingAdapterRegistry } from '../../../../packages/modules/delivery_methods/src/backend/services/shipping-adapter-registry.js';
 import {
   ShipmentService,

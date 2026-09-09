@@ -31,7 +31,7 @@ import type {
   TaxServicePort,
 } from '@endora-commerce/contracts';
 import { HttpError } from './http/error-envelope.js';
-import type { ModulePlugin } from './http/server.js';
+import type { ModulePlugin } from '@endora-commerce/platform/composition';
 import { initOrm, closeOrm } from './db/index.js';
 import { type TenantContext } from './tenancy/tenant-context.js';
 import { resolveTenantContext, systemTenantContext } from './tenancy/resolve-tenant-context.js';
@@ -104,7 +104,7 @@ import type { ProductFeedsBridge } from '@endora-commerce/mod-product-feeds/back
 import type { MfaActorBridge } from '@endora-commerce/mod-mfa/backend';
 import type { TargetValidatorDeps } from '@endora-commerce/mod-megamenu/backend';
 import type { StorefrontDeps } from '@endora-commerce/mod-megamenu/backend';
-import { DefaultChannelReconciler } from './kernel/sales-channels/default-channel-reconciler.js';
+import { DefaultChannelReconciler } from '@endora-commerce/platform/composition';
 // Feature 046 — Progressive Web App.
 import type { PwaBridge } from '@endora-commerce/mod-pwa/backend';
 // Feature 047 — Transactional Emails.

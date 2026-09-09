@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
-import { CommandBus } from '../../../src/commands/command-bus.js';
-import type { Command } from '../../../src/commands/command.js';
-import { EventBus, type EventBase } from '../../../src/events/bus.js';
-import type { AuditPort, RecordAuditInput } from '../../../src/kernel/ports/audit.js';
+import { CommandBus } from '@endora-commerce/platform/commands';
+import type { Command } from '@endora-commerce/platform/commands';
+import { EventBus, type EventBase } from '@endora-commerce/platform/events';
+import type { AuditPort, RecordAuditInput } from '@endora-commerce/platform/kernel';
 import {
   MissingTenantContextError,
   runWithTenantContext,

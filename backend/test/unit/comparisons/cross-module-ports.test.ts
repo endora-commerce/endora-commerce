@@ -10,7 +10,7 @@ import type {
   CustomerAccountRecord,
 } from '@endora-commerce/contracts';
 import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
-import type { SalesChannelMembershipPort } from '../../../src/kernel/ports/sales-channel.js';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { ComparableAttributeProjection } from '../../../../packages/modules/comparisons/src/backend/services/comparable-attribute-projection.js';
 import { ComparisonAdminService } from '../../../../packages/modules/comparisons/src/backend/services/comparison-admin.service.js';
 import {

@@ -9,7 +9,7 @@ import {
   type ModuleRegistrationSink,
 } from '../../../src/kernel/module-context.js';
 import { type ModuleContext } from '../../../src/kernel/index.js';
-import { EventBus } from '../../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { registerModule } from '@endora-commerce/mod-i18n/backend';
 

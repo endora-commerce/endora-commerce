@@ -13,7 +13,7 @@ import type {
   OrderRecord,
   ShippingAdapter,
 } from '@endora-commerce/contracts';
-import type { AuditPort } from '../../../src/kernel/ports/audit.js';
+import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { ShippingAdapterRegistry } from '../../../../packages/modules/delivery_methods/src/backend/services/shipping-adapter-registry.js';
 import { ShipmentService } from '../../../../packages/modules/shipments/src/backend/services/shipment-service.js';
 import type { ShippingEventBus } from '../../../../packages/modules/shipments/src/backend/services/events.js';

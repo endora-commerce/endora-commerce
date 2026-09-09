@@ -13,7 +13,7 @@ import {
   runModuleCommand,
   type CommandDeclaringEntry,
 } from '../../../src/cli/module-commands.js';
-import { EventBus } from '../../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 import { composeModules } from '../../../src/kernel/compose.js';
 import { createRootContainer } from '../../../src/kernel/container.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';

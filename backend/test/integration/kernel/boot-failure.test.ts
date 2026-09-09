@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { EventBus } from '../../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 import { createRootContainer, registerValues } from '../../../src/kernel/container.js';
 import { composeModules, ModuleCompositionError } from '../../../src/kernel/compose.js';
 import type { ModuleContext } from '../../../src/kernel/module-context.js';
-import { buildServer, type ModulePlugin } from '../../../src/http/server.js';
+import { buildServer, type ModulePlugin } from '@endora-commerce/platform/composition';
 
 /**
  * What a failed boot has to say, and what it must not have done (T053).

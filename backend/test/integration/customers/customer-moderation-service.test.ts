@@ -5,7 +5,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { SessionService } from '@endora-commerce/mod-auth/backend';
 import { createAuthSessionPort } from '@endora-commerce/mod-auth/backend';
-import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
+import { AuditLogService } from '@endora-commerce/platform/composition';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { CustomerAuthService } from '../../../../packages/modules/customer_accounts/src/backend/services/customer-auth-service.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';

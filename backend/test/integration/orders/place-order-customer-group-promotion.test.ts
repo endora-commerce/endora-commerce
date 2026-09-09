@@ -19,7 +19,7 @@ import {
 
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 
-import { EventBus } from '../../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 
 import {
   OrderService,

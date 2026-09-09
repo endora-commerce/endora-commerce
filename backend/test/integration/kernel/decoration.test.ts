@@ -9,7 +9,7 @@ import type {
   ListingPriceOrderQuery,
   ListingPriceViewerContext,
 } from '@endora-commerce/contracts';
-import { EventBus } from '../../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 import {
   AmbiguousDecorationError,
   ForeignDecorationError,

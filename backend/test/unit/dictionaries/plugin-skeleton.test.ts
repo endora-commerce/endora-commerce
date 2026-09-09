@@ -18,7 +18,7 @@ import {
   createModuleContext,
   createModuleRegistrationSink,
 } from '../../../src/kernel/module-context.js';
-import { EventBus } from '../../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 import { registerModule } from '../../../../packages/modules/dictionaries/src/backend/index.js';
 
 describe('dictionaries — what the module registers', () => {

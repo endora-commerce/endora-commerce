@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
-import { CommandBus } from '../../../src/commands/command-bus.js';
-import { EventBus } from '../../../src/events/bus.js';
-import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
+import { CommandBus } from '@endora-commerce/platform/commands';
+import { EventBus } from '@endora-commerce/platform/events';
+import { AuditLogService } from '@endora-commerce/platform/composition';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import {
   CatalogAdminService,

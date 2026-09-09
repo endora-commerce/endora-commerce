@@ -453,7 +453,16 @@ describe("criterion 7 — the population, and every call site's two halves agree
   it('read a host-program population at all', () => {
     // #215 in this population: a `src` tree that moved leaves a walk that finds
     // no host program, which every assertion below would report as clean.
-    expect(hostProgramSources().length).toBeGreaterThan(100);
+    //
+    // **A floor and not a record, and the distinction earns its keep here**:
+    // this population *shrinks by design*. `specs/110-instance-repository/`
+    // Phase 2 moves `backend/src` into the platform and T119 deletes the
+    // re-export shims left behind — 114 -> 87 at its first batch, with 41 shims
+    // still to go and T11A's three-class residue below that. So the number is
+    // set for the discrimination it has to make (a `src` that moved finds
+    // roughly none) with room for the drain to finish, rather than re-recorded
+    // per batch as though it were a read size.
+    expect(hostProgramSources().length).toBeGreaterThan(20);
     expect(HOST_REACHES.length).toBeGreaterThan(0);
   });
 

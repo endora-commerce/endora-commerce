@@ -9,8 +9,8 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { AdminUser } from '../../../../packages/modules/admin_users/src/backend/entities/admin-user.entity.js';
 import type { AdminRolePort, AuthSessionPort } from '@endora-commerce/contracts';
 import { describe, expect, it } from 'vitest';
-import type { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
-import { hashPassword, verifyPassword } from '../../../src/kernel/crypto/password-hasher.js';
+import type { AuditLogService } from '@endora-commerce/platform/composition';
+import { hashPassword, verifyPassword } from '@endora-commerce/platform/kernel';
 import { AdminUserService } from '../../../../packages/modules/admin_users/src/backend/services/admin-user-service.js';
 
 /**

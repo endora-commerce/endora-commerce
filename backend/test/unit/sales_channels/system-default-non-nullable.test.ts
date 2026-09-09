@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { SalesChannelResolverService } from '../../../src/kernel/sales-channels/sales-channel-resolver.service.js';
-import { NoSystemDefaultChannel } from '../../../src/kernel/sales-channels/no-system-default-channel.error.js';
+import { NoSystemDefaultChannel } from '@endora-commerce/platform/kernel';
 import type { SalesChannelsCache } from '../../../src/kernel/sales-channels/sales-channels-cache.js';
 
 /**

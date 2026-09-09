@@ -59,7 +59,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { DemoComposition, DemoCompositionResult } from '../demo/index.js';
 import type { DemoCredential } from '@endora-commerce/contracts';
 import { SalesChannel } from '../kernel/sales-channels/sales-channel.entity.js';
-import { hashPassword } from '../kernel/crypto/password-hasher.js';
+import { hashPassword } from '@endora-commerce/platform/kernel';
 import { entityNamed } from '../packages/package-entity-lookup.js';
 import { createAttributeFixture, findAttributeDefinitionByKey } from './attribute-fixtures.js';
 import { entities as catalogEntities } from '@endora-commerce/mod-catalog/backend';

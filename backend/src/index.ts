@@ -5,7 +5,7 @@
 // top of the bare HTTP server from http/server.ts. The dev script
 // (`pnpm --filter backend run dev`) and production both go through this.
 
-import { buildServer } from './http/server.js';
+import { buildServer } from '@endora-commerce/platform/composition';
 import { parseTrustedProxy, type TrustedProxy } from './http/trusted-proxy.js';
 import { composeApp } from './composition.js';
 import { deploymentRoot } from './overlay/overlay-roots.js';

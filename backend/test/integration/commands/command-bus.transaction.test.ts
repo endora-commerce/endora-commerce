@@ -2,10 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { MikroORM } from '@mikro-orm/postgresql';
 import mikroOrmConfig from '../../../src/db/mikro-orm.config.js';
-import { CommandBus } from '../../../src/commands/command-bus.js';
-import type { Command } from '../../../src/commands/command.js';
-import { EventBus, type EventBase } from '../../../src/events/bus.js';
-import { AuditLogService } from '../../../src/kernel/audit/audit-log-service.js';
+import { CommandBus } from '@endora-commerce/platform/commands';
+import type { Command } from '@endora-commerce/platform/commands';
+import { EventBus, type EventBase } from '@endora-commerce/platform/events';
+import { AuditLogService } from '@endora-commerce/platform/composition';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { BulkOperation, type BulkOperationRow } from '../../helpers/package-entities.js';
 

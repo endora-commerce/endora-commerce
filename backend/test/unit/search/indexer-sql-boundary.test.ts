@@ -7,7 +7,7 @@ import type {
   CatalogProductReadPort,
   CatalogProductRecord,
 } from '@endora-commerce/contracts';
-import type { SalesChannelMembershipPort } from '../../../src/kernel/ports/sales-channel.js';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import type { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { SearchIndexer } from '../../../../packages/modules/search/src/backend/services/search-indexer.js';
 

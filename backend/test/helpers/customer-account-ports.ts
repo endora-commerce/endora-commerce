@@ -5,7 +5,7 @@ import type {
   CustomerAccountMemberWritePort,
   CustomerAccountReadPort,
 } from '@endora-commerce/contracts';
-import type { AuditLogService } from '../../src/kernel/audit/audit-log-service.js';
+import type { AuditLogService } from '@endora-commerce/platform/composition';
 import type { CommandBus } from '../../src/commands/index.js';
 import type { PersonalOrganizationProvisionApi } from '@endora-commerce/mod-organizations/ports';
 import { PersonalOrganizationService } from '../../../packages/modules/organizations/src/backend/services/personal-organization-service.js';

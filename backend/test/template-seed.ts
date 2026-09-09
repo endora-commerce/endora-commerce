@@ -40,7 +40,7 @@ import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
  */
 export async function establishPlatformInvariants(orm: MikroORM): Promise<void> {
   const { DefaultChannelReconciler } = await import(
-    '../src/kernel/sales-channels/default-channel-reconciler.js'
+    '@endora-commerce/platform/composition'
   );
   // `SalesChannel` is a `@GlobalEntity`, so a plain fork is the right EM here:
   // there is no tenant filter to stamp and no request scope to inherit.

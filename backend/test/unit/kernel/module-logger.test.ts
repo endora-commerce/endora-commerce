@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { EventBus } from '../../../src/events/bus.js';
-import { buildServer } from '../../../src/http/server.js';
+import { EventBus } from '@endora-commerce/platform/events';
+import { buildServer } from '@endora-commerce/platform/composition';
 import { createRootContainer } from '../../../src/kernel/container.js';
 import {
   attachPlatformLogger,

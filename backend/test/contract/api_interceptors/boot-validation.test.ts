@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildServer } from '../../../src/http/server.js';
-import { ApiInterceptorRegistry } from '../../../src/http/interceptors/index.js';
+import { buildServer } from '@endora-commerce/platform/composition';
+import { ApiInterceptorRegistry } from '@endora-commerce/platform/composition';
 
 /**
  * Feature 060 / US3 (T020) — fail-closed boot: a registration targeting a

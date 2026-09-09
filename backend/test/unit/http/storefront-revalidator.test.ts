@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { StorefrontRevalidator } from '../../../src/http/storefront-revalidator.js';
+import { StorefrontRevalidator } from '@endora-commerce/platform/http';
 
 describe('StorefrontRevalidator', () => {
   it('is disabled (no-op) without a base URL or secret', async () => {

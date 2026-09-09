@@ -876,7 +876,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own base plus its +1, is two high against the combined tree: 2049 -> 2047. A read size is
     // a measurement of the tree the run walks, so it is re-measured here and never
     // reconciled textually out of the two conflicting sides.
-    files: 2047,
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 2047 -> 2020 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not. Measured on a pristine `origin/master`
+    // worktree at `7b70edf22`, whose census printed `0 drifted, 44 agree`, and
+    // re-measured there after the rebase rather than carried across it — every one
+    // of the sixteen entries this drain moves is the same twenty-seven files.
+    files: 2020,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1086,7 +1094,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own base plus its +1, is two high against the combined tree: 2176 -> 2174. A read size is
     // a measurement of the tree the run walks, so it is re-measured here and never
     // reconciled textually out of the two conflicting sides.
-    files: 2174,
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 2174 -> 2147 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not. Measured on a pristine `origin/master`
+    // worktree at `7b70edf22`, whose census printed `0 drifted, 44 agree`, and
+    // re-measured there after the rebase rather than carried across it — every one
+    // of the sixteen entries this drain moves is the same twenty-seven files.
+    files: 2147,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1555,7 +1571,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own base plus its +1, is two high against the combined tree: 5506 -> 5504. A read size is
     // a measurement of the tree the run walks, so it is re-measured here and never
     // reconciled textually out of the two conflicting sides.
-    files: 5504,
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 5504 -> 5477 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not. Measured on a pristine `origin/master`
+    // worktree at `7b70edf22`, whose census printed `0 drifted, 44 agree`, and
+    // re-measured there after the rebase rather than carried across it — every one
+    // of the sixteen entries this drain moves is the same twenty-seven files.
+    files: 5477,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2136,7 +2160,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own base plus its +1, is two high against the combined tree: 2176 -> 2174. A read size is
     // a measurement of the tree the run walks, so it is re-measured here and never
     // reconciled textually out of the two conflicting sides.
-    files: 2174,
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 2174 -> 2147 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not. Measured on a pristine `origin/master`
+    // worktree at `7b70edf22`, whose census printed `0 drifted, 44 agree`, and
+    // re-measured there after the rebase rather than carried across it — every one
+    // of the sixteen entries this drain moves is the same twenty-seven files.
+    files: 2147,
     sites: 260,
     sources: ['manifest-index'],
   },
@@ -2327,7 +2359,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own base plus its +1, is two high against the combined tree: 2176 -> 2174. A read size is
     // a measurement of the tree the run walks, so it is re-measured here and never
     // reconciled textually out of the two conflicting sides.
-    files: 2174,
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 2174 -> 2147 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not. Measured on a pristine `origin/master`
+    // worktree at `7b70edf22`, whose census printed `0 drifted, 44 agree`, and
+    // re-measured there after the rebase rather than carried across it — every one
+    // of the sixteen entries this drain moves is the same twenty-seven files.
+    files: 2147,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2518,7 +2558,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own base plus its +1, is two high against the combined tree: 2176 -> 2174. A read size is
     // a measurement of the tree the run walks, so it is re-measured here and never
     // reconciled textually out of the two conflicting sides.
-    files: 2174,
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 2174 -> 2147 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not. Measured on a pristine `origin/master`
+    // worktree at `7b70edf22`, whose census printed `0 drifted, 44 agree`, and
+    // re-measured there after the rebase rather than carried across it — every one
+    // of the sixteen entries this drain moves is the same twenty-seven files.
+    files: 2147,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -2710,7 +2758,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own base plus its +1, is two high against the combined tree: 701 -> 699. A read size is
     // a measurement of the tree the run walks, so it is re-measured here and never
     // reconciled textually out of the two conflicting sides.
-    files: 699,
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 699 -> 672 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not. Measured on a pristine `origin/master`
+    // worktree at `7b70edf22`, whose census printed `0 drifted, 44 agree`, and
+    // re-measured there after the rebase rather than carried across it — every one
+    // of the sixteen entries this drain moves is the same twenty-seven files.
+    files: 672,
     sites: 68,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
@@ -3184,7 +3240,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own base plus its +1, is two high against the combined tree: 2176 -> 2174. A read size is
     // a measurement of the tree the run walks, so it is re-measured here and never
     // reconciled textually out of the two conflicting sides.
-    files: 2174,
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 2174 -> 2147 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not. Measured on a pristine `origin/master`
+    // worktree at `7b70edf22`, whose census printed `0 drifted, 44 agree`, and
+    // re-measured there after the rebase rather than carried across it — every one
+    // of the sixteen entries this drain moves is the same twenty-seven files.
+    files: 2147,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -5035,7 +5099,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // read, and is the one that is easy to forget. Attributed by running this census on a pristine `origin/master`
     // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
     // twenty entries below are this merge request's own and none is a subtraction.
-    files: 8148,
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 8148 -> 8121 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not. Measured on a pristine `origin/master`
+    // worktree at `7b70edf22`, whose census printed `0 drifted, 44 agree`, and
+    // re-measured there after the rebase rather than carried across it — every one
+    // of the sixteen entries this drain moves is the same twenty-seven files.
+    files: 8121,
     sites: null,
     sources: [],
     //
@@ -5434,7 +5506,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own base plus its +1, is two high against the combined tree: 2176 -> 2174. A read size is
     // a measurement of the tree the run walks, so it is re-measured here and never
     // reconciled textually out of the two conflicting sides.
-    files: 2174,
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 2174 -> 2147 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not. Measured on a pristine `origin/master`
+    // worktree at `7b70edf22`, whose census printed `0 drifted, 44 agree`, and
+    // re-measured there after the rebase rather than carried across it — every one
+    // of the sixteen entries this drain moves is the same twenty-seven files.
+    files: 2147,
     sites: 212,
     sources: ['manifest-index'],
   },
@@ -5656,7 +5736,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `demo-relocated-reference.ts`: the legacy entry point, the last host-held demo
     // block, and the frozen copy the parity comparison read against. Nothing is added
     // under a walked root — the foundation phase is a step inside `demo-composition.ts`.
-    files: 2470,
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 2470 -> 2443 (-27).**
+    // The twenty-seven re-export shims this walk read as ordinary application
+    // sources. The 193 consumer specifiers the drain re-points are almost all under
+    // `backend/test/**`, which this walk does not read, so the file count moves by
+    // exactly the shims and by nothing else. Measured on a pristine `origin/master`
+    // worktree at `7b70edf22` and re-measured there after the rebase.
+    files: 2443,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -5722,7 +5808,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // judges. Attributed by running this census on a pristine `origin/master`
     // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
     // twenty entries below are this merge request's own and none is a subtraction.
-    sites: 1897,
+    // **`specs/110-instance-repository/` T119 (the shim drain): sites 1897 -> 1870 (-27).**
+    // One site per deleted shim — each was a single `export *` into the platform,
+    // which is the whole of its contribution to this walk — so `ledger-size` falls
+    // 68 -> 41 by the same twenty-seven and `host-reaches` follows it to 41/41. The
+    // count moves with the file count here because the reaches that went are exactly
+    // the files that went.
+    sites: 1870,
     // The third source is T060's floor: every module package whose manifest
     // declares the host package must have contributed a host reach to this walk.
     // The manifest is rendered from the bare specifiers the package's sources
@@ -6333,7 +6425,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own base plus its +1, is two high against the combined tree: 2176 -> 2174. A read size is
     // a measurement of the tree the run walks, so it is re-measured here and never
     // reconciled textually out of the two conflicting sides.
-    files: 2174,
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 2174 -> 2147 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not. Measured on a pristine `origin/master`
+    // worktree at `7b70edf22`, whose census printed `0 drifted, 44 agree`, and
+    // re-measured there after the rebase rather than carried across it — every one
+    // of the sixteen entries this drain moves is the same twenty-seven files.
+    files: 2147,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -6657,7 +6757,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own base plus its +1, is two high against the combined tree: 2176 -> 2174. A read size is
     // a measurement of the tree the run walks, so it is re-measured here and never
     // reconciled textually out of the two conflicting sides.
-    files: 2174,
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 2174 -> 2147 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not. Measured on a pristine `origin/master`
+    // worktree at `7b70edf22`, whose census printed `0 drifted, 44 agree`, and
+    // re-measured there after the rebase rather than carried across it — every one
+    // of the sixteen entries this drain moves is the same twenty-seven files.
+    files: 2147,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -6895,7 +7003,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own base plus its +1, is two high against the combined tree: 4531 -> 4529. A read size is
     // a measurement of the tree the run walks, so it is re-measured here and never
     // reconciled textually out of the two conflicting sides.
-    files: 4529,
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 4529 -> 4502 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not. Measured on a pristine `origin/master`
+    // worktree at `7b70edf22`, whose census printed `0 drifted, 44 agree`, and
+    // re-measured there after the rebase rather than carried across it — every one
+    // of the sixteen entries this drain moves is the same twenty-seven files.
+    files: 4502,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -7524,7 +7640,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // read, and is the one that is easy to forget. Attributed by running this census on a pristine `origin/master`
     // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
     // twenty entries below are this merge request's own and none is a subtraction.
-    files: 8208,
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 8208 -> 8181 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not. Measured on a pristine `origin/master`
+    // worktree at `7b70edf22`, whose census printed `0 drifted, 44 agree`, and
+    // re-measured there after the rebase rather than carried across it — every one
+    // of the sixteen entries this drain moves is the same twenty-seven files.
+    files: 8181,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -7868,7 +7992,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own base plus its +1, is two high against the combined tree: 6133 -> 6131. A read size is
     // a measurement of the tree the run walks, so it is re-measured here and never
     // reconciled textually out of the two conflicting sides.
-    files: 6131,
+    // **`specs/110-instance-repository/` T119 (the shim drain): files 6131 -> 6104 (-27).**
+    // The twenty-seven re-export shims under `backend/src/{commands,events,http,kernel,tenancy}`
+    // this walk read as ordinary application sources. It judges none of them — a
+    // twenty-line `export *` carries no finding for any of these rules — so the
+    // number moves and the verdict does not. Measured on a pristine `origin/master`
+    // worktree at `7b70edf22`, whose census printed `0 drifted, 44 agree`, and
+    // re-measured there after the rebase rather than carried across it — every one
+    // of the sixteen entries this drain moves is the same twenty-seven files.
+    files: 6104,
     sites: null,
     sources: ['manifest-index'],
     //

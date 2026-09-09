@@ -7,7 +7,7 @@ import { SettingsAdminService } from '../../../../packages/modules/settings/src/
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
 import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { EventBus } from '../../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 import type { SettingsCacheInvalidation } from '../../../src/kernel/settings/settings-cache.js';
 
 /**

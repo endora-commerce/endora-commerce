@@ -10,7 +10,7 @@ import { RfqExpiryWorker } from '../../../../packages/modules/quote_requests/src
 import { RfqEventService } from '../../../../packages/modules/quote_requests/src/backend/services/rfq-event-service.js';
 import { RfqNotificationService } from '../../../../packages/modules/quote_requests/src/backend/services/rfq-notification-service.js';
 import { SalesRepAssignmentService } from '../../../../packages/modules/organizations/src/backend/services/sales-rep-assignment-service.js';
-import { EventBus } from '../../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 import type { AdminUserReadPort } from '@endora-commerce/contracts';
 
 /**

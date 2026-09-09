@@ -11,7 +11,7 @@ import {
 } from '../../../src/tenancy/tenant-context.js';
 import { orgFilterCond, customerFilterCond } from '../../../src/tenancy/filters.js';
 import { withSystemScope, withOrgScope, setEscapeHatchAuditSink } from '../../../src/tenancy/escape-hatch.js';
-import { orgConstraintFor, ruleVisibleForScope } from '../../../src/tenancy/derived-scope.js';
+import { orgConstraintFor, ruleVisibleForScope } from '@endora-commerce/platform/tenancy';
 
 describe('resolveTenantContext', () => {
   it('customer → single-org confined to their organization + account', () => {

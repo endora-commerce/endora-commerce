@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EventBus } from '../../../src/events/bus.js';
+import { EventBus } from '@endora-commerce/platform/events';
 import { createRootContainer, type KernelContainer } from '../../../src/kernel/container.js';
 import {
   AmbiguousDecorationError,
