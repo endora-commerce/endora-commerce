@@ -20,6 +20,7 @@ import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { cmsModule } from './plugin.js';
 import type { CmsAssetResolver } from './services/storefront-resolver.js';
+import { createAssetEmbedResolver } from './services/asset-embed-resolver.js';
 import { registerCmsAssetReferences } from './services/asset-references.js';
 import { registerCmsLanguageReferences } from './services/cms-language-reference.js';
 import { CmsBlock } from './entities/cms-block.entity.js';
@@ -169,34 +170,15 @@ export function registerModule(ctx: ModuleContext): void {
      * (composition checklist item 3), and the edge is `assets_library` in this
      * module's manifest `dependencies` — already there for the reference
      * registry below, and now load-bearing for a second reason.
+     *
+     * The mapping itself is `services/asset-embed-resolver.ts`, a function of the
+     * port rather than of the context, so it is unit-tested over a stub with no
+     * container composed.
      */
     cmsAssetResolver: ctx
-      .asFunction((): CmsAssetResolver => {
-        const assets = lazyPort<AssetsLibraryPort>(ctx, 'assetsLibraryPort');
-        return async (assetId) => {
-          try {
-            const detail = await assets.getAsset(assetId);
-            return {
-              url: detail.url,
-              mimeType: detail.mimeType,
-              filename: detail.filename,
-              label: detail.label,
-              visibility: detail.visibility,
-            };
-          } catch (err) {
-            // The narrow tolerance the root's closure already carried, kept
-            // deliberately: `getAsset` throws 404 for a row that is gone, and a
-            // page embedding a deleted asset renders without it rather than
-            // failing the whole response. `rethrowIfModuleDisabled` is what
-            // stops that tolerance from also absorbing an owner's refusal
-            // (composition checklist item 7) — unreachable while
-            // `assets_library` declares `nonDeactivatable`, and the line that
-            // keeps this fail-closed on the day that changes.
-            rethrowIfModuleDisabled(err);
-            return null;
-          }
-        };
-      })
+      .asFunction((): CmsAssetResolver =>
+        createAssetEmbedResolver(lazyPort<AssetsLibraryPort>(ctx, 'assetsLibraryPort')),
+      )
       .singleton(),
 
     cms: ctx

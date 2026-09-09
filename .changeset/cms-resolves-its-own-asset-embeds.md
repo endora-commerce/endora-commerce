@@ -43,6 +43,11 @@ The `catch` that answers `null` for an asset the library no longer has is kept â
 renders without it â€” with `rethrowIfModuleDisabled` as its first line, so it cannot
 also absorb the owner's refusal.
 
+The mapping is `createAssetEmbedResolver` in
+`src/backend/services/asset-embed-resolver.ts`, exported from nothing: it is a
+function of the port rather than of the `ModuleContext`, which is what lets its
+test stub `AssetsLibraryPort` and compose no container.
+
 Three packages are touched with no release meaning of their own, and all three are
 comments: `@endora-commerce/mod-assets-library`, whose barrel recorded the drain
 condition this change meets; `@endora-commerce/mod-pim-ergonode`, whose barrel
