@@ -6,7 +6,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { UNIT_PRICE_AMOUNT_INDEX } from '../../../../packages/modules/price_lists/src/migrations/20260821T135907_price_lists_unit_price_amount_index.js';
 import {
   buildUnitPriceMergeQuery,

@@ -4,7 +4,7 @@ import type { MikroORM, EntityManager } from '@mikro-orm/postgresql';
 import { CommandBus } from '@endora-commerce/platform/commands';
 import { EventBus } from '@endora-commerce/platform/events';
 import { AuditLogService } from '@endora-commerce/platform/composition';
-import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import {
   CatalogAdminService,
   type CatalogEventBus,

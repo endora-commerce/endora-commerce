@@ -14,9 +14,9 @@ import {
   VIEWER_PRICED_PRODUCT_ID,
 } from '../../helpers/viewer-priced-fixture.js';
 import { CUSTOMER_COOKIES } from '../../helpers/test-actors.js';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { Setting } from '../../../src/kernel/settings/setting.entity.js';
-import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { Setting } from '@endora-commerce/platform/kernel';
+import { SettingValue } from '@endora-commerce/platform/kernel';
 
 /**
  * `GET /api/v1/storefront/pricing/display-mode/:productId` — asked for the

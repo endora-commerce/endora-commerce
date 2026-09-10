@@ -10,9 +10,9 @@ import {
   SettingValueShapeMismatch,
   SettingsService,
 } from '../../../src/kernel/settings/settings.service.js';
-import { Setting } from '../../../src/kernel/settings/setting.entity.js';
-import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { Setting } from '@endora-commerce/platform/kernel';
+import { SettingValue } from '@endora-commerce/platform/kernel';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 
 /**
  * T048 — Resolver semantics for the universal getter (no Redis cache; the

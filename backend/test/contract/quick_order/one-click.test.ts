@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { Setting } from '../../../src/kernel/settings/setting.entity.js';
+import { Setting } from '@endora-commerce/platform/kernel';
 import {
   setupBackendServer,
   teardownBackendServer,

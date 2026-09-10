@@ -17,8 +17,8 @@ import {
   registryCache,
 } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { loadModulePresence, type ShippedModuleEntry } from '@endora-commerce/platform/lifecycle';
-import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
-import { Setting } from '../../../src/kernel/settings/setting.entity.js';
+import { ModuleRegistration } from '@endora-commerce/platform/composition';
+import { Setting } from '@endora-commerce/platform/kernel';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import { repoRoot } from '../../../src/overlay/overlay-roots.js';
 

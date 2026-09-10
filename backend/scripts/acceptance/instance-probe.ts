@@ -368,7 +368,7 @@ async function phaseBoot(): Promise<AssertionResult[]> {
   const { composeApp } = await import('../../src/composition.js');
   const { deploymentRoot } = await import('../../src/overlay/overlay-roots.js');
   const { ModuleRegistration } = await import(
-    '../../src/kernel/lifecycle/module-registration.entity.js'
+    '@endora-commerce/platform/composition'
   );
 
   let composition: Awaited<ReturnType<typeof composeApp>>;

@@ -1,7 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { AuditLogService } from '@endora-commerce/platform/composition';
-import type { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import type { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import { registerAuditLogAdminRoutes } from '../../../../packages/modules/audit_logs/src/backend/routes.admin.js';
 
 /**

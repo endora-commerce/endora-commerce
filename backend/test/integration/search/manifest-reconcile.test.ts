@@ -7,9 +7,9 @@ import {
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
 import { searchManifest } from '../../../../packages/modules/search/src/manifest.js';
 import { settingsManifest } from '../../../../packages/modules/settings/src/manifest.js';
-import { SettingGroup } from '../../../src/kernel/settings/setting-group.entity.js';
-import { Setting } from '../../../src/kernel/settings/setting.entity.js';
-import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
+import { SettingGroup } from '@endora-commerce/platform/kernel';
+import { Setting } from '@endora-commerce/platform/kernel';
+import { SettingValue } from '@endora-commerce/platform/kernel';
 import {
   DEFAULT_INDEX_TASK_TIMEOUT_SECONDS,
   SEARCH_SETTING_CODES,

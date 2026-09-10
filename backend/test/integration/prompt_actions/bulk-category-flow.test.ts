@@ -9,7 +9,7 @@ import { ScriptedLlm, seedPromptActionsSettings } from '../../helpers/prompt-act
 import { Product } from '../../helpers/package-entities.js';
 import { Category } from '../../helpers/package-entities.js';
 import { BulkOperation } from '../../helpers/package-entities.js';
-import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import { PromptActionRequest } from '../../helpers/package-entities.js';
 
 /**

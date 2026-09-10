@@ -8,8 +8,8 @@ import {
   type BackendServerHandle,
 } from '../helpers/test-server.js';
 import { ManifestReconciler } from '../../src/kernel/settings/manifest-reconciler.js';
-import { Setting } from '../../src/kernel/settings/setting.entity.js';
-import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
+import { Setting } from '@endora-commerce/platform/kernel';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 
 /**
  * Settings universal-getter perf harness (T055 / plan.md performance

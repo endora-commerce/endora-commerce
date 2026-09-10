@@ -5,11 +5,11 @@ import { MikroORM, type EntityManager } from '@mikro-orm/postgresql';
 import type { AdminI18nTranslatePort, PermissionReadPort } from '@endora-commerce/contracts';
 import mikroOrmConfig from '../../../src/db/mikro-orm.config.js';
 import { AdminActionsService } from '../../../../packages/modules/admin_actions/src/backend/services/admin-actions-service.js';
-import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
+import { ModuleRegistration } from '@endora-commerce/platform/composition';
 import { ModuleRegistryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { ModuleEffectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
-import { Setting } from '../../../src/kernel/settings/setting.entity.js';
-import { SettingGroup } from '../../../src/kernel/settings/setting-group.entity.js';
+import { Setting } from '@endora-commerce/platform/kernel';
+import { SettingGroup } from '@endora-commerce/platform/kernel';
 
 /**
  * Issue #225 — the palette snapshot must not outlive the presence refresh that

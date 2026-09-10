@@ -83,7 +83,7 @@ import {
   platformSubpathsAt,
   PlatformRootUnresolvableError,
 } from './lib/platform-root.js';
-import { barrelKeyOf } from './lib/platform-surface.js';
+import { barrelKeyOf, parseBarrel, type BarrelParse } from './lib/platform-surface.js';
 import { declaresRegisterModule } from './lib/module-roots.js';
 // The order the published baseline list is rendered in is `orderMigrations`'
 // own (R1.3): one derivation, so the artefact cannot come to disagree with the
@@ -1364,30 +1364,135 @@ function readSourceTree(packages: readonly ModulePackage[] = modulePackages()): 
  * package stops being a workspace member and starts being installed. The bare
  * form is derived from the package's own `exports` map rather than assembled
  * from a subpath written here; see `lib/module-packages.ts`.
+ *
+ * **And bare for the platform's own files too** (`specs/110-instance-repository/`
+ * T119c), which is the case this paragraph used to except. The registry named
+ * all six platform entity classes by relative path *on purpose*: five were on
+ * `./kernel` and `ModuleRegistration` was on nothing, so an address existed for
+ * five of six and a generator cannot emit five of six imports. T119c gave the
+ * sixth one — `./composition`, which is **A**'s classification applied and not
+ * revised — and the conditional this function needed turns out to be one
+ * question asked uniformly: *which declared subpath publishes this symbol out of
+ * this file?* See {@link platformSubpathPublishing}.
+ *
+ * A migration is the one platform file this is **not** asked of, and the reason
+ * is its own: a migration class is a name `mikro_orm_migrations` persists rather
+ * than a symbol somebody rules on, `./migrations` carries all twelve, and the
+ * question above would make the specifier of a migration depend on a barrel this
+ * same command regenerates.
  */
-function specifierFor(file: string, owner: ModulePackage | null): string {
+function specifierFor(file: string, owner: ModulePackage | null, symbol?: string): string {
   if (owner !== null) return packageSpecifierFor(owner, file);
-  // The platform's own migrations are named through the subpath that publishes
-  // them, not through a relative path (`specs/110-instance-repository/` T116).
-  // Every other platform file the registries name stays relative and lands on a
-  // re-export shim, which is this function's paragraph above and unchanged:
-  // **one** of the six platform entity classes is off the published barrels by
-  // ruling — `ModuleRegistration`, **A** in host-package.md §1.3 — so an address
-  // for it would be a widening D-160.7 refuses, and the registry names all six
-  // the one way that works for all six. (This comment read *two* until
-  // `specs/110-instance-repository/` T119 measured it: `AuditLogEntry`,
-  // `SalesChannel`, `Setting`, `SettingGroup` and `SettingValue` are all on
-  // `./kernel` today. The behaviour is unaffected — one class with no address is
-  // as binding as two — which is exactly why nobody re-derived the count.)
-  // Those five shims are therefore held open by this function alone, and they
-  // retire when it learns to name the barrel where there is one; T119 left them
-  // rather than teach a generator a per-symbol conditional in a drain.
-  // A migration class carries none of that — `mikro_orm_migrations` persists the
-  // name, the `./migrations` barrel carries all twelve, and a relative specifier
-  // here would need twelve shims in a directory the application no longer owns.
   if (CORE_MIGRATION_RE.test(file)) return platformSpecifier(PLATFORM_MIGRATION_SUBPATH);
+  const platformRoot = platformSourceRootAt(repoRoot);
+  if (platformRoot !== null && existsSync(join(platformRoot, file))) {
+    return platformSpecifier(platformSubpathOfSymbol(platformRoot, file, symbol));
+  }
   const asJs = file.replace(/\.ts$/, '.js');
   return asJs.startsWith('db/') ? `./${asJs.slice('db/'.length)}` : `../${asJs}`;
+}
+
+/**
+ * Every declared subpath's barrel, parsed — read once per process.
+ *
+ * The subpaths come off the platform's own `exports` map and the contents off
+ * its own barrels, so a sixth published directory, a renamed one and a symbol
+ * that moves between two of them all arrive here without an edit (D-100). A
+ * subpath whose barrel is absent contributes nothing: `./env` and `./migrations`
+ * are files rather than directories with an `index.ts`, and a missing barrel is
+ * *"this subpath publishes no symbol by name"*, which is true of both.
+ *
+ * A barrel this parse cannot read **in full** is a refusal and never a shorter
+ * answer: a narrowed published set turns a correct address into "no subpath
+ * publishes it", which is a refusal about the parse dressed as one about the
+ * tree (issue #113).
+ */
+let platformBarrelCache: ReadonlyMap<string, BarrelParse> | null = null;
+function platformBarrels(platformRoot: string): ReadonlyMap<string, BarrelParse> {
+  if (platformBarrelCache !== null) return platformBarrelCache;
+  const parsed = new Map<string, BarrelParse>();
+  for (const subpath of platformSubpathsAt(repoRoot)) {
+    const key = barrelKeyOf(subpath);
+    const barrel = join(platformRoot, key);
+    if (!existsSync(barrel)) continue;
+    const parse = parseBarrel(readFileSync(barrel, 'utf8'), key);
+    if (parse.unreadable.length > 0) {
+      throw new Error(
+        `[composer] ${key} holds a re-export this parse cannot enumerate ` +
+          `(${parse.unreadable.map((entry) => entry.reason).join('; ')}). The published set ` +
+          'would come back short, and a class the barrel really carries would be reported as ' +
+          'having no address at all.',
+      );
+    }
+    parsed.set(subpath, parse);
+  }
+  platformBarrelCache = parsed;
+  return parsed;
+}
+
+/**
+ * The declared subpath that publishes `symbol` out of `file`, or `null`.
+ *
+ * Pure over parsed barrels so a fixture enters where a real run enters. It is a
+ * question about a **symbol**, not about a file, and that is the whole of why
+ * T119 could not do this in a drain: `packageSpecifierFor` answers *which
+ * subpath's `exports` target covers this file's emitted path*, and for every
+ * file under `kernel/` that answer is `./kernel` — including
+ * `module-registration.entity.ts`, whose class the `./kernel` barrel does not
+ * carry. A specifier derived that way resolves to a module with no such export,
+ * which is a build that fails at the first import rather than a wrong address a
+ * reader can see.
+ *
+ * Two subpaths carrying one symbol out of one file is a refusal rather than a
+ * choice: `published-surface.test.ts` R3.1a says a symbol is on one barrel and
+ * never two, and a generator that picked one would be the second answer to a
+ * question that already has one.
+ */
+export function platformSubpathPublishing(
+  barrels: ReadonlyMap<string, BarrelParse>,
+  symbol: string,
+  file: string,
+): string | null {
+  const carrying = [...barrels]
+    .filter(([, parse]) =>
+      parse.published.some((published) => published.name === symbol && published.target === file),
+    )
+    .map(([subpath]) => subpath)
+    .sort();
+  if (carrying.length > 1) {
+    throw new Error(
+      `[composer] '${symbol}' is published out of ${file} by more than one declared subpath ` +
+        `(${carrying.join(', ')}). R3.1a makes a symbol's subpath the whole of its ` +
+        'reachability, so a generated artefact has no basis to pick one.',
+    );
+  }
+  return carrying[0] ?? null;
+}
+
+/** {@link platformSubpathPublishing}, refusing rather than falling back. */
+function platformSubpathOfSymbol(
+  platformRoot: string,
+  file: string,
+  symbol: string | undefined,
+): string {
+  if (symbol === undefined) {
+    throw new Error(
+      `[composer] ${file} is the platform's and this artefact names it without naming a ` +
+        'symbol, so the subpath that publishes it cannot be derived. A relative specifier ' +
+        "into the platform resolves in this checkout and in no client's.",
+    );
+  }
+  const subpath = platformSubpathPublishing(platformBarrels(platformRoot), symbol, file);
+  if (subpath === null) {
+    throw new Error(
+      `[composer] no subpath the platform declares publishes '${symbol}' out of ${file}, so ` +
+        'this artefact has no address for it. Export it from the barrel of the subpath it ' +
+        'belongs on — and that is a ruling about who may name it, not a formality: ' +
+        '`host-package.md` §1.3 puts a symbol a module may not name on `./composition` and ' +
+        'never on a published barrel.',
+    );
+  }
+  return subpath;
 }
 
 /**
@@ -1506,6 +1611,16 @@ function emitEntitiesHeader(): string {
 // export \`src/packages/package-runtime.ts\` reads when that package is
 // installed rather than linked, so the committed registry and the runtime
 // loader now read one declaration instead of two.
+//
+// The **platform's** own entity classes are named by a bare specifier too
+// (\`specs/110-instance-repository/\` T119c), and by the subpath that publishes
+// each **class** rather than by the one whose \`exports\` target covers its file:
+// \`./kernel\` carries five of them and \`./composition\` carries
+// \`ModuleRegistration\`, which \`host-package.md\` §1.3 classifies **A** — not
+// public API, so not on a public barrel. That is why one subpath is named on
+// more than one line below. Do not merge them by hand: the list is one import
+// per class in path order, and a merge is undone by the next
+// \`composer:generate\`.
 `;
 }
 
@@ -1552,7 +1667,7 @@ export function emitEntitiesRegistry(entities: readonly DiscoveredEntity[]): str
   for (const entity of entities) {
     if (entity.owner === null) {
       importLines.push(
-        `import { ${entity.className} } from '${specifierFor(entity.file, null)}';`,
+        `import { ${entity.className} } from '${specifierFor(entity.file, null, entity.className)}';`,
       );
       listed.push(`  ${entity.className},`);
       continue;

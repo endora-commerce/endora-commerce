@@ -6,7 +6,7 @@ import { CommandBus } from '@endora-commerce/platform/commands';
 import type { Command } from '@endora-commerce/platform/commands';
 import { EventBus, type EventBase } from '@endora-commerce/platform/events';
 import { AuditLogService } from '@endora-commerce/platform/composition';
-import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import { BulkOperation, type BulkOperationRow } from '../../helpers/package-entities.js';
 
 /**

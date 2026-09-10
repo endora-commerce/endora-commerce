@@ -8,8 +8,8 @@ import {
   ManifestSchemaInvalid,
   SettingCodeConflict,
 } from '../../../src/kernel/settings/manifest-reconciler.js';
-import { Setting } from '../../../src/kernel/settings/setting.entity.js';
-import { SettingGroup } from '../../../src/kernel/settings/setting-group.entity.js';
+import { Setting } from '@endora-commerce/platform/kernel';
+import { SettingGroup } from '@endora-commerce/platform/kernel';
 import { settingsManifest } from '../../../../packages/modules/settings/src/manifest.js';
 
 /**

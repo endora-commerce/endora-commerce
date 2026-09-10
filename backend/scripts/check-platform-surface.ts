@@ -213,46 +213,40 @@ export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach
  * all. A reason derived once and read later is a reason that can be true of a
  * tree that has moved; this one was re-derived over the branch rather than
  * relayed, which is the only way an entry's holder is ever current.
+ *
+ * ## What T119c drained
+ *
+ * The six platform **entity** shims, in one cut, on the strength of one export.
+ * `generate-composer.ts`' `specifierFor` spelled all six relatively *on purpose*:
+ * five of the classes were on `./kernel` already and `ModuleRegistration` was on
+ * no barrel at all, so an address existed for five of six and a generator cannot
+ * emit five of six imports one way and the sixth another. T119c gave the sixth
+ * one — `./composition`, which is `host-package.md` §1.3's **A** classification
+ * *applied* and not revised, **A** meaning *not public API* and this subpath
+ * being exactly that — and taught the generator to ask, uniformly, which
+ * declared subpath publishes **this symbol out of this file**. 416 consumer
+ * specifiers, 335 files.
+ *
+ * **The per-symbol question is the whole of it, and a per-file one would have
+ * been wrong in the direction that compiles.** `packageSpecifierFor` answers
+ * *which subpath's `exports` target covers this file's emitted path*, and for
+ * everything under `kernel/` that is `./kernel` — `module-registration.entity.js`
+ * included, whose class the `./kernel` barrel does not carry. That specifier
+ * resolves to a module with no such export.
+ *
+ * **Two of the six had a T119e half and neither survived re-derivation, which is
+ * the finding rather than a bonus.** `sales-channel.entity.ts` was filed as
+ * holding `SalesChannelFromApplication`, a name no barrel carries: it is the
+ * *local* binding of `import { SalesChannel as SalesChannelFromApplication }`,
+ * so the symbol reached is `SalesChannel` and it is on `./kernel`. The same
+ * entry, and `module-registration.entity.ts`'s, also recorded *"a namespace or
+ * side-effect reach takes the file whole"* over three `await import()` calls,
+ * each of which destructures one named export. All three were addressable. An
+ * entry's holder is a measurement and reads like a fact; both of these were
+ * derived once, correctly for the reader they were derived by, and neither was
+ * re-derived until the task that owned them ran.
  */
 export const RELATIVE_HOST_REACHES: Readonly<Record<string, LedgeredHostReach>> = {
-  // === HELD BY THE GENERATED ENTITY SPECIFIER (T119c) ===
-  //
-  // `generate-composer.ts`' `specifierFor` spells all six of the platform's entity
-  // classes relatively **on purpose**: one of them has no address, so the artefact
-  // that registers this build's entities cannot be written any other way. These
-  // shims carry **no** unpublished symbol — they are the entries that genuinely are
-  // a rewrite away — and T119 could not take them because the generator would put
-  // the relative specifier straight back. Never edit the artefact.
-
-  'backend/src/kernel/audit/audit-log-entry.entity.ts|packages/platform/src/kernel/audit/audit-log-entry.entity.ts': {
-    reason:
-      'a re-export shim over ' +
-      '`packages/platform/src/kernel/audit/audit-log-entry.entity.ts`. The declared barrels ' +
-      'carry `AuditLogEntry`. What holds it open is T119c.',
-    retiredBy:
-      '`specs/110-instance-repository/` T119c — `specifierFor` emits a bare specifier per ' +
-      'platform entity class and `entities-registry.generated.ts` is regenerated',
-  },
-  'backend/src/kernel/settings/setting-group.entity.ts|packages/platform/src/kernel/settings/setting-group.entity.ts': {
-    reason:
-      'a re-export shim over ' +
-      '`packages/platform/src/kernel/settings/setting-group.entity.ts`. The declared ' +
-      'barrels carry `SettingGroup`. What holds it open is T119c.',
-    retiredBy:
-      '`specs/110-instance-repository/` T119c — `specifierFor` emits a bare specifier per ' +
-      'platform entity class and `entities-registry.generated.ts` is regenerated',
-  },
-  'backend/src/kernel/settings/setting-value.entity.ts|packages/platform/src/kernel/settings/setting-value.entity.ts': {
-    reason:
-      'a re-export shim over ' +
-      '`packages/platform/src/kernel/settings/setting-value.entity.ts`. The declared ' +
-      'barrels carry `SettingValue`. What holds it open is T119c.',
-    retiredBy:
-      '`specs/110-instance-repository/` T119c — `specifierFor` emits a bare specifier per ' +
-      'platform entity class and `entities-registry.generated.ts` is regenerated',
-  },
-
-
   // === HELD BY A TEST NAMING A SYMBOL THE PLATFORM DECIDED NOT TO PUBLISH (T119e) ===
   //
   // `NOT_PUBLISHED` and `kernel/index.ts`' own header refuse these by name, each
@@ -409,23 +403,6 @@ export const RELATIVE_HOST_REACHES: Readonly<Record<string, LedgeredHostReach>> 
       'of them: the shim is deleted when its **last** consumer has an address, not its ' +
       'first',
   },
-  'backend/src/kernel/lifecycle/module-registration.entity.ts|packages/platform/src/kernel/lifecycle/module-registration.entity.ts': {
-    reason:
-      'a re-export shim over ' +
-      '`packages/platform/src/kernel/lifecycle/module-registration.entity.ts`, which no ' +
-      'declared barrel carries: no subpath the `exports` map declares answers for ' +
-      '`ModuleRegistration`; a dynamic reach takes the file whole. What holds it open, and ' +
-      'the entry stands until the last of them: T119c takes the generated specifier and, ' +
-      'with it, `ModuleRegistration`\'s address — T119c rules the class onto `./composition` ' +
-      'rather than `./kernel`, which is what makes the 33 test reaches and ' +
-      '`instance-probe.ts`\' dynamic one addressable at all; T119e takes what is left. ' +
-      'T119b named this entry and did not move it: the only symbol on it has no address ' +
-      'until T119c places one, so re-pointing a consumer here was not available.',
-    retiredBy:
-      '`specs/110-instance-repository/` T119c and T119e — the entry stands until the last ' +
-      'of them: the shim is deleted when its **last** consumer has an address, not its ' +
-      'first',
-  },
   'backend/src/kernel/lifecycle/registry-cache.ts|packages/platform/src/kernel/lifecycle/registry-cache.ts': {
     reason:
       'a re-export shim over `packages/platform/src/kernel/lifecycle/registry-cache.ts`. ' +
@@ -445,19 +422,6 @@ export const RELATIVE_HOST_REACHES: Readonly<Record<string, LedgeredHostReach>> 
       'capability the test asks for, so no test names a symbol the platform decided not to ' +
       'publish',
   },
-  'backend/src/kernel/sales-channels/sales-channel.entity.ts|packages/platform/src/kernel/sales-channels/sales-channel.entity.ts': {
-    reason:
-      'a re-export shim over ' +
-      '`packages/platform/src/kernel/sales-channels/sales-channel.entity.ts`. The declared ' +
-      'barrels carry `SalesChannel`, and none of `SalesChannelFromApplication`; a namespace ' +
-      'or side-effect reach takes the file whole. What holds it open, and the entry stands ' +
-      'until the last of them: T119c takes the generated specifier; T119e takes ' +
-      '`SalesChannelFromApplication` and the file whole.',
-    retiredBy:
-      '`specs/110-instance-repository/` T119c and T119e — the entry stands until the last ' +
-      'of them: the shim is deleted when its **last** consumer has an address, not its ' +
-      'first',
-  },
   'backend/src/kernel/scope.ts|packages/platform/src/kernel/scope.ts': {
     reason:
       'a re-export shim over `packages/platform/src/kernel/scope.ts`. The declared barrels ' +
@@ -473,17 +437,6 @@ export const RELATIVE_HOST_REACHES: Readonly<Record<string, LedgeredHostReach>> 
       '`specs/110-instance-repository/` T119e — `@endora-commerce/test-kit` grows the ' +
       'capability the test asks for, so no test names a symbol the platform decided not to ' +
       'publish',
-  },
-  'backend/src/kernel/settings/setting.entity.ts|packages/platform/src/kernel/settings/setting.entity.ts': {
-    reason:
-      'a re-export shim over `packages/platform/src/kernel/settings/setting.entity.ts`. The ' +
-      'declared barrels carry `Setting`, and the one dynamic reach that took the file whole ' +
-      'was T119b\'s: `scripts/acceptance/instance-probe.ts` destructures `Setting` out of an ' +
-      '`await import()`, and that name is on `./kernel`. Every consumer now has an address ' +
-      'and what holds the entry open is the generated artefact alone.',
-    retiredBy:
-      '`specs/110-instance-repository/` T119c — `specifierFor` emits a bare specifier per ' +
-      'platform entity class and `entities-registry.generated.ts` is regenerated',
   },
   'backend/src/tenancy/org-scoped.decorator.ts|packages/platform/src/tenancy/org-scoped.decorator.ts': {
     reason:

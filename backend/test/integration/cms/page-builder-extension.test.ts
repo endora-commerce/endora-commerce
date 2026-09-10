@@ -5,7 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 import {
   registerTestExtension,
   TEST_EXTENSION_COMPONENT_NAME,

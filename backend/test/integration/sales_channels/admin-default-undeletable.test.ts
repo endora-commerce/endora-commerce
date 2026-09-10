@@ -51,7 +51,7 @@ describe('Default channel is undeletable / undeactivatable (T023)', () => {
     const em = db.em();
     await new DefaultChannelReconciler(() => em).run();
     const found = await em.findOneOrFail(
-      (await import('../../../src/kernel/sales-channels/sales-channel.entity.js'))
+      (await import('@endora-commerce/platform/kernel'))
         .SalesChannel,
       { systemDefault: true },
     );

@@ -9,9 +9,9 @@ import {
   googleTaxonomyFile,
   ScriptedTaxonomyFetcher,
 } from '../../helpers/taxonomy-fixtures.js';
-import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import { Category } from '../../helpers/package-entities.js';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { seedFeedPrices, setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';
 import { FeedTaxonomy, FeedTaxonomyMapping, FeedTemplate } from '../../helpers/package-entities.js';
 

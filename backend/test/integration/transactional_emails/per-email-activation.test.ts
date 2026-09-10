@@ -23,7 +23,7 @@ import { ContentResolver } from '../../../../packages/modules/transactional_emai
 import { BrandingService } from '../../../../packages/modules/transactional_emails/src/backend/services/branding.service.js';
 import { EmbedResolver } from '../../../../packages/modules/transactional_emails/src/backend/services/embed-resolver.js';
 import { EmailDefaultsRegistry } from '../../../../packages/modules/transactional_emails/src/backend/services/email-defaults-registry.js';
-import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import {
   SettingNotRegistered,
   type SettingsService,

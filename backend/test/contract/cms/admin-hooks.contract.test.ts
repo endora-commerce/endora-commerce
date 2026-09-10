@@ -5,7 +5,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { SEEDED_HOOKS } from '../../../../packages/modules/cms/src/backend/services/seed-hooks.js';
 
 describe('admin CMS Hooks contract (T067)', () => {

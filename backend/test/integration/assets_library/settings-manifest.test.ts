@@ -3,8 +3,8 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
 import { settingsManifest } from '../../../../packages/modules/settings/src/manifest.js';
 import { assetsLibraryManifest } from '../../../../packages/modules/assets_library/src/manifest.js';
-import { Setting } from '../../../src/kernel/settings/setting.entity.js';
-import { SettingGroup } from '../../../src/kernel/settings/setting-group.entity.js';
+import { Setting } from '@endora-commerce/platform/kernel';
+import { SettingGroup } from '@endora-commerce/platform/kernel';
 
 /**
  * T026 — Settings manifest reconciliation for the Assets Library.

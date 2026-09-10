@@ -10,7 +10,7 @@ import {
 import { withModuleOff } from '../../helpers/off-state.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import type { DeliveryMethodsCradle } from '../../../../packages/modules/delivery_methods/src/backend/index.js';
-import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import { carrierNotContactedReason } from '../../../../packages/modules/shipments/src/backend/services/shipment-service.js';
 import { DeliveryMethod } from '../../helpers/package-entities.js';
 import { Order } from '../../helpers/package-entities.js';

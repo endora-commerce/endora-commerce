@@ -11,8 +11,8 @@ import {
   SettingNotRegistered,
   SettingOutOfScopeForChannel,
 } from '../../../src/kernel/settings/settings.service.js';
-import { Setting } from '../../../src/kernel/settings/setting.entity.js';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { Setting } from '@endora-commerce/platform/kernel';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 
 /**
  * T046 — End-to-end test for the universal getter via the composed

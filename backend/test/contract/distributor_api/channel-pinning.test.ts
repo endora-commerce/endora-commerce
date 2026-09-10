@@ -6,8 +6,8 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 
 /**
  * Feature 062 / T008 — sales-channel resolver step 0: a bound api key pins the

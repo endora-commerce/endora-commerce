@@ -8,7 +8,7 @@ import {
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { Product } from '../../helpers/package-entities.js';
 import { CustomerGroup } from '../../helpers/package-entities.js';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { PriceListService } from '../../../../packages/modules/price_lists/src/backend/services/price-list-service.js';
 import { PricingService } from '../../../../packages/modules/price_lists/src/backend/services/pricing-service.js';
 import {

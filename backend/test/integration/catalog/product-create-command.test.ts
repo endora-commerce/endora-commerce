@@ -10,7 +10,7 @@ import {
   CatalogAdminService,
   type CatalogEventBus,
 } from '../../../../packages/modules/catalog/dist/backend/services/catalog-admin.service.js';
-import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import { Product } from '../../helpers/package-entities.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 

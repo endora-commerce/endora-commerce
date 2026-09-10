@@ -4,9 +4,9 @@ import { Redis } from 'ioredis';
 import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { AuditLogService } from '@endora-commerce/platform/composition';
-import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
-import { Setting } from '../../../src/kernel/settings/setting.entity.js';
-import { SettingGroup } from '../../../src/kernel/settings/setting-group.entity.js';
+import { ModuleRegistration } from '@endora-commerce/platform/composition';
+import { Setting } from '@endora-commerce/platform/kernel';
+import { SettingGroup } from '@endora-commerce/platform/kernel';
 import {
   REGISTERED_MANIFESTS,
   type RegisteredManifestEntry,

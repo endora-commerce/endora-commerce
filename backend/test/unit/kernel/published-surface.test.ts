@@ -564,6 +564,23 @@ const HOST_COMPOSITION_SURFACE: Readonly<Record<string, readonly string[]>> = {
   'kernel/lifecycle/registry-cache.ts': ['registryCache', 'publishStateChanged'],
   'kernel/lifecycle/activation-resolver.ts': ['activationDeclarationsFrom'],
   'kernel/lifecycle/required-modules.ts': ['requiredModulesFrom'],
+  // `specs/110-instance-repository/` T119c — the one entry here that is an
+  // **entity class**, and the one whose consumer is a generated artefact.
+  // `host-package.md` §1.3 classifies `ModuleRegistration` **A**, and this is
+  // that classification applied rather than revised: **A** means *not public
+  // API*, and this subpath is not public API. `./kernel` would have been the
+  // revision — it would let all seventy module packages name the row that
+  // records whether their siblings are installed, which is the reach §1.3
+  // refused, and the registry cache a root primes off those rows is two entries
+  // above on this same barrel.
+  //
+  // Its consumer is `backend/src/db/entities-registry.generated.ts`, which hands
+  // the class to MikroORM. That is the whole reason it needed an address: the
+  // other five platform entity classes were on `./kernel` already, this one was
+  // on nothing, and the generator therefore spelled **all six** by relative path
+  // into `packages/platform/dist/` — a specifier that resolves in this checkout
+  // and in no client's. One export here retired six re-export shims.
+  'kernel/lifecycle/module-registration.entity.ts': ['ModuleRegistration'],
   'kernel/settings/compose.ts': ['composeSettingsKernel', 'SettingsKernel'],
   'kernel/settings/manifest-reconciler.ts': ['ManifestReconciler'],
   'kernel/sales-channels/compose.ts': ['composeSalesChannelsKernel', 'SalesChannelsKernel'],

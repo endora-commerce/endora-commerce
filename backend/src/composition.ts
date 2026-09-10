@@ -102,7 +102,7 @@ import type { NewsletterBridge } from '@endora-commerce/mod-newsletter/backend';
 // Feature 063 — LinkedIn Ads.
 // Feature 064 — Meta Ads.
 // Feature 066 — Google Tag Manager.
-import { SalesChannel } from './kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 // T118 — the error envelope's assembly, by the **declared** subpath rather than
 // by a relative path into the platform. `./composition` is host-internal (a
 // module naming it is `check:platform-surface`'s `host-internal-subpath`), which

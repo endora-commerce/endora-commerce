@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { seedFeedPrices, setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';
 import { FeedArtefact, FeedRun, FeedRunIssue, ProductFeed } from '../../helpers/package-entities.js';
 import type { FeedArtefactRow } from '../../helpers/package-entities.js';

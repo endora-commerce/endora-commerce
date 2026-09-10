@@ -4,9 +4,9 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
 import { settingsManifest } from '../../../../packages/modules/settings/src/manifest.js';
 import { SettingsAdminService } from '../../../../packages/modules/settings/src/backend/services/settings-admin.service.js';
-import { Setting } from '../../../src/kernel/settings/setting.entity.js';
-import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { Setting } from '@endora-commerce/platform/kernel';
+import { SettingValue } from '@endora-commerce/platform/kernel';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { EventBus } from '@endora-commerce/platform/events';
 import type { SettingsCacheInvalidation } from '../../../src/kernel/settings/settings-cache.js';
 

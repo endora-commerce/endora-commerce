@@ -11,7 +11,7 @@ import {
 
 import { withModuleOff } from '../../helpers/off-state.js';
 
-import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 
 import { CreditLimit, Refund, ReturnCase, ReturnCaseItem } from '../../helpers/package-entities.js';
 

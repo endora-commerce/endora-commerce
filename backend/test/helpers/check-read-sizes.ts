@@ -1038,7 +1038,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // 2014 recorded against a tree that still held them. Quality-job shape: the ignored
     // copies under `docs/docs/modules/` swept first, since no job has placed them when
     // these checks run.
-    files: 2003,
+    // **`specs/110-instance-repository/` T119c: files 2003 -> 1997 (-6).** the six platform
+    // entity re-export shims T119c deleted from `backend/src`
+    // (`kernel/audit/audit-log-entry.entity.ts`,
+    // `kernel/lifecycle/module-registration.entity.ts`,
+    // `kernel/sales-channels/sales-channel.entity.ts` and the three under
+    // `kernel/settings/`) — `backend/src/kernel/audit/` is gone entirely. Exactly the
+    // shims and nothing else: the 416 consumer specifiers this task re-points are
+    // overwhelmingly under `backend/test/**`, and the barrel edit is the platform's own.
+    // Quality-job shape: the ignored copies `composer:generate` places under
+    // `docs/docs/modules/` swept first, because no job has placed them when these checks
+    // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
+    files: 1997,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1294,7 +1305,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // 2141 recorded against a tree that still held them. Quality-job shape: the ignored
     // copies under `docs/docs/modules/` swept first, since no job has placed them when
     // these checks run.
-    files: 2130,
+    // **`specs/110-instance-repository/` T119c: files 2130 -> 2124 (-6).** the six platform
+    // entity re-export shims T119c deleted from `backend/src`
+    // (`kernel/audit/audit-log-entry.entity.ts`,
+    // `kernel/lifecycle/module-registration.entity.ts`,
+    // `kernel/sales-channels/sales-channel.entity.ts` and the three under
+    // `kernel/settings/`) — `backend/src/kernel/audit/` is gone entirely. Exactly the
+    // shims and nothing else: the 416 consumer specifiers this task re-points are
+    // overwhelmingly under `backend/test/**`, and the barrel edit is the platform's own.
+    // Quality-job shape: the ignored copies `composer:generate` places under
+    // `docs/docs/modules/` swept first, because no job has placed them when these checks
+    // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
+    files: 2124,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1847,7 +1869,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // 5483 recorded against a tree that still held them. Quality-job shape: the ignored
     // copies under `docs/docs/modules/` swept first, since no job has placed them when
     // these checks run.
-    files: 5472,
+    // **`specs/110-instance-repository/` T119c: files 5472 -> 5466 (-6).** the six platform
+    // entity re-export shims T119c deleted from `backend/src`
+    // (`kernel/audit/audit-log-entry.entity.ts`,
+    // `kernel/lifecycle/module-registration.entity.ts`,
+    // `kernel/sales-channels/sales-channel.entity.ts` and the three under
+    // `kernel/settings/`) — `backend/src/kernel/audit/` is gone entirely. Exactly the
+    // shims and nothing else: the 416 consumer specifiers this task re-points are
+    // overwhelmingly under `backend/test/**`, and the barrel edit is the platform's own.
+    // Quality-job shape: the ignored copies `composer:generate` places under
+    // `docs/docs/modules/` swept first, because no job has placed them when these checks
+    // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
+    files: 5466,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1941,7 +1974,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **-1, re-measured on the chained union.** The site is the one D-217/D-218 removes on the base this branch is now chained behind; this branch adds no fold and removes none.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The slug and fold sites the module's sources contain.
     // **`fix/admin-image-root-scripts`: sites 540 -> 543.** The two files this branch adds, `backend/test/helpers/dockerfile.ts` and `backend/test/unit/ci/image-root-script-supply.test.ts`; the four it modifies already existed. Attributed by parking the pair and re-running, never by subtracting: without them every recorded entry agrees. Three of the `.replace()` calls the two files write are patterns the `slug-run` predicate can read — line and path normalisation — and it clears all three; the population moves with the candidates, not with the findings.
-    sites: 543,
+    // **`specs/110-instance-repository/` T119c: sites 543 -> 544 (+1).** One two-argument
+    // `.replace()` in `backend/test/unit/kernel/boundary-check.test.ts`. That file's
+    // rule-A fixture spelled the `sales-channel.entity.js` shim path this task deletes;
+    // it now computes the specifier from the platform's own source root, and the
+    // `.ts` -> `.js` rewrite in that derivation is a `replaceSite`. No fold and no slug
+    // run, so `findings` is unchanged.
+    sites: 544,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -2488,7 +2527,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // 2141 recorded against a tree that still held them. Quality-job shape: the ignored
     // copies under `docs/docs/modules/` swept first, since no job has placed them when
     // these checks run.
-    files: 2130,
+    // **`specs/110-instance-repository/` T119c: files 2130 -> 2124 (-6).** the six platform
+    // entity re-export shims T119c deleted from `backend/src`
+    // (`kernel/audit/audit-log-entry.entity.ts`,
+    // `kernel/lifecycle/module-registration.entity.ts`,
+    // `kernel/sales-channels/sales-channel.entity.ts` and the three under
+    // `kernel/settings/`) — `backend/src/kernel/audit/` is gone entirely. Exactly the
+    // shims and nothing else: the 416 consumer specifiers this task re-points are
+    // overwhelmingly under `backend/test/**`, and the barrel edit is the platform's own.
+    // Quality-job shape: the ignored copies `composer:generate` places under
+    // `docs/docs/modules/` swept first, because no job has placed them when these checks
+    // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
+    files: 2124,
     sites: 260,
     sources: ['manifest-index'],
   },
@@ -2723,7 +2773,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // 2141 recorded against a tree that still held them. Quality-job shape: the ignored
     // copies under `docs/docs/modules/` swept first, since no job has placed them when
     // these checks run.
-    files: 2130,
+    // **`specs/110-instance-repository/` T119c: files 2130 -> 2124 (-6).** the six platform
+    // entity re-export shims T119c deleted from `backend/src`
+    // (`kernel/audit/audit-log-entry.entity.ts`,
+    // `kernel/lifecycle/module-registration.entity.ts`,
+    // `kernel/sales-channels/sales-channel.entity.ts` and the three under
+    // `kernel/settings/`) — `backend/src/kernel/audit/` is gone entirely. Exactly the
+    // shims and nothing else: the 416 consumer specifiers this task re-points are
+    // overwhelmingly under `backend/test/**`, and the barrel edit is the platform's own.
+    // Quality-job shape: the ignored copies `composer:generate` places under
+    // `docs/docs/modules/` swept first, because no job has placed them when these checks
+    // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
+    files: 2124,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2958,7 +3019,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // 2141 recorded against a tree that still held them. Quality-job shape: the ignored
     // copies under `docs/docs/modules/` swept first, since no job has placed them when
     // these checks run.
-    files: 2130,
+    // **`specs/110-instance-repository/` T119c: files 2130 -> 2124 (-6).** the six platform
+    // entity re-export shims T119c deleted from `backend/src`
+    // (`kernel/audit/audit-log-entry.entity.ts`,
+    // `kernel/lifecycle/module-registration.entity.ts`,
+    // `kernel/sales-channels/sales-channel.entity.ts` and the three under
+    // `kernel/settings/`) — `backend/src/kernel/audit/` is gone entirely. Exactly the
+    // shims and nothing else: the 416 consumer specifiers this task re-points are
+    // overwhelmingly under `backend/test/**`, and the barrel edit is the platform's own.
+    // Quality-job shape: the ignored copies `composer:generate` places under
+    // `docs/docs/modules/` swept first, because no job has placed them when these checks
+    // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
+    files: 2124,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -3172,7 +3244,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `kernel/lifecycle/required-modules.ts` and `tenancy/resolve-tenant-context.ts`) —
     // `backend/src/http/` and `backend/src/kernel/ports/` are gone entirely. This walk's
     // population is the trees that declare environment inputs, so all eleven were in it.
-    files: 652,
+    // **`specs/110-instance-repository/` T119c: files 652 -> 646 (-6).** the six platform
+    // entity re-export shims T119c deleted from `backend/src`
+    // (`kernel/audit/audit-log-entry.entity.ts`,
+    // `kernel/lifecycle/module-registration.entity.ts`,
+    // `kernel/sales-channels/sales-channel.entity.ts` and the three under
+    // `kernel/settings/`) — `backend/src/kernel/audit/` is gone entirely. Exactly the
+    // shims and nothing else: the 416 consumer specifiers this task re-points are
+    // overwhelmingly under `backend/test/**`, and the barrel edit is the platform's own.
+    // Quality-job shape: the ignored copies `composer:generate` places under
+    // `docs/docs/modules/` swept first, because no job has placed them when these checks
+    // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
+    files: 646,
     sites: 68,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
@@ -3756,7 +3839,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // 2141 recorded against a tree that still held them. Quality-job shape: the ignored
     // copies under `docs/docs/modules/` swept first, since no job has placed them when
     // these checks run.
-    files: 2130,
+    // **`specs/110-instance-repository/` T119c: files 2130 -> 2124 (-6).** the six platform
+    // entity re-export shims T119c deleted from `backend/src`
+    // (`kernel/audit/audit-log-entry.entity.ts`,
+    // `kernel/lifecycle/module-registration.entity.ts`,
+    // `kernel/sales-channels/sales-channel.entity.ts` and the three under
+    // `kernel/settings/`) — `backend/src/kernel/audit/` is gone entirely. Exactly the
+    // shims and nothing else: the 416 consumer specifiers this task re-points are
+    // overwhelmingly under `backend/test/**`, and the barrel edit is the platform's own.
+    // Quality-job shape: the ignored copies `composer:generate` places under
+    // `docs/docs/modules/` swept first, because no job has placed them when these checks
+    // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
+    files: 2124,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -3778,7 +3872,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // application's last consumer of the type, and the barrel is held to its consumers both
     // ways — so the re-export line itself, which this walk counts as an outward import, is
     // gone: 141 -> 140.
-    sites: 140,
+    // **`specs/110-instance-repository/` T119c: sites 140 -> 141 (+1).**
+    // `packages/platform/src/composition/index.ts` gains one outward re-export —
+    // `ModuleRegistration` off `../kernel/lifecycle/module-registration.entity.js`, the
+    // address T119c gives the one platform entity class no published barrel carries.
+    // Rule B's population is the specifiers a platform root names, so it counts; the
+    // target is platform-internal, so `into-modules` stays 0.
+    sites: 141,
     // `platform-subpaths` is T118a's second author over rule B's population: the
     // platform's `exports` map is a different program's answer to "which directories
     // does this package have", and a published subpath naming no walked directory is a
@@ -5770,7 +5870,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // 8136 recorded against a tree that still held them. Quality-job shape: the ignored
     // copies under `docs/docs/modules/` swept first, since no job has placed them when
     // these checks run.
-    files: 8126,
+    // **`specs/110-instance-repository/` T119c: files 8126 -> 8120 (-6).** the six platform
+    // entity re-export shims T119c deleted from `backend/src`
+    // (`kernel/audit/audit-log-entry.entity.ts`,
+    // `kernel/lifecycle/module-registration.entity.ts`,
+    // `kernel/sales-channels/sales-channel.entity.ts` and the three under
+    // `kernel/settings/`) — `backend/src/kernel/audit/` is gone entirely. Exactly the
+    // shims and nothing else: the 416 consumer specifiers this task re-points are
+    // overwhelmingly under `backend/test/**`, and the barrel edit is the platform's own.
+    // Quality-job shape: the ignored copies `composer:generate` places under
+    // `docs/docs/modules/` swept first, because no job has placed them when these checks
+    // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
+    // **+1 more for the changeset**, which this whole-repository walk reads and the
+    // narrower ones do not.
+    files: 8121,
     sites: null,
     sources: [],
     //
@@ -6231,7 +6344,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // 2141 recorded against a tree that still held them. Quality-job shape: the ignored
     // copies under `docs/docs/modules/` swept first, since no job has placed them when
     // these checks run.
-    files: 2130,
+    // **`specs/110-instance-repository/` T119c: files 2130 -> 2124 (-6).** the six platform
+    // entity re-export shims T119c deleted from `backend/src`
+    // (`kernel/audit/audit-log-entry.entity.ts`,
+    // `kernel/lifecycle/module-registration.entity.ts`,
+    // `kernel/sales-channels/sales-channel.entity.ts` and the three under
+    // `kernel/settings/`) — `backend/src/kernel/audit/` is gone entirely. Exactly the
+    // shims and nothing else: the 416 consumer specifiers this task re-points are
+    // overwhelmingly under `backend/test/**`, and the barrel edit is the platform's own.
+    // Quality-job shape: the ignored copies `composer:generate` places under
+    // `docs/docs/modules/` swept first, because no job has placed them when these checks
+    // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
+    files: 2124,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -6535,7 +6659,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // 2439 recorded against a tree that still held them. Quality-job shape: the ignored
     // copies under `docs/docs/modules/` swept first, since no job has placed them when
     // these checks run.
-    files: 2428,
+    // **`specs/110-instance-repository/` T119c: files 2428 -> 2422 (-6).** the six platform
+    // entity re-export shims T119c deleted from `backend/src`
+    // (`kernel/audit/audit-log-entry.entity.ts`,
+    // `kernel/lifecycle/module-registration.entity.ts`,
+    // `kernel/sales-channels/sales-channel.entity.ts` and the three under
+    // `kernel/settings/`) — `backend/src/kernel/audit/` is gone entirely. Exactly the
+    // shims and nothing else: the 416 consumer specifiers this task re-points are
+    // overwhelmingly under `backend/test/**`, and the barrel edit is the platform's own.
+    // Quality-job shape: the ignored copies `composer:generate` places under
+    // `docs/docs/modules/` swept first, because no job has placed them when these checks
+    // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
+    files: 2422,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -6618,7 +6753,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 1851 -> 1852. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    sites: 1852,
+    // **`specs/110-instance-repository/` T119c: sites 1852 -> 1846 (-6), and this is the
+    // whole of the task.** Each deleted shim *was* a site: a relative reach from
+    // `backend/src` into `packages/platform/dist`. The 416 consumer specifiers this task
+    // re-points are **not** in this population — they were relative reaches written in
+    // application files, which this half reads, but they resolved into `backend/src` and
+    // not into the platform. `ledger-size` 21 -> 15 and `host-reaches:21/21 -> 15/15`
+    // move with them.
+    sites: 1846,
     // count moves with the file count here because the reaches that went are exactly
     // the files that went.
     // **T119a: sites 1870 -> 1861.** The same nine files, each the single relative
@@ -7312,7 +7454,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // 2141 recorded against a tree that still held them. Quality-job shape: the ignored
     // copies under `docs/docs/modules/` swept first, since no job has placed them when
     // these checks run.
-    files: 2130,
+    // **`specs/110-instance-repository/` T119c: files 2130 -> 2124 (-6).** the six platform
+    // entity re-export shims T119c deleted from `backend/src`
+    // (`kernel/audit/audit-log-entry.entity.ts`,
+    // `kernel/lifecycle/module-registration.entity.ts`,
+    // `kernel/sales-channels/sales-channel.entity.ts` and the three under
+    // `kernel/settings/`) — `backend/src/kernel/audit/` is gone entirely. Exactly the
+    // shims and nothing else: the 416 consumer specifiers this task re-points are
+    // overwhelmingly under `backend/test/**`, and the barrel edit is the platform's own.
+    // Quality-job shape: the ignored copies `composer:generate` places under
+    // `docs/docs/modules/` swept first, because no job has placed them when these checks
+    // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
+    files: 2124,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -7712,7 +7865,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // 2141 recorded against a tree that still held them. Quality-job shape: the ignored
     // copies under `docs/docs/modules/` swept first, since no job has placed them when
     // these checks run.
-    files: 2130,
+    // **`specs/110-instance-repository/` T119c: files 2130 -> 2124 (-6).** the six platform
+    // entity re-export shims T119c deleted from `backend/src`
+    // (`kernel/audit/audit-log-entry.entity.ts`,
+    // `kernel/lifecycle/module-registration.entity.ts`,
+    // `kernel/sales-channels/sales-channel.entity.ts` and the three under
+    // `kernel/settings/`) — `backend/src/kernel/audit/` is gone entirely. Exactly the
+    // shims and nothing else: the 416 consumer specifiers this task re-points are
+    // overwhelmingly under `backend/test/**`, and the barrel edit is the platform's own.
+    // Quality-job shape: the ignored copies `composer:generate` places under
+    // `docs/docs/modules/` swept first, because no job has placed them when these checks
+    // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
+    files: 2124,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -8021,7 +8185,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // 4508 recorded against a tree that still held them. Quality-job shape: the ignored
     // copies under `docs/docs/modules/` swept first, since no job has placed them when
     // these checks run.
-    files: 4497,
+    // **`specs/110-instance-repository/` T119c: files 4497 -> 4491 (-6).** the six platform
+    // entity re-export shims T119c deleted from `backend/src`
+    // (`kernel/audit/audit-log-entry.entity.ts`,
+    // `kernel/lifecycle/module-registration.entity.ts`,
+    // `kernel/sales-channels/sales-channel.entity.ts` and the three under
+    // `kernel/settings/`) — `backend/src/kernel/audit/` is gone entirely. Exactly the
+    // shims and nothing else: the 416 consumer specifiers this task re-points are
+    // overwhelmingly under `backend/test/**`, and the barrel edit is the platform's own.
+    // Quality-job shape: the ignored copies `composer:generate` places under
+    // `docs/docs/modules/` swept first, because no job has placed them when these checks
+    // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
+    files: 4491,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -8724,7 +8899,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // 8196 recorded against a tree that still held them. Quality-job shape: the ignored
     // copies under `docs/docs/modules/` swept first, since no job has placed them when
     // these checks run.
-    files: 8186,
+    // **`specs/110-instance-repository/` T119c: files 8186 -> 8180 (-6).** the six platform
+    // entity re-export shims T119c deleted from `backend/src`
+    // (`kernel/audit/audit-log-entry.entity.ts`,
+    // `kernel/lifecycle/module-registration.entity.ts`,
+    // `kernel/sales-channels/sales-channel.entity.ts` and the three under
+    // `kernel/settings/`) — `backend/src/kernel/audit/` is gone entirely. Exactly the
+    // shims and nothing else: the 416 consumer specifiers this task re-points are
+    // overwhelmingly under `backend/test/**`, and the barrel edit is the platform's own.
+    // Quality-job shape: the ignored copies `composer:generate` places under
+    // `docs/docs/modules/` swept first, because no job has placed them when these checks
+    // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
+    // **+1 more for the changeset**, which this whole-repository walk reads and the
+    // narrower ones do not.
+    files: 8181,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -9127,7 +9315,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // 6114 recorded against a tree that still held them. Quality-job shape: the ignored
     // copies under `docs/docs/modules/` swept first, since no job has placed them when
     // these checks run.
-    files: 6103,
+    // **`specs/110-instance-repository/` T119c: files 6103 -> 6097 (-6).** the six platform
+    // entity re-export shims T119c deleted from `backend/src`
+    // (`kernel/audit/audit-log-entry.entity.ts`,
+    // `kernel/lifecycle/module-registration.entity.ts`,
+    // `kernel/sales-channels/sales-channel.entity.ts` and the three under
+    // `kernel/settings/`) — `backend/src/kernel/audit/` is gone entirely. Exactly the
+    // shims and nothing else: the 416 consumer specifiers this task re-points are
+    // overwhelmingly under `backend/test/**`, and the barrel edit is the platform's own.
+    // Quality-job shape: the ignored copies `composer:generate` places under
+    // `docs/docs/modules/` swept first, because no job has placed them when these checks
+    // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
+    files: 6097,
     sites: null,
     sources: ['manifest-index'],
     //

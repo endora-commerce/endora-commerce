@@ -4,9 +4,9 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Setting } from '../../../src/kernel/settings/setting.entity.js';
-import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
-import type { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { Setting } from '@endora-commerce/platform/kernel';
+import { SettingValue } from '@endora-commerce/platform/kernel';
+import type { SalesChannel } from '@endora-commerce/platform/kernel';
 import { NumberingConfigurationService } from '../../../../packages/modules/invoices/src/backend/services/numbering-configuration.js';
 import {
   ensureSalesChannel,

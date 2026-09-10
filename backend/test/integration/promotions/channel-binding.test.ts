@@ -5,7 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import type { CartSnapshot } from '@endora-commerce/contracts';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 
 /**
  * Feature 052 (US3) — Sales-channel gate on promotion evaluation (FR-004 / FR-005).

@@ -3,8 +3,8 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
 import { salesChannelsManifest } from '../../../../packages/modules/sales_channels/src/manifest.js';
 import { settingsManifest } from '../../../../packages/modules/settings/src/manifest.js';
-import { SettingGroup } from '../../../src/kernel/settings/setting-group.entity.js';
-import { Setting } from '../../../src/kernel/settings/setting.entity.js';
+import { SettingGroup } from '@endora-commerce/platform/kernel';
+import { Setting } from '@endora-commerce/platform/kernel';
 
 /**
  * T069 — `b2b modules install sales_channels` is idempotent.

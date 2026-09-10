@@ -15,12 +15,35 @@
  *     `globalThis['mikro-orm-metadata']` under an unversioned key, so two copies
  *     of an entity class land in one registry and discovery throws
  *     `Duplicate entity names are not allowed: SalesChannel` (D-160.6, §3.2
- *     experiments 2/3). `kernel/sales-channels/sales-channel.entity` is imported
- *     48 times by 23 modules, so this is the ordinary case rather than a corner.
+ *     experiments 2/3). `SalesChannel` was the entity class the whole tree
+ *     imported, which is why it is the one measured here.
  *
- * Both are measured **across the two specifier shapes**: the bare
- * `@endora-commerce/platform/*` an installed package writes, and the relative
- * path into `backend/src/` that every module in this repository still writes.
+ * ## Both sides are now the bare specifier, and that is the drain finishing
+ *
+ * This block read *"both are measured **across the two specifier shapes**: the
+ * bare `@endora-commerce/platform/*` an installed package writes, and the
+ * relative path into `backend/src/` that every module in this repository still
+ * writes"*, and it is no longer true of either pair. `specs/110-instance-repository/`
+ * T119b re-pointed the last consumers of `backend/src/http/` and deleted the
+ * directory; T119c deleted the six platform **entity** shims with it, so
+ * `kernel/sales-channels/sales-channel.entity.ts` has no application spelling at
+ * all. The two `FromApplication` bindings below therefore name the same module as
+ * their `FromPackage` neighbours, and both assertions in
+ * `test/unit/kernel/platform-single-copy.test.ts`' second `describe` are true
+ * over **one** spelling.
+ *
+ * That is the ledger emptying seen from this file, and it is the same arithmetic
+ * `platform-single-copy.test.ts`' *"shares 50 values"* records: a value is
+ * comparable only while the application spells it twice, so the population
+ * shrinks as each shim goes and reaches zero when `RELATIVE_HOST_REACHES` does
+ * (T119e). It is **left standing rather than quietly weakened**: nothing here was
+ * relaxed to keep a run green, the two `instanceof` directions and the discovery
+ * refusal are the sentences a reader of a future regression will recognise, and a
+ * second spelling of either value — a `paths` alias, a second `dist`, a shim
+ * re-pointed at `packages/platform/src` — makes both real again in the same run,
+ * with nobody having to remember to re-write them. What must not happen is a
+ * *third* reading of this paragraph that finds it stale again: the retirement
+ * decision belongs with T119e, where the subject goes.
  *
  * Spawned, and never imported into the suite: it puts entity classes into the
  * global metadata storage and runs discovery over them.
@@ -28,15 +51,19 @@
 import { HttpError as HttpErrorFromPackage } from '@endora-commerce/platform/http';
 import { SalesChannel as SalesChannelFromPackage } from '@endora-commerce/platform/kernel';
 import { HttpError as HttpErrorFromApplication } from '@endora-commerce/platform/http';
-import { SalesChannel as SalesChannelFromApplication } from '../../src/kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel as SalesChannelFromApplication } from '@endora-commerce/platform/kernel';
 import { MikroORM } from '@mikro-orm/postgresql';
 
 interface Result {
-  /** A value the *package* built, tested against the *application*'s class. */
+  /**
+   * A value one binding built, tested against the other's class. The two named
+   * the two specifier shapes until T119b; they name one module now, and the
+   * header says what that costs and why the assertion stays.
+   */
   readonly packageThrowIsApplicationError: boolean;
   /** And the other way, because a one-way test passes when both sides are one class. */
   readonly applicationThrowIsPackageError: boolean;
-  /** `true` when both specifier shapes name one class object. */
+  /** `true` when the two bindings name one class object. */
   readonly oneSalesChannelClass: boolean;
   /** What discovery found, or the message it refused with. */
   readonly discovered: readonly string[] | string;

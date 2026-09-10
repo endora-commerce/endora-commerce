@@ -295,12 +295,22 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
       // error and no failing test. T119b re-pointed the last two consumers of
       // `backend/src/http/`, the directory is gone, and the name now has exactly
       // one spelling — there is no comparison for it to be the subject of, and
-      // naming it here would assert that one happened when none did. The
-      // property itself is **not** unwatched: `instanceof HttpError` is measured
-      // in both directions by the cross-boundary probe at the bottom of this
-      // file, which is where it was measured false in the first place. A second
+      // naming it here would assert that one happened when none did. A second
       // application reach to that file puts it back into side two and re-opens
       // the question in the same run.
+      //
+      // **One clause of that removal was wrong on the day it was written and is
+      // corrected by `specs/110-instance-repository/` T119c.** It read *"the
+      // property itself is not unwatched: `instanceof HttpError` is measured in
+      // both directions by the cross-boundary probe at the bottom of this file"*
+      // — but the same merge request re-pointed that probe's
+      // `HttpErrorFromApplication` binding to the bare specifier, so both of its
+      // directions had already become one spelling against itself. The removal
+      // stands on its first reason, which is sound and sufficient: there is no
+      // comparison left for the name to be the subject of. What does not stand
+      // is a second instrument cited as covering it. The probe's own header now
+      // says so in place, and the same thing has since happened to
+      // `SalesChannel` below.
       // A module-scoped singleton (`kernel/lifecycle/effective-state.ts`). The
       // copy's was never populated by the host's registry cache.
       'kernel: effectiveState',
@@ -309,6 +319,17 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
       'kernel: getResolvedChannel',
       // An ORM entity class: two of them is
       // `MetadataError: Duplicate entity names are not allowed` (D-160.6).
+      //
+      // **It survives `specs/110-instance-repository/` T119c and `HttpError` did
+      // not, and the difference is one file rather than a judgement.** T119c
+      // deleted `src/kernel/sales-channels/sales-channel.entity.ts` with the
+      // other five platform entity shims, so this class's *own* second spelling
+      // is gone — but `src/kernel/index.ts` re-exports the whole `./kernel`
+      // barrel and is a forwarding file, so side two still holds every name on
+      // it and the comparison is real. `backend/src/http/` held no such barrel;
+      // T119b took its last two files and the directory went with them. The
+      // measured consequence: `kernel` fell from 18 shims to 12 and its shared
+      // count did not move, which is why the total below is still 50.
       'kernel: SalesChannel',
       // Harmless of the six — a pure function over the `ModuleContext` the host
       // passes in — and listed so the set is the whole one rather than the
@@ -347,6 +368,16 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     // would make the next real duplication invisible — and it reaches **0** when
     // the ledger empties, at which point this assertion retires with its subject
     // rather than being weakened to keep it.
+    //
+    // **T119c deleted six shims and moved it by nothing, which is worth more
+    // than another decrement.** It took the six platform *entity* shims out of
+    // `./kernel` — 18 forwarding files to 12 — and every one of the five classes
+    // they carried is still comparable, because `src/kernel/index.ts` re-exports
+    // the whole barrel and is itself a forwarding file. So the arithmetic is not
+    // "one shim, one name": it is *does any application file still spell this
+    // name*, and a directory holding a barrel shim answers yes for every name on
+    // it until that shim goes too. `./http` fell to zero at T119b because it had
+    // no such barrel; `./kernel` will fall when it does.
     //
     // It is summed over the **five published** subpaths and not over every
     // comparison, which is what preserves that provenance: no host-internal

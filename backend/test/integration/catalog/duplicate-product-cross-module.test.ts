@@ -10,7 +10,7 @@ import type { CatalogAdminService } from '../../../../packages/modules/catalog/s
 import { Product } from '../../helpers/package-entities.js';
 import { ProductWarehouseLowStockThreshold } from '../../helpers/package-entities.js';
 import { Warehouse } from '../../helpers/package-entities.js';
-import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 
 /**

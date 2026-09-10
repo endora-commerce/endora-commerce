@@ -10,7 +10,7 @@ import { seedCartForStubCustomer, SEED_PAYMENT_METHOD_ID } from '../../helpers/s
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
-import { Setting } from '../../../src/kernel/settings/setting.entity.js';
+import { Setting } from '@endora-commerce/platform/kernel';
 
 /**
  * D-179.1 — a re-classified edge gives the owner's activation control back.
