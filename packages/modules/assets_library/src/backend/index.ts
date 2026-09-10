@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AssetReadPort, AssetsLibraryPort } from '@endora-commerce/contracts';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
+import { resolvePublicApiBaseUrl } from '@endora-commerce/platform/kernel';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { assetsLibraryModule } from './plugin.js';
@@ -52,6 +53,14 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(({ emFactory, auditLogService }: AssetsLibraryCradle) =>
         assetsLibraryModule({
           emFactory,
+          // D-223 — this module resolves the deployment's public API origin
+          // itself, the idiom `payu`, `tpay` and `inpost` already use for their
+          // callback origins, and every URL it produces is built on it when the
+          // storage adapter's own configured base is blank. It is read here,
+          // inside the factory, so the value is the one this composition boots
+          // with; the platform has already refused a production boot that has
+          // no origin at all (issue #218), so there is no new failure mode.
+          publicApiBaseUrl: resolvePublicApiBaseUrl(),
           // Resolved per check, not captured. Awilix's strict mode refuses a
           // singleton holding the transient `requireAdmin` port, and it is
           // right to: a captured guard keeps admitting requests after `auth`
@@ -113,13 +122,28 @@ export function registerModule(ctx: ModuleContext): void {
   // and bought the one thing the duplicate could not have — there is now exactly
   // one way in, and it is gated.
   //
-  // What is still a composition's, and why it is not an omission: five reaches
-  // into this module remain in `backend/src/composition.ts`, and every one of
-  // them needs something this port does not publish — `resolveUrl` (three of
-  // them, two of those also folding in the host's public API base URL, which is
-  // no module's to know) or the storage adapters' byte-streaming surface
-  // (`invoices`' logo embed, `product_feeds`' artefact writer). Widening the
-  // port to cover them is a design decision, not this drain's.
+  // What is still a composition's, and why it is not an omission. This note
+  // read *"five reaches … `resolveUrl` (three of them, two of those also
+  // folding in the host's public API base URL)"* against a tree holding
+  // **eight** reaches, **four** of them `resolveUrl` and **three** of those
+  // absolutizing. The count is not written down again (D-100):
+  // `grep -n 'assetsLibrary\.' backend/src/composition.ts` answers it. What is
+  // true of the reaches that remain is that each needs something this port does
+  // not publish — `resolveUrl`, or the storage adapters' byte-streaming surface
+  // (`invoices`' logo embed, `product_feeds`' artefact writer).
+  //
+  // **What no reach does any more is absolutize** (D-223). The three that did
+  // did it three ways — `absolutizePublicUrl` reading `BACKEND_PUBLIC_URL`
+  // first at two of them, `configuredPublicApiBaseUrl` plus a hand-written join
+  // reading `PUBLIC_API_BASE_URL` first at the third — while the fourth
+  // `resolveUrl` reach did not absolutize at all, so one asset had three
+  // answers depending on which consumer asked, and the two composition roots
+  // disagreed at two of the sites. This module resolves the origin itself now
+  // and every URL it returns is absolute, which is also why `resolveUrl` is
+  // published on **no** port: a consumer that wants a URL for an asset id takes
+  // `AssetsLibraryPort.getAsset`, which already carries one. The byte-store
+  // questions — `openAssetBytes`, and whether `product_feeds` is asking the
+  // right module at all — are the team's, and are still open.
   // ---------------------------------------------------------------------------
 
   ctx.di.providePort<AssetReadPort>(

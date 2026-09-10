@@ -98,7 +98,9 @@ const settings = defineModuleSettingsManifest({
       valueType: 'string',
       defaultValue: '',
       description:
-        'Public-facing URL prefix for /assets/file/:assetId — leave blank to use the request host.',
+        'Public-facing URL prefix for /assets/file/:assetId — a CDN or the public hostname a ' +
+        'reverse proxy serves. Leave blank to build every URL on this deployment\'s public API ' +
+        'origin (PUBLIC_API_BASE_URL).',
     },
   ],
 });

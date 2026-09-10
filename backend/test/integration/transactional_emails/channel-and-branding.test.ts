@@ -4,7 +4,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { randomUUID } from 'node:crypto';
+import { SalesChannel, resolvePublicApiBaseUrl } from '@endora-commerce/platform/kernel';
 
 const ADMIN_COOKIE = { b2b_admin_session: 'stub-admin-session' };
 const BASE = '/api/v1/admin/transactional-emails';
@@ -61,6 +62,47 @@ describe('transactional emails — per-channel + branding (US2)', () => {
     const gd = (globalDetail.json() as { data: { effective: { source: string; subject: string } } }).data;
     expect(gd.effective.source).toBe('global');
     expect(gd.effective.subject).toBe('GLOBAL');
+  });
+
+  /**
+   * The e-mail logo, and the first test this platform has ever had for it
+   * (D-223).
+   *
+   * `transactionalEmailAssetUrl` is a contribution: `transactional_emails` must
+   * not reach `assets_library` directly, so a composition supplies the closure.
+   * `composition.ts` supplied `resolveUrl` wrapped in `absolutizePublicUrl`; the
+   * harness supplied `async () => null`, which is also the module's own default,
+   * so contributing it changed nothing and **the production closure ran in no
+   * test**. Both roots compose the same closure now.
+   *
+   * What is asserted is what an e-mail client receives: an absolute URL. A
+   * recipient's mail client has never heard of this API host, so a
+   * host-relative `/assets/file/<id>` is a broken image in every one of them —
+   * which is the whole of why D-223 puts the origin inside the module rather
+   * than in whichever consumer remembers to add it.
+   */
+  it('resolves the branding logo to an absolute asset URL', async () => {
+    const assetId = randomUUID();
+    await h.em().getConnection().execute(
+      `insert into assets (id, kind, filename, mime_type, size_bytes, storage_url,
+         storage_locator, storage_backend, label, visibility, created_at, updated_at)
+       values (?, 'image', 'logo.png', 'image/png', 128, ?, ?, 'local', 'Logo', 'public',
+         now(), now())`,
+      [assetId, `/assets/file/${assetId}`, `aa/bb/${assetId}.png`],
+    );
+
+    const put = await h.app.inject({
+      method: 'PUT',
+      url: `${BASE}/branding`,
+      cookies: ADMIN_COOKIE,
+      payload: { logoAssetId: assetId },
+    });
+    expect(put.statusCode).toBe(200);
+
+    const get = await h.app.inject({ method: 'GET', url: `${BASE}/branding`, cookies: ADMIN_COOKIE });
+    const b = (get.json() as { data: { logoAssetId: string; logoUrl: string } }).data;
+    expect(b.logoAssetId).toBe(assetId);
+    expect(b.logoUrl).toBe(`${resolvePublicApiBaseUrl()}/assets/file/${assetId}`);
   });
 
   it('persists and reads back branding accent color', async () => {

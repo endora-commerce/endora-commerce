@@ -29,6 +29,18 @@ export interface AssetsLibraryModuleOptions {
    * left to be silent about.
    */
   requireAdmin: RequireAdminFactory;
+  /**
+   * This deployment's resolved public API origin, and the base every URL this
+   * module produces falls back to (D-223).
+   *
+   * **Required**, for the reason the gate above is: an omitted origin is not a
+   * failure, it is a host-relative URL in an e-mail, a push payload and a
+   * partner's feed — silent, and invisible to every test that reads the URL
+   * from the same host that served it. `registerModule` resolves it with the
+   * platform's `resolvePublicApiBaseUrl()`, which is the idiom the payment
+   * modules already use for their callback origins.
+   */
+  publicApiBaseUrl: string;
   /** Feature 054 — audits asset/folder writes co-transactionally when provided. */
   auditLog?: AuditPort;
 }
@@ -70,6 +82,7 @@ export function assetsLibraryModule(options: AssetsLibraryModuleOptions): {
   let cachedSigner: HmacSigner | undefined = options.signer;
   const adapters = new AdapterRegistry({
     settings: createSettingsView(options.emFactory),
+    publicApiBaseUrl: options.publicApiBaseUrl,
     signer: () => {
       if (!cachedSigner) cachedSigner = HmacSigner.fromEnv();
       return cachedSigner;

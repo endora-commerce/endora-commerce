@@ -24,7 +24,8 @@ The Assets Library is the platform's digital-asset substrate. It owns:
 2. **Local FS** — set `assets.local.base_dir` (default `var/assets`). The
    admin server creates the directory tree at upload time. Set
    `assets.local.public_url_base` if the backend is fronted by a different
-   public hostname (e.g. behind a reverse proxy).
+   public hostname (e.g. a CDN or a reverse proxy); leave it blank and every
+   URL is built on this deployment's public API origin instead.
 3. **Amazon S3** — set `assets.s3.bucket`, `assets.s3.region`,
    `assets.s3.access_key_id`, `assets.s3.secret_access_key`. Optional:
    `assets.s3.endpoint` (for S3-compatible providers like MinIO),
@@ -115,9 +116,10 @@ templates.
 
 ## Legacy escape hatch
 
-Pre-013 `assets` rows whose `storage_url` was an absolute URL are tagged
-`storage_backend = 'legacy'` at migration time. The legacy resolver
-returns the URL verbatim for `public` assets and refuses to flip them to
-`private` (we cannot sign URLs we didn't issue) — surfaces as
+Pre-013 `assets` rows whose `storage_url` was a URL this platform did not
+issue are tagged `storage_backend = 'legacy'` at migration time. The legacy
+resolver returns the URL verbatim for `public` assets — rebasing it onto the
+public API origin when the stored value is host-relative — and refuses to flip
+them to `private` (we cannot sign URLs we didn't issue), which surfaces as
 `409 ASSET_LEGACY_LOCATOR_CANNOT_HARDEN` to the admin. Re-upload through
 the active adapter to upgrade.

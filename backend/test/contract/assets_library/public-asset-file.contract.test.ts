@@ -19,6 +19,8 @@ import { SettingValue } from '@endora-commerce/platform/kernel';
 
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 
+import { resolvePublicApiBaseUrl } from '../../../src/kernel/index.js';
+
 
 /**
  * T037 — Contract test: GET /assets/file/:assetId (public + private + 410 + 404).
@@ -153,10 +155,34 @@ describe('public asset file (T037)', () => {
     const url = (adminUrlR.json() as { data: { url: string } }).data.url;
     expect(url).toMatch(/[?&]token=/);
     expect(url).toMatch(/[?&]exp=/);
+    // D-223 — `getAssetUrlResponse` carries an absolute URL, signature and all.
+    // The signed form is the one a hand-written join could not have rebased,
+    // which is why `product_feeds`' root site skipped it rather than absolutizing
+    // it; this module builds it on the origin, so the query survives untouched
+    // and the route below still validates the signature.
+    expect(url).toMatch(/^https?:\/\/[^/]+\/assets\/file\//);
     // Strip the host portion before injecting.
     const path = url.replace(/^https?:\/\/[^/]+/, '');
     const r = await h.app.inject({ method: 'GET', url: path });
     expect(r.statusCode).toBe(200);
+    await h.em().removeAndFlush(await h.em().findOneOrFail(Asset, { id }));
+  });
+
+  it('answers an absolute, unsigned URL for a public asset (D-223)', async () => {
+    const id = await uploadOne('public');
+    const r = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/assets/${id}/url`,
+      cookies: adminCookie,
+    });
+    expect(r.statusCode).toBe(200);
+    const body = (r.json() as { data: { url: string; expiresAt: string | null } }).data;
+    // The stable public form: an origin, the route, no signature, no expiry.
+    // It used to be `/assets/file/<id>` — correct only for a browser already on
+    // this host, and the reason three composition-root sites rebased it, each in
+    // its own way, and a fourth did not.
+    expect(body.url).toBe(`${resolvePublicApiBaseUrl()}/assets/file/${id}`);
+    expect(body.expiresAt).toBeNull();
     await h.em().removeAndFlush(await h.em().findOneOrFail(Asset, { id }));
   });
 

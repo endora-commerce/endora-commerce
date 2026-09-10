@@ -120,7 +120,11 @@ describe('admin upload (T035)', () => {
     expect(json.data.mimeType).toBe('image/png');
     expect(json.data.storageBackend).toBe('local');
     expect(json.data.visibility).toBe('public');
-    expect(json.data.url).toMatch(/\/assets\/file\//);
+    // D-223 — `AssetDetail.url` is absolute. This read `/\/assets\/file\//`,
+    // which a host-relative URL satisfies too; the module resolves the
+    // deployment's public API origin itself now, so the assertion is the one
+    // that discriminates.
+    expect(json.data.url).toMatch(/^https?:\/\/[^/]+\/assets\/file\//);
 
     // File on disk under the sharded path.
     const aa = json.data.id.slice(0, 2);

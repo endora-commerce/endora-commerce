@@ -125,20 +125,21 @@ export {
 } from '../kernel/module-context.js';
 export { registerRequestScopeHook } from '../kernel/request-scope-hook.js';
 export { platformLogger } from '../kernel/logging.js';
-// The absolutiser a root applies to a configured public base URL. `./kernel`
-// carries the factory types and the configuration refusal, which is what a
-// module reads; this is not a module's to supply.
+// `absolutizePublicUrl` was here — the absolutiser a root applied to a
+// configured public base URL — and D-223 removed its last consumer. The
+// composition root had two call sites, for the `pwa` asset bridge and the
+// transactional-email asset URL; `assets_library` resolves the origin itself
+// now and returns absolute URLs, so no application rebases one. `./kernel`
+// still carries the factory types and the configuration refusal, which is what
+// a module reads.
 //
-// `AdminActorPromotion` was here until T118c drained `mfaActorBridge`. That
-// bridge held the application's last reach for the type — `composition.ts`
-// read `promoteAdminActor` off the cradle to build it — and with the bridge
-// gone the type has no consumer outside this package. The barrel is held to
-// its consumers **both** ways, so it comes off rather than standing as a name
-// nobody names; the declaration itself is untouched in
-// `../kernel/ports/require-admin.js`, and it returns here the day an
-// application needs it again. Neither branch was wrong alone: T119b put it on
-// because a consumer existed, and this one removed the consumer.
-export { absolutizePublicUrl } from '../kernel/public-api-base-url.js';
+// `AdminActorPromotion` came off for the same reason when T118c drained
+// `mfaActorBridge`. The barrel is held to its consumers **both** ways, so a
+// name nobody names comes off rather than standing as parked surface; the
+// declaration itself is untouched in `../kernel/public-api-base-url.js`, and it
+// returns here the day an application needs it again. Neither branch is ever
+// wrong alone: one merge request adds a name because a consumer exists, another
+// removes the consumer.
 
 // --- kernel: the lifecycle a root primes and reconciles -------------------
 export { registryCache, publishStateChanged } from '../kernel/lifecycle/registry-cache.js';

@@ -21,6 +21,7 @@ import type {
   StorageResolveUrlOutput,
 } from './storage-adapter.js';
 import { computeLocator } from './locator.js';
+import { resolvePublicUrlBase } from './public-url-base.js';
 import {
   BackendUnavailableError,
   ConfigurationError,
@@ -34,17 +35,42 @@ export interface S3AdapterConfig {
   secretAccessKey: string;
   endpoint?: string;
   prefix?: string;
+  /**
+   * `assets.s3.public_base_url` — a CDN or a custom domain in front of the
+   * bucket. Blank means "serve from the bucket's own origin", which is already
+   * absolute; see {@link S3AdapterConfig.publicApiBaseUrl}.
+   */
   publicBaseUrl?: string;
+  /**
+   * This deployment's resolved public API origin — D-223's fallback base.
+   *
+   * It is consulted here for one case: a `publicBaseUrl` the operator wrote as
+   * a **path** (`/media`), which would otherwise make this adapter produce a
+   * host-relative URL. A *blank* one keeps resolving to the bucket, because
+   * pointing an S3 object at this API's origin would name a host that does not
+   * serve those bytes — D-223's invariant is that the URL is absolute, and the
+   * bucket URL already is.
+   */
+  publicApiBaseUrl: string;
   privateUrlTtlSec: number;
 }
 
 export class S3StorageAdapter implements StorageAdapter {
   readonly code = 's3' as const;
   private readonly client: S3Client;
+  /** The absolute base public object URLs are built on — decided once (D-223). */
+  private readonly publicBase: string;
 
   constructor(private readonly cfg: S3AdapterConfig) {
     if (!cfg.bucket) throw new ConfigurationError('S3StorageAdapter: bucket is required');
     if (!cfg.region) throw new ConfigurationError('S3StorageAdapter: region is required');
+    const configured = (cfg.publicBaseUrl ?? '').trim();
+    this.publicBase = resolvePublicUrlBase(
+      configured.length > 0
+        ? configured
+        : `https://${cfg.bucket}.s3.${cfg.region}.amazonaws.com`,
+      cfg.publicApiBaseUrl,
+    );
     this.client = new S3Client({
       region: cfg.region,
       ...(cfg.endpoint ? { endpoint: cfg.endpoint, forcePathStyle: true } : {}),
@@ -98,11 +124,7 @@ export class S3StorageAdapter implements StorageAdapter {
 
   async resolveUrl(input: StorageResolveUrlInput): Promise<StorageResolveUrlOutput> {
     if (input.visibility === 'public') {
-      const base = (
-        this.cfg.publicBaseUrl ??
-        `https://${this.cfg.bucket}.s3.${this.cfg.region}.amazonaws.com`
-      ).replace(/\/+$/, '');
-      return { url: `${base}/${input.locator}`, expiresAt: null };
+      return { url: `${this.publicBase}/${input.locator}`, expiresAt: null };
     }
     const ttl = input.ttlSec ?? this.cfg.privateUrlTtlSec;
     if (!Number.isInteger(ttl) || ttl <= 0) {
