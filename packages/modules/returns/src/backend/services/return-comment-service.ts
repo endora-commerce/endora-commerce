@@ -6,13 +6,9 @@ import { ReturnCase } from '../entities/return-case.entity.js';
 import { ReturnCaseComment } from '../entities/return-case-comment.entity.js';
 import type { ReturnStatusGraphService } from './return-status-graph-service.js';
 
-/** Best-effort notification when a customer-visible admin comment is posted. */
-export type ReturnCommentNotifier = (rc: ReturnCase, comment: ReturnCaseComment) => Promise<void>;
-
 export interface ReturnCommentServiceDeps {
   emFactory: () => EntityManager;
   graphService: ReturnStatusGraphService;
-  notifier?: ReturnCommentNotifier;
 }
 
 /**
@@ -43,9 +39,15 @@ export class ReturnCommentService {
     });
     em.persist(comment);
     await em.flush();
-    if (input.isCustomerVisible && input.notifyCustomer && this.deps.notifier) {
-      await this.notifySafely(rc, comment);
-    }
+    // `notifyCustomer` is recorded on the row and nothing sends on it. The
+    // optional `notifier` that used to stand here went with
+    // `specs/110-instance-repository/` T118c: it was declared, guarded and
+    // supplied by nobody — `plugin.ts` builds this service with `emFactory` and
+    // `graphService` and no third member — so its `catch` was a tolerance around
+    // an expression that could not run. This module's own `exposeServices` was
+    // deleted on the same argument in feature 072. Sending on a comment is a
+    // product decision; when it is taken, it takes a notifier the composition
+    // really supplies and an off-state answer of its own.
     return toDto(comment);
   }
 
@@ -120,14 +122,6 @@ export class ReturnCommentService {
       });
     }
     return rc;
-  }
-
-  private async notifySafely(rc: ReturnCase, comment: ReturnCaseComment): Promise<void> {
-    try {
-      await this.deps.notifier?.(rc, comment);
-    } catch {
-      // Best-effort; never block the comment write.
-    }
   }
 }
 

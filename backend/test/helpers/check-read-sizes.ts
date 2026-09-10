@@ -953,7 +953,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 2011 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 2012,
+    // **T118c, `returnsBridge`: +1 file** — `returns`' new
+    // `services/notification-context.ts`. No action and no route moved.
+    files: 2013,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1185,7 +1187,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 2138 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 2139,
+    // **T118c, `returnsBridge`: +1 file** — `returns`' new
+    // `services/notification-context.ts`, which reads `SalesChannel` by id. That is not a
+    // request-channel re-resolution and it sits in no storefront surface, so no signal
+    // moved; the walk is one file wider.
+    files: 2140,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1259,7 +1265,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** files 1697
     // -> 1698. One file, the module source this task extracts,
     // `packages/modules/cms/src/backend/services/asset-embed-resolver.ts`.
-    files: 1698,
+    // **T118c, `returnsBridge`: +1 file** — `returns`' new module source. It writes
+    // nothing.
+    files: 1699,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -1345,7 +1353,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 2190 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 2192,
+    // **T118c, `returnsBridge`: +2 files** — the new module source and its co-located
+    // test.
+    files: 2194,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -1703,7 +1713,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // beside the sources they cover, so this walk reads fewer files than the 5481 recorded
     // against the tree before it. The six files this branch adds are already in that
     // measurement; taken on the combined tree, never summed from the two sides' deltas.
-    files: 5477,
+    // **T118c, `returnsBridge`: +3 files** — this walk is the whole tree, so it opens the
+    // new module source, its co-located test and the new integration test.
+    // **Re-measured on the union after rebasing onto T119b's neighbours.** `origin/master`
+    // moved six commits under this branch while it worked, so the recorded value describes
+    // neither tree on its own: 5478 -> 5480. This branch's own additions — the module's
+    // notification context, its co-located test and the integration test — were already in
+    // the recorded figure. Measured on the combined tree, never summed from the deltas.
+    files: 5480,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1959,7 +1976,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 2369 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 2371,
+    // **T118c, `returnsBridge`: +2 files** — the module tree feeds this check's owner map,
+    // and it gains the new module source and its co-located test. No deployment's
+    // divergence moved.
+    files: 2373,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -2317,7 +2337,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 2138 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 2139,
+    // **T118c, `returnsBridge`: +1 file** — `returns`' new module source. It declares no
+    // entity.
+    files: 2140,
     sites: 260,
     sources: ['manifest-index'],
   },
@@ -2530,7 +2552,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 2138 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 2139,
+    // **T118c, `returnsBridge`: +1 file** — `returns`' new module source. It starts no
+    // timer and registers no boot hook.
+    files: 2140,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2743,7 +2767,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 2138 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 2139,
+    // **T118c, `returnsBridge`: +1 file** — `returns`' new module source. It is no entry
+    // point.
+    files: 2140,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -3117,7 +3143,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // beside the sources they cover, so this walk reads fewer files than the 1628 recorded
     // against the tree before it. The six files this branch adds are already in that
     // measurement; taken on the combined tree, never summed from the two sides' deltas.
-    files: 1579,
+    // **T118c, `returnsBridge`: 578 -> 579 sites, +1 file.** The file is the new
+    // integration test. The site count rises by one while the harness *loses* a defaulted
+    // read: `returnsBridge.resolveChannelLanguage`'s channel lookup and its `?? 'en-US'`
+    // went out of `test-server.ts` with the bridge, and the `DEFAULTED_FIXTURE_READS`
+    // entry describing it is retired on the condition the entry itself wrote down. The new
+    // test file's own reads are the other two.
+    // **Re-measured on the union after rebasing onto T119b's neighbours.** `origin/master`
+    // moved six commits under this branch while it worked, so the recorded value describes
+    // neither tree on its own: 1578 -> 1580. This branch's own additions — the module's
+    // notification context, its co-located test and the integration test — were already in
+    // the recorded figure. Measured on the combined tree, never summed from the deltas.
+    files: 1580,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -3153,7 +3190,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T119a: sites 580 -> 578.** Two read-with-a-fallback sites travelled with those
     // fifty files; the site count falling while this walk's file count falls with it is
     // the same population leaving, not the #235/#237 shape.
-    sites: 578,
+    sites: 579,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -3260,7 +3297,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // beside the sources they cover, so this walk reads fewer files than the 1628 recorded
     // against the tree before it. The six files this branch adds are already in that
     // measurement; taken on the combined tree, never summed from the two sides' deltas.
-    files: 1579,
+    // **T118c, `returnsBridge`: +1 file** — the new integration test, which releases
+    // through `teardownBackendServer`.
+    // **Re-measured on the union after rebasing onto T119b's neighbours.** `origin/master`
+    // moved six commits under this branch while it worked, so the recorded value describes
+    // neither tree on its own: 1578 -> 1580. This branch's own additions — the module's
+    // notification context, its co-located test and the integration test — were already in
+    // the recorded figure. Measured on the combined tree, never summed from the deltas.
+    files: 1580,
     sites: null,
     sources: [],
   },
@@ -3489,7 +3533,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 2138 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 2139,
+    // **T118c, `returnsBridge`: +1 file** — `returns`' new module source. It relates into
+    // nothing.
+    files: 2140,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -3768,7 +3814,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 2720 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 2722,
+    // **T118c, `returnsBridge`: +2 files** — the new module source and its co-located
+    // test, which this walk opens as module sources. No zone and no namespace moved.
+    files: 2724,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
     sites: 56,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
@@ -3857,7 +3905,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** files 2090
     // -> 2091. One file, the module source this task extracts,
     // `packages/modules/cms/src/backend/services/asset-embed-resolver.ts`.
-    files: 2091,
+    // **T118c, `returnsBridge`: +1 file** — `returns`' new module source.
+    files: 2092,
     // The finer population, and it is the one that moves when nothing else does
     // (issues #235/#237): tree sites, unreadable sites, renderer-map sites, the
     // block declarations and the declared `(key, context)` sections. A block
@@ -3915,7 +3964,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 2818 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 2820,
+    // **T118c, `returnsBridge`: +2 files** — the new module source and its co-located
+    // test.
+    files: 2822,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -4141,7 +4192,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // -> 1710 and sites 34428 -> 34429. One file, the module source this task extracts,
     // `packages/modules/cms/src/backend/services/asset-embed-resolver.ts`, offering one
     // more literal to the classifier.
-    files: 1710,
+    // **T118c, `returnsBridge`: 34429 -> 34470 sites, +1 file.** The site count is per
+    // literal, and this drain writes three `refuses-without` manifest entries whose
+    // `whenAbsent` and `reason` prose an operator reads, plus the new module source's own
+    // doc block. All English; no finding and no ledger entry moved.
+    files: 1711,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -4209,7 +4264,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `ProductsList.tsx` moves it by **zero**, measured, which is why the total is
     // six and not more: its added strings are a permission code inside a call and a
     // translation key, neither of which this classifier counts as a site.
-    sites: 34429,
+    sites: 34470,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -4712,7 +4767,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 4988 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 4992,
+    // **T118c, `returnsBridge`: 12560 -> 12569 sites, 4992 -> 4996 files.** The files are
+    // the new module source, its co-located test, the new integration test and the merge
+    // request's changeset, which this walk opens. The sites are the import specifiers and
+    // table references those files add; no cross-module reach moved and the ledger stands
+    // at 8.
+    files: 4996,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -4772,7 +4832,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // merge request adds are in neither module walk root, so `files` moves by the
     // one this walk does see and `sites` moves the other way — which is the
     // #235/#237 shape, and the reason both numbers are recorded.
-    sites: 12560,
+    sites: 12569,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -5421,7 +5481,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // beside the sources they cover, so this walk reads fewer files than the 8129 recorded
     // against the tree before it. The six files this branch adds are already in that
     // measurement; taken on the combined tree, never summed from the two sides' deltas.
-    files: 8128,
+    // **T118c, `returnsBridge`: 8122 -> 8126.** The whole repository: three new source
+    // files and the merge request's changeset. Measured on a **fresh-checkout shape** —
+    // `docs/docs/modules/` holding only its three tracked files, not the 77 pages
+    // `composer:generate` collects there. Those are git-ignored and the `quality` job
+    // produces none of them before this check runs; with the generator run first the
+    // identical tree reads 8201, and the recorded number would then describe a working
+    // copy rather than CI's.
+    // **Re-measured on the union after rebasing onto T119b's neighbours.** `origin/master`
+    // moved six commits under this branch while it worked, so the recorded value describes
+    // neither tree on its own: 8126 -> 8132. This branch's own additions — the module's
+    // notification context, its co-located test and the integration test — were already in
+    // the recorded figure. Measured on the combined tree, never summed from the deltas.
+    files: 8132,
     sites: null,
     sources: [],
     //
@@ -5848,11 +5920,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 212 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
+    // **T118c, `returnsBridge`: +1 file.** The module walk gains
+    // `services/notification-context.ts`. The **site** count is unmoved at 213, and that is
+    // arithmetic rather than coincidence: the drain made `returns`' e-mail notifier read as
+    // port-bearing, which put a module-wide `notifier` alias on it and turned
+    // `return-comment-service.ts`' bare `catch` into a violation — a collision with an
+    // identically-named optional dependency no composition ever supplied. That dead seam is
+    // deleted, so one site leaves as one arrives.
     sites: 213,
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 2138 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 2139,
+    files: 2140,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -5928,11 +6007,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `cms`' `lazyPort<AssetsLibraryPort>(ctx, 'assetsLibraryPort')`, which stays in
     // `backend/index.ts`. The edge was already declared in that module's manifest, so the
     // count moves and no verdict does.
-    files: 1942,
+    // **T118c, `returnsBridge`: 1552 -> 1558 sites, 1942 -> 1943 files.** Five of the six
+    // sites are the module resolving what a composition root used to forward —
+    // `orderReturnContextPort`, `paymentRefundPort`, `correctiveInvoicePort`,
+    // `creditTopupPort` and `customerAccountReadPort` — and the sixth is the
+    // `settingsReadPort` resolution moving with the rewritten factory. The file is
+    // `services/notification-context.ts`. A composition root's own resolutions are in no
+    // population here, so a drain that removes four from a root and adds five in a module
+    // reads as a rise rather than as a transfer.
+    files: 1943,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 1471 -> 1535.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
-    sites: 1552,
+    sites: 1558,
     sources: ['manifest-index'],
   },
   // Two derivations, deliberately, because the check has two inputs that can be
@@ -6109,7 +6196,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // beside the sources they cover, so this walk reads fewer files than the 2445 recorded
     // against the tree before it. The six files this branch adds are already in that
     // measurement; taken on the combined tree, never summed from the two sides' deltas.
-    files: 2437,
+    // **T118c, `returnsBridge`: +1 site, +1 file.** `returns`' new module source and its
+    // one reach into published platform surface — `SalesChannel` off
+    // `@endora-commerce/platform/kernel`, the symbol `orders` already names at the
+    // identical site. Both ledgers are unchanged.
+    // **Re-measured on the union after rebasing onto T119b's neighbours.** `origin/master`
+    // moved six commits under this branch while it worked, so the recorded value describes
+    // neither tree on its own: 2436 -> 2438. This branch's own additions — the module's
+    // notification context, its co-located test and the integration test — were already in
+    // the recorded figure. Measured on the combined tree, never summed from the deltas.
+    files: 2438,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -6183,7 +6279,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 1861 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    sites: 1862,
+    sites: 1863,
     // count moves with the file count here because the reaches that went are exactly
     // the files that went.
     // **T119a: sites 1870 -> 1861.** The same nine files, each the single relative
@@ -6308,11 +6404,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` T118c (the `assets_library` drain):** files 2040
     // -> 2041 and sites 722 -> 723. The same one file and the same one `lazyPort`
     // resolution, counted here as a port site.
-    files: 2041,
+    // **T118c, `returnsBridge`: 723 -> 728 sites, 2041 -> 2042 files.** The five
+    // `lazyPort` resolutions `returns` took over from its bridge, and the one new module
+    // source.
+    files: 2042,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 692 -> 721.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
-    sites: 723,
+    sites: 728,
     sources: ['manifest-index', 'ports-subpaths'],
   },
   // Small on purpose: this population is the *workspace*, not a source tree —
@@ -6576,7 +6675,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // beside the sources they cover, so this walk reads fewer files than the 1628 recorded
     // against the tree before it. The six files this branch adds are already in that
     // measurement; taken on the combined tree, never summed from the two sides' deltas.
-    files: 1579,
+    // **T118c, `returnsBridge`: +1 file** — the new integration test. It wipes nothing.
+    // **Re-measured on the union after rebasing onto T119b's neighbours.** `origin/master`
+    // moved six commits under this branch while it worked, so the recorded value describes
+    // neither tree on its own: 1578 -> 1580. This branch's own additions — the module's
+    // notification context, its co-located test and the integration test — were already in
+    // the recorded figure. Measured on the combined tree, never summed from the deltas.
+    files: 1580,
     sites: 163,
     sources: [],
   },
@@ -6841,7 +6946,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 2138 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 2139,
+    // **T118c, `returnsBridge`: +1 file** — `returns`' new module source. It subscribes to
+    // nothing and builds no worker.
+    files: 2140,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -6959,7 +7066,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // beside the sources they cover, so this walk reads fewer files than the 1732 recorded
     // against the tree before it. The six files this branch adds are already in that
     // measurement; taken on the combined tree, never summed from the two sides' deltas.
-    files: 1689,
+    // **T118c, `returnsBridge`: +1 site, 1687 -> 1689 files.** The co-located unit test in
+    // the module package and the integration test that stays in `backend/test/` — the split
+    // this drain's proof is deliberately in two halves for.
+    // **Re-measured on the union after rebasing onto T119b's neighbours.** `origin/master`
+    // moved six commits under this branch while it worked, so the recorded value describes
+    // neither tree on its own: 1689 -> 1691. This branch's own additions — the module's
+    // notification context, its co-located test and the integration test — were already in
+    // the recorded figure. Measured on the combined tree, never summed from the deltas.
+    files: 1691,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -6981,7 +7096,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // specifiers it gains add nothing back. `files` is untouched at 1715: no test file
     // arrived or left.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's co-located tests and the declared run that owns them.
-    sites: 1109,
+    sites: 1110,
     // Two independent authors. `manifest-index` is issue #215's shared floor
     // over the module walk, whose unit is the module's own directory rather than
     // a test file — 14 of the 70 packages ship no test and a floor over test
@@ -7210,7 +7325,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 2138 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 2139,
+    // **T118c, `returnsBridge`: +1 file** — `returns`' new module source. It opens no
+    // transaction.
+    files: 2140,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -7491,7 +7608,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // beside the sources they cover, so this walk reads fewer files than the 4508 recorded
     // against the tree before it. The six files this branch adds are already in that
     // measurement; taken on the combined tree, never summed from the two sides' deltas.
-    files: 4502,
+    // **T118c, `returnsBridge`: +1 site, 4498 -> 4501 files.** The files are the three new
+    // sources; the site is the new module source's value reach. Nothing composed is reached
+    // by filesystem path.
+    // **Re-measured on the union after rebasing onto T119b's neighbours.** `origin/master`
+    // moved six commits under this branch while it worked, so the recorded value describes
+    // neither tree on its own: 4501 -> 4505. This branch's own additions — the module's
+    // notification context, its co-located test and the integration test — were already in
+    // the recorded figure. Measured on the combined tree, never summed from the deltas.
+    files: 4505,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -7549,7 +7674,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which resolves it out of the composed `entities` array. A helper import is no
     // reach, so 81 sites go and none arrives.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The value reaches into a package's source that the module's tests make.
-    sites: 867,
+    sites: 868,
     sources: ['manifest-index', 'entities-registry', 'tenant-chains'],
     //
     // **852 -> 851 sites, 4336 -> 4337 files, and the two have different causes.**
@@ -8162,7 +8287,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // beside the sources they cover, so this walk reads fewer files than the 8189 recorded
     // against the tree before it. The six files this branch adds are already in that
     // measurement; taken on the combined tree, never summed from the two sides' deltas.
-    files: 8188,
+    // **T118c, `returnsBridge`: 8182 -> 8186.** The three new source files and the merge
+    // request's changeset, which this walk opens.
+    // **Re-measured on the union after rebasing onto T119b's neighbours.** `origin/master`
+    // moved six commits under this branch while it worked, so the recorded value describes
+    // neither tree on its own: 8186 -> 8192. This branch's own additions — the module's
+    // notification context, its co-located test and the integration test — were already in
+    // the recorded figure. Measured on the combined tree, never summed from the deltas.
+    files: 8192,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -8537,7 +8669,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // beside the sources they cover, so this walk reads fewer files than the 6112 recorded
     // against the tree before it. The six files this branch adds are already in that
     // measurement; taken on the combined tree, never summed from the two sides' deltas.
-    files: 6108,
+    // **T118c, `returnsBridge`: 6102 -> 6105.** The three new source files. This walk does
+    // not open `.changeset/`, which is why it moves by three where `check:naming` and
+    // `check:nul-bytes` move by four.
+    // **Re-measured on the union after rebasing onto T119b's neighbours.** `origin/master`
+    // moved six commits under this branch while it worked, so the recorded value describes
+    // neither tree on its own: 6105 -> 6111. This branch's own additions — the module's
+    // notification context, its co-located test and the integration test — were already in
+    // the recorded figure. Measured on the combined tree, never summed from the deltas.
+    files: 6111,
     sites: null,
     sources: ['manifest-index'],
     //

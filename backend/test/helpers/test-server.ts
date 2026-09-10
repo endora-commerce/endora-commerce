@@ -120,7 +120,6 @@ import type {
 import type { EmailCradle } from '../../../packages/modules/email/src/backend/index.js';
 import type { AdminUsersCradle } from '@endora-commerce/mod-admin-users/backend';
 import type { ShoppingListService } from '../../../packages/modules/shopping_lists/src/backend/services/shopping-list-service.js';
-import type { ReturnsBridge } from '../../../packages/modules/returns/src/backend/index.js';
 // `dist`, not `src`, and it is the type that matches the object (feature 080,
 // T040b, batch four). The container holds the **composed** cradle, which the
 // platform built out of `@endora-commerce/mod-invoices/backend` — i.e. out of
@@ -2418,54 +2417,21 @@ export async function setupBackendServer(
       });
 
       // Feature 046 — Returns & Complaints (Refunds, RMA).
-      // Feature 072 (T109) — `returns` owns its services and routes now. T143c —
-      // and the four settlement adapters belong to the modules whose money they
-      // move, so what this bridge holds is the composition's answers: who is
-      // asking, where the notification goes, and in which language.
-      const settlementCradle = (): {
-        orderReturnContextPort: ReturnsBridge['orderContext'];
-        paymentRefundPort: ReturnsBridge['paymentRefund'];
-        correctiveInvoicePort: ReturnsBridge['correctiveInvoice'];
-        creditTopupPort: ReturnsBridge['creditTopup'];
-      } => container.cradle as never;
-      composedModules.contribute({
-        returnsBridge: {
-          resolveCustomerAccountId: (req) =>
-            req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : TEST_CUSTOMER_ID,
-          resolveAdminUserId: (req) =>
-            req.testActor?.kind === 'admin' ? req.testActor.adminUserId : TEST_ADMIN_ID,
-          // T143c — the four settlement adapters are their owners' ports, forwarded
-          // per settlement exactly as the production root forwards them.
-          //
-          // The corrective-invoice one is why this ledger was worth building. This
-          // harness built its own `InvoiceNumberGenerator` over its own pattern
-          // resolver, so every correction number a test drew came out of a counter
-          // `invoices` could not see, while production drew from the module's one
-          // generator. Nothing failed; the two roots simply numbered corrections
-          // differently, and no assertion in the suite could reach the difference.
-          orderContext: {
-            getReturnContext: (orderId) =>
-              settlementCradle().orderReturnContextPort.getReturnContext(orderId),
-          },
-          paymentRefund: {
-            refund: (input) => settlementCradle().paymentRefundPort.refund(input),
-          },
-          correctiveInvoice: {
-            createCorrection: (input) =>
-              settlementCradle().correctiveInvoicePort.createCorrection(input),
-          },
-          creditTopup: {
-            creditFromReturn: (input) => settlementCradle().creditTopupPort.creditFromReturn(input),
-          },
-          // The notifier is `returns`' own class and `returns` builds it since
-          // T143c, reading `emailMailer` per send — which is the name this harness
-          // already overrides with its spy, so the injected mailer still arrives.
-          resolveCustomerEmail: async (cid) =>
-            (await identityPorts().customerAccountReadPort.findById(cid))?.email ?? null,
-          resolveChannelLanguage: async (salesChannelId) =>
-            (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US',
-        } satisfies ReturnsBridge,
-      });
+      // Feature 072 (T109) — `returns` owns its services and routes now. T143c
+      // made the four settlement adapters their owners' ports and this harness
+      // went on forwarding to them through a `returnsBridge` object, mirroring
+      // the production root.
+      //
+      // **T118c retired the bridge in both roots and this harness contributes
+      // nothing for `returns` at all.** The module resolves the four settlement
+      // ports itself and declares the edges; the recipient's address is
+      // `customer_accounts`' published record and the channel's language a read
+      // of the platform's entity, both moved into the module. The two actor
+      // resolvers are the harness's own `customerAccountIdResolver` and
+      // `adminContextResolver`, contributed above — the same testActor answers
+      // this block used to spell a second time, which is the divergence the
+      // bridge kept alive: two copies of one answer, one per root, agreeing by
+      // hand.
 
       // Feature 047 — Invoices.
       // Feature 072 (T113) — `invoices` owns its services and routes now. What

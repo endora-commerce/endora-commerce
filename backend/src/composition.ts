@@ -98,7 +98,6 @@ import { effectiveState } from './kernel/lifecycle/effective-state.js';
 // — and a root value import of a module's source is a spelling that ends the
 // day that module becomes a package (D-160.6.1).
 // Feature 046 — Returns & Complaints (Refunds, RMA).
-import type { ReturnsBridge } from '@endora-commerce/mod-returns/backend';
 import type { InvoicesBridge } from '@endora-commerce/mod-invoices/backend';
 import type { ProductFeedsBridge } from '@endora-commerce/mod-product-feeds/backend';
 import type { MfaActorBridge } from '@endora-commerce/mod-mfa/backend';
@@ -1969,50 +1968,24 @@ async function contributeReferenceDeployment(
   // Feature 046 — Returns & Complaints (Refunds, RMA). Reads order facts only
   // through the OrderReturnContextPort (Principle I); settings drive the
   // free-return window and RMA prefix/suffix.
-  // Feature 072 (T109) — `returns` owns its services and routes now. The
-  // four settlement adapters and the actor resolvers stay here as one
-  // bridge: each is a small adapter over `payments`, `invoices`,
-  // `credit_limits` and `orders`, and a composition supplies all or none.
-  // T143c — the four settlement adapters are their owners' ports now. Each was
-  // a class this root constructed out of `orders`, `payments`, `invoices` and
-  // `credit_limits`, so the root held an **ungated** second way into all four:
-  // a settlement kept refunding, correcting and crediting through modules an
-  // operator had switched off. Read per call, so the gate answers at the
-  // settlement it is about, which is also why the accessor shape the two
-  // money-moving ones already used is no longer needed here.
-  const settlementCradle = (): {
-    orderReturnContextPort: ReturnsBridge['orderContext'];
-    paymentRefundPort: ReturnsBridge['paymentRefund'];
-    correctiveInvoicePort: ReturnsBridge['correctiveInvoice'];
-    creditTopupPort: ReturnsBridge['creditTopup'];
-  } => container.cradle as never;
-  composedModules.contribute({
-    returnsBridge: {
-      resolveCustomerAccountId,
-      resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
-      orderContext: {
-        getReturnContext: (orderId) =>
-          settlementCradle().orderReturnContextPort.getReturnContext(orderId),
-      },
-      paymentRefund: {
-        refund: (input) => settlementCradle().paymentRefundPort.refund(input),
-      },
-      correctiveInvoice: {
-        createCorrection: (input) =>
-          settlementCradle().correctiveInvoicePort.createCorrection(input),
-      },
-      creditTopup: {
-        creditFromReturn: (input) => settlementCradle().creditTopupPort.creditFromReturn(input),
-      },
-      // The notifier itself is `returns`' own class and is built by `returns`
-      // since T143c; what a composition still answers is where the message goes
-      // and in which language.
-      resolveCustomerEmail: async (customerAccountId) =>
-        (await identityPorts().customerAccountReadPort.findById(customerAccountId))?.email ?? null,
-      resolveChannelLanguage: async (salesChannelId) =>
-        (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage ?? 'en-US',
-    } satisfies ReturnsBridge,
-  });
+  // Feature 072 (T109) — `returns` owns its services and routes now. T143c made
+  // the four settlement adapters their owners' ports, and this root went on
+  // forwarding to them through a `returnsBridge` object.
+  //
+  // **T118c retired the bridge, and this root contributes nothing for `returns`
+  // at all.** All eight members had an owner that was not a composition: the
+  // four settlement ports are `orders`', `payments`', `invoices`' and
+  // `credit_limits`', and the module resolves each with `lazyPort` and declares
+  // the edge — which is the half forwarding from here silently removed, since a
+  // root's resolution is nobody's declared dependency and an operator switching
+  // `payments`, `invoices` or `credit_limits` off was told nothing about what
+  // stops. The recipient's address is `customer_accounts`' published record; the
+  // channel's language is a read of the platform's own entity, and both moved
+  // into the module as `services/notification-context.ts`. The two actor
+  // resolvers were this root's `resolveCustomerAccountId` and
+  // `adminContextResolver` under a second pair of names — the platform
+  // contributes both for every module that takes one (T118b), so the module
+  // reads those instead.
 
   // Feature 047 — Transactional Emails. Owning modules register their default
   // subject + content here; the module reconciles all manifest-declared emails

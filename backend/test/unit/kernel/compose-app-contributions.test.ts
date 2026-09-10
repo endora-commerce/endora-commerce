@@ -223,16 +223,22 @@ describe('T118 — the contribution wiring is the platform’s and the values ar
     // the row: a `composition.ts` whose contributions the parser stopped seeing
     // would satisfy the disjointness above perfectly.
     //
-    // **61 -> 59, and the total is expected to fall.** This is a ledger derived
-    // *about* the contributions rather than a copy of them, so T118c's sweep —
-    // which drains the 31 cross-module names into ports, module by module — reds
-    // it once per target module, in a merge request that has no reason to open
-    // this file. That is the failure mode AGENTS.md records for
+    // **61 -> 59 -> 58, and the total is expected to fall.** This is a ledger
+    // derived *about* the contributions rather than a copy of them, so T118c's
+    // sweep — which drains the 31 cross-module names into ports, module by
+    // module — reds it once per target module, in a merge request that has no
+    // reason to open this file. That is the failure mode AGENTS.md records for
     // `module-removal.test.ts`, and the answer is the same: re-derive the number
     // in the merge request that moves it, never widen the assertion. The first
     // two are `assets_library`'s (`assetsLibraryService`, contributed by both
     // roots and resolved by nobody, and `cmsAssetResolver`, now `cms`' own
-    // registration over `assetsLibraryPort`).
+    // registration over `assetsLibraryPort`). The third is `returnsBridge`, one
+    // name carrying eight members — the four settlement ports `returns` now
+    // resolves and declares, the address and the language that became that
+    // module's `services/notification-context.ts`, and two actor resolvers that
+    // were the platform's own contributions under a second pair of names. A
+    // bridge falls out of this count as one, which is worth knowing when reading
+    // the remaining seven: the count measures names, and the work is per member.
     // The floor below read `> 30` and is now `> 0`, because it was a **second**
     // number the sweep moves and it moved first: this drain took the deployment
     // to exactly 30. It was never the guard it looks like — a walk that stopped
@@ -243,7 +249,7 @@ describe('T118 — the contribution wiring is the platform’s and the values ar
 
     expect(deployment.size, 'the reference deployment contributes nothing — the walk broke')
       .toBeGreaterThan(0);
-    expect(deployment.size + PLATFORM_CONTRIBUTIONS.length).toBe(59);
+    expect(deployment.size + PLATFORM_CONTRIBUTIONS.length).toBe(58);
   });
 
   it('contributes before the caller’s callback, so a deployment can still override', () => {

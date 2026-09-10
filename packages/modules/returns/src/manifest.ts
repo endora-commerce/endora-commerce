@@ -85,11 +85,94 @@ export const manifest = defineModuleManifest({
   version: '1.0.0',
   // `auth` owns the `requireAdmin` port and the customer guard this module
   // resolves; feature 072 made both container resolutions.
+  //
+  // T118c adds `customer_accounts`, whose `customerAccountReadPort` answers where
+  // the authorize / reject e-mail goes. It arrived through `returnsBridge` until
+  // this feature — a closure each composition root wrote over that same port —
+  // so the edge was real and declared nowhere. It belongs in `dependencies`
+  // rather than below: that module declares `nonDeactivatable`, so it has no off
+  // state for a consequence to describe and the bind costs no operator a control.
+  //
+  // `orders` was already here, which is why `orderReturnContextPort` needs no
+  // line of its own. The other three settlement owners are deliberately **not**
+  // here — see `nonBindingDependencies`.
   dependencies: [
     'auth',
+    'customer_accounts',
     'orders',
     'settings',
     'transactional_emails',
+  ],
+  /**
+   * The three settlement owners an operator may switch off, and what stops when
+   * they do (`specs/110-instance-repository/` T118c; D-44).
+   *
+   * All three are `refuses-without` rather than `dependencies`, and the reason is
+   * the product's rather than the graph's. Settling a return is a **choice among
+   * resolutions**: a refund goes through `payments`, a credit through
+   * `credit_limits`, and the corrective document through `invoices` — and
+   * `ReturnSettlementService` reaches each one only for the resolution it is
+   * about. Binding them would make `payments.enabled`, `invoices.enabled` and
+   * `credit_limits.enabled` refuse their flip for as long as `returns` is
+   * present, which is a false coupling: a shop that offers no deferred-payment
+   * credit switches `credit_limits` off and goes on refunding returns exactly as
+   * before. Each is a `lazyPort` forward on a `di.providePort` name with no
+   * fallback, so the seam refuses at the settlement and the rest of this module
+   * keeps serving — which is what `refuses-without` says.
+   *
+   * Until T118c none of the three was declared anywhere: a composition root held
+   * the forwarder and a root's resolution is nobody's dependency, so the
+   * confirmation dialog for switching any of them off had nothing to say about
+   * returns at all. Nothing about the behaviour changes here; what the entries
+   * add is the sentence the operator reads.
+   */
+  nonBindingDependencies: [
+    {
+      moduleId: 'payments',
+      name: 'paymentRefundPort',
+      kind: 'refuses-without',
+      whenAbsent:
+        'a return cannot be settled as a refund — the money-back resolution refuses and the ' +
+        'case stays where it was, retryable; every other resolution, and the rest of the ' +
+        'returns flow, is unaffected',
+      reason:
+        'Only the `refund` resolution reaches this port, inside step 2 of the settlement, ' +
+        'before anything is written — so an absent owner leaves the case in `received` with ' +
+        'nothing half-applied, which is the same law the gateway`s own `failed` outcome ' +
+        'obeys. A `lazyPort` forward with no fallback. The degrade this port does own is in ' +
+        'its return type (`pending_manual`), and that is about a method that cannot refund ' +
+        'automatically, not about an owner that is not there.',
+    },
+    {
+      moduleId: 'invoices',
+      name: 'correctiveInvoicePort',
+      kind: 'refuses-without',
+      whenAbsent:
+        'no return that moves money can be settled while a corrective invoice is requested — ' +
+        'clearing that box on the settlement lets it through, and a replacement or a repair ' +
+        'is unaffected either way',
+      reason:
+        'The correction is attempted for every money-moving settlement unless the caller ' +
+        'passes `createCorrectiveInvoice: false`, so the refusal is wider than the other two ' +
+        'and the sentence says so rather than naming refunds. A `lazyPort` forward with no ' +
+        'fallback, called before any state is written, so the case stays retryable. ' +
+        '`invoices` declares `orders` and not this module, so no cycle forces this ' +
+        'classification — the operator`s control does.',
+    },
+    {
+      moduleId: 'credit_limits',
+      name: 'creditTopupPort',
+      kind: 'refuses-without',
+      whenAbsent:
+        'a return cannot be settled as store credit — the credit resolution refuses; refunds, ' +
+        'replacements and repairs are unaffected',
+      reason:
+        'Only the `credit` resolution reaches this port, and only for a case that carries an ' +
+        'organisation — a case without one already answers `applied: false` without asking. A ' +
+        '`lazyPort` forward with no fallback. Binding it would be the sharpest of the three ' +
+        'false couplings: a shop that grants no deferred-payment credit has every reason to ' +
+        'switch that module off and none to stop taking returns.',
+    },
   ],
   settings,
   i18n: { bundlesDir: 'i18n' },

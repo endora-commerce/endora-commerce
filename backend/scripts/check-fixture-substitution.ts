@@ -189,12 +189,15 @@ export const DEFAULTED_FIXTURE_READS: Readonly<Record<string, string>> = {
   // value ever reaches something other than an assertion.
   'integration/quote_requests/settings-channel.test.ts:rfq':
     'the fallback is the assertion\'s failure text — a vanished RFQ fails loudly as "missing"',
-  // A composition input, not a fixture read: the harness mirrors production's
-  // bridge, which answers a channel-less send with the platform fallback
-  // language. Retire the entry when `returns` takes the language from the
-  // resolved channel rather than from a bridge.
-  'helpers/test-server.ts:(inline)':
-    'harness bridge default mirroring production, not a fixture the test depends on',
+  // **`helpers/test-server.ts:(inline)` stood here and is retired**, on the
+  // condition the entry itself wrote down: *"when `returns` takes the language
+  // from the resolved channel rather than from a bridge"*. It described the
+  // harness's copy of `returnsBridge.resolveChannelLanguage` — a channel read
+  // defaulted to `en-US`, spelled once per composition root —
+  // and `specs/110-instance-repository/` T118c retired the bridge, so the
+  // module resolves the language itself and this harness holds no such read at
+  // all. The site is gone rather than excused, which is what makes this a
+  // deletion and not a re-word.
   // Surfaced by issue #275's destructuring widening — `const { rowCount } =
   // await client.query(…)` — and it is the `count(*)` family above rather than a
   // fixture read. `pg` types `rowCount` as `number | null` (it is `null` for a
