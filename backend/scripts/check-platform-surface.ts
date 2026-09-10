@@ -146,10 +146,12 @@ export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach
  * generator names each entity class by its own address), T119d (the two
  * `backend/scripts` analyses move into `@endora-commerce/cli`) and T119e (the
  * terminal criterion, owned by `specs/109-backend-test-kit/`). Every `retiredBy`
- * names the task that actually retires the entry, and for an entry with two
- * holders it names both: the shim is deleted when its **last** consumer has an
- * address, not its first. They all read *"Phase 2"* until T119a, which is the
- * phase T119 itself closed — a ledger of due dates in the past.
+ * names the task that actually retires the entry — which is the task giving its
+ * **last** consumer an address, never the first, since a shim is deleted when the
+ * last of them goes. An entry naming two tasks was a state this ledger held until
+ * T119d re-derived the last two of them; whether any entry is in it is printed by
+ * the run rather than written here (D-100). They all read *"Phase 2"* until T119a,
+ * which is the phase T119 itself closed — a ledger of due dates in the past.
  *
  * ## "Has an address" is asked of every declared subpath, not of the five
  *
@@ -245,6 +247,54 @@ export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach
  * entry's holder is a measurement and reads like a fact; both of these were
  * derived once, correctly for the reader they were derived by, and neither was
  * re-derived until the task that owned them ran.
+ *
+ * ## What T119d found, which is that it drains nothing
+ *
+ * The row's remedy is *the two `backend/scripts` analyses that read the
+ * platform's internals move into `@endora-commerce/cli`*, and its criterion was
+ * that the two entries those analyses hold open — `kernel/i18n/error-translation`
+ * and `tenancy/org-scoped.decorator` — retire with them. Re-derived over the
+ * branch tree, **neither does, and the count is zero rather than two.** The
+ * measurement is one table and it is worth keeping, because the entries' own
+ * `reason` strings named T119d as a retiring holder and a future author would
+ * otherwise attempt the move a second time — which is the failure mode T119's row
+ * records about the 17 entries that said *"the reach is a rewrite away from an
+ * address that exists"*.
+ *
+ * `error-translation.ts` has six consumers, one under `backend/scripts` and five
+ * under `backend/test/**`. The script names three symbols and exactly one of
+ * them, `ErrorCodeCollision`, is named by nothing else:
+ * `buildErrorTranslationTargets` is named by five of the tests and
+ * `describeErrorCodeCollisions` by two. `org-scoped.decorator.ts` has ten, one
+ * under `backend/scripts` and nine under `backend/test/**`, and the same shape —
+ * the script names `tenantClassifications` and `ScopeClass`, and
+ * `tenantClassifications` is named by seven of the tests. So moving the two
+ * checks takes **two symbols** out of the two holder sets and **no file** out of
+ * either consumer set.
+ *
+ * **And the move cannot supply an address either**, which is the larger half and
+ * the reason this is a finding rather than an arithmetic slip.
+ * `@endora-commerce/cli` declares no dependency on the host, and no subpath the
+ * host's `exports` map declares — published or host-internal — carries any of the
+ * five names. A relocated analysis therefore takes the derivation as a
+ * **parameter** from the runner that stays in `backend/scripts`, so the reach is
+ * where it was and the estate has been given the appearance of an owner rather
+ * than an owner. Nor can the symbols follow the checks into the package:
+ * `buildErrorTranslationTargets` and `describeErrorCodeCollisions` are called by
+ * `packages/platform/src/composition/compose-app.ts`, and `tenantClassifications`
+ * is the accessor of a module-scope array the decorators in its own file write.
+ *
+ * The row rules out the remaining answer — *a symbol published for a check to
+ * read would be a surface justified by our own tooling* — so what T119d leaves is
+ * an owner's question and not a rewrite. Two candidates, both recorded here so
+ * that whoever answers it starts from the measurement: the error-translation
+ * derivation is composition machinery by its own header (*"its input is the
+ * resolved manifest set, which is a composition-root input"*) and `compose-app.ts`
+ * is its first caller, so a **host-internal** `./composition` home for it is
+ * T119b's move applied once more and would be justified by composition rather
+ * than by tooling; the tenancy registry has no such argument and is T119e's
+ * shape, its three names being ones `published-surface.test.ts` refuses
+ * individually and by reason.
  */
 export const RELATIVE_HOST_REACHES: Readonly<Record<string, LedgeredHostReach>> = {
   // === HELD BY A TEST NAMING A SYMBOL THE PLATFORM DECIDED NOT TO PUBLISH (T119e) ===
@@ -381,27 +431,46 @@ export const RELATIVE_HOST_REACHES: Readonly<Record<string, LedgeredHostReach>> 
       'publish',
   },
 
-  // === HELD BY MORE THAN ONE ===
+  // === HOLDER RE-DERIVED, AND THE ANSWER WAS T119e ALONE ===
   //
-  // The shim is deleted when its **last** consumer has an address, so an entry with
-  // two holders retires with the later of the two and not with the first. Each
-  // `retiredBy` below names every one of them; how many entries that is is printed
-  // by the run (`ledger-size=`) and is deliberately not written here (D-100).
+  // Same state as the group above and a different history: each of these four was
+  // recorded as held by a task of this group *as well as* by T119e, and in each
+  // case the extra holder did not survive being re-derived over the tree. The
+  // heading used to read *"held by more than one"* and was the derived claim it
+  // warned about — T119b's and T119d's re-derivations emptied it while it went on
+  // saying otherwise (D-100), which is why what a group records is now its own
+  // sentence rather than a count of the rows under it.
+  //
+  // A shim is deleted when its **last** consumer has an address, so the question
+  // an entry answers is never *"is a task about to move a consumer"* but *"is any
+  // symbol left that something else names"*. T119d is the worked example and is
+  // written out in the two entries that carry it: moving a check out of
+  // `backend/scripts` takes one symbol out of each holder set and no file out of
+  // either consumer set, because every other name that check reaches for is a name
+  // a test under `backend/test/**` reaches for too.
 
   'backend/src/kernel/i18n/error-translation.ts|packages/platform/src/kernel/i18n/error-translation.ts': {
     reason:
       'a re-export shim over `packages/platform/src/kernel/i18n/error-translation.ts`, ' +
       'which no declared barrel carries: no subpath the `exports` map declares answers for ' +
       '`ErrorCodeCollision`, `ErrorCodeDeclarationSource`, `ErrorTranslationTarget`, ' +
-      '`buildErrorTranslationTargets`, `describeErrorCodeCollisions`. What holds it open, ' +
-      'and the entry stands until the last of them: T119d takes `ErrorCodeCollision`, ' +
-      '`buildErrorTranslationTargets`, `describeErrorCodeCollisions`; T119e takes ' +
-      '`ErrorCodeDeclarationSource`, `ErrorTranslationTarget`, ' +
-      '`buildErrorTranslationTargets`, `describeErrorCodeCollisions`.',
+      '`buildErrorTranslationTargets`, `describeErrorCodeCollisions`. **T119d does not ' +
+      'retire it and this entry no longer names it**, which is a re-derivation over the ' +
+      'branch tree and not a relay. T119d moves the one `backend/scripts` consumer; of the ' +
+      'three symbols that consumer names, exactly one — `ErrorCodeCollision` — is named by ' +
+      'nothing else. `buildErrorTranslationTargets` is named by five files under ' +
+      '`backend/test/**` and `describeErrorCodeCollisions` by two, so moving the script ' +
+      'takes one symbol out of the holder set and no file out of the consumer set, and a ' +
+      'shim is deleted when its **last** consumer has an address. The second half of the ' +
+      're-derivation is why no address arrives with the move: `@endora-commerce/cli` ' +
+      'declares no dependency on the host and no declared subpath, published or ' +
+      'host-internal, carries any of these five names, so the relocated analysis takes the ' +
+      'derivation as a parameter and the reach stays where it was. What holds it open is ' +
+      'T119e.',
     retiredBy:
-      '`specs/110-instance-repository/` T119d and T119e — the entry stands until the last ' +
-      'of them: the shim is deleted when its **last** consumer has an address, not its ' +
-      'first',
+      '`specs/110-instance-repository/` T119e — `@endora-commerce/test-kit` grows the ' +
+      'capability the test asks for, so no test names a symbol the platform decided not to ' +
+      'publish',
   },
   'backend/src/kernel/lifecycle/registry-cache.ts|packages/platform/src/kernel/lifecycle/registry-cache.ts': {
     reason:
@@ -444,14 +513,21 @@ export const RELATIVE_HOST_REACHES: Readonly<Record<string, LedgeredHostReach>> 
       'declared barrels carry `CustomerScoped`, `GlobalEntity`, `OrgScoped`, `RuleScoped`, ' +
       '`TransitivelyScoped`, and none of `ScopeClass`, `UnresolvableTenantParentError`, ' +
       '`assertTransitiveParentsResolve`, `resolveTransitiveParent`, ' +
-      '`tenantClassifications`. What holds it open, and the entry stands until the last of ' +
-      'them: T119d takes `ScopeClass`, `tenantClassifications`; T119e takes ' +
-      '`UnresolvableTenantParentError`, `assertTransitiveParentsResolve`, ' +
-      '`resolveTransitiveParent`, `tenantClassifications`.',
+      '`tenantClassifications`. **T119d does not retire it and this entry no longer names ' +
+      'it**, on the same re-derivation as the `error-translation.ts` entry above. T119d ' +
+      'moves the one `backend/scripts` consumer, `lib/package-declarations.ts`, which names ' +
+      '`tenantClassifications` and `ScopeClass`; `tenantClassifications` is named by seven ' +
+      'further files under `backend/test/**`, so only `ScopeClass` leaves the holder set ' +
+      'and no file leaves the consumer set. Nor can the registry itself move to the estate ' +
+      'that reads it: `tenantClassifications` is the accessor of a module-scope array the ' +
+      'decorators in that same file write, and reading a classification recorded in some ' +
+      'other copy of it is reading a classification the global filters never apply. ' +
+      '`published-surface.test.ts` refuses all three registry names by name, each with its ' +
+      'own reason. What holds it open is T119e.',
     retiredBy:
-      '`specs/110-instance-repository/` T119d and T119e — the entry stands until the last ' +
-      'of them: the shim is deleted when its **last** consumer has an address, not its ' +
-      'first',
+      '`specs/110-instance-repository/` T119e — `@endora-commerce/test-kit` grows the ' +
+      'capability the test asks for, so no test names a symbol the platform decided not to ' +
+      'publish',
   },
 };
 
