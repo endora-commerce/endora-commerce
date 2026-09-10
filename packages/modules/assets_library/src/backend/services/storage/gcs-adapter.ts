@@ -12,6 +12,7 @@ import type {
   StorageResolveUrlOutput,
 } from './storage-adapter.js';
 import { computeLocator } from './locator.js';
+import { resolvePublicUrlBase } from './public-url-base.js';
 import {
   BackendUnavailableError,
   ConfigurationError,
@@ -22,16 +23,36 @@ export interface GcsAdapterConfig {
   bucket: string;
   serviceAccountJson?: string;
   prefix?: string;
+  /**
+   * `assets.gcs.public_base_url` — a CDN or custom domain in front of the
+   * bucket. Blank means the bucket's own origin, which is already absolute.
+   */
   publicBaseUrl?: string;
+  /**
+   * This deployment's resolved public API origin — D-223's fallback base, with
+   * the same bound as the S3 adapter's: it rescues a `publicBaseUrl` written as
+   * a path, and a blank one keeps resolving to the bucket, which serves the
+   * bytes this API does not.
+   */
+  publicApiBaseUrl: string;
   privateUrlTtlSec: number;
 }
 
 export class GcsStorageAdapter implements StorageAdapter {
   readonly code = 'gcs' as const;
   private readonly bucket: Bucket;
+  /** The absolute base public object URLs are built on — decided once (D-223). */
+  private readonly publicBase: string;
 
   constructor(private readonly cfg: GcsAdapterConfig) {
     if (!cfg.bucket) throw new ConfigurationError('GcsStorageAdapter: bucket is required');
+    const configuredBase = (cfg.publicBaseUrl ?? '').trim();
+    this.publicBase = resolvePublicUrlBase(
+      configuredBase.length > 0
+        ? configuredBase
+        : `https://storage.googleapis.com/${cfg.bucket}`,
+      cfg.publicApiBaseUrl,
+    );
     let credentials: Record<string, unknown> | undefined;
     if (cfg.serviceAccountJson && cfg.serviceAccountJson.trim().length > 0) {
       try {
@@ -86,10 +107,7 @@ export class GcsStorageAdapter implements StorageAdapter {
 
   async resolveUrl(input: StorageResolveUrlInput): Promise<StorageResolveUrlOutput> {
     if (input.visibility === 'public') {
-      const base = (
-        this.cfg.publicBaseUrl ?? `https://storage.googleapis.com/${this.cfg.bucket}`
-      ).replace(/\/+$/, '');
-      return { url: `${base}/${input.locator}`, expiresAt: null };
+      return { url: `${this.publicBase}/${input.locator}`, expiresAt: null };
     }
     const ttl = input.ttlSec ?? this.cfg.privateUrlTtlSec;
     if (!Number.isInteger(ttl) || ttl <= 0) {

@@ -5,7 +5,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { SalesChannel, resolvePublicApiBaseUrl } from '@endora-commerce/platform/kernel';
 
 /**
  * `specs/110-instance-repository/` T118c — a CMS page's asset embed resolves, and
@@ -57,11 +57,20 @@ describe('storefront CMS asset embed contract (T118c)', () => {
    * the catalog gallery and blog contract tests seed the same way.
    *
    * The `url` the response carries is **not** this row's `storage_url` — it is
-   * `/assets/file/<id>`, produced by the active storage adapter on every read
-   * (`assetSummarySchema`' own words). Measured rather than assumed: the first
-   * draft of this file asserted `storage_url` and failed on exactly that
+   * `<origin>/assets/file/<id>`, produced by the active storage adapter on every
+   * read (`assetSummarySchema`' own words). Measured rather than assumed: the
+   * first draft of this file asserted `storage_url` and failed on exactly that
    * difference, which is worth keeping in the record because it is the one thing
    * about this response a reader would guess wrong.
+   *
+   * **`<origin>` arrived with D-223.** This expectation read `/assets/file/<id>`
+   * and is the place the ruling names as the correct one to see the change:
+   * `assets_library` resolves the deployment's public API origin itself, so a
+   * storefront on another host renders the embed instead of requesting an image
+   * from itself. The origin is derived rather than spelled — a developer with
+   * `PUBLIC_API_BASE_URL` or `PORT` exported would otherwise fail on their own
+   * environment — and the *shape* is asserted separately below, which is the
+   * half a derived expectation cannot state.
    */
   async function seedAsset(): Promise<{ id: string; url: string }> {
     const id = randomUUID();
@@ -71,7 +80,7 @@ describe('storefront CMS asset embed contract (T118c)', () => {
        values (?, 'image', 'hero.png', 'image/png', 2048, ?, 'Hero image', 'public', now(), now())`,
       [id, `https://example.test/${id}.png`],
     );
-    return { id, url: `/assets/file/${id}` };
+    return { id, url: `${resolvePublicApiBaseUrl()}/assets/file/${id}` };
   }
 
   /** A published page whose Puck tree carries one `assetId` prop. */
@@ -147,6 +156,12 @@ describe('storefront CMS asset embed contract (T118c)', () => {
       label: 'Hero image',
       visibility: 'public',
     });
+    // D-223, as a claim about the shape rather than about this deployment's
+    // origin: a storefront is served from another host, so an embed URL that
+    // starts with `/` is a request that host makes of itself.
+    expect(String((body.data.assets[asset.id] as { url: string }).url)).toMatch(
+      /^https?:\/\/[^/]+\/assets\/file\//,
+    );
   });
 
   it('omits an asset the library no longer has, and keeps the page', async () => {

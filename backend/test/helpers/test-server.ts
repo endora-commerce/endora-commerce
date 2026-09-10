@@ -377,6 +377,18 @@ export interface BackendServerHandle {
     invoiceService: InvoicesCradle['invoiceService'];
     numberGenerator: InvoicesCradle['invoiceNumberGenerator'];
     pdfRenderer: InvoicesCradle['invoicePdfRenderer'];
+    /**
+     * The bridge member that turns the operator's logo asset into the bytes a
+     * PDF embeds — projected so a test can assert the **wiring** and not only
+     * the mapping (D-223).
+     *
+     * It is optional on `InvoicesBridge`, so its absence compiled, and this root
+     * omitted it entirely: every invoice rendered in this suite took the "no
+     * logo bytes" branch while production embedded the logo. The type stays
+     * optional here, because the first thing worth asserting is that it is
+     * there at all.
+     */
+    loadAssetImage: InvoicesCradle['invoicesBridge']['loadAssetImage'];
   };
   /** Feature 059 — KSeF handle (settings, auth, credentials, submissions). */
   ksef: KsefCradle['ksef']['handle'];
@@ -1756,6 +1768,11 @@ export async function setupBackendServer(
               return { id: detail.id };
             },
           },
+          // D-223 — identical to `composition.ts` now, and that is the point:
+          // production used to wrap this in `absolutizePublicUrl` and this root
+          // did not, so a push payload's icon URL was absolute in production and
+          // host-relative under the harness. Neither root rebases anything any
+          // more, because `assets_library` returns an absolute URL.
           resolveAssetUrl: async (assetId: string) => {
             try {
               return (await assetsLibrary.handle.service.resolveUrl(assetId)).url;
@@ -2045,11 +2062,25 @@ export async function setupBackendServer(
       // files now. What stays a composition's: who is asking (production reads
       // `request.actor`, the harness `request.testActor`), and the bridge into
       // `shopping_lists`, which points outward and so cannot be a port.
-      // Feature 072 (T120) — the harness resolves no asset URLs, which is the
-      // module's own default; naming it keeps the difference from production
-      // visible rather than implied by an omission.
+      // Feature 072 (T120) — how an asset id becomes a public URL inside an
+      // e-mail, mirroring `composition.ts`.
+      //
+      // **This was `async () => null` until D-223**, with a note saying the
+      // harness deliberately resolved no asset URLs. The cost of that decision
+      // was not visible from it: the module's own default is the same `null`,
+      // so contributing it changed nothing and the production closure — the one
+      // an operator's branded e-mail actually runs through — was exercised by no
+      // test in the tree. A logo that renders as a broken image in every mail
+      // client is exactly the defect this contribution exists to prevent, so the
+      // harness composes the real thing now.
       composedModules.contribute({
-        transactionalEmailAssetUrl: async (): Promise<string | null> => null,
+        transactionalEmailAssetUrl: async (assetId: string): Promise<string | null> => {
+          try {
+            return (await assetsLibrary.handle.service.resolveUrl(assetId)).url;
+          } catch {
+            return null;
+          }
+        },
       });
 
       // Feature 072 (T142) — mirrors `composition.ts`. The harness runs no
@@ -2423,6 +2454,36 @@ export async function setupBackendServer(
             (salesChannelId
               ? (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage
               : null) ?? 'en-US',
+          // D-223 — `loadAssetImage` was **absent from this root entirely**. It
+          // is optional on the bridge, so its omission compiled, and the invoice
+          // PDF renderer simply took its "no logo bytes" branch in every test
+          // while production embedded the operator's logo. The member is not a
+          // URL and is untouched by the ruling itself; it is composed here
+          // because the ruling's survey is what found the hole, and an asset
+          // inside a document was the one thing neither root's tests exercised.
+          //
+          // Byte-for-byte `composition.ts`': the row read sits outside the
+          // `try`, because `assetReadPort` is a gated port and a `catch` around
+          // one turns "this capability is off" into "this asset is not an
+          // image" (composition checklist item 7). The `try` covers the storage
+          // adapter, where a backend that cannot stream is an invoice rendered
+          // without a logo.
+          loadAssetImage: async (assetId) => {
+            const a = await assetReadPort().findById(assetId, { liveOnly: true });
+            if (!a || !a.mimeType.startsWith('image/')) return null;
+            try {
+              const adapter = await assetsLibrary.handle.adapters.getForBackend(a.storageBackend);
+              if (!('open' in adapter) || typeof adapter.open !== 'function') return null;
+              const stream = await adapter.open({ locator: a.storageLocator || a.storageUrl });
+              const chunks: Buffer[] = [];
+              for await (const chunk of stream) {
+                chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+              }
+              return { bytes: Buffer.concat(chunks), mimeType: a.mimeType };
+            } catch {
+              return null;
+            }
+          },
         } satisfies InvoicesBridge,
       });
       invoicesCradle = container.cradle as unknown as InvoicesCradle;
@@ -2493,6 +2554,13 @@ export async function setupBackendServer(
             (
               container.cradle as never as { catalogQueryPort: CatalogQueryService }
             ).catalogQueryPort.expandCategoryProductIds(categoryIds),
+          // D-223 — identical to `composition.ts`. This root used to publish a
+          // URL only when it already began `http`, so on a local-filesystem
+          // deployment with a blank `assets.local.public_url_base` every product
+          // image dropped out of the feed here while production rebased it onto
+          // the configured origin: the two roots produced feeds with and without
+          // images from the same data. Both now take the module's absolute URL,
+          // and the only asset either skips is a signed one.
           resolvePublicImageUrls: async (assetIds: string[]) => {
             const out = new Map<string, string>();
             if (assetIds.length === 0) return out;
@@ -2502,10 +2570,8 @@ export async function setupBackendServer(
             for (const asset of assets) {
               try {
                 const resolved = await assetsLibrary.handle.service.resolveUrl(asset.id);
-                // Signed ⇒ not stable ⇒ not publishable (FR-043).
-                if (resolved.expiresAt === null && /^https?:\/\//i.test(resolved.url)) {
-                  out.set(asset.id, resolved.url);
-                }
+                if (resolved.expiresAt !== null) continue; // signed ⇒ not stable
+                out.set(asset.id, resolved.url);
               } catch {
                 // Unresolvable ⇒ simply not an image for this feed.
               }
@@ -2717,6 +2783,7 @@ export async function setupBackendServer(
       invoiceService: invoicesCradle.invoiceService,
       numberGenerator: invoicesCradle.invoiceNumberGenerator,
       pdfRenderer: invoicesCradle.invoicePdfRenderer,
+      loadAssetImage: invoicesCradle.invoicesBridge.loadAssetImage,
     },
     ksef: ksefCradle.ksef.handle,
     productFeeds: (container.cradle as unknown as ProductFeedsCradle).productFeeds.handle,

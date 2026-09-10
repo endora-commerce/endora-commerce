@@ -12,7 +12,7 @@ import type { StorageAdapter, StorageBackendCode } from './storage-adapter.js';
 import { LocalFsStorageAdapter } from './local-fs-adapter.js';
 import { S3StorageAdapter } from './s3-adapter.js';
 import { GcsStorageAdapter } from './gcs-adapter.js';
-import { legacyAssetResolver } from './legacy-resolver.js';
+import { createLegacyAssetResolver, type LegacyAssetResolver } from './legacy-resolver.js';
 import { ConfigurationError } from './errors.js';
 import type { HmacSigner } from '../hmac.js';
 
@@ -53,6 +53,15 @@ export interface AdapterRegistryOptions {
   settings: AdapterSettingsView;
   /** Provider; invoked on first need so tests that never sign a URL can skip env setup. */
   signer: () => HmacSigner;
+  /**
+   * This deployment's resolved public API origin (D-223).
+   *
+   * Handed to every adapter it builds, and to the legacy resolver, so that the
+   * fallback base is decided at **construction** — never at the setting's
+   * declaration, which cannot read the environment, and never by a consumer,
+   * which cannot know which backend produced the URL or whether it is signed.
+   */
+  publicApiBaseUrl: string;
 }
 
 export class AdapterRegistry {
@@ -81,8 +90,8 @@ export class AdapterRegistry {
    */
   async getForBackend(
     backend: StorageBackendCode,
-  ): Promise<StorageAdapter | typeof legacyAssetResolver> {
-    if (backend === 'legacy') return legacyAssetResolver;
+  ): Promise<StorageAdapter | LegacyAssetResolver> {
+    if (backend === 'legacy') return createLegacyAssetResolver(this.opts.publicApiBaseUrl);
     if (this.cached && this.cached.code === backend) return this.cached.adapter;
     return this.build(backend);
   }
@@ -90,12 +99,15 @@ export class AdapterRegistry {
   private async build(code: StorageBackendCode): Promise<StorageAdapter> {
     if (code === 'local') {
       const baseDir = await this.opts.settings.localBaseDir();
-      const rawBase = (await this.opts.settings.localPublicUrlBase()).trim();
-      const publicUrlBase = rawBase.length > 0 ? rawBase : '';
+      // Blank stays blank here on purpose: the adapter decides what a blank
+      // base means (D-223 — this deployment's public API origin), so there is
+      // one place that answers it rather than one per construction site.
+      const publicUrlBase = (await this.opts.settings.localPublicUrlBase()).trim();
       const privateUrlTtlSec = await this.opts.settings.privateUrlTtlSec();
       return new LocalFsStorageAdapter({
         baseDir,
         publicUrlBase,
+        publicApiBaseUrl: this.opts.publicApiBaseUrl,
         privateUrlTtlSec,
         signer: this.opts.signer(),
       });
@@ -115,6 +127,7 @@ export class AdapterRegistry {
         ...(cfg.publicBaseUrl !== undefined && cfg.publicBaseUrl.length > 0
           ? { publicBaseUrl: cfg.publicBaseUrl }
           : {}),
+        publicApiBaseUrl: this.opts.publicApiBaseUrl,
         privateUrlTtlSec: ttl,
       });
     }
@@ -130,6 +143,7 @@ export class AdapterRegistry {
         ...(cfg.publicBaseUrl !== undefined && cfg.publicBaseUrl.length > 0
           ? { publicBaseUrl: cfg.publicBaseUrl }
           : {}),
+        publicApiBaseUrl: this.opts.publicApiBaseUrl,
         privateUrlTtlSec: ttl,
       });
     }

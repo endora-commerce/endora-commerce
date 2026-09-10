@@ -549,18 +549,19 @@ const HOST_COMPOSITION_SURFACE: Readonly<Record<string, readonly string[]>> = {
   ],
   'kernel/request-scope-hook.ts': ['registerRequestScopeHook'],
   'kernel/logging.ts': ['platformLogger'],
-  // T119b. `./kernel` carries `RequireAdminFactory` and
-  // `PublicApiBaseUrlNotConfiguredError`, which are what a module reads; the
-  // absolutiser is what a root *supplies*.
+  // T119b. `kernel/public-api-base-url.ts` was here for `absolutizePublicUrl`,
+  // and is gone with **D-223**, which took the application's last two reaches
+  // for it: `composition.ts` rebased the `pwa` asset bridge's and the
+  // transactional-email URL on it, and `assets_library` resolves the origin
+  // itself now, so every URL it returns is already absolute. `./kernel` still
+  // carries `RequireAdminFactory` and `PublicApiBaseUrlNotConfiguredError`,
+  // which are what a module reads.
   //
-  // `kernel/ports/require-admin.ts` was here for `AdminActorPromotion` and is
-  // gone with T118c's `mfaActorBridge` drain, which took the application's last
-  // reach for that type — `composition.ts` read `promoteAdminActor` off the
-  // cradle to build the bridge. This table and the barrel are reconciled both
-  // ways, so a name with no consumer outside the platform belongs to neither.
-  // The two merge requests were each correct alone: one added the name because
-  // a consumer existed, the other removed the consumer.
-  'kernel/public-api-base-url.ts': ['absolutizePublicUrl'],
+  // `kernel/ports/require-admin.ts` went the same way for `AdminActorPromotion`
+  // with T118c's `mfaActorBridge` drain. This table and the barrel are
+  // reconciled both ways, so a name with no consumer outside the platform
+  // belongs to neither, and each such merge request is correct alone: one adds
+  // the name because a consumer exists, the next removes the consumer.
   'kernel/lifecycle/registry-cache.ts': ['registryCache', 'publishStateChanged'],
   'kernel/lifecycle/activation-resolver.ts': ['activationDeclarationsFrom'],
   'kernel/lifecycle/required-modules.ts': ['requiredModulesFrom'],

@@ -9,6 +9,7 @@ import { HmacSigner } from '../hmac.js';
 
 const KEY_HEX = '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff';
 const ASSET_ID = 'aabbccdd-1111-2222-3333-444455556666';
+const API_ORIGIN = 'https://api.example.test';
 
 let baseDir: string;
 let adapter: LocalFsStorageAdapter;
@@ -18,6 +19,7 @@ beforeEach(async () => {
   adapter = new LocalFsStorageAdapter({
     baseDir,
     publicUrlBase: 'http://localhost:3001',
+    publicApiBaseUrl: API_ORIGIN,
     privateUrlTtlSec: 300,
     signer: HmacSigner.fromEnv(KEY_HEX),
   });
@@ -36,6 +38,7 @@ describe('LocalFsStorageAdapter.selfCheck', () => {
     const missing = new LocalFsStorageAdapter({
       baseDir: join(baseDir, 'does-not-exist'),
       publicUrlBase: 'http://localhost:3001',
+      publicApiBaseUrl: API_ORIGIN,
       privateUrlTtlSec: 300,
       signer: HmacSigner.fromEnv(KEY_HEX),
     });
@@ -95,6 +98,68 @@ describe('LocalFsStorageAdapter.resolveUrl', () => {
     const exp = Math.floor((out.expiresAt as Date).getTime() / 1000);
     expect(exp).toBeGreaterThan(Math.floor(Date.now() / 1000));
     expect(exp).toBeLessThanOrEqual(Math.floor(Date.now() / 1000) + 300 + 5);
+  });
+});
+
+describe('LocalFsStorageAdapter.resolveUrl — the D-223 fallback', () => {
+  /**
+   * The whole point of the ruling, at the one adapter whose blank base produced
+   * a host-relative URL: `assets.local.public_url_base` is empty on every
+   * deployment that never set it, and what came back was `/assets/file/<id>` —
+   * correct only for a browser on the API host, and wrong for an e-mail, a push
+   * payload and a partner's feed reader.
+   */
+  it('builds on the resolved API origin when the configured base is blank', async () => {
+    const withoutBase = new LocalFsStorageAdapter({
+      baseDir,
+      publicUrlBase: '',
+      publicApiBaseUrl: API_ORIGIN,
+      privateUrlTtlSec: 300,
+      signer: HmacSigner.fromEnv(KEY_HEX),
+    });
+    const out = await withoutBase.resolveUrl({
+      locator: `aa/bb/${ASSET_ID}.jpg`,
+      visibility: 'public',
+    });
+    expect(out.url).toBe(`${API_ORIGIN}/assets/file/${ASSET_ID}`);
+  });
+
+  /** The signed form is absolute too, and its signature survives the rebase. */
+  it('signs a private URL on the same origin, query intact', async () => {
+    const withoutBase = new LocalFsStorageAdapter({
+      baseDir,
+      publicUrlBase: '   ',
+      publicApiBaseUrl: API_ORIGIN,
+      privateUrlTtlSec: 300,
+      signer: HmacSigner.fromEnv(KEY_HEX),
+    });
+    const out = await withoutBase.resolveUrl({
+      locator: `aa/bb/${ASSET_ID}.jpg`,
+      visibility: 'private',
+    });
+    expect(out.url.startsWith(`${API_ORIGIN}/assets/file/${ASSET_ID}?`)).toBe(true);
+    expect(out.url).toMatch(/[?&]token=[0-9a-f]{64}/);
+    expect(out.url).toMatch(/[?&]exp=\d+/);
+  });
+
+  /**
+   * D-223, stated as an assertion rather than as a note: an operator who set
+   * `assets.local.public_url_base` explicitly keeps winning over the fallback.
+   * A CDN in front of the API is exactly why that setting exists.
+   */
+  it('keeps an explicitly configured base ahead of the API origin', async () => {
+    const withCdn = new LocalFsStorageAdapter({
+      baseDir,
+      publicUrlBase: 'https://cdn.example.test/',
+      publicApiBaseUrl: API_ORIGIN,
+      privateUrlTtlSec: 300,
+      signer: HmacSigner.fromEnv(KEY_HEX),
+    });
+    const out = await withCdn.resolveUrl({
+      locator: `aa/bb/${ASSET_ID}.jpg`,
+      visibility: 'public',
+    });
+    expect(out.url).toBe(`https://cdn.example.test/assets/file/${ASSET_ID}`);
   });
 });
 

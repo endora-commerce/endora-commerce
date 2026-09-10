@@ -2,8 +2,15 @@
 // directory (settings: `assets.local.baseDir`, default `var/assets`) using
 // the sharded path scheme from research.md R5.
 //
-// Public URLs are stable (`/assets/file/<assetId>`), served by routes.public.ts.
-// Private URLs append `?token=<hmac>&exp=<unix>` validated by the same route.
+// Public URLs are stable (`<base>/assets/file/<assetId>`), served by
+// routes.public.ts. Private URLs append `?token=<hmac>&exp=<unix>` validated by
+// the same route.
+//
+// `<base>` is absolute since D-223: `assets.local.public_url_base` when the
+// operator set one, this deployment's resolved public API origin when they did
+// not. It used to be the empty string in the second case, which made every URL
+// this adapter produced host-relative and left four composition-root sites and
+// two frontend helpers compensating for it, disagreeing.
 
 import { createReadStream, type ReadStream } from 'node:fs';
 import { mkdir, rename, stat, unlink, access, constants as fsConstants } from 'node:fs/promises';
@@ -20,6 +27,7 @@ import type {
   StorageResolveUrlOutput,
 } from './storage-adapter.js';
 import { computeLocator } from './locator.js';
+import { resolvePublicUrlBase } from './public-url-base.js';
 import type { HmacSigner } from '../hmac.js';
 import {
   BackendUnavailableError,
@@ -30,8 +38,22 @@ import {
 export interface LocalFsAdapterOptions {
   /** Filesystem root that holds every asset. */
   baseDir: string;
-  /** Public-facing URL prefix (no trailing slash). Used for public asset URLs. */
+  /**
+   * Public-facing URL prefix (no trailing slash), from
+   * `assets.local.public_url_base`. Blank on every deployment that never set
+   * it — see {@link LocalFsAdapterOptions.publicApiBaseUrl}.
+   */
   publicUrlBase: string;
+  /**
+   * This deployment's resolved public API origin — D-223's fallback base, used
+   * when `publicUrlBase` is blank.
+   *
+   * **Required rather than optional.** An omission here is a host-relative URL
+   * inside an e-mail, a push payload or a partner's feed, which is precisely
+   * the silent, safe-path-is-the-tested-path shape this module removed once
+   * before (feature 072, T092, `requireAdmin`).
+   */
+  publicApiBaseUrl: string;
   /** TTL for private URL signatures, in seconds. */
   privateUrlTtlSec: number;
   /** HMAC signer for private URLs. */
@@ -43,12 +65,20 @@ export interface LocalFsAdapterOptions {
 export class LocalFsStorageAdapter implements StorageAdapter {
   readonly code = 'local' as const;
 
+  /**
+   * The origin-and-prefix every URL this adapter builds starts with, decided
+   * once at construction: the operator's configured base when there is one,
+   * this deployment's public API origin when there is not (D-223).
+   */
+  private readonly publicBase: string;
+
   constructor(private readonly opts: LocalFsAdapterOptions) {
     if (!isAbsolute(opts.baseDir)) {
       // Resolve relative to process cwd at construction time so we never
       // accidentally write outside the configured tree.
       this.opts = { ...opts, baseDir: join(process.cwd(), opts.baseDir) };
     }
+    this.publicBase = resolvePublicUrlBase(opts.publicUrlBase, opts.publicApiBaseUrl);
   }
 
   async selfCheck(): Promise<StorageAdapterSelfCheck> {
@@ -98,7 +128,7 @@ export class LocalFsStorageAdapter implements StorageAdapter {
 
   async resolveUrl(input: StorageResolveUrlInput): Promise<StorageResolveUrlOutput> {
     const assetId = parseAssetIdFromLocator(input.locator);
-    const base = this.opts.publicUrlBase.replace(/\/+$/, '');
+    const base = this.publicBase;
     if (input.visibility === 'public') {
       return { url: `${base}/assets/file/${assetId}`, expiresAt: null };
     }

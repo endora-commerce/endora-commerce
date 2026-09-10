@@ -121,9 +121,19 @@ export function resolvePublicApiBaseUrl(env: NodeJS.ProcessEnv = process.env): s
  *
  * **The default base is the two spellings this function has always read, in the
  * order it has always read them** — not {@link configuredPublicApiBaseUrl}.
- * Unifying them is right and is a separate change: the two disagree on
- * precedence when both variables are set to different origins, which would move
- * a URL rather than move a file.
+ * The two disagree on precedence when both variables are set to different
+ * origins, and that disagreement is one of the five answers **D-223** ended.
+ *
+ * **It has no consumer today, and that is the state the ruling left it in.**
+ * `assets_library` resolves the public API origin itself and every URL it
+ * produces is absolute, so the two composition-root call sites this function
+ * existed for — the PWA asset bridge and the transactional-email asset URL —
+ * are gone, and it came off the `./composition` barrel with them, which is what
+ * holding that barrel to its consumers in both directions means. The
+ * declaration stays: it is a correct, tested helper, and it returns to the
+ * barrel the day an application needs one again. What it must not become is a
+ * *sixth* answer to the question the ruling settled — a consumer rebasing a URL
+ * a module already made absolute is a consumer that can disagree with it.
  */
 export function absolutizePublicUrl(
   url: string | null | undefined,

@@ -1049,7 +1049,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Quality-job shape: the ignored copies `composer:generate` places under
     // `docs/docs/modules/` swept first, because no job has placed them when these checks
     // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
-    files: 1997,
+    // **D-223: files 2003 -> 2004 (+1).** The module source it adds,
+    // `packages/modules/assets_library/src/backend/services/storage/public-url-base.ts`.
+    // **Re-measured on the union after rebasing onto T119c.** That task rewrote 416 entity
+    // specifiers onto bare subpaths and deleted the six shims behind them, so this walk reads
+    // fewer files than the 2004 recorded against the tree before it: 1998. This branch's own
+    // additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 1998,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1316,7 +1323,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Quality-job shape: the ignored copies `composer:generate` places under
     // `docs/docs/modules/` swept first, because no job has placed them when these checks
     // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
-    files: 2124,
+    // **D-223: files 2130 -> 2131 (+1).** The module source it adds,
+    // `packages/modules/assets_library/src/backend/services/storage/public-url-base.ts`.
+    // **Re-measured on the union after rebasing onto T119c.** That task rewrote 416 entity
+    // specifiers onto bare subpaths and deleted the six shims behind them, so this walk reads
+    // fewer files than the 2131 recorded against the tree before it: 2125. This branch's own
+    // additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 2125,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1394,7 +1408,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/modules/cms/src/backend/services/asset-embed-resolver.ts`.
     // **T118c, `returnsBridge`: +1 file** — `returns`' new module source. It writes
     // nothing.
-    files: 1700,
+    // **D-223: files 1700 -> 1701 (+1).** The module source it adds,
+    // `packages/modules/assets_library/src/backend/services/storage/public-url-base.ts`.
+    files: 1701,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -1484,7 +1500,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the combined tree, never summed from the two sides' deltas.
     // **T118c, `returnsBridge`: +2 files** — the new module source and its co-located
     // test.
-    files: 2196,
+    // **D-223: files 2196 -> 2199 (+3).** `public-url-base.ts` plus the two co-located
+    // tests beside it, `public-url-base.test.ts` and `services/assets-library-url.test.ts`.
+    files: 2199,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -1880,7 +1898,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Quality-job shape: the ignored copies `composer:generate` places under
     // `docs/docs/modules/` swept first, because no job has placed them when these checks
     // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
-    files: 5466,
+    // **D-223: files 5472 -> 5477 (+5).** The five `.ts` files it adds:
+    // `public-url-base.ts`, its two co-located tests and the two integration tests.
+    // **Re-measured on the union after rebasing onto T119c.** That task rewrote 416 entity
+    // specifiers onto bare subpaths and deleted the six shims behind them, so this walk reads
+    // fewer files than the 5477 recorded against the tree before it: 5471. This branch's own
+    // additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 5471,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1980,7 +2005,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // it now computes the specifier from the platform's own source root, and the
     // `.ts` -> `.js` rewrite in that derivation is a `replaceSite`. No fold and no slug
     // run, so `findings` is unchanged.
-    sites: 544,
+    // **D-223: sites 543 -> 540 (-3).** Four trailing/leading-slash `.replace()` calls gone
+    // — one per storage adapter, plus the hand-written origin join in
+    // `backend/src/composition.ts` — against one added, `withoutTrailingSlash` in
+    // `public-url-base.ts`. That is the shape of the ruling in this walk's own terms: five
+    // places that trimmed a base became one.
+    // **Re-measured on the union after rebasing onto T119c.** That task rewrote 416 entity
+    // specifiers onto bare subpaths and deleted the six shims behind them, so this walk reads
+    // fewer files than the 540 recorded against the tree before it: 541. This branch's own
+    // additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    sites: 541,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -2147,7 +2182,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T118c, `returnsBridge`: +2 files** — the module tree feeds this check's owner map,
     // and it gains the new module source and its co-located test. No deployment's
     // divergence moved.
-    files: 2375,
+    // **D-223: files 2375 -> 2378 (+3).** `public-url-base.ts` plus the two co-located
+    // tests beside it, `public-url-base.test.ts` and `services/assets-library-url.test.ts`.
+    files: 2378,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -2538,7 +2575,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Quality-job shape: the ignored copies `composer:generate` places under
     // `docs/docs/modules/` swept first, because no job has placed them when these checks
     // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
-    files: 2124,
+    // **D-223: files 2130 -> 2131 (+1).** The module source it adds,
+    // `packages/modules/assets_library/src/backend/services/storage/public-url-base.ts`.
+    // **Re-measured on the union after rebasing onto T119c.** That task rewrote 416 entity
+    // specifiers onto bare subpaths and deleted the six shims behind them, so this walk reads
+    // fewer files than the 2131 recorded against the tree before it: 2125. This branch's own
+    // additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 2125,
     sites: 260,
     sources: ['manifest-index'],
   },
@@ -2784,7 +2828,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Quality-job shape: the ignored copies `composer:generate` places under
     // `docs/docs/modules/` swept first, because no job has placed them when these checks
     // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
-    files: 2124,
+    // **D-223: files 2130 -> 2131 (+1).** The module source it adds,
+    // `packages/modules/assets_library/src/backend/services/storage/public-url-base.ts`.
+    // **Re-measured on the union after rebasing onto T119c.** That task rewrote 416 entity
+    // specifiers onto bare subpaths and deleted the six shims behind them, so this walk reads
+    // fewer files than the 2131 recorded against the tree before it: 2125. This branch's own
+    // additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 2125,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3030,7 +3081,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Quality-job shape: the ignored copies `composer:generate` places under
     // `docs/docs/modules/` swept first, because no job has placed them when these checks
     // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
-    files: 2124,
+    // **D-223: files 2130 -> 2131 (+1).** The module source it adds,
+    // `packages/modules/assets_library/src/backend/services/storage/public-url-base.ts`.
+    // **Re-measured on the union after rebasing onto T119c.** That task rewrote 416 entity
+    // specifiers onto bare subpaths and deleted the six shims behind them, so this walk reads
+    // fewer files than the 2131 recorded against the tree before it: 2125. This branch's own
+    // additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 2125,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -3436,7 +3494,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree on its own: 1578 -> 1580. This branch's own additions — the module's
     // notification context, its co-located test and the integration test — were already in
     // the recorded figure. Measured on the combined tree, never summed from the deltas.
-    files: 1581,
+    // **D-223: files 1581 -> 1583 (+2).** The two integration tests it adds,
+    // `backend/test/integration/invoices/logo-asset-bytes.test.ts` and
+    // `.../product_feeds/image-urls-are-absolute.test.ts`.
+    files: 1583,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -3472,7 +3533,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T119a: sites 580 -> 578.** Two read-with-a-fallback sites travelled with those
     // fifty files; the site count falling while this walk's file count falls with it is
     // the same population leaving, not the #235/#237 shape.
-    sites: 579,
+    // **D-223: sites 579 -> 580 (+1).** One more entity read in the two integration tests
+    // this branch adds, neither of them defaulted.
+    sites: 580,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -3588,7 +3651,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree on its own: 1578 -> 1580. This branch's own additions — the module's
     // notification context, its co-located test and the integration test — were already in
     // the recorded figure. Measured on the combined tree, never summed from the deltas.
-    files: 1581,
+    // **D-223: files 1581 -> 1583 (+2).** The two integration tests it adds,
+    // `backend/test/integration/invoices/logo-asset-bytes.test.ts` and
+    // `.../product_feeds/image-urls-are-absolute.test.ts`.
+    files: 1583,
     sites: null,
     sources: [],
   },
@@ -3850,7 +3916,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Quality-job shape: the ignored copies `composer:generate` places under
     // `docs/docs/modules/` swept first, because no job has placed them when these checks
     // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
-    files: 2124,
+    // **D-223: files 2130 -> 2131 (+1).** The module source it adds,
+    // `packages/modules/assets_library/src/backend/services/storage/public-url-base.ts`.
+    // **Re-measured on the union after rebasing onto T119c.** That task rewrote 416 entity
+    // specifiers onto bare subpaths and deleted the six shims behind them, so this walk reads
+    // fewer files than the 2131 recorded against the tree before it: 2125. This branch's own
+    // additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 2125,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -3878,7 +3951,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // address T119c gives the one platform entity class no published barrel carries.
     // Rule B's population is the specifiers a platform root names, so it counts; the
     // target is platform-internal, so `into-modules` stays 0.
-    sites: 141,
+    // **D-223: sites 140 -> 139 (-1).** One export declaration off
+    // `packages/platform/src/composition/index.ts` — `absolutizePublicUrl`, whose last
+    // consumer went with the two composition-root sites that rebased an asset URL. Rule B
+    // counts a platform file's outward imports and a re-export is one, so the barrel losing
+    // a name moves this by exactly one.
+    // **Re-measured on the union after rebasing onto T119c.** That task rewrote 416 entity
+    // specifiers onto bare subpaths and deleted the six shims behind them, so this walk reads
+    // fewer files than the 139 recorded against the tree before it: 140. This branch's own
+    // additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    sites: 140,
     // `platform-subpaths` is T118a's second author over rule B's population: the
     // platform's `exports` map is a different program's answer to "which directories
     // does this package have", and a published subpath naming no walked directory is a
@@ -4153,7 +4236,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the combined tree, never summed from the two sides' deltas.
     // **T118c, `returnsBridge`: +2 files** — the new module source and its co-located
     // test, which this walk opens as module sources. No zone and no namespace moved.
-    files: 2726,
+    // **D-223: files 2726 -> 2729 (+3).** `public-url-base.ts` plus the two co-located
+    // tests beside it, `public-url-base.test.ts` and `services/assets-library-url.test.ts`.
+    files: 2729,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
     sites: 56,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
@@ -4245,7 +4330,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // -> 2091. One file, the module source this task extracts,
     // `packages/modules/cms/src/backend/services/asset-embed-resolver.ts`.
     // **T118c, `returnsBridge`: +1 file** — `returns`' new module source.
-    files: 2093,
+    // **D-223: files 2093 -> 2094 (+1).** The module source it adds,
+    // `packages/modules/assets_library/src/backend/services/storage/public-url-base.ts`.
+    files: 2094,
     // The finer population, and it is the one that moves when nothing else does
     // (issues #235/#237): tree sites, unreadable sites, renderer-map sites, the
     // block declarations and the declared `(key, context)` sections. A block
@@ -4307,7 +4394,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the combined tree, never summed from the two sides' deltas.
     // **T118c, `returnsBridge`: +2 files** — the new module source and its co-located
     // test.
-    files: 2824,
+    // **D-223: files 2824 -> 2827 (+3).** `public-url-base.ts` plus the two co-located
+    // tests beside it, `public-url-base.test.ts` and `services/assets-library-url.test.ts`.
+    files: 2827,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -4539,7 +4628,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // literal, and this drain writes three `refuses-without` manifest entries whose
     // `whenAbsent` and `reason` prose an operator reads, plus the new module source's own
     // doc block. All English; no finding and no ledger entry moved.
-    files: 1712,
+    // **D-223: files 1712 -> 1713 (+1).** The module source it adds,
+    // `packages/modules/assets_library/src/backend/services/storage/public-url-base.ts`.
+    files: 1713,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -4607,7 +4698,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `ProductsList.tsx` moves it by **zero**, measured, which is why the total is
     // six and not more: its added strings are a permission code inside a call and a
     // translation key, neither of which this classifier counts as a site.
-    sites: 34477,
+    // **D-223: sites 34477 -> 34486 (+9).** The literals `public-url-base.ts` classifies.
+    // All English or empty, so none is a finding; the number moves because the walk counts
+    // what it classified.
+    sites: 34486,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -5119,7 +5213,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // request's changeset, which this walk opens. The sites are the import specifiers and
     // table references those files add; no cross-module reach moved and the ledger stands
     // at 8.
-    files: 5000,
+    // **D-223: files 5000 -> 5006 (+6).** The five `.ts` files it adds and one markdown
+    // file, the changeset.
+    files: 5006,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -5179,7 +5275,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // merge request adds are in neither module walk root, so `files` moves by the
     // one this walk does see and `sites` moves the other way — which is the
     // #235/#237 shape, and the reason both numbers are recorded.
-    sites: 12575,
+    // **D-223: sites 12575 -> 12589 (+14).** Import specifiers and SQL table references
+    // across the six files the branch adds — the two integration tests name `assets`,
+    // `gallery_items` and the price-list tables between them, and the rest are imports.
+    sites: 12589,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -5883,7 +5982,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
     // **+1 more for the changeset**, which this whole-repository walk reads and the
     // narrower ones do not.
-    files: 8121,
+    // **D-223: files 8126 -> 8132 (+6).** The five `.ts` files it adds and one markdown
+    // file, the changeset.
+    // **Re-measured on the union after rebasing onto T119c.** That task rewrote 416 entity
+    // specifiers onto bare subpaths and deleted the six shims behind them, so this walk reads
+    // fewer files than the 8132 recorded against the tree before it: 8127. This branch's own
+    // additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 8127,
     sites: null,
     sources: [],
     //
@@ -6355,7 +6461,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Quality-job shape: the ignored copies `composer:generate` places under
     // `docs/docs/modules/` swept first, because no job has placed them when these checks
     // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
-    files: 2124,
+    // **D-223: files 2130 -> 2131 (+1).** The module source it adds,
+    // `packages/modules/assets_library/src/backend/services/storage/public-url-base.ts`.
+    // **Re-measured on the union after rebasing onto T119c.** That task rewrote 416 entity
+    // specifiers onto bare subpaths and deleted the six shims behind them, so this walk reads
+    // fewer files than the 2131 recorded against the tree before it: 2125. This branch's own
+    // additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 2125,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -6445,7 +6558,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `services/notification-context.ts`. A composition root's own resolutions are in no
     // population here, so a drain that removes four from a root and adds five in a module
     // reads as a rise rather than as a transfer.
-    files: 1944,
+    // **D-223: files 1944 -> 1945 (+1).** The module source it adds,
+    // `packages/modules/assets_library/src/backend/services/storage/public-url-base.ts`.
+    files: 1945,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 1471 -> 1535.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
@@ -6670,7 +6785,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Quality-job shape: the ignored copies `composer:generate` places under
     // `docs/docs/modules/` swept first, because no job has placed them when these checks
     // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
-    files: 2422,
+    // **D-223: files 2428 -> 2429 (+1).** The module source it adds,
+    // `packages/modules/assets_library/src/backend/services/storage/public-url-base.ts`.
+    // **Re-measured on the union after rebasing onto T119c.** That task rewrote 416 entity
+    // specifiers onto bare subpaths and deleted the six shims behind them, so this walk reads
+    // fewer files than the 2429 recorded against the tree before it: 2423. This branch's own
+    // additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 2423,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -6760,7 +6882,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // application files, which this half reads, but they resolved into `backend/src` and
     // not into the platform. `ledger-size` 21 -> 15 and `host-reaches:21/21 -> 15/15`
     // move with them.
-    sites: 1846,
+    // **D-223: sites 1852 -> 1853 (+1).** One reach: `assets_library`' `backend/index.ts`
+    // now takes `resolvePublicApiBaseUrl` from `@endora-commerce/platform/kernel` as a
+    // value, which is the ruling's whole mechanism — the module resolves the origin itself.
+    // **Re-measured on the union after rebasing onto T119c.** That task rewrote 416 entity
+    // specifiers onto bare subpaths and deleted the six shims behind them, so this walk reads
+    // fewer files than the 1853 recorded against the tree before it: 1847. This branch's own
+    // additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    sites: 1847,
     // count moves with the file count here because the reaches that went are exactly
     // the files that went.
     // **T119a: sites 1870 -> 1861.** The same nine files, each the single relative
@@ -6891,7 +7021,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T118c, `returnsBridge`: 723 -> 728 sites, 2041 -> 2042 files.** The five
     // `lazyPort` resolutions `returns` took over from its bridge, and the one new module
     // source.
-    files: 2043,
+    // **D-223: files 2043 -> 2044 (+1).** The module source it adds,
+    // `packages/modules/assets_library/src/backend/services/storage/public-url-base.ts`.
+    files: 2044,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 692 -> 721.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -7167,7 +7299,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree on its own: 1578 -> 1580. This branch's own additions — the module's
     // notification context, its co-located test and the integration test — were already in
     // the recorded figure. Measured on the combined tree, never summed from the deltas.
-    files: 1581,
+    // **D-223: files 1581 -> 1583 (+2).** The two integration tests it adds,
+    // `backend/test/integration/invoices/logo-asset-bytes.test.ts` and
+    // `.../product_feeds/image-urls-are-absolute.test.ts`.
+    files: 1583,
     sites: 163,
     sources: [],
   },
@@ -7465,7 +7600,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Quality-job shape: the ignored copies `composer:generate` places under
     // `docs/docs/modules/` swept first, because no job has placed them when these checks
     // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
-    files: 2124,
+    // **D-223: files 2130 -> 2131 (+1).** The module source it adds,
+    // `packages/modules/assets_library/src/backend/services/storage/public-url-base.ts`.
+    // **Re-measured on the union after rebasing onto T119c.** That task rewrote 416 entity
+    // specifiers onto bare subpaths and deleted the six shims behind them, so this walk reads
+    // fewer files than the 2131 recorded against the tree before it: 2125. This branch's own
+    // additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 2125,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -7593,7 +7735,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree on its own: 1689 -> 1691. This branch's own additions — the module's
     // notification context, its co-located test and the integration test — were already in
     // the recorded figure. Measured on the combined tree, never summed from the deltas.
-    files: 1693,
+    // **D-223: files 1693 -> 1697 (+4).** The four test files it adds — two co-located in
+    // `assets_library` (`public-url-base.test.ts`, `services/assets-library-url.test.ts`)
+    // and two under `backend/test/integration/` (`invoices/logo-asset-bytes.test.ts`,
+    // `product_feeds/image-urls-are-absolute.test.ts`).
+    files: 1697,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -7876,7 +8022,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Quality-job shape: the ignored copies `composer:generate` places under
     // `docs/docs/modules/` swept first, because no job has placed them when these checks
     // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
-    files: 2124,
+    // **D-223: files 2130 -> 2131 (+1).** The module source it adds,
+    // `packages/modules/assets_library/src/backend/services/storage/public-url-base.ts`.
+    // **Re-measured on the union after rebasing onto T119c.** That task rewrote 416 entity
+    // specifiers onto bare subpaths and deleted the six shims behind them, so this walk reads
+    // fewer files than the 2131 recorded against the tree before it: 2125. This branch's own
+    // additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 2125,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -8196,7 +8349,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Quality-job shape: the ignored copies `composer:generate` places under
     // `docs/docs/modules/` swept first, because no job has placed them when these checks
     // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
-    files: 4491,
+    // **D-223: files 4497 -> 4502 (+5).** The five `.ts` files it adds:
+    // `public-url-base.ts`, its two co-located tests and the two integration tests.
+    // **Re-measured on the union after rebasing onto T119c.** That task rewrote 416 entity
+    // specifiers onto bare subpaths and deleted the six shims behind them, so this walk reads
+    // fewer files than the 4502 recorded against the tree before it: 4496. This branch's own
+    // additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 4496,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -8912,7 +9072,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
     // **+1 more for the changeset**, which this whole-repository walk reads and the
     // narrower ones do not.
-    files: 8181,
+    // **D-223: files 8186 -> 8192 (+6).** The five `.ts` files it adds and one markdown
+    // file, the changeset.
+    // **Re-measured on the union after rebasing onto T119c.** That task rewrote 416 entity
+    // specifiers onto bare subpaths and deleted the six shims behind them, so this walk reads
+    // fewer files than the 8192 recorded against the tree before it: 8187. This branch's own
+    // additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 8187,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -9326,7 +9493,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Quality-job shape: the ignored copies `composer:generate` places under
     // `docs/docs/modules/` swept first, because no job has placed them when these checks
     // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
-    files: 6097,
+    // **D-223: files 6103 -> 6108 (+5).** The five `.ts` files it adds:
+    // `public-url-base.ts`, its two co-located tests and the two integration tests.
+    // **Re-measured on the union after rebasing onto T119c.** That task rewrote 416 entity
+    // specifiers onto bare subpaths and deleted the six shims behind them, so this walk reads
+    // fewer files than the 6108 recorded against the tree before it: 6102. This branch's own
+    // additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 6102,
     sites: null,
     sources: ['manifest-index'],
     //

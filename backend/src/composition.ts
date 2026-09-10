@@ -49,17 +49,23 @@ import { enterSystemScope } from './kernel/scope.js';
 // `registerValues` stays for the host values no module defaults, which have no
 // window because there is nothing to overwrite.
 import { MODULES } from './composition.generated.js';
-// The published half — `configuredPublicApiBaseUrl` and `resolvePublicApiBaseUrl`
-// are on the barrel because five modules read them (§1.3 row 6's "+4"), and
-// `ModuleContext` because 67 do: `ComposeAppHandle.contextFor` hands one out, so
-// a CLI command's body resolves with `lazyPort(ctx, …)` exactly as `backend.ts`
-// does (T042b, D-157.12 item 2).
-import { configuredPublicApiBaseUrl, resolvePublicApiBaseUrl } from './kernel/index.js';
-// T118 — the composition machinery left this file with the assembly it served.
-// What remains of the platform here is what the contributions below are built
-// from, and every one of them is reached by a **relative** path because this
-// application is where those shims still live (`RELATIVE_HOST_REACHES`, T119).
-import { absolutizePublicUrl } from '@endora-commerce/platform/composition';
+// The published half — `resolvePublicApiBaseUrl` is on the barrel because
+// several modules read it (§1.3 row 6's "+4"), and `ModuleContext` because 67
+// do: `ComposeAppHandle.contextFor` hands one out, so a CLI command's body
+// resolves with `lazyPort(ctx, …)` exactly as `backend.ts` does (T042b,
+// D-157.12 item 2).
+//
+// **`configuredPublicApiBaseUrl` and `absolutizePublicUrl` are both gone from
+// this file** (D-223). One question — what origin does an asset URL start on —
+// had five answers in this tree, three of them here and no two of them the
+// same: `absolutizePublicUrl` reading `BACKEND_PUBLIC_URL` first at the `pwa`
+// and transactional-email sites, `configuredPublicApiBaseUrl` plus a
+// hand-written join reading `PUBLIC_API_BASE_URL` first at the product-feed
+// one, and nothing at all at `megamenu`'s. `assets_library` resolves the origin
+// itself now and every URL it produces is absolute, so a root that rebases one
+// is a root that can disagree with the module and with the other root — which
+// both of them did.
+import { resolvePublicApiBaseUrl } from './kernel/index.js';
 // T118b — and **no** reach into that package for `request.actor` any more. This
 // import used to be `import type { Actor } from '@endora-commerce/mod-auth/backend'`,
 // whose real job was not the type: it dragged `auth`'s `declare module 'fastify'`
@@ -86,7 +92,10 @@ import { effectiveState } from './kernel/lifecycle/effective-state.js';
 // T040b moved it to the platform: it had no consumer inside `email` at all, so
 // it was a deployment-origin helper filed under the module that first needed it
 // — and a root value import of a module's source is a spelling that ends the
-// day that module becomes a package (D-160.6.1).
+// day that module becomes a package (D-160.6.1). D-223 has now removed its last
+// consumer here as well, so it is off the `./composition` barrel too: the
+// declaration stays in the platform and returns to the barrel the day an
+// application needs it, which is the treatment `AdminActorPromotion` had.
 // Feature 046 — Returns & Complaints (Refunds, RMA).
 import type { InvoicesBridge } from '@endora-commerce/mod-invoices/backend';
 import type { ProductFeedsBridge } from '@endora-commerce/mod-product-feeds/backend';
@@ -1151,10 +1160,16 @@ async function contributeReferenceDeployment(
           return { id: detail.id };
         },
       },
+      // D-223 — the URL arrives absolute. This closure used to wrap it in
+      // `absolutizePublicUrl`, which read `BACKEND_PUBLIC_URL` first while the
+      // product-feed site three hundred lines below read `PUBLIC_API_BASE_URL`
+      // first, and which the harness did not apply at all — so a push payload's
+      // icon URL depended on which root composed the platform. Both roots now
+      // pass the module's answer through unchanged, which is why they are
+      // byte-identical here.
       resolveAssetUrl: async (assetId: string) => {
         try {
-          const resolved = await assetsLibrary.handle.service.resolveUrl(assetId);
-          return absolutizePublicUrl(resolved.url);
+          return (await assetsLibrary.handle.service.resolveUrl(assetId)).url;
         } catch {
           return null;
         }
@@ -1270,6 +1285,12 @@ async function contributeReferenceDeployment(
         const row = rows[0];
         if (!row) return null;
         if (row.kind !== 'image' && row.kind !== 'video') return null;
+        // D-223 — the fourth `resolveUrl` reach in this file, and the one that
+        // absolutized *nothing*: a megamenu tile's image URL went to the
+        // storefront host-relative, where `toAbsoluteAssetUrl` rebased it, and
+        // to anything else as-is. Nothing changed at this line; what changed is
+        // that the module's answer is now absolute, so the three sites that
+        // compensated and the one that did not agree for the first time.
         const resolved = await assetsLibrary.handle.service.resolveUrl(assetId);
         return { url: resolved.url, label: row.label, kind: row.kind };
       },
@@ -1369,10 +1390,15 @@ async function contributeReferenceDeployment(
   // It reaches `assets_library`, which `transactional_emails` must not read
   // through directly, so it stays a composition's to supply.
   composedModules.contribute({
+    // D-223 — `assets_library` builds this URL on the deployment's public API
+    // origin, so the absolutiser that used to wrap it is gone. It mattered most
+    // here: an e-mail is read on a device that has never heard of this API
+    // host, so a host-relative logo URL renders as a broken image in every
+    // client. The harness stubbed this to `async () => null`, so the path had
+    // no test at all; it composes the same closure now.
     transactionalEmailAssetUrl: async (assetId: string): Promise<string | null> => {
       try {
-        const resolved = await assetsLibrary.handle.service.resolveUrl(assetId);
-        return absolutizePublicUrl(resolved.url);
+        return (await assetsLibrary.handle.service.resolveUrl(assetId)).url;
       } catch {
         return null;
       }
@@ -1841,23 +1867,32 @@ async function contributeReferenceDeployment(
       // copy never did.
       expandCategoryProductIds: (categoryIds: string[]) =>
         reads().catalogQueryPort.expandCategoryProductIds(categoryIds),
+      // D-223 — the third and worst of the compensating sites. It read
+      // `configuredPublicApiBaseUrl()`, which takes `PUBLIC_API_BASE_URL`
+      // first, where `absolutizePublicUrl` at the two sites above takes
+      // `BACKEND_PUBLIC_URL` first: with both variables set to different
+      // origins, one asset had two URLs in one process. It also emitted nothing
+      // at all when no origin was configured, and the harness's copy dropped
+      // every relative URL outright — so a local-filesystem deployment with a
+      // blank `assets.local.public_url_base` produced feeds with images or
+      // without them depending on which root composed it.
+      //
+      // What is left is the one judgement that is genuinely this feed's:
+      // **a signed URL is not publishable**, because it expires and a feed
+      // reader fetches it days later (FR-043). That test is unchanged and is
+      // now the only reason an asset is skipped — it used to sit in front of a
+      // join that could not have absolutized a signed URL anyway.
       resolvePublicImageUrls: async (assetIds: string[]) => {
         const out = new Map<string, string>();
         if (assetIds.length === 0) return out;
         const assets = (await assetReadPort().findByIds(assetIds, { liveOnly: true })).filter(
           (asset) => asset.visibility === 'public',
         );
-        const apiOrigin = configuredPublicApiBaseUrl();
         for (const asset of assets) {
           try {
             const resolved = await assetsLibrary.handle.service.resolveUrl(asset.id);
             if (resolved.expiresAt !== null) continue; // signed ⇒ not stable
-            const url = /^https?:\/\//i.test(resolved.url)
-              ? resolved.url
-              : apiOrigin === null
-                ? null
-                : `${apiOrigin}/${resolved.url.replace(/^\/+/, '')}`;
-            if (url) out.set(asset.id, url);
+            out.set(asset.id, resolved.url);
           } catch {
             // An unresolvable asset is simply not an image for this feed.
           }
