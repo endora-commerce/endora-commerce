@@ -196,7 +196,7 @@ export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach
  * names joined `./composition` — `registerErrorEnvelope`, `parseTrustedProxy` /
  * `TrustedProxy`, `ModuleCompositionError`, `ModuleEntry`, `createModuleContext`,
  * `createModuleRegistrationSink`, `ModuleRegistrationSink`, the three decoration
- * errors, `AdminActorPromotion` and `absolutizePublicUrl` — and `demo/`, the one
+ * errors and `absolutizePublicUrl` — and `demo/`, the one
  * platform directory with a barrel and **no subpath at all**, got `./demo`.
  * Eleven entries retired and `backend/src/http/` and `backend/src/kernel/ports/`
  * are gone entirely.

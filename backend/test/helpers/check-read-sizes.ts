@@ -760,10 +760,75 @@ export interface RecordedReadSize {
  * value that depends on what is staged is one nobody can reproduce, so stage the
  * change before reading these two.
  */
+/**
+ * **Re-recorded on 2026-09-10 by `specs/110-instance-repository/` T118c, the `mfa`
+ * drain — twenty-nine entries over three new files, and the shape they were read
+ * in is part of the record.**
+ *
+ * **The tree shape: `pnpm install` plus `pnpm run build:packages`, and no
+ * `composer:generate`.** That is the `quality` job's shape and it is not the same
+ * as a developer's: `composer:generate` places ~77 module pages under
+ * `docs/docs/modules/`, which `check-nul-bytes` and `check-language.sh` would open,
+ * and every package's `dist` is git-ignored and read by `check-nul-bytes` all the
+ * same, so a tree that has not built the packages reads a different number from
+ * the one CI reads. Measured here with `docs/docs/modules/` holding its three
+ * committed entries and every package built. The two shell entries were read on
+ * the **staged** tree, for the reason the block above gives.
+ *
+ * The arithmetic closes by file, which is how to check this record. Three files
+ * arrive and one of them is a module source, so the census is the
+ * `assets_library` one minus its fourth file:
+ *
+ *   - `packages/modules/mfa/src/backend/services/account-identity.ts` — a **module
+ *     source**, so every module walk gains 1: `check-action-route-permissions`,
+ *     `check-block-names`, `check-channel-resolution`, `check-command-coverage`,
+ *     `check-entity-tenant-classification`, `check-entry-presence`,
+ *     `check-entry-scope`, `check-kernel-boundary`, `check-subscribe-seam`,
+ *     `check-transaction-context`, and the `files` half of `check-port-catches`,
+ *     `check-platform-surface`, `check-default-language-prose`,
+ *     `check-port-dependencies` and `check-port-shape`;
+ *   - its co-located test beside it, so the four walks that open a package's tests
+ *     gain **2**: `check-admin-zones`, `check-class-vocabulary`,
+ *     `check-container-imports`, `check-divergence`;
+ *   - `backend/test/integration/mfa/account-identity-wiring.test.ts`, so the three
+ *     `backend/test/**` walks gain 1: `check-fixture-substitution`,
+ *     `check-harness-teardown`, `check-shared-table-wipes`;
+ *   - `check-test-ownership` gains **2** — the co-located test and the backend one —
+ *     and `check-singleton-identity` **3**, all three files;
+ *   - the four whole-tree walks gain **3** for the three `.ts` files, and the two
+ *     that read every extension gain a **fourth** for this merge request's own
+ *     changeset: `check-nul-bytes` 8132 -> 8136 and `check-naming.sh`
+ *     8192 -> 8196, against `check-diacritic-folds` (`.ts`/`.tsx`/`.js`) and
+ *     `check-language.sh` (markdown half is `docs/docs/**`) at +3. Both were first
+ *     recorded at +3 and re-measured after the changeset was written, which is the
+ *     trap the `assets_library` census names: the changeset is a file this walk
+ *     opens like any other, and it is the last one a drain writes.
+ *   - `check-module-boundary` gains **4** for two files, the same reason that census
+ *     gives: the walk reaches a module package's sources under more than one root,
+ *     and the backend test is outside its population.
+ *
+ * **Four `sites` numbers move and three of them are the drain itself.**
+ * `check-port-dependencies` 1558 -> 1564 is **net**: seven resolutions arrive in
+ * `mfa`'s registration — four `lazyPort` reads and three contributed-name reads —
+ * against the one `mfaActorBridge` cradle read that goes. `check-port-shape`
+ * 728 -> 732 counts the four `lazyPort<T>` calls and not the three cradle reads,
+ * which are contributed names rather than ports. `check-module-boundary`
+ * 12569 -> 12575 and `check-default-language-prose` 34470 -> 34477 are the
+ * specifiers and the literals the two new module files write.
+ *
+ * **`check-port-catches`' `sites` deliberately did not move, and that is an
+ * assertion rather than an absence.** The drain puts four port reaches into a
+ * module source and wraps none of them: on an authentication path, a `catch` that
+ * read `ModuleDisabledError` as "this account has no e-mail" or "the password does
+ * not match" is the fail-open the composition checklist's item 7 refuses. A
+ * `sites` that had moved here would mean somebody wrote one.
+ */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
     prefix: '[action-route-permissions]',
     run: { kind: 'tsx', path: 'scripts/check-action-route-permissions.ts', args: [] },
+    // **T118c, `mfaActorBridge`: +1 file** — `mfa`'s new module source
+    // (`services/account-identity.ts`). It declares no action, so nothing else moves.
     // **Feature 103 (overlay file shadowing retired): 1884 -> 1883.** One file, net:
     // `overlay/conflict-policy.ts` and `overlay/errors.ts` go, `claimed-module-ids.ts`
     // arrives.
@@ -967,7 +1032,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 2001 -> 2002. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 2002,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 2003 rather than the
+    // 2014 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 2003,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -993,6 +1064,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-channel-resolution.ts': {
     prefix: '[channel-resolution]',
     run: { kind: 'tsx', path: 'scripts/check-channel-resolution.ts', args: ['--enforce'] },
+    // **T118c, `mfaActorBridge`: +1 file** — `mfa`'s new module source. It resolves no
+    // channel and reads no channel-scoped setting.
     // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
     // moves under the module walk roots — `inventory`'s and `quick_order`'s
     // admin clients, `pim_ergonode`'s client and its `format.ts`. The other
@@ -1215,13 +1288,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 2128 -> 2129. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 2129,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 2130 rather than the
+    // 2141 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 2130,
     sites: null,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-command-coverage.ts': {
     prefix: '[command-coverage]',
     run: { kind: 'tsx', path: 'scripts/check-command-coverage.ts', args: ['--strict'] },
+    // **T118c, `mfaActorBridge`: +1 file** — `mfa`'s new module source. Four port reads
+    // and no persistence, so no command site with it.
     // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
     // moves under the module walk roots — `inventory`'s and `quick_order`'s
     // admin clients, `pim_ergonode`'s client and its `format.ts`. The other
@@ -1291,7 +1372,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/modules/cms/src/backend/services/asset-embed-resolver.ts`.
     // **T118c, `returnsBridge`: +1 file** — `returns`' new module source. It writes
     // nothing.
-    files: 1699,
+    files: 1700,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -1300,6 +1381,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-container-imports.ts': {
     prefix: '[container-imports]',
     run: { kind: 'tsx', path: 'scripts/check-container-imports.ts', args: [] },
+    // **T118c, `mfaActorBridge`: +2 files** — `mfa`'s new module source and its co-located
+    // test. Neither imports the container library.
     // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
     // moves under the module walk roots — `inventory`'s and `quick_order`'s
     // admin clients, `pim_ergonode`'s client and its `format.ts`. The other
@@ -1379,7 +1462,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the combined tree, never summed from the two sides' deltas.
     // **T118c, `returnsBridge`: +2 files** — the new module source and its co-located
     // test.
-    files: 2194,
+    files: 2196,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -1393,6 +1476,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-diacritic-folds.ts': {
     prefix: '[diacritic-folds]',
     run: { kind: 'tsx', path: 'scripts/check-diacritic-folds.ts', args: [] },
+    // **T118c, `mfaActorBridge`: +3 files** — the three new files; all three are `.ts`, so
+    // unlike the `assets_library` census above this whole-tree walk takes every one of them.
     // **Batch 13 (feature 091, Phase 4): +1.** Whole-tree arithmetic: twenty-four
     // files move into the module packages, twenty-four leave `admin/src`, the
     // `FulfilmentStrategyPicker` shim there is deleted with its last reader, and
@@ -1756,7 +1841,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 5466 -> 5469. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 5469,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 5472 rather than the
+    // 5483 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 5472,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -1861,6 +1952,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-divergence.ts': {
     prefix: '[divergence]',
     run: { kind: 'tsx', path: 'scripts/check-divergence.ts', args: [] },
+    // **T118c, `mfaActorBridge`: +2 files** — `mfa`'s new module source and its co-located
+    // test, both read for the owner map.
     // Every module source the owner map and the route table are built from, plus
     // the platform's own tree, plus the two composition roots, plus each
     // deployment's overlay sources. It is deliberately **not** the overlay files
@@ -2015,7 +2108,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T118c, `returnsBridge`: +2 files** — the module tree feeds this check's owner map,
     // and it gains the new module source and its co-located test. No deployment's
     // divergence moved.
-    files: 2373,
+    files: 2375,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -2162,6 +2255,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-entity-tenant-classification.ts': {
     prefix: '[tenant-classification]',
     run: { kind: 'tsx', path: 'scripts/check-entity-tenant-classification.ts', args: [] },
+    // **T118c, `mfaActorBridge`: +1 file** — `mfa`'s new module source. It declares no
+    // entity.
     // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
     // moves under the module walk roots — `inventory`'s and `quick_order`'s
     // admin clients, `pim_ergonode`'s client and its `format.ts`. The other
@@ -2387,13 +2482,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 2128 -> 2129. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 2129,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 2130 rather than the
+    // 2141 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 2130,
     sites: 260,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-entry-presence.ts': {
     prefix: '[entry-presence]',
     run: { kind: 'tsx', path: 'scripts/check-entry-presence.ts', args: [] },
+    // **T118c, `mfaActorBridge`: +1 file** — `mfa`'s new module source. It starts no
+    // timer and registers no boot hook.
     // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
     // moves under the module walk roots — `inventory`'s and `quick_order`'s
     // admin clients, `pim_ergonode`'s client and its `format.ts`. The other
@@ -2614,13 +2717,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 2128 -> 2129. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 2129,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 2130 rather than the
+    // 2141 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 2130,
     sites: null,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-entry-scope.ts': {
     prefix: '[entry-scope]',
     run: { kind: 'tsx', path: 'scripts/check-entry-scope.ts', args: [] },
+    // **T118c, `mfaActorBridge`: +1 file** — `mfa`'s new module source. It is no entry
+    // point: every function it exports is called from a request handler.
     // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
     // moves under the module walk roots — `inventory`'s and `quick_order`'s
     // admin clients, `pim_ergonode`'s client and its `format.ts`. The other
@@ -2841,7 +2952,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 2128 -> 2129. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 2129,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 2130 rather than the
+    // 2141 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 2130,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -3112,6 +3229,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-fixture-substitution.ts': {
     prefix: '[fixture-substitution]',
     run: { kind: 'tsx', path: 'scripts/check-fixture-substitution.ts', args: [] },
+    // **T118c, `mfaActorBridge`: +1 file** — `test/integration/mfa/account-identity-wiring.test.ts`.
+    // It defaults no fixture read.
     // Re-recorded for issue #275, which widened the read detection to
     // destructuring bindings and `getKnex()` builder chains. Measured rather
     // than inferred: on this tree the unwidened check read 427 and the widened
@@ -3234,7 +3353,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree on its own: 1578 -> 1580. This branch's own additions — the module's
     // notification context, its co-located test and the integration test — were already in
     // the recorded figure. Measured on the combined tree, never summed from the deltas.
-    files: 1580,
+    files: 1581,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -3276,6 +3395,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-harness-teardown.ts': {
     prefix: '[harness-teardown]',
     run: { kind: 'tsx', path: 'scripts/check-harness-teardown.ts', args: [] },
+    // **T118c, `mfaActorBridge`: +1 file** — the new `mfa` integration test, which calls
+    // `teardownBackendServer` and releases nothing itself.
     // **Batch 13 (feature 091, Phase 4): +1.** The batch's backend off-state
     // proof, `test/integration/_admin_surfaces/batch-thirteen-palette-off-state.test.ts`.
     // **Batch 14 (feature 091, Phase 4): +1 file.** The backend test tree gains
@@ -3384,13 +3505,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree on its own: 1578 -> 1580. This branch's own additions — the module's
     // notification context, its co-located test and the integration test — were already in
     // the recorded figure. Measured on the combined tree, never summed from the deltas.
-    files: 1580,
+    files: 1581,
     sites: null,
     sources: [],
   },
   'backend/scripts/check-kernel-boundary.ts': {
     prefix: '[kernel-boundary]',
     run: { kind: 'tsx', path: 'scripts/check-kernel-boundary.ts', args: [] },
+    // **T118c, `mfaActorBridge`: +1 file** — `mfa`'s new module source. It relates into
+    // nothing and names no module.
     // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
     // moves under the module walk roots — `inventory`'s and `quick_order`'s
     // admin clients, `pim_ergonode`'s client and its `format.ts`. The other
@@ -3627,7 +3750,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 2128 -> 2129. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 2129,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 2130 rather than the
+    // 2141 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 2130,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -3644,7 +3773,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // task publishes joined export declarations that already existed, so they add no site.
     // `into-modules` stays 0, which is what the rule is about, and `platform-subpaths` moves 13
     // -> 14 with `./demo` — a derived reconciliation and not a band.
-    sites: 141,
+    // **T118c, `mfaActorBridge`: sites −1.** Resolving this branch against T119b took
+    // `AdminActorPromotion` off the `./composition` barrel — the drain removed the
+    // application's last consumer of the type, and the barrel is held to its consumers both
+    // ways — so the re-export line itself, which this walk counts as an outward import, is
+    // gone: 141 -> 140.
+    sites: 140,
     // `platform-subpaths` is T118a's second author over rule B's population: the
     // platform's `exports` map is a different program's answer to "which directories
     // does this package have", and a published subpath naming no walked directory is a
@@ -3715,6 +3849,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-admin-zones.ts': {
     prefix: '[admin-zones]',
     run: { kind: 'tsx', path: 'scripts/check-admin-zones.ts', args: [] },
+    // **T118c, `mfaActorBridge`: +2 files** — `mfa`'s new module source and its co-located
+    // test; this walk opens a package's tests as well.
     // Every module's sources, the admin application's own and the kit's — a
     // zone may be rendered by a module screen, by an installed package's screen
     // or by the admin itself, so all three are the host population. `sites` is
@@ -3917,7 +4053,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the combined tree, never summed from the two sides' deltas.
     // **T118c, `returnsBridge`: +2 files** — the new module source and its co-located
     // test, which this walk opens as module sources. No zone and no namespace moved.
-    files: 2724,
+    files: 2726,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
     sites: 56,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
@@ -3950,6 +4086,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-block-names.ts': {
     prefix: '[block-names]',
     run: { kind: 'tsx', path: 'scripts/check-block-names.ts', args: [] },
+    // **T118c, `mfaActorBridge`: +1 file** — `mfa`'s new module source. It names no
+    // block.
     // Source files opened, and the population is two trees that overlap: every
     // module's own sources (`layout.moduleWalkRoots`) plus every page-builder
     // family member's `src`. `migrations/` and `*.test.ts` are out by decision,
@@ -4007,7 +4145,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // -> 2091. One file, the module source this task extracts,
     // `packages/modules/cms/src/backend/services/asset-embed-resolver.ts`.
     // **T118c, `returnsBridge`: +1 file** — `returns`' new module source.
-    files: 2092,
+    files: 2093,
     // The finer population, and it is the one that moves when nothing else does
     // (issues #235/#237): tree sites, unreadable sites, renderer-map sites, the
     // block declarations and the declared `(key, context)` sections. A block
@@ -4031,6 +4169,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-class-vocabulary.ts': {
     prefix: '[class-vocabulary]',
     run: { kind: 'tsx', path: 'scripts/check-class-vocabulary.ts', args: [] },
+    // **T118c, `mfaActorBridge`: +2 files** — `mfa`'s new module source and its co-located
+    // test.
     // Source files opened plus the design system stylesheets read. It moves with
     // the module tree and with the admin-ui family, and it is deliberately *not*
     // the class-attribute positions — that is `sites`, and the two answer
@@ -4067,7 +4207,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the combined tree, never summed from the two sides' deltas.
     // **T118c, `returnsBridge`: +2 files** — the new module source and its co-located
     // test.
-    files: 2822,
+    files: 2824,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -4202,6 +4342,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-default-language-prose.ts': {
     prefix: '[default-language-prose]',
     run: { kind: 'tsx', path: 'scripts/check-default-language-prose.ts', args: [] },
+    // **T118c, `mfaActorBridge`: +7 sites, +1 file** — `mfa`'s new module source, whose
+    // literals are the two refusal sentences and the strings around them. All English.
     // Every `.ts` file under a module's own directory, minus its `migrations/`
     // (a declared bound — an applied migration cannot be edited, so a finding
     // there has no repair a ledger entry could drain), its tests and its
@@ -4297,7 +4439,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // literal, and this drain writes three `refuses-without` manifest entries whose
     // `whenAbsent` and `reason` prose an operator reads, plus the new module source's own
     // doc block. All English; no finding and no ledger entry moved.
-    files: 1711,
+    files: 1712,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -4365,7 +4507,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `ProductsList.tsx` moves it by **zero**, measured, which is why the total is
     // six and not more: its added strings are a permission code inside a call and a
     // translation key, neither of which this classifier counts as a site.
-    sites: 34470,
+    sites: 34477,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -4610,6 +4752,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-module-boundary.ts': {
     prefix: '[module-boundary]',
     run: { kind: 'tsx', path: 'scripts/check-module-boundary.ts', args: [] },
+    // **T118c, `mfaActorBridge`: +6 sites, +4 files.** Four for two files, as the
+    // `assets_library` census records: this walk reaches a module package's sources under
+    // more than one root, and the backend integration test is outside its population. The
+    // sites are the specifiers the two new module files write.
     // 3529 -> 3699 with feature 091's P1: `admin/src` outside the module root
     // joins the walk as a **source** population, and it is 100 `.ts`/`.tsx`
     // files. Re-recorded in the merge request that grew the tree, which is the
@@ -4873,7 +5019,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // request's changeset, which this walk opens. The sites are the import specifiers and
     // table references those files add; no cross-module reach moved and the ledger stands
     // at 8.
-    files: 4996,
+    files: 5000,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -4933,7 +5079,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // merge request adds are in neither module walk root, so `files` moves by the
     // one this walk does see and `sites` moves the other way — which is the
     // #235/#237 shape, and the reason both numbers are recorded.
-    sites: 12569,
+    sites: 12575,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -4986,6 +5132,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-nul-bytes.ts': {
     prefix: '[nul-bytes]',
     run: { kind: 'tsx', path: 'scripts/check-nul-bytes.ts', args: [] },
+    // **T118c, `mfaActorBridge`: +4 files** — the three new source files and the merge
+    // request's own changeset, this walk being the whole repository. The changeset is the
+    // fourth file and the one a drain is apt to record before writing it, which is what
+    // the `assets_library` census above says about the two shell entries.
     // Both bounds are asserted again (issue #248). The number now agrees
     // between a clean checkout and a tree that had built the docs site and
     // served uploads — 8288 against 5163 before, 5165 against 5165 after —
@@ -5614,7 +5764,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 8116 -> 8122. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 8122,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 8126 rather than the
+    // 8136 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 8126,
     sites: null,
     sources: [],
     //
@@ -5792,6 +5948,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-port-catches.ts': {
     prefix: '[port-catches]',
     run: { kind: 'tsx', path: 'scripts/check-port-catches.ts', args: [] },
+    // **T118c, `mfaActorBridge`: +1 file, and `sites` deliberately unmoved.** `mfa`'s new
+    // module source reaches four ports and wraps none of them in a `catch` — which is the
+    // point of the file rather than an omission: on an authentication path, reading a
+    // `ModuleDisabledError` as "the password does not match" is the fail-open item 7
+    // refuses. A `sites` that moved here would mean a `catch` had been written.
     // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
     // moves under the module walk roots — `inventory`'s and `quick_order`'s
     // admin clients, `pim_ergonode`'s client and its `format.ts`. The other
@@ -6064,12 +6225,24 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 2128 -> 2129. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 2129,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 2130 rather than the
+    // 2141 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 2130,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
     prefix: '[port-deps]',
     run: { kind: 'tsx', path: 'scripts/check-port-dependencies.ts', args: [] },
+    // **T118c, `mfaActorBridge`: +6 sites, +1 file.** The file is `mfa`'s new module source.
+    // The sites are net: **seven** new resolutions in `mfa`'s registration — the four
+    // `lazyPort` reads of `customerAccountReadPort`, `adminUserReadPort`,
+    // `customerPasswordVerificationPort` and `adminPasswordVerificationPort`, plus the two
+    // `customerActorResolver` reads and the one `adminContextResolver` read — against the
+    // single `mfaActorBridge` cradle read the drain deletes.
     // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
     // moves under the module walk roots — `inventory`'s and `quick_order`'s
     // admin clients, `pim_ergonode`'s client and its `format.ts`. The other
@@ -6148,11 +6321,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `services/notification-context.ts`. A composition root's own resolutions are in no
     // population here, so a drain that removes four from a root and adds five in a module
     // reads as a rise rather than as a transfer.
-    files: 1943,
+    files: 1944,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 1471 -> 1535.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
-    sites: 1558,
+    sites: 1564,
     sources: ['manifest-index'],
   },
   // Two derivations, deliberately, because the check has two inputs that can be
@@ -6168,6 +6341,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-platform-surface.ts': {
     prefix: '[platform-surface]',
     run: { kind: 'tsx', path: 'scripts/check-platform-surface.ts', args: [] },
+    // **T118c, `mfaActorBridge`: +1 file** — `mfa`'s new module source. It names
+    // `@endora-commerce/platform/http` for `HttpError`, which is published, so the reach
+    // count does not move.
     // **Batch 13 (feature 091, Phase 4): +24.** Every one of the batch's moved
     // screens, this walk's population being module sources of both extensions.
     // **Batch 14 (feature 091, Phase 4): +20 files.** Twenty-one files arrive
@@ -6353,7 +6529,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 2426 -> 2427. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 2427,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 2428 rather than the
+    // 2439 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 2428,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -6470,6 +6652,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-port-shape.ts': {
     prefix: '[port-shape]',
     run: { kind: 'tsx', path: 'scripts/check-port-shape.ts', args: [] },
+    // **T118c, `mfaActorBridge`: +4 sites, +1 file.** The four `lazyPort<T>` resolutions
+    // `mfa` now writes; the two cradle reads beside them are contributed names rather than
+    // ports, so this walk does not count them.
     // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
     // moves under the module walk roots — `inventory`'s and `quick_order`'s
     // admin clients, `pim_ergonode`'s client and its `format.ts`. The other
@@ -6564,11 +6749,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T118c, `returnsBridge`: 723 -> 728 sites, 2041 -> 2042 files.** The five
     // `lazyPort` resolutions `returns` took over from its bridge, and the one new module
     // source.
-    files: 2042,
+    files: 2043,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 692 -> 721.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
-    sites: 728,
+    sites: 732,
     sources: ['manifest-index', 'ports-subpaths'],
   },
   // Small on purpose: this population is the *workspace*, not a source tree —
@@ -6730,6 +6915,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-shared-table-wipes.ts': {
     prefix: '[shared-table-wipes]',
     run: { kind: 'tsx', path: 'scripts/check-shared-table-wipes.ts', args: [] },
+    // **T118c, `mfaActorBridge`: +1 file** — the new `mfa` integration test. It empties no
+    // table.
     // **Batch 13 (feature 091, Phase 4): +1.** The batch's backend off-state
     // proof, `test/integration/_admin_surfaces/batch-thirteen-palette-off-state.test.ts`.
     // **Batch 14 (feature 091, Phase 4): +1 file.** The backend test tree gains
@@ -6838,7 +7025,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree on its own: 1578 -> 1580. This branch's own additions — the module's
     // notification context, its co-located test and the integration test — were already in
     // the recorded figure. Measured on the combined tree, never summed from the deltas.
-    files: 1580,
+    files: 1581,
     sites: 163,
     sources: [],
   },
@@ -6897,6 +7084,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-subscribe-seam.ts': {
     prefix: '[subscribe-seam]',
     run: { kind: 'tsx', path: 'scripts/check-subscribe-seam.ts', args: [] },
+    // **T118c, `mfaActorBridge`: +1 file** — `mfa`'s new module source. It subscribes to
+    // nothing and constructs no worker.
     // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
     // moves under the module walk roots — `inventory`'s and `quick_order`'s
     // admin clients, `pim_ergonode`'s client and its `format.ts`. The other
@@ -7117,13 +7306,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 2128 -> 2129. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 2129,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 2130 rather than the
+    // 2141 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 2130,
     sites: null,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-test-ownership.ts': {
     prefix: '[test-ownership]',
     run: { kind: 'tsx', path: 'scripts/check-test-ownership.ts', args: [] },
+    // **T118c, `mfaActorBridge`: +2 files** — the co-located `mfa` package test and the new
+    // `backend/test/integration/mfa` file, which is the half that needs a composed server.
     // Every `.test.ts` the walk opened, across **both** roots — 1428 under
     // `backend/test` and 211 in the module packages. The union is the population
     // and each addend is floored separately inside the check, because a batch
@@ -7243,7 +7440,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree on its own: 1689 -> 1691. This branch's own additions — the module's
     // notification context, its co-located test and the integration test — were already in
     // the recorded figure. Measured on the combined tree, never summed from the deltas.
-    files: 1691,
+    files: 1693,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -7288,6 +7485,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-transaction-context.ts': {
     prefix: '[transaction-context]',
     run: { kind: 'tsx', path: 'scripts/check-transaction-context.ts', args: [] },
+    // **T118c, `mfaActorBridge`: +1 file** — `mfa`'s new module source. It writes no SQL.
     // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
     // moves under the module walk roots — `inventory`'s and `quick_order`'s
     // admin clients, `pim_ergonode`'s client and its `format.ts`. The other
@@ -7508,13 +7706,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 2128 -> 2129. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 2129,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 2130 rather than the
+    // 2141 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 2130,
     sites: null,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-singleton-identity.ts': {
     prefix: '[singleton-identity]',
     run: { kind: 'tsx', path: 'scripts/check-singleton-identity.ts', args: [] },
+    // **T118c, `mfaActorBridge`: +3 files** — `mfa`'s new module source, its co-located test
+    // and the new backend integration test. None reaches a package's sources by path.
     // The consumer population, not the module one: every file under the
     // application member (`src`, `test` and `scripts` alike), the platform's
     // sources and every module package's. The test tree is in it because that is
@@ -7809,7 +8015,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 4491 -> 4494. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 4494,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 4497 rather than the
+    // 4508 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 4497,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -7949,6 +8161,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'scripts/check-naming.sh': {
     prefix: '[naming]',
     run: { kind: 'bash', path: 'scripts/check-naming.sh', args: [] },
+    // **T118c, `mfaActorBridge`: +4 files** — the three new source files and the merge
+    // request's own changeset, measured on the *staged* tree for the reason the header
+    // gives. Recorded at 8195 first, which was this branch before it had written its
+    // changeset: the file this walk opens like any other.
     // **Batch 13 (feature 091, Phase 4): +2.** Whole-tree arithmetic: twenty-four
     // files move into the module packages, twenty-four leave `admin/src`, the
     // `FulfilmentStrategyPicker` shim there is deleted with its last reader, the
@@ -8502,7 +8718,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 8178 -> 8182. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 8182,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 8186 rather than the
+    // 8196 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 8186,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -8524,6 +8746,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'scripts/check-language.sh': {
     prefix: '[language]',
     run: { kind: 'bash', path: 'scripts/check-language.sh', args: [] },
+    // **T118c, `mfaActorBridge`: +3 files** — the three new files; all three are `.ts`, so the
+    // source half of this walk takes each one. Measured on the *staged* tree.
     // **Batch 13 (feature 091, Phase 4): +1.** Whole-tree arithmetic: twenty-four
     // files move into the module packages, twenty-four leave `admin/src`, the
     // `FulfilmentStrategyPicker` shim there is deleted with its last reader, and
@@ -8897,7 +9121,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 6097 -> 6100. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 6100,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 6103 rather than the
+    // 6114 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 6103,
     sites: null,
     sources: ['manifest-index'],
     //

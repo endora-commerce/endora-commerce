@@ -551,8 +551,15 @@ const HOST_COMPOSITION_SURFACE: Readonly<Record<string, readonly string[]>> = {
   'kernel/logging.ts': ['platformLogger'],
   // T119b. `./kernel` carries `RequireAdminFactory` and
   // `PublicApiBaseUrlNotConfiguredError`, which are what a module reads; the
-  // promotion hook and the absolutiser are what a root *supplies*.
-  'kernel/ports/require-admin.ts': ['AdminActorPromotion'],
+  // absolutiser is what a root *supplies*.
+  //
+  // `kernel/ports/require-admin.ts` was here for `AdminActorPromotion` and is
+  // gone with T118c's `mfaActorBridge` drain, which took the application's last
+  // reach for that type — `composition.ts` read `promoteAdminActor` off the
+  // cradle to build the bridge. This table and the barrel are reconciled both
+  // ways, so a name with no consumer outside the platform belongs to neither.
+  // The two merge requests were each correct alone: one added the name because
+  // a consumer existed, the other removed the consumer.
   'kernel/public-api-base-url.ts': ['absolutizePublicUrl'],
   'kernel/lifecycle/registry-cache.ts': ['registryCache', 'publishStateChanged'],
   'kernel/lifecycle/activation-resolver.ts': ['activationDeclarationsFrom'],

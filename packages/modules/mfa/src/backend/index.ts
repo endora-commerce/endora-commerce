@@ -1,15 +1,17 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type { Redis } from 'ioredis';
-import { ERROR_CODES } from '@endora-commerce/contracts';
 import type {
+  AdminPasswordVerificationPort,
+  AdminUserReadPort,
   AuthSessionPort,
+  CustomerAccountReadPort,
   CustomerPasswordStatePort,
+  CustomerPasswordVerificationPort,
   MfaEnrolmentCountPort,
   MfaEnrolmentStatePort,
   MfaLoginPort,
 } from '@endora-commerce/contracts';
-import { HttpError } from '@endora-commerce/platform/http';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
@@ -21,6 +23,12 @@ import {
   readOAuthConfigFromEnv,
   type OAuthProviderPort,
 } from './services/oauth-provider-service.js';
+import {
+  createAccountEmailResolver,
+  createAccountPasswordVerifier,
+  createOrganizationAdminResolver,
+  createOrganizationCustomerIdsResolver,
+} from './services/account-identity.js';
 import { MfaEnrolmentCountService } from './services/mfa-enrolment-count.service.js';
 import { MfaEnrolmentStateService } from './services/mfa-enrolment-state.service.js';
 import type { SocialIdentityDeps } from './services/social-identity-service.js';
@@ -31,23 +39,43 @@ import { MfaRecoveryCode } from './entities/mfa-recovery-code.entity.js';
 import { MfaSocialIdentity } from './entities/mfa-social-identity.entity.js';
 
 /**
- * `mfa` — the widest option surface in the wave, and why it is four names
- * rather than fifteen (feature 072, wave 1, T096).
+ * `mfa` — the widest option surface in the wave, and why it is three names
+ * rather than fifteen (feature 072, wave 1, T096;
+ * `specs/110-instance-repository/` T118c).
  *
- * `MfaModuleOptions` had twenty-four fields. Most are not dependencies in any
- * interesting sense: they are the *shape a composition gives an actor*, and the
- * two roots genuinely disagree about it — production reads `request.actor`
- * while the harness reads `request.testActor`. Turning each into its own
- * contribution point would have produced ten names that are always contributed
- * together, always by the same caller, and always meaningless apart.
+ * `MfaModuleOptions` had twenty-four fields. Wave 1 grouped six of them into a
+ * single `MfaActorBridge` contribution on the reasoning that they were the
+ * *shape a composition gives an actor* and that the two roots genuinely
+ * disagreed about it — production reading `request.actor`, the harness
+ * `request.testActor`. **T118c re-derived the six and the premise held for none
+ * of them.**
  *
- * So the five actor- and account-shaped closures are **one** contribution:
- * {@link MfaActorBridge}. A composition either knows how to turn a request into
- * an actor and an account id into an email, or it does not; there is no
- * coherent state where it knows three of the five. Grouping them also makes the
- * default honest — a bridge that throws, rather than five independently
- * omissible functions each defaulting to something plausible. This wave has
- * removed that second shape seven times.
+ *  - `resolveCustomerActor` was a duplicate spelling of `customerActorResolver`,
+ *    byte-identical to the platform's contribution in production and to the
+ *    harness's in the harness. One question, two answers, agreeing by hand.
+ *  - `resolveAdminActor` was `adminContextResolver` plus a `promoteAdminActor`
+ *    call that every one of its call sites had already made: each sits behind
+ *    `requireAdmin`, whose `auth` implementation promotes and then refuses a
+ *    non-admin, so the bridge re-asked a question its own guard had answered.
+ *  - `resolveOrgAdmin` was the actor resolver plus one
+ *    `customerAccountReadPort.findById` and a role check.
+ *  - `resolveOrganizationCustomerIds`, `resolveAccountEmail` and
+ *    `verifyAccountPassword` were four identity ports and nothing else.
+ *
+ * So the module resolves them itself now: two contributed actor names it reads
+ * off the cradle like the eight other modules that read them, and four
+ * `lazyPort` reads over `admin_users`' and `customer_accounts`' published
+ * contracts — both already in this module's manifest `dependencies`, both
+ * `nonDeactivatable`, so no operator loses a control to the edge.
+ *
+ * **Two of the six were asserted by nothing**, which is what a bridge with an
+ * optional half buys: the harness omitted `resolveAccountEmail` and
+ * `verifyAccountPassword` and production supplied them, so under test an
+ * authenticator entry was labelled with a UUID instead of an e-mail address and
+ * the password branch of `reauthenticate` did not exist. Neither difference was
+ * reachable by any test in the tree. They are not optional any more — the
+ * module always answers — and `backend/test/integration/mfa/account-identity-wiring.test.ts`
+ * is where both are now asserted.
  *
  * The remaining three names are genuinely independent:
  *
@@ -70,45 +98,6 @@ import { MfaSocialIdentity } from './entities/mfa-social-identity.entity.js';
  */
 
 /**
- * How a composition turns requests into actors and account ids into accounts.
- *
- * Contributed whole, by the composition root, because the root is the only
- * place that knows the answer: production authenticates through `request.actor`
- * and the harness through `request.testActor`.
- */
-export interface MfaActorBridge {
-  resolveCustomerActor(request: FastifyRequest): {
-    customerAccountId: string;
-    organizationId: string | null;
-  };
-  resolveAdminActor(request: FastifyRequest): { adminUserId: string };
-  resolveOrgAdmin(request: FastifyRequest): Promise<{ organizationId: string; actor: string }>;
-  resolveOrganizationCustomerIds(organizationId: string): Promise<string[]>;
-  /**
-   * Turns an account id into an address for the notification MFA sends on
-   * enrolment changes. Optional: absent, the routes fall back to the subject
-   * id, which is a worse label and nothing more.
-   */
-  resolveAccountEmail?(
-    subjectType: 'customer' | 'admin',
-    subjectId: string,
-  ): Promise<string | null>;
-  /**
-   * Optional, and its absence is **more** restrictive rather than less — which
-   * is why it is the one thing on this interface allowed to be omitted without
-   * argument. `reauthenticate` accepts either a current second factor or the
-   * account password before letting someone disable 2FA; with no verifier the
-   * password branch is simply unreachable and a code becomes mandatory. A
-   * composition that cannot check passwords therefore fails closed.
-   */
-  verifyAccountPassword?(
-    subjectType: 'customer' | 'admin',
-    subjectId: string,
-    password: string,
-  ): Promise<boolean>;
-}
-
-/**
  * The origins MFA stamps into the links it sends and the OAuth redirects it
  * builds. Defaults to the environment, because a packaged module reads its own
  * configuration; contributed by a composition that has its own answer.
@@ -128,7 +117,16 @@ export interface MfaCradle {
   readonly settingsReadPort: SettingsReader;
   readonly requireAdmin: RequireAdminFactory;
   readonly requireCustomer: (request: FastifyRequest) => Promise<void>;
-  readonly mfaActorBridge: MfaActorBridge;
+  /**
+   * T118c — the two actor names the composition already contributes for every
+   * other module that asks who is calling. Declared structurally, as the eight
+   * other consumers declare them, so this module names no composition root.
+   */
+  readonly customerActorResolver: (request: FastifyRequest) => {
+    customerAccountId: string;
+    organizationId: string | null;
+  };
+  readonly adminContextResolver: (request: FastifyRequest) => { adminUserId: string };
   readonly mfaOauthProvider: OAuthProviderPort | undefined;
   readonly mfaSocialAccountResolvers: SocialIdentityDeps | undefined;
   readonly mfaDefaultChannelIdResolver: () => Promise<string | null>;
@@ -139,32 +137,8 @@ export interface MfaCradle {
   readonly mfaEnrolmentStatePort: MfaEnrolmentStatePort;
 }
 
-/**
- * The default bridge: refuses, loudly, naming what is missing.
- *
- * Deliberately not a set of permissive stubs. Every function here sits on an
- * authentication path, and the failure mode of a plausible default on an
- * authentication path is an account that can be reached without the factor it
- * was supposed to require.
- */
-function unbridged(): never {
-  throw new HttpError(
-    500,
-    ERROR_CODES.INTERNAL,
-    'MFA is composed without an actor bridge: this composition registered no `mfaActorBridge`.',
-  );
-}
-
-const REFUSING_BRIDGE: MfaActorBridge = {
-  resolveCustomerActor: unbridged,
-  resolveAdminActor: unbridged,
-  resolveOrgAdmin: unbridged,
-  resolveOrganizationCustomerIds: unbridged,
-};
-
 export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
-    mfaActorBridge: ctx.asFunction((): MfaActorBridge => REFUSING_BRIDGE).singleton(),
     /**
      * Federated sign-in, defaulted to whatever this deployment's environment
      * configures (T143c).
@@ -219,9 +193,19 @@ export function registerModule(ctx: ModuleContext): void {
           // time. Capturing them would freeze this module's view of the
           // composition at the instant it happens to be constructed, which for
           // a guard means it keeps admitting requests after `auth` goes away.
-          const bridge = (): MfaActorBridge => ctx.cradle<MfaCradle>().mfaActorBridge;
           const { mfaOauthProvider: oauthProvider, mfaSocialAccountResolvers: socialAccountResolvers } =
             ctx.cradle<MfaCradle>();
+          // T118c — the four identity ports the retired bridge's members were
+          // built out of. `lazyPort` proxies, never resolved values: a captured
+          // gate keeps answering after its owner is switched off, and on an
+          // authentication path that is an account reachable without the factor
+          // it was supposed to require.
+          const customerAccounts = lazyPort<CustomerAccountReadPort>(
+            ctx,
+            'customerAccountReadPort',
+          );
+          const adminUsers = lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort');
+          const resolveOrganizationAdmin = createOrganizationAdminResolver(customerAccounts);
           return mfaModule({
             emFactory,
             redis,
@@ -259,33 +243,31 @@ export function registerModule(ctx: ModuleContext): void {
             requireCustomer: (request) => ctx.cradle<MfaCradle>().requireCustomer(request),
             requireAdmin: (permission) => async (req, reply) =>
               ctx.cradle<MfaCradle>().requireAdmin(permission)(req, reply),
-            resolveCustomerActor: (request) => bridge().resolveCustomerActor(request),
-            resolveAdminActor: (request) => bridge().resolveAdminActor(request),
-            resolveOrgAdmin: (request) => bridge().resolveOrgAdmin(request),
-            resolveOrganizationCustomerIds: (organizationId) =>
-              bridge().resolveOrganizationCustomerIds(organizationId),
-            // Forwarded only when the bridge carries them, so the module keeps
-            // seeing "absent" rather than "present and returning nothing" —
-            // `exactOptionalPropertyTypes` makes that a real distinction, and
-            // for the password verifier it is the difference between requiring
-            // a second factor and accepting a password that never verifies.
-            ...(bridge().resolveAccountEmail === undefined
-              ? {}
-              : {
-                  resolveAccountEmail: (
-                    subjectType: 'customer' | 'admin',
-                    subjectId: string,
-                  ) => bridge().resolveAccountEmail!(subjectType, subjectId),
-                }),
-            ...(bridge().verifyAccountPassword === undefined
-              ? {}
-              : {
-                  verifyAccountPassword: (
-                    subjectType: 'customer' | 'admin',
-                    subjectId: string,
-                    password: string,
-                  ) => bridge().verifyAccountPassword!(subjectType, subjectId, password),
-                }),
+            // T118c — read from the cradle at call time for the reason every
+            // other input here is: the composition's answer to "who is asking",
+            // not a second copy of it written in this module.
+            resolveCustomerActor: (request) =>
+              ctx.cradle<MfaCradle>().customerActorResolver(request),
+            // `adminContextResolver`, and no `promoteAdminActor` beside it:
+            // every call site is behind `requireAdmin`, whose `auth`
+            // implementation promotes and then refuses a non-admin, so the
+            // promotion has happened before this runs.
+            resolveAdminActor: (request) =>
+              ctx.cradle<MfaCradle>().adminContextResolver(request),
+            resolveOrgAdmin: (request) =>
+              resolveOrganizationAdmin(
+                ctx.cradle<MfaCradle>().customerActorResolver(request).customerAccountId,
+              ),
+            resolveOrganizationCustomerIds:
+              createOrganizationCustomerIdsResolver(customerAccounts),
+            resolveAccountEmail: createAccountEmailResolver(customerAccounts, adminUsers),
+            verifyAccountPassword: createAccountPasswordVerifier(
+              lazyPort<CustomerPasswordVerificationPort>(
+                ctx,
+                'customerPasswordVerificationPort',
+              ),
+              lazyPort<AdminPasswordVerificationPort>(ctx, 'adminPasswordVerificationPort'),
+            ),
             // Spread rather than assigned: `exactOptionalPropertyTypes` makes
             // "absent" and "present as undefined" different types, and these
             // two are genuinely absent on a deployment without social sign-in.
