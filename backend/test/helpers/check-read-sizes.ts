@@ -1905,7 +1905,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fewer files than the 5477 recorded against the tree before it: 5471. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 5471,
+    // **T11A (`specs/110-instance-repository/`): files 5471 -> 5473, sites 541 -> 544.**
+    // The two files T11A adds — `test/helpers/host-residue.ts` and
+    // `test/unit/kernel/host-residue-partition.test.ts` — and the three `.replace()` chains
+    // in them: the helper's trailing-punctuation strip on a path token in prose and its
+    // `.js` -> source-extension rewrite, plus the same rewrite in the test's reading of
+    // `node dist/…` scripts. None folds a diacritic and none builds a slug; measured by
+    // parking both files, which reads the recorded pair exactly.
+    files: 5473,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2015,7 +2022,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fewer files than the 540 recorded against the tree before it: 541. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    sites: 541,
+    sites: 544,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -3497,7 +3504,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **D-223: files 1581 -> 1583 (+2).** The two integration tests it adds,
     // `backend/test/integration/invoices/logo-asset-bytes.test.ts` and
     // `.../product_feeds/image-urls-are-absolute.test.ts`.
-    files: 1583,
+    // **T11A (`specs/110-instance-repository/`): files 1583 -> 1585, sites 580 -> 581.**
+    // T11A's two files, and one read site — `files.get(path) ?? ''` in
+    // `test/helpers/host-residue.ts`, a read of the injected file map rather than of a
+    // database, so it is counted and is not a finding. Attributed by parking each file
+    // separately: the helper carries the site, the test carries none.
+    files: 1585,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -3535,7 +3547,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the same population leaving, not the #235/#237 shape.
     // **D-223: sites 579 -> 580 (+1).** One more entity read in the two integration tests
     // this branch adds, neither of them defaulted.
-    sites: 580,
+    sites: 581,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -3654,7 +3666,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **D-223: files 1581 -> 1583 (+2).** The two integration tests it adds,
     // `backend/test/integration/invoices/logo-asset-bytes.test.ts` and
     // `.../product_feeds/image-urls-are-absolute.test.ts`.
-    files: 1583,
+    // **T11A (`specs/110-instance-repository/`): files 1583 -> 1585.** T11A's two files.
+    // Neither stands a harness up, so the site count does not move.
+    files: 1585,
     sites: null,
     sources: [],
   },
@@ -5989,7 +6003,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fewer files than the 8132 recorded against the tree before it: 8127. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 8127,
+    // **T11A (`specs/110-instance-repository/`): files 8127 -> 8129.** T11A's two files, over
+    // the whole-repository walk. Quality-job shape — this worktree has never run
+    // `composer:generate`, so the ignored copies under `docs/docs/modules/` are not placed;
+    // parking both files reads 8127 exactly.
+    files: 8129,
     sites: null,
     sources: [],
     //
@@ -7302,7 +7320,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **D-223: files 1581 -> 1583 (+2).** The two integration tests it adds,
     // `backend/test/integration/invoices/logo-asset-bytes.test.ts` and
     // `.../product_feeds/image-urls-are-absolute.test.ts`.
-    files: 1583,
+    // **T11A (`specs/110-instance-repository/`): files 1583 -> 1585.** T11A's two files.
+    // Neither deletes a row, so `files deleting rows` does not move.
+    files: 1585,
     sites: 163,
     sources: [],
   },
@@ -7739,7 +7759,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `assets_library` (`public-url-base.test.ts`, `services/assets-library-url.test.ts`)
     // and two under `backend/test/integration/` (`invoices/logo-asset-bytes.test.ts`,
     // `product_feeds/image-urls-are-absolute.test.ts`).
-    files: 1697,
+    // **T11A (`specs/110-instance-repository/`): files 1697 -> 1698.** One, not two:
+    // this population is the test files, and `test/helpers/host-residue.ts` is a helper.
+    // `sites` does not move — the new test owns no module's subject.
+    files: 1698,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -8356,7 +8379,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fewer files than the 4502 recorded against the tree before it: 4496. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 4496,
+    // **T11A (`specs/110-instance-repository/`): files 4496 -> 4498.** T11A's two files.
+    // Neither reaches a module package's source, so the site count does not move.
+    files: 4498,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -9079,7 +9104,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fewer files than the 8192 recorded against the tree before it: 8187. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 8187,
+    // **T11A (`specs/110-instance-repository/`): files 8187 -> 8189.** T11A's two files.
+    files: 8189,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -9500,7 +9526,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fewer files than the 6108 recorded against the tree before it: 6102. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 6102,
+    // **T11A (`specs/110-instance-repository/`): files 6102 -> 6104.** T11A's two files.
+    files: 6104,
     sites: null,
     sources: ['manifest-index'],
     //
