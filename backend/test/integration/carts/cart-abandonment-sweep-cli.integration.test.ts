@@ -16,11 +16,11 @@ import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registr
 
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 
-import { activationDeclarationsFrom } from '../../../src/kernel/lifecycle/activation-resolver.js';
+import { activationDeclarationsFrom } from '@endora-commerce/platform/composition';
 
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 
-import type { ModuleContext } from '../../../src/kernel/module-context.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { runModuleCommand } from '../../../src/cli/module-commands.js';
 
 import { enterSystemScope } from '../../../src/kernel/scope.js';

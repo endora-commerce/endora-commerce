@@ -955,7 +955,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the combined tree, never summed from the two sides' deltas.
     // **T118c, `returnsBridge`: +1 file** — `returns`' new
     // `services/notification-context.ts`. No action and no route moved.
-    files: 2013,
+    // **`specs/110-instance-repository/` T119b: files 2012 -> 2001 (-11).** the eleven
+    // re-export shims `specs/110-instance-repository/` T119b deleted from `backend/src`
+    // (`demo/index.ts`, `http/error-envelope.ts`, `http/trusted-proxy.ts`, `kernel/compose.ts`,
+    // `kernel/container.ts`, `kernel/module-context.ts`, `kernel/ports/require-admin.ts`,
+    // `kernel/public-api-base-url.ts`, `kernel/lifecycle/activation-resolver.ts`,
+    // `kernel/lifecycle/required-modules.ts` and `tenancy/resolve-tenant-context.ts`) —
+    // `backend/src/http/` and `backend/src/kernel/ports/` are gone entirely.
+    // **Re-measured on the union after rebasing onto the two T118c drains.** `origin/master`
+    // moved eight commits under this branch while it worked, so the recorded value describes
+    // neither tree alone: 2001 -> 2002. Taken in the **quality-job shape** — the ignored
+    // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
+    // job has placed them when these checks run and a developer's tree reads ~80 higher.
+    files: 2002,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1191,7 +1203,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `services/notification-context.ts`, which reads `SalesChannel` by id. That is not a
     // request-channel re-resolution and it sits in no storefront surface, so no signal
     // moved; the walk is one file wider.
-    files: 2140,
+    // **`specs/110-instance-repository/` T119b: files 2139 -> 2128 (-11).** the eleven
+    // re-export shims `specs/110-instance-repository/` T119b deleted from `backend/src`
+    // (`demo/index.ts`, `http/error-envelope.ts`, `http/trusted-proxy.ts`, `kernel/compose.ts`,
+    // `kernel/container.ts`, `kernel/module-context.ts`, `kernel/ports/require-admin.ts`,
+    // `kernel/public-api-base-url.ts`, `kernel/lifecycle/activation-resolver.ts`,
+    // `kernel/lifecycle/required-modules.ts` and `tenancy/resolve-tenant-context.ts`) —
+    // `backend/src/http/` and `backend/src/kernel/ports/` are gone entirely.
+    // **Re-measured on the union after rebasing onto the two T118c drains.** `origin/master`
+    // moved eight commits under this branch while it worked, so the recorded value describes
+    // neither tree alone: 2128 -> 2129. Taken in the **quality-job shape** — the ignored
+    // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
+    // job has placed them when these checks run and a developer's tree reads ~80 higher.
+    files: 2129,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1720,7 +1744,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree on its own: 5478 -> 5480. This branch's own additions — the module's
     // notification context, its co-located test and the integration test — were already in
     // the recorded figure. Measured on the combined tree, never summed from the deltas.
-    files: 5480,
+    // **`specs/110-instance-repository/` T119b: files 5477 -> 5466 (-11).** the eleven
+    // re-export shims `specs/110-instance-repository/` T119b deleted from `backend/src`
+    // (`demo/index.ts`, `http/error-envelope.ts`, `http/trusted-proxy.ts`, `kernel/compose.ts`,
+    // `kernel/container.ts`, `kernel/module-context.ts`, `kernel/ports/require-admin.ts`,
+    // `kernel/public-api-base-url.ts`, `kernel/lifecycle/activation-resolver.ts`,
+    // `kernel/lifecycle/required-modules.ts` and `tenancy/resolve-tenant-context.ts`) —
+    // `backend/src/http/` and `backend/src/kernel/ports/` are gone entirely.
+    // **Re-measured on the union after rebasing onto the two T118c drains.** `origin/master`
+    // moved eight commits under this branch while it worked, so the recorded value describes
+    // neither tree alone: 5466 -> 5469. Taken in the **quality-job shape** — the ignored
+    // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
+    // job has placed them when these checks run and a developer's tree reads ~80 higher.
+    files: 5469,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2339,7 +2375,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the combined tree, never summed from the two sides' deltas.
     // **T118c, `returnsBridge`: +1 file** — `returns`' new module source. It declares no
     // entity.
-    files: 2140,
+    // **`specs/110-instance-repository/` T119b: files 2139 -> 2128 (-11).** the eleven
+    // re-export shims `specs/110-instance-repository/` T119b deleted from `backend/src`
+    // (`demo/index.ts`, `http/error-envelope.ts`, `http/trusted-proxy.ts`, `kernel/compose.ts`,
+    // `kernel/container.ts`, `kernel/module-context.ts`, `kernel/ports/require-admin.ts`,
+    // `kernel/public-api-base-url.ts`, `kernel/lifecycle/activation-resolver.ts`,
+    // `kernel/lifecycle/required-modules.ts` and `tenancy/resolve-tenant-context.ts`) —
+    // `backend/src/http/` and `backend/src/kernel/ports/` are gone entirely.
+    // **Re-measured on the union after rebasing onto the two T118c drains.** `origin/master`
+    // moved eight commits under this branch while it worked, so the recorded value describes
+    // neither tree alone: 2128 -> 2129. Taken in the **quality-job shape** — the ignored
+    // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
+    // job has placed them when these checks run and a developer's tree reads ~80 higher.
+    files: 2129,
     sites: 260,
     sources: ['manifest-index'],
   },
@@ -2554,7 +2602,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the combined tree, never summed from the two sides' deltas.
     // **T118c, `returnsBridge`: +1 file** — `returns`' new module source. It starts no
     // timer and registers no boot hook.
-    files: 2140,
+    // **`specs/110-instance-repository/` T119b: files 2139 -> 2128 (-11).** the eleven
+    // re-export shims `specs/110-instance-repository/` T119b deleted from `backend/src`
+    // (`demo/index.ts`, `http/error-envelope.ts`, `http/trusted-proxy.ts`, `kernel/compose.ts`,
+    // `kernel/container.ts`, `kernel/module-context.ts`, `kernel/ports/require-admin.ts`,
+    // `kernel/public-api-base-url.ts`, `kernel/lifecycle/activation-resolver.ts`,
+    // `kernel/lifecycle/required-modules.ts` and `tenancy/resolve-tenant-context.ts`) —
+    // `backend/src/http/` and `backend/src/kernel/ports/` are gone entirely.
+    // **Re-measured on the union after rebasing onto the two T118c drains.** `origin/master`
+    // moved eight commits under this branch while it worked, so the recorded value describes
+    // neither tree alone: 2128 -> 2129. Taken in the **quality-job shape** — the ignored
+    // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
+    // job has placed them when these checks run and a developer's tree reads ~80 higher.
+    files: 2129,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2769,7 +2829,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the combined tree, never summed from the two sides' deltas.
     // **T118c, `returnsBridge`: +1 file** — `returns`' new module source. It is no entry
     // point.
-    files: 2140,
+    // **`specs/110-instance-repository/` T119b: files 2139 -> 2128 (-11).** the eleven
+    // re-export shims `specs/110-instance-repository/` T119b deleted from `backend/src`
+    // (`demo/index.ts`, `http/error-envelope.ts`, `http/trusted-proxy.ts`, `kernel/compose.ts`,
+    // `kernel/container.ts`, `kernel/module-context.ts`, `kernel/ports/require-admin.ts`,
+    // `kernel/public-api-base-url.ts`, `kernel/lifecycle/activation-resolver.ts`,
+    // `kernel/lifecycle/required-modules.ts` and `tenancy/resolve-tenant-context.ts`) —
+    // `backend/src/http/` and `backend/src/kernel/ports/` are gone entirely.
+    // **Re-measured on the union after rebasing onto the two T118c drains.** `origin/master`
+    // moved eight commits under this branch while it worked, so the recorded value describes
+    // neither tree alone: 2128 -> 2129. Taken in the **quality-job shape** — the ignored
+    // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
+    // job has placed them when these checks run and a developer's tree reads ~80 higher.
+    files: 2129,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -2975,7 +3047,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `kernel/i18n/request-language.ts`, `kernel/lifecycle/unique-module-ids.ts`,
     // `kernel/logging.ts`, `kernel/request-scope-hook.ts` and
     // `kernel/sales-channels/sales-channels-cache.ts`).
-    files: 663,
+    // **`specs/110-instance-repository/` T119b: files 663 -> 652 (-11).** the eleven re-export
+    // shims `specs/110-instance-repository/` T119b deleted from `backend/src` (`demo/index.ts`,
+    // `http/error-envelope.ts`, `http/trusted-proxy.ts`, `kernel/compose.ts`,
+    // `kernel/container.ts`, `kernel/module-context.ts`, `kernel/ports/require-admin.ts`,
+    // `kernel/public-api-base-url.ts`, `kernel/lifecycle/activation-resolver.ts`,
+    // `kernel/lifecycle/required-modules.ts` and `tenancy/resolve-tenant-context.ts`) —
+    // `backend/src/http/` and `backend/src/kernel/ports/` are gone entirely. This walk's
+    // population is the trees that declare environment inputs, so all eleven were in it.
+    files: 652,
     sites: 68,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
@@ -3535,7 +3615,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the combined tree, never summed from the two sides' deltas.
     // **T118c, `returnsBridge`: +1 file** — `returns`' new module source. It relates into
     // nothing.
-    files: 2140,
+    // **`specs/110-instance-repository/` T119b: files 2139 -> 2128 (-11).** the eleven
+    // re-export shims `specs/110-instance-repository/` T119b deleted from `backend/src`
+    // (`demo/index.ts`, `http/error-envelope.ts`, `http/trusted-proxy.ts`, `kernel/compose.ts`,
+    // `kernel/container.ts`, `kernel/module-context.ts`, `kernel/ports/require-admin.ts`,
+    // `kernel/public-api-base-url.ts`, `kernel/lifecycle/activation-resolver.ts`,
+    // `kernel/lifecycle/required-modules.ts` and `tenancy/resolve-tenant-context.ts`) —
+    // `backend/src/http/` and `backend/src/kernel/ports/` are gone entirely.
+    // **Re-measured on the union after rebasing onto the two T118c drains.** `origin/master`
+    // moved eight commits under this branch while it worked, so the recorded value describes
+    // neither tree alone: 2128 -> 2129. Taken in the **quality-job shape** — the ignored
+    // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
+    // job has placed them when these checks run and a developer's tree reads ~80 higher.
+    files: 2129,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -3543,7 +3635,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own imports into that walk: platform files 146 -> 147 and outward imports 98 -> 132,
     // measured on `origin/master` before and on this branch after, never by subtracting a
     // delta. `into-modules` stays 0, which is the whole of what T118's "Done when" asks.
-    sites: 137,
+    // **`specs/110-instance-repository/` T119b: sites 137 -> 141 (+4).** Four export
+    // declarations added to `packages/platform/src/composition/index.ts`, which rule B counts
+    // as outward imports out of a platform root: `registerErrorEnvelope` from
+    // `http/error-envelope.js`, `parseTrustedProxy`/`TrustedProxy` from
+    // `http/trusted-proxy.js`, `AdminActorPromotion` from `kernel/ports/require-admin.js` and
+    // `absolutizePublicUrl` from `kernel/public-api-base-url.js`. The other twelve names this
+    // task publishes joined export declarations that already existed, so they add no site.
+    // `into-modules` stays 0, which is what the rule is about, and `platform-subpaths` moves 13
+    // -> 14 with `./demo` — a derived reconciliation and not a band.
+    sites: 141,
     // `platform-subpaths` is T118a's second author over rule B's population: the
     // platform's `exports` map is a different program's answer to "which directories
     // does this package have", and a published subpath naming no walked directory is a
@@ -5493,7 +5594,27 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree on its own: 8126 -> 8132. This branch's own additions — the module's
     // notification context, its co-located test and the integration test — were already in
     // the recorded figure. Measured on the combined tree, never summed from the deltas.
-    files: 8132,
+    // **`specs/110-instance-repository/` T119b: files 8128 -> 8115.** the eleven re-export
+    // shims `specs/110-instance-repository/` T119b deleted from `backend/src` (`demo/index.ts`,
+    // `http/error-envelope.ts`, `http/trusted-proxy.ts`, `kernel/compose.ts`,
+    // `kernel/container.ts`, `kernel/module-context.ts`, `kernel/ports/require-admin.ts`,
+    // `kernel/public-api-base-url.ts`, `kernel/lifecycle/activation-resolver.ts`,
+    // `kernel/lifecycle/required-modules.ts` and `tenancy/resolve-tenant-context.ts`) —
+    // `backend/src/http/` and `backend/src/kernel/ports/` are gone entirely. Measured with
+    // `docs/docs/modules/` **absent**, which is the tree every `quality` job walks: this is the
+    // one recorded walk that reads git-ignored files, so a developer who has run
+    // `composer:generate` sees the 80 module pages it places there and the census prints `8195`
+    // — measured, by moving the directory aside and re-running. The two files beyond this
+    // task's eleven predate it and are re-recorded here because this is the merge request whose
+    // census measured them, and the +1 over that first reading is the changeset this merge
+    // request carries — this walk reads `.changeset/*.md` too, so the file that declares the
+    // release lands in the census that measures it.
+    // **Re-measured on the union after rebasing onto the two T118c drains.** `origin/master`
+    // moved eight commits under this branch while it worked, so the recorded value describes
+    // neither tree alone: 8116 -> 8122. Taken in the **quality-job shape** — the ignored
+    // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
+    // job has placed them when these checks run and a developer's tree reads ~80 higher.
+    files: 8122,
     sites: null,
     sources: [],
     //
@@ -5931,7 +6052,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 2138 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 2140,
+    // **`specs/110-instance-repository/` T119b: files 2139 -> 2128 (-11).** the eleven
+    // re-export shims `specs/110-instance-repository/` T119b deleted from `backend/src`
+    // (`demo/index.ts`, `http/error-envelope.ts`, `http/trusted-proxy.ts`, `kernel/compose.ts`,
+    // `kernel/container.ts`, `kernel/module-context.ts`, `kernel/ports/require-admin.ts`,
+    // `kernel/public-api-base-url.ts`, `kernel/lifecycle/activation-resolver.ts`,
+    // `kernel/lifecycle/required-modules.ts` and `tenancy/resolve-tenant-context.ts`) —
+    // `backend/src/http/` and `backend/src/kernel/ports/` are gone entirely.
+    // **Re-measured on the union after rebasing onto the two T118c drains.** `origin/master`
+    // moved eight commits under this branch while it worked, so the recorded value describes
+    // neither tree alone: 2128 -> 2129. Taken in the **quality-job shape** — the ignored
+    // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
+    // job has placed them when these checks run and a developer's tree reads ~80 higher.
+    files: 2129,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -6205,7 +6338,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree on its own: 2436 -> 2438. This branch's own additions — the module's
     // notification context, its co-located test and the integration test — were already in
     // the recorded figure. Measured on the combined tree, never summed from the deltas.
-    files: 2438,
+    // **`specs/110-instance-repository/` T119b: files 2437 -> 2426 (-11).** the eleven
+    // re-export shims `specs/110-instance-repository/` T119b deleted from `backend/src`
+    // (`demo/index.ts`, `http/error-envelope.ts`, `http/trusted-proxy.ts`, `kernel/compose.ts`,
+    // `kernel/container.ts`, `kernel/module-context.ts`, `kernel/ports/require-admin.ts`,
+    // `kernel/public-api-base-url.ts`, `kernel/lifecycle/activation-resolver.ts`,
+    // `kernel/lifecycle/required-modules.ts` and `tenancy/resolve-tenant-context.ts`) —
+    // `backend/src/http/` and `backend/src/kernel/ports/` are gone entirely. Exactly the shims
+    // and nothing else: the 92 consumer files this task re-points are overwhelmingly under
+    // `backend/test/**`, which the application walk does not read, and the barrel and manifest
+    // edits are the platform's own.
+    // **Re-measured on the union after rebasing onto the two T118c drains.** `origin/master`
+    // moved eight commits under this branch while it worked, so the recorded value describes
+    // neither tree alone: 2426 -> 2427. Taken in the **quality-job shape** — the ignored
+    // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
+    // job has placed them when these checks run and a developer's tree reads ~80 higher.
+    files: 2427,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -6279,7 +6427,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 1861 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    sites: 1863,
+    // **`specs/110-instance-repository/` T119b: sites 1862 -> 1851 (-11).** One site per
+    // deleted shim — each was a single `export *` into the platform, which is the whole of its
+    // contribution to this walk — so `ledger-size` falls 32 -> 21 and the `host-reaches` floor,
+    // which is derived from the ledger rather than banded, falls with it.
+    // **Re-measured on the union after rebasing onto the two T118c drains.** `origin/master`
+    // moved eight commits under this branch while it worked, so the recorded value describes
+    // neither tree alone: 1851 -> 1852. Taken in the **quality-job shape** — the ignored
+    // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
+    // job has placed them when these checks run and a developer's tree reads ~80 higher.
+    sites: 1852,
     // count moves with the file count here because the reaches that went are exactly
     // the files that went.
     // **T119a: sites 1870 -> 1861.** The same nine files, each the single relative
@@ -6948,7 +7105,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the combined tree, never summed from the two sides' deltas.
     // **T118c, `returnsBridge`: +1 file** — `returns`' new module source. It subscribes to
     // nothing and builds no worker.
-    files: 2140,
+    // **`specs/110-instance-repository/` T119b: files 2139 -> 2128 (-11).** the eleven
+    // re-export shims `specs/110-instance-repository/` T119b deleted from `backend/src`
+    // (`demo/index.ts`, `http/error-envelope.ts`, `http/trusted-proxy.ts`, `kernel/compose.ts`,
+    // `kernel/container.ts`, `kernel/module-context.ts`, `kernel/ports/require-admin.ts`,
+    // `kernel/public-api-base-url.ts`, `kernel/lifecycle/activation-resolver.ts`,
+    // `kernel/lifecycle/required-modules.ts` and `tenancy/resolve-tenant-context.ts`) —
+    // `backend/src/http/` and `backend/src/kernel/ports/` are gone entirely.
+    // **Re-measured on the union after rebasing onto the two T118c drains.** `origin/master`
+    // moved eight commits under this branch while it worked, so the recorded value describes
+    // neither tree alone: 2128 -> 2129. Taken in the **quality-job shape** — the ignored
+    // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
+    // job has placed them when these checks run and a developer's tree reads ~80 higher.
+    files: 2129,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -7327,7 +7496,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the combined tree, never summed from the two sides' deltas.
     // **T118c, `returnsBridge`: +1 file** — `returns`' new module source. It opens no
     // transaction.
-    files: 2140,
+    // **`specs/110-instance-repository/` T119b: files 2139 -> 2128 (-11).** the eleven
+    // re-export shims `specs/110-instance-repository/` T119b deleted from `backend/src`
+    // (`demo/index.ts`, `http/error-envelope.ts`, `http/trusted-proxy.ts`, `kernel/compose.ts`,
+    // `kernel/container.ts`, `kernel/module-context.ts`, `kernel/ports/require-admin.ts`,
+    // `kernel/public-api-base-url.ts`, `kernel/lifecycle/activation-resolver.ts`,
+    // `kernel/lifecycle/required-modules.ts` and `tenancy/resolve-tenant-context.ts`) —
+    // `backend/src/http/` and `backend/src/kernel/ports/` are gone entirely.
+    // **Re-measured on the union after rebasing onto the two T118c drains.** `origin/master`
+    // moved eight commits under this branch while it worked, so the recorded value describes
+    // neither tree alone: 2128 -> 2129. Taken in the **quality-job shape** — the ignored
+    // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
+    // job has placed them when these checks run and a developer's tree reads ~80 higher.
+    files: 2129,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -7616,7 +7797,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree on its own: 4501 -> 4505. This branch's own additions — the module's
     // notification context, its co-located test and the integration test — were already in
     // the recorded figure. Measured on the combined tree, never summed from the deltas.
-    files: 4505,
+    // **`specs/110-instance-repository/` T119b: files 4502 -> 4491 (-11).** the eleven
+    // re-export shims `specs/110-instance-repository/` T119b deleted from `backend/src`
+    // (`demo/index.ts`, `http/error-envelope.ts`, `http/trusted-proxy.ts`, `kernel/compose.ts`,
+    // `kernel/container.ts`, `kernel/module-context.ts`, `kernel/ports/require-admin.ts`,
+    // `kernel/public-api-base-url.ts`, `kernel/lifecycle/activation-resolver.ts`,
+    // `kernel/lifecycle/required-modules.ts` and `tenancy/resolve-tenant-context.ts`) —
+    // `backend/src/http/` and `backend/src/kernel/ports/` are gone entirely.
+    // **Re-measured on the union after rebasing onto the two T118c drains.** `origin/master`
+    // moved eight commits under this branch while it worked, so the recorded value describes
+    // neither tree alone: 4491 -> 4494. Taken in the **quality-job shape** — the ignored
+    // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
+    // job has placed them when these checks run and a developer's tree reads ~80 higher.
+    files: 4494,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -8294,7 +8487,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree on its own: 8186 -> 8192. This branch's own additions — the module's
     // notification context, its co-located test and the integration test — were already in
     // the recorded figure. Measured on the combined tree, never summed from the deltas.
-    files: 8192,
+    // **`specs/110-instance-repository/` T119b: files 8188 -> 8177 (-11).** the eleven
+    // re-export shims `specs/110-instance-repository/` T119b deleted from `backend/src`
+    // (`demo/index.ts`, `http/error-envelope.ts`, `http/trusted-proxy.ts`, `kernel/compose.ts`,
+    // `kernel/container.ts`, `kernel/module-context.ts`, `kernel/ports/require-admin.ts`,
+    // `kernel/public-api-base-url.ts`, `kernel/lifecycle/activation-resolver.ts`,
+    // `kernel/lifecycle/required-modules.ts` and `tenancy/resolve-tenant-context.ts`) —
+    // `backend/src/http/` and `backend/src/kernel/ports/` are gone entirely.
+    // Plus **one** for the changeset this merge request carries: this walk reads
+    // `.changeset/*.md`, so the file that declares the release lands in the very
+    // census that measures it. 8177 -> 8178.
+    // **Re-measured on the union after rebasing onto the two T118c drains.** `origin/master`
+    // moved eight commits under this branch while it worked, so the recorded value describes
+    // neither tree alone: 8178 -> 8182. Taken in the **quality-job shape** — the ignored
+    // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
+    // job has placed them when these checks run and a developer's tree reads ~80 higher.
+    files: 8182,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -8677,7 +8885,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree on its own: 6105 -> 6111. This branch's own additions — the module's
     // notification context, its co-located test and the integration test — were already in
     // the recorded figure. Measured on the combined tree, never summed from the deltas.
-    files: 6111,
+    // **`specs/110-instance-repository/` T119b: files 6108 -> 6097 (-11).** the eleven
+    // re-export shims `specs/110-instance-repository/` T119b deleted from `backend/src`
+    // (`demo/index.ts`, `http/error-envelope.ts`, `http/trusted-proxy.ts`, `kernel/compose.ts`,
+    // `kernel/container.ts`, `kernel/module-context.ts`, `kernel/ports/require-admin.ts`,
+    // `kernel/public-api-base-url.ts`, `kernel/lifecycle/activation-resolver.ts`,
+    // `kernel/lifecycle/required-modules.ts` and `tenancy/resolve-tenant-context.ts`) —
+    // `backend/src/http/` and `backend/src/kernel/ports/` are gone entirely.
+    // **Re-measured on the union after rebasing onto the two T118c drains.** `origin/master`
+    // moved eight commits under this branch while it worked, so the recorded value describes
+    // neither tree alone: 6097 -> 6100. Taken in the **quality-job shape** — the ignored
+    // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
+    // job has placed them when these checks run and a developer's tree reads ~80 higher.
+    files: 6100,
     sites: null,
     sources: ['manifest-index'],
     //

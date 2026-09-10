@@ -15,9 +15,9 @@ import { withModuleOff } from '../../helpers/off-state.js';
 
 import { EventBus } from '@endora-commerce/platform/events';
 
-import { createRootContainer, registerValues } from '../../../src/kernel/container.js';
+import { createRootContainer, registerValues } from '@endora-commerce/platform/composition';
 
-import { composeModules } from '../../../src/kernel/compose.js';
+import { composeModules } from '@endora-commerce/platform/composition';
 
 import { AssetReferenceRegistry } from '../../../../packages/modules/assets_library/src/backend/services/reference-registry.js';
 

@@ -24,7 +24,7 @@ import {
 } from '../../helpers/sales-channel-fixtures.js';
 import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
 import { runWithTenantContext } from '../../../src/tenancy/tenant-context.js';
-import { resolveTenantContext } from '../../../src/tenancy/resolve-tenant-context.js';
+import { resolveTenantContext } from '@endora-commerce/platform/composition';
 
 /**
  * `@CustomerScoped` rows are not disclosed to an administrator whose authority

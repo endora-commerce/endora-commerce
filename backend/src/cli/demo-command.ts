@@ -21,7 +21,7 @@
  * return.
  */
 import type { ModuleManifest } from '@endora-commerce/contracts';
-import type { DemoManifestEntry, DemoMode } from '../demo/index.js';
+import type { DemoManifestEntry, DemoMode } from '@endora-commerce/platform/demo';
 import { UnknownCommandError } from './module-commands.js';
 
 /** The one host verb this feature adds. */

@@ -15,9 +15,9 @@ import {
   ForeignDecorationError,
   composeModules,
   type ModuleEntry,
-} from '../../../src/kernel/compose.js';
-import { createRootContainer, type KernelContainer } from '../../../src/kernel/container.js';
-import type { ModuleContext } from '../../../src/kernel/module-context.js';
+} from '@endora-commerce/platform/composition';
+import { createRootContainer, type KernelContainer } from '@endora-commerce/platform/composition';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import type {
   ListingPricesInput,
   PricingEngineResult,

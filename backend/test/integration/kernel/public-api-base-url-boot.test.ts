@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { composeApp } from '../../../src/composition.js';
 import { deploymentRoot } from '../../../src/overlay/overlay-roots.js';
-import { PublicApiBaseUrlNotConfiguredError } from '../../../src/kernel/public-api-base-url.js';
+import { PublicApiBaseUrlNotConfiguredError } from '@endora-commerce/platform/kernel';
 
 /**
  * The production root refuses to boot without a public origin (issue #218).

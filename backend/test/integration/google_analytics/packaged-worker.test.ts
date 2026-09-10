@@ -3,12 +3,12 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { Redis } from 'ioredis';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Worker } from 'bullmq';
-import { createRootContainer } from '../../../src/kernel/container.js';
+import { createRootContainer } from '@endora-commerce/platform/composition';
 import {
   createModuleContext,
   createModuleRegistrationSink,
   type ModuleRegistrationSink,
-} from '../../../src/kernel/module-context.js';
+} from '@endora-commerce/platform/composition';
 import { EventBus } from '@endora-commerce/platform/events';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import {

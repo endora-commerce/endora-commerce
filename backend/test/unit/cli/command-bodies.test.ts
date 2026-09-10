@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { EventBus } from '@endora-commerce/platform/events';
-import { createRootContainer } from '../../../src/kernel/container.js';
+import { createRootContainer } from '@endora-commerce/platform/composition';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import {
   createModuleContext,
   createModuleRegistrationSink,
-  type ModuleContext,
-} from '../../../src/kernel/module-context.js';
+} from '@endora-commerce/platform/composition';
+import { type ModuleContext } from '@endora-commerce/platform/kernel';
 import { coverage } from '../../../../packages/modules/_i18n/src/backend/cli/coverage.js';
 import { abandonmentSweep } from '../../../../packages/modules/carts/src/backend/cli/abandonment-sweep.js';
 import { reindex } from '../../../../packages/modules/search/src/backend/cli/reindex.js';

@@ -8,7 +8,7 @@ import { makeDeletePaymentMethodCommand } from '../../../../packages/modules/pay
 // second class object to disagree with. `helpers/package-entities.ts` returns
 // `EntityClass<T>`, which `new` cannot call.
 import { PaymentMethod } from '../../../../packages/modules/payment_methods/src/backend/entities/payment-method.entity.js';
-import { HttpError } from '../../../src/http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 
 /**
  * Feature 075 — the delete-guard asks `payments`, it does not read its table.

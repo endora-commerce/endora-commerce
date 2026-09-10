@@ -3,7 +3,7 @@ import type { SessionService } from '@endora-commerce/mod-auth/backend';
 import { CustomerAccount } from './package-entities.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { PermissionService } from '../../../packages/modules/admin_roles/src/backend/services/permission-service.js';
-import type { RequireAdminFactory } from '../../src/kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { createRequireAdmin } from '@endora-commerce/mod-auth/backend';
 
 /**

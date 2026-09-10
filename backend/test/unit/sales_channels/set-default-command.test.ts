@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import type { CommandActor } from '@endora-commerce/platform/commands';
-import { HttpError } from '../../../src/http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { makeSetSystemDefaultChannelCommand } from '../../../../packages/modules/sales_channels/src/backend/commands/set-default.command.js';
 

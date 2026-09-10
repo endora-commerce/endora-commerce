@@ -56,7 +56,7 @@
  * caller must pass its own oracle rather than consult one.
  */
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { DemoComposition, DemoCompositionResult } from '../demo/index.js';
+import type { DemoComposition, DemoCompositionResult } from '@endora-commerce/platform/demo';
 import type { DemoCredential } from '@endora-commerce/contracts';
 import { SalesChannel } from '../kernel/sales-channels/sales-channel.entity.js';
 import { hashPassword } from '@endora-commerce/platform/kernel';

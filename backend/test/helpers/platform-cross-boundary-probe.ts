@@ -27,7 +27,7 @@
  */
 import { HttpError as HttpErrorFromPackage } from '@endora-commerce/platform/http';
 import { SalesChannel as SalesChannelFromPackage } from '@endora-commerce/platform/kernel';
-import { HttpError as HttpErrorFromApplication } from '../../src/http/error-envelope.js';
+import { HttpError as HttpErrorFromApplication } from '@endora-commerce/platform/http';
 import { SalesChannel as SalesChannelFromApplication } from '../../src/kernel/sales-channels/sales-channel.entity.js';
 import { MikroORM } from '@mikro-orm/postgresql';
 

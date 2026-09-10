@@ -176,6 +176,18 @@ export const HOST_INTERNAL_SUBPATHS: Readonly<Record<string, string>> = {
     'that is the whole of the surface it is entitled to. The process around it — argv, the ' +
     'composition, the system scope and the exit code — stays in the application at ' +
     '`backend/src/cli.ts`.',
+  demo:
+    'the demo-data layer (feature 113 Phase 0, D-209; `specs/110-instance-repository/` T119b): ' +
+    'the production refusal, the scope reasons a demo run carries, the plan of which modules ' +
+    'contribute and in what order, the runner and the report an operator reads. It is the one ' +
+    'platform directory that had a barrel and no address at all, so five application consumers ' +
+    'reached it by relative path into `packages/platform/dist/`, which resolves in this ' +
+    "checkout and in no client's — and a demo an instance cannot run is the whole problem that " +
+    "feature exists for. Host-internal for `./composition`'s own reason: a module *declares* " +
+    'its demo data through `@endora-commerce/contracts` and never names the runner, while the ' +
+    'thing that runs one has already composed the platform, so a module that could name this ' +
+    "could seed — and reset — its siblings' data. What the barrel carries is a consequence " +
+    'rather than a ruling, so it is held to its consumers and not to a written table.',
 };
 
 /** The file a published directory's surface is written in. */

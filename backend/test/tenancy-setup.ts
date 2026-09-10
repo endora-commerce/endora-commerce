@@ -16,7 +16,7 @@
  */
 import { beforeAll, beforeEach } from 'vitest';
 import { enterTenantContext } from '../src/tenancy/tenant-context.js';
-import { systemTenantContext } from '../src/tenancy/resolve-tenant-context.js';
+import { systemTenantContext } from '@endora-commerce/platform/composition';
 
 const applyDefault = (): void => {
   enterTenantContext(systemTenantContext('test-harness default scope'));

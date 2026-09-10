@@ -6,7 +6,7 @@
   "endora": {
     "type": "platform"
   },
-  "description": "The host package (feature 080, T042a). Publishes the surface an installed extension package compiles against: five enumerated subpaths, one per platform directory that has published API. No root export and no wildcard (D-160.7). Three further subpaths are host-internal and no module may name any of them (D-160.14): ./composition, the host composition surface; ./db, the ORM configuration, the migration ordering and the bootstrap (specs/110-instance-repository/, T116); ./migrations, the platform's own twelve migrations and the frozen historical prefix an execution order is computed from (specs/110-instance-repository/, R1.5); ./lifecycle, the operator surface that drives the platform presence axis (specs/115-lifecycle-container-move/, D115-4); ./packages, installed extension-package discovery; and ./overlay, the loader that composes a deployment's client-only modules (specs/110-instance-repository/, T113 and T114).",
+  "description": "The host package (feature 080, T042a). Publishes the surface an installed extension package compiles against: five enumerated subpaths, one per platform directory that has published API. No root export and no wildcard (D-160.7). The remaining subpaths are host-internal and no module may name any of them (D-160.14) — how many that is is not written here, `HOST_INTERNAL_SUBPATHS` in packages/cli/src/lib/platform-surface.ts carries one reason per member and this sentence read 'three' over six of them: ./composition, the host composition surface; ./db, the ORM configuration, the migration ordering and the bootstrap (specs/110-instance-repository/, T116); ./migrations, the platform's own twelve migrations and the frozen historical prefix an execution order is computed from (specs/110-instance-repository/, R1.5); ./lifecycle, the operator surface that drives the platform presence axis (specs/115-lifecycle-container-move/, D115-4); ./env, the environment inputs the host reads; ./packages, installed extension-package discovery; ./overlay, the loader that composes a deployment's client-only modules (specs/110-instance-repository/, T113 and T114); ./cli, the host's side of a module-declared operator command (T117); and ./demo, the demo-data guard, plan, runner and report (feature 113, T119b).",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -68,6 +68,10 @@
     "./cli": {
       "types": "./dist/cli/index.d.ts",
       "default": "./dist/cli/index.js"
+    },
+    "./demo": {
+      "types": "./dist/demo/index.d.ts",
+      "default": "./dist/demo/index.js"
     },
     "./package.json": "./package.json"
   },

@@ -8,8 +8,8 @@ import {
 } from '../../helpers/test-server.js';
 import { withModuleOff } from '../../helpers/off-state.js';
 import { EventBus } from '@endora-commerce/platform/events';
-import { createRootContainer, registerValues } from '../../../src/kernel/container.js';
-import { composeModules } from '../../../src/kernel/compose.js';
+import { createRootContainer, registerValues } from '@endora-commerce/platform/composition';
+import { composeModules } from '@endora-commerce/platform/composition';
 import { AssetReferenceRegistry } from '../../../../packages/modules/assets_library/src/backend/services/reference-registry.js';
 import { AssetsLibraryService } from '../../../../packages/modules/assets_library/src/backend/services/assets-library.service.js';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';

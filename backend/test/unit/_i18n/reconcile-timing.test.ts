@@ -2,12 +2,12 @@ import Fastify from 'fastify';
 import { asValue } from 'awilix';
 import { serializerCompiler, validatorCompiler } from '@fastify/type-provider-zod';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createRootContainer } from '../../../src/kernel/container.js';
+import { createRootContainer } from '@endora-commerce/platform/composition';
 import {
   createModuleContext,
   createModuleRegistrationSink,
   type ModuleRegistrationSink,
-} from '../../../src/kernel/module-context.js';
+} from '@endora-commerce/platform/composition';
 import { type ModuleContext } from '../../../src/kernel/index.js';
 import { EventBus } from '@endora-commerce/platform/events';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';

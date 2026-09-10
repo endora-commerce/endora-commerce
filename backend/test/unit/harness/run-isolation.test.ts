@@ -20,7 +20,7 @@ import {
   templateDrift,
   withDatabase,
 } from '@endora-commerce/test-kit/database';
-import { TEST_DATABASE_NAME_PATTERN as SEED_GUARD_PATTERN } from '../../../src/demo/index.js';
+import { TEST_DATABASE_NAME_PATTERN as SEED_GUARD_PATTERN } from '@endora-commerce/platform/demo';
 
 /**
  * Issue #189 — the naming and selection rules behind per-invocation isolation.

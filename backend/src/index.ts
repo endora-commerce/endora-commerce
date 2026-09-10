@@ -6,7 +6,7 @@
 // (`pnpm --filter backend run dev`) and production both go through this.
 
 import { buildServer } from '@endora-commerce/platform/composition';
-import { parseTrustedProxy, type TrustedProxy } from './http/trusted-proxy.js';
+import { parseTrustedProxy, type TrustedProxy } from '@endora-commerce/platform/composition';
 import { composeApp } from './composition.js';
 import { deploymentRoot } from './overlay/overlay-roots.js';
 

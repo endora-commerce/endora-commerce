@@ -1,8 +1,8 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createRootContainer } from '../../../src/kernel/container.js';
+import { createRootContainer } from '@endora-commerce/platform/composition';
 import { enterPlatformScope } from '../../../src/kernel/scope.js';
-import { systemTenantContext } from '../../../src/tenancy/resolve-tenant-context.js';
+import { systemTenantContext } from '@endora-commerce/platform/composition';
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';

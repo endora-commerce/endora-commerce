@@ -4,8 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { EventBus } from '@endora-commerce/platform/events';
 import { ApiInterceptorRegistry } from '@endora-commerce/platform/composition';
-import { createRootContainer } from '../../../src/kernel/container.js';
-import { composeModules } from '../../../src/kernel/compose.js';
+import { createRootContainer } from '@endora-commerce/platform/composition';
+import { composeModules } from '@endora-commerce/platform/composition';
 import { MODULES } from '../../../src/composition.generated.js';
 import { codeOnly } from '../../../scripts/lib/source-text.js';
 

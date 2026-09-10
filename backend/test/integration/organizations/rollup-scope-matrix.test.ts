@@ -12,7 +12,7 @@ import {
   MissingTenantContextError,
   type TenantContext,
 } from '../../../src/tenancy/tenant-context.js';
-import { systemTenantContext } from '../../../src/tenancy/resolve-tenant-context.js';
+import { systemTenantContext } from '@endora-commerce/platform/composition';
 import { OrganizationTreeService } from '../../../../packages/modules/organizations/src/backend/services/organization-tree-service.js';
 import { SalesRepAssignmentService } from '../../../../packages/modules/organizations/src/backend/services/sales-rep-assignment-service.js';
 import { QuoteRequest } from '../../helpers/package-entities.js';
