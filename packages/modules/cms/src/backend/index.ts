@@ -4,6 +4,7 @@ import { z } from 'zod';
 import {
   cmsColorPaletteSchema,
   type AssetReferenceRegistryPort,
+  type AssetsLibraryPort,
   type CmsBlockSeedPort,
   type CmsColorPalette,
   type DictionaryReferenceRegistryPort,
@@ -19,6 +20,7 @@ import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { cmsModule } from './plugin.js';
 import type { CmsAssetResolver } from './services/storefront-resolver.js';
+import { createAssetEmbedResolver } from './services/asset-embed-resolver.js';
 import { registerCmsAssetReferences } from './services/asset-references.js';
 import { registerCmsLanguageReferences } from './services/cms-language-reference.js';
 import { CmsBlock } from './entities/cms-block.entity.js';
@@ -64,12 +66,16 @@ import { CmsTemplate } from './entities/cms-template.entity.js';
  * `setValueForAllChannels`, so both spellings find the value; this makes the
  * read agree with the rest of the platform.
  *
- * **The asset resolver stays a contribution.** It reaches into
- * `assets_library`'s service, and which modules a deployment ships is a root's
- * business, not this one's — the same reasoning `assets_library`'s own
- * reference resolvers were left on. It is read through the cradle *per call*
- * rather than installed once, so a root may contribute it at any point in its
- * own ordering without this module caring.
+ * **The asset resolver stayed a contribution, and no longer does**
+ * (`specs/110-instance-repository/` T118c). The reasoning written here was that
+ * it reaches into `assets_library`'s service and which modules a deployment
+ * ships is a root's business — true of the *decision* and not of the *wiring*.
+ * `assets_library` publishes `assetsLibraryPort`, so the reach is a declared
+ * edge this module can hold itself, and holding it removes the thing the
+ * argument never accounted for: the root's closure was a raw hold on another
+ * module's service, and only **one** of the two roots ever contributed it. The
+ * registration is still read through the cradle *per call*, so a deployment
+ * that decorates the name is honoured wherever it does so.
  *
  * `requireAdmin` becomes required. It was optional here and the routes
  * defaulted it to `?? (async () => {})` — a permission gate whose absent form
@@ -102,8 +108,12 @@ export interface CmsCradle {
     ): Promise<unknown>;
   };
   readonly settingsChannelResolver: () => Promise<string>;
-  /** Contribution point: absent unless a root supplies one. */
-  readonly cmsAssetResolver: CmsAssetResolver | undefined;
+  /**
+   * How an embedded asset id becomes the detail a storefront response carries.
+   * This module's own registration over `assetsLibraryPort` since T118c — see
+   * the note on the registration itself.
+   */
+  readonly cmsAssetResolver: CmsAssetResolver;
   /**
    * Owned by `assets_library`: the registry that refuses to delete an asset a
    * page, block or template embeds. Typed by the contract shape rather than by
@@ -142,11 +152,33 @@ const reservedSegmentsSchema = z.array(z.unknown());
 
 export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
-    // Contribution point, defaulted absent: a platform without `assets_library`
-    // resolves it to nothing and CMS content simply carries no asset detail,
-    // which is what the root's own `try/catch → null` already meant.
+    /**
+     * `specs/110-instance-repository/` T118c — this module's own registration
+     * over `assets_library`' published port, drained out of a composition root
+     * (`specs/075-cross-module-decoupling-sweep/` Phase C).
+     *
+     * It was a contribution point defaulted to `undefined`, and `composition.ts`
+     * built the closure below out of `assetsLibrary.handle.service`. Two things
+     * that cost: the reach was a root's raw hold on another module's service
+     * rather than a declared edge, and **`test-server.ts` contributed nothing**,
+     * so every CMS storefront response under test resolved its asset embeds to
+     * `{}` — one seam on from the four late-bound setters this barrel's own
+     * header calls "the endpoint that only worked in production", and quieter,
+     * because an empty asset map is a plausible answer rather than a wrong one.
+     *
+     * The port is resolved per call through the `lazyPort` proxy, never captured
+     * (composition checklist item 3), and the edge is `assets_library` in this
+     * module's manifest `dependencies` — already there for the reference
+     * registry below, and now load-bearing for a second reason.
+     *
+     * The mapping itself is `services/asset-embed-resolver.ts`, a function of the
+     * port rather than of the context, so it is unit-tested over a stub with no
+     * container composed.
+     */
     cmsAssetResolver: ctx
-      .asFunction((): CmsAssetResolver | undefined => undefined)
+      .asFunction((): CmsAssetResolver =>
+        createAssetEmbedResolver(lazyPort<AssetsLibraryPort>(ctx, 'assetsLibraryPort')),
+      )
       .singleton(),
 
     cms: ctx
@@ -252,13 +284,14 @@ export function registerModule(ctx: ModuleContext): void {
           );
         });
 
-        // Installed once but *reading* the contribution per call, so a root can
-        // contribute after this module composes.
-        result.handle.setAssetResolver(async (assetId) => {
-          const resolve = ctx.cradle<CmsCradle>().cmsAssetResolver;
-          if (resolve === undefined) return null;
-          return resolve(assetId);
-        });
+        // Installed once but *reading* the registration per call, so a
+        // deployment that decorates the name is honoured without this module
+        // caring where in a composition that happens. The `undefined` branch
+        // that used to stand here went with the contribution point (T118c):
+        // there is no composition in which the name is unset any more.
+        result.handle.setAssetResolver(async (assetId) =>
+          ctx.cradle<CmsCradle>().cmsAssetResolver(assetId),
+        );
 
         return result;
       })

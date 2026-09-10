@@ -386,9 +386,11 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // transactional-email twin (T120, replaced by one `templateEmailPort` for
   // every module that sends unscoped template mail), and the nine `catalog`
   // names `pim_ergonode` used to read, `catalogAttributeReadPort` and
-  // `catalogQueryPort` among them (T142).
-  // The asset service the Ergonode media pipeline stores through.
-  assetsLibraryService: 'assets_library',
+  // `catalogQueryPort` among them (T142). And `assetsLibraryService`, the asset
+  // service the Ergonode media pipeline stored through, retired by
+  // `specs/110-instance-repository/` T118c — that pipeline has resolved
+  // `assetsLibraryPort` since feature 075's cut, so the entry outlived its last
+  // reader by two features and the name it stood for was registered for nobody.
   // How this composition assembles a feed row: opening a storage backend,
   // resolving availability bands, expanding a category through the catalog
   // port, and turning asset ids into stable public URLs (T137). Each crosses a

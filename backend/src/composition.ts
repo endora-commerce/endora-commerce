@@ -1194,24 +1194,14 @@ async function contributeReferenceDeployment(
   // from what this root was taught.
   const assetsLibrary = (container.cradle as unknown as AssetsLibraryCradle).assetsLibrary;
 
-  // Feature 072 (T093) — contributed, not set: which modules a deployment
-  // ships is this root's business, and `cms` reads the contribution per call.
-  composedModules.contribute({
-    cmsAssetResolver: async (assetId: string) => {
-      try {
-        const detail = await assetsLibrary.handle.service.getAsset(assetId);
-        return {
-          url: detail.url,
-          mimeType: detail.mimeType,
-          filename: detail.filename,
-          label: detail.label ?? null,
-          visibility: detail.visibility,
-        };
-      } catch {
-        return null;
-      }
-    },
-  });
+  // `cmsAssetResolver` is **not** here any more (T118c). Feature 072's T093 left
+  // it as a contribution on the reasoning that which modules a deployment ships
+  // is this root's business — true of the decision, not of the wiring, and it
+  // never accounted for the fact that only *this* root contributed it, so every
+  // CMS storefront response under the harness resolved its asset embeds to `{}`.
+  // `cms` registers the name itself now over `assets_library`' published
+  // `assetsLibraryPort`, with the edge in its own manifest
+  // (`specs/075-cross-module-decoupling-sweep/` Phase C).
 
   // Feature 046 — PWA module. Owns the installable-app control plane (over the
   // Settings module), the push-subscription registry, the provider-agnostic
@@ -1967,10 +1957,11 @@ async function contributeReferenceDeployment(
   // its own set inside its plugin, are gone: that module provides them as
   // ports, so there is one instance of each per composition and the Ergonode
   // importer writes through the same one the admin API does. `assetsLibrary`'s
-  // is the last one left here, and it drains when that module converts.
-  composedModules.contribute({
-    assetsLibraryService: assetsLibrary.handle.service,
-  });
+  // was the last one left here and is gone too (T118c): `assets_library`
+  // provides `assetsLibraryPort`, `pim_ergonode` has resolved that port since
+  // feature 075's cut, and the `assetsLibraryService` name this root went on
+  // contributing was read by **nobody** — a second, ungated hold on the same
+  // service, kept alive by the entry rather than by a caller.
   // FR-005 — the boot-time schedule reconcile moved into the module's own
   // `ctx.onBoot` in T131, where it reads the same `runWorkers` decision this
   // root contributes.

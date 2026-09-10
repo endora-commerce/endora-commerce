@@ -408,6 +408,12 @@ export interface AssetUploadInput {
  * asset an item stopped pointing at. Four methods, which is the whole of the
  * demand — the module's own admin surface is much larger and stays unpublished.
  *
+ * `cms` is the second consumer and takes `getAsset` alone, to turn an asset id a
+ * page or block embeds into the detail the storefront response carries. It reached
+ * the same service through a composition-root contribution until
+ * `specs/110-instance-repository/` T118c; nothing about this interface changed to
+ * admit it, which is the point of publishing one.
+ *
  * **Owner off:** the seam fails closed — resolving this port throws
  * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
  * half-executes. Whether `assets_library` has an off state at all is its manifest's
