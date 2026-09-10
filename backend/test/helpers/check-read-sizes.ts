@@ -1056,7 +1056,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fewer files than the 2004 recorded against the tree before it: 1998. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 1998,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 1998 -> 2000, the two module sources the branch adds —
+    // `packages/modules/cms/src/backend/services/cms-block-read-port.ts` and
+    // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
+    // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
+    // no population of its own.
+    files: 2000,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1330,7 +1336,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fewer files than the 2131 recorded against the tree before it: 2125. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 2125,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 2125 -> 2127, the two module sources the branch adds —
+    // `packages/modules/cms/src/backend/services/cms-block-read-port.ts` and
+    // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
+    // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
+    // no population of its own.
+    files: 2127,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1410,7 +1422,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // nothing.
     // **D-223: files 1700 -> 1701 (+1).** The module source it adds,
     // `packages/modules/assets_library/src/backend/services/storage/public-url-base.ts`.
-    files: 1701,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 1701 -> 1703, the two module sources the branch adds —
+    // `packages/modules/cms/src/backend/services/cms-block-read-port.ts` and
+    // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
+    // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
+    // no population of its own.
+    files: 1703,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -1502,7 +1520,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test.
     // **D-223: files 2196 -> 2199 (+3).** `public-url-base.ts` plus the two co-located
     // tests beside it, `public-url-base.test.ts` and `services/assets-library-url.test.ts`.
-    files: 2199,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 2199 -> 2203, the four module-package files the branch adds
+    // — the two sources (`cms-block-read-port.ts`, `cross-module-ports.ts`) and their two
+    // co-located tests. This walk reads a module's `.ts` including the test spellings; the
+    // backend integration test and the changeset are outside it.
+    files: 2203,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -1912,7 +1935,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `.js` -> source-extension rewrite, plus the same rewrite in the test's reading of
     // `node dist/…` scripts. None folds a diacritic and none builds a slug; measured by
     // parking both files, which reads the recorded pair exactly.
-    files: 5473,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 5471 -> 5476, the five `.ts` files the branch adds across
+    // `packages` and `backend`. The changeset is outside this walk, whose roots are the four
+    // application and package trees.
+    // **Re-measured on the union after rebasing onto T11A.** That task added the residue
+    // partition's analysis and its assertions under `backend/test/`, files this walk reads
+    // and none of them counted in the 5476 recorded before it: 5478. This branch's own
+    // additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 5478,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2191,7 +2223,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // divergence moved.
     // **D-223: files 2375 -> 2378 (+3).** `public-url-base.ts` plus the two co-located
     // tests beside it, `public-url-base.test.ts` and `services/assets-library-url.test.ts`.
-    files: 2378,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 2378 -> 2382, the four module-package files the branch adds
+    // — the two sources (`cms-block-read-port.ts`, `cross-module-ports.ts`) and their two
+    // co-located tests. This walk reads a module's `.ts` including the test spellings; the
+    // backend integration test and the changeset are outside it.
+    files: 2382,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -2589,7 +2626,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fewer files than the 2131 recorded against the tree before it: 2125. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 2125,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 2125 -> 2127, the two module sources the branch adds —
+    // `packages/modules/cms/src/backend/services/cms-block-read-port.ts` and
+    // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
+    // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
+    // no population of its own.
+    files: 2127,
     sites: 260,
     sources: ['manifest-index'],
   },
@@ -2842,7 +2885,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fewer files than the 2131 recorded against the tree before it: 2125. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 2125,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 2125 -> 2127, the two module sources the branch adds —
+    // `packages/modules/cms/src/backend/services/cms-block-read-port.ts` and
+    // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
+    // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
+    // no population of its own.
+    files: 2127,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3095,7 +3144,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fewer files than the 2131 recorded against the tree before it: 2125. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 2125,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 2125 -> 2127, the two module sources the branch adds —
+    // `packages/modules/cms/src/backend/services/cms-block-read-port.ts` and
+    // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
+    // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
+    // no population of its own.
+    files: 2127,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -3509,7 +3564,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `test/helpers/host-residue.ts`, a read of the injected file map rather than of a
     // database, so it is counted and is not a finding. Attributed by parking each file
     // separately: the helper carries the site, the test carries none.
-    files: 1585,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 1583 -> 1584, the one file the branch adds under
+    // `backend/test`, `test/integration/megamenu/cross-module-targets.test.ts` — the composed
+    // proof for the three bridge members no test in the tree read before it.
+    // **Re-measured on the union after rebasing onto T11A.** That task added the residue
+    // partition's analysis and its assertions under `backend/test/`, files this walk reads
+    // and none of them counted in the 1584 recorded before it: 1586. This branch's own
+    // additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 1586,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -3668,7 +3732,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `.../product_feeds/image-urls-are-absolute.test.ts`.
     // **T11A (`specs/110-instance-repository/`): files 1583 -> 1585.** T11A's two files.
     // Neither stands a harness up, so the site count does not move.
-    files: 1585,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 1583 -> 1584, the one file the branch adds under
+    // `backend/test`, `test/integration/megamenu/cross-module-targets.test.ts` — the composed
+    // proof for the three bridge members no test in the tree read before it.
+    // **Re-measured on the union after rebasing onto T11A.** That task added the residue
+    // partition's analysis and its assertions under `backend/test/`, files this walk reads
+    // and none of them counted in the 1584 recorded before it: 1586. This branch's own
+    // additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 1586,
     sites: null,
     sources: [],
   },
@@ -3937,7 +4010,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fewer files than the 2131 recorded against the tree before it: 2125. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 2125,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 2125 -> 2127, the two module sources the branch adds —
+    // `packages/modules/cms/src/backend/services/cms-block-read-port.ts` and
+    // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
+    // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
+    // no population of its own.
+    files: 2127,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -4252,7 +4331,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, which this walk opens as module sources. No zone and no namespace moved.
     // **D-223: files 2726 -> 2729 (+3).** `public-url-base.ts` plus the two co-located
     // tests beside it, `public-url-base.test.ts` and `services/assets-library-url.test.ts`.
-    files: 2729,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 2729 -> 2733, the four module-package files the branch adds
+    // — the two sources (`cms-block-read-port.ts`, `cross-module-ports.ts`) and their two
+    // co-located tests. This walk reads a module's `.ts` including the test spellings; the
+    // backend integration test and the changeset are outside it.
+    files: 2733,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
     sites: 56,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
@@ -4346,7 +4430,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T118c, `returnsBridge`: +1 file** — `returns`' new module source.
     // **D-223: files 2093 -> 2094 (+1).** The module source it adds,
     // `packages/modules/assets_library/src/backend/services/storage/public-url-base.ts`.
-    files: 2094,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 2094 -> 2096, the two module sources the branch adds —
+    // `packages/modules/cms/src/backend/services/cms-block-read-port.ts` and
+    // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
+    // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
+    // no population of its own.
+    files: 2096,
     // The finer population, and it is the one that moves when nothing else does
     // (issues #235/#237): tree sites, unreadable sites, renderer-map sites, the
     // block declarations and the declared `(key, context)` sections. A block
@@ -4410,7 +4500,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test.
     // **D-223: files 2824 -> 2827 (+3).** `public-url-base.ts` plus the two co-located
     // tests beside it, `public-url-base.test.ts` and `services/assets-library-url.test.ts`.
-    files: 2827,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 2827 -> 2831, the four module-package files the branch adds
+    // — the two sources (`cms-block-read-port.ts`, `cross-module-ports.ts`) and their two
+    // co-located tests. This walk reads a module's `.ts` including the test spellings; the
+    // backend integration test and the changeset are outside it.
+    files: 2831,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -4644,7 +4739,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // doc block. All English; no finding and no ledger entry moved.
     // **D-223: files 1712 -> 1713 (+1).** The module source it adds,
     // `packages/modules/assets_library/src/backend/services/storage/public-url-base.ts`.
-    files: 1713,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 1713 -> 1715, the two module sources the branch adds —
+    // `packages/modules/cms/src/backend/services/cms-block-read-port.ts` and
+    // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
+    // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
+    // no population of its own.
+    files: 1715,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -4715,7 +4816,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **D-223: sites 34477 -> 34486 (+9).** The literals `public-url-base.ts` classifies.
     // All English or empty, so none is a finding; the number moves because the walk counts
     // what it classified.
-    sites: 34486,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** sites 34486 -> 34495, nine string literals classified in those
+    // two new module sources. None is a finding: the detector is Polish-only and every literal
+    // here is English or a path fragment.
+    sites: 34495,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -5229,7 +5334,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // at 8.
     // **D-223: files 5000 -> 5006 (+6).** The five `.ts` files it adds and one markdown
     // file, the changeset.
-    files: 5006,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 5006 -> 5014, four new module-package files at two openings
+    // each, which is the whole of the +8: this check walks the module tree **and** every
+    // source root, so a module package's file is opened under both. The backend integration
+    // test is in neither population.
+    files: 5014,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -5292,7 +5402,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **D-223: sites 12575 -> 12589 (+14).** Import specifiers and SQL table references
     // across the six files the branch adds — the two integration tests name `assets`,
     // `gallery_items` and the price-list tables between them, and the rest are imports.
-    sites: 12589,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** sites 12589 -> 12604, the import specifiers and table references
+    // those four files add. No cross-module reach among them: every outward name the drain
+    // introduces is a `@endora-commerce/contracts` type or a container name, and the ledger is
+    // unchanged at 8 keys.
+    sites: 12604,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -6007,7 +6122,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the whole-repository walk. Quality-job shape — this worktree has never run
     // `composer:generate`, so the ignored copies under `docs/docs/modules/` are not placed;
     // parking both files reads 8127 exactly.
-    files: 8129,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 8127 -> 8133, every file the branch adds — the five `.ts`
+    // files and the changeset. This is the whole-tree walk, so the changeset counts here and
+    // not in the module ones; it is the file that is easy to forget, being written after the
+    // numbers are first read.
+    // **Re-measured on the union after rebasing onto T11A.** That task added the residue
+    // partition's analysis and its assertions under `backend/test/`, files this walk reads
+    // and none of them counted in the 8133 recorded before it: 8135. This branch's own
+    // additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 8135,
     sites: null,
     sources: [],
     //
@@ -6486,7 +6611,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fewer files than the 2131 recorded against the tree before it: 2125. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 2125,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 2125 -> 2127, the two module sources the branch adds —
+    // `packages/modules/cms/src/backend/services/cms-block-read-port.ts` and
+    // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
+    // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
+    // no population of its own.
+    files: 2127,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -6578,11 +6709,25 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // reads as a rise rather than as a transfer.
     // **D-223: files 1944 -> 1945 (+1).** The module source it adds,
     // `packages/modules/assets_library/src/backend/services/storage/public-url-base.ts`.
-    files: 1945,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 1945 -> 1947, the two module sources the branch adds —
+    // `packages/modules/cms/src/backend/services/cms-block-read-port.ts` and
+    // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
+    // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
+    // no population of its own.
+    files: 1947,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 1471 -> 1535.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
-    sites: 1564,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** sites 1564 -> 1568, three net `lazyPort` resolutions plus one
+    // cradle read. `megamenu` gains five — `catalogCategoryReadPort`, `cmsPageReadPort`,
+    // `cmsBlockReadPort`, `assetReadPort` and `assetsLibraryPort` — against the two the drain
+    // deletes, `megamenuValidatorDeps` and `megamenuStorefrontDeps`; the fourth is `cms`' new
+    // `providePort` factory destructuring `emFactory`, which Awilix makes a cradle read. A
+    // composition root's own reads are in no population here, so a drain that removes eight
+    // closures from two roots and adds five resolutions in a module reads as a rise.
+    sites: 1568,
     sources: ['manifest-index'],
   },
   // Two derivations, deliberately, because the check has two inputs that can be
@@ -6810,7 +6955,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fewer files than the 2429 recorded against the tree before it: 2423. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 2423,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 2423 -> 2425, the two module sources the branch adds —
+    // `packages/modules/cms/src/backend/services/cms-block-read-port.ts` and
+    // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
+    // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
+    // no population of its own.
+    files: 2425,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -7041,11 +7192,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // source.
     // **D-223: files 2043 -> 2044 (+1).** The module source it adds,
     // `packages/modules/assets_library/src/backend/services/storage/public-url-base.ts`.
-    files: 2044,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 2044 -> 2046, the two module sources the branch adds —
+    // `packages/modules/cms/src/backend/services/cms-block-read-port.ts` and
+    // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
+    // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
+    // no population of its own.
+    files: 2046,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 692 -> 721.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
-    sites: 732,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** sites 732 -> 736, one new published port and three net
+    // resolutions: `CmsBlockReadPort` declared in `packages/contracts/src/cms.ts`, and
+    // `megamenu`'s five `lazyPort` reads against the two the drain deletes. Measured with the
+    // two module sources withheld, which isolated the contract half at +1.
+    sites: 736,
     sources: ['manifest-index', 'ports-subpaths'],
   },
   // Small on purpose: this population is the *workspace*, not a source tree —
@@ -7322,7 +7484,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `.../product_feeds/image-urls-are-absolute.test.ts`.
     // **T11A (`specs/110-instance-repository/`): files 1583 -> 1585.** T11A's two files.
     // Neither deletes a row, so `files deleting rows` does not move.
-    files: 1585,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 1583 -> 1584, the one file the branch adds under
+    // `backend/test`, `test/integration/megamenu/cross-module-targets.test.ts` — the composed
+    // proof for the three bridge members no test in the tree read before it.
+    // **Re-measured on the union after rebasing onto T11A.** That task added the residue
+    // partition's analysis and its assertions under `backend/test/`, files this walk reads
+    // and none of them counted in the 1584 recorded before it: 1586. This branch's own
+    // additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 1586,
     sites: 163,
     sources: [],
   },
@@ -7627,7 +7798,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fewer files than the 2131 recorded against the tree before it: 2125. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 2125,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 2125 -> 2127, the two module sources the branch adds —
+    // `packages/modules/cms/src/backend/services/cms-block-read-port.ts` and
+    // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
+    // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
+    // no population of its own.
+    files: 2127,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -7762,7 +7939,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T11A (`specs/110-instance-repository/`): files 1697 -> 1698.** One, not two:
     // this population is the test files, and `test/helpers/host-residue.ts` is a helper.
     // `sites` does not move — the new test owns no module's subject.
-    files: 1698,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 1697 -> 1700, the branch's three new test files.
+    // **Re-measured on the union after rebasing onto T11A.** That task added the residue
+    // partition's analysis and its assertions under `backend/test/`, files this walk reads
+    // and none of them counted in the 1700 recorded before it: 1701. This branch's own
+    // additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 1701,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -7784,7 +7968,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // specifiers it gains add nothing back. `files` is untouched at 1715: no test file
     // arrived or left.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's co-located tests and the declared run that owns them.
-    sites: 1110,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** sites 1110 -> 1111, one: the two co-located tests are already in
+    // their packages and are classified by position, so only
+    // `test/integration/megamenu/cross-module-targets.test.ts` becomes a site. It is
+    // server-bound and multi-owner, so it stays under `backend/test` and needs no ledger
+    // entry.
+    sites: 1111,
     // Two independent authors. `manifest-index` is issue #215's shared floor
     // over the module walk, whose unit is the module's own directory rather than
     // a test file — 14 of the 70 packages ship no test and a floor over test
@@ -8052,7 +8242,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fewer files than the 2131 recorded against the tree before it: 2125. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 2125,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 2125 -> 2127, the two module sources the branch adds —
+    // `packages/modules/cms/src/backend/services/cms-block-read-port.ts` and
+    // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
+    // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
+    // no population of its own.
+    files: 2127,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -8381,7 +8577,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
     // **T11A (`specs/110-instance-repository/`): files 4496 -> 4498.** T11A's two files.
     // Neither reaches a module package's source, so the site count does not move.
-    files: 4498,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 4496 -> 4501, all five of the branch's new `.ts` files —
+    // the two module sources, their two co-located tests and the backend integration test.
+    // This walk is the widest of the module family and reads tests on both sides of the
+    // package boundary; only the changeset is outside it.
+    // **Re-measured on the union after rebasing onto T11A.** That task added the residue
+    // partition's analysis and its assertions under `backend/test/`, files this walk reads
+    // and none of them counted in the 4501 recorded before it: 4503. This branch's own
+    // additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 4503,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -9105,7 +9311,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
     // **T11A (`specs/110-instance-repository/`): files 8187 -> 8189.** T11A's two files.
-    files: 8189,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 8187 -> 8193, the same six as `check-nul-bytes`: five `.ts`
+    // files and the changeset.
+    // **Re-measured on the union after rebasing onto T11A.** That task added the residue
+    // partition's analysis and its assertions under `backend/test/`, files this walk reads
+    // and none of them counted in the 8193 recorded before it: 8195. This branch's own
+    // additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 8195,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -9527,7 +9741,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
     // **T11A (`specs/110-instance-repository/`): files 6102 -> 6104.** T11A's two files.
-    files: 6104,
+    // // **`specs/110-instance-repository/` T118c (the `megamenu` drain, `cms` publishes
+    // `cmsBlockReadPort`):** files 6102 -> 6107, the five `.ts` files. The changeset is not
+    // under `docs/docs/**` and this walk's markdown population is, so it gains nothing from it
+    // — which is why this number and `check-naming.sh`'s move by different amounts on one
+    // branch.
+    // **Re-measured on the union after rebasing onto T11A.** That task added the residue
+    // partition's analysis and its assertions under `backend/test/`, files this walk reads
+    // and none of them counted in the 6107 recorded before it: 6109. This branch's own
+    // additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 6109,
     sites: null,
     sources: ['manifest-index'],
     //

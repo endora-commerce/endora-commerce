@@ -138,8 +138,6 @@ import type { CustomFieldDefinitionsCache } from '../../../packages/modules/cust
 import type { ApiKeysCradle } from '../../../packages/modules/api_keys/src/backend/index.js';
 import type { CmsCradle } from '../../../packages/modules/cms/src/backend/index.js';
 import type { MegamenuCradle } from '@endora-commerce/mod-megamenu/backend';
-import type { TargetValidatorDeps } from '../../../packages/modules/megamenu/src/backend/services/target-validator.js';
-import type { StorefrontDeps } from '../../../packages/modules/megamenu/src/backend/services/storefront-resolver.js';
 // Feature 072 — the harness is a second composition root, so a module left
 // hand-wired here would keep passing against wiring nobody changed. It composes
 // the same generated list production does; only the host values differ.
@@ -1818,106 +1816,14 @@ export async function setupBackendServer(
       });
       pwaCradle = container.cradle as unknown as PwaCradle;
 
-      // Feature 015 — Megamenu module. Wires the cross-module ports the
-      // target validator + storefront resolver delegate to. v1 uses small
-      // direct SQL lookups instead of forcing new upstream surfaces.
-      // Feature 072 (T107) — `megamenu` owns its services and routes now. These
-      // two bundles stay here: both are existence checks and URL lookups against
-      // OTHER modules' tables, so moving them into the module would give it
-      // direct reads of `catalog`, `cms` and `assets_library` storage.
-      //
-      // Registered after `composeModules`, where `megamenu` declares its own
-      // defaults — contributing earlier would let the module overwrite the root.
-      composedModules.contribute({
-        megamenuValidatorDeps: {
-          categoryExists: async (categoryId) => {
-            const rows = (await em()
-              .getConnection()
-              .execute('select 1 from categories where id = ? limit 1', [categoryId])) as Array<{
-              '?column?': number;
-            }>;
-            return rows.length > 0;
-          },
-          cmsPageExists: async (pageId) => {
-            const rows = (await em()
-              .getConnection()
-              .execute('select 1 from cms_pages where id = ? limit 1', [pageId])) as Array<{
-              '?column?': number;
-            }>;
-            return rows.length > 0;
-          },
-          cmsBlockExists: async (blockId) => {
-            const rows = (await em()
-              .getConnection()
-              .execute('select 1 from cms_blocks where id = ? limit 1', [blockId])) as Array<{
-              '?column?': number;
-            }>;
-            return rows.length > 0;
-          },
-          assetIs: async (assetId, expected) => {
-            const rows = (await em()
-              .getConnection()
-              .execute('select 1 from assets where id = ? and kind = ? limit 1', [
-                assetId,
-                expected,
-              ])) as Array<{ '?column?': number }>;
-            return rows.length > 0;
-          },
-        } satisfies TargetValidatorDeps,
-        megamenuStorefrontDeps: {
-          resolveCategoryUrl: async (categoryId) => {
-            const rows = (await em()
-              .getConnection()
-              .execute('select slug from categories where id = ? limit 1', [categoryId])) as Array<{
-              slug: string;
-            }>;
-            return rows[0]?.slug ? `/catalog/${rows[0].slug}` : null;
-          },
-          resolveCmsPageUrl: async (pageId) => {
-            const rows = (await em()
-              .getConnection()
-              .execute('select slug from cms_pages where id = ? limit 1', [pageId])) as Array<{
-              slug: string;
-            }>;
-            return rows[0]?.slug ? `/${rows[0].slug}` : null;
-          },
-          resolveAsset: async (assetId) => {
-            const rows = (await em()
-              .getConnection()
-              .execute('select kind, label from assets where id = ? limit 1', [assetId])) as Array<{
-              kind: string;
-              label: string | null;
-            }>;
-            const row = rows[0];
-            if (!row) return null;
-            if (row.kind !== 'image' && row.kind !== 'video') return null;
-            const resolved = await assetsLibrary.handle.service.resolveUrl(assetId);
-            return { url: resolved.url, label: row.label, kind: row.kind };
-          },
-          resolveCmsBlock: async (blockId, language) => {
-            const rows = (await em()
-              .getConnection()
-              .execute(
-                'select id::text, code, content from cms_blocks where id = ? and active = true limit 1',
-                [blockId],
-              )) as Array<{
-              id: string;
-              code: string;
-              content: { languages?: Record<string, unknown> };
-            }>;
-            const row = rows[0];
-            if (!row) return null;
-            const data = row.content.languages?.[language];
-            if (data === undefined) return null;
-            return {
-              id: row.id,
-              code: row.code,
-              language,
-              content: { schemaVersion: 1, data },
-            };
-          },
-        } satisfies StorefrontDeps,
-      });
+      // Feature 015 — Megamenu module. **Nothing is contributed for it any more**
+      // (`specs/110-instance-repository/` T118c). This root's copy of
+      // `megamenuValidatorDeps` / `megamenuStorefrontDeps` was the divergent one
+      // in two places, and no test in the tree read either: it resolved a
+      // category URL as `/catalog/<slug>`, which the storefront serves from
+      // nowhere, and it applied no `is_active` / `deleted_at` narrowing, so a
+      // deactivated category kept its menu item here and lost it in production.
+      // The module resolves the five published ports itself now.
       // T143a — `megamenu` cross-registers into `cms`' reference registry from its
       // own boot hook now, so this root only drops the cache a previous
       // composition in the same process may have left in Redis.

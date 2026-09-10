@@ -145,6 +145,9 @@ export {
   type CmsPageReadPort,
   type CmsSeededBlock,
   type CmsBlockSeedPort,
+  type CmsBlockRecord,
+  type CmsLocalizedBlockRecord,
+  type CmsBlockReadPort,
 } from './cms.js';
 export * from './shopping-lists.js';
 export * from './quick-order.js';

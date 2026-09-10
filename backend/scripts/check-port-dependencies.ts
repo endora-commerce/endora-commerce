@@ -410,11 +410,14 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // hand-wired; the entry goes when that module converts.
   // The composed attribute read model (feature 061). Owned by `catalog`, still
   // hand-wired; the entry goes when that module converts.
-  // `megamenu`'s existence checks and URL lookups against `catalog`, `cms` and
-  // `assets_library` tables. Root-owned by design — see the note in
-  // `megamenu/backend.ts` on why they must not move into the module.
-  megamenuValidatorDeps: 'megamenu',
-  megamenuStorefrontDeps: 'megamenu',
+  // Drained too: `megamenu`'s eight existence checks and URL lookups against
+  // `catalog`, `cms` and `assets_library` tables, retired by
+  // `specs/110-instance-repository/` T118c. That module's barrel argued they
+  // must stay in a root until one of the three owners grew an existence-check
+  // port; all three had, and `cms` published the missing block read in the same
+  // merge request, so the module resolves `catalogCategoryReadPort`,
+  // `cmsPageReadPort`, `cmsBlockReadPort`, `assetReadPort` and
+  // `assetsLibraryPort` and declares the edges.
   // `catalog`'s query service. Root-built until that module converts — see the
   // note in `promotions/backend.ts` on why this is the last live instance of it.
   // The organization-status gate feature 026 US5 added: an org-targeted

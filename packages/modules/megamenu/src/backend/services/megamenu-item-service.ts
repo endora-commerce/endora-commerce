@@ -9,7 +9,8 @@ import {
 import { HttpError } from '@endora-commerce/platform/http';
 import type { MegamenuCache } from './megamenu-cache.js';
 import type { MegamenuService } from './megamenu-service.js';
-import { validateTarget, type TargetValidatorDeps } from './target-validator.js';
+import { validateTarget } from './target-validator.js';
+import type { MegamenuCrossModulePorts } from './cross-module-ports.js';
 
 const SOFT_DEPTH_WARN_AT = 4;
 
@@ -43,7 +44,7 @@ export class MegamenuItemService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly menuService: MegamenuService,
-    private readonly validatorDeps: TargetValidatorDeps,
+    private readonly ports: MegamenuCrossModulePorts,
     private readonly cache?: MegamenuCache,
   ) {}
 
@@ -69,7 +70,7 @@ export class MegamenuItemService {
     // out-of-scope refusal lands in US3.
     const channelIds = await this.fetchChannelIdsForMenu(menuId);
     for (const item of normalised) {
-      await validateTarget(item, channelIds, this.validatorDeps);
+      await validateTarget(item, channelIds, this.ports);
     }
 
     await em.transactional(async (tx) => {

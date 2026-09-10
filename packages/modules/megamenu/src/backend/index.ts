@@ -1,8 +1,13 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Redis } from 'ioredis';
 import type {
+  AssetReadPort,
   AssetReferenceRegistryPort,
+  AssetsLibraryPort,
+  CatalogCategoryReadPort,
+  CmsBlockReadPort,
   CmsExternalReferenceScanner,
+  CmsPageReadPort,
   DictionaryValidator,
   DictionaryReferenceRegistryPort,
 } from '@endora-commerce/contracts';
@@ -13,8 +18,8 @@ import { MegamenuCache, type MegamenuCacheOptions } from './services/megamenu-ca
 import { MegamenuReferenceRegistry } from './services/megamenu-reference-registry.js';
 import { MegamenuService } from './services/megamenu-service.js';
 import { MegamenuItemService } from './services/megamenu-item-service.js';
-import type { TargetValidatorDeps } from './services/target-validator.js';
-import { StorefrontResolver, type StorefrontDeps } from './services/storefront-resolver.js';
+import type { MegamenuCrossModulePorts } from './services/cross-module-ports.js';
+import { StorefrontResolver } from './services/storefront-resolver.js';
 import { registerMegamenuAdminRoutes } from './routes.admin.js';
 import { registerMegamenuStorefrontRoutes } from './routes.storefront.js';
 import { registerMegamenuAssetReferences } from './services/asset-references.js';
@@ -25,23 +30,36 @@ import { MegamenuItem } from './entities/megamenu-item.entity.js';
 import { Megamenu } from './entities/megamenu.entity.js';
 
 /**
- * `megamenu` — two dependency bundles that stay outside on purpose (feature
- * 072, wave 2, T107).
+ * `megamenu` — the module reads its own cross-module targets
+ * (`specs/110-instance-repository/` T118c).
  *
- * The temptation here is to pull `validatorDeps` and `storefrontDeps` into the
- * module, because they are the only reason a root still mentions it. Resist it:
- * both are raw SQL against **other modules' tables** — `categories`,
- * `cms_pages`, `cms_blocks`, `assets` — and moving them in would give this
- * module direct reads of `catalog`, `cms` and `assets_library` storage, which
- * Principle I forbids more firmly than it dislikes a root closure. They stay
- * contributions, and they carry the same shape `blogStorefrontDeps` already
- * has.
+ * Until T118c this block said the opposite, and said it firmly: two dependency
+ * bundles stayed in the composition roots because both were raw SQL against
+ * `categories`, `cms_pages`, `cms_blocks` and `assets`, and moving *that* into
+ * the module would have given it direct reads of three other modules' storage.
+ * The reasoning was right and the conclusion had an expiry date the block wrote
+ * down itself: *"it belongs to whichever of `catalog`, `cms` and
+ * `assets_library` grows the existence-check port first."* All three have.
+ * `catalogCategoryReadPort`, `cmsPageReadPort` and `assetReadPort` came out of
+ * `specs/075-cross-module-decoupling-sweep/` Phase C, and `cmsBlockReadPort` is
+ * this merge request's — the one port the drain still needed and the reason
+ * T118c's row picks this target.
  *
- * That those closures are hand-written SQL rather than calls into the owning
- * modules' services is a real problem, and it is not this conversion's. It
- * belongs to whichever of `catalog`, `cms` and `assets_library` grows the
- * existence-check port first; recorded here so the next reader does not mistake
- * the contribution point for an endorsement of what flows through it.
+ * So the eight closures are gone from both roots and their two interfaces with
+ * them. What replaces them is `MegamenuCrossModulePorts`: five published ports,
+ * resolved per call by `lazyPort`, with the four judgements that used to sit
+ * inside the closures — a storefront URL's shape, which category counts as live,
+ * which asset kinds a menu may embed, what an absent language means — in
+ * `services/cross-module-ports.ts`, where they have a test.
+ *
+ * **What the roots were getting wrong, which is the argument for the drain
+ * rather than a bonus.** A root's contribution is nobody's declared dependency,
+ * so none of these edges appeared in a manifest: an operator switching `cms` off
+ * was told nothing about the menu embeds that stop. And the two roots did not
+ * agree — production dropped a deactivated or soft-deleted category from the
+ * menu where the harness kept it, and production built `/c/<slug>` where the
+ * harness built `/catalog/<slug>`, which the storefront serves from nowhere. No
+ * test in the tree read either value, so both divergences were invisible.
  *
  * `requireAdmin` stops being optional — `routes.admin.ts` defaulted an absent
  * gate to `?? (async () => {})`, the permissive form, which both roots happened
@@ -49,7 +67,7 @@ import { Megamenu } from './entities/megamenu.entity.js';
  *
  * `megamenuCacheOptions` is a contribution point that **neither** composition
  * currently overrides, and that is deliberate rather than an oversight. Unlike
- * `seo`'s sitemap options, the harness wants this module's cache *on*: 
+ * `seo`'s sitemap options, the harness wants this module's cache *on*:
  * `test/integration/megamenu/storefront-cache.test.ts` exists to prove the
  * payload is cached and dropped on write, so a zero TTL there would make the
  * suite assert nothing. The seam stays for a deployment that wants to tune the
@@ -68,10 +86,6 @@ export interface MegamenuCradle {
   readonly redis: Redis | undefined;
   readonly requireAdmin: RequireAdminFactory;
   readonly dictionaryValidator: DictionaryValidator;
-  /** Existence checks against other modules' tables; a root owns them. */
-  readonly megamenuValidatorDeps: TargetValidatorDeps;
-  /** URL resolution against other modules' tables; a root owns them. */
-  readonly megamenuStorefrontDeps: StorefrontDeps;
   /** Composition-specific cache tuning; `{}` in production. */
   readonly megamenuCacheOptions: MegamenuCacheOptions;
   /**
@@ -102,22 +116,30 @@ export function registerModule(ctx: ModuleContext): void {
             cache,
             lazyPort<DictionaryValidator>(ctx, 'dictionaryValidator'),
           );
+          /**
+           * The five published ports this module reads outside itself
+           * (`specs/110-instance-repository/` T118c). Every one is a `lazyPort`
+           * proxy that resolves on the call rather than here, so nothing
+           * captures a gated registration — a captured gate keeps answering
+           * after its owner is switched off.
+           *
+           * Two of them are `assets_library`'s, because neither answers the
+           * whole question: `AssetRecord` carries the stored `kind` and no
+           * resolved URL, `AssetDetail` carries the URL and no `kind`, and
+           * `resolveUrl` is published on no port (D-223).
+           */
+          const ports: MegamenuCrossModulePorts = {
+            categories: lazyPort<CatalogCategoryReadPort>(ctx, 'catalogCategoryReadPort'),
+            pages: lazyPort<CmsPageReadPort>(ctx, 'cmsPageReadPort'),
+            blocks: lazyPort<CmsBlockReadPort>(ctx, 'cmsBlockReadPort'),
+            assets: lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
+            assetLibrary: lazyPort<AssetsLibraryPort>(ctx, 'assetsLibraryPort'),
+          };
           return {
             menuService,
             cache,
-            itemService: new MegamenuItemService(
-              emFactory,
-              menuService,
-              // Read per call: these are contributed by a root, which registers
-              // them after this module composes.
-              lazyPort<TargetValidatorDeps>(ctx, 'megamenuValidatorDeps'),
-              cache,
-            ),
-            storefrontResolver: new StorefrontResolver(
-              emFactory,
-              lazyPort<StorefrontDeps>(ctx, 'megamenuStorefrontDeps'),
-              cache,
-            ),
+            itemService: new MegamenuItemService(emFactory, menuService, ports, cache),
+            storefrontResolver: new StorefrontResolver(emFactory, ports, cache),
           };
         },
       )
@@ -220,12 +242,13 @@ export const entities = [
 ];
 
 /**
- * Published for the composition root, which contributes these shapes and must
- * name their types. It reached the source files by relative path until
- * 2026-08-26, which is `TS6059` under `backend/tsconfig.build.json`'s
- * `rootDir` — even for an `import type`, because a type-only import still
- * joins the program. Nothing in `backend/src` may name a package's source, so
- * the type has to arrive through the published subpath.
+ * **Nothing is published for a composition root any more**
+ * (`specs/110-instance-repository/` T118c).
+ *
+ * `TargetValidatorDeps` and `StorefrontDeps` were exported here so
+ * `backend/src/composition.ts` and `backend/test/helpers/test-server.ts` could
+ * write objects that `satisfies` them. Both roots have stopped, both interfaces
+ * are deleted rather than relocated, and this module's outward reach is
+ * `MegamenuCrossModulePorts` — module-private, and a bundle of five published
+ * ports with no closure in it, so there is nothing left for a root to build.
  */
-export type { TargetValidatorDeps } from './services/target-validator.js';
-export type { StorefrontDeps } from './services/storefront-resolver.js';

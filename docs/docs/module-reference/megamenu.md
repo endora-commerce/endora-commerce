@@ -30,6 +30,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | --- | --- | --- |
 | `assets_library` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `auth` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
+| `catalog` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `cms` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `dictionaries` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `languages` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
