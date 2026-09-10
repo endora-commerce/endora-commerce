@@ -8,12 +8,15 @@ import { effectiveState } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import type {
   AdminNotificationRecordPort,
+  AssetReadPort,
   CatalogCategoryReadPort,
   CatalogGalleryPort,
   CatalogProductFilterPort,
   CatalogProductReadPort,
   ConfigurationTypeRegistryPort,
   CustomFieldDefinitionReadPort,
+  InventoryAvailabilityPort,
+  ObjectStoragePort,
   PriceListReadPort,
 } from '@endora-commerce/contracts';
 import { productFeedsModule, type ProductFeedsModuleOptions } from './plugin.js';
@@ -41,17 +44,8 @@ import { FeedTemplateField } from './entities/feed-template-field.entity.js';
 import { ProductFeed } from './entities/product-feed.entity.js';
 
 /**
- * `product_feeds` — four adapters a root builds, and three seams only a test
- * composition has (feature 072, wave 3, T137).
- *
- * The four are how this module reaches outside itself to assemble a feed row:
- * opening the storage backend an artefact is written to, resolving availability
- * bands across the caller's warehouses, expanding a category to its descendants
- * through the documented catalog port, and turning asset ids into *stable*
- * public URLs. Each crosses a boundary this module must not reach through
- * directly, and each is several lines of root code rather than a service
- * reference, so they are contributed as one {@link ProductFeedsBridge} — always
- * supplied together, by the same caller.
+ * `product_feeds` — three seams only a test composition has (feature 072, wave
+ * 3, T137), and, since `specs/110-instance-repository/` T118c, no bridge.
  *
  * The three seams are the taxonomy data root, the taxonomy source fetcher and
  * the delivery adapters. Production contributes none of them and the module
@@ -61,20 +55,38 @@ import { ProductFeed } from './entities/product-feed.entity.js';
  * composition does differently is information about the seam, not boilerplate
  * to normalise away.
  *
- * `resolvePublicImageUrls` deserves its own note. FR-043 says only stable public
- * URLs reach a feed file, so a private asset is *absent* from the map rather
- * than present as an expiring signed URL — one that would survive token rotation
- * and break the moment it expired. That rule lives in the root's adapter because
- * it needs `assets_library`'s resolver; it moves here when that module converts.
+ * **`ProductFeedsBridge` is deleted rather than relocated.** It was one
+ * contributed name carrying four members — the storage backend an artefact is
+ * written to, availability bands across the caller's warehouses, a category
+ * expanded to its descendants, and asset ids turned into stable public URLs —
+ * and every one of them is a published port this module resolves for itself
+ * below. Three of the four cost their owner a publication and each is recorded
+ * where it landed:
+ *
+ *  - **`objectStoragePort`** is the design act. This module writes bytes into
+ *    `assets_library`' configured store under its own `product-feeds/` prefix
+ *    and creates no `Asset` row (FR-043), so what it borrows is *which bucket
+ *    this deployment writes to, with which credentials* — not an asset library.
+ *    The owner's in-process `StorageAdapter` could not be published as it
+ *    stood: it names `NodeJS.ReadableStream`, its `setVisibility?` is optional
+ *    (D-97.3), and its `getForBackend` answers a union whose second arm cannot
+ *    stream bytes at all — which is why both consumers of it wrote
+ *    `if (!('open' in adapter) || typeof adapter.open !== 'function')` and why
+ *    this module's root closure *threw* in that branch.
+ *  - **`inventoryAvailabilityPort`** existed and carried no type argument, so
+ *    there was no name to import; `inventory` publishes
+ *    {@link InventoryAvailabilityPort} now.
+ *  - **`catalogCategoryReadPort.expandCategoryProductIds`** is the batched,
+ *    cycle-tolerant, live-narrowed subtree walk the criteria compiler needs
+ *    (FR-025). It is **not** N calls to `listProductIdsInSubtree`: that one is
+ *    structural by contract — it filters neither `isActive` nor `deletedAt` —
+ *    and it is a recursive CTE with no cycle guard.
+ *  - **`assetReadPort.resolvePublicUrls`** carries FR-043's own rule, and it
+ *    moved to the owner because only the owner can apply it: a consumer holding
+ *    an asset id cannot tell a stable URL from an expiring signed one, and an
+ *    absent entry rather than a `catch` is the degrade expressed in the return
+ *    type (composition checklist item 7).
  */
-
-/** How this composition assembles the parts of a feed row. */
-export interface ProductFeedsBridge {
-  readonly storageAdapters: ProductFeedsModuleOptions['storageAdapters'];
-  readonly resolveAvailability: ProductFeedsModuleOptions['resolveAvailability'];
-  readonly expandCategoryProductIds: ProductFeedsModuleOptions['expandCategoryProductIds'];
-  readonly resolvePublicImageUrls: ProductFeedsModuleOptions['resolvePublicImageUrls'];
-}
 
 /** What `product_feeds` resolves from the container, and the names it owns. */
 export interface ProductFeedsCradle {
@@ -98,7 +110,6 @@ export interface ProductFeedsCradle {
   readonly moduleQueueRedis: Redis | undefined;
   /** Root-supplied (Principle X): the harness runs no generation or reaper consumer. */
   readonly productFeedsRunWorkers: boolean;
-  readonly productFeedsBridge: ProductFeedsBridge;
   /**
    * Pinned per composition rather than derived, and registered **early** in each
    * root: the boot hook below constructs the module, and these two are read at
@@ -144,8 +155,20 @@ export function registerModule(ctx: ModuleContext): void {
           productFeedsPublicBaseUrl,
           productFeedsTokenEncryptionKey,
         }: ProductFeedsCradle) => {
-          const bridge = (): ProductFeedsBridge =>
-            ctx.cradle<ProductFeedsCradle>().productFeedsBridge;
+          // The four ports the bridge used to carry. Each is a `lazyPort`
+          // proxy, which resolves per property access — so nothing here is a
+          // captured gate, and each of the three owners keeps its own answer to
+          // being switched off.
+          const objectStorage = lazyPort<ObjectStoragePort>(ctx, 'objectStoragePort');
+          const availability = lazyPort<InventoryAvailabilityPort>(
+            ctx,
+            'inventoryAvailabilityPort',
+          );
+          const categoryReads = lazyPort<CatalogCategoryReadPort>(
+            ctx,
+            'catalogCategoryReadPort',
+          );
+          const assetReads = lazyPort<AssetReadPort>(ctx, 'assetReadPort');
           return productFeedsModule({
             emFactory,
             commandBus,
@@ -227,17 +250,27 @@ export function registerModule(ctx: ModuleContext): void {
               lazyPort<AdminNotificationRecordPort>(ctx, 'adminNotificationRecordPort'),
             ),
             settings: lazyPort<ProductFeedsCradle['settingsReadPort']>(ctx, 'settingsReadPort'),
-            // Forwarded per call so a root may contribute the bridge at any
-            // point in its own ordering.
-            storageAdapters: {
-              getActive: () => bridge().storageAdapters.getActive(),
-              getForBackend: (backend) => bridge().storageAdapters.getForBackend(backend),
-            },
+            // T118c — `assets_library`' published object store. The bytes of a
+            // feed artefact, under this module's own locator prefix and with no
+            // `Asset` row: what is borrowed is the deployment's bucket and
+            // credentials, which is the one thing this module cannot know.
+            objectStorage,
+            // T118c — `inventory`'s port, resolved here rather than handed in.
+            // The binding is deliberate and it is what the manifest already
+            // says: a feed whose availability column is silently absent is
+            // worse than a run that stops and records why.
             resolveAvailability: (productIds, salesChannelId) =>
-              bridge().resolveAvailability(productIds, salesChannelId),
+              availability.resolveAvailabilityBands(productIds, salesChannelId),
+            // T118c — `catalog`'s category read model. The batched, live-narrowed,
+            // cycle-tolerant walk, and not N calls to `listProductIdsInSubtree`:
+            // that one is structural by contract and has no cycle guard.
             expandCategoryProductIds: (categoryIds) =>
-              bridge().expandCategoryProductIds(categoryIds),
-            resolvePublicImageUrls: (assetIds) => bridge().resolvePublicImageUrls(assetIds),
+              categoryReads.expandCategoryProductIds(categoryIds),
+            // T118c — FR-043's rule, asked of the module that can answer it.
+            // An asset that is not live, not public, or whose URL could only be
+            // produced as an expiring signed link is simply absent from the map;
+            // this module cannot tell those apart from an id and a URL string.
+            resolvePublicImageUrls: (assetIds) => assetReads.resolvePublicUrls(assetIds),
             ...ctx.cradle<ProductFeedsCradle>().productFeedsTestOverrides,
           });
         },

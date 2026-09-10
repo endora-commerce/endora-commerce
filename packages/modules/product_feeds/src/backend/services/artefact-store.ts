@@ -1,29 +1,47 @@
-import type { Readable } from 'node:stream';
+import { Readable } from 'node:stream';
+import type { ObjectStorageBackendCode, ObjectStoragePort } from '@endora-commerce/contracts';
 
 /**
  * ArtefactStore — feature 067 / FR-043, FR-052, research §R6.
  *
- * The module's narrow port over the Assets Library storage adapter SPI. It
+ * The module's locator policy over `assets_library`' published object store. It
  * exists so `product_feeds` never imports another module's internals
  * (Principle I) and so an overlay can substitute a different backing store
  * under `tsc` as the contract gate (Principle XV).
  *
- * Three rules this port encodes, none of which the adapter enforces on its own:
+ * Three rules this store encodes, none of which the object store enforces on
+ * its own:
  *
  *  1. **Objects are private.** Feed artefacts carry prices; the anonymous
- *     public route serves them by streaming `open()`, never by handing out the
- *     adapter's own public/signed URL — otherwise rotating a feed token would
- *     not actually revoke access.
+ *     public route serves them by streaming `open()`, never by handing out a
+ *     store URL — otherwise rotating a feed token would not actually revoke
+ *     access.
  *  2. **No `Asset` row is ever created.** These bytes are this module's data,
  *     not library media: they must not appear in the asset browser, be counted
  *     in library quotas, or be reachable through the assets routes.
  *  3. **Locators live under this module's own prefix**, so a storage bucket
  *     stays readable and a bulk purge of feed artefacts can never touch an
  *     operator's uploads.
+ *
+ * **The adapter shapes this file used to declare are gone**
+ * (`specs/110-instance-repository/` T118c). `ArtefactStorageAdapter` and
+ * `ArtefactStorageAdapterProvider` were a structural transcription of an
+ * interface the owner could not publish, and a composition root stood between
+ * the two converting one into the other — including a `getForBackend` branch
+ * that threw, because the owner's union carried a second arm that cannot stream
+ * bytes at all. `assets_library` publishes {@link ObjectStoragePort} now, whose
+ * `getForBackend` is total, and this module resolves it directly.
  */
 
-/** The backend that physically owns an artefact's bytes, recorded per row. */
-export type ArtefactStorageBackend = 'local' | 's3' | 'gcs';
+/**
+ * The backend that physically owns an artefact's bytes, recorded per row.
+ *
+ * The published code, not a private copy of the same three strings: a value
+ * read back off a `feed_artefacts` row is handed straight to
+ * `ObjectStoragePort.getForBackend`, and two spellings of one union is how the
+ * two come to disagree.
+ */
+export type ArtefactStorageBackend = ObjectStorageBackendCode;
 
 export interface ArtefactPutInput {
   locator: string;
@@ -37,42 +55,13 @@ export interface ArtefactPutResult {
   locator: string;
 }
 
-/**
- * The subset of the Assets Library adapter registry this module needs. Declared
- * structurally so the module depends on a shape, not on the other module's
- * class.
- */
-export interface ArtefactStorageAdapter {
-  readonly code: string;
-  put(input: {
-    locator: string;
-    mimeType: string;
-    visibility: 'public' | 'private';
-    stream: NodeJS.ReadableStream;
-    sizeBytes: number;
-  }): Promise<void>;
-  open(input: { locator: string }): Promise<NodeJS.ReadableStream>;
-  delete(input: { locator: string }): Promise<void>;
-}
-
-export interface ArtefactStorageAdapterProvider {
-  /** The adapter new artefacts are written to. */
-  getActive(): Promise<ArtefactStorageAdapter>;
-  /**
-   * The adapter that owns an existing artefact's bytes. Reads and deletes MUST
-   * go through this, never through `getActive()` — after a backend switch the
-   * active adapter would resolve an old artefact to the wrong store.
-   */
-  getForBackend(backend: ArtefactStorageBackend): Promise<ArtefactStorageAdapter>;
-}
-
 export interface ArtefactStorePort {
   /** Compute a fresh, never-colliding locator under this module's prefix. */
   newLocator(input: { artefactId: string; extension: string }): string;
   /** Stream bytes into the active backend. Returns the backend that took them. */
   put(input: ArtefactPutInput): Promise<ArtefactPutResult>;
   /** Stream an existing artefact's bytes back out. */
-  open(input: { backend: ArtefactStorageBackend; locator: string }): Promise<NodeJS.ReadableStream>;
+  open(input: { backend: ArtefactStorageBackend; locator: string }): Promise<Readable>;
   /** Remove an artefact's bytes. Retention tolerates an already-missing object. */
   delete(input: { backend: ArtefactStorageBackend; locator: string }): Promise<void>;
 }
@@ -81,7 +70,7 @@ export interface ArtefactStorePort {
 export const ARTEFACT_LOCATOR_PREFIX = 'product-feeds';
 
 export class ArtefactStore implements ArtefactStorePort {
-  constructor(private readonly adapters: ArtefactStorageAdapterProvider) {}
+  constructor(private readonly objectStorage: ObjectStoragePort) {}
 
   newLocator(input: { artefactId: string; extension: string }): string {
     const id = input.artefactId.toLowerCase();
@@ -95,8 +84,8 @@ export class ArtefactStore implements ArtefactStorePort {
   }
 
   async put(input: ArtefactPutInput): Promise<ArtefactPutResult> {
-    const adapter = await this.adapters.getActive();
-    await adapter.put({
+    const store = await this.objectStorage.getActive();
+    await store.put({
       locator: input.locator,
       mimeType: input.contentType,
       visibility: 'private',
@@ -106,19 +95,25 @@ export class ArtefactStore implements ArtefactStorePort {
       // generation pipeline's pass-through byte counter.
       sizeBytes: 0,
     });
-    return { backend: adapter.code as ArtefactStorageBackend, locator: input.locator };
+    // `code` is the store's own answer, typed. It used to be
+    // `adapter.code as ArtefactStorageBackend` over a `readonly code: string`,
+    // which is a cast that could have written anything into the row that
+    // `getForBackend` is later handed.
+    return { backend: store.code, locator: input.locator };
   }
 
-  async open(input: {
-    backend: ArtefactStorageBackend;
-    locator: string;
-  }): Promise<NodeJS.ReadableStream> {
-    const adapter = await this.adapters.getForBackend(input.backend);
-    return adapter.open({ locator: input.locator });
+  async open(input: { backend: ArtefactStorageBackend; locator: string }): Promise<Readable> {
+    const store = await this.objectStorage.getForBackend(input.backend);
+    // `AssetByteStream` is a structural async iterable, deliberately — the
+    // published contract cannot name `NodeJS.ReadableStream` (see the port).
+    // Fastify streams a reply by looking for `.pipe`, so the one wrap belongs
+    // here, in a backend layer where `node:stream` is legal, rather than at the
+    // two route handlers that send it.
+    return Readable.from(await store.open({ locator: input.locator }));
   }
 
   async delete(input: { backend: ArtefactStorageBackend; locator: string }): Promise<void> {
-    const adapter = await this.adapters.getForBackend(input.backend);
-    await adapter.delete({ locator: input.locator });
+    const store = await this.objectStorage.getForBackend(input.backend);
+    await store.delete({ locator: input.locator });
   }
 }

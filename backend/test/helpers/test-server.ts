@@ -158,10 +158,7 @@ import type { PromptRequestService } from '../../../packages/modules/prompt_acti
 import type { LlmProviderFactory } from '../../../packages/modules/prompt_actions/src/backend/services/llm/provider-factory.js';
 import type { FetchLike } from '../../../packages/modules/prompt_actions/src/backend/services/llm/provider.js';
 import type { KsefCradle } from '../../../packages/modules/ksef/src/backend/index.js';
-import type {
-  ProductFeedsBridge,
-  ProductFeedsCradle,
-} from '../../../packages/modules/product_feeds/src/backend/index.js';
+import type { ProductFeedsCradle } from '../../../packages/modules/product_feeds/src/backend/index.js';
 import type {
   TaxonomyFetchResult,
   TaxonomySourceFetcherPort,
@@ -186,16 +183,19 @@ import type { PwaBridge, PwaCradle } from '../../../packages/modules/pwa/src/bac
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { composeErrorEnvelopeOptions } from '@endora-commerce/platform/composition';
 import type { ComparisonsCradle } from '../../../packages/modules/comparisons/src/backend/index.js';
-// `catalog`'s two service types name the package's **`dist`**, unlike the other
-// packaged modules above, and the difference is not cosmetic: the values these
-// annotate come off the composed container, which is `dist`, and integration
-// tests that construct a `CatalogQueryService` themselves must name `dist` too —
-// a source copy would build entity classes the ORM never discovered (D-160.6.1,
-// measured on `bulk-undo.test.ts` when this module was packaged). Typing the
-// harness against `src` while every consumer names `dist` makes the two
-// structurally-identical declarations non-assignable, which is TS2345 rather
-// than a silent divergence, so the spelling has to agree.
-import type { CatalogQueryService } from '../../../packages/modules/catalog/dist/backend/services/catalog-query.service.js';
+// `catalog`'s service type names the package's **`dist`**, unlike the other
+// packaged modules above, and the difference is not cosmetic: the value it
+// annotates comes off the composed container, which is `dist`, and an
+// integration test that constructs one of these services itself must name
+// `dist` too — a source copy would build entity classes the ORM never
+// discovered (D-160.6.1, measured on `bulk-undo.test.ts` when this module was
+// packaged). Typing the harness against `src` while every consumer names `dist`
+// makes the two structurally-identical declarations non-assignable, which is
+// TS2345 rather than a silent divergence, so the spelling has to agree.
+//
+// It read *"two service types"* until `specs/110-instance-repository/` T118c:
+// `CatalogQueryService` was named here only to type the cradle read this
+// harness made on `product_feeds`' behalf, and that bridge is gone.
 import { z } from 'zod';
 import type { CatalogAttributeReadService } from '../../../packages/modules/catalog/dist/backend/services/catalog-attribute-read.service.js';
 import type { PricingServiceContract } from '../../../packages/modules/price_lists/src/backend/services/pricing-service.interface.js';
@@ -2429,63 +2429,15 @@ export async function setupBackendServer(
       // BullMQ connections here has previously taken ~225 files down with "too many
       // clients" (research §R18). Tests drive `productFeeds.generation.generateNow`
       // directly, exactly as the KSeF tests drive `submissions.process`.
-      // Feature 072 (T137) — `product_feeds` owns its services and routes now.
-      // The four adapters it reaches outside itself through stay a root's: each
-      // crosses a boundary the module must not reach through directly.
-      composedModules.contribute({
-        productFeedsBridge: {
-          storageAdapters: {
-            getActive: () => assetsLibrary.handle.adapters.getActive(),
-            getForBackend: async (backend) => {
-              const adapter = await assetsLibrary.handle.adapters.getForBackend(backend);
-              if (!('open' in adapter) || typeof adapter.open !== 'function') {
-                throw new Error(
-                  `product_feeds: storage backend "${backend}" cannot stream artefact bytes.`,
-                );
-              }
-              return adapter;
-            },
-          },
-          resolveAvailability: async (productIds: string[], salesChannelId: string) =>
-            // T143a — `inventory`'s port. This built a fresh `WarehouseChannelService`
-            // *and* `StockLevelService` on every call, each with only `em` where the
-            // module passes the event bus and audit writer too.
-            inventoryCradle().inventoryAvailabilityPort.resolveAvailabilityBands(
-              productIds,
-              salesChannelId,
-            ),
-          expandCategoryProductIds: (categoryIds: string[]) =>
-            // T143a — `catalog`'s port, mirroring `composition.ts`. This built a
-            // throwaway `CatalogQueryService` per call.
-            (
-              container.cradle as never as { catalogQueryPort: CatalogQueryService }
-            ).catalogQueryPort.expandCategoryProductIds(categoryIds),
-          // D-223 — identical to `composition.ts`. This root used to publish a
-          // URL only when it already began `http`, so on a local-filesystem
-          // deployment with a blank `assets.local.public_url_base` every product
-          // image dropped out of the feed here while production rebased it onto
-          // the configured origin: the two roots produced feeds with and without
-          // images from the same data. Both now take the module's absolute URL,
-          // and the only asset either skips is a signed one.
-          resolvePublicImageUrls: async (assetIds: string[]) => {
-            const out = new Map<string, string>();
-            if (assetIds.length === 0) return out;
-            const assets = (await assetReadPort().findByIds(assetIds, { liveOnly: true })).filter(
-              (asset) => asset.visibility === 'public',
-            );
-            for (const asset of assets) {
-              try {
-                const resolved = await assetsLibrary.handle.service.resolveUrl(asset.id);
-                if (resolved.expiresAt !== null) continue; // signed ⇒ not stable
-                out.set(asset.id, resolved.url);
-              } catch {
-                // Unresolvable ⇒ simply not an image for this feed.
-              }
-            }
-            return out;
-          },
-        } satisfies ProductFeedsBridge,
-      });
+      //
+      // **This root contributes nothing to it either** (T118c). `productFeedsBridge`
+      // was four members written twice, and the drain that deleted the interface
+      // deleted both copies in the same merge request. The module resolves
+      // `objectStoragePort`, `inventoryAvailabilityPort`,
+      // `catalogCategoryReadPort` and `assetReadPort` for itself, so this harness
+      // and production now compose the identical four — which is the property the
+      // copies could never have, and the reason the image-URL divergence D-223
+      // repaired was invisible for as long as it was.
       // Feature 072 (T137) — the template reconcile moved into the module's own
       // `ctx.onBoot`, which runs for both compositions.
 

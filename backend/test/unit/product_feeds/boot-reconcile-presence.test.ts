@@ -73,7 +73,6 @@ async function composeProductFeeds(): Promise<Composed> {
     productFeedsRunWorkers: true,
     productFeedsPublicBaseUrl: 'http://feeds.test.local',
     productFeedsTokenEncryptionKey: undefined,
-    productFeedsBridge: {},
     configurationTypeRegistry: {
       register: (type: { code: string }) => registeredConfigurationTypes.push(type.code),
     },

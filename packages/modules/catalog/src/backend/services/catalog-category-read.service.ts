@@ -149,6 +149,88 @@ export class CatalogCategoryReadService implements CatalogCategoryReadPort {
   }
 
   /**
+   * The selection walk — see the port's contract for why it is not a batched
+   * {@link listProductIdsInSubtree}. It skips soft-deleted categories and it
+   * tolerates a cycle; the structural read above does neither, deliberately.
+   *
+   * It was `CatalogQueryService.expandCategoryProductIds` until
+   * `specs/110-instance-repository/` T118c, reached by both composition roots
+   * over the unpublished `catalogQueryPort` name and by nothing else. It is a
+   * category read, so it belongs to the category read model; there is one copy.
+   */
+  async expandCategoryProductIds(
+    categoryIds: readonly string[],
+  ): Promise<Map<string, Set<string>>> {
+    const result = new Map<string, Set<string>>();
+    if (categoryIds.length === 0) return result;
+    const em = this.emFactory();
+
+    const requested = [...new Set(categoryIds)];
+    // Descendant ids per requested root (BFS, one query per level for the
+    // whole batch — the tree is shallow and this keeps the round trips flat).
+    const descendants = new Map<string, string[]>();
+    for (const id of requested) descendants.set(id, [id]);
+
+    // Visited set per root. Re-parenting is guarded against cycles
+    // (`category-admin.service.ts`), but that guard itself is written to
+    // tolerate *pre-existing* cycles in the data, so a corrupted
+    // `parent_category_id` chain is reachable here. Without this the loop
+    // never terminates: it would re-query the same level forever and grow
+    // `descendants` without bound.
+    const seen = new Map<string, Set<string>>(requested.map((id) => [id, new Set([id])]));
+
+    let frontier = new Map<string, string[]>(requested.map((id) => [id, [id]]));
+    while (frontier.size > 0) {
+      const parentIds = [...new Set([...frontier.values()].flat())];
+      const children = await em.find(Category, {
+        parentCategoryId: { $in: parentIds },
+        deletedAt: null,
+      });
+      if (children.length === 0) break;
+      const childrenByParent = new Map<string, string[]>();
+      for (const child of children) {
+        const parent = String(child.parentCategoryId);
+        childrenByParent.set(parent, [...(childrenByParent.get(parent) ?? []), child.id]);
+      }
+      const next = new Map<string, string[]>();
+      for (const [root, level] of frontier) {
+        const visited = seen.get(root) ?? new Set<string>();
+        const nextLevel = level
+          .flatMap((id) => childrenByParent.get(id) ?? [])
+          .filter((id) => !visited.has(id));
+        if (nextLevel.length === 0) continue;
+        for (const id of nextLevel) visited.add(id);
+        seen.set(root, visited);
+        descendants.set(root, [...(descendants.get(root) ?? []), ...nextLevel]);
+        next.set(root, nextLevel);
+      }
+      frontier = next;
+    }
+
+    const allIds = [...new Set([...descendants.values()].flat())];
+    const rows = await em.execute<{ category_id: string; product_id: string }[]>(
+      `select category_id, product_id from product_categories
+        where category_id in (${allIds.map(() => '?').join(',')})`,
+      allIds,
+    );
+    const productsByCategory = new Map<string, string[]>();
+    for (const row of rows) {
+      productsByCategory.set(row.category_id, [
+        ...(productsByCategory.get(row.category_id) ?? []),
+        row.product_id,
+      ]);
+    }
+    for (const id of requested) {
+      const set = new Set<string>();
+      for (const categoryId of descendants.get(id) ?? []) {
+        for (const productId of productsByCategory.get(categoryId) ?? []) set.add(productId);
+      }
+      result.set(id, set);
+    }
+    return result;
+  }
+
+  /**
    * The one category, not its subtree — see the port's contract for why the two
    * are separate methods. `pim_ergonode` wrote this statement itself before the
    * port had it, to detach the products of a category the source tree dropped.

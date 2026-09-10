@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { Category } from '../../helpers/package-entities.js';
-import { CatalogQueryService } from '../../../../packages/modules/catalog/dist/backend/services/catalog-query.service.js';
+import { CatalogCategoryReadService } from '../../../../packages/modules/catalog/dist/backend/services/catalog-category-read.service.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -10,9 +10,14 @@ import {
 } from '../../helpers/test-server.js';
 
 /**
- * Regression guard for `CatalogQueryService.expandCategoryProductIds`, the
- * cross-module port feature 067's feed criteria compiler walks the category
- * tree with.
+ * Regression guard for `CatalogCategoryReadService.expandCategoryProductIds`,
+ * the published `catalogCategoryReadPort` member feature 067's feed criteria
+ * compiler walks the category tree with.
+ *
+ * It was `CatalogQueryService`'s until `specs/110-instance-repository/` T118c
+ * moved the method to the category read model and published it — this file is
+ * what is *derived* from that move, and it goes with it in the same merge
+ * request rather than being found by the next piece of work.
  *
  * The walk is a breadth-first descent over `parent_category_id`. Re-parenting
  * refuses to create a cycle, but that guard is itself written to tolerate
@@ -52,15 +57,7 @@ describe('expandCategoryProductIds — cyclic category data', () => {
     a.parentCategoryId = c.id;
     await em.flush();
 
-    const service = new CatalogQueryService(
-      () => h.orm.em.fork(),
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      h.assetRead,
-      h.salesChannels.membershipService,
-    );
+    const service = new CatalogCategoryReadService(() => h.orm.em.fork());
 
     // The assertion that matters is that this resolves at all. A hang fails
     // the test through vitest's own timeout rather than through an
@@ -74,15 +71,7 @@ describe('expandCategoryProductIds — cyclic category data', () => {
   }, 15_000);
 
   it('still returns an entry for a category id that does not exist', async () => {
-    const service = new CatalogQueryService(
-      () => h.orm.em.fork(),
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      h.assetRead,
-      h.salesChannels.membershipService,
-    );
+    const service = new CatalogCategoryReadService(() => h.orm.em.fork());
     const missing = randomUUID();
 
     const result = await service.expandCategoryProductIds([missing]);

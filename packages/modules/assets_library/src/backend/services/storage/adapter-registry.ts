@@ -8,6 +8,7 @@
 // land in Phase 5 (US3) — until then, attempting to switch the active
 // adapter to s3/gcs raises a clear error.
 
+import type { ObjectStorageBackendCode } from '@endora-commerce/contracts';
 import type { StorageAdapter, StorageBackendCode } from './storage-adapter.js';
 import { LocalFsStorageAdapter } from './local-fs-adapter.js';
 import { S3StorageAdapter } from './s3-adapter.js';
@@ -87,7 +88,20 @@ export class AdapterRegistry {
    * Return the adapter that owns the given asset's bytes. Use this for read /
    * delete / setVisibility — never `getActive()`, which would silently route
    * a previously-uploaded asset to the wrong backend after a switch (FR-017).
+   *
+   * **Overloaded on the code, because the union has exactly one cause.** The
+   * legacy arm is returned for `'legacy'` and for nothing else, so a caller
+   * naming a real backend gets a `StorageAdapter` and needs no probe. Both
+   * consumers of the byte surface used to write
+   * `if (!('open' in adapter) || typeof adapter.open !== 'function')` — the
+   * shape D-97.3 refuses on a *published* port — for a branch the type could
+   * have ruled out. `ObjectStoragePort` is what publishes that narrowing
+   * (`specs/110-instance-repository/` T118c).
    */
+  async getForBackend(backend: ObjectStorageBackendCode): Promise<StorageAdapter>;
+  async getForBackend(
+    backend: StorageBackendCode,
+  ): Promise<StorageAdapter | LegacyAssetResolver>;
   async getForBackend(
     backend: StorageBackendCode,
   ): Promise<StorageAdapter | LegacyAssetResolver> {

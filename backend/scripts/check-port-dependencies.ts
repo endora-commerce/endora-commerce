@@ -391,11 +391,13 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // `specs/110-instance-repository/` T118c — that pipeline has resolved
   // `assetsLibraryPort` since feature 075's cut, so the entry outlived its last
   // reader by two features and the name it stood for was registered for nobody.
-  // How this composition assembles a feed row: opening a storage backend,
-  // resolving availability bands, expanding a category through the catalog
-  // port, and turning asset ids into stable public URLs (T137). Each crosses a
-  // boundary `product_feeds` must not reach through directly.
-  productFeedsBridge: 'product_feeds',
+  // And `productFeedsBridge`, four members written twice — the artefact byte
+  // store, the availability bands, the category subtree expansion and the
+  // stable-URL rule — retired by T118c. Three of the four cost their owner a
+  // publication (`objectStoragePort`, `inventoryAvailabilityPort`,
+  // `catalogCategoryReadPort.expandCategoryProductIds`) and the fourth is
+  // `assetReadPort.resolvePublicUrls`; the module resolves all four itself and
+  // the interface is deleted rather than relocated.
   // Drained as well: `shopping_lists`' four cross-module reaches (T133) — the
   // RFQ service a list converts into, the org restriction the preference routes
   // re-check against, the lazy order service one-click buy places through, and
@@ -436,10 +438,12 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   pwaRunWorkers: 'pwa',
   // How this composition reaches outside the invoices module.
   invoicesBridge: 'invoices',
-  // How this composition settles a return and who is asking: four small
-  // adapters over `payments`, `invoices`, `credit_limits` and `orders`, plus
-  // the actor resolvers and the notifier.
-  returnsBridge: 'returns',
+  // `returnsBridge` was here and is gone, drained by T118c. It survived that
+  // drain by a week because this table's `unsupplied` finding asks whether a
+  // module still *resolves* an unregistered name (issue #49) — an entry nothing
+  // registers and nothing reads is invisible to it, so a retired bridge sits
+  // here describing a contribution that no longer exists. Delete the entry in
+  // the merge request that retires the name; nothing else will notice.
   // The seller's NIP, read from the invoices seller settings. A root's, because
   // the setting belongs to `invoices` and the format handling is composition
   // policy rather than a KSeF concern.

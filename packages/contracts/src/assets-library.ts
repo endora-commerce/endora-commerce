@@ -299,6 +299,36 @@ export interface AssetReadPort {
     ids: readonly string[],
     options?: { liveOnly?: boolean },
   ): Promise<AssetRecord[]>;
+
+  /**
+   * The **stable, publicly reachable** URL of each of these assets, keyed by
+   * asset id — and nothing for the rest.
+   *
+   * Absence is the answer, not an exception: an id that names no row, a
+   * soft-deleted one, a `private` one and one whose URL could only be produced
+   * as an expiring signed link are all simply missing from the map. That is the
+   * degrade expressed in the return type rather than at a caller's `catch`,
+   * which is the only place it can be decided — a consumer holding an asset id
+   * cannot tell a signed URL from a stable one, and a consumer that guesses
+   * publishes a link that 403s the day after it is fetched.
+   *
+   * `product_feeds` is the requirement (FR-043): a marketplace fetches a feed
+   * from its own network days after it was written, so an expiring URL is not a
+   * slightly worse URL, it is no URL at all. It came here from a composition
+   * root's closure in `specs/110-instance-repository/` T118c.
+   *
+   * **Batched, and that is why it is here rather than
+   * {@link AssetsLibraryPort.getAsset}.** `getAsset` answers the same question
+   * for one asset and carries a resolved `url` already, which is the right
+   * answer for `cms` resolving a handful of embeds on one page. It is the wrong
+   * one for a feed: it builds the full detail, and the detail carries the
+   * deletion-protection `references` list, which is one query per registered
+   * reference descriptor. Measured on this tree — seven descriptors, so roughly
+   * ten queries per asset — against a feed hydration batch of 500 products
+   * whose gallery is one to four images each. This is one query plus a string
+   * build per row, and the run walks the whole sellable catalogue.
+   */
+  resolvePublicUrls(assetIds: readonly string[]): Promise<Map<string, string>>;
 }
 
 /**
@@ -425,4 +455,96 @@ export interface AssetsLibraryPort {
   getAsset(assetId: string): Promise<AssetDetail>;
   patchAsset(assetId: string, patch: AssetPatchInput): Promise<AssetDetail>;
   softDelete(assetId: string): Promise<{ deletedAt: Date; purgeAfterAt: Date }>;
+}
+
+/**
+ * The byte source an object read streams into, described structurally.
+ *
+ * {@link AssetUploadStream}'s twin, for the reason that one gives in full: this
+ * package is compiled by `@endora-commerce/admin-kit` with
+ * `types: ["vite/client"]`, so naming the `NodeJS` namespace here fails a
+ * consumer's build. A Node `Readable` satisfies it — `NodeJS.ReadableStream`
+ * declares `[Symbol.asyncIterator](): AsyncIterableIterator<string | Buffer>`
+ * and `Buffer` extends `Uint8Array` — so an adapter returns its stream
+ * unchanged and a consumer that needs `.pipe` wraps it once with
+ * `Readable.from`, in a backend layer where `node:stream` is legal.
+ */
+export interface AssetByteStream {
+  [Symbol.asyncIterator](): AsyncIterableIterator<string | Uint8Array>;
+}
+
+/**
+ * A backend that physically stores objects.
+ *
+ * {@link StorageBackendCode} minus `legacy`, and the exclusion is the whole
+ * point: `legacy` is not a store, it is a resolver for pre-013 rows whose URL
+ * this platform did not issue. It can answer a URL and it can stream nothing,
+ * which is why {@link ObjectStoragePort.getForBackend} is total here and the
+ * module-internal registry's equivalent is not.
+ */
+export type ObjectStorageBackendCode = Exclude<StorageBackendCode, 'legacy'>;
+
+export interface ObjectStoragePutInput {
+  locator: string;
+  mimeType: string;
+  visibility: AssetVisibility;
+  /** Consumed exactly once. */
+  stream: AssetUploadStream;
+  /** Best-effort byte count; `0` when the length is not known up front. */
+  sizeBytes: number;
+}
+
+/** One configured object store — bytes in, bytes out, bytes gone. */
+export interface ObjectStore {
+  /** Which backend this is, so a caller can record where an object's bytes went. */
+  readonly code: ObjectStorageBackendCode;
+  put(input: ObjectStoragePutInput): Promise<void>;
+  open(input: { locator: string }): Promise<AssetByteStream>;
+  delete(input: { locator: string }): Promise<void>;
+}
+
+/**
+ * Container name: `objectStoragePort`. Owner: `assets_library`.
+ *
+ * **Which bucket this deployment writes to, with which credentials** — and
+ * nothing about assets. A consumer of this port stores its own bytes under its
+ * own locator prefix and creates no `Asset` row: the objects are its data, they
+ * do not appear in the asset browser, they are not counted in library quotas
+ * and they are not reachable through the assets routes.
+ *
+ * `product_feeds` is the first consumer (FR-043): a generated feed artefact is
+ * written under `product-feeds/…` and served by that module's own tokenised
+ * route, which streams `open()` rather than handing out a store URL, so
+ * rotating a feed token actually revokes access. `invoices` asks the same
+ * question of the same registry today through a composition root, to embed a
+ * logo in a PDF.
+ *
+ * **A sibling of {@link AssetsLibraryPort} rather than four more methods on
+ * it.** That port's demand is an *asset* — upload it, read it, patch its
+ * alternate text, soft-delete it — and hanging a byte store off it would hand
+ * an importer a capability it never asked for. These are two capabilities that
+ * happen to share a configuration.
+ *
+ * **Retiring condition.** This is really an object store and not an asset
+ * library, and it lives here because that is where the configuration lives. If
+ * a byte-store module is ever extracted, this port moves to it wholesale and no
+ * consumer's call site changes. Nothing is owed today: `assets_library`
+ * declares `nonDeactivatable`, so the coupling costs an operator no control.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. Whether `assets_library` has an off state at all is its
+ * manifest's `activation` to say, not this line's: a module declaring
+ * `nonDeactivatable` never enters one.
+ */
+export interface ObjectStoragePort {
+  /** The store new objects are written to. */
+  getActive(): Promise<ObjectStore>;
+  /**
+   * The store that owns an existing object's bytes. Reads and deletes MUST go
+   * through this and never through {@link getActive}: after a backend switch
+   * the active store would resolve an object written under the old one to the
+   * wrong place.
+   */
+  getForBackend(backend: ObjectStorageBackendCode): Promise<ObjectStore>;
 }

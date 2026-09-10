@@ -1062,7 +1062,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
     // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
     // no population of its own.
-    files: 2000,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** files 2000 -> 2001, the one new module source.
+    // No action and no route moved. Quality-job shape: the ignored copies
+    // `composer:generate` places under `docs/docs/modules/` swept first, because no job
+    // has placed them when these checks run.
+    files: 2001,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1342,7 +1348,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
     // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
     // no population of its own.
-    files: 2127,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** files 2127 -> 2128, the one new module source.
+    // Quality-job shape: the ignored copies `composer:generate` places under
+    // `docs/docs/modules/` swept first, because no job has placed them when these checks
+    // run.
+    files: 2128,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1428,7 +1440,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
     // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
     // no population of its own.
-    files: 1703,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** files 1703 -> 1704, the one new module source.
+    // It writes nothing, so no site moves. Quality-job shape: the ignored copies
+    // `composer:generate` places under `docs/docs/modules/` swept first, because no job
+    // has placed them when these checks run.
+    files: 1704,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -1525,7 +1543,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // — the two sources (`cms-block-read-port.ts`, `cross-module-ports.ts`) and their two
     // co-located tests. This walk reads a module's `.ts` including the test spellings; the
     // backend integration test and the changeset are outside it.
-    files: 2203,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** files 2203 -> 2207, the one new module source
+    // and the three co-located tests. Quality-job shape: the ignored copies
+    // `composer:generate` places under `docs/docs/modules/` swept first, because no job
+    // has placed them when these checks run.
+    files: 2207,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -1944,7 +1968,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and none of them counted in the 5476 recorded before it: 5478. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 5478,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** files 5478 -> 5482, the one new module source
+    // and the three co-located tests — this walk is the whole tree. Quality-job shape: the
+    // ignored copies `composer:generate` places under `docs/docs/modules/` swept first,
+    // because no job has placed them when these checks run.
+    files: 5482,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2228,7 +2258,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // — the two sources (`cms-block-read-port.ts`, `cross-module-ports.ts`) and their two
     // co-located tests. This walk reads a module's `.ts` including the test spellings; the
     // backend integration test and the changeset are outside it.
-    files: 2382,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** files 2382 -> 2386, the one new module source
+    // and the three co-located tests. Quality-job shape: the ignored copies
+    // `composer:generate` places under `docs/docs/modules/` swept first, because no job
+    // has placed them when these checks run.
+    files: 2386,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -2632,7 +2668,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
     // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
     // no population of its own.
-    files: 2127,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** files 2127 -> 2128, the one new module source.
+    // It declares no entity. Quality-job shape: the ignored copies `composer:generate`
+    // places under `docs/docs/modules/` swept first, because no job has placed them when
+    // these checks run.
+    files: 2128,
     sites: 260,
     sources: ['manifest-index'],
   },
@@ -2891,7 +2933,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
     // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
     // no population of its own.
-    files: 2127,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** files 2127 -> 2128, the one new module source.
+    // It starts no timer and declares no boot hook. Quality-job shape: the ignored copies
+    // `composer:generate` places under `docs/docs/modules/` swept first, because no job
+    // has placed them when these checks run.
+    files: 2128,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3150,7 +3198,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
     // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
     // no population of its own.
-    files: 2127,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** files 2127 -> 2128, the one new module source.
+    // It is no entry point of any of the six classes. Quality-job shape: the ignored
+    // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
+    // job has placed them when these checks run.
+    files: 2128,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -4016,7 +4070,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
     // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
     // no population of its own.
-    files: 2127,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** files 2127 -> 2128, the one new module source.
+    // Quality-job shape: the ignored copies `composer:generate` places under
+    // `docs/docs/modules/` swept first, because no job has placed them when these checks
+    // run.
+    files: 2128,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -4336,7 +4396,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // — the two sources (`cms-block-read-port.ts`, `cross-module-ports.ts`) and their two
     // co-located tests. This walk reads a module's `.ts` including the test spellings; the
     // backend integration test and the changeset are outside it.
-    files: 2733,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** files 2733 -> 2737, the one new module source
+    // and the three co-located tests — this walk opens a package's tests as well.
+    // Quality-job shape: the ignored copies `composer:generate` places under
+    // `docs/docs/modules/` swept first, because no job has placed them when these checks
+    // run.
+    files: 2737,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
     sites: 56,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
@@ -4436,7 +4503,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
     // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
     // no population of its own.
-    files: 2096,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** files 2096 -> 2097, the one new module source.
+    // Quality-job shape: the ignored copies `composer:generate` places under
+    // `docs/docs/modules/` swept first, because no job has placed them when these checks
+    // run.
+    files: 2097,
     // The finer population, and it is the one that moves when nothing else does
     // (issues #235/#237): tree sites, unreadable sites, renderer-map sites, the
     // block declarations and the declared `(key, context)` sections. A block
@@ -4505,7 +4578,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // — the two sources (`cms-block-read-port.ts`, `cross-module-ports.ts`) and their two
     // co-located tests. This walk reads a module's `.ts` including the test spellings; the
     // backend integration test and the changeset are outside it.
-    files: 2831,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** files 2831 -> 2835, the one new module source
+    // and the three co-located tests. Quality-job shape: the ignored copies
+    // `composer:generate` places under `docs/docs/modules/` swept first, because no job
+    // has placed them when these checks run.
+    files: 2835,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -4745,7 +4824,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
     // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
     // no population of its own.
-    files: 1715,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** files 1715 -> 1716, the one new module source.
+    // Quality-job shape: the ignored copies `composer:generate` places under
+    // `docs/docs/modules/` swept first, because no job has placed them when these checks
+    // run.
+    files: 1716,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -4820,7 +4905,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `cmsBlockReadPort`):** sites 34486 -> 34495, nine string literals classified in those
     // two new module sources. None is a finding: the detector is Polish-only and every literal
     // here is English or a path fragment.
-    sites: 34495,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** sites 34495 -> 34501, the six literals it
+    // classifies in that file, all English. Quality-job shape: the ignored copies
+    // `composer:generate` places under `docs/docs/modules/` swept first, because no job
+    // has placed them when these checks run.
+    sites: 34501,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -5339,7 +5430,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // each, which is the whole of the +8: this check walks the module tree **and** every
     // source root, so a module package's file is opened under both. The backend integration
     // test is in neither population.
-    files: 5014,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** files 5014 -> 5022, the four new `.ts` files,
+    // each counted in both the module walk and the whole-tree SQL walk. Quality-job shape:
+    // the ignored copies `composer:generate` places under `docs/docs/modules/` swept
+    // first, because no job has placed them when these checks run.
+    files: 5022,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -5407,7 +5504,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // those four files add. No cross-module reach among them: every outward name the drain
     // introduces is a `@endora-commerce/contracts` type or a container name, and the ledger is
     // unchanged at 8 keys.
-    sites: 12604,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** sites 12604 -> 12626, the import specifiers
+    // and table references those four files carry. No reach crosses a module boundary:
+    // every one of them names `@endora-commerce/contracts` or its own module. Quality-job
+    // shape: the ignored copies `composer:generate` places under `docs/docs/modules/`
+    // swept first, because no job has placed them when these checks run.
+    sites: 12626,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -6132,7 +6236,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and none of them counted in the 8133 recorded before it: 8135. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 8135,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** files 8135 -> 8140, the four new `.ts` files
+    // and this merge request's changeset — this walk reads every extension. Quality-job
+    // shape: the ignored copies `composer:generate` places under `docs/docs/modules/`
+    // swept first, because no job has placed them when these checks run.
+    files: 8140,
     sites: null,
     sources: [],
     //
@@ -6571,7 +6681,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `return-comment-service.ts`' bare `catch` into a violation — a collision with an
     // identically-named optional dependency no composition ever supplied. That dead seam is
     // deleted, so one site leaves as one arrives.
-    sites: 213,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** sites 213 -> 221, the four byte-store
+    // `catch`es in `product_feeds` become visible as guarded-port catches — the artefact
+    // writer, the public route, the retention sweep and the reaper reached
+    // `assetsLibrary.handle.adapters` through a root before and reach `objectStoragePort`
+    // now — plus four more the same conversion makes readable. All eight are `OWNER
+    // LOCKED`, derived from `assets_library` declaring `nonDeactivatable`, so `ledgered`
+    // does not move. Quality-job shape: the ignored copies `composer:generate` places
+    // under `docs/docs/modules/` swept first, because no job has placed them when these
+    // checks run.
+    sites: 221,
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 2138 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
@@ -6617,7 +6738,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
     // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
     // no population of its own.
-    files: 2127,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** files 2127 -> 2128, the branch's one new
+    // module source, `assets_library`' `services/storage/object-storage-port.ts`.
+    // Quality-job shape: the ignored copies `composer:generate` places under
+    // `docs/docs/modules/` swept first, because no job has placed them when these checks
+    // run.
+    files: 2128,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -6715,7 +6843,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
     // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
     // no population of its own.
-    files: 1947,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** files 1947 -> 1948, the one new module source.
+    // Quality-job shape: the ignored copies `composer:generate` places under
+    // `docs/docs/modules/` swept first, because no job has placed them when these checks
+    // run.
+    files: 1948,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 1471 -> 1535.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
@@ -6727,7 +6861,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `providePort` factory destructuring `emFactory`, which Awilix makes a cradle read. A
     // composition root's own reads are in no population here, so a drain that removes eight
     // closures from two roots and adds five resolutions in a module reads as a rise.
-    sites: 1568,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** sites 1568 -> 1573, the four new `lazyPort`
+    // resolutions in `product_feeds`, plus `assets_library`' new port registration.
+    // Quality-job shape: the ignored copies `composer:generate` places under
+    // `docs/docs/modules/` swept first, because no job has placed them when these checks
+    // run.
+    sites: 1573,
     sources: ['manifest-index'],
   },
   // Two derivations, deliberately, because the check has two inputs that can be
@@ -6961,7 +7102,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
     // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
     // no population of its own.
-    files: 2425,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** files 2425 -> 2426, the one new module source.
+    // Quality-job shape: the ignored copies `composer:generate` places under
+    // `docs/docs/modules/` swept first, because no job has placed them when these checks
+    // run.
+    files: 2426,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -7198,7 +7345,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
     // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
     // no population of its own.
-    files: 2046,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** files 2046 -> 2047, the one new module source.
+    // Quality-job shape: the ignored copies `composer:generate` places under
+    // `docs/docs/modules/` swept first, because no job has placed them when these checks
+    // run.
+    files: 2047,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 692 -> 721.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -7207,7 +7360,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // resolutions: `CmsBlockReadPort` declared in `packages/contracts/src/cms.ts`, and
     // `megamenu`'s five `lazyPort` reads against the two the drain deletes. Measured with the
     // two module sources withheld, which isolated the contract half at +1.
-    sites: 736,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** sites 736 -> 742, the four `lazyPort`
+    // resolutions the drain adds (`objectStoragePort`, `inventoryAvailabilityPort`,
+    // `catalogCategoryReadPort`, `assetReadPort`) plus the two `providePort` registrations
+    // that gained a type argument. Quality-job shape: the ignored copies
+    // `composer:generate` places under `docs/docs/modules/` swept first, because no job
+    // has placed them when these checks run.
+    sites: 742,
     sources: ['manifest-index', 'ports-subpaths'],
   },
   // Small on purpose: this population is the *workspace*, not a source tree —
@@ -7804,7 +7965,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
     // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
     // no population of its own.
-    files: 2127,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** files 2127 -> 2128, the one new module source.
+    // It subscribes to nothing and constructs no worker. Quality-job shape: the ignored
+    // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
+    // job has placed them when these checks run.
+    files: 2128,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -7946,7 +8113,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and none of them counted in the 1700 recorded before it: 1701. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 1701,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** files 1701 -> 1704, the three co-located tests
+    // the branch adds. Quality-job shape: the ignored copies `composer:generate` places
+    // under `docs/docs/modules/` swept first, because no job has placed them when these
+    // checks run.
+    files: 1704,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -8248,7 +8421,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/modules/megamenu/src/backend/services/cross-module-ports.ts`. This walk reads
     // a module's non-test `.ts`, so the branch's three new test files and its changeset are in
     // no population of its own.
-    files: 2127,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** files 2127 -> 2128, the one new module source.
+    // Quality-job shape: the ignored copies `composer:generate` places under
+    // `docs/docs/modules/` swept first, because no job has placed them when these checks
+    // run.
+    files: 2128,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -8587,7 +8766,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and none of them counted in the 4501 recorded before it: 4503. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 4503,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** files 4503 -> 4507, all four new `.ts` files.
+    // Quality-job shape: the ignored copies `composer:generate` places under
+    // `docs/docs/modules/` swept first, because no job has placed them when these checks
+    // run.
+    files: 4507,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -9319,7 +9504,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and none of them counted in the 8193 recorded before it: 8195. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 8195,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** files 8195 -> 8200, the four new `.ts` files
+    // and this merge request's changeset. Read on the **staged** tree. Quality-job shape:
+    // the ignored copies `composer:generate` places under `docs/docs/modules/` swept
+    // first, because no job has placed them when these checks run.
+    files: 8200,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -9751,7 +9942,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and none of them counted in the 6107 recorded before it: 6109. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 6109,
+    // **`specs/110-instance-repository/` T118c (the `product_feeds` drain —
+    // `assets_library` publishes `objectStoragePort` and a batched
+    // `assetReadPort.resolvePublicUrls`):** files 6109 -> 6113, the four new `.ts` files.
+    // Read on the **staged** tree, as this entry's own block above requires. Quality-job
+    // shape: the ignored copies `composer:generate` places under `docs/docs/modules/`
+    // swept first, because no job has placed them when these checks run.
+    files: 6113,
     sites: null,
     sources: ['manifest-index'],
     //

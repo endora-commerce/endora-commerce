@@ -609,17 +609,20 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // which is worth recording because the reverse — a ledger entry that looks
   // drained because a reach was re-spelled — is the failure this file exists to
   // refuse.
-  // `product_feeds` needs no entry and gets none, for `blog`'s reason and not
-  // for a cleared coupling. Its move to a workspace package (feature 080,
-  // criterion 8) left the contributions exactly where they were — both roots
-  // still hand it the four adapters it reaches outside itself through, plus the
-  // worker-role gate, and the harness still adds the taxonomy and delivery
-  // seams. What changed is the **spelling**: `src/composition.ts` now type-
-  // imports `ProductFeedsBridge` from `@endora-commerce/mod-product-feeds/backend`,
-  // and this scan asks whether a file names `modules/<id>/`, which a bare
-  // specifier does not. The residue is real and is measured elsewhere — a
-  // contribution over a cradle name is `check:port-dependencies`' subject, not
-  // this one.
+  // `product_feeds` needs no entry and gets none, and since
+  // `specs/110-instance-repository/` T118c that is a cleared coupling rather
+  // than a re-spelling. This paragraph read *"both roots still hand it the four
+  // adapters it reaches outside itself through … the residue is real and is
+  // measured elsewhere"*, which was true and is the shape this file exists to
+  // refuse: the ledger is derived **about** a coupling, so the merge request
+  // that frees it is the one with no reason to open this file. T118c deleted
+  // `ProductFeedsBridge` outright — the module resolves `objectStoragePort`,
+  // `inventoryAvailabilityPort`, `catalogCategoryReadPort` and `assetReadPort`
+  // itself — so `composition.ts` type-imports nothing from the package and the
+  // `check:port-dependencies` entry that measured the residue is gone with it.
+  // What both roots still contribute is what a deployment owns: the worker-role
+  // gate, the public base URL, the token key, and the harness's taxonomy and
+  // delivery seams.
   // `carts` (wave 3, T136). Both roots contribute who is asking and the bridge
   // into `shopping_lists`, which points outward and so cannot be a port. The
   // abandonment-sweep CLI still constructs its own services — filed separately.

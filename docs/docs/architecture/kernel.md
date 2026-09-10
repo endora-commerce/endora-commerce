@@ -1371,18 +1371,28 @@ the build.
 
 Read the first list's size with its own history in mind. It was written as
 conversion residue and drained that way — every entry whose owner converted was
-deleted, and the check fails when one outlives its owner. Every core module has
-converted, and **28 entries remain**, so what is left is not residue: it is the
-composition inputs no module can default. Three shapes account for nearly all of
-them — *who is asking* (`customerContextResolver`, `cartActorResolver`,
-`adminAuditActorResolver` and the rest of the actor family, where production reads
-`request.actor` and the harness `request.testActor`), *does this composition run
-that consumer* (`pwaRunWorkers`, `searchRunWorkers`, `webhooksRunWorkers`), and
-*bridges a root assembles across boundaries a module must not reach through*
-(`pwaBridge`, `invoicesBridge`, `returnsBridge`, `productFeedsBridge`,
-`megamenu*Deps`). Several of the per-entry comments still say "still hand-wired"
-about a module that converted; the staleness check only fires when the owner
-registers the port itself, so a comment can rot without failing the build.
+deleted, and the check fails when one outlives its owner. **How many entries
+remain is not written here**: this paragraph said *"28"* and named four bridges,
+three of which `specs/110-instance-repository/` T118c has since retired, so it
+was a count of a derived fact and a list of a moving population in one sentence
+(D-100). `HOST_REGISTERED_PORTS` in `backend/scripts/check-port-dependencies.ts`
+answers both. Two shapes account for most of what is left — *who is asking*
+(`customerContextResolver`, `cartActorResolver`, `adminAuditActorResolver` and
+the rest of the actor family, where production reads `request.actor` and the
+harness `request.testActor`) and *does this composition run that consumer*
+(`pwaRunWorkers`, `searchRunWorkers`, `webhooksRunWorkers`). The third shape —
+*a bridge a root assembles across boundaries a module must not reach through* —
+is what T118c is draining, one owner at a time, into ports the owner publishes.
+
+Two ways an entry here rots without failing the build, and both are worth
+knowing before you trust one. Several per-entry comments still say "still
+hand-wired" about a module that converted: the staleness signal only fires when
+the owner registers the port itself. And an entry whose name **no root
+contributes any more** is invisible to every finding this table has — the
+`unsupplied` sweep asks whether some module still *resolves* an unregistered
+name, so a retired bridge leaves a description of a contribution that is gone.
+`returnsBridge` sat here for a week that way. Delete the entry in the merge
+request that retires the name.
 
 Ports
 owned by a `nonDeactivatable` module are not on that list and never will be: the
