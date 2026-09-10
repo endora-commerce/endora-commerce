@@ -150,7 +150,6 @@ import type { TaxesCradle } from '../../../packages/modules/taxes/src/backend/in
 import type { PromotionsCradle } from '@endora-commerce/mod-promotions/backend';
 import type { SettingsKernel } from '@endora-commerce/platform/composition';
 import type { SettingsCradle } from '../../../packages/modules/settings/src/backend/index.js';
-import type { MfaActorBridge } from '../../../packages/modules/mfa/src/backend/index.js';
 import type { OAuthProviderPort } from '../../../packages/modules/mfa/src/backend/services/oauth-provider-service.js';
 import type { SalesChannelsKernel } from '@endora-commerce/platform/composition';
 import type { SalesChannelsCradle } from '../../../packages/modules/sales_channels/src/backend/index.js';
@@ -1614,9 +1613,17 @@ export async function setupBackendServer(
       // so it can read MFA settings; its login port is resolved by the two login
       // consumers themselves (D-96), so nothing is captured here.
       // Feature 072 (T096) — `mfa` owns its services, routes and configuration.
-      // What this harness still owns is the actor shape: it authenticates through
-      // `request.testActor` where production uses `request.actor`, which is exactly
-      // why the bridge is contributed rather than built into the module.
+      //
+      // **T118c retired `mfaActorBridge` in both roots.** The block that stood
+      // here spelled the actor half a second time — `resolveCustomerActor` was
+      // byte-identical to the `customerActorResolver` this harness contributes
+      // below, and `resolveAdminActor` was `adminContextResolver` with a stricter
+      // refusal for a caller `requireAdmin` had already turned away. The account
+      // half was four identity ports the module resolves itself now. The comment
+      // that closed this block — *"Deliberately omitted, as this harness always
+      // omitted them: with no password verifier, disabling 2FA requires a current
+      // code"* — is what the drain corrects: it described a divergence from
+      // production, not a decision, and no test in the tree could reach it.
       composedModules.contribute({
         // D-48 — the system-default channel, which always exists.
         mfaDefaultChannelIdResolver: async () => (await salesChannels.resolver.getSystemDefault()).id,
@@ -1650,48 +1657,6 @@ export async function setupBackendServer(
             return a !== null && a.status === 'active' ? { id: a.id } : null;
           },
         },
-        mfaActorBridge: {
-          resolveCustomerActor: (request: FastifyRequest) => {
-            if (request.testActor?.kind !== 'customer') {
-              throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-            }
-            return {
-              customerAccountId: request.testActor.customerAccountId,
-              organizationId: request.testActor.organizationId ?? null,
-            };
-          },
-          resolveAdminActor: (request: FastifyRequest) => {
-            if (request.testActor?.kind !== 'admin') {
-              throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-            }
-            return { adminUserId: request.testActor.adminUserId };
-          },
-          resolveOrganizationCustomerIds: async (organizationId: string) => {
-            const rows = await identityPorts().customerAccountReadPort.listByOrganization(
-              organizationId,
-            );
-            return rows.map((r) => r.id);
-          },
-          resolveOrgAdmin: async (request: FastifyRequest) => {
-            if (request.testActor?.kind !== 'customer') {
-              throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-            }
-            const c = await identityPorts().customerAccountReadPort.findById(
-              request.testActor.customerAccountId,
-            );
-            if (!c || c.role !== 'organization_admin' || !c.organizationId) {
-              throw new HttpError(
-                403,
-                ERROR_CODES.FORBIDDEN,
-                'Organization administrator role required.',
-              );
-            }
-            return { organizationId: c.organizationId, actor: c.id };
-          },
-          // Deliberately omitted, as this harness always omitted them: with no
-          // password verifier, disabling 2FA requires a current code. Fail-closed,
-          // and the behaviour every MFA test has been written against.
-        } satisfies MfaActorBridge,
       });
       harnessScopedPlugins.push(salesChannels.plugin);
 

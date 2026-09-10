@@ -223,7 +223,7 @@ describe('T118 — the contribution wiring is the platform’s and the values ar
     // the row: a `composition.ts` whose contributions the parser stopped seeing
     // would satisfy the disjointness above perfectly.
     //
-    // **61 -> 59 -> 58, and the total is expected to fall.** This is a ledger
+    // **61 -> 59 -> 58 -> 57, and the total is expected to fall.** This is a ledger
     // derived *about* the contributions rather than a copy of them, so T118c's
     // sweep — which drains the 31 cross-module names into ports, module by
     // module — reds it once per target module, in a merge request that has no
@@ -239,6 +239,16 @@ describe('T118 — the contribution wiring is the platform’s and the values ar
     // were the platform's own contributions under a second pair of names. A
     // bridge falls out of this count as one, which is worth knowing when reading
     // the remaining seven: the count measures names, and the work is per member.
+    // The fourth is `mfaActorBridge`, and it is that lesson again with a sharper
+    // edge: one name carrying **six** members, of which two were duplicate
+    // spellings of `customerActorResolver` and `adminContextResolver` — names the
+    // platform contributes eleven lines above this ledger — and four were
+    // `admin_users`' and `customer_accounts`' published ports, both modules
+    // already in `mfa`'s manifest `dependencies`. Two of the six were declared
+    // optional and supplied by production alone, so the harness ran without a
+    // password verifier and without an account-e-mail resolver and no test in the
+    // tree could see either; `backend/test/integration/mfa/account-identity-wiring.test.ts`
+    // is where they are asserted now.
     // The floor below read `> 30` and is now `> 0`, because it was a **second**
     // number the sweep moves and it moved first: this drain took the deployment
     // to exactly 30. It was never the guard it looks like — a walk that stopped
@@ -249,7 +259,7 @@ describe('T118 — the contribution wiring is the platform’s and the values ar
 
     expect(deployment.size, 'the reference deployment contributes nothing — the walk broke')
       .toBeGreaterThan(0);
-    expect(deployment.size + PLATFORM_CONTRIBUTIONS.length).toBe(58);
+    expect(deployment.size + PLATFORM_CONTRIBUTIONS.length).toBe(57);
   });
 
   it('contributes before the caller’s callback, so a deployment can still override', () => {

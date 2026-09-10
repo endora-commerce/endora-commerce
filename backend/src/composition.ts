@@ -60,16 +60,6 @@ import { configuredPublicApiBaseUrl, resolvePublicApiBaseUrl } from './kernel/in
 // from, and every one of them is reached by a **relative** path because this
 // application is where those shims still live (`RELATIVE_HOST_REACHES`, T119).
 import { absolutizePublicUrl } from '@endora-commerce/platform/composition';
-// Feature 117 (FR-030) — actor promotion arrives as a **container name** now,
-// not as an import. `auth` still owns the implementation for the reason its own
-// barrel gives: promotion reads `request.adminActor` and writes `request.actor`,
-// two decorations that module's plugin applies. What changed is this file's
-// destination — `specs/110-instance-repository/` T118 moves the contribution
-// wiring below into `@endora-commerce/platform`, where importing a module is
-// D-52/D-53's refusal, and a value import does not retire by moving a type.
-// The type is the platform's own port declaration; see `adminActorPromotion`
-// beside the other lazily-resolved ports.
-import type { AdminActorPromotion } from '@endora-commerce/platform/composition';
 // T118b — and **no** reach into that package for `request.actor` any more. This
 // import used to be `import type { Actor } from '@endora-commerce/mod-auth/backend'`,
 // whose real job was not the type: it dragged `auth`'s `declare module 'fastify'`
@@ -100,7 +90,6 @@ import { effectiveState } from './kernel/lifecycle/effective-state.js';
 // Feature 046 — Returns & Complaints (Refunds, RMA).
 import type { InvoicesBridge } from '@endora-commerce/mod-invoices/backend';
 import type { ProductFeedsBridge } from '@endora-commerce/mod-product-feeds/backend';
-import type { MfaActorBridge } from '@endora-commerce/mod-mfa/backend';
 import type { TargetValidatorDeps } from '@endora-commerce/mod-megamenu/backend';
 import type { StorefrontDeps } from '@endora-commerce/mod-megamenu/backend';
 import { DefaultChannelReconciler } from '@endora-commerce/platform/composition';
@@ -518,14 +507,15 @@ async function contributeReferenceDeployment(
     (container.cradle as never as { customerRollupScopePort: CustomerRollupScopePort })
       .customerRollupScopePort;
 
-  // Feature 117 (FR-030) — the third port of that kind, and the one whose value
-  // import was the *blocker* rather than a consequence: `promoteAdminActor` was
-  // called, not annotated, so it could not retire the way the nineteen
-  // module-package **type** imports above it do. Read lazily and never
-  // captured, like every other port this file reaches.
-  const adminActorPromotion = (): AdminActorPromotion =>
-    (container.cradle as never as { promoteAdminActor: AdminActorPromotion })
-      .promoteAdminActor;
+  // Feature 117 (FR-030) put actor promotion on the container as
+  // `promoteAdminActor`, read here rather than imported, because a value import
+  // of a module could not travel to `@endora-commerce/platform` with the rest of
+  // the contribution wiring. **T118c removed this root's only call**: it sat
+  // inside `mfaActorBridge.resolveAdminActor`, ahead of a read every one of that
+  // member's call sites had already had `requireAdmin` perform — `auth`'s guard
+  // promotes and then refuses a non-admin, and the promotion is idempotent. The
+  // port stays registered by `auth`; nothing in either composition root resolves
+  // it today.
 
   const assetReadPort = (): AssetReadPort =>
     (container.cradle as never as { assetReadPort: AssetReadPort }).assetReadPort;
@@ -942,84 +932,26 @@ async function contributeReferenceDeployment(
   };
 
   // Feature 072 (T096) — `mfa` owns its services, routes and configuration
-  // now. What a root still owns is the *shape this composition gives an actor*:
-  // production reads `request.actor`, the harness reads `request.testActor`.
-  // That is contributed whole rather than as ten separate names, because a
-  // composition either knows how to resolve an actor or it does not.
+  // now.
+  //
+  // **T118c retired `mfaActorBridge` in both roots.** Wave 1 grouped six
+  // closures into it on the reasoning that they were the shape *this
+  // composition* gives an actor — and re-deriving them found the premise held
+  // for none. Two were duplicate spellings of names the platform already
+  // contributes (`customerActorResolver`, `adminContextResolver`); the other
+  // four were `admin_users`' and `customer_accounts`' published ports and
+  // nothing else, both modules already in `mfa`'s manifest `dependencies`. The
+  // sharpest of the six is `verifyAccountPassword`, which this root supplied
+  // and the harness did not, so the password branch of the 2FA-disable
+  // re-authentication existed in production and not under test — a divergence
+  // two closures agreeing by hand cannot report.
   composedModules.contribute({
-    // D-48 — the system-default channel, which always exists. It used to be
-    // `?? null`, which switched MFA policy resolution to the platform-wide
-    // settings tier on a branch that cannot be taken.
     mfaSocialAccountResolvers: mfaSocialResolvers,
-    mfaActorBridge: {
-      resolveCustomerActor: (request: FastifyRequest) => {
-        if (request.actor.kind !== 'customer') {
-          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-        }
-        return {
-          customerAccountId: request.actor.customerAccountId,
-          organizationId: request.actor.organizationId ?? null,
-        };
-      },
-      resolveAdminActor: (request: FastifyRequest) => {
-        adminActorPromotion()(request);
-        // Read once, after the promotion, and named — `adminActorPromotion`
-        // rewrites `request.actor` in place, so a second read of the property
-        // and this one are not obviously the same value to a reader.
-        const promoted = request.actor;
-        if (promoted.kind !== 'admin') {
-          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-        }
-        return { adminUserId: promoted.adminUserId };
-      },
-      resolveOrganizationCustomerIds: async (organizationId: string) => {
-        const rows = await identityPorts().customerAccountReadPort.listByOrganization(
-          organizationId,
-        );
-        return rows.map((r) => r.id);
-      },
-      resolveOrgAdmin: async (request: FastifyRequest) => {
-        if (request.actor.kind !== 'customer') {
-          throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-        }
-        const c = await identityPorts().customerAccountReadPort.findById(
-          request.actor.customerAccountId,
-        );
-        if (!c || c.role !== 'organization_admin' || !c.organizationId) {
-          throw new HttpError(
-            403,
-            ERROR_CODES.FORBIDDEN,
-            'Organization administrator role required.',
-          );
-        }
-        return { organizationId: c.organizationId, actor: c.id };
-      },
-      resolveAccountEmail: async (subjectType: 'customer' | 'admin', subjectId: string) => {
-        const ports = identityPorts();
-        if (subjectType === 'admin') {
-          return (await ports.adminUserReadPort.findById(subjectId))?.email ?? null;
-        }
-        return (await ports.customerAccountReadPort.findById(subjectId))?.email ?? null;
-      },
-      // T052 — the hash no longer travels. This root read `passwordHash` off
-      // both entities and ran the comparison with `auth`'s hasher, so a
-      // credential column and a hash comparison lived in a file that owns
-      // neither; each module answers for its own now and only the boolean
-      // crosses.
-      verifyAccountPassword: async (
-        subjectType: 'customer' | 'admin',
-        subjectId: string,
-        password: string,
-      ) => {
-        const ports = identityPorts();
-        return subjectType === 'admin'
-          ? ports.adminPasswordVerificationPort.verifyPassword(subjectId, password)
-          : ports.customerPasswordVerificationPort.verifyPassword(subjectId, password);
-      },
-    } satisfies MfaActorBridge,
   });
   // The login port is `customer_accounts`' and `admin_users`' own resolution
-  // (D-96); the actor shape above is the only thing about `mfa` a root knows.
+  // (D-96), and since T118c the actor shape is not this root's either: what is
+  // left here is the federated-sign-in account resolvers, which reach
+  // `customer_accounts`' social-login port and `admin_users`' read port.
 
   // SEO module — needs the SettingsService port for the per-channel
   // `sales_channels.storefront_url` setting that the sitemap generator

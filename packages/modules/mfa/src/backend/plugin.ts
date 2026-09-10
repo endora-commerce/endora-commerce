@@ -76,11 +76,11 @@ export interface MfaModuleOptions {
   };
   /** Admin guard factory + actor resolver (admin self-service US2 + reset US6). */
   requireAdmin?: RequireAdminFactory;
-  resolveAdminActor?: (req: FastifyRequest) => { adminUserId: string };
+  resolveAdminActor: (req: FastifyRequest) => { adminUserId: string };
   /** Lists an organization's customer-account ids (US6 bulk reset). */
-  resolveOrganizationCustomerIds?: (organizationId: string) => Promise<string[]>;
+  resolveOrganizationCustomerIds: (organizationId: string) => Promise<string[]>;
   /** Resolves an org-admin customer's org + asserts the role (US3 storefront). */
-  resolveOrgAdmin?: (
+  resolveOrgAdmin: (
     req: FastifyRequest,
   ) => Promise<{ organizationId: string; actor: string }>;
   /** Federated sign-in (US4/US5) — provider port + account resolvers + URLs. */
@@ -89,11 +89,18 @@ export interface MfaModuleOptions {
   backendBaseUrl?: string;
   storefrontBaseUrl?: string;
   adminBaseUrl?: string;
-  resolveAccountEmail?: (
+  /**
+   * `specs/110-instance-repository/` T118c — required, where both were optional
+   * while a composition root supplied them. `mfa` resolves each from the owning
+   * identity module's published port now, so there is no composition that has
+   * one and not the other, and the optionality was a live divergence rather
+   * than a capability: the harness omitted both and no test could see it.
+   */
+  resolveAccountEmail: (
     subjectType: 'customer' | 'admin',
     subjectId: string,
   ) => Promise<string | null>;
-  verifyAccountPassword?: (
+  verifyAccountPassword: (
     subjectType: 'customer' | 'admin',
     subjectId: string,
     password: string,
@@ -150,12 +157,6 @@ export function mfaModule(options: MfaModuleOptions): {
       enrolmentService,
       auditLogService: options.auditLogService,
     });
-    const emailOpt = options.resolveAccountEmail
-      ? { resolveAccountEmail: options.resolveAccountEmail }
-      : {};
-    const pwdOpt = options.verifyAccountPassword
-      ? { verifyAccountPassword: options.verifyAccountPassword }
-      : {};
     // Storefront customer self-service (US1).
     await registerMfaSelfServiceRoutes(app, {
       pathPrefix: '/api/v1/account/mfa',
@@ -168,8 +169,8 @@ export function mfaModule(options: MfaModuleOptions): {
       policyResolver,
       socialLinkService,
       auditLogService: options.auditLogService,
-      ...emailOpt,
-      ...pwdOpt,
+      resolveAccountEmail: options.resolveAccountEmail,
+      verifyAccountPassword: options.verifyAccountPassword,
     });
     // Federated sign-in (US4 customer / US5 admin).
     if (options.oauthProvider && options.socialAccountResolvers) {
@@ -190,17 +191,15 @@ export function mfaModule(options: MfaModuleOptions): {
       });
     }
     // Storefront org-admin enforcement (US3).
-    if (options.resolveOrgAdmin) {
-      await registerMfaOrgRoutes(app, {
-        orgPolicyService,
-        auditLogService: options.auditLogService,
-        requireCustomer: options.requireCustomer,
-        resolveOrgAdmin: options.resolveOrgAdmin,
-      });
-    }
+    await registerMfaOrgRoutes(app, {
+      orgPolicyService,
+      auditLogService: options.auditLogService,
+      requireCustomer: options.requireCustomer,
+      resolveOrgAdmin: options.resolveOrgAdmin,
+    });
     // Admin user self-service (US2) + admin reset (US6) + org enforcement (US3).
     const { requireAdmin, resolveAdminActor } = options;
-    if (requireAdmin && resolveAdminActor) {
+    if (requireAdmin) {
       await registerMfaSelfServiceRoutes(app, {
         pathPrefix: '/api/v1/admin/account/mfa',
         subjectType: 'admin',
@@ -211,8 +210,8 @@ export function mfaModule(options: MfaModuleOptions): {
         policyResolver,
         socialLinkService,
         auditLogService: options.auditLogService,
-        ...emailOpt,
-        ...pwdOpt,
+        resolveAccountEmail: options.resolveAccountEmail,
+        verifyAccountPassword: options.verifyAccountPassword,
       });
       await registerMfaAdminRoutes(app, {
         enrolmentService,
@@ -220,8 +219,7 @@ export function mfaModule(options: MfaModuleOptions): {
         auditLogService: options.auditLogService,
         requireAdmin,
         resolveAdminActor,
-        resolveOrganizationCustomerIds:
-          options.resolveOrganizationCustomerIds ?? (async () => []),
+        resolveOrganizationCustomerIds: options.resolveOrganizationCustomerIds,
       });
     }
   };

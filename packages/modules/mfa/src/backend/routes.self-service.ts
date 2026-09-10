@@ -31,11 +31,17 @@ export interface MfaSelfServiceOptions {
   policyResolver: MfaPolicyResolver;
   socialLinkService: SocialLinkService;
   auditLogService: AuditPort;
-  resolveAccountEmail?: (
+  /**
+   * `specs/110-instance-repository/` T118c — required, both of them. `mfa`
+   * resolves each from its owner's published port rather than taking whatever a
+   * composition root happened to contribute, and while they were optional the
+   * two roots disagreed: production answered both, the test harness neither.
+   */
+  resolveAccountEmail: (
     subjectType: 'customer' | 'admin',
     subjectId: string,
   ) => Promise<string | null>;
-  verifyAccountPassword?: (
+  verifyAccountPassword: (
     subjectType: 'customer' | 'admin',
     subjectId: string,
     password: string,
@@ -74,7 +80,7 @@ export async function registerMfaSelfServiceRoutes(
       throw new HttpError(403, 'MFA_NOT_ENABLED', 'Two-factor authentication is not enabled for your account.');
     }
     const label =
-      (await opts.resolveAccountEmail?.(subjectType, subject.subjectId)) ?? subject.subjectId;
+      (await opts.resolveAccountEmail(subjectType, subject.subjectId)) ?? subject.subjectId;
     return { data: await enrolmentService.setup(subject, label) };
   });
 
@@ -183,7 +189,7 @@ async function reauthenticate(
     if (verified.ok) return;
     throw new HttpError(401, 'MFA_INVALID_CODE', 'The code is invalid or expired.');
   }
-  if (body.password && opts.verifyAccountPassword) {
+  if (body.password) {
     const ok = await opts.verifyAccountPassword(subject.subjectType, subject.subjectId, body.password);
     if (ok) return;
     throw new HttpError(401, 'INVALID_CREDENTIALS', 'The password is incorrect.');
