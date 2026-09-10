@@ -12,7 +12,7 @@ import {
 } from '../../helpers/test-server.js';
 import { Category } from '../../helpers/package-entities.js';
 import { Product } from '../../helpers/package-entities.js';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';
 import { ProductFeed } from '../../helpers/package-entities.js';
 

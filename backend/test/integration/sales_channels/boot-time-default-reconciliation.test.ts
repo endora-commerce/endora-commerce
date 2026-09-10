@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { DefaultChannelReconciler } from '@endora-commerce/platform/composition';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 
 /**
  * T021 — Boot-time idempotency for the default-channel reconciler (FR-002).

@@ -5,7 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { MegamenuCache } from '../../../../packages/modules/megamenu/src/backend/services/megamenu-cache.js';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 
 /**
  * T083 — Storefront cache integration. Verifies:

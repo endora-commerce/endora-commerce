@@ -4,7 +4,7 @@ import { afterAll, beforeAll, beforeEach, afterEach, describe, expect, it, vi } 
 import type { Knex } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 
-import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 
 import { AuditLogService } from '@endora-commerce/platform/composition';
 

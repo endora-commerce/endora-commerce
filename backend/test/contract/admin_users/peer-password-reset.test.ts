@@ -7,7 +7,7 @@ import {
 } from '../../helpers/test-server.js';
 import { READ_ONLY_ROLE_ID } from '../../helpers/seed-admins.js';
 import { TEST_ADMIN_ID } from '../../helpers/test-actors.js';
-import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 
 /**
  * Issue #252 — a peer operator resets another operator's password.

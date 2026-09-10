@@ -6,8 +6,10 @@ import {
   coreSources,
   emitEntitiesRegistry,
   emitMigrationsRegistry,
+  platformSubpathPublishing,
   type SourceTree,
 } from '../../../scripts/generate-composer.js';
+import type { BarrelParse } from '../../../scripts/lib/platform-surface.js';
 
 /**
  * Red-first fixtures for the two registries `generate-composer.ts` emits
@@ -242,16 +244,114 @@ describe('the emitted registries', () => {
   it('imports every entity exactly once and lists it', () => {
     const content = emitEntitiesRegistry([
       { className: 'Post', file: 'modules/blog/entities/post.entity.ts', owner: null },
-      { className: 'AuditLogEntry', file: 'kernel/audit/audit-log-entry.entity.ts', owner: null },
     ]);
     expect(content).toContain(
       "import { Post } from '../modules/blog/entities/post.entity.js';",
     );
-    expect(content).toContain(
-      "import { AuditLogEntry } from '../kernel/audit/audit-log-entry.entity.js';",
-    );
     expect(content).toContain('export const ALL_ENTITIES = [');
     expect(content).toContain('  Post,');
+  });
+
+  /**
+   * `specs/110-instance-repository/` T119c.
+   *
+   * This assertion read `"import { AuditLogEntry } from
+   * '../kernel/audit/audit-log-entry.entity.js';"` and it was the thing holding
+   * five re-export shims open: the generator spelled all six platform entity
+   * classes relatively because one of them — `ModuleRegistration` — had no
+   * address at all, and a generator cannot emit five of six imports one way and
+   * the sixth another for no stated reason.
+   *
+   * The two lines below are the whole of the change, and they are two rather
+   * than one on purpose: the subpath is the one that publishes the **class**,
+   * not the one whose `exports` target covers the file. `./kernel` covers
+   * `dist/kernel/**`, `module-registration.entity.js` included, so a
+   * file-covering derivation would name `@endora-commerce/platform/kernel` for a
+   * class that barrel does not carry — a specifier that resolves to a module
+   * with no such export.
+   */
+  it("names a platform entity by the subpath that publishes its class", () => {
+    const content = emitEntitiesRegistry([
+      { className: 'AuditLogEntry', file: 'kernel/audit/audit-log-entry.entity.ts', owner: null },
+      {
+        className: 'ModuleRegistration',
+        file: 'kernel/lifecycle/module-registration.entity.ts',
+        owner: null,
+      },
+    ]);
+    expect(content).toContain(
+      "import { AuditLogEntry } from '@endora-commerce/platform/kernel';",
+    );
+    expect(content).toContain(
+      "import { ModuleRegistration } from '@endora-commerce/platform/composition';",
+    );
+    expect(content).not.toContain('../kernel/');
+  });
+
+  /**
+   * The refusal, and the reason it is a refusal rather than a fallback: a
+   * relative specifier into the platform resolves in this checkout and in no
+   * client's, so falling back would emit an artefact that works here and breaks
+   * on the machine nobody can debug. The fixture names a file that really is the
+   * platform's and a class no barrel carries, which is exactly the state
+   * `ModuleRegistration` was in before this task.
+   */
+  it('refuses a platform entity no declared subpath publishes', () => {
+    expect(() =>
+      emitEntitiesRegistry([
+        {
+          className: 'NotOnAnyBarrel',
+          file: 'kernel/lifecycle/module-registration.entity.ts',
+          owner: null,
+        },
+      ]),
+    ).toThrow(/no subpath the platform declares publishes 'NotOnAnyBarrel'/);
+  });
+
+  /**
+   * R3.1a — a symbol is on one barrel and never two, so a generated artefact has
+   * no basis to pick. Pure over parsed barrels, which is what lets the fixture
+   * enter where a real run enters: the impure half only reads the platform's
+   * `exports` map and its barrels off disk.
+   */
+  it('refuses a symbol two declared subpaths publish out of one file', () => {
+    const barrel = (subpath: string): [string, BarrelParse] => [
+      subpath,
+      {
+        barrel: `${subpath}/index.ts`,
+        published: [{ name: 'Twice', target: 'kernel/twice.entity.ts' }],
+        unreadable: [],
+      },
+    ];
+    expect(() =>
+      platformSubpathPublishing(
+        new Map([barrel('kernel'), barrel('composition')]),
+        'Twice',
+        'kernel/twice.entity.ts',
+      ),
+    ).toThrow(/more than one declared subpath/);
+  });
+
+  it('answers null for a symbol no barrel publishes out of that file', () => {
+    // The discrimination the refusal above rests on: *this* file, not merely
+    // *this* name. A barrel carrying `Setting` out of `settings/setting.entity.ts`
+    // says nothing about a `Setting` declared somewhere else.
+    expect(
+      platformSubpathPublishing(
+        new Map([
+          [
+            'kernel',
+            {
+              barrel: 'kernel/index.ts',
+              published: [{ name: 'Setting', target: 'kernel/settings/setting.entity.ts' }],
+              unreadable: [],
+            },
+          ],
+        ]),
+        'Setting',
+        'kernel/elsewhere/setting.entity.ts',
+      ),
+    ).toBeNull();
   });
 
   it('emits a migration entry carrying the module that owns the file', () => {

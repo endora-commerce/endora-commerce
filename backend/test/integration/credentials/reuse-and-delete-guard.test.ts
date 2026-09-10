@@ -5,10 +5,10 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { Setting } from '../../../src/kernel/settings/setting.entity.js';
-import { SettingGroup } from '../../../src/kernel/settings/setting-group.entity.js';
-import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { Setting } from '@endora-commerce/platform/kernel';
+import { SettingGroup } from '@endora-commerce/platform/kernel';
+import { SettingValue } from '@endora-commerce/platform/kernel';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 
 /**
  * Feature 058 US2 (T037) — one configuration referenced by two settings [real DB].

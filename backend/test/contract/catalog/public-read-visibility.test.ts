@@ -9,7 +9,7 @@ import {
   TEST_ORGANIZATION_ID,
 } from '../../helpers/test-actors.js';
 import { Product } from '../../helpers/package-entities.js';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 
 /**
  * Issue #227 — the public catalogue is the surface issue #174 was the warning

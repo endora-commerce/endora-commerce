@@ -3,7 +3,7 @@ import { Product } from './package-entities.js';
 import { Category } from './package-entities.js';
 import { AttributeSetAttribute } from './package-entities.js';
 import { createAttributeFixture } from '../../src/seeds/attribute-fixtures.js';
-import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 
 // Feature 061 — attribute fixtures create the product-host Custom Field
 // definition + catalog extension pair; re-export the helpers so test files

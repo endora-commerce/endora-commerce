@@ -19,9 +19,9 @@ import {
   SettingsChannelIdInvalid,
 } from '../../../src/kernel/settings/settings.service.js';
 
-import { Setting } from '../../../src/kernel/settings/setting.entity.js';
+import { Setting } from '@endora-commerce/platform/kernel';
 
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 
 import { CARTS_SETTING_CODES } from '../../../../packages/modules/carts/src/manifest.js';
 

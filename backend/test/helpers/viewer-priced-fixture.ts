@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Asset, Organization, PriceList, PriceListPriceBracket, PriceListProduct } from './package-entities.js';
-import { SalesChannel } from '../../src/kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { Category } from './package-entities.js';
 import { GalleryItem } from './package-entities.js';
 import { GalleryItemLabel } from './package-entities.js';

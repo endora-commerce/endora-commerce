@@ -5,7 +5,7 @@ import { MikroORM, type EntityManager } from '@mikro-orm/postgresql';
 import type { AdminI18nTranslatePort, PermissionReadPort } from '@endora-commerce/contracts';
 import mikroOrmConfig from '../../../src/db/mikro-orm.config.js';
 import { AdminActionsService } from '../../../../packages/modules/admin_actions/src/backend/services/admin-actions-service.js';
-import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
+import { ModuleRegistration } from '@endora-commerce/platform/composition';
 import {
   ModuleRegistryCache,
   STATE_CHANGED_CHANNEL,

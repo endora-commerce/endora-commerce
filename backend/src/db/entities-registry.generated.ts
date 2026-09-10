@@ -25,14 +25,24 @@
 // export `src/packages/package-runtime.ts` reads when that package is
 // installed rather than linked, so the committed registry and the runtime
 // loader now read one declaration instead of two.
+//
+// The **platform's** own entity classes are named by a bare specifier too
+// (`specs/110-instance-repository/` T119c), and by the subpath that publishes
+// each **class** rather than by the one whose `exports` target covers its file:
+// `./kernel` carries five of them and `./composition` carries
+// `ModuleRegistration`, which `host-package.md` §1.3 classifies **A** — not
+// public API, so not on a public barrel. That is why one subpath is named on
+// more than one line below. Do not merge them by hand: the list is one import
+// per class in path order, and a merge is undone by the next
+// `composer:generate`.
 
 import type { EntityClassLike } from '../packages/package-runtime.js';
-import { AuditLogEntry } from '../kernel/audit/audit-log-entry.entity.js';
-import { ModuleRegistration } from '../kernel/lifecycle/module-registration.entity.js';
-import { SalesChannel } from '../kernel/sales-channels/sales-channel.entity.js';
-import { SettingGroup } from '../kernel/settings/setting-group.entity.js';
-import { SettingValue } from '../kernel/settings/setting-value.entity.js';
-import { Setting } from '../kernel/settings/setting.entity.js';
+import { AuditLogEntry } from '@endora-commerce/platform/kernel';
+import { ModuleRegistration } from '@endora-commerce/platform/composition';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { SettingGroup } from '@endora-commerce/platform/kernel';
+import { SettingValue } from '@endora-commerce/platform/kernel';
+import { Setting } from '@endora-commerce/platform/kernel';
 import { entities as addressesEntities } from '@endora-commerce/mod-addresses/backend';
 import { entities as adminNotificationsEntities } from '@endora-commerce/mod-admin-notifications/backend';
 import { entities as adminRolesEntities } from '@endora-commerce/mod-admin-roles/backend';

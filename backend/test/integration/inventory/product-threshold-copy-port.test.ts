@@ -8,7 +8,7 @@ import {
 } from '../../helpers/test-server.js';
 import { CommandBus } from '../../../src/commands/index.js';
 import { InventoryProductThresholdWriteService } from '../../../../packages/modules/inventory/src/backend/services/product-threshold-write.service.js';
-import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import { ProductWarehouseLowStockThreshold } from '../../helpers/package-entities.js';
 import { Warehouse } from '../../helpers/package-entities.js';
 import { Product } from '../../helpers/package-entities.js';

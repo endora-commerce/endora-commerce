@@ -8,9 +8,9 @@ import {
 } from '../../helpers/test-server.js';
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
 import { SettingsAdminService } from '../../../../packages/modules/settings/src/backend/services/settings-admin.service.js';
-import { Setting } from '../../../src/kernel/settings/setting.entity.js';
-import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
-import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { Setting } from '@endora-commerce/platform/kernel';
+import { SettingValue } from '@endora-commerce/platform/kernel';
+import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import { isSecretEnvelope } from '../../../src/kernel/settings/secret-value-codec.js';
 import { z } from 'zod';
 

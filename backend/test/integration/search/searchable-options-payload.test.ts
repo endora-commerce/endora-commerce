@@ -5,7 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SearchIndexer } from '../../../../packages/modules/search/src/backend/services/search-indexer.js';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { Meilisearch } from 'meilisearch';
 import { searchIndexerNeighbourPorts } from '../../helpers/search-indexer-ports.js';
 

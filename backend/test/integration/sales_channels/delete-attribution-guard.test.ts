@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ERROR_CODES, type SalesChannelAttributionRegistryPort } from '@endora-commerce/contracts';
 import { EventBus } from '@endora-commerce/platform/events';
 import { HttpError } from '@endora-commerce/platform/http';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { QuoteRequest } from '../../helpers/package-entities.js';
 import { withModuleOff } from '../../helpers/off-state.js';
 import { salesChannelsServiceFor } from '../../helpers/sales-channels-service.js';

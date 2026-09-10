@@ -7,8 +7,8 @@ import {
 } from '../../helpers/test-server.js';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
-import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
-import { Setting } from '../../../src/kernel/settings/setting.entity.js';
+import { AuditLogEntry } from '@endora-commerce/platform/kernel';
+import { Setting } from '@endora-commerce/platform/kernel';
 
 /**
  * Feature 073 / US1 (T022) — `POST /api/v1/admin/modules/:id/activation`.

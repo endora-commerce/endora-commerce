@@ -144,6 +144,23 @@ export { absolutizePublicUrl } from '../kernel/public-api-base-url.js';
 export { registryCache, publishStateChanged } from '../kernel/lifecycle/registry-cache.js';
 export { activationDeclarationsFrom } from '../kernel/lifecycle/activation-resolver.js';
 export { requiredModulesFrom } from '../kernel/lifecycle/required-modules.js';
+// `specs/110-instance-repository/` T119c. The platform-availability row itself —
+// the entity class `module_registrations` is mapped by. It is here and **not** on
+// `./kernel`, and that is `host-package.md` §1.3's **A** classification applied
+// rather than revised: **A** means *not public API*, `./composition` is not
+// public API, and the registry cache a root primes off these rows is on this
+// barrel two lines above. Putting the class on `./kernel` would let every module
+// package name the row that records whether its siblings are installed, which is
+// the reach §1.3 refused.
+//
+// It is on a barrel at all because the entity registry a build ships has to name
+// it: `db/entities-registry.generated.ts` hands MikroORM this class, and until
+// this export existed the generator could name it only by relative path into
+// `packages/platform/dist/`, which resolves in this checkout and in no client's.
+// One unaddressable class was enough to hold the other five — all on `./kernel`
+// already — to the same spelling, so this single export is what let all six
+// become bare specifiers and all six shims go.
+export { ModuleRegistration } from '../kernel/lifecycle/module-registration.entity.js';
 
 // --- kernel: the sub-kernels a root composes ------------------------------
 export { composeSettingsKernel, type SettingsKernel } from '../kernel/settings/compose.js';

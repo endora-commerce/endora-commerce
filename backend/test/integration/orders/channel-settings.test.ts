@@ -12,7 +12,7 @@ import {
 } from '../../helpers/seed-commerce.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { Warehouse } from '../../helpers/package-entities.js';
 import { DEFAULT_WAREHOUSE_ID } from '@endora-commerce/mod-inventory/backend';
 import { WarehouseChannelAssignment } from '../../helpers/package-entities.js';

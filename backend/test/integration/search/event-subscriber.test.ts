@@ -9,7 +9,7 @@ import { SearchIndexer, indexUidFor } from '../../../../packages/modules/search/
 import { SearchEventSubscriber } from '../../../../packages/modules/search/src/backend/services/search-event-subscriber.js';
 import { Product } from '../../helpers/package-entities.js';
 import { findAttributeExtensionByKey } from '../../helpers/seed-catalog.js';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { Meilisearch } from 'meilisearch';
 import { searchIndexerNeighbourPorts } from '../../helpers/search-indexer-ports.js';
 

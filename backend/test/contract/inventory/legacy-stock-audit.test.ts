@@ -6,7 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import type { CatalogCategoryReadPort, CatalogProductReadPort } from '@endora-commerce/contracts';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import { StockLevel } from '../../helpers/package-entities.js';
 import {
   StockLevelService,

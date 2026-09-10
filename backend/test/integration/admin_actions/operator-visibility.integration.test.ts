@@ -3,7 +3,7 @@ import { ModuleAction } from '../../helpers/package-entities.js';
 import { MikroORM, type EntityManager } from '@mikro-orm/postgresql';
 import mikroOrmConfig from '../../../src/db/mikro-orm.config.js';
 import { AdminActionsService } from '../../../../packages/modules/admin_actions/src/backend/services/admin-actions-service.js';
-import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
+import { ModuleRegistration } from '@endora-commerce/platform/composition';
 import { ModuleRegistryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { ModuleEffectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import type { I18nService } from '@endora-commerce/mod-i18n/backend';

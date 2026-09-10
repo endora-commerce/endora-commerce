@@ -12,7 +12,7 @@ import { CartAuditService } from '../../../../packages/modules/carts/src/backend
 
 import { AuditLogService } from '@endora-commerce/platform/composition';
 
-import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
+import { ModuleRegistration } from '@endora-commerce/platform/composition';
 
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 

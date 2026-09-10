@@ -9,11 +9,11 @@ import {
 import { EventBus } from '@endora-commerce/platform/events';
 import { subscribeForModule } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
-import { Setting } from '../../../src/kernel/settings/setting.entity.js';
-import { SettingValue } from '../../../src/kernel/settings/setting-value.entity.js';
+import { Setting } from '@endora-commerce/platform/kernel';
+import { SettingValue } from '@endora-commerce/platform/kernel';
 import { SettingsCache } from '../../../src/kernel/settings/settings-cache.js';
 import { SettingsService } from '../../../src/kernel/settings/settings.service.js';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { SettingsAdminService } from '../../../../packages/modules/settings/src/backend/services/settings-admin.service.js';
 
 /**

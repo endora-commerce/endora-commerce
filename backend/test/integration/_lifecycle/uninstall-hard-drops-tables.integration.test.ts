@@ -7,7 +7,7 @@ import {
   ModuleDepGraph,
   ModuleLifecycleOrchestrator,
 } from '@endora-commerce/platform/lifecycle';
-import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
+import { ModuleRegistration } from '@endora-commerce/platform/composition';
 import { AuditLogService } from '@endora-commerce/platform/composition';
 import { migrationOwnershipOf } from '../../../src/db/configured-migrations.js';
 

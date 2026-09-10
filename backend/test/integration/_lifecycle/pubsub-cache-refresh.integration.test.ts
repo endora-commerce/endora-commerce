@@ -5,7 +5,7 @@ import {
   STATE_CHANGED_CHANNEL,
 } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
+import { ModuleRegistration } from '@endora-commerce/platform/composition';
 
 /**
  * Integration test for the cache-refresh path on Redis pub/sub

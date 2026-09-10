@@ -20,9 +20,9 @@ import {
 
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 
-import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 
 
 import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';

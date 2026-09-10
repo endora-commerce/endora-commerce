@@ -28,7 +28,7 @@ import {
   InvoiceNumberGenerator,
   createSettingsPatternResolver,
 } from '../../../../packages/modules/invoices/dist/backend/services/invoice-number-generator.js';
-import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import { ADMIN_COOKIE, seedInvoiceableOrder, setSellerSettings } from './helpers.js';
 import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 

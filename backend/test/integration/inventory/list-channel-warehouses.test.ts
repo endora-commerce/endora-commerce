@@ -9,7 +9,7 @@ import { InventoryStockReadService } from '../../../../packages/modules/inventor
 import { Warehouse } from '../../helpers/package-entities.js';
 import { DEFAULT_WAREHOUSE_ID } from '@endora-commerce/mod-inventory/backend';
 import { WarehouseChannelAssignment } from '../../helpers/package-entities.js';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 
 /**
  * `InventoryStockReadPort.listChannelWarehouses` (D-94.4).

@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
@@ -25,7 +25,7 @@ import {
   type PlatformScope,
 } from '../../../scripts/check-kernel-boundary.js';
 import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
-import { platformSubpathsAt } from '../../../scripts/lib/platform-root.js';
+import { platformSourceRootAt, platformSubpathsAt } from '../../../scripts/lib/platform-root.js';
 import { inTreeRelationTarget } from '../../helpers/in-tree-relation-target.js';
 
 /** Every root the check itself walks — resolved, never spelled (T040a). */
@@ -102,7 +102,8 @@ describe('isViolation', () => {
  * have a length of 1" — green locally, red in the pipeline.
  */
 const BACKEND_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
-const moduleFile = (relative: string): string => join(BACKEND_ROOT, 'src/modules', relative);
+const moduleFile = (underModules: string): string =>
+  join(BACKEND_ROOT, 'src/modules', underModules);
 
 /**
  * A cross-module relation target that really exists — derived, never named, and
@@ -119,9 +120,48 @@ const RELATION_TARGET_IMPORT =
  * because the specifier above is relative and rule A resolves it against the
  * importing file. `moduleFile` stays for the proofs whose target is a real
  * platform file — the kernel's `SalesChannel` — which is where a path under the
- * application tree is still the right one.
+ * application tree is still the right one for the **importer**.
  */
 const relationFixtureFile = RELATION_TARGET.sourceFile;
+
+/**
+ * The kernel's `SalesChannel`, and the specifier a fixture importer reaches it
+ * by — both **derived** (`specs/110-instance-repository/` T119c).
+ *
+ * This was `'../../../kernel/sales-channels/sales-channel.entity.js'`, written
+ * out, and it stopped describing anything the day T119c deleted the six platform
+ * entity re-export shims. Rule A skips a specifier that resolves to no file on
+ * disk, so the case below found **zero** relations and failed on its length — a
+ * derived fact recorded by hand, invisible to `tsc`, to lint and to every
+ * `check-*` script, and found by the task that caused it only because this file
+ * was in its targeted run.
+ *
+ * The class itself never moved: it is `packages/platform/src/kernel/…`, whose
+ * path carries `/src/kernel/`, so `ownerOf` still answers `kernel` and the
+ * classification this case exists for is unchanged. What changed is that the
+ * application no longer spells a second path to it, so the specifier is computed
+ * from the platform's own source root instead of assumed.
+ */
+const PLATFORM_SRC = platformSourceRootAt(MODULE_LAYOUT.repoRoot);
+if (PLATFORM_SRC === null) {
+  // A refusal rather than a skip: with no platform there is no kernel-owned
+  // entity, the case below finds nothing, and "nothing" is what a passing run of
+  // a length-zero assertion looks like.
+  throw new Error(
+    '[kernel-boundary-check] no workspace member declares `endora.type: "platform"`, so the ' +
+      'kernel-owned relation target this file classifies does not exist.',
+  );
+}
+const SALES_CHANNEL_ENTITY = join(PLATFORM_SRC, 'kernel/sales-channels/sales-channel.entity.ts');
+const salesChannelImportFrom = (importer: string): string => {
+  const specifier = relative(dirname(importer), SALES_CHANNEL_ENTITY)
+    .split('\\')
+    .join('/')
+    .replace(/\.ts$/, '.js');
+  return `import { SalesChannel } from '${
+    specifier.startsWith('.') ? specifier : `./${specifier}`
+  }';`;
+};
 
 describe('analyzeSource', () => {
   it('finds the relation target through the import that declares it', () => {
@@ -163,12 +203,13 @@ describe('analyzeSource', () => {
   });
 
   it('allows the relocated settings → SalesChannel relations, now kernel-internal', () => {
+    const importer = moduleFile('search/entities/search-phrase-record.entity.ts');
     const findings = analyzeSource(
       ENTITY(
         '@ManyToOne(() => SalesChannel, { fieldName: "sales_channel_id" })',
-        "import { SalesChannel } from '../../../kernel/sales-channels/sales-channel.entity.js';",
+        salesChannelImportFrom(importer),
       ),
-      moduleFile('search/entities/search-phrase-record.entity.ts'),
+      importer,
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]?.targetOwner).toBe('kernel');

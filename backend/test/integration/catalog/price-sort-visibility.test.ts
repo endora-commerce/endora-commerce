@@ -128,7 +128,7 @@ describe('a price-ordered page costs a constant number of statements in page siz
       '../../helpers/package-entities.js'
     );
     const { SalesChannel } = await import(
-      '../../../src/kernel/sales-channels/sales-channel.entity.js'
+      '@endora-commerce/platform/kernel'
     );
     const retail = await em.findOneOrFail(SalesChannel, { code: 'pl_retail' });
     const listId = '00000000-0000-4000-8000-0000000086b1';

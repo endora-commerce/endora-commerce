@@ -19,7 +19,7 @@ import { DEFAULT_WAREHOUSE_ID } from '@endora-commerce/mod-inventory/backend';
 import { WarehouseChannelAssignment } from '../../helpers/package-entities.js';
 import { StockLevel } from '../../helpers/package-entities.js';
 import { StockAllocation } from '../../helpers/package-entities.js';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { OrderItem, Product } from '../../helpers/package-entities.js';
 
 /**

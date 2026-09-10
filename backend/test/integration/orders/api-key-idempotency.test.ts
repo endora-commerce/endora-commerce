@@ -14,7 +14,7 @@ import {
   SEED_PAYMENT_METHOD_ID,
 } from '../../helpers/seed-commerce.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { Order, OrderPlacementIntent } from '../../helpers/package-entities.js';
 
 /**

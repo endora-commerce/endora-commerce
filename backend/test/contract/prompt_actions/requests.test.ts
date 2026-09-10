@@ -9,7 +9,7 @@ import {
 } from '../../helpers/test-server.js';
 import { ScriptedLlm, seedPromptActionsSettings } from '../../helpers/prompt-actions.js';
 import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
-import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import { StockLevel } from '../../helpers/package-entities.js';
 import { Product } from '../../helpers/package-entities.js';
 import { DEFAULT_WAREHOUSE_ID } from '@endora-commerce/mod-inventory/backend';

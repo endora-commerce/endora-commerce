@@ -7,7 +7,7 @@ import {
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
 import { manifest as customersManifest } from '../../../../packages/modules/customers/src/manifest.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
-import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
+import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 
 /**
  * Feature 040, US7 — admin password reset, soft-delete/restore, and the online

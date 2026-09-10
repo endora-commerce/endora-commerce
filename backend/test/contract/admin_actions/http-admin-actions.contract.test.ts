@@ -6,7 +6,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { GetAdminActionsResponseSchema } from '@endora-commerce/contracts';
-import { ModuleRegistration } from '../../../src/kernel/lifecycle/module-registration.entity.js';
+import { ModuleRegistration } from '@endora-commerce/platform/composition';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 
 /**

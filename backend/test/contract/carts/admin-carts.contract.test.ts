@@ -7,7 +7,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 
 
 /**

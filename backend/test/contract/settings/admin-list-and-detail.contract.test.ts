@@ -6,7 +6,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { ManifestReconciler } from '../../../src/kernel/settings/manifest-reconciler.js';
-import { Setting } from '../../../src/kernel/settings/setting.entity.js';
+import { Setting } from '@endora-commerce/platform/kernel';
 
 /**
  * T029 — Contract test: GET /api/v1/admin/settings + GET /:code.

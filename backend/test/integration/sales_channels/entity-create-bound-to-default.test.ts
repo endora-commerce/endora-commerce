@@ -4,7 +4,7 @@ import { EventBus } from '@endora-commerce/platform/events';
 import { CatalogAdminService } from '../../../../packages/modules/catalog/dist/backend/services/catalog-admin.service.js';
 import { SalesChannelMembershipService } from '../../../src/kernel/sales-channels/sales-channel-membership.service.js';
 import { DefaultChannelReconciler } from '@endora-commerce/platform/composition';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 
 /**
  * T024 — FR-011: an entity created without explicit channel selection

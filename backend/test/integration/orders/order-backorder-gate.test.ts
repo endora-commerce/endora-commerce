@@ -12,7 +12,7 @@ import {
 } from '../../helpers/seed-commerce.js';
 import { SEED_PRODUCT_102_ID } from '../../helpers/seed-catalog.js';
 import { Product } from '../../helpers/package-entities.js';
-import { Setting } from '../../../src/kernel/settings/setting.entity.js';
+import { Setting } from '@endora-commerce/platform/kernel';
 import { StockLevel } from '../../helpers/package-entities.js';
 
 /**

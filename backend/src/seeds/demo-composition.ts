@@ -58,7 +58,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { DemoComposition, DemoCompositionResult } from '@endora-commerce/platform/demo';
 import type { DemoCredential } from '@endora-commerce/contracts';
-import { SalesChannel } from '../kernel/sales-channels/sales-channel.entity.js';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { hashPassword } from '@endora-commerce/platform/kernel';
 import { entityNamed } from '../packages/package-entity-lookup.js';
 import { createAttributeFixture, findAttributeDefinitionByKey } from './attribute-fixtures.js';
