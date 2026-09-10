@@ -736,3 +736,85 @@ export interface CmsBlockSeedPort {
    */
   ensureSeededBlock(block: CmsSeededBlock): Promise<void>;
 }
+
+/**
+ * A CMS block as a consumer outside `cms` reads it — never the ORM entity
+ * (FR-011).
+ *
+ * Three fields, because three is what the demand is. `content` is deliberately
+ * absent: the whole point of {@link CmsBlockReadPort.findLocalizedById} is that a
+ * consumer never holds the per-language envelope, so shipping it here would make
+ * the narrow read pointless and hand every caller a shape whose key layout is
+ * this module's storage decision.
+ */
+export interface CmsBlockRecord {
+  id: string;
+  /** The block's stable, operator-visible code. */
+  code: string;
+  /**
+   * An operator can deactivate a block. It is on the record rather than applied
+   * as a hidden filter because the two consumers disagree about it on purpose:
+   * an admin-side existence check accepts a deactivated block (an operator may
+   * be editing it), and a storefront render does not.
+   */
+  active: boolean;
+}
+
+/**
+ * One block's authored content in **one** language.
+ *
+ * `data` is the Puck tree, opaque here exactly as it is in
+ * {@link CmsContentEnvelope} — this boundary carries content, it does not
+ * interpret it. What does not cross is the envelope itself: which key a language
+ * hangs off, whether a legacy `schema_version` rides along, and what an absent
+ * language means are `cms`' storage decisions, and a consumer that had to know
+ * them would be reading this module's columns with extra steps.
+ */
+export interface CmsLocalizedBlockRecord {
+  id: string;
+  code: string;
+  /** The language actually resolved — the one asked for, never a fallback. */
+  language: string;
+  data: unknown;
+}
+
+/**
+ * Container name: `cmsBlockReadPort`. Owner: `cms`.
+ *
+ * `megamenu` reads blocks twice, and the two reads are different questions
+ * rather than one question at two widths (`specs/110-instance-repository/`
+ * T118c). Both were raw `select … from cms_blocks` in a composition root until
+ * this port existed, which is why the interface is shaped by the demand and not
+ * by the table:
+ *
+ * - {@link findById} answers *does this block exist?* for the admin-side target
+ *   validator, which refuses a menu item pointing at a block that is not there.
+ *   It does not filter on `active`, and the record carries the flag so the
+ *   caller can.
+ * - {@link findLocalizedById} answers *what does this block render as, here?*
+ *   for the storefront resolver, which inlines the tree into the menu payload.
+ *
+ * Two methods rather than one wide read: a validator that took the localized
+ * record would pull a content tree per menu item to test a row for existence,
+ * and a storefront that took the plain record would have to open the envelope
+ * itself. Nothing else `cms` knows about blocks is published — the module's own
+ * admin surface is much larger and stays where it is.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. That is the honest answer for both consumers: an operator who
+ * has switched the CMS off has switched off the thing that owns the block a menu
+ * item names, and a menu that quietly dropped the embed would be reporting the
+ * content as gone rather than as unavailable.
+ */
+export interface CmsBlockReadPort {
+  findById(id: string): Promise<CmsBlockRecord | null>;
+  /**
+   * The block's content in `language`, or `null` when there is no active block
+   * with that id **or** it carries nothing for that language. The two are one
+   * answer on purpose: a caller that inlines a block has the same thing to do in
+   * either case, and distinguishing them would put "what does an absent language
+   * mean" — which is the envelope's shape — back on the caller.
+   */
+  findLocalizedById(id: string, language: string): Promise<CmsLocalizedBlockRecord | null>;
+}

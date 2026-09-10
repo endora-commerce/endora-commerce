@@ -9,22 +9,13 @@ import type {
   MegamenuAssetKind,
 } from '@endora-commerce/contracts';
 import type { MegamenuCache } from './megamenu-cache.js';
-
-export interface StorefrontDeps {
-  /** Resolves a Category id to its public storefront URL. */
-  resolveCategoryUrl: (categoryId: string) => Promise<string | null>;
-  /** Resolves a CMS Page id to its public storefront URL. */
-  resolveCmsPageUrl: (pageId: string) => Promise<string | null>;
-  /** Resolves a Library Asset id to a CDN-ready URL + label + kind. */
-  resolveAsset: (
-    assetId: string,
-  ) => Promise<{ url: string; label: string | null; kind: MegamenuAssetKind } | null>;
-  /** Inlines a CMS Block by id into the resolved payload. */
-  resolveCmsBlock: (
-    blockId: string,
-    language: string,
-  ) => Promise<{ id: string; code: string; language: string; content: { schemaVersion: number; data: unknown } } | null>;
-}
+import {
+  resolveCategoryUrl,
+  resolveCmsPageUrl,
+  resolveMenuAsset,
+  resolveMenuBlock,
+  type MegamenuCrossModulePorts,
+} from './cross-module-ports.js';
 
 type ChannelRow = {
   id: string;
@@ -66,7 +57,13 @@ type ActiveMenuRow = {
 export class StorefrontResolver {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly deps: StorefrontDeps,
+    /**
+     * The four cross-module reads a resolved menu needs, as their owners'
+     * published ports (`specs/110-instance-repository/` T118c). This was
+     * `StorefrontDeps`, an interface this module exported so a composition root
+     * could build four closures against it — twice, and not identically.
+     */
+    private readonly ports: MegamenuCrossModulePorts,
     private readonly cache?: MegamenuCache,
   ) {}
 
@@ -162,7 +159,7 @@ export class StorefrontResolver {
           iconAssetId?: string;
           iconPosition?: MegamenuIconPosition;
         };
-        const url = await this.deps.resolveCategoryUrl(target.categoryId);
+        const url = await resolveCategoryUrl(this.ports.categories, target.categoryId);
         if (!url) return null;
         const icon = await this.resolveIcon(target.iconAssetId, target.iconPosition);
         return { ...base, url, ...(icon ? { icon } : {}) };
@@ -173,7 +170,7 @@ export class StorefrontResolver {
           iconAssetId?: string;
           iconPosition?: MegamenuIconPosition;
         };
-        const url = await this.deps.resolveCmsPageUrl(target.pageId);
+        const url = await resolveCmsPageUrl(this.ports.pages, target.pageId);
         if (!url) return null;
         const icon = await this.resolveIcon(target.iconAssetId, target.iconPosition);
         return { ...base, url, ...(icon ? { icon } : {}) };
@@ -194,7 +191,7 @@ export class StorefrontResolver {
       case 'asset': {
         const target = row.target as { assetId?: string; kind: MegamenuAssetKind };
         if (!target.assetId) return null;
-        const resolved = await this.deps.resolveAsset(target.assetId);
+        const resolved = await resolveMenuAsset(this.ports, target.assetId);
         if (!resolved) return null;
         return {
           ...base,
@@ -203,7 +200,7 @@ export class StorefrontResolver {
       }
       case 'cms-block-embed': {
         const target = row.target as { blockId: string; embedSide: MegamenuEmbedSide };
-        const block = await this.deps.resolveCmsBlock(target.blockId, language);
+        const block = await resolveMenuBlock(this.ports.blocks, target.blockId, language);
         if (!block) return null;
         return { ...base, block, embedSide: target.embedSide };
       }
@@ -215,7 +212,7 @@ export class StorefrontResolver {
     iconPosition: MegamenuIconPosition | undefined,
   ): Promise<{ assetId: string; url: string; position: MegamenuIconPosition } | null> {
     if (!iconAssetId) return null;
-    const asset = await this.deps.resolveAsset(iconAssetId);
+    const asset = await resolveMenuAsset(this.ports, iconAssetId);
     if (!asset) return null;
     return { assetId: iconAssetId, url: asset.url, position: iconPosition ?? 'left' };
   }

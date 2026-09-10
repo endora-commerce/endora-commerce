@@ -99,8 +99,6 @@ import { effectiveState } from './kernel/lifecycle/effective-state.js';
 // Feature 046 — Returns & Complaints (Refunds, RMA).
 import type { InvoicesBridge } from '@endora-commerce/mod-invoices/backend';
 import type { ProductFeedsBridge } from '@endora-commerce/mod-product-feeds/backend';
-import type { TargetValidatorDeps } from '@endora-commerce/mod-megamenu/backend';
-import type { StorefrontDeps } from '@endora-commerce/mod-megamenu/backend';
 import { DefaultChannelReconciler } from '@endora-commerce/platform/composition';
 // Feature 046 — Progressive Web App.
 import type { PwaBridge } from '@endora-commerce/mod-pwa/backend';
@@ -1209,115 +1207,22 @@ async function contributeReferenceDeployment(
     } satisfies PwaBridge,
   });
 
-  // Feature 015 — Megamenu module. Wires the cross-module ports the
-  // target validator + storefront resolver delegate to. v1 uses small
-  // direct SQL lookups instead of forcing new upstream surfaces.
-  // Feature 072 (T107) — `megamenu` owns its services and routes now. These
-  // two bundles stay here: both are existence checks and URL lookups against
-  // OTHER modules' tables, so moving them into the module would give it
-  // direct reads of `catalog`, `cms` and `assets_library` storage.
+  // Feature 015 — Megamenu module. **Nothing is contributed for it any more**
+  // (`specs/110-instance-repository/` T118c). `megamenuValidatorDeps` and
+  // `megamenuStorefrontDeps` were eight closures written here and again in the
+  // harness — `select 1 from categories | cms_pages | cms_blocks | assets`, plus
+  // the storefront URL shapes — on the reasoning that moving them into the module
+  // would give it direct reads of three other modules' storage. It would have;
+  // what the module reads now is `catalogCategoryReadPort`, `cmsPageReadPort`,
+  // `cmsBlockReadPort`, `assetReadPort` and `assetsLibraryPort`, four of them
+  // from `specs/075-cross-module-decoupling-sweep/` Phase C and the block one
+  // published by `cms` in the same merge request. The edges are in that module's
+  // manifest, where an operator can see them; here they were nobody's.
   //
-  // Registered after `composeModules`, where `megamenu` declares its own
-  // defaults — contributing earlier would let the module overwrite the root.
-  composedModules.contribute({
-    megamenuValidatorDeps: {
-      categoryExists: async (categoryId) => {
-        const rows = (await em()
-          .getConnection()
-          .execute('select 1 from categories where id = ? limit 1', [categoryId])) as Array<{
-          '?column?': number;
-        }>;
-        return rows.length > 0;
-      },
-      cmsPageExists: async (pageId) => {
-        const rows = (await em()
-          .getConnection()
-          .execute('select 1 from cms_pages where id = ? limit 1', [pageId])) as Array<{
-          '?column?': number;
-        }>;
-        return rows.length > 0;
-      },
-      cmsBlockExists: async (blockId) => {
-        const rows = (await em()
-          .getConnection()
-          .execute('select 1 from cms_blocks where id = ? limit 1', [blockId])) as Array<{
-          '?column?': number;
-        }>;
-        return rows.length > 0;
-      },
-      assetIs: async (assetId, expected) => {
-        const rows = (await em()
-          .getConnection()
-          .execute('select 1 from assets where id = ? and kind = ? limit 1', [
-            assetId,
-            expected,
-          ])) as Array<{ '?column?': number }>;
-        return rows.length > 0;
-      },
-    } satisfies TargetValidatorDeps,
-    megamenuStorefrontDeps: {
-      resolveCategoryUrl: async (categoryId) => {
-        // Feature 068 — a megamenu item pointing at a deactivated (or deleted)
-        // category resolves to null, which drops the item from the menu.
-        const rows = (await em()
-          .getConnection()
-          .execute(
-            'select slug from categories where id = ? and is_active = true and deleted_at is null limit 1',
-            [categoryId],
-          )) as Array<{ slug: string }>;
-        return rows[0]?.slug ? `/c/${rows[0].slug}` : null;
-      },
-      resolveCmsPageUrl: async (pageId) => {
-        const rows = (await em()
-          .getConnection()
-          .execute('select slug from cms_pages where id = ? limit 1', [pageId])) as Array<{
-          slug: string;
-        }>;
-        return rows[0]?.slug ? `/${rows[0].slug}` : null;
-      },
-      resolveAsset: async (assetId) => {
-        const rows = (await em()
-          .getConnection()
-          .execute('select kind, label from assets where id = ? limit 1', [assetId])) as Array<{
-          kind: string;
-          label: string | null;
-        }>;
-        const row = rows[0];
-        if (!row) return null;
-        if (row.kind !== 'image' && row.kind !== 'video') return null;
-        // D-223 — the fourth `resolveUrl` reach in this file, and the one that
-        // absolutized *nothing*: a megamenu tile's image URL went to the
-        // storefront host-relative, where `toAbsoluteAssetUrl` rebased it, and
-        // to anything else as-is. Nothing changed at this line; what changed is
-        // that the module's answer is now absolute, so the three sites that
-        // compensated and the one that did not agree for the first time.
-        const resolved = await assetsLibrary.handle.service.resolveUrl(assetId);
-        return { url: resolved.url, label: row.label, kind: row.kind };
-      },
-      resolveCmsBlock: async (blockId, language) => {
-        const rows = (await em()
-          .getConnection()
-          .execute(
-            'select id::text, code, content from cms_blocks where id = ? and active = true limit 1',
-            [blockId],
-          )) as Array<{
-          id: string;
-          code: string;
-          content: { languages?: Record<string, unknown> };
-        }>;
-        const row = rows[0];
-        if (!row) return null;
-        const data = row.content.languages?.[language];
-        if (data === undefined) return null;
-        return {
-          id: row.id,
-          code: row.code,
-          language,
-          content: { schemaVersion: 1, data },
-        };
-      },
-    } satisfies StorefrontDeps,
-  });
+  // The two roots disagreed, and nothing could see it: this one dropped a
+  // deactivated or soft-deleted category from the menu where the harness kept it,
+  // and this one built `/c/<slug>` where the harness built `/catalog/<slug>`,
+  // which the storefront serves from nowhere.
 
   // Feature 072 — the **host values** any module may resolve. No converted
   // module is named here: each entry is a name whose value only a composition

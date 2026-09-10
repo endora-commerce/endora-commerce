@@ -8,25 +8,34 @@
 
 import { ERROR_CODES, type MegamenuItem } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
+import type { MegamenuCrossModulePorts } from './cross-module-ports.js';
 
 const externalUrlRe = /^(?:https?:\/\/|tel:|mailto:)/i;
-
-export interface TargetValidatorDeps {
-  categoryExists: (categoryId: string, channelIds: string[]) => Promise<boolean>;
-  cmsPageExists: (pageId: string, channelIds: string[]) => Promise<boolean>;
-  cmsBlockExists: (blockId: string, channelIds: string[]) => Promise<boolean>;
-  assetIs: (assetId: string, expected: 'image' | 'video') => Promise<boolean>;
-}
 
 /**
  * Validates a single MegamenuItem against the cross-module ports. Throws
  * `HttpError` on the first failure so callers (`MegamenuItemService.setTree`)
  * can re-raise unchanged.
+ *
+ * The four checks used to arrive as `TargetValidatorDeps`, an interface this
+ * module exported for a composition root to build closures against
+ * (`specs/110-instance-repository/` T118c). They are their owners' published read
+ * ports now, resolved by `backend/index.ts` and declared in this module's
+ * manifest.
+ *
+ * **`_channelIds` is threaded and read by nothing, which is what the roots' SQL
+ * did.** `setTree` computes the union of the menu's bound channels and passes it
+ * here; neither root's closure ever looked at it, so `MEGAMENU_TARGET_OUT_OF_SCOPE`
+ * has only ever meant *the target does not exist*. That is a documented v1
+ * narrowing — `megamenu-item-service.ts` says so at the call site, and the scope
+ * refusal is US3's — and the parameter is kept so US3 lands inside this function
+ * rather than re-plumbing its caller. Naming it `_` is the only change: the
+ * ignoring used to happen two files away in a root nobody reads.
  */
 export async function validateTarget(
   item: MegamenuItem,
-  channelIds: string[],
-  deps: TargetValidatorDeps,
+  _channelIds: string[],
+  ports: MegamenuCrossModulePorts,
 ): Promise<void> {
   // Defence in depth — Zod has already filtered URL schemes at the
   // boundary, but the validator double-checks any free URL on a kind
@@ -49,8 +58,8 @@ export async function validateTarget(
   ) {
     const iconAssetId = item.target.iconAssetId;
     if (iconAssetId) {
-      const isImage = await deps.assetIs(iconAssetId, 'image');
-      if (!isImage) {
+      const icon = await ports.assets.findById(iconAssetId);
+      if (icon?.kind !== 'image') {
         throw new HttpError(
           400,
           ERROR_CODES.MEGAMENU_ASSET_KIND_MISMATCH,
@@ -62,7 +71,12 @@ export async function validateTarget(
 
   switch (item.kind) {
     case 'category-link': {
-      const ok = await deps.categoryExists(item.target.categoryId, channelIds);
+      // No `liveOnly` and no `isActive` test: the roots' `select 1 from
+      // categories where id = ?` accepted a deactivated or soft-deleted
+      // category, and an admin pointing a menu item at one is not making an
+      // error the storefront cannot answer — `resolveCategoryUrl` drops the
+      // item at render time.
+      const ok = (await ports.categories.findById(item.target.categoryId)) !== null;
       if (!ok) {
         throw new HttpError(
           400,
@@ -73,7 +87,7 @@ export async function validateTarget(
       return;
     }
     case 'cms-page-link': {
-      const ok = await deps.cmsPageExists(item.target.pageId, channelIds);
+      const ok = (await ports.pages.findById(item.target.pageId)) !== null;
       if (!ok) {
         throw new HttpError(
           400,
@@ -84,7 +98,11 @@ export async function validateTarget(
       return;
     }
     case 'cms-block-embed': {
-      const ok = await deps.cmsBlockExists(item.target.blockId, channelIds);
+      // `findById` and not `findLocalizedById`: existence, `active` included,
+      // is the question — an operator may be pointing a menu item at a block
+      // they have deactivated while they edit it, and the roots' SQL accepted
+      // one. The storefront refuses it later, where a shopper is the one asking.
+      const ok = (await ports.blocks.findById(item.target.blockId)) !== null;
       if (!ok) {
         throw new HttpError(
           400,
@@ -96,8 +114,8 @@ export async function validateTarget(
     }
     case 'asset': {
       if ('assetId' in item.target) {
-        const ok = await deps.assetIs(item.target.assetId, item.target.kind);
-        if (!ok) {
+        const asset = await ports.assets.findById(item.target.assetId);
+        if (asset?.kind !== item.target.kind) {
           throw new HttpError(
             400,
             ERROR_CODES.MEGAMENU_ASSET_KIND_MISMATCH,

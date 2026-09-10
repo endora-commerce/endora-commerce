@@ -223,7 +223,7 @@ describe('T118 — the contribution wiring is the platform’s and the values ar
     // the row: a `composition.ts` whose contributions the parser stopped seeing
     // would satisfy the disjointness above perfectly.
     //
-    // **61 -> 59 -> 58 -> 57, and the total is expected to fall.** This is a ledger
+    // **61 -> 59 -> 58 -> 57 -> 55, and the total is expected to fall.** This is a ledger
     // derived *about* the contributions rather than a copy of them, so T118c's
     // sweep — which drains the 31 cross-module names into ports, module by
     // module — reds it once per target module, in a merge request that has no
@@ -259,7 +259,7 @@ describe('T118 — the contribution wiring is the platform’s and the values ar
 
     expect(deployment.size, 'the reference deployment contributes nothing — the walk broke')
       .toBeGreaterThan(0);
-    expect(deployment.size + PLATFORM_CONTRIBUTIONS.length).toBe(57);
+    expect(deployment.size + PLATFORM_CONTRIBUTIONS.length).toBe(55);
   });
 
   it('contributes before the caller’s callback, so a deployment can still override', () => {

@@ -1,16 +1,42 @@
 import { describe, expect, it } from 'vitest';
-import { ERROR_CODES, type MegamenuItem } from '@endora-commerce/contracts';
-import { HttpError } from '@endora-commerce/platform/http';
 import {
-  validateTarget,
-  type TargetValidatorDeps,
-} from '../../../../packages/modules/megamenu/src/backend/services/target-validator.js';
+  ERROR_CODES,
+  type AssetDetail,
+  type AssetRecord,
+  type AssetStoredKind,
+  type CatalogCategoryRecord,
+  type CmsPageRecord,
+  type MegamenuItem,
+} from '@endora-commerce/contracts';
+import { HttpError } from '@endora-commerce/platform/http';
+import { validateTarget } from '../../../../packages/modules/megamenu/src/backend/services/target-validator.js';
+import type { MegamenuCrossModulePorts } from '../../../../packages/modules/megamenu/src/backend/services/cross-module-ports.js';
 
-const stubDeps = (overrides: Partial<TargetValidatorDeps> = {}): TargetValidatorDeps => ({
-  categoryExists: async () => true,
-  cmsPageExists: async () => true,
-  cmsBlockExists: async () => true,
-  assetIs: async () => true,
+/**
+ * The four checks arrive as their owners' **published read ports** since
+ * `specs/110-instance-repository/` T118c, where they were four closures a
+ * composition root built and this module exported an interface for. The stubs
+ * below are `catalog`'s, `cms`' and `assets_library`' contracts rather than a
+ * shape only this file and two roots ever knew.
+ *
+ * `found` / `missing` say what the record is *for* — a target that resolves and
+ * one that does not — because that is the only thing the validator reads. Only
+ * the asset stub carries a field, `kind`, and only because the validator
+ * compares it.
+ */
+const assetOf = (kind: AssetStoredKind): AssetRecord => ({ kind }) as AssetRecord;
+/** A record whose only property the validator reads is that it is not `null`. */
+const present = <T>(): T => ({}) as T;
+
+const stubPorts = (overrides: Partial<MegamenuCrossModulePorts> = {}): MegamenuCrossModulePorts => ({
+  categories: { findById: async () => present<CatalogCategoryRecord>() },
+  pages: { findById: async () => present<CmsPageRecord>() },
+  blocks: {
+    findById: async () => ({ id: 'b', code: 'hero', active: true }),
+    findLocalizedById: async () => null,
+  },
+  assets: { findById: async () => assetOf('image') },
+  assetLibrary: { getAsset: async () => present<AssetDetail>() },
   ...overrides,
 });
 
@@ -27,7 +53,7 @@ describe('target-validator (T011)', () => {
       kind: 'category-link' as const,
       target: { categoryId: '11111111-1111-1111-1111-111111111111' },
     } as MegamenuItem;
-    await expect(validateTarget(item, ['ch-1'], stubDeps())).resolves.toBeUndefined();
+    await expect(validateTarget(item, ['ch-1'], stubPorts())).resolves.toBeUndefined();
   });
 
   it('rejects a category-link whose category does not exist in scope', async () => {
@@ -37,7 +63,7 @@ describe('target-validator (T011)', () => {
       target: { categoryId: '11111111-1111-1111-1111-111111111111' },
     } as MegamenuItem;
     await expect(
-      validateTarget(item, ['ch-1'], stubDeps({ categoryExists: async () => false })),
+      validateTarget(item, ['ch-1'], stubPorts({ categories: { findById: async () => null } })),
     ).rejects.toMatchObject({ code: ERROR_CODES.MEGAMENU_TARGET_OUT_OF_SCOPE });
   });
 
@@ -50,7 +76,7 @@ describe('target-validator (T011)', () => {
       kind: 'external-link' as const,
       target: { url: 'javascript:alert(1)' },
     } as MegamenuItem;
-    await expect(validateTarget(item, [], stubDeps())).rejects.toMatchObject({
+    await expect(validateTarget(item, [], stubPorts())).rejects.toMatchObject({
       code: ERROR_CODES.VALIDATION_FAILED,
     });
   });
@@ -62,7 +88,14 @@ describe('target-validator (T011)', () => {
       target: { assetId: '22222222-2222-2222-2222-222222222222', kind: 'image' as const },
     } as MegamenuItem;
     await expect(
-      validateTarget(item, ['ch-1'], stubDeps({ assetIs: async () => false })),
+      validateTarget(
+        item,
+        ['ch-1'],
+        // The target declares `image` and the library holds a video: the
+        // comparison is against the record's stored kind, which is what the
+        // root's `where id = ? and kind = ?` asked in SQL.
+        stubPorts({ assets: { findById: async () => assetOf('video') } }),
+      ),
     ).rejects.toMatchObject({ code: ERROR_CODES.MEGAMENU_ASSET_KIND_MISMATCH });
   });
 
@@ -81,15 +114,19 @@ describe('target-validator (T011)', () => {
       validateTarget(
         item,
         ['ch-1'],
-        stubDeps({
-          assetIs: async (_id, expected) => {
-            invocation += 1;
-            // Icon must be image; we simulate a video.
-            return expected === 'image' ? false : true;
+        stubPorts({
+          assets: {
+            findById: async () => {
+              invocation += 1;
+              // Icon must be an image; the library holds a video.
+              return assetOf('video');
+            },
           },
         }),
       ),
     ).rejects.toMatchObject({ code: ERROR_CODES.MEGAMENU_ASSET_KIND_MISMATCH });
+    // The icon is checked before the item's own target, and the refusal is the
+    // first one: one read, not two.
     expect(invocation).toBe(1);
   });
 
@@ -99,7 +136,7 @@ describe('target-validator (T011)', () => {
       kind: 'button' as const,
       target: { url: '/promotions', variant: 'primary' as const },
     } as MegamenuItem;
-    await expect(validateTarget(item, [], stubDeps())).resolves.toBeUndefined();
+    await expect(validateTarget(item, [], stubPorts())).resolves.toBeUndefined();
   });
 
   it('rejects a cms-block-embed whose block is out of scope', async () => {
@@ -109,7 +146,11 @@ describe('target-validator (T011)', () => {
       target: { blockId: '44444444-4444-4444-4444-444444444444', embedSide: 'right' as const },
     } as MegamenuItem;
     await expect(
-      validateTarget(item, ['ch-1'], stubDeps({ cmsBlockExists: async () => false })),
+      validateTarget(
+        item,
+        ['ch-1'],
+        stubPorts({ blocks: { findById: async () => null, findLocalizedById: async () => null } }),
+      ),
     ).rejects.toMatchObject({ code: ERROR_CODES.MEGAMENU_TARGET_OUT_OF_SCOPE });
   });
 
@@ -119,7 +160,7 @@ describe('target-validator (T011)', () => {
       kind: 'asset' as const,
       target: { url: 'https://cdn.example.com/hero.jpg', kind: 'image' as const },
     } as unknown as MegamenuItem;
-    await expect(validateTarget(item, [], stubDeps())).rejects.toMatchObject({
+    await expect(validateTarget(item, [], stubPorts())).rejects.toMatchObject({
       code: ERROR_CODES.VALIDATION_FAILED,
     });
   });
@@ -131,7 +172,7 @@ describe('target-validator (T011)', () => {
       target: { categoryId: '11111111-1111-1111-1111-111111111111' },
     } as MegamenuItem;
     await expect(
-      validateTarget(item, ['ch-1'], stubDeps({ categoryExists: async () => false })),
+      validateTarget(item, ['ch-1'], stubPorts({ categories: { findById: async () => null } })),
     ).rejects.toBeInstanceOf(HttpError);
   });
 });

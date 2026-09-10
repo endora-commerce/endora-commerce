@@ -11,7 +11,8 @@ import {
   type ModuleManifest,
 } from '@endora-commerce/contracts';
 import { CMS_PAGE_BUILDER_SETTING_CODES, CMS_SETTING_CODES } from '../manifest.js';
-import type { CmsPageReadPort } from '@endora-commerce/contracts';
+import type { CmsBlockReadPort, CmsPageReadPort } from '@endora-commerce/contracts';
+import { CmsBlockReadService } from './services/cms-block-read-port.js';
 import { CmsBlockSeedService } from './services/cms-block-seed-port.js';
 import { CmsPageReadService } from './services/cms-page-read-port.js';
 import { lazyPort, type ModuleContext } from '@endora-commerce/platform/kernel';
@@ -332,6 +333,27 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort<CmsPageReadPort>(
     'cmsPageReadPort',
     ctx.asFunction(({ emFactory }: CmsCradle) => new CmsPageReadService(emFactory)).singleton(),
+  );
+
+  /**
+   * `specs/110-instance-repository/` T118c — the block read model.
+   *
+   * `megamenu` asks two questions about a block and read `cms_blocks` in raw SQL
+   * from a composition root for both: whether one exists, for the admin-side
+   * target validator, and what it renders as in a language, for the storefront
+   * resolver that inlines it into a menu payload. Two methods and not one wide
+   * read — a validator that took the localized record would fetch a content tree
+   * per menu item to test a row for existence.
+   *
+   * A port and not an ungated registration, on `cmsPageReadPort`'s reasoning one
+   * declaration up: a scanner is inert until a delete asks it something, and a
+   * read is not. An operator who has switched the CMS off has switched off the
+   * thing that owns the block, and a menu that quietly dropped the embed would
+   * report the content as gone rather than as unavailable.
+   */
+  ctx.di.providePort<CmsBlockReadPort>(
+    'cmsBlockReadPort',
+    ctx.asFunction(({ emFactory }: CmsCradle) => new CmsBlockReadService(emFactory)).singleton(),
   );
 
   /**

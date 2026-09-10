@@ -22,8 +22,24 @@ export const manifest = defineModuleManifest({
   // contributes its "which languages do bindings carry" descriptor to (feature
   // 077, D-87). `languages` used to ask the question itself, with a
   // `count(*) from "megamenu_bindings"` naming this module's table.
+  //
+  // `catalog` is new with `specs/110-instance-repository/` T118c, and it is the
+  // one edge this module did not already have. A menu item may target a
+  // category, so validating it and resolving its storefront URL are reads of
+  // `catalog`'s table — issued by a composition root in raw SQL until T118c, in
+  // a file that is nobody's declared dependency, so the edge existed nowhere an
+  // operator or a check could see it. It is `catalogCategoryReadPort` now, and
+  // the `demo` block below records what that changes about its own argument.
+  //
+  // The bind costs no operator a control, and that is derived rather than
+  // waived: `catalog` declares itself non-deactivatable, so this is not an edge
+  // into a switchable module and it owes no `nonBindingDependencies` entry. The
+  // other two owners T118c's ports belong to — `cms` and `assets_library` — were
+  // both already declared here, for the reference registries above, so the drain
+  // adds one line to this array and no judgement beyond it.
   dependencies: [
     'assets_library',
+    'catalog',
     'cms',
     'languages',
     'sales_channels',
@@ -136,9 +152,16 @@ export const manifest = defineModuleManifest({
     * it mirrors `catalog`'s demo category tree and binds to the demo sales
     * channels, so it is three modules' rows in one step and belongs to whoever
     * owns the instance (§5.1). It is step 1 of `backend/src/seeds/
-    * demo-composition.ts` and this module does not declare `catalog` — §2.3's
-    * measured case, and the whole reason `demo` may not become a way of
-    * acquiring a dependency.
+    * demo-composition.ts`.
+    *
+    * **This block used to add *"and this module does not declare `catalog`"* as
+    * §2.3's measured case.** It declares it since
+    * `specs/110-instance-repository/` T118c, for a reason that has nothing to do
+    * with demo data: a menu item may target a category, so validating one is a
+    * read of `catalogCategoryReadPort`. The clause is retired rather than
+    * updated because it was the weaker half of the argument all along — the rule
+    * is that `demo` may not become a way of *acquiring* a dependency, and it
+    * holds identically now that the dependency is here on its own merits.
     *
     * `false` rather than absent, because the two are different states: this is
     * a decision that the module owes nothing, not a module nobody has looked at.
