@@ -8,7 +8,7 @@ import {
   ModuleListResponseSchema,
   type ModuleListItem,
 } from '@endora-commerce/contracts';
-import { registerErrorEnvelope } from '../../../src/http/error-envelope.js';
+import { registerErrorEnvelope } from '@endora-commerce/platform/composition';
 import {
   type ModuleLifecycleOrchestrator,
   registerLifecycleAdminRoutes,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BlogSettingsResolver } from '../../../../packages/modules/blog/src/backend/services/blog-settings-resolver.js';
-import { HttpError } from '../../../src/http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 
 /**
  * Integration test for the URL-prefix validator (T088 / R7).

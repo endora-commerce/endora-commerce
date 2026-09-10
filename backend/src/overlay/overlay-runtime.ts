@@ -41,7 +41,7 @@ import {
   overlayModuleManifestsUnder as loadManifestsUnder,
   type OverlayModuleManifest,
 } from '@endora-commerce/platform/overlay';
-import type { ModuleEntry } from '../kernel/compose.js';
+import type { ModuleEntry } from '@endora-commerce/platform/composition';
 import { claimsOutsideTheOverlay } from '../packages/claimed-module-ids.js';
 import { deploymentRoot } from './overlay-roots.js';
 

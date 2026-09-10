@@ -709,15 +709,32 @@ describe('platformRootsOf', () => {
   it('covers every subpath the platform publishes — the run refuses a short walk', () => {
     // The `exports` map is the second author on the `read:` line, and this is
     // the reconciliation it is there for: a published subpath naming no walked
-    // directory is a walk that has lost part of the platform. The disagreement
-    // runs the other way by design — `src/demo/` is a directory with no subpath
-    // — which is why the map is the corroboration and not the derivation.
+    // directory is a walk that has lost part of the platform.
     const declared = platformSubpathsAt(MODULE_LAYOUT.repoRoot);
     expect(declared.length).toBeGreaterThan(0);
     for (const subpath of declared) {
       expect(PLATFORM_ROOTS).toContain(subpath.split('/')[0]);
     }
-    expect(PLATFORM_ROOTS.filter((root) => !declared.includes(root))).toContain('demo');
+  });
+
+  it('is a containment and not an equality, whatever today\'s tree happens to be', () => {
+    // This case asserted its own witness until `specs/110-instance-repository/`
+    // T119b: it read `expect(PLATFORM_ROOTS.filter(…)).toContain('demo')`, on
+    // the grounds that *"`src/demo/` is a directory with no subpath"*. T119b
+    // gave that directory `./demo`, at which point every walked directory had an
+    // address, the sets were equal, and the assertion was red — a test failing
+    // because the tree improved, which is a derived fact written down (D-100).
+    //
+    // The property it was reaching for is real and is not about `demo`: the map
+    // is the **corroboration** and the directory listing is the derivation, so a
+    // directory with no subpath is legal and a subpath with no directory is not.
+    // It is proven where a property belongs, over a fixture — the real tree may
+    // hold a witness on any given day and is not the place to demand one.
+    const fixture = mkdtempSync(join(tmpdir(), 'platform-roots-unaddressed-'));
+    mkdirSync(join(fixture, 'kernel'));
+    mkdirSync(join(fixture, 'workshop'));
+    expect(platformRootsOf(fixture)).toEqual(['kernel', 'workshop']);
+    rmSync(fixture, { recursive: true, force: true });
   });
 });
 

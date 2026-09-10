@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
 import type { Worker } from 'bullmq';
-import { registerErrorEnvelope } from '../../../src/http/error-envelope.js';
+import { registerErrorEnvelope } from '@endora-commerce/platform/composition';
 import { EventBus } from '@endora-commerce/platform/events';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { ApiInterceptorRegistry } from '@endora-commerce/platform/composition';
-import { composeModules, type ModuleEntry } from '../../../src/kernel/compose.js';
-import { createRootContainer, registerValues } from '../../../src/kernel/container.js';
+import { composeModules, type ModuleEntry } from '@endora-commerce/platform/composition';
+import { createRootContainer, registerValues } from '@endora-commerce/platform/composition';
 import type { ModuleContext } from '../../../src/kernel/index.js';
 
 /**

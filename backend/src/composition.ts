@@ -30,11 +30,11 @@ import type {
   OrganizationTaxProfilePort,
   TaxServicePort,
 } from '@endora-commerce/contracts';
-import { HttpError } from './http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import type { ModulePlugin } from '@endora-commerce/platform/composition';
 import { initOrm, closeOrm } from './db/index.js';
 import { type TenantContext } from './tenancy/tenant-context.js';
-import { resolveTenantContext, systemTenantContext } from './tenancy/resolve-tenant-context.js';
+import { resolveTenantContext, systemTenantContext } from '@endora-commerce/platform/composition';
 import { enterSystemScope } from './kernel/scope.js';
 // Feature 072 — the generated module list. D-45 collapsed the early/late split
 // into a single pass: registration resolves nothing (`kernel/compose.ts`'s
@@ -59,7 +59,7 @@ import { configuredPublicApiBaseUrl, resolvePublicApiBaseUrl } from './kernel/in
 // What remains of the platform here is what the contributions below are built
 // from, and every one of them is reached by a **relative** path because this
 // application is where those shims still live (`RELATIVE_HOST_REACHES`, T119).
-import { absolutizePublicUrl } from './kernel/public-api-base-url.js';
+import { absolutizePublicUrl } from '@endora-commerce/platform/composition';
 // Feature 117 (FR-030) — actor promotion arrives as a **container name** now,
 // not as an import. `auth` still owns the implementation for the reason its own
 // barrel gives: promotion reads `request.adminActor` and writes `request.actor`,
@@ -69,7 +69,7 @@ import { absolutizePublicUrl } from './kernel/public-api-base-url.js';
 // D-52/D-53's refusal, and a value import does not retire by moving a type.
 // The type is the platform's own port declaration; see `adminActorPromotion`
 // beside the other lazily-resolved ports.
-import type { AdminActorPromotion } from './kernel/ports/require-admin.js';
+import type { AdminActorPromotion } from '@endora-commerce/platform/composition';
 // T118b — and **no** reach into that package for `request.actor` any more. This
 // import used to be `import type { Actor } from '@endora-commerce/mod-auth/backend'`,
 // whose real job was not the type: it dragged `auth`'s `declare module 'fastify'`

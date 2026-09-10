@@ -6,7 +6,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
-import { resolveTenantContext } from '../../../src/tenancy/resolve-tenant-context.js';
+import { resolveTenantContext } from '@endora-commerce/platform/composition';
 import { runWithTenantContext } from '../../../src/tenancy/tenant-context.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
 

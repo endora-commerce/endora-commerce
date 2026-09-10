@@ -26,7 +26,7 @@
 // **It registers nothing twice.** Everything below is registered here, once.
 
 import type { ModuleContext } from '../../../../kernel/index.js';
-import type { RequireAdminFactory } from '../../../../kernel/ports/require-admin.js';
+import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 /**
  * The one method this deployment intercepts on the core pricing engine.

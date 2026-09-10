@@ -32,7 +32,7 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { DemoComposition } from './index.js';
+import type { DemoComposition } from '@endora-commerce/platform/demo';
 
 /**
  * The specifier the composition is imported at, and the two file names that

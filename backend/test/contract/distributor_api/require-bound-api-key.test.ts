@@ -8,7 +8,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
-import { registerErrorEnvelope } from '../../../src/http/error-envelope.js';
+import { registerErrorEnvelope } from '@endora-commerce/platform/composition';
 import { AuditLogEntry } from '../../../src/kernel/audit/audit-log-entry.entity.js';
 import { ApiKey } from '../../helpers/package-entities.js';
 

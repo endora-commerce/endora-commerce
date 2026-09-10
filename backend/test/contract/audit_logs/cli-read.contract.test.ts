@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { collectModuleCommands, helpFor } from '../../../src/cli/module-commands.js';
 import { cliCommands } from '../../../../packages/modules/audit_logs/src/manifest.js';
 import { read } from '../../../../packages/modules/audit_logs/src/backend/cli/read.js';
-import type { ModuleContext } from '../../../src/kernel/module-context.js';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
 
 const exec = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));

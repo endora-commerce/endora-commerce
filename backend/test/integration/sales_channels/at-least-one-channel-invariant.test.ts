@@ -6,7 +6,7 @@ import { SalesChannelMembershipService } from '../../../src/kernel/sales-channel
 import { DefaultChannelReconciler } from '@endora-commerce/platform/composition';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
 import { Product, type ProductRow } from '../../helpers/package-entities.js';
-import { HttpError } from '../../../src/http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 
 /**
  * T022 — At-least-one-channel invariant (FR-008) under the membership

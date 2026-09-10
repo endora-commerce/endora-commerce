@@ -5,7 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { registerValues } from '../../../src/kernel/container.js';
+import { registerValues } from '@endora-commerce/platform/composition';
 import {
   SettingNotRegistered,
   SettingOutOfScopeForChannel,

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { FastifyInstance } from 'fastify';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import { setupTestServer } from '../../helpers/test-server.js';
-import { HttpError } from '../../../src/http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 
 /**
  * Verifies the cross-cutting error envelope hook produces the contractually correct

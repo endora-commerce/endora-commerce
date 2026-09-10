@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ERROR_CODES, type MegamenuItem } from '@endora-commerce/contracts';
-import { HttpError } from '../../../src/http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import {
   validateTarget,
   type TargetValidatorDeps,

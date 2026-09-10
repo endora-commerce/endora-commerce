@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ShipmentUsagePort } from '@endora-commerce/contracts';
-import { HttpError } from '../../../src/http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { makeShipmentUsageCounter } from '../../../../packages/modules/delivery_methods/src/backend/services/shipment-usage-guard.js';
 import {
   makeDeleteDeliveryMethodCommand,

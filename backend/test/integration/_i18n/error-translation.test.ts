@@ -4,7 +4,7 @@ import { dirname } from 'node:path';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import { ERROR_CODES, type ErrorCode } from '@endora-commerce/contracts';
 import type { FastifyInstance } from 'fastify';
-import { HttpError } from '../../../src/http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import {
   setupBackendServer,
   teardownBackendServer,

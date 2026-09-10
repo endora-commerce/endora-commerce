@@ -5,7 +5,7 @@ import {
   serializerCompiler,
   validatorCompiler,
 } from '@fastify/type-provider-zod';
-import { registerErrorEnvelope } from '../../../src/http/error-envelope.js';
+import { registerErrorEnvelope } from '@endora-commerce/platform/composition';
 import {
   defineModuleRoutes,
   defineModuleWorker,

@@ -888,7 +888,14 @@ export function emitComposer(nodes: readonly ComposerNode[]): string {
 // absence here means a file was not written or not named \`backend.ts\` — not
 // that the module is composed somewhere else.
 
-import type { ModuleEntry } from './kernel/compose.js';
+// \`specs/110-instance-repository/\` T119b — the address, not the shim.
+// \`backend/src/kernel/compose.ts\` was a re-export over
+// \`packages/platform/dist/kernel/compose.js\`, so this artefact named a path that
+// resolves in this checkout and in no client's; \`./composition\` is the
+// host-internal subpath that carries \`ModuleEntry\`, and it is host-internal for
+// the reason this file is the only thing that needs it — a module that could
+// name it could compose its siblings.
+import type { ModuleEntry } from '@endora-commerce/platform/composition';
 
 ${imports}
 

@@ -1,8 +1,8 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { EventBus } from '@endora-commerce/platform/events';
-import { createRootContainer, registerValues } from '../../../src/kernel/container.js';
-import { composeModules } from '../../../src/kernel/compose.js';
+import { createRootContainer, registerValues } from '@endora-commerce/platform/composition';
+import { composeModules } from '@endora-commerce/platform/composition';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';

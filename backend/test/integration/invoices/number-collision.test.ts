@@ -1,7 +1,7 @@
 import { Invoice, InvoiceLine, InvoiceNumberCounter } from '../../helpers/package-entities.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { HttpError } from '../../../src/http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 
 import {
   setupBackendServer,

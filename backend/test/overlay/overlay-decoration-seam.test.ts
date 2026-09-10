@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { EventBus } from '@endora-commerce/platform/events';
-import { createRootContainer } from '../../src/kernel/container.js';
+import { createRootContainer } from '@endora-commerce/platform/composition';
 import {
   ForeignDecorationError,
   PackageDecorationNotOfferedError,
-  type ModuleContext,
-} from '../../src/kernel/module-context.js';
-import { composeModules, type ModuleEntry } from '../../src/kernel/compose.js';
+} from '@endora-commerce/platform/composition';
+import { type ModuleContext } from '@endora-commerce/platform/kernel';
+import { composeModules, type ModuleEntry } from '@endora-commerce/platform/composition';
 import { ApiInterceptorRegistry } from '@endora-commerce/platform/composition';
 import { loadOverlayModuleEntries } from '../../src/overlay/overlay-runtime.js';
 

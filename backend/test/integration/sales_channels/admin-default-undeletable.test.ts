@@ -6,7 +6,7 @@ import { SalesChannelAttributionRegistry } from '../../../../packages/modules/sa
 import { SalesChannelsService } from '../../../../packages/modules/sales_channels/src/backend/services/sales-channels.service.js';
 import { dictionaryValidatorFor } from '../../helpers/dictionary-services.js';
 import { DefaultChannelReconciler } from '@endora-commerce/platform/composition';
-import { HttpError } from '../../../src/http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 
 /**
  * T023 — FR-002: the system-default Sales Channel cannot be deactivated

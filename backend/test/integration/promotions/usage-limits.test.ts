@@ -7,7 +7,7 @@ import {
 } from '../../helpers/test-server.js';
 import type { PromotionService } from '../../../../packages/modules/promotions/src/backend/services/promotion-service.js';
 import { promotionServiceFor } from '../../helpers/promotion-service.js';
-import { HttpError } from '../../../src/http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Order } from '../../helpers/package-entities.js';

@@ -87,6 +87,13 @@ export {
 // --- http ---------------------------------------------------------------
 export { buildServer, type ModulePlugin } from '../http/server.js';
 export { ApiInterceptorRegistry } from '../http/interceptors/index.js';
+// `registerErrorEnvelope` attaches the envelope to a Fastify instance the root
+// built. `./http` carries `HttpError`, which is what a module raises, and not
+// this — a module does not own an app to attach anything to.
+export { registerErrorEnvelope } from '../http/error-envelope.js';
+// The proxy trust level is a deployment input the root reads off the
+// environment and hands to `buildServer`; a module never sees it.
+export { parseTrustedProxy, type TrustedProxy } from '../http/trusted-proxy.js';
 
 // --- kernel: the container and the composition pass ----------------------
 export {
@@ -95,10 +102,35 @@ export {
   registerValues,
   type KernelContainer,
 } from '../kernel/container.js';
-export { composeModules, type DecorationRecord } from '../kernel/compose.js';
-export { createRegistrationOwnership } from '../kernel/module-context.js';
+export {
+  composeModules,
+  ModuleCompositionError,
+  type DecorationRecord,
+  type ModuleEntry,
+} from '../kernel/compose.js';
+// The context the host constructs and hands a module, the sink it collects the
+// module's registrations in, and the three refusals composition raises at the
+// root. `NOT_PUBLISHED` already names the first three *composition*, which is
+// this subpath's own word; the decoration errors join them because a decoration
+// is asserted by the composer over a registration a module made, so the throw
+// lands in the root's stack and never in the module's.
+export {
+  createModuleContext,
+  createModuleRegistrationSink,
+  AmbiguousDecorationError,
+  ForeignDecorationError,
+  PackageDecorationNotOfferedError,
+  createRegistrationOwnership,
+  type ModuleRegistrationSink,
+} from '../kernel/module-context.js';
 export { registerRequestScopeHook } from '../kernel/request-scope-hook.js';
 export { platformLogger } from '../kernel/logging.js';
+// The promotion hook a root hands the admin guard factory, and the absolutiser
+// the root applies to a configured public base URL. `./kernel` carries the
+// factory types and the configuration refusal, which is what a module reads;
+// neither of these is a module's to supply.
+export { type AdminActorPromotion } from '../kernel/ports/require-admin.js';
+export { absolutizePublicUrl } from '../kernel/public-api-base-url.js';
 
 // --- kernel: the lifecycle a root primes and reconciles -------------------
 export { registryCache, publishStateChanged } from '../kernel/lifecycle/registry-cache.js';

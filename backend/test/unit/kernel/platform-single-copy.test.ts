@@ -140,6 +140,10 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
       'commands',
       'composition',
       'db',
+      // `specs/110-instance-repository/` T119b. `demo/` was the one platform
+      // directory with a barrel and no subpath at all, so nothing here measured
+      // it and five application files reached it by relative path.
+      'demo',
       'env',
       'events',
       'http',
@@ -216,13 +220,30 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     // directory is gone and the subpath has one spelling. Every subpath above
     // reaches this state as its last shim goes; `unshimmed` growing is the
     // ledger emptying, seen from the other side.
-    expect([...measurement.unshimmed].sort()).toEqual(['env', 'events', 'migrations']);
+    //
+    // **`./http` and `./demo` joined them with T119b, and between them they are
+    // both ways a subpath reaches this side.** `./http` drained: its directory
+    // held two shims, `error-envelope.ts` and `trusted-proxy.ts`, and with their
+    // consumers re-pointed `backend/src/http/` is gone — the same event `./events`
+    // recorded one task earlier, and the reason `http: HttpError` is no longer in
+    // the named list below. `./demo` arrived the other way round, by being given
+    // an address it had never had: it was a platform directory with a barrel and
+    // **no subpath at all**, so it was in neither list here and its five
+    // application consumers reached `packages/platform/dist/demo/` by relative
+    // path. Declaring `./demo` and deleting that shim puts it straight into
+    // `unshimmed` — one spelling from the day it had any.
+    expect([...measurement.unshimmed].sort()).toEqual([
+      'demo',
+      'env',
+      'events',
+      'http',
+      'migrations',
+    ]);
     expect(comparisons.map((entry) => entry.subpath)).toEqual([
       'cli',
       'commands',
       'composition',
       'db',
-      'http',
       'kernel',
       'lifecycle',
       'overlay',
@@ -264,10 +285,22 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
       // `blog`'s 11 entity files classify through it; the platform reads the
       // registry it fills. Principle XI's runtime half.
       'tenancy: GlobalEntity',
-      // Seven throw sites. `http/error-envelope.ts` and
+      // **`'http: HttpError'` stood here and left with
+      // `specs/110-instance-repository/` T119b, and its removal is this guard
+      // reporting success rather than being relaxed** — the treatment the three
+      // `lifecycle:` names below get, for the same reason. It was the sharpest
+      // entry in the list: `http/error-envelope.ts` and
       // `http/interceptors/dispatch.ts` both ask `err instanceof HttpError`, so
-      // a second copy renders every blog 404 and 409 as a 500.
-      'http: HttpError',
+      // a second copy rendered every blog 404 and 409 as a 500, with no type
+      // error and no failing test. T119b re-pointed the last two consumers of
+      // `backend/src/http/`, the directory is gone, and the name now has exactly
+      // one spelling — there is no comparison for it to be the subject of, and
+      // naming it here would assert that one happened when none did. The
+      // property itself is **not** unwatched: `instanceof HttpError` is measured
+      // in both directions by the cross-boundary probe at the bottom of this
+      // file, which is where it was measured false in the first place. A second
+      // application reach to that file puts it back into side two and re-opens
+      // the question in the same run.
       // A module-scoped singleton (`kernel/lifecycle/effective-state.ts`). The
       // copy's was never populated by the host's registry cache.
       'kernel: effectiveState',
@@ -293,7 +326,7 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
   // than the assertion relaxed: it is the whole point of this file that the
   // count is exact, and a `toBeGreaterThan` here would make the next real
   // duplication invisible.
-  it('shares 51 values across the five published subpaths, which is every one still spelled twice', () => {
+  it('shares 50 values across the five published subpaths, which is every one still spelled twice', () => {
     // Not a target and not a floor somebody chose: it opened at **57**, the
     // number the superseded `host-package-copy.test.ts` measured as *distinct*
     // over this same population, and it is here so that the inversion is visible
@@ -306,10 +339,13 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     // `specs/110-instance-repository/` T119 took 57 -> 51 by deleting shims and
     // by touching no barrel at all: `./events` lost its only shim and left the
     // comparison entirely (-1), and six of `./http`'s twelve went, taking five
-    // of its six comparable names with them (-5). Re-recorded rather than
-    // relaxed, for this comment's own reason — a `toBeGreaterThan` here would
-    // make the next real duplication invisible — and it reaches **0** when the
-    // ledger empties, at which point this assertion retires with its subject
+    // of its six comparable names with them (-5). T119b took 51 -> 50 the same
+    // way, and it is the arithmetic's cleanest case: `./http`'s last two shims
+    // went, so its one remaining comparable name — `HttpError` — has one
+    // spelling and the subpath left the comparison entirely. Re-recorded rather
+    // than relaxed, for this comment's own reason — a `toBeGreaterThan` here
+    // would make the next real duplication invisible — and it reaches **0** when
+    // the ledger empties, at which point this assertion retires with its subject
     // rather than being weakened to keep it.
     //
     // It is summed over the **five published** subpaths and not over every
@@ -321,7 +357,7 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     const total = comparisons
       .filter((entry) => published.has(entry.subpath))
       .reduce((sum, entry) => sum + entry.shared.length, 0);
-    expect(total).toBe(51);
+    expect(total).toBe(50);
   });
 
   /**

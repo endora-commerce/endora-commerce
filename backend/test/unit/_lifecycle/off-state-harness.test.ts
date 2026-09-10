@@ -4,12 +4,12 @@ import {
   serializerCompiler,
   validatorCompiler,
 } from '@fastify/type-provider-zod';
-import { registerErrorEnvelope } from '../../../src/http/error-envelope.js';
+import { registerErrorEnvelope } from '@endora-commerce/platform/composition';
 import { defineModuleRoutes } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import { expectModuleAbsent, withModuleOff } from '../../helpers/off-state.js';
-import { activationDeclarationsFrom } from '../../../src/kernel/lifecycle/activation-resolver.js';
+import { activationDeclarationsFrom } from '@endora-commerce/platform/composition';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 
 /**

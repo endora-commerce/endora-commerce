@@ -76,7 +76,13 @@ const RESIDUE_ROOTS: readonly string[] = [
   // directory: this list is what the application's `src/` actually holds, and a
   // name that survives its directory refuses the fixture for a reason that has
   // nothing to do with a moved module tree.
-  'http',
+  // `'http'` stood here until `specs/110-instance-repository/` T119b, and it
+  // goes for the reason `'events'` did: the directory held two re-export shims
+  // — `error-envelope.ts` and `trusted-proxy.ts` — and their consumers now name
+  // `@endora-commerce/platform/http` and `.../composition`, so `backend/src/http/`
+  // is gone and `cpSync` of it is `ENOENT` rather than an empty copy.
+  // `src/kernel/ports/` went the same way inside `'kernel'`, which is a
+  // subdirectory and therefore not a name this list carries.
   'kernel',
   // Feature 080, D-160.11's second half. `_lifecycle`'s **host half** stayed
   // here when the module merged into the platform package: its manifest

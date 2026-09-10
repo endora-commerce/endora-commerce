@@ -6,7 +6,7 @@ import { EventBus } from '@endora-commerce/platform/events';
 import { SalesChannelMembershipService } from '../../../src/kernel/sales-channels/sales-channel-membership.service.js';
 import { DefaultChannelReconciler } from '@endora-commerce/platform/composition';
 import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { HttpError } from '../../../src/http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 
 /**
  * T043 — Bidirectional membership invariants for every bridge (FR-009 / FR-010 / FR-008).

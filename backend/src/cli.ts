@@ -74,7 +74,7 @@ import {
   mustBeNonProduction,
   runDemo,
   unwrapDemoFailure,
-} from './demo/index.js';
+} from '@endora-commerce/platform/demo';
 import { loadDemoComposition } from './demo/composition-loader.js';
 
 const USAGE = `usage: endora <module id> <command> [args…]

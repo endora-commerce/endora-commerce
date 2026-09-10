@@ -12,7 +12,7 @@ import {
   customerAccountLifecycleWriteFor,
   personalOrganizationProvisionFor,
 } from '../../helpers/customer-account-ports.js';
-import type { HttpError } from '../../../src/http/error-envelope.js';
+import type { HttpError } from '@endora-commerce/platform/http';
 
 /**
  * Integration test for standalone registration (feature 040, US1 /

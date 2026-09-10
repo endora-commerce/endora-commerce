@@ -421,7 +421,7 @@ async function phaseInstall(): Promise<AssertionResult[]> {
   const { resolvedManifestEntries } = await import(
     '../../src/lifecycle/registered-manifests.js'
   );
-  const { enterSystemScope } = await import('../../src/kernel/scope.js');
+  const { enterSystemScope } = await import('@endora-commerce/platform/kernel');
   const { default: Redis } = await import('ioredis');
 
   let orm: Awaited<ReturnType<typeof initOrm>>;
@@ -478,8 +478,7 @@ async function phaseInstall(): Promise<AssertionResult[]> {
  */
 async function phaseGate(active: boolean): Promise<AssertionResult[]> {
   const { initOrm, closeOrm } = await import('../../src/db/index.js');
-  const { Setting } = await import('../../src/kernel/settings/setting.entity.js');
-  const { enterSystemScope } = await import('../../src/kernel/scope.js');
+  const { Setting, enterSystemScope } = await import('@endora-commerce/platform/kernel');
 
   let settingWritten = false;
   let orm: Awaited<ReturnType<typeof initOrm>>;
@@ -598,7 +597,7 @@ async function phaseUninstall(): Promise<AssertionResult[]> {
   const { resolvedManifestEntries } = await import(
     '../../src/lifecycle/registered-manifests.js'
   );
-  const { enterSystemScope } = await import('../../src/kernel/scope.js');
+  const { enterSystemScope } = await import('@endora-commerce/platform/kernel');
   const { configuredMigrations } = await import('../../src/db/configured-migrations.js');
   const { default: Redis } = await import('ioredis');
 

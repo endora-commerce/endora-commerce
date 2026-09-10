@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { ModuleManifest } from '@endora-commerce/contracts';
 import { lockedOwners } from '@endora-commerce/cli/lib/switchable-modules.js';
-import { activationDeclarationsFrom } from '../../../src/kernel/lifecycle/activation-resolver.js';
-import { requiredModulesFrom } from '../../../src/kernel/lifecycle/required-modules.js';
+import { activationDeclarationsFrom } from '@endora-commerce/platform/composition';
+import { requiredModulesFrom } from '@endora-commerce/platform/composition';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 
 /**

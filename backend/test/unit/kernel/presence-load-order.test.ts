@@ -3,13 +3,13 @@ import { join } from 'node:path';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleManifest, RegistryState } from '@endora-commerce/contracts';
 import { EventBus } from '@endora-commerce/platform/events';
-import { createRootContainer } from '../../../src/kernel/container.js';
+import { createRootContainer } from '@endora-commerce/platform/composition';
 import {
   ModuleCompositionError,
   composeModules,
   type ModuleEntry,
-} from '../../../src/kernel/compose.js';
-import type { ModuleContext } from '../../../src/kernel/module-context.js';
+} from '@endora-commerce/platform/composition';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import {

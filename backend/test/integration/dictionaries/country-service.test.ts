@@ -5,7 +5,7 @@ import { CountryService } from '../../../../packages/modules/dictionaries/src/ba
 import { CountryReferenceRegistry } from '../../../../packages/modules/dictionaries/src/backend/services/country-reference-registry.js';
 import { registerTaxCountryReferences } from '../../../../packages/modules/taxes/src/backend/services/tax-country-reference.js';
 
-import { HttpError } from '../../../src/http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import { runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
 import { Country } from '../../helpers/package-entities.js';
 

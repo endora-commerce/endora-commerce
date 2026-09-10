@@ -11,10 +11,7 @@ import {
   runWithoutTenantContext,
   MissingTenantContextError,
 } from '../../../src/tenancy/tenant-context.js';
-import {
-  resolveTenantContext,
-  systemTenantContext,
-} from '../../../src/tenancy/resolve-tenant-context.js';
+import { resolveTenantContext, systemTenantContext } from '@endora-commerce/platform/composition';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import { Order } from '../../helpers/package-entities.js';
 

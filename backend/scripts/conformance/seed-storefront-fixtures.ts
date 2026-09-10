@@ -50,7 +50,7 @@ import { dirname, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 import { closeOrm, initOrm } from '../../src/db/index.js';
-import { mustBeNonProduction } from '../../src/demo/index.js';
+import { mustBeNonProduction } from '@endora-commerce/platform/demo';
 
 const PREFIX = '[conformance-fixtures]';
 

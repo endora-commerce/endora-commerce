@@ -477,17 +477,25 @@ const NOT_PUBLISHED: Readonly<Record<string, string>> = {
  * feature 109 T010; `host-package.md` §2.7).
  *
  * It is the sixth subpath the host's `exports` map declares and it is **not**
- * public API. The 27 names below are the platform symbols a composition root
- * needs and no public barrel carries; they were derived two independent ways
- * that agree — a parse of the five barrels' `ExportDeclaration` nodes, and a
- * `tsc` compile of 165 one-line consumers (33 names × 5 subpaths) against the
+ * public API. The names below are the platform symbols a composition root needs
+ * and no public barrel carries; the original set was derived two independent
+ * ways that agree — a parse of the five barrels' `ExportDeclaration` nodes, and
+ * a `tsc` compile of 165 one-line consumers (33 names × 5 subpaths) against the
  * built package's `exports` map, which answers 159 errors and six resolutions.
+ *
+ * **How many that is is not written here** (D-100). It read *"the 27"* three
+ * times in this doc block, and the sentence below it recorded the one occasion
+ * somebody kept the number true by hand; `specs/110-instance-repository/` T119b
+ * added twelve at once, for the application consumers T119's drain measured
+ * against the five *published* barrels instead of every subpath the
+ * `exports` map declares. The table is the statement of what is on the subpath
+ * and a count beside it is a second one waiting to disagree.
  *
  * **Written down here for the same reason the five are**: this record and the
  * barrel are the only two statements of the subpath's contents, and the set
  * comparison below fails in both directions. Adding a symbol to the barrel and
  * not to this record fails; leaving a name here after its export goes fails too.
- * Without it, T010's *"the barrel exports the 27 and only the 27"* would be a
+ * Without it, T010's *"the barrel exports these and only these"* would be a
  * thing a reviewer looked at once.
  *
  * Grouped by the file each name is re-exported out of — the granularity §1.3
@@ -511,16 +519,41 @@ const HOST_COMPOSITION_SURFACE: Readonly<Record<string, readonly string[]>> = {
   ],
   'http/server.ts': ['buildServer', 'ModulePlugin'],
   'http/interceptors/index.ts': ['ApiInterceptorRegistry'],
+  // T119b. `./http` carries `HttpError` — what a module *raises* — and not the
+  // registration that attaches the envelope to an app, because a module owns no
+  // app to attach one to. Same reasoning one line down: the proxy trust level is
+  // a deployment input the root reads and hands to `buildServer`.
+  'http/error-envelope.ts': ['registerErrorEnvelope'],
+  'http/trusted-proxy.ts': ['parseTrustedProxy', 'TrustedProxy'],
   'kernel/container.ts': [
     'createRootContainer',
     'registerOrm',
     'registerValues',
     'KernelContainer',
   ],
-  'kernel/compose.ts': ['composeModules', 'DecorationRecord'],
-  'kernel/module-context.ts': ['createRegistrationOwnership'],
+  'kernel/compose.ts': ['composeModules', 'DecorationRecord', 'ModuleCompositionError', 'ModuleEntry'],
+  // T119b. The context the host constructs, the sink it collects a module's
+  // registrations in, and the three refusals composition raises. `NOT_PUBLISHED`
+  // already gives the first three the reason *composition*, which is this
+  // subpath's own word; the decoration errors join them because a decoration is
+  // asserted by the composer over a registration a module made, so the throw
+  // lands in the root's stack and never in the module's.
+  'kernel/module-context.ts': [
+    'createModuleContext',
+    'createModuleRegistrationSink',
+    'createRegistrationOwnership',
+    'AmbiguousDecorationError',
+    'ForeignDecorationError',
+    'PackageDecorationNotOfferedError',
+    'ModuleRegistrationSink',
+  ],
   'kernel/request-scope-hook.ts': ['registerRequestScopeHook'],
   'kernel/logging.ts': ['platformLogger'],
+  // T119b. `./kernel` carries `RequireAdminFactory` and
+  // `PublicApiBaseUrlNotConfiguredError`, which are what a module reads; the
+  // promotion hook and the absolutiser are what a root *supplies*.
+  'kernel/ports/require-admin.ts': ['AdminActorPromotion'],
+  'kernel/public-api-base-url.ts': ['absolutizePublicUrl'],
   'kernel/lifecycle/registry-cache.ts': ['registryCache', 'publishStateChanged'],
   'kernel/lifecycle/activation-resolver.ts': ['activationDeclarationsFrom'],
   'kernel/lifecycle/required-modules.ts': ['requiredModulesFrom'],
@@ -532,7 +565,8 @@ const HOST_COMPOSITION_SURFACE: Readonly<Record<string, readonly string[]>> = {
   // that constructed it in both roots is one platform function now, so no
   // composition root names the resolver and R3.1a's second direction — a name
   // no consumer imports is surface parked against a future need — takes it off.
-  // The count is unchanged at 27 because the assembly replaced it one for one.
+  // The assembly replaced it one for one; the size of the table is derived and
+  // deliberately not recorded beside it (D-100, and see the doc block above).
   'kernel/i18n/error-envelope-options.ts': ['composeErrorEnvelopeOptions'],
   'kernel/audit/audit-log-service.ts': ['AuditLogService'],
   'tenancy/scoped-em.ts': ['forkScopedEm'],
@@ -892,6 +926,82 @@ describe('`./lifecycle`, the operator surface no module may name (D115-4)', () =
     const elsewhere = new Set([
       ...PUBLISHED_SUBPATHS.flatMap((s) => barrelExports(barrelKeyOf(s))),
       ...barrelExports('composition/index.ts'),
+    ]);
+    expect([...mine].filter((name) => elsewhere.has(name)).sort()).toEqual([]);
+  });
+});
+
+/**
+ * `./demo`, the demo-data layer's own host-internal subpath
+ * (`specs/110-instance-repository/` T119b; feature 113 Phase 0, D-209).
+ *
+ * ## Why it is derived and not written down
+ *
+ * `./lifecycle`'s reasoning, unchanged: `HOST_COMPOSITION_SURFACE` is a written
+ * table because D-160.14 **ruled on** each of its names, and a written list is
+ * what makes the next one a review event. Nothing ruled on the demo layer's
+ * exports — they are a consequence of what a host CLI has to call to run a demo,
+ * so writing the consequence down would be the shape D-100 is about. The
+ * expected set is therefore the consumers': every name a first-party source
+ * outside the platform imports through `@endora-commerce/platform/demo`, and
+ * nothing else.
+ *
+ * ## The population is not empty on the day the ratchet lands, and that is the point
+ *
+ * A consumer ratchet over a subpath nothing names yet is green over nothing —
+ * issue #113's shape, and the reason `./lifecycle`'s could not be written this
+ * way until its shims were drained. This one arrives *with* its consumers,
+ * because the merge request that declares the subpath is the merge request that
+ * deletes `backend/src/demo/index.ts` and re-points the five application files
+ * and three test files that reached through it.
+ *
+ * It cost the barrel eighteen names in that same merge request — `planDemoRun`,
+ * `classifySeedTarget`, `createDemoPackageResolver`, `DemoRunFailedError`, the
+ * plan and run-result shapes — every one of them a name that had never been
+ * reachable from outside the platform at all, because the directory had no
+ * address. That is this ratchet doing the job R5.4 asks of it: a subpath is not
+ * a place to park surface against a future need, and the day a directory gets an
+ * address is the day its whole export list would otherwise become one.
+ */
+describe('`./demo`, the demo-data surface no module may name', () => {
+  const barrel = 'demo/index.ts';
+
+  const parsed = (): ReturnType<typeof parseBarrel> =>
+    parseBarrel(readFileSync(join(SRC, barrel), 'utf8'), barrel);
+
+  it('carries exactly the names its consumers outside the platform import', () => {
+    const sources = firstPartySourcesOutsideThePlatform();
+    expect(sources.size, 'the walk opened no first-party source').toBeGreaterThan(1000);
+
+    const imported = new Set<string>();
+    for (const [, text] of sources) {
+      for (const name of subpathNamesIn(text, 'demo')) imported.add(name);
+    }
+    // The vacuous-pass guard: a walk that stopped seeing the specifier would
+    // report every name on the barrel as parked, which is a finding about the
+    // walk wearing the costume of a finding about the barrel.
+    expect(
+      [...imported],
+      'no first-party source imports the subpath — this ratchet would be vacuous',
+    ).not.toEqual([]);
+
+    expect([...new Set(barrelExports(barrel))].sort()).toEqual([...imported].sort());
+  });
+
+  it('is read in full, so a name is never dropped by the parse', () => {
+    expect(parsed().unreadable).toEqual([]);
+  });
+
+  it('shares no symbol with a published barrel or with the other host-internal ones', () => {
+    // R5.5 — a symbol has one home. Between two host-internal barrels the
+    // question is not "is this public API?" but "which of them owns this", and
+    // two answers to that is how a consumer comes to import one name by two
+    // addresses that can drift apart.
+    const mine = new Set(barrelExports(barrel));
+    const elsewhere = new Set([
+      ...PUBLISHED_SUBPATHS.flatMap((s) => barrelExports(barrelKeyOf(s))),
+      ...barrelExports('composition/index.ts'),
+      ...barrelExports('lifecycle/index.ts'),
     ]);
     expect([...mine].filter((name) => elsewhere.has(name)).sort()).toEqual([]);
   });

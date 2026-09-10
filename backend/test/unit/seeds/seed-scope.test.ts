@@ -3,10 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import {
-  DEMO_RESET_SCOPE_REASON,
-  DEMO_SEED_SCOPE_REASON,
-} from '../../../src/demo/index.js';
+import { DEMO_RESET_SCOPE_REASON, DEMO_SEED_SCOPE_REASON } from '@endora-commerce/platform/demo';
 import { enterSystemScope, openPlatformScopeCount } from '../../../src/kernel/scope.js';
 import {
   setEscapeHatchAuditSink,

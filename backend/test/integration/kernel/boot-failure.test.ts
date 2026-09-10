@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { EventBus } from '@endora-commerce/platform/events';
-import { createRootContainer, registerValues } from '../../../src/kernel/container.js';
-import { composeModules, ModuleCompositionError } from '../../../src/kernel/compose.js';
-import type { ModuleContext } from '../../../src/kernel/module-context.js';
+import { createRootContainer, registerValues } from '@endora-commerce/platform/composition';
+import { composeModules, ModuleCompositionError } from '@endora-commerce/platform/composition';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { buildServer, type ModulePlugin } from '@endora-commerce/platform/composition';
 
 /**

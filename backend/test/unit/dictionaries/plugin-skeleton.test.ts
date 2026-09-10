@@ -13,11 +13,11 @@
 
 import { asValue } from 'awilix';
 import { describe, it, expect } from 'vitest';
-import { createRootContainer } from '../../../src/kernel/container.js';
+import { createRootContainer } from '@endora-commerce/platform/composition';
 import {
   createModuleContext,
   createModuleRegistrationSink,
-} from '../../../src/kernel/module-context.js';
+} from '@endora-commerce/platform/composition';
 import { EventBus } from '@endora-commerce/platform/events';
 import { registerModule } from '../../../../packages/modules/dictionaries/src/backend/index.js';
 

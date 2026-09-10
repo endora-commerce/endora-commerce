@@ -1,11 +1,11 @@
 import { asValue } from 'awilix';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GOOGLE_TAG_MANAGER_SETTING_CODES } from '@endora-commerce/contracts';
-import { createRootContainer } from '../../../src/kernel/container.js';
+import { createRootContainer } from '@endora-commerce/platform/composition';
 import {
   createModuleContext,
   createModuleRegistrationSink,
-} from '../../../src/kernel/module-context.js';
+} from '@endora-commerce/platform/composition';
 import { EventBus } from '@endora-commerce/platform/events';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';

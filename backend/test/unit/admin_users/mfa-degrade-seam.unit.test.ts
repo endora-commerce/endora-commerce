@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { MfaLoginPort } from '@endora-commerce/contracts';
 import { EventBus } from '@endora-commerce/platform/events';
-import { createRootContainer } from '../../../src/kernel/container.js';
+import { createRootContainer } from '@endora-commerce/platform/composition';
 import { lazyPort } from '../../../src/kernel/index.js';
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
@@ -9,8 +9,8 @@ import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import {
   createModuleContext,
   createModuleRegistrationSink,
-  type ModuleContext,
-} from '../../../src/kernel/module-context.js';
+} from '@endora-commerce/platform/composition';
+import { type ModuleContext } from '@endora-commerce/platform/kernel';
 
 /**
  * The mechanism D-96.2 rules, pinned apart from its effect.

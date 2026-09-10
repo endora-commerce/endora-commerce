@@ -101,7 +101,12 @@ const HOST: HostPackage = {
   // nameable by no module. The two lists differing is what lets the analysis
   // tell "the map refuses this path" from "the map resolves it and no module
   // may write it".
-  declaredSubpaths: new Set(['kernel', 'http', 'composition']),
+  // Two host-internal members and not one, deliberately: the analysis reads this
+  // as a *set* and a fixture with a single member cannot tell a rule from a
+  // special case. `demo` is the ninth in the real manifest
+  // (`specs/110-instance-repository/` T119b) and the first one added since the
+  // class existed, so the proof below is taken over both.
+  declaredSubpaths: new Set(['kernel', 'http', 'composition', 'demo']),
 };
 
 function input(
@@ -463,6 +468,30 @@ describe('a bare specifier into the host package', () => {
     expect(remedyOf(result.violations[0]!)).not.toContain('names no subpath');
     // A host reach for the coverage derivation, like every other one.
     expect([...scanPlatformSurface(input(reach)).hostReachModules]).toEqual(['blog']);
+  });
+
+  it('reports the demo subpath the same way, so the class is a rule and not a case', () => {
+    // `specs/110-instance-repository/` T119b. `./demo` is declared by the
+    // `exports` map and carried by no barrel, exactly as `./composition` is, and
+    // it is the first member added since the third state was invented — so the
+    // verdict is asserted for it rather than assumed to follow. A module that
+    // could name it could seed, and reset, its siblings' data.
+    const reach = {
+      [packaged]: "import { runDemo } from '@endora-commerce/platform/demo';",
+    };
+    const result = checkPlatformSurface(input(reach), {});
+    expect(kinds(result.violations)).toEqual(['host-internal-subpath']);
+    expect(result.violations[0]).toMatchObject({
+      moduleId: 'blog',
+      target: '@endora-commerce/platform/demo',
+      specifier: '@endora-commerce/platform/demo',
+      symbol: NO_SYMBOL,
+    });
+    expect(remedyOf(result.violations[0]!)).toContain('publishes to nobody');
+    expect(resolveHostSpecifier('@endora-commerce/platform/demo', HOST)).toEqual({
+      kind: 'host-internal-subpath',
+      subpath: 'demo',
+    });
   });
 
   it('tells the declared-and-unpublished subpath from the one that does not exist', () => {

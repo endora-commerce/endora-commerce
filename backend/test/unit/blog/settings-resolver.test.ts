@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BlogSettingsResolver } from '../../../../packages/modules/blog/src/backend/services/blog-settings-resolver.js';
 import type { SettingsServicePort } from '../../../../packages/modules/blog/src/backend/services/blog-settings-resolver.js';
-import { HttpError } from '../../../src/http/error-envelope.js';
+import { HttpError } from '@endora-commerce/platform/http';
 import {
   BLOG_DEFAULT_ENABLED,
   BLOG_DEFAULT_LATEST_COUNT,
