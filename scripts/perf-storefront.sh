@@ -48,6 +48,8 @@ REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 STOREFRONT_STACK_PREFIX='[storefront-perf]'
 # shellcheck source=scripts/lib/storefront-stack.sh
 . "$REPO_ROOT/scripts/lib/storefront-stack.sh"
+# shellcheck source=scripts/lib/schedule-kind.sh
+. "$REPO_ROOT/scripts/lib/schedule-kind.sh"
 
 BOOT=yes
 KEEP=no
@@ -72,6 +74,33 @@ done
 
 say() { echo "[storefront-perf] $*"; }
 die2() { echo "[storefront-perf] $*" >&2; exit 2; }
+
+# ---------------------------------------------------------------------------
+# How many samples
+# ---------------------------------------------------------------------------
+# Three per URL on the nightly, five on `weekly-heavy`: a drift smaller than the
+# run-to-run spread is invisible at three samples on a 4 vCPU box, and six extra
+# Lighthouse runs have no place in a nightly.
+#
+# `.gitlab-ci.yml` used to pick this with `if [ "$CI_SCHEDULE_KIND" = ... ]`,
+# one branch over three inputs: an unset variable and a typo both fell through
+# to the same silent else. The variable was in fact unset on the schedule, so
+# the five-sample branch had never once been reachable. The resolver refuses
+# both states and says which one it is.
+#
+# An explicit `LHCI_NUMBER_OF_RUNS` still wins, because a developer measuring
+# something by hand is not on a schedule and should not have to invent one.
+if [ -z "${LHCI_NUMBER_OF_RUNS:-}" ]; then
+  SCHEDULE_KIND=$(resolve_schedule_kind '[storefront-perf]') || exit 2
+  case "$SCHEDULE_KIND" in
+    weekly-heavy) LHCI_NUMBER_OF_RUNS=5 ;;
+    *) LHCI_NUMBER_OF_RUNS=3 ;;
+  esac
+  say "schedule=$SCHEDULE_KIND runs-per-url=$LHCI_NUMBER_OF_RUNS"
+else
+  say "runs-per-url=$LHCI_NUMBER_OF_RUNS (LHCI_NUMBER_OF_RUNS was set)"
+fi
+export LHCI_NUMBER_OF_RUNS
 
 WORK=$(mktemp -d)
 BACKEND_PID=
@@ -132,6 +161,13 @@ if [ -z "${CHROME_PATH:-}" ]; then
   CHROME_PATH=$(cd "$REPO_ROOT/storefront" && node -e 'process.stdout.write(require("@playwright/test").chromium.executablePath())' 2>/dev/null)
 fi
 [ -n "$CHROME_PATH" ] && [ -x "$CHROME_PATH" ] || die2 "no Chrome to measure with (CHROME_PATH=\"${CHROME_PATH:-}\"). Lighthouse needs a browser; a run without one measures nothing."
+# An executable Chrome is not a Chrome that starts. In pipeline 13444 this check
+# passed and the launcher then got `ECONNREFUSED` because Chrome refuses to run
+# as root without `--no-sandbox`. The flag lives in `.lighthouserc.js`, derived
+# from the process's own uid — see the comment above `CHROME_FLAGS` there for
+# why it is safe in a job container and bad advice anywhere else. It is not set
+# here, because a second place to spell it is a second place for the next
+# correction to miss.
 export CHROME_PATH
 say "chrome: $CHROME_PATH"
 

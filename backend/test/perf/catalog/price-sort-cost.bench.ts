@@ -1,3 +1,4 @@
+// perf-weight: fast — 6852 ms on the CI runner (pipeline 13444, 2026-09-09) at the default 5000-product corpus.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PriceList } from '../../helpers/package-entities.js';
 import {

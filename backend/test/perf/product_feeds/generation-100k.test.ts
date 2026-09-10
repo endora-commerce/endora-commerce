@@ -1,3 +1,4 @@
+// perf-weight: heavy — seeding 110 000 products, then a 100 000-item generation the header below measures at 207 s. It has been excluded from the nightly since the job was written.
 import { setFlagsFromString } from 'node:v8';
 import { PriceList } from '../../helpers/package-entities.js';
 import { runInNewContext } from 'node:vm';

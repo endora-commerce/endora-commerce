@@ -59,10 +59,15 @@ const SAMPLE_PRODUCT_SLUG = process.env.SAMPLE_PRODUCT_SLUG ?? 'example-simple-p
 const SAMPLE_CATEGORY_SLUG = process.env.SAMPLE_CATEGORY_SLUG ?? 'widgets';
 
 /**
- * Three runs per URL on the nightly, five on `weekly-heavy` — the
- * `CI_SCHEDULE_KIND` split `perf:storefront` applies. A drift smaller than the
- * run-to-run spread is invisible at three samples, and six extra Lighthouse
- * runs have no place in a nightly.
+ * Three runs per URL on the nightly, five on `weekly-heavy`. A drift smaller
+ * than the run-to-run spread is invisible at three samples, and six extra
+ * Lighthouse runs have no place in a nightly.
+ *
+ * Which of the two this is is decided by `scripts/perf-storefront.sh` through
+ * `scripts/lib/schedule-kind.sh` and arrives here as `LHCI_NUMBER_OF_RUNS`. The
+ * `3` below is therefore the answer for a run with no schedule at all — a
+ * developer's — and not a silent stand-in for one whose schedule failed to say:
+ * the resolver refuses that state rather than falling through to it.
  */
 const NUMBER_OF_RUNS = Number(process.env.LHCI_NUMBER_OF_RUNS ?? 3);
 
@@ -75,6 +80,40 @@ const NUMBER_OF_RUNS = Number(process.env.LHCI_NUMBER_OF_RUNS ?? 3);
  */
 const MEDIAN = { aggregationMethod: 'median' };
 
+/**
+ * Chrome refuses to start as root unless it is told not to sandbox itself:
+ *
+ *   ERROR: Running as root without --no-sandbox is not supported.
+ *   LH:ChromeLauncher:error connect ECONNREFUSED 127.0.0.1:44837
+ *
+ * That is the whole of `perf:storefront`'s failure in pipeline 13444 — the
+ * launcher never got a browser, Lighthouse wrote no report, and
+ * `scripts/perf-storefront.sh` correctly refused to call the run a pass.
+ *
+ * **`--no-sandbox` is safe here and is bad advice in general.** Chrome's
+ * sandbox confines a renderer that has been compromised by the page it is
+ * rendering; switching it off is only acceptable when something else already
+ * confines the process. In this job that something is the job container itself:
+ * a throwaway, unprivileged docker container with no credentials of ours in it,
+ * driving a storefront this pipeline built from this commit and seeded itself.
+ * On a developer's machine none of that holds, and the flag is not passed
+ * there.
+ *
+ * So the flag is **derived from the condition that requires it** rather than
+ * set unconditionally: root, which is what Chrome itself objects to, and what
+ * the GitLab docker executor gives this job. A non-root run — every developer
+ * one — keeps its sandbox, and nothing has to remember to take the flag off.
+ *
+ * `chromeFlags` is a space-separated string, which is what `@lhci/cli@0.14`
+ * hands to the launcher (`cli/src/collect/node-runner.js`), appending its own
+ * `--headless=new`. If a future run dies on a renderer crash rather than on a
+ * launch failure, `--disable-dev-shm-usage` is the next flag to reach for: the
+ * docker executor's default `/dev/shm` is 64 MB. It is deliberately not passed
+ * today, because nothing has measured a need for it.
+ */
+const RUNNING_AS_ROOT = typeof process.getuid === 'function' && process.getuid() === 0;
+const CHROME_FLAGS = RUNNING_AS_ROOT ? '--no-sandbox' : '';
+
 module.exports = {
   ci: {
     collect: {
@@ -86,6 +125,8 @@ module.exports = {
       numberOfRuns: NUMBER_OF_RUNS,
       settings: {
         preset: 'desktop',
+        // See CHROME_FLAGS above: empty off root, `--no-sandbox` on it.
+        chromeFlags: CHROME_FLAGS,
         // Throttle to a moderate-mobile profile so the CWV thresholds
         // match the FR-103 "75th-percentile mid-range mobile" target.
         throttling: {

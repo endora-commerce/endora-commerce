@@ -1,3 +1,4 @@
+// perf-weight: fast — 6569 ms on the CI runner (pipeline 13444, 2026-09-09).
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { defineModuleSettingsManifest } from '@endora-commerce/contracts';

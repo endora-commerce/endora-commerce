@@ -1,3 +1,4 @@
+// perf-weight: fast — 5569 ms on the CI runner (pipeline 13444, 2026-09-09).
 import type { Knex } from '@mikro-orm/postgresql';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
