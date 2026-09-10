@@ -1,3 +1,4 @@
+// perf-weight: fast — 5543 ms on the CI runner (pipeline 13444, 2026-09-09). It was excluded once for taking longer than vitest allows; issue #152 batched the sweep and the header below carries the before/after.
 import { Cart, CartItem, type CartRow } from '../../helpers/package-entities.js';
 import { vi, afterAll, beforeAll, describe, expect, it } from 'vitest';
 

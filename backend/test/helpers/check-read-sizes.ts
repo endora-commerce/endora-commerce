@@ -1697,7 +1697,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 5472 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 5475,
+    // **`fix/perf-nightly-capacity`: files 5479 -> 5481.** Attributed by parking the six new files and re-running: without them the census prints `0 drifted, 44 agree`, so every number below is this branch's and none of it is a delta subtracted from a moving tree. The six are `backend/scripts/lib/perf-weights.ts`, `backend/scripts/perf-selection.ts`, `backend/test/unit/ci/perf-selection.test.ts`, `backend/test/unit/ci/schedule-kind.test.ts`, `scripts/lib/schedule-kind.sh` and `scripts/perf-backend.sh`; the twenty-three files it modifies already existed. Here, its population is every source file under `admin`, `backend`, `storefront` and `packages`, minus `backend/scripts` and `backend/test/unit/scripts` — so it takes the two new test files and neither of the two new `backend/scripts` sources, and the two root `scripts/*.sh` are outside it entirely.
+    // **Re-measured on the union after rebasing onto T119a.** That task moved 50 of the
+    // platform's own unit tests out of `backend/test/` and into `packages/platform/src/`,
+    // beside the sources they cover, so this walk reads fewer files than the 5481 recorded
+    // against the tree before it. The six files this branch adds are already in that
+    // measurement; taken on the combined tree, never summed from the two sides' deltas.
+    files: 5477,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -3105,7 +3111,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 1576 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 1577,
+    // **`fix/perf-nightly-capacity`: files 1626 -> 1628.** Attributed by parking the six new files and re-running: without them the census prints `0 drifted, 44 agree`, so every number below is this branch's and none of it is a delta subtracted from a moving tree. The six are `backend/scripts/lib/perf-weights.ts`, `backend/scripts/perf-selection.ts`, `backend/test/unit/ci/perf-selection.test.ts`, `backend/test/unit/ci/schedule-kind.test.ts`, `scripts/lib/schedule-kind.sh` and `scripts/perf-backend.sh`; the twenty-three files it modifies already existed. Here, this walk opens `backend/test/**`, so it takes the two new test files under `backend/test/unit/ci/` and nothing else the branch adds.
+    // **Re-measured on the union after rebasing onto T119a.** That task moved 50 of the
+    // platform's own unit tests out of `backend/test/` and into `packages/platform/src/`,
+    // beside the sources they cover, so this walk reads fewer files than the 1628 recorded
+    // against the tree before it. The six files this branch adds are already in that
+    // measurement; taken on the combined tree, never summed from the two sides' deltas.
+    files: 1579,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -3242,7 +3254,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 1576 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 1577,
+    // **`fix/perf-nightly-capacity`: files 1626 -> 1628.** Attributed by parking the six new files and re-running: without them the census prints `0 drifted, 44 agree`, so every number below is this branch's and none of it is a delta subtracted from a moving tree. The six are `backend/scripts/lib/perf-weights.ts`, `backend/scripts/perf-selection.ts`, `backend/test/unit/ci/perf-selection.test.ts`, `backend/test/unit/ci/schedule-kind.test.ts`, `scripts/lib/schedule-kind.sh` and `scripts/perf-backend.sh`; the twenty-three files it modifies already existed. Here, this walk opens `backend/test/**`, so it takes the two new test files under `backend/test/unit/ci/` and nothing else the branch adds.
+    // **Re-measured on the union after rebasing onto T119a.** That task moved 50 of the
+    // platform's own unit tests out of `backend/test/` and into `packages/platform/src/`,
+    // beside the sources they cover, so this walk reads fewer files than the 1628 recorded
+    // against the tree before it. The six files this branch adds are already in that
+    // measurement; taken on the combined tree, never summed from the two sides' deltas.
+    files: 1579,
     sites: null,
     sources: [],
   },
@@ -5397,7 +5415,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 8118 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 8122,
+    // **`fix/perf-nightly-capacity`: files 8123 -> 8129.** Attributed by parking the six new files and re-running: without them the census prints `0 drifted, 44 agree`, so every number below is this branch's and none of it is a delta subtracted from a moving tree. The six are `backend/scripts/lib/perf-weights.ts`, `backend/scripts/perf-selection.ts`, `backend/test/unit/ci/perf-selection.test.ts`, `backend/test/unit/ci/schedule-kind.test.ts`, `scripts/lib/schedule-kind.sh` and `scripts/perf-backend.sh`; the twenty-three files it modifies already existed. Here, the whole repository minus two declared exclusions, so it takes all six.
+    // **Re-measured on the union after rebasing onto T119a.** That task moved 50 of the
+    // platform's own unit tests out of `backend/test/` and into `packages/platform/src/`,
+    // beside the sources they cover, so this walk reads fewer files than the 8129 recorded
+    // against the tree before it. The six files this branch adds are already in that
+    // measurement; taken on the combined tree, never summed from the two sides' deltas.
+    files: 8128,
     sites: null,
     sources: [],
     //
@@ -6079,7 +6103,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 2434 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 2435,
+    // **`fix/perf-nightly-capacity`: files 2443 -> 2445.** Attributed by parking the six new files and re-running: without them the census prints `0 drifted, 44 agree`, so every number below is this branch's and none of it is a delta subtracted from a moving tree. The six are `backend/scripts/lib/perf-weights.ts`, `backend/scripts/perf-selection.ts`, `backend/test/unit/ci/perf-selection.test.ts`, `backend/test/unit/ci/schedule-kind.test.ts`, `scripts/lib/schedule-kind.sh` and `scripts/perf-backend.sh`; the twenty-three files it modifies already existed. Here, its application half walks the application tree rather than only its `src`, so it takes the two new `backend/scripts/*.ts` files; the two under `backend/test/**` and the two root shell scripts are outside it.
+    // **Re-measured on the union after rebasing onto T119a.** That task moved 50 of the
+    // platform's own unit tests out of `backend/test/` and into `packages/platform/src/`,
+    // beside the sources they cover, so this walk reads fewer files than the 2445 recorded
+    // against the tree before it. The six files this branch adds are already in that
+    // measurement; taken on the combined tree, never summed from the two sides' deltas.
+    files: 2437,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -6540,7 +6570,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 1576 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 1577,
+    // **`fix/perf-nightly-capacity`: files 1626 -> 1628.** Attributed by parking the six new files and re-running: without them the census prints `0 drifted, 44 agree`, so every number below is this branch's and none of it is a delta subtracted from a moving tree. The six are `backend/scripts/lib/perf-weights.ts`, `backend/scripts/perf-selection.ts`, `backend/test/unit/ci/perf-selection.test.ts`, `backend/test/unit/ci/schedule-kind.test.ts`, `scripts/lib/schedule-kind.sh` and `scripts/perf-backend.sh`; the twenty-three files it modifies already existed. Here, this walk opens `backend/test/**`, so it takes the two new test files under `backend/test/unit/ci/` and nothing else the branch adds.
+    // **Re-measured on the union after rebasing onto T119a.** That task moved 50 of the
+    // platform's own unit tests out of `backend/test/` and into `packages/platform/src/`,
+    // beside the sources they cover, so this walk reads fewer files than the 1628 recorded
+    // against the tree before it. The six files this branch adds are already in that
+    // measurement; taken on the combined tree, never summed from the two sides' deltas.
+    files: 1579,
     sites: 163,
     sources: [],
   },
@@ -6917,7 +6953,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 1685 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 1687,
+    // **`fix/perf-nightly-capacity`: files 1730 -> 1732.** Attributed by parking the six new files and re-running: without them the census prints `0 drifted, 44 agree`, so every number below is this branch's and none of it is a delta subtracted from a moving tree. The six are `backend/scripts/lib/perf-weights.ts`, `backend/scripts/perf-selection.ts`, `backend/test/unit/ci/perf-selection.test.ts`, `backend/test/unit/ci/schedule-kind.test.ts`, `scripts/lib/schedule-kind.sh` and `scripts/perf-backend.sh`; the twenty-three files it modifies already existed. Here, this population is `*.test.ts` files, and both of the branch's new test files are ones — which is why it moves by two here and not by one, unlike the last branch to touch this row.
+    // **Re-measured on the union after rebasing onto T119a.** That task moved 50 of the
+    // platform's own unit tests out of `backend/test/` and into `packages/platform/src/`,
+    // beside the sources they cover, so this walk reads fewer files than the 1732 recorded
+    // against the tree before it. The six files this branch adds are already in that
+    // measurement; taken on the combined tree, never summed from the two sides' deltas.
+    files: 1689,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -7443,7 +7485,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 4495 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 4498,
+    // **`fix/perf-nightly-capacity`: files 4504 -> 4508.** Attributed by parking the six new files and re-running: without them the census prints `0 drifted, 44 agree`, so every number below is this branch's and none of it is a delta subtracted from a moving tree. The six are `backend/scripts/lib/perf-weights.ts`, `backend/scripts/perf-selection.ts`, `backend/test/unit/ci/perf-selection.test.ts`, `backend/test/unit/ci/schedule-kind.test.ts`, `scripts/lib/schedule-kind.sh` and `scripts/perf-backend.sh`; the twenty-three files it modifies already existed. Here, the walk covers the application member's `src`, `scripts` and `test` trees, so it takes the two new `backend/scripts/*.ts` sources and the two new tests: four.
+    // **Re-measured on the union after rebasing onto T119a.** That task moved 50 of the
+    // platform's own unit tests out of `backend/test/` and into `packages/platform/src/`,
+    // beside the sources they cover, so this walk reads fewer files than the 4508 recorded
+    // against the tree before it. The six files this branch adds are already in that
+    // measurement; taken on the combined tree, never summed from the two sides' deltas.
+    files: 4502,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -8108,7 +8156,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 8178 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 8182,
+    // **`fix/perf-nightly-capacity`: files 8183 -> 8189.** Attributed by parking the six new files and re-running: without them the census prints `0 drifted, 44 agree`, so every number below is this branch's and none of it is a delta subtracted from a moving tree. The six are `backend/scripts/lib/perf-weights.ts`, `backend/scripts/perf-selection.ts`, `backend/test/unit/ci/perf-selection.test.ts`, `backend/test/unit/ci/schedule-kind.test.ts`, `scripts/lib/schedule-kind.sh` and `scripts/perf-backend.sh`; the twenty-three files it modifies already existed. Here, the whole tree, and there is no changeset to make it seven — a perf tier is not a published package's surface.
+    // **Re-measured on the union after rebasing onto T119a.** That task moved 50 of the
+    // platform's own unit tests out of `backend/test/` and into `packages/platform/src/`,
+    // beside the sources they cover, so this walk reads fewer files than the 8189 recorded
+    // against the tree before it. The six files this branch adds are already in that
+    // measurement; taken on the combined tree, never summed from the two sides' deltas.
+    files: 8188,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -8477,7 +8531,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 6099 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 6102,
+    // **`fix/perf-nightly-capacity`: files 6106 -> 6112.** Attributed by parking the six new files and re-running: without them the census prints `0 drifted, 44 agree`, so every number below is this branch's and none of it is a delta subtracted from a moving tree. The six are `backend/scripts/lib/perf-weights.ts`, `backend/scripts/perf-selection.ts`, `backend/test/unit/ci/perf-selection.test.ts`, `backend/test/unit/ci/schedule-kind.test.ts`, `scripts/lib/schedule-kind.sh` and `scripts/perf-backend.sh`; the twenty-three files it modifies already existed. Here, all six new files carry comments, which is this walk's population; the two shell scripts carry most of them.
+    // **Re-measured on the union after rebasing onto T119a.** That task moved 50 of the
+    // platform's own unit tests out of `backend/test/` and into `packages/platform/src/`,
+    // beside the sources they cover, so this walk reads fewer files than the 6112 recorded
+    // against the tree before it. The six files this branch adds are already in that
+    // measurement; taken on the combined tree, never summed from the two sides' deltas.
+    files: 6108,
     sites: null,
     sources: ['manifest-index'],
     //

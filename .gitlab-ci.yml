@@ -1535,19 +1535,67 @@ test:kit:
 # nightly is visible and costs nobody a merge. `when: manual` on an MR is for
 # someone deliberately measuring a change they suspect.
 #
-# CI_SCHEDULE_KIND is set on the schedule itself (nightly / weekly-heavy).
-# Two schedules are needed for this job to mean anything:
-#   nightly       CI_SCHEDULE_KIND=nightly       — the nine fast benchmarks
-#   weekly-heavy  CI_SCHEDULE_KIND=weekly-heavy  — plus the two multi-minute
-#                                                  files
-#
 # The first three runs are RECORDING runs (D-65): every benchmark prints
 # `p95=… (budget …)`, and each budget in `test/perf/**` is re-based from what
 # those three runs measure on this runner. The defaults committed today come
 # from four local runs × 3 and carry that derivation in a comment beside them;
 # they are a starting point, not the enforced number.
+#
+# ## Two jobs, because a timeout cannot be set per `rules:` entry
+#
+# This was one job with two tiers and no `timeout:` of its own, and on
+# 2026-09-09 (pipeline 13444) it inherited the runner's one hour and spent all
+# of it. Nothing failed and no budget was exceeded: one benchmark that nobody
+# had classified ran for **43 minutes**, the wall arrived while another was
+# still going, and three of the seventeen files never ran at all. The only
+# instrument that saw anything was `test/run-completeness.ts`, after the hour.
+#
+# The two tiers cost three orders of magnitude apart, so one timeout cannot
+# serve both honestly — a value sized for the heavy tier gives the nightly no
+# guard at all, and GitLab has no `rules:timeout`. Hence two jobs. What
+# separates them is **not** a list of files here: each benchmark declares its
+# own weight, and `scripts/perf-backend.sh` selects positively over those
+# declarations. The list this job used to carry named two files while the tree
+# held five that belong in it, and it had been wrong for as long as the three
+# PIM integrations had existed. `backend/test/unit/ci/perf-selection.test.ts` is
+# what now fails, on every merge request, when a benchmark is in neither tier.
+#
+# `CI_SCHEDULE_KIND` is set on the schedule itself, and it is read through
+# `scripts/lib/schedule-kind.sh` rather than by a job script. The one-branch
+# `if [ "$CI_SCHEDULE_KIND" = "weekly-heavy" ]` these jobs used to carry could
+# not tell an unset variable from a typo, and the variable was in fact unset —
+# so the `weekly-heavy` branch had never once been reachable, in either job,
+# and nothing said so. The resolver refuses both states, loudly.
+#
+# One consequence worth recording, because it retires a trap somebody paid for.
+# The old `script:` was three shell lines, and it carried a warning about the
+# folded `- >` block the ruling had sketched: inside a folded scalar YAML keeps
+# the newline before a MORE indented line, so a wrapped `--exclude` would have
+# reached bash as its own command. Each job's `script:` is now a single
+# invocation with no continuation to wrap, so the trap has nothing left to
+# catch here — but it is a fact about YAML rather than about this job, and the
+# next person to write a multi-line `script:` in this file still owes it.
+#
+# ## The fast tier — every schedule
+#
+# Measured on the CI runner, pipeline 13444: the twelve `*.bench.ts` files cost
+# **100 s** of wall clock end to end (68 s for the eight that ran before the
+# heavy file, 32 s for the four after it), and `pnpm install` plus
+# `build:packages` cost **239 s** before them. The two `live-apply-latency`
+# files have never run here — they are two of the three the wall clock ate — so
+# the whole tier was run end to end on a developer machine instead: **14 files,
+# 25 tests, 138 s** of vitest, on a box whose reference bench (`price-sort-cost`)
+# runs 1.22× slower than this runner. Call the tier 115 s here, plus the 239 s
+# before it: ~6 minutes of job.
+#
+# `timeout: 20m` is 3× that, which leaves room for a cold pnpm store and for the
+# tier to grow, and still fails inside the hour rather than consuming it. It is
+# to be re-based from the first three scheduled runs, like the budgets (D-65).
 perf:backend:
   stage: test
+  # An hour is what this job inherited when it declared nothing, and an hour is
+  # what it spent. 20 minutes against a measured 6.5 — see the derivation above.
+  timeout: 20m
   image: node:22.17-slim
   services:
     - name: postgres:16-alpine
@@ -1574,26 +1622,7 @@ perf:backend:
     - pnpm install --frozen-lockfile
     - pnpm run build:packages
   script:
-    # `test/perf/carts/abandonment-sweep.bench.ts` runs on both schedules again
-    # (issue #152). It was excluded because it could not finish: the sweep did
-    # one `em.find(CartItem)` and one flushing `CartAuditService.record()` per
-    # eligible cart over an identity map that kept everything it had touched, so
-    # 4× the carts cost 16× the time and the default corpus hit the 10-minute
-    # vitest timeout before it could report a number. That is fixed; the sweep
-    # batches, and 10 000 carts take ~5.3 s against a re-based 17 s budget. The
-    # file's own header carries the before/after readings and the derivation.
-    #
-    # The two multi-minute files (100k feed generation, Ergonode import) run on
-    # the weekly schedule only — a 10-minute budget has no place in a nightly.
-    #
-    # Written as shell variables rather than the folded `- >` block the ruling
-    # sketched: inside a folded scalar YAML keeps the newline before a MORE
-    # indented line, so a `--exclude` wrapped under its `pnpm` would have
-    # reached bash as its own command. GitLab concatenates these lines into one
-    # script, so the assignments carry.
-    - SKIP_HEAVY="--exclude test/perf/product_feeds/generation-100k.test.ts --exclude test/perf/pim_ergonode/import-throughput.test.ts"
-    - if [ "$CI_SCHEDULE_KIND" = "weekly-heavy" ]; then SKIP_HEAVY=""; fi
-    - pnpm --filter backend exec vitest run test/perf $SKIP_HEAVY
+    - bash scripts/perf-backend.sh --weight fast
   cache:
     key:
       files:
@@ -1606,11 +1635,92 @@ perf:backend:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       when: manual
       allow_failure: true
-  # Shared with `perf:storefront` and `conformance:storefront`, which run on the
-  # same nightly schedule on the same 4 vCPU host (feature 098, T501). A p95
-  # measured beside another job's `next build` measures that build; the header
-  # above already says so about `test:backend`'s shards, and the schedule grew
-  # two more heavy jobs since it was written.
+  # Shared with `perf:backend:heavy`, `perf:storefront` and
+  # `conformance:storefront`, which run on the same nightly schedule on the same
+  # 4 vCPU host (feature 098, T501). A p95 measured beside another job's
+  # `next build` measures that build; the header above already says so about
+  # `test:backend`'s shards, and the schedule grew three more heavy jobs since
+  # it was written.
+  resource_group: perf-measurement
+
+# ---------------------------------------------------------------------------
+# The heavy tier — `weekly-heavy` only.
+#
+# Every benchmark that seeds a five-figure catalogue. What it costs is known
+# only in parts, because **this tier has never run to completion anywhere**:
+#
+#   pim_unopim/import-throughput.test.ts      2 599 075 ms measured here
+#                                             (pipeline 13444)
+#   pim_akeneo/full-delivery-apply.perf.ts    > 657 s here, unfinished when the
+#                                             wall arrived
+#   pim_ergonode/import-throughput.test.ts    ~1 h, extrapolated in its own
+#                                             header from 380 ms per product
+#                                             flat across a 6.7× scale change
+#   product_feeds/generation-100k.test.ts     207 s of generation on top of
+#                                             seeding 110 000 products
+#   pim_pimcore/full-delivery-apply.perf.ts   never measured
+#
+# So `timeout: 4h` is an upper bound assembled from parts, not a measurement,
+# and it is written here to be **re-based from the first run that finishes** —
+# D-65's rule for the budgets, applied to the job's own wall clock.
+#
+# Two things about it that are outside this repository. The project's job
+# timeout is what the old job inherited (one hour), and a job-level `timeout:`
+# above it is still capped by the runner's own `maximum_timeout` if one is set;
+# if this job dies at exactly that figure, the message names it and the setting
+# is GitLab's, not a file here. And the `weekly-heavy` schedule does not exist
+# yet — the schedule that runs this pipeline carries no variables at all — so
+# this job is created by nothing until somebody makes one. That is deliberate:
+# `perf:backend` runs on *every* schedule and refuses an undeclared
+# `CI_SCHEDULE_KIND`, so the absence is reported by the job that is always
+# there rather than by the silence of the one that is not.
+perf:backend:heavy:
+  stage: test
+  # Assembled from the parts above, to be re-based from the first complete run.
+  timeout: 4h
+  image: node:22.17-slim
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+    - name: redis:7-alpine
+      alias: redis
+    - name: getmeili/meilisearch:v1.11
+      alias: meilisearch
+  variables:
+    NODE_OPTIONS: --max-old-space-size=2048
+    POSTGRES_USER: b2b
+    POSTGRES_PASSWORD: b2b
+    POSTGRES_DB: b2b
+    MEILI_MASTER_KEY: devMasterKeyChangeMe
+    MEILI_ENV: development
+    MEILI_NO_ANALYTICS: 'true'
+    TEST_DATABASE_URL: postgresql://b2b:b2b@postgres:5432/b2b_test
+    REDIS_URL: redis://redis:6379
+    MEILISEARCH_URL: http://meilisearch:7700
+    MEILISEARCH_API_KEY: devMasterKeyChangeMe
+    PERF_RUN: 'true'
+  before_script:
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    - pnpm install --frozen-lockfile
+    - pnpm run build:packages
+  script:
+    - bash scripts/perf-backend.sh --weight heavy
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+  rules:
+    # The one rule in the pipeline that names a schedule kind. It decides
+    # whether the job *exists*, which no script can do — and the script refuses
+    # the heavy tier on any other kind, so the two cannot come to disagree
+    # without one of them saying so.
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $CI_SCHEDULE_KIND == "weekly-heavy"'
+      allow_failure: false
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: manual
+      allow_failure: true
   resource_group: perf-measurement
 
 # ---------------------------------------------------------------------------
@@ -2140,9 +2250,14 @@ perf:storefront:
     # than declared: this is the only job that runs it, so declaring it would
     # cost `pnpm install --frozen-lockfile` in the other thirteen and buy this
     # one nothing (plan.md § Complexity Tracking).
-    - LH_RUNS=3
-    - if [ "$CI_SCHEDULE_KIND" = "weekly-heavy" ]; then LH_RUNS=5; fi
-    - LHCI_NUMBER_OF_RUNS="$LH_RUNS" bash scripts/perf-storefront.sh
+    #
+    # The sample count used to be picked here by a one-branch test of
+    # `CI_SCHEDULE_KIND`, which could not tell an unset variable from a typo —
+    # and the variable was unset, so the five-sample branch had never been
+    # reachable. The script resolves it through `scripts/lib/schedule-kind.sh`
+    # and refuses both states; `LHCI_NUMBER_OF_RUNS` set in the environment
+    # still overrides, which is what a developer measuring by hand wants.
+    - bash scripts/perf-storefront.sh
   artifacts:
     when: always
     paths:
