@@ -123,439 +123,497 @@ export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach
  * `ledger-size` is printed by the run and is written down nowhere (D-100). The
  * section headers below carry no count for the same reason.
  *
- * ## What T119 drained, and the one condition that holds the rest open
+ * ## The sections are what holds each entry open, and that is a correction
  *
- * T119 removed every entry whose **whole** consumer set — `backend/src`,
- * `backend/scripts` and `backend/test` alike — could name a symbol some barrel
- * already carries. What is left is not a residue of effort. Each remaining entry
- * has at least one consumer asking for a symbol that is on **no** barrel, and for
- * most of them that is a *ruling* rather than an omission:
- * `published-surface.test.ts`' `NOT_PUBLISHED` refuses `SettingsService`,
- * `SettingsCache`, `ModuleEntry`, `createModuleContext`, `enterPlatformScope`,
- * `runWithTenantContext`, `tenantClassifications` and `decryptSecretValue` by
- * name, each with a written reason, and `kernel/index.ts` says in its own header
- * that `SettingsService`, `SalesChannelMembershipService`,
- * `SalesChannelResolverService` and `ModuleRegistration` are deliberately off the
- * barrel. The reach has no address **because somebody decided it should not**, so
- * the remedy is a subpath decision — a surface for the harness-only symbols, a
- * `./composition` widening for the composition-root ones — and never another
- * rewrite.
+ * They read `PUBLISHED_SHIM` and `UNPUBLISHED_SHIM` until T119a — *the target's
+ * barrel carries it* against *no barrel carries it* — and that axis is one
+ * granularity too coarse to be true. A barrel publishes **symbols**, not files:
+ * `@endora-commerce/platform/http` carries `HttpError` and does not carry
+ * `registerErrorEnvelope`, so twelve consumers of `http/error-envelope.ts` had
+ * no address at all while their entry said *"the reach is a rewrite away from an
+ * address that exists"*. Seventeen of the twenty-two entries under that heading
+ * said it and none of them was a rewrite away; the sentence sent a reader to
+ * attempt the rewrite T119 had already attempted and abandoned. It is the
+ * distinction `check:platform-surface`'s own verdict got right for modules in
+ * !883 — per symbol of a named file, never per file — and this ledger's prose
+ * got wrong.
  *
- * Five more are held open by one artefact rather than by a symbol: the platform's
- * entity classes, which `db/entities-registry.generated.ts` names relatively
- * because `specifierFor` says so **on purpose** — one of the six entity classes
- * (`ModuleRegistration`) has no address, so the generator names all of them the
- * one way that works for all of them. Those five retire with a change to the
- * generator, never with an edit to the artefact.
+ * So an entry is filed under **what holds it open**, and its `reason` names the
+ * symbols the declared barrels carry, the symbols they do not, and which task's
+ * work removes each. The tasks are `specs/110-instance-repository/` tasks.md's
+ * own — T119a (done: the platform's unit tests moved into the package), T119b
+ * (complete `./composition`, give `demo/` a subpath), T119c (the entity registry
+ * generator names each entity class by its own address), T119d (the two
+ * `backend/scripts` analyses move into `@endora-commerce/cli`) and T119e (the
+ * terminal criterion, owned by `specs/109-backend-test-kit/`). Every `retiredBy`
+ * names the task that actually retires the entry, and for an entry with two
+ * holders it names both: the shim is deleted when its **last** consumer has an
+ * address, not its first. They all read *"Phase 2"* until T119a, which is the
+ * phase T119 itself closed — a ledger of due dates in the past.
+ *
+ * ## "Has an address" is asked of every declared subpath, not of the five
+ *
+ * The first section below is what that correction found. T119's drain, and
+ * T119a's first pass over the residue, both measured *addressed* against
+ * `PUBLISHED_SUBPATHS` — the five barrels a **module** may name. That is the
+ * wrong question for this population: the consumer here is the application and
+ * its test tree, and they are entitled to the host-internal subpaths as well.
+ * Asked against the thirteen subpaths the `exports` map declares, four entries
+ * have **no unaddressed symbol at all** — every consumer names something
+ * `./composition` carries today — so they need no ruling, no barrel change and
+ * no capability: they need their consumers re-pointed. A module naming
+ * `./composition` is still `host-internal-subpath` and still refused (D-160.14);
+ * nothing about that moves.
+ *
+ * ## What T119a drained
+ *
+ * The platform's own unit tests moved into the platform package, beside the
+ * sources they cover (`specs/106-module-owned-tests/`' convention, applied to
+ * the one package in this tree with a `src/` and no tests). Inside the package a
+ * test names a **relative** path, so an internal the barrels deliberately do not
+ * publish — `normalise`, `parseAcceptLanguage`, `SETTINGS_LRU_TTL_MS`,
+ * `duplicateModuleIds`, `validateRegistrations`, `withScopeNotice`,
+ * `makePreDispatchOnRoute` — stops being a surface question rather than being
+ * given an address it should not have. Nine entries went with them, and
+ * `backend/src/http/interceptors/` is gone entirely.
+ *
+ * The forecast for that move was fourteen. It is nine, and the nine are what the
+ * tree supports rather than what the arithmetic wanted: a test moves only when
+ * everything it needs is inside the package, and of the 115 files in the eight
+ * candidate directories, 65 reach `backend/scripts/**`, an application-owned
+ * generated artefact, a module package or a `backend/test/` helper. Five more
+ * were held back one at a time and each for its own reason, named in
+ * `backend/test/README.md`. `kernel/lifecycle/required-modules.ts` is the entry
+ * that looks as though it should have gone and did not: its last consumer is
+ * `test/unit/_lifecycle/core-locks-precede-residue.test.ts`, which reads the
+ * application's `registered-manifests.ts` and therefore stays — and the symbol
+ * it names is on `./composition` already, so that entry is in the first section
+ * below rather than waiting on a surface decision.
  */
 export const RELATIVE_HOST_REACHES: Readonly<Record<string, LedgeredHostReach>> = {
-  // === the `_lifecycle` shims, and why there is no section for them ===
+  // === NO SYMBOL NEEDS AN ADDRESS: THE REWRITE T119 DID NOT SEE (T119b) ===
   //
-  // There were fifteen when this ledger landed in Phase 1: `_lifecycle`'s
-  // 20-line re-export shims, each forwarding one platform file the application
-  // still named at its old path, plus the two generated artefacts. Phase 2 gave
-  // the operator surface a declared address (`./lifecycle`, host-internal —
-  // D115-4), Phases 3–5 moved the manifest registry, the divergence parser and
-  // the five command bodies behind it, Phase 6 re-pointed the application's own
-  // reaches and the generated specifiers, and Phase 7 re-pointed
-  // `backend/test/**` — 112 reaches over 50 files — which was the only thing
-  // still holding the last nine shims open.
+  // Every consumer of these shims names a symbol a **declared** barrel already
+  // carries, so nothing has to be published for them to go — the consumers name
+  // `@endora-commerce/platform/composition` and the file is deleted.
   //
-  // They are **absent** rather than emptied, and the absence is the record: the
-  // application no longer names a single platform lifecycle file by relative
-  // path. `backend/src/lifecycle/` still holds the host half D-160.11 names,
-  // and every file in it reaches the platform through the subpath.
-  //
-  // === PUBLISHED_SHIM ===
-  //
-  // A re-export shim at `backend/src/<subpath>/…` whose target a published barrel
-  // already carries, so the address exists today and the remedy is a rewrite: the
-  // shim's consumers name `@endora-commerce/platform/<subpath>` and the shim goes.
-  // This is the bulk of the debt and it is not this feature's — 110's Phase 2 is
-  // where the application stops holding a private copy of the platform's layout.
-  'backend/src/http/error-envelope.ts|packages/platform/src/http/error-envelope.ts': {
+  // They stood through T119 because that drain measured `addressed` against the
+  // **five published** barrels and not against the thirteen subpaths the `exports`
+  // map declares. `./composition` carries `createRootContainer`, `registerValues`,
+  // `registerOrm`, `activationDeclarationsFrom`, `requiredModulesFrom`,
+  // `resolveTenantContext` and `systemTenantContext` today, and every reach here is
+  // one of those. It is not a module's question — a module naming `./composition`
+  // is `host-internal-subpath` and stays refused (D-160.14) — and the application
+  // and its test tree are entitled to it, which is what T119b is already doing for
+  // the symbols that genuinely have no home.
+
+  'backend/src/kernel/container.ts|packages/platform/src/kernel/container.ts': {
     reason:
-      'a re-export shim over `packages/platform/src/http/error-envelope.ts`, which ' +
-      '`@endora-commerce/platform/http` already carries — the reach is a rewrite away from an ' +
-      'address that exists',
+      'a re-export shim over `packages/platform/src/kernel/container.ts`. The declared ' +
+      'barrels carry `KernelContainer` (./composition), `createRootContainer` ' +
+      '(./composition), `registerOrm` (./composition), `registerValues` (./composition). ' +
+      'Nothing here needs an address; what holds the entry open is the rewrite itself.',
     retiredBy:
-      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
-      'the shim is deleted',
+      '`specs/110-instance-repository/` T119b — the same merge request that gives the rest ' +
+      'of the application its addresses re-points these consumers onto ' +
+      '`@endora-commerce/platform/composition`. **No symbol here needs an address** — see ' +
+      'the note above this section',
   },
+  'backend/src/kernel/lifecycle/activation-resolver.ts|packages/platform/src/kernel/lifecycle/activation-resolver.ts': {
+    reason:
+      'a re-export shim over ' +
+      '`packages/platform/src/kernel/lifecycle/activation-resolver.ts`. The declared ' +
+      'barrels carry `activationDeclarationsFrom` (./composition). Nothing here needs an ' +
+      'address; what holds the entry open is the rewrite itself.',
+    retiredBy:
+      '`specs/110-instance-repository/` T119b — the same merge request that gives the rest ' +
+      'of the application its addresses re-points these consumers onto ' +
+      '`@endora-commerce/platform/composition`. **No symbol here needs an address** — see ' +
+      'the note above this section',
+  },
+  'backend/src/kernel/lifecycle/required-modules.ts|packages/platform/src/kernel/lifecycle/required-modules.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/lifecycle/required-modules.ts`. ' +
+      'The declared barrels carry `requiredModulesFrom` (./composition). Nothing here needs ' +
+      'an address; what holds the entry open is the rewrite itself.',
+    retiredBy:
+      '`specs/110-instance-repository/` T119b — the same merge request that gives the rest ' +
+      'of the application its addresses re-points these consumers onto ' +
+      '`@endora-commerce/platform/composition`. **No symbol here needs an address** — see ' +
+      'the note above this section',
+  },
+  'backend/src/tenancy/resolve-tenant-context.ts|packages/platform/src/tenancy/resolve-tenant-context.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/tenancy/resolve-tenant-context.ts`. The ' +
+      'declared barrels carry `resolveTenantContext` (./composition), `systemTenantContext` ' +
+      '(./composition). Nothing here needs an address; what holds the entry open is the ' +
+      'rewrite itself.',
+    retiredBy:
+      '`specs/110-instance-repository/` T119b — the same merge request that gives the rest ' +
+      'of the application its addresses re-points these consumers onto ' +
+      '`@endora-commerce/platform/composition`. **No symbol here needs an address** — see ' +
+      'the note above this section',
+  },
+
+  // === HELD BY THE GENERATED ENTITY SPECIFIER (T119c) ===
+  //
+  // `generate-composer.ts`' `specifierFor` spells all six of the platform's entity
+  // classes relatively **on purpose**: one of them has no address, so the artefact
+  // that registers this build's entities cannot be written any other way. These
+  // shims carry **no** unpublished symbol — they are the entries that genuinely are
+  // a rewrite away — and T119 could not take them because the generator would put
+  // the relative specifier straight back. Never edit the artefact.
+
   'backend/src/kernel/audit/audit-log-entry.entity.ts|packages/platform/src/kernel/audit/audit-log-entry.entity.ts': {
     reason:
-      'a re-export shim over `packages/platform/src/kernel/audit/audit-log-entry.entity.ts`, ' +
-      'which `@endora-commerce/platform/kernel` already carries — the reach is a rewrite away ' +
-      'from an address that exists',
+      'a re-export shim over ' +
+      '`packages/platform/src/kernel/audit/audit-log-entry.entity.ts`. The declared barrels ' +
+      'carry `AuditLogEntry`. What holds it open is T119c.',
     retiredBy:
-      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
-      'the shim is deleted',
+      '`specs/110-instance-repository/` T119c — `specifierFor` emits a bare specifier per ' +
+      'platform entity class and `entities-registry.generated.ts` is regenerated',
   },
-  'backend/src/kernel/lifecycle/effective-state.ts|packages/platform/src/kernel/lifecycle/effective-state.ts': {
+  'backend/src/kernel/settings/setting-group.entity.ts|packages/platform/src/kernel/settings/setting-group.entity.ts': {
     reason:
-      'a re-export shim over `packages/platform/src/kernel/lifecycle/effective-state.ts`, ' +
-      'which `@endora-commerce/platform/kernel` already carries — the reach is a rewrite away ' +
-      'from an address that exists',
+      'a re-export shim over ' +
+      '`packages/platform/src/kernel/settings/setting-group.entity.ts`. The declared ' +
+      'barrels carry `SettingGroup`. What holds it open is T119c.',
     retiredBy:
-      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
-      'the shim is deleted',
+      '`specs/110-instance-repository/` T119c — `specifierFor` emits a bare specifier per ' +
+      'platform entity class and `entities-registry.generated.ts` is regenerated',
   },
-  'backend/src/kernel/lifecycle/plugin-helpers.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': {
+  'backend/src/kernel/settings/setting-value.entity.ts|packages/platform/src/kernel/settings/setting-value.entity.ts': {
     reason:
-      'a re-export shim over `packages/platform/src/kernel/lifecycle/plugin-helpers.ts`, ' +
-      'which `@endora-commerce/platform/kernel` already carries — the reach is a rewrite away ' +
-      'from an address that exists',
+      'a re-export shim over ' +
+      '`packages/platform/src/kernel/settings/setting-value.entity.ts`. The declared ' +
+      'barrels carry `SettingValue`. What holds it open is T119c.',
     retiredBy:
-      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
-      'the shim is deleted',
+      '`specs/110-instance-repository/` T119c — `specifierFor` emits a bare specifier per ' +
+      'platform entity class and `entities-registry.generated.ts` is regenerated',
   },
-  'backend/src/kernel/logging.ts|packages/platform/src/kernel/logging.ts': {
+
+  // === HELD BY A SYMBOL THE APPLICATION NEEDS AND NO BARREL CARRIES (T119b) ===
+  //
+  // `./composition` completed, and `demo/` given a `./demo` of its own. Not a
+  // widening of published surface: `PUBLISHED_SUBPATHS` stays at five and a module
+  // naming either subpath is still `host-internal-subpath`.
+
+  'backend/src/http/trusted-proxy.ts|packages/platform/src/http/trusted-proxy.ts': {
     reason:
-      'a re-export shim over `packages/platform/src/kernel/logging.ts`, which ' +
-      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
-      'an address that exists',
+      'a re-export shim over `packages/platform/src/http/trusted-proxy.ts`, which no ' +
+      'declared barrel carries: no subpath the `exports` map declares answers for ' +
+      '`TrustedProxy`, `parseTrustedProxy`. What holds it open is T119b.',
     retiredBy:
-      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
-      'the shim is deleted',
+      '`specs/110-instance-repository/` T119b — the symbol gets a host-internal address on ' +
+      '`./composition` — or, for `demo/`, on the new `./demo` — and its consumers name it',
+  },
+  'backend/src/kernel/compose.ts|packages/platform/src/kernel/compose.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/compose.ts`. The declared ' +
+      'barrels carry `DecorationRecord` (./composition), `composeModules` (./composition), ' +
+      'and none of `AmbiguousDecorationError`, `ForeignDecorationError`, ' +
+      '`ModuleCompositionError`, `ModuleEntry`. What holds it open is T119b.',
+    retiredBy:
+      '`specs/110-instance-repository/` T119b — the symbol gets a host-internal address on ' +
+      '`./composition` — or, for `demo/`, on the new `./demo` — and its consumers name it',
   },
   'backend/src/kernel/module-context.ts|packages/platform/src/kernel/module-context.ts': {
     reason:
-      'a re-export shim over `packages/platform/src/kernel/module-context.ts`, which ' +
-      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
-      'an address that exists',
+      'a re-export shim over `packages/platform/src/kernel/module-context.ts`. The declared ' +
+      'barrels carry `ModuleContext` (./kernel,./composition), ' +
+      '`createRegistrationOwnership` (./kernel,./composition), and none of ' +
+      '`ForeignDecorationError`, `ModuleRegistrationSink`, ' +
+      '`PackageDecorationNotOfferedError`, `createModuleContext`, ' +
+      '`createModuleRegistrationSink`. What holds it open is T119b.',
     retiredBy:
-      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
-      'the shim is deleted',
+      '`specs/110-instance-repository/` T119b — the symbol gets a host-internal address on ' +
+      '`./composition` — or, for `demo/`, on the new `./demo` — and its consumers name it',
   },
   'backend/src/kernel/ports/require-admin.ts|packages/platform/src/kernel/ports/require-admin.ts': {
     reason:
-      'a re-export shim over `packages/platform/src/kernel/ports/require-admin.ts`, which ' +
-      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
-      'an address that exists',
+      'a re-export shim over `packages/platform/src/kernel/ports/require-admin.ts`. The ' +
+      'declared barrels carry `AdminPermissionChecker`, `RequireAdminAnyFactory`, ' +
+      '`RequireAdminFactory`, and none of `AdminActorPromotion`. What holds it open is ' +
+      'T119b.',
     retiredBy:
-      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
-      'the shim is deleted',
+      '`specs/110-instance-repository/` T119b — the symbol gets a host-internal address on ' +
+      '`./composition` — or, for `demo/`, on the new `./demo` — and its consumers name it',
   },
   'backend/src/kernel/public-api-base-url.ts|packages/platform/src/kernel/public-api-base-url.ts': {
     reason:
-      'a re-export shim over `packages/platform/src/kernel/public-api-base-url.ts`, which ' +
-      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
-      'an address that exists',
+      'a re-export shim over `packages/platform/src/kernel/public-api-base-url.ts`. The ' +
+      'declared barrels carry `PublicApiBaseUrlNotConfiguredError`, ' +
+      '`configuredPublicApiBaseUrl`, `resolvePublicApiBaseUrl`, and none of ' +
+      '`absolutizePublicUrl`. What holds it open is T119b.',
     retiredBy:
-      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
-      'the shim is deleted',
+      '`specs/110-instance-repository/` T119b — the symbol gets a host-internal address on ' +
+      '`./composition` — or, for `demo/`, on the new `./demo` — and its consumers name it',
+  },
+
+  // === HELD BY A TEST NAMING A SYMBOL THE PLATFORM DECIDED NOT TO PUBLISH (T119e) ===
+  //
+  // `NOT_PUBLISHED` and `kernel/index.ts`' own header refuse these by name, each
+  // with a written reason. The residue is therefore not a missing platform surface:
+  // it is test files doing what a module may not do and escaping notice because
+  // they sit in the application's test tree, where this check's module half cannot
+  // see them. The remedy is a capability on `@endora-commerce/test-kit`, never a
+  // re-export from it — the kit is public and is a `devDependency` by construction,
+  // so a re-export would be D-160.8 defeated by going round it. Owned by
+  // `specs/109-backend-test-kit/`; T119e is the criterion.
+
+  'backend/src/kernel/lifecycle/effective-state.ts|packages/platform/src/kernel/lifecycle/effective-state.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/lifecycle/effective-state.ts`. ' +
+      'The declared barrels carry `effectiveState`, `toModulePresenceDto`, and none of ' +
+      '`ModuleEffectiveState`. What holds it open is T119e.',
+    retiredBy:
+      '`specs/110-instance-repository/` T119e — `@endora-commerce/test-kit` grows the ' +
+      'capability the test asks for, so no test names a symbol the platform decided not to ' +
+      'publish',
+  },
+  'backend/src/kernel/lifecycle/plugin-helpers.ts|packages/platform/src/kernel/lifecycle/plugin-helpers.ts': {
+    reason:
+      'a re-export shim over `packages/platform/src/kernel/lifecycle/plugin-helpers.ts`. ' +
+      'The declared barrels carry `ModuleDisabledError`, `requireModuleEnabled`, ' +
+      '`rethrowIfModuleDisabled`, and none of `defineModuleRoutes`, `defineModuleWorker`, ' +
+      '`pauseWorkersFor`, `resetModuleWorkersForTesting`, `resumeWorkersFor`, ' +
+      '`subscribeForModule`. What holds it open is T119e.',
+    retiredBy:
+      '`specs/110-instance-repository/` T119e — `@endora-commerce/test-kit` grows the ' +
+      'capability the test asks for, so no test names a symbol the platform decided not to ' +
+      'publish',
   },
   'backend/src/kernel/sales-channels/sales-channel-membership.service.ts|packages/platform/src/kernel/sales-channels/sales-channel-membership.service.ts': {
     reason:
       'a re-export shim over ' +
-      '`packages/platform/src/kernel/sales-channels/sales-channel-membership.service.ts`, ' +
-      'which `@endora-commerce/platform/kernel` already carries — the reach is a rewrite away ' +
-      'from an address that exists',
+      '`packages/platform/src/kernel/sales-channels/sales-channel-membership.service.ts`. ' +
+      'The declared barrels carry `MembershipMutationOptions`, `MembershipMutationResult`, ' +
+      'and none of `SalesChannelMembershipService`. What holds it open is T119e.',
     retiredBy:
-      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
-      'the shim is deleted',
+      '`specs/110-instance-repository/` T119e — `@endora-commerce/test-kit` grows the ' +
+      'capability the test asks for, so no test names a symbol the platform decided not to ' +
+      'publish',
   },
   'backend/src/kernel/sales-channels/sales-channel-resolver.service.ts|packages/platform/src/kernel/sales-channels/sales-channel-resolver.service.ts': {
     reason:
       'a re-export shim over ' +
-      '`packages/platform/src/kernel/sales-channels/sales-channel-resolver.service.ts`, which ' +
-      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
-      'an address that exists',
+      '`packages/platform/src/kernel/sales-channels/sales-channel-resolver.service.ts`. The ' +
+      'declared barrels carry `ResolverError`, `parseHostMap`, and none of ' +
+      '`SalesChannelResolverService`. What holds it open is T119e.',
     retiredBy:
-      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
-      'the shim is deleted',
+      '`specs/110-instance-repository/` T119e — `@endora-commerce/test-kit` grows the ' +
+      'capability the test asks for, so no test names a symbol the platform decided not to ' +
+      'publish',
   },
-  'backend/src/kernel/sales-channels/sales-channel.entity.ts|packages/platform/src/kernel/sales-channels/sales-channel.entity.ts': {
+  'backend/src/kernel/settings/manifest-reconciler.ts|packages/platform/src/kernel/settings/manifest-reconciler.ts': {
     reason:
       'a re-export shim over ' +
-      '`packages/platform/src/kernel/sales-channels/sales-channel.entity.ts`, which ' +
-      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
-      'an address that exists',
+      '`packages/platform/src/kernel/settings/manifest-reconciler.ts`. The declared barrels ' +
+      'carry `ManifestReconciler` (./composition), and none of `BreakingChangeRejected`, ' +
+      '`GroupCodeConflict`, `ManifestSchemaInvalid`, `SettingCodeConflict`. What holds it ' +
+      'open is T119e.',
     retiredBy:
-      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
-      'the shim is deleted',
-  },
-  'backend/src/kernel/sales-channels/sales-channels-cache.ts|packages/platform/src/kernel/sales-channels/sales-channels-cache.ts': {
-    reason:
-      'a re-export shim over ' +
-      '`packages/platform/src/kernel/sales-channels/sales-channels-cache.ts`, which ' +
-      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
-      'an address that exists',
-    retiredBy:
-      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
-      'the shim is deleted',
-  },
-  'backend/src/kernel/scope.ts|packages/platform/src/kernel/scope.ts': {
-    reason:
-      'a re-export shim over `packages/platform/src/kernel/scope.ts`, which ' +
-      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
-      'an address that exists',
-    retiredBy:
-      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
-      'the shim is deleted',
+      '`specs/110-instance-repository/` T119e — `@endora-commerce/test-kit` grows the ' +
+      'capability the test asks for, so no test names a symbol the platform decided not to ' +
+      'publish',
   },
   'backend/src/kernel/settings/secret-value-codec.ts|packages/platform/src/kernel/settings/secret-value-codec.ts': {
     reason:
-      'a re-export shim over `packages/platform/src/kernel/settings/secret-value-codec.ts`, ' +
-      'which `@endora-commerce/platform/kernel` already carries — the reach is a rewrite away ' +
-      'from an address that exists',
+      'a re-export shim over `packages/platform/src/kernel/settings/secret-value-codec.ts`. ' +
+      'The declared barrels carry `SecretKeyInvalid`, `SecretKeyMissing`, ' +
+      '`encryptSecretValue`, `secretValueIsSet`, and none of `isSecretEnvelope`. What holds ' +
+      'it open is T119e.',
     retiredBy:
-      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
-      'the shim is deleted',
-  },
-  'backend/src/kernel/settings/setting-group.entity.ts|packages/platform/src/kernel/settings/setting-group.entity.ts': {
-    reason:
-      'a re-export shim over `packages/platform/src/kernel/settings/setting-group.entity.ts`, ' +
-      'which `@endora-commerce/platform/kernel` already carries — the reach is a rewrite away ' +
-      'from an address that exists',
-    retiredBy:
-      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
-      'the shim is deleted',
-  },
-  'backend/src/kernel/settings/setting-value.entity.ts|packages/platform/src/kernel/settings/setting-value.entity.ts': {
-    reason:
-      'a re-export shim over `packages/platform/src/kernel/settings/setting-value.entity.ts`, ' +
-      'which `@endora-commerce/platform/kernel` already carries — the reach is a rewrite away ' +
-      'from an address that exists',
-    retiredBy:
-      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
-      'the shim is deleted',
-  },
-  'backend/src/kernel/settings/setting.entity.ts|packages/platform/src/kernel/settings/setting.entity.ts': {
-    reason:
-      'a re-export shim over `packages/platform/src/kernel/settings/setting.entity.ts`, which ' +
-      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
-      'an address that exists',
-    retiredBy:
-      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
-      'the shim is deleted',
+      '`specs/110-instance-repository/` T119e — `@endora-commerce/test-kit` grows the ' +
+      'capability the test asks for, so no test names a symbol the platform decided not to ' +
+      'publish',
   },
   'backend/src/kernel/settings/settings-cache.ts|packages/platform/src/kernel/settings/settings-cache.ts': {
     reason:
-      'a re-export shim over `packages/platform/src/kernel/settings/settings-cache.ts`, which ' +
-      '`@endora-commerce/platform/kernel` already carries — the reach is a rewrite away from ' +
-      'an address that exists',
+      'a re-export shim over `packages/platform/src/kernel/settings/settings-cache.ts`. The ' +
+      'declared barrels carry `SETTINGS_CACHE_KEY_PREFIX`, `SETTINGS_CACHE_NAMESPACE`, ' +
+      '`SettingsCacheInvalidation`, and none of `SettingsCache`. What holds it open is ' +
+      'T119e.',
     retiredBy:
-      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
-      'the shim is deleted',
+      '`specs/110-instance-repository/` T119e — `@endora-commerce/test-kit` grows the ' +
+      'capability the test asks for, so no test names a symbol the platform decided not to ' +
+      'publish',
   },
   'backend/src/kernel/settings/settings.service.ts|packages/platform/src/kernel/settings/settings.service.ts': {
     reason:
-      'a re-export shim over `packages/platform/src/kernel/settings/settings.service.ts`, ' +
-      'which `@endora-commerce/platform/kernel` already carries — the reach is a rewrite away ' +
-      'from an address that exists',
+      'a re-export shim over `packages/platform/src/kernel/settings/settings.service.ts`. ' +
+      'The declared barrels carry `SettingNotRegistered`, `SettingOutOfScopeForChannel`, ' +
+      '`SettingValueShapeMismatch`, `SettingsChannelIdInvalid`, and none of ' +
+      '`SettingsReadResult`, `SettingsService`. What holds it open is T119e.',
     retiredBy:
-      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
-      'the shim is deleted',
+      '`specs/110-instance-repository/` T119e — `@endora-commerce/test-kit` grows the ' +
+      'capability the test asks for, so no test names a symbol the platform decided not to ' +
+      'publish',
   },
   'backend/src/tenancy/escape-hatch.ts|packages/platform/src/tenancy/escape-hatch.ts': {
     reason:
-      'a re-export shim over `packages/platform/src/tenancy/escape-hatch.ts`, which ' +
-      '`@endora-commerce/platform/tenancy` already carries — the reach is a rewrite away from ' +
-      'an address that exists',
+      'a re-export shim over `packages/platform/src/tenancy/escape-hatch.ts`. The declared ' +
+      'barrels carry `withSystemScope`, and none of `EscapeHatchAuditRecord`, ' +
+      '`setEscapeHatchAuditSink`. What holds it open is T119e.',
     retiredBy:
-      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
-      'the shim is deleted',
+      '`specs/110-instance-repository/` T119e — `@endora-commerce/test-kit` grows the ' +
+      'capability the test asks for, so no test names a symbol the platform decided not to ' +
+      'publish',
   },
-  'backend/src/tenancy/org-scoped.decorator.ts|packages/platform/src/tenancy/org-scoped.decorator.ts': {
+  'backend/src/tenancy/filters.ts|packages/platform/src/tenancy/filters.ts': {
     reason:
-      'a re-export shim over `packages/platform/src/tenancy/org-scoped.decorator.ts`, which ' +
-      '`@endora-commerce/platform/tenancy` already carries — the reach is a rewrite away from ' +
-      'an address that exists',
+      'a re-export shim over `packages/platform/src/tenancy/filters.ts`, which no declared ' +
+      'barrel carries: no subpath the `exports` map declares answers for ' +
+      '`CUSTOMER_ORGANIZATION_KEY`, `CUSTOMER_TENANT_KEY`, `customerFilterCond`, ' +
+      '`orgFilterCond`. What holds it open is T119e.',
     retiredBy:
-      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
-      'the shim is deleted',
+      '`specs/110-instance-repository/` T119e — `@endora-commerce/test-kit` grows the ' +
+      'capability the test asks for, so no test names a symbol the platform decided not to ' +
+      'publish',
   },
   'backend/src/tenancy/tenant-context.ts|packages/platform/src/tenancy/tenant-context.ts': {
     reason:
-      'a re-export shim over `packages/platform/src/tenancy/tenant-context.ts`, which ' +
-      '`@endora-commerce/platform/tenancy` already carries — the reach is a rewrite away from ' +
-      'an address that exists',
+      'a re-export shim over `packages/platform/src/tenancy/tenant-context.ts`. The ' +
+      'declared barrels carry `MissingTenantContextError`, `TenantContext`, ' +
+      '`getTenantContext`, and none of `enterTenantContext`, `runInTenantContext`, ' +
+      '`runWithTenantContext`, `runWithoutTenantContext`; a namespace or side-effect reach ' +
+      'takes the file whole. What holds it open is T119e.',
     retiredBy:
-      'specs/110-instance-repository/ Phase 2 — the application names the bare specifier and ' +
-      'the shim is deleted',
+      '`specs/110-instance-repository/` T119e — `@endora-commerce/test-kit` grows the ' +
+      'capability the test asks for, so no test names a symbol the platform decided not to ' +
+      'publish',
   },
 
-  // === UNPUBLISHED_SHIM ===
+  // === HELD BY MORE THAN ONE ===
   //
-  // The same shape with one difference that decides the order of the repair: no
-  // barrel carries the target, so there is no address to rewrite the reach to yet.
-  // Each needs a subpath declared first — host-internal unless a module genuinely
-  // needs the symbol, which is D-160.14's line and never a widening of
-  // `PUBLISHED_SUBPATHS` taken to make a check pass. 110's Phase 2, after the
-  // subpath question is answered for each of them.
+  // The shim is deleted when its **last** consumer has an address, so an entry with
+  // two holders retires with the later of the two and not with the first. Each
+  // `retiredBy` below names every one of them; how many entries that is is printed
+  // by the run (`ledger-size=`) and is deliberately not written here (D-100).
+
   'backend/src/demo/index.ts|packages/platform/src/demo/index.ts': {
     reason:
-      'a re-export shim over `packages/platform/src/demo/index.ts`, which no barrel carries — ' +
-      'the reach needs a declared subpath before it has an address to name',
+      'a re-export shim over `packages/platform/src/demo/index.ts`, which no declared ' +
+      'barrel carries: no subpath the `exports` map declares answers for ' +
+      '`DEMO_RESET_SCOPE_REASON`, `DEMO_SEED_SCOPE_REASON`, `DemoComposition`, ' +
+      '`DemoCompositionResult`, `DemoManifestEntry`, `DemoMode`, `SEED_GUARD_PATTERN`, ' +
+      '`TEST_DATABASE_NAME_PATTERN`, `formatDemoReport`, `mustBeNonProduction`, `runDemo`, ' +
+      '`unwrapDemoFailure`. What holds it open, and the entry stands until the last of ' +
+      'them: T119b takes `DEMO_RESET_SCOPE_REASON`, `DEMO_SEED_SCOPE_REASON`, ' +
+      '`DemoComposition`, `DemoCompositionResult`, `DemoManifestEntry`, `DemoMode`, ' +
+      '`formatDemoReport`, `mustBeNonProduction`, `runDemo`, `unwrapDemoFailure`; T119e ' +
+      'takes `DEMO_RESET_SCOPE_REASON`, `DEMO_SEED_SCOPE_REASON`, `SEED_GUARD_PATTERN`, ' +
+      '`TEST_DATABASE_NAME_PATTERN`, `mustBeNonProduction`.',
     retiredBy:
-      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
-      'specifier',
+      '`specs/110-instance-repository/` T119b and T119e — the entry stands until the last ' +
+      'of them: the shim is deleted when its **last** consumer has an address, not its ' +
+      'first',
   },
-  'backend/src/http/interceptors/dispatch.ts|packages/platform/src/http/interceptors/dispatch.ts': {
+  'backend/src/http/error-envelope.ts|packages/platform/src/http/error-envelope.ts': {
     reason:
-      'a re-export shim over `packages/platform/src/http/interceptors/dispatch.ts`, which no ' +
-      'barrel carries — the reach needs a declared subpath before it has an address to name',
+      'a re-export shim over `packages/platform/src/http/error-envelope.ts`. The declared ' +
+      'barrels carry `HttpError`, and none of `HttpErrorFromApplication`, ' +
+      '`registerErrorEnvelope`. What holds it open, and the entry stands until the last of ' +
+      'them: T119b takes `registerErrorEnvelope`; T119e takes `HttpErrorFromApplication`.',
     retiredBy:
-      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
-      'specifier',
+      '`specs/110-instance-repository/` T119b and T119e — the entry stands until the last ' +
+      'of them: the shim is deleted when its **last** consumer has an address, not its ' +
+      'first',
   },
-  'backend/src/http/interceptors/registry.ts|packages/platform/src/http/interceptors/registry.ts': {
-    reason:
-      'a re-export shim over `packages/platform/src/http/interceptors/registry.ts`, which no ' +
-      'barrel carries — the reach needs a declared subpath before it has an address to name',
-    retiredBy:
-      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
-      'specifier',
-  },
-  'backend/src/http/interceptors/route-table.ts|packages/platform/src/http/interceptors/route-table.ts': {
-    reason:
-      'a re-export shim over `packages/platform/src/http/interceptors/route-table.ts`, which ' +
-      'no barrel carries — the reach needs a declared subpath before it has an address to ' +
-      'name',
-    retiredBy:
-      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
-      'specifier',
-  },
-  'backend/src/http/interceptors/validation.ts|packages/platform/src/http/interceptors/validation.ts': {
-    reason:
-      'a re-export shim over `packages/platform/src/http/interceptors/validation.ts`, which ' +
-      'no barrel carries — the reach needs a declared subpath before it has an address to ' +
-      'name',
-    retiredBy:
-      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
-      'specifier',
-  },
-  'backend/src/http/trusted-proxy.ts|packages/platform/src/http/trusted-proxy.ts': {
-    reason:
-      'a re-export shim over `packages/platform/src/http/trusted-proxy.ts`, which no barrel ' +
-      'carries — the reach needs a declared subpath before it has an address to name',
-    retiredBy:
-      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
-      'specifier',
-  },
-  'backend/src/kernel/compose.ts|packages/platform/src/kernel/compose.ts': {
-    reason:
-      'a re-export shim over `packages/platform/src/kernel/compose.ts`, which no barrel ' +
-      'carries — the reach needs a declared subpath before it has an address to name',
-    retiredBy:
-      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
-      'specifier',
-  },
-  'backend/src/kernel/container.ts|packages/platform/src/kernel/container.ts': {
-    reason:
-      'a re-export shim over `packages/platform/src/kernel/container.ts`, which no barrel ' +
-      'carries — the reach needs a declared subpath before it has an address to name',
-    retiredBy:
-      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
-      'specifier',
-  },
-  // The one entry this ledger **gained** rather than drained, and it is worth a
-  // sentence: `specs/117-instance-bring-up/` FR-030 moved the error-code routing
-  // derivation out of `_i18n` and into the platform, beside `request-language.ts`
-  // below — the producer of the other `ErrorEnvelopeOptions` member a composition
-  // root injects. Before the move the root reached it by a **bare** specifier
-  // into the module's package, which is why it needed no entry here and why it
-  // was a value import of a module the same root is about to become platform
-  // code beside (D-52, D-53). One relative reach in exchange for one module
-  // import, and this one retires with its 84 neighbours.
   'backend/src/kernel/i18n/error-translation.ts|packages/platform/src/kernel/i18n/error-translation.ts': {
     reason:
-      'a re-export shim over `packages/platform/src/kernel/i18n/error-translation.ts`, which ' +
-      'no barrel carries — no module calls the derivation, so `host-package.md` §1.3 ' +
-      'classifies it unreached and the reach needs a host-internal subpath before it has an ' +
-      'address to name',
+      'a re-export shim over `packages/platform/src/kernel/i18n/error-translation.ts`, ' +
+      'which no declared barrel carries: no subpath the `exports` map declares answers for ' +
+      '`ErrorCodeCollision`, `ErrorCodeDeclarationSource`, `ErrorTranslationTarget`, ' +
+      '`buildErrorTranslationTargets`, `describeErrorCodeCollisions`. What holds it open, ' +
+      'and the entry stands until the last of them: T119d takes `ErrorCodeCollision`, ' +
+      '`buildErrorTranslationTargets`, `describeErrorCodeCollisions`; T119e takes ' +
+      '`ErrorCodeDeclarationSource`, `ErrorTranslationTarget`, ' +
+      '`buildErrorTranslationTargets`, `describeErrorCodeCollisions`.',
     retiredBy:
-      'specs/110-instance-repository/ Phase 2 — T118 moves the caller into the platform, at ' +
-      'which point the reach is the package naming its own file and the shim is deleted',
-  },
-  'backend/src/kernel/i18n/request-language.ts|packages/platform/src/kernel/i18n/request-language.ts': {
-    reason:
-      'a re-export shim over `packages/platform/src/kernel/i18n/request-language.ts`, which ' +
-      'no barrel carries — the reach needs a declared subpath before it has an address to ' +
-      'name',
-    retiredBy:
-      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
-      'specifier',
-  },
-  'backend/src/kernel/lifecycle/activation-resolver.ts|packages/platform/src/kernel/lifecycle/activation-resolver.ts': {
-    reason:
-      'a re-export shim over `packages/platform/src/kernel/lifecycle/activation-resolver.ts`, ' +
-      'which no barrel carries — the reach needs a declared subpath before it has an address ' +
-      'to name',
-    retiredBy:
-      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
-      'specifier',
+      '`specs/110-instance-repository/` T119d and T119e — the entry stands until the last ' +
+      'of them: the shim is deleted when its **last** consumer has an address, not its ' +
+      'first',
   },
   'backend/src/kernel/lifecycle/module-registration.entity.ts|packages/platform/src/kernel/lifecycle/module-registration.entity.ts': {
     reason:
       'a re-export shim over ' +
       '`packages/platform/src/kernel/lifecycle/module-registration.entity.ts`, which no ' +
-      'barrel carries — the reach needs a declared subpath before it has an address to name',
+      'declared barrel carries: no subpath the `exports` map declares answers for ' +
+      '`ModuleRegistration`; a namespace or side-effect reach takes the file whole. What ' +
+      'holds it open, and the entry stands until the last of them: T119c takes the ' +
+      'generated specifier; T119b takes `ModuleRegistration` and the file whole; T119e ' +
+      'takes `ModuleRegistration`.',
     retiredBy:
-      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
-      'specifier',
+      '`specs/110-instance-repository/` T119c, T119b and T119e — the entry stands until the ' +
+      'last of them: the shim is deleted when its **last** consumer has an address, not its ' +
+      'first',
   },
   'backend/src/kernel/lifecycle/registry-cache.ts|packages/platform/src/kernel/lifecycle/registry-cache.ts': {
     reason:
-      'a re-export shim over `packages/platform/src/kernel/lifecycle/registry-cache.ts`, ' +
-      'which no barrel carries — the reach needs a declared subpath before it has an address ' +
-      'to name',
+      'a re-export shim over `packages/platform/src/kernel/lifecycle/registry-cache.ts`. ' +
+      'The declared barrels carry `publishStateChanged` (./composition), `registryCache` ' +
+      '(./composition), and none of `FALLBACK_TTL_MS`, `ModulePresenceNotLoadedError`, ' +
+      '`ModuleRegistryCache`, `STATE_CHANGED_CHANNEL`; a namespace or side-effect reach ' +
+      'takes the file whole. What holds it open, and the entry stands until the last of ' +
+      'them: T119b takes `ModuleRegistryCache`; T119e takes `FALLBACK_TTL_MS`, ' +
+      '`ModulePresenceNotLoadedError`, `STATE_CHANGED_CHANNEL` and the file whole.',
     retiredBy:
-      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
-      'specifier',
+      '`specs/110-instance-repository/` T119b and T119e — the entry stands until the last ' +
+      'of them: the shim is deleted when its **last** consumer has an address, not its ' +
+      'first',
   },
-  'backend/src/kernel/lifecycle/required-modules.ts|packages/platform/src/kernel/lifecycle/required-modules.ts': {
+  'backend/src/kernel/sales-channels/sales-channel.entity.ts|packages/platform/src/kernel/sales-channels/sales-channel.entity.ts': {
     reason:
-      'a re-export shim over `packages/platform/src/kernel/lifecycle/required-modules.ts`, ' +
-      'which no barrel carries — the reach needs a declared subpath before it has an address ' +
-      'to name',
+      'a re-export shim over ' +
+      '`packages/platform/src/kernel/sales-channels/sales-channel.entity.ts`. The declared ' +
+      'barrels carry `SalesChannel`, and none of `SalesChannelFromApplication`; a namespace ' +
+      'or side-effect reach takes the file whole. What holds it open, and the entry stands ' +
+      'until the last of them: T119c takes the generated specifier; T119e takes ' +
+      '`SalesChannelFromApplication` and the file whole.',
     retiredBy:
-      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
-      'specifier',
+      '`specs/110-instance-repository/` T119c and T119e — the entry stands until the last ' +
+      'of them: the shim is deleted when its **last** consumer has an address, not its ' +
+      'first',
   },
-  'backend/src/kernel/lifecycle/unique-module-ids.ts|packages/platform/src/kernel/lifecycle/unique-module-ids.ts': {
+  'backend/src/kernel/scope.ts|packages/platform/src/kernel/scope.ts': {
     reason:
-      'a re-export shim over `packages/platform/src/kernel/lifecycle/unique-module-ids.ts`, ' +
-      'which no barrel carries — the reach needs a declared subpath before it has an address ' +
-      'to name',
+      'a re-export shim over `packages/platform/src/kernel/scope.ts`. The declared barrels ' +
+      'carry `enterSystemScope`, and none of `enterPlatformScope`, ' +
+      '`getCurrentPlatformScope`, `openPlatformScopeCount`; a namespace or side-effect ' +
+      'reach takes the file whole. What holds it open, and the entry stands until the last ' +
+      'of them: T119b takes the file whole; T119e takes `enterPlatformScope`, ' +
+      '`getCurrentPlatformScope`, `openPlatformScopeCount`.',
     retiredBy:
-      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
-      'specifier',
+      '`specs/110-instance-repository/` T119b and T119e — the entry stands until the last ' +
+      'of them: the shim is deleted when its **last** consumer has an address, not its ' +
+      'first',
   },
-  'backend/src/kernel/request-scope-hook.ts|packages/platform/src/kernel/request-scope-hook.ts': {
+  'backend/src/kernel/settings/setting.entity.ts|packages/platform/src/kernel/settings/setting.entity.ts': {
     reason:
-      'a re-export shim over `packages/platform/src/kernel/request-scope-hook.ts`, which no ' +
-      'barrel carries — the reach needs a declared subpath before it has an address to name',
+      'a re-export shim over `packages/platform/src/kernel/settings/setting.entity.ts`. The ' +
+      'declared barrels carry `Setting`, and a namespace or side-effect reach takes the ' +
+      'file whole. What holds it open, and the entry stands until the last of them: T119c ' +
+      'takes the generated specifier; T119b takes the file whole.',
     retiredBy:
-      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
-      'specifier',
+      '`specs/110-instance-repository/` T119c and T119b — the entry stands until the last ' +
+      'of them: the shim is deleted when its **last** consumer has an address, not its ' +
+      'first',
   },
-  'backend/src/kernel/settings/manifest-reconciler.ts|packages/platform/src/kernel/settings/manifest-reconciler.ts': {
+  'backend/src/tenancy/org-scoped.decorator.ts|packages/platform/src/tenancy/org-scoped.decorator.ts': {
     reason:
-      'a re-export shim over `packages/platform/src/kernel/settings/manifest-reconciler.ts`, ' +
-      'which no barrel carries — the reach needs a declared subpath before it has an address ' +
-      'to name',
+      'a re-export shim over `packages/platform/src/tenancy/org-scoped.decorator.ts`. The ' +
+      'declared barrels carry `CustomerScoped`, `GlobalEntity`, `OrgScoped`, `RuleScoped`, ' +
+      '`TransitivelyScoped`, and none of `ScopeClass`, `UnresolvableTenantParentError`, ' +
+      '`assertTransitiveParentsResolve`, `resolveTransitiveParent`, ' +
+      '`tenantClassifications`. What holds it open, and the entry stands until the last of ' +
+      'them: T119d takes `ScopeClass`, `tenantClassifications`; T119e takes ' +
+      '`UnresolvableTenantParentError`, `assertTransitiveParentsResolve`, ' +
+      '`resolveTransitiveParent`, `tenantClassifications`.',
     retiredBy:
-      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
-      'specifier',
-  },
-  'backend/src/tenancy/filters.ts|packages/platform/src/tenancy/filters.ts': {
-    reason:
-      'a re-export shim over `packages/platform/src/tenancy/filters.ts`, which no barrel ' +
-      'carries — the reach needs a declared subpath before it has an address to name',
-    retiredBy:
-      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
-      'specifier',
-  },
-  'backend/src/tenancy/resolve-tenant-context.ts|packages/platform/src/tenancy/resolve-tenant-context.ts': {
-    reason:
-      'a re-export shim over `packages/platform/src/tenancy/resolve-tenant-context.ts`, which ' +
-      'no barrel carries — the reach needs a declared subpath before it has an address to ' +
-      'name',
-    retiredBy:
-      'specs/110-instance-repository/ Phase 2 — a subpath for the target first, then the bare ' +
-      'specifier',
+      '`specs/110-instance-repository/` T119d and T119e — the entry stands until the last ' +
+      'of them: the shim is deleted when its **last** consumer has an address, not its ' +
+      'first',
   },
 };
 

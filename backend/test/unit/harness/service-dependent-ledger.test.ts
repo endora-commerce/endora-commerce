@@ -376,7 +376,7 @@ const MISFILED_INTEGRATION_TESTS: Readonly<Record<string, MisfiledIntegrationTes
     scope: 'unit',
     reason:
       'Hand-built entries through `composeModules`, asserting the decoration errors and the ' +
-      'wrap order. The same shape as `test/unit/kernel/decoration-drain.test.ts`, which is ' +
+      'wrap order. The same shape as `packages/platform/src/kernel/decoration-drain.test.ts`, which is ' +
       'already where it says it is.',
   },
   'test/integration/quote_requests/migration.test.ts': {

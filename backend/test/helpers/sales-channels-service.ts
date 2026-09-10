@@ -5,7 +5,7 @@ import type {
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '@endora-commerce/platform/events';
 import type { AuditLogService } from '@endora-commerce/platform/composition';
-import type { SalesChannelsCacheInvalidation } from '../../src/kernel/sales-channels/sales-channels-cache.js';
+import type { SalesChannelsCacheInvalidation } from '@endora-commerce/platform/kernel';
 import { SalesChannelsService } from '../../../packages/modules/sales_channels/src/backend/services/sales-channels.service.js';
 import type { BackendServerHandle } from './test-server.js';
 

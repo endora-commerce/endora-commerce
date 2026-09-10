@@ -159,7 +159,7 @@ export function runInTenantContext(ctx: TenantContext, callback: () => void): vo
  * `AsyncContextFrame` the default and `exit` frame-scoped, which is why the
  * defect was invisible on a developer's machine and red in CI for as long as it
  * stood (`test/unit/seeds/seed-scope.test.ts`,
- * `test/unit/kernel/registry-cache-scope.test.ts`).
+ * `packages/platform/src/kernel/lifecycle/registry-cache-scope.test.ts`).
  *
  * Running with `undefined` as the store is the same observable contract —
  * `getStore()` answers `undefined`, and the caller's context is restored on

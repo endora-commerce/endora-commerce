@@ -247,13 +247,21 @@ directory used to be gated behind a globalSetup that creates and migrates a data
 
 | Command | Covers | Needs | Measured |
 | --- | --- | --- | --- |
-| `pnpm --filter backend run test:unit:fast` | `test/unit` minus those 16, plus the unit tests co-located under `src/`, plus the outer tests named in `test/service-free-outer-tests.ts` | nothing | 353 files, 6221 tests, 441 s (2026-09-05) |
+| `pnpm --filter backend run test:unit:fast` | `test/unit` minus those 16, plus the unit tests co-located under `src/`, plus the outer tests named in `test/service-free-outer-tests.ts` | nothing | 325 files, 6347 tests, 476 s (2026-09-09) |
 | `pnpm --filter backend run test` | everything, the 16 included | Postgres + Redis + Meilisearch | `test/unit` alone: 316 files, 252 s |
 
 The fast run **prints its own counts, and the printed figure is the only current one** — this
 table read "324 files, 96 s" while the run reported 349 and 436. Feature 112 moved it from
 349 files / 6164 tests / 428 s to 353 / 6221 / 441 — **+13 s, 3.0 %**, both halves measured in
 one worktree on one machine so the delta is not two machine states subtracted.
+
+`specs/110-instance-repository/` T119a then moved it **down**, and it is the one entry in this
+table whose fall is not a loss: 375 files to **325**, because fifty of them are
+`@endora-commerce/platform`'s own and now live in that package (see below). The identity is
+exact rather than inferred — 389 `test/unit` files on `origin/master` minus the 16
+service-dependent plus the 2 outer tests is 375; 339 minus 16 plus 2 is 325; and the package
+collects 50 files and 521 tests. Nothing was dropped; the run that covers those 521 is
+`pnpm --filter '!backend' run test`.
 
 The fast run uses `backend/vitest.unit.config.ts`, and choosing that config **is** the
 declaration that the run has no services: it sets `BACKEND_TEST_SERVICES=none`,
@@ -281,6 +289,50 @@ needing one — the second is the direction nothing else would notice.
 A service-dependent test that lands in the fast run does not pass quietly. Both harness
 seams call `assertServicesAvailable` before they dial anything, so the run stops with a
 sentence naming the ledger it is missing from.
+
+### The platform's own unit tests are not in this tree
+
+They are in `@endora-commerce/platform`, beside the sources they cover
+(`specs/110-instance-repository/`, T119a) — `packages/platform/src/**/*.test.ts`, run by
+`pnpm --filter @endora-commerce/platform run test`, and in CI by `test:frontend`, which is
+`pnpm --filter '!backend' run test` on every merge request and on `master`. **They were not
+deleted.** If you are looking for `test/unit/kernel/container.test.ts`,
+`test/unit/tenancy/tenant-context.test.ts` or `test/unit/http/interceptors/validation.test.ts`,
+that is where they went, and `git log --follow` on the new path is the record.
+
+This is `specs/106-module-owned-tests/`' convention applied to the one package in this tree
+that had a `src/` and no tests at all. It is not tidying: inside the package a test names a
+**relative** path, so an internal the barrels deliberately do not publish — `normalise`,
+`parseAcceptLanguage`, `SETTINGS_LRU_TTL_MS`, `duplicateModuleIds`, `validateRegistrations`,
+`withScopeNotice`, `makePreDispatchOnRoute` — stops being a surface question rather than
+being given an address it should not have (D-160.8). Nine `RELATIVE_HOST_REACHES` entries
+retired with the move and `backend/src/http/interceptors/` is gone entirely.
+
+The package's run carries `backend/test/tenancy-setup.ts`'s counterpart as
+`packages/platform/vitest.setup.ts` — feature 050's ambient `system` scope is a property of
+the *run*, and four of the moved files assert over it — and the same `--expose-gc` this
+config passes, for `src/kernel/scope-retention.test.ts`'s post-GC heap reading.
+
+**What stayed, and why, because "the platform's tests" is not the same set as "the tests
+under `test/unit/kernel`".** A test moves only when everything it needs is inside the
+package: a reach into `backend/scripts/**`, into one of the application's own generated
+artefacts, into a module package or into a `backend/test/` helper is a reach the platform may
+not have — the last three are D-52/D-53 — so of the 115 files in the eight candidate
+directories, 65 stayed for that reason alone. Five more were held back one at a time:
+
+| File | Why it stays |
+| --- | --- |
+| `test/unit/kernel/compose-app-contributions.test.ts` | reads `backend/src/composition.ts` as text; its subject is the reference deployment's composition root, which is the application's |
+| `test/unit/kernel/platform-single-copy.test.ts` | spawns a probe from the backend root; its subject is the application↔package boundary and it has to be measured from the application's side |
+| `test/unit/_lifecycle/manifest-loader.test.ts` | its fixture tree `test/fixtures/manifests/` is shared with `test/integration/_lifecycle/boot-cycle-detect.integration.test.ts`, which stays |
+| `test/unit/_lifecycle/manifest-schema.zod.test.ts` | its subject is `@endora-commerce/contracts`' schema, not a platform source |
+| `test/unit/settings/manifest-schema.test.ts` | the same |
+
+The consequence worth stating rather than discovering: these files leave
+`test:unit:fast`, the command a developer runs locally, and land in
+`pnpm --filter '!backend' run test`. The 70 module packages already pay exactly that, so
+this is consistent rather than novel — but a change to `packages/platform/src` is not
+covered by the backend fast run, and running only that run is now running less than it was.
 
 ### Which tree a test belongs in, and which job runs it
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { SalesChannelResolverService } from '../../../src/kernel/sales-channels/sales-channel-resolver.service.js';
 import { NoSystemDefaultChannel } from '@endora-commerce/platform/kernel';
-import type { SalesChannelsCache } from '../../../src/kernel/sales-channels/sales-channels-cache.js';
+import type { SalesChannelsCache } from '@endora-commerce/platform/kernel';
 
 /**
  * D-48 — `getSystemDefault()` is non-nullable.

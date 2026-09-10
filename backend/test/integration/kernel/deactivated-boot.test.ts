@@ -41,7 +41,7 @@ import { deploymentRoot } from '../../../src/overlay/overlay-roots.js';
  * here, and the operator's write is then applied through
  * `registryCache.__setEnabledForTesting`, the seam whose own note says it counts
  * as a load. The settings-row → activation-value path is feature 073's, and
- * `test/unit/_lifecycle/activation-resolver.test.ts` owns it.
+ * `packages/platform/src/kernel/lifecycle/activation-resolver.test.ts` owns it.
  */
 
 /**

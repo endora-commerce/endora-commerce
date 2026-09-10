@@ -1,0 +1,33 @@
+{
+  // The co-located tests' own type-check program (`specs/110-instance-repository/`, T119a).
+  //
+  // `tsconfig.json` excludes `src/**/*.test.ts` and has to: it is what
+  // `tsconfig.build.json` extends, and a test compiled into `dist` would carry an
+  // `import … from 'vitest'` that no consumer's install can resolve. Excluding them from
+  // the **emit** is not a reason to exclude them from `tsc`, and until T119a moved these
+  // fifty files they were in `backend/tsconfig.json`'s program — so following the emit
+  // configuration's exclusion without this file would have been a silent loss of the one
+  // check that reads every line of them.
+  //
+  // It emits nothing (`noEmit` is inherited and re-stated), so it cannot land an artefact
+  // beside a sibling's source the way an active `paths` block plus a `rootDir` would
+  // (TS6059). `pnpm run typecheck` runs it after `tsconfig.json`.
+  //
+  // `vitest.config.ts` is deliberately **not** in it: it imports the repository-root
+  // `vitest.config.base.js`, which is outside every `rootDir` and `paths` entry this
+  // package has, and pulling it in would type-check the workspace's shared configuration
+  // from here rather than from where it lives.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  // `src/**/*` **and** the tests, rather than the tests alone: a program of test
+  // files pulls their subjects in transitively and misses everything nothing imports —
+  // among it `src/http/request-actor.ts`, whose `declare module 'fastify'` is what gives
+  // `request.actor` a type. Four files that compile clean in `tsconfig.json` reported
+  // TS2339 here for that reason alone, which is a finding about the program rather than
+  // about the code. A superset costs a second full pass and answers the same question the
+  // application's own `tsconfig.json` did before these files moved.
+  "include": ["src/**/*", "vitest.setup.ts"],
+  "exclude": []
+}

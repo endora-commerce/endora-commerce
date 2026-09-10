@@ -767,7 +767,7 @@ describe('T076 — the drift between the roots is an exact ledger', () => {
    * D-101's boot refusal is the newest thing behind it, which is why that
    * decision put the analysis in a pure function (`assertLockedModulesPresent`)
    * and left only the call in the boot step;
-   * `test/unit/_lifecycle/locked-modules-present.test.ts` is its proof, and it
+   * `packages/platform/src/lifecycle/services/locked-modules-present.test.ts` is its proof, and it
    * runs because it needs no composition at all.
    */
   const PRODUCTION_ONLY_BOOT_STEPS: Readonly<Record<string, string>> = {

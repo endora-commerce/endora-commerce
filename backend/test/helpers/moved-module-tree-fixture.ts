@@ -861,7 +861,21 @@ function copyPlatformPackage(root: string): void {
   // a path that never passes through `backend/`. That is why
   // `FIXTURE_NODE_MODULES` names this directory; the tree itself is installed
   // once, at the end, when the fixture knows which packages it holds.
-  for (const file of ['package.json', 'tsconfig.json', 'tsconfig.build.json']) {
+  for (const file of [
+    'package.json',
+    'tsconfig.json',
+    'tsconfig.build.json',
+    // The test configuration, since `specs/110-instance-repository/` T119a gave
+    // the platform co-located tests. `_lifecycle` is a **registered module**
+    // whose sources are this package's (D-160.11), so `check-test-ownership`
+    // walks `src/lifecycle`, finds the test files and then asks the owning
+    // workspace member whether anything runs them. A fixture holding the tests
+    // and not the configuration answers *no*, and the check is red on a defect
+    // the fixture introduced rather than on the moved tree it is measuring.
+    'tsconfig.test.json',
+    'vitest.config.ts',
+    'vitest.setup.ts',
+  ]) {
     cpSync(join(source, file), join(destination, file));
   }
   // `src` first and `dist` with the source's own timestamps, both (FR-011).

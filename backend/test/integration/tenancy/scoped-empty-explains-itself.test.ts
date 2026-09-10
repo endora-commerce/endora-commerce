@@ -56,9 +56,9 @@ import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
  * `@CustomerScoped` classes still without the column are Group A's and none of
  * them has an admin list a sales representative reads, so there is no surface
  * left in this repository over which the notice can be observed. Its machinery
- * is covered at the unit level — `test/unit/tenancy/scope-notice.test.ts`,
- * `test/unit/kernel/request-scope-notice.test.ts`, and
- * `test/unit/tenancy/tenant-context.test.ts`'s `customerFilterCond('absent')`
+ * is covered at the unit level — `packages/platform/src/tenancy/scope-notice.test.ts`,
+ * `packages/platform/src/kernel/request-scope-notice.test.ts`, and
+ * `packages/platform/src/tenancy/tenant-context.test.ts`'s `customerFilterCond('absent')`
  * cases — and the first Group A class to land both a column and a surface is
  * where the end-to-end half belongs again.
  */
@@ -263,8 +263,8 @@ describe('a scoped administrator is shown these lists, and told nothing about th
     // this merge request can close: the eleven `@CustomerScoped` classes still
     // without the column are Group A's, and none of them has an admin list a
     // sales representative reads. The disclosure's own machinery keeps its
-    // proofs in `test/unit/tenancy/scope-notice.test.ts` and
-    // `test/unit/kernel/request-scope-notice.test.ts`; the first Group A class
+    // proofs in `packages/platform/src/tenancy/scope-notice.test.ts` and
+    // `packages/platform/src/kernel/request-scope-notice.test.ts`; the first Group A class
     // to land a surface is where this end-to-end half comes back.
     //
     // Inverted rather than deleted, for the reason the two cases above give:

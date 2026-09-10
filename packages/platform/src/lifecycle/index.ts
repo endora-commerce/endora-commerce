@@ -130,11 +130,13 @@ export {
   LifecycleError,
   ModuleLifecycleOrchestrator,
 } from './services/orchestrator.js';
-export {
-  acquireLifecycleLock,
-  LifecycleLockError,
-  LOCK_KEY,
-} from './services/lock.js';
+// `acquireLifecycleLock` and `LifecycleLockError` left this barrel with
+// `specs/110-instance-repository/` T119a, for `dep-graph.ts`' three functions'
+// reason one population over: their one consumer outside the platform was
+// `test/unit/_lifecycle/lock.test.ts`, which is now `services/lock.test.ts`
+// inside the package and names the file directly. `LOCK_KEY` stays — the
+// application's `module:*` entry points still read it. R5.4.
+export { LOCK_KEY } from './services/lock.js';
 
 // --- the two graphs a presence decision is computed over ------------------
 //
@@ -159,7 +161,6 @@ export {
   type CrossModuleRead,
   type DeactivationLedger,
   type LedgerEntry,
-  type LedgerInput,
   type UnassignedEdge,
 } from './services/deactivation-ledger.js';
 
@@ -185,14 +186,16 @@ export {
   type ModuleIdClaim,
   type ModuleIdCollision,
 } from './services/module-id-claims.js';
+// `DiscoveredManifestEntry`, `OverlayModuleFound` and `PackageModuleFound` left
+// this barrel with T119a: `manifest-registry.test.ts` was the only first-party
+// source outside the platform naming them, and it is `lifecycle/manifest-registry.test.ts`
+// inside the package now. `ManifestSources` stays — `backend/src/lifecycle/`'s
+// registry binding is written against it.
 export {
   coreManifestEntries,
   ManifestPathMissingError,
   resolveManifestEntries,
-  type DiscoveredManifestEntry,
   type ManifestSources,
-  type OverlayModuleFound,
-  type PackageModuleFound,
   type RegisteredManifestEntry,
 } from './manifest-registry.js';
 export { buildStaticRegistry } from './services/static-registry.js';

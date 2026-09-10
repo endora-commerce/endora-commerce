@@ -79,8 +79,9 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json && node ../../scripts/copy-package-assets.mjs --src src --out dist",
-    "typecheck": "tsc -p tsconfig.json",
-    "lint": "eslint src"
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
+    "lint": "eslint src",
+    "test": "vitest run"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^8.5.0",
@@ -112,6 +113,7 @@
     "@types/node": "^22.9.0",
     "fastify": "^5.8.5",
     "typescript": "^5.9.3",
+    "vitest": "^2.1.4",
     "zod": "^4.2.0"
   }
 }

@@ -6,7 +6,7 @@ import { PublicApiBaseUrlNotConfiguredError } from '../../../src/kernel/public-a
 /**
  * The production root refuses to boot without a public origin (issue #218).
  *
- * The rule itself is unit-tested in `test/unit/kernel/public-api-base-url.test.ts`,
+ * The rule itself is unit-tested in `packages/platform/src/kernel/public-api-base-url.test.ts`,
  * both arms — refused with nothing set, accepted through each of the three
  * spellings, `BACKEND_PUBLIC_URL` (what `deploy/compose.prod.yml` supplies)
  * included. What *this* file proves is that the rule is wired into the root the

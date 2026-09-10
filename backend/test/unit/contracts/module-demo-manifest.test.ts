@@ -195,7 +195,7 @@ describe('defineModuleManifest — demo declaration (feature 113, contract §1)'
       //
       // The **runner** half of §6 is built too (T235):
       // `packages/platform/src/demo/packages.ts` probes the name and imports it
-      // in two separate steps, and `test/unit/demo/demo-runner.test.ts` asserts
+      // in two separate steps, and `packages/platform/src/demo/demo-runner.test.ts` asserts
       // §6.3's three answers are distinguishable. `check:demo-data-budget`
       // reads the field as an over-budget module's remedy (§7.6).
       const parsed = ModuleDemoDeclarationSchema.parse({

@@ -827,8 +827,15 @@ describe('`./composition`, the subpath no module may name (D-160.14)', () => {
  * none ever will again, because the address exists. Keeping it would be a
  * comparison of nothing to nothing dressed as a guard, which is the failure the
  * ledger half's own vacuous-pass check refused; the honest population is now
- * the consumers, and they are 50 test files, five `module:*` entry points, the
- * manifest-registry binding and both generated artefacts.
+ * the consumers — the backend test tree, the five `module:*` entry points, the
+ * manifest-registry binding and both generated artefacts. **How many files that
+ * is is not written here** (D-100): this sentence read *50 test files* and
+ * `specs/110-instance-repository/` T119a moved eight of them into the package,
+ * where they name their subjects relatively, which cost the barrel six names in
+ * the same merge request — `acquireLifecycleLock`, `LifecycleLockError`,
+ * `LedgerInput`, `DiscoveredManifestEntry`, `OverlayModuleFound` and
+ * `PackageModuleFound`. That is this ratchet working, and a count beside it is
+ * a second statement of the population waiting to disagree with the walk.
  *
  * ## What the one remaining direction pair catches
  *

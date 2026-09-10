@@ -74,7 +74,12 @@ export default mergeConfig(
           minForks: 1,
           maxForks: 4,
           // `--expose-gc` for the same reason the complete suite passes it —
-          // `test/unit/kernel/scope-retention.test.ts` measures a post-GC heap.
+          // `test/unit/harness/heap-headroom.test.ts` measures a post-GC heap.
+          // It named `test/unit/kernel/scope-retention.test.ts` until that file
+          // moved into `@endora-commerce/platform` with the rest of the
+          // platform's own unit tests (`specs/110-instance-repository/`, T119a),
+          // where `packages/platform/vitest.config.ts` passes the same flag. The
+          // flag is still needed here; the file that needs it is a different one.
           execArgv: ['--expose-gc'],
         },
       },
