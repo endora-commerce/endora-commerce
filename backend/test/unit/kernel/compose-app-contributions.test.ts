@@ -218,12 +218,12 @@ describe('T118 — the contribution wiring is the platform’s and the values ar
     expect(both, 'contributed on both sides of the package boundary').toEqual([]);
   });
 
-  it('leaves the reference deployment the rest of the fifty-nine', () => {
+  it('leaves the reference deployment the rest of the fifty-four', () => {
     // The vacuous-pass guard, and the reason the number is here rather than in
     // the row: a `composition.ts` whose contributions the parser stopped seeing
     // would satisfy the disjointness above perfectly.
     //
-    // **61 -> 59 -> 58 -> 57 -> 55, and the total is expected to fall.** This is a ledger
+    // **61 -> 59 -> 58 -> 57 -> 55 -> 54, and the total is expected to fall.** This is a ledger
     // derived *about* the contributions rather than a copy of them, so T118c's
     // sweep — which drains the 31 cross-module names into ports, module by
     // module — reds it once per target module, in a merge request that has no
@@ -249,6 +249,19 @@ describe('T118 — the contribution wiring is the platform’s and the values ar
     // password verifier and without an account-e-mail resolver and no test in the
     // tree could see either; `backend/test/integration/mfa/account-identity-wiring.test.ts`
     // is where they are asserted now.
+    // The fifth is `productFeedsBridge`, one name carrying **four** members, and
+    // it is the first target whose drain needed three publications at once:
+    // `assets_library` had no publishable byte surface at all — its in-process
+    // `StorageAdapter` names `NodeJS.ReadableStream`, declares an *optional*
+    // method (D-97.3) and answers `getForBackend` with a union whose second arm
+    // cannot stream, which is why both of its consumers probed for `open` at the
+    // call site and why this root's closure threw in that branch — so
+    // `ObjectStoragePort` is new; `inventory`'s availability port existed and
+    // carried no type argument, so a consumer had no name to import; and
+    // `catalog`'s subtree walk moved out of an unpublished container name onto
+    // `catalogCategoryReadPort`. The fourth, FR-043's stable-URL rule, went to
+    // its owner as `assetReadPort.resolvePublicUrls`, because only the owner can
+    // tell a stable URL from a signed one.
     // The floor below read `> 30` and is now `> 0`, because it was a **second**
     // number the sweep moves and it moved first: this drain took the deployment
     // to exactly 30. It was never the guard it looks like — a walk that stopped
@@ -259,7 +272,7 @@ describe('T118 — the contribution wiring is the platform’s and the values ar
 
     expect(deployment.size, 'the reference deployment contributes nothing — the walk broke')
       .toBeGreaterThan(0);
-    expect(deployment.size + PLATFORM_CONTRIBUTIONS.length).toBe(55);
+    expect(deployment.size + PLATFORM_CONTRIBUTIONS.length).toBe(54);
   });
 
   it('contributes before the caller’s callback, so a deployment can still override', () => {

@@ -13,6 +13,7 @@ import type {
   CustomerAccountReadPort,
   EmailDefaultsRegistryPort,
   EmailMailerPort,
+  InventoryAvailabilityPort,
   InventoryFulfilmentPlanningPort,
   InventoryProductThresholdWritePort,
   InventoryStockImportPort,
@@ -137,13 +138,17 @@ export interface InventoryCradle {
    * The root's copies were also ungated. They kept answering with `inventory`
    * switched off, because only a module's own registration goes through
    * `providePort`.
+   *
+   * The shape was written out inline here and again in each root's local type,
+   * and the `providePort` call carried **no type argument**, so nothing
+   * compared the registration to anything and a consumer had no name to import.
+   * `specs/110-instance-repository/` T118c published it as
+   * {@link InventoryAvailabilityPort}, when `product_feeds` stopped reaching it
+   * through a composition root and `check:port-shape`'s third signal — a module
+   * resolving a container name no contract publishes — became what stood in the
+   * way.
    */
-  readonly inventoryAvailabilityPort: {
-    resolveAvailabilityBands(
-      productIds: string[],
-      salesChannelId: string,
-    ): Promise<Awaited<ReturnType<StockLevelService['resolveAvailabilityBands']>>>;
-  };
+  readonly inventoryAvailabilityPort: InventoryAvailabilityPort;
 }
 
 export function registerModule(ctx: ModuleContext): void {
@@ -322,7 +327,7 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 
-  ctx.di.providePort(
+  ctx.di.providePort<InventoryAvailabilityPort>(
     'inventoryAvailabilityPort',
     ctx
       .asFunction(({ emFactory, eventBus, auditLogService }: InventoryCradle) => {

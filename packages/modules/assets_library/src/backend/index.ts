@@ -1,11 +1,16 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AssetReadPort, AssetsLibraryPort } from '@endora-commerce/contracts';
+import type {
+  AssetReadPort,
+  AssetsLibraryPort,
+  ObjectStoragePort,
+} from '@endora-commerce/contracts';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { resolvePublicApiBaseUrl } from '@endora-commerce/platform/kernel';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { assetsLibraryModule } from './plugin.js';
 import { AssetReadService } from './services/asset-read-port.js';
+import { ObjectStorageAdapter } from './services/storage/object-storage-port.js';
 import { AssetFolder } from './entities/asset-folder.entity.js';
 import { Asset } from './entities/asset.entity.js';
 
@@ -139,17 +144,41 @@ export function registerModule(ctx: ModuleContext): void {
   // `resolveUrl` reach did not absolutize at all, so one asset had three
   // answers depending on which consumer asked, and the two composition roots
   // disagreed at two of the sites. This module resolves the origin itself now
-  // and every URL it returns is absolute, which is also why `resolveUrl` is
-  // published on **no** port: a consumer that wants a URL for an asset id takes
-  // `AssetsLibraryPort.getAsset`, which already carries one. The byte-store
-  // questions — `openAssetBytes`, and whether `product_feeds` is asking the
-  // right module at all — are the team's, and are still open.
+  // and every URL it returns is absolute.
+  //
+  // **`objectStoragePort` is the byte-store answer** (T118c), and it is a
+  // sibling of `assetsLibraryPort` rather than four more methods on it: what
+  // `product_feeds` borrows is *which bucket this deployment writes to, with
+  // which credentials*, and it creates no `Asset` row. `invoices`' logo embed
+  // asks the identical question through a composition root and drains onto the
+  // same port. The published shape's own doc block carries its retiring
+  // condition — this is really an object store, and it lives here because the
+  // configuration does.
+  //
+  // **And the URL answer is `assetReadPort.resolvePublicUrls`, in batch.** This
+  // note read *"a consumer that wants a URL for an asset id takes
+  // `AssetsLibraryPort.getAsset`, which already carries one"*, and that is the
+  // right answer for `cms` resolving a handful of embeds on one page. Measured
+  // for a consumer that asks about hundreds at a time, it is not: `getAsset`
+  // builds the full detail, and the detail carries the deletion-protection
+  // `references` list, which is one query per registered reference descriptor —
+  // roughly ten queries per asset against a feed hydration batch of 500
+  // products. The batched read is one query and a string build per row, and it
+  // is the *rule* that moves with it rather than only the loop: only this
+  // module can tell a stable URL from a signed one, so the filter belongs here
+  // and the absence is the return type (composition checklist item 7).
   // ---------------------------------------------------------------------------
 
   ctx.di.providePort<AssetReadPort>(
     'assetReadPort',
     ctx
-      .asFunction(({ emFactory }: AssetsLibraryCradle) => new AssetReadService(emFactory))
+      .asFunction(
+        ({ emFactory, assetsLibrary }: AssetsLibraryCradle) =>
+          // The registry is read per call, never captured: it is rebuilt when
+          // the active-backend setting changes, and a URL built by yesterday's
+          // adapter points at a bucket this deployment no longer writes to.
+          new AssetReadService(emFactory, () => assetsLibrary.handle.adapters),
+      )
       .singleton(),
   );
 
@@ -157,6 +186,16 @@ export function registerModule(ctx: ModuleContext): void {
     'assetsLibraryPort',
     ctx
       .asFunction(({ assetsLibrary }: AssetsLibraryCradle) => assetsLibrary.handle.service)
+      .singleton(),
+  );
+
+  ctx.di.providePort<ObjectStoragePort>(
+    'objectStoragePort',
+    ctx
+      .asFunction(
+        ({ assetsLibrary }: AssetsLibraryCradle) =>
+          new ObjectStorageAdapter(assetsLibrary.handle.adapters),
+      )
       .singleton(),
   );
 

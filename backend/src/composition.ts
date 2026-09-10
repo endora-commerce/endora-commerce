@@ -98,7 +98,6 @@ import { effectiveState } from './kernel/lifecycle/effective-state.js';
 // application needs it, which is the treatment `AdminActorPromotion` had.
 // Feature 046 — Returns & Complaints (Refunds, RMA).
 import type { InvoicesBridge } from '@endora-commerce/mod-invoices/backend';
-import type { ProductFeedsBridge } from '@endora-commerce/mod-product-feeds/backend';
 import { DefaultChannelReconciler } from '@endora-commerce/platform/composition';
 // Feature 046 — Progressive Web App.
 import type { PwaBridge } from '@endora-commerce/mod-pwa/backend';
@@ -1723,89 +1722,23 @@ async function contributeReferenceDeployment(
   });
 
   // Feature 067 — Product Feed. Projects a sales channel's catalogue into
-  // provider-shaped feed files published at a tokenised URL. Every cross-module
-  // read is an injected collaborator (Principle I); channel membership goes
-  // exclusively through the sanctioned accessor (Principle XII); artefact bytes
-  // go through the Assets Library storage adapters WITHOUT creating `Asset`
-  // rows (FR-043).
+  // provider-shaped feed files published at a tokenised URL.
   //
-  // Its own `CatalogQueryService` instance, for the same reason promotions has
-  // one: it is the documented cross-module catalog port (Constitution I), and
-  // sharing one instance between two unrelated consumers would make an
-  // unrelated wiring change to one of them a silent change to the other.
-  // Feature 072 (T137) — `product_feeds` owns its services and routes now.
-  // The four adapters it reaches outside itself through stay a root's: each
-  // crosses a boundary the module must not reach through directly.
-  composedModules.contribute({
-    productFeedsBridge: {
-      storageAdapters: {
-        getActive: () => assetsLibrary.handle.adapters.getActive(),
-        getForBackend: async (backend) => {
-          const adapter = await assetsLibrary.handle.adapters.getForBackend(backend);
-          // `getForBackend` also answers the legacy resolver, which can only
-          // build URLs. A feed artefact is always written by a real adapter, so
-          // reaching this branch means the row is corrupt — fail loudly rather
-          // than serving nothing.
-          if (!('open' in adapter) || typeof adapter.open !== 'function') {
-            throw new Error(
-              `product_feeds: storage backend "${backend}" cannot stream artefact bytes.`,
-            );
-          }
-          return adapter;
-        },
-      },
-      resolveAvailability: async (productIds: string[], salesChannelId: string) => {
-        // T143a — `inventory`'s port. Both roots built a second
-        // `StockLevelService` + `WarehouseChannelService` here and spelled this
-        // two-step twice; the module owns one pair now, and it stops answering
-        // when `inventory` is switched off.
-        return inventoryCradle().inventoryAvailabilityPort.resolveAvailabilityBands(
-          productIds,
-          salesChannelId,
-        );
-      },
-      // Feature 072 (T143a) — `catalog`'s own port. This root used to build a
-      // second `CatalogQueryService` here, and a second
-      // `CatalogAttributeReadService` whose only purpose was to feed it, while
-      // the module built its own of each. Both are gone: one instance now, and
-      // it stops answering when `catalog` is switched off, which the root's
-      // copy never did.
-      expandCategoryProductIds: (categoryIds: string[]) =>
-        reads().catalogQueryPort.expandCategoryProductIds(categoryIds),
-      // D-223 — the third and worst of the compensating sites. It read
-      // `configuredPublicApiBaseUrl()`, which takes `PUBLIC_API_BASE_URL`
-      // first, where `absolutizePublicUrl` at the two sites above takes
-      // `BACKEND_PUBLIC_URL` first: with both variables set to different
-      // origins, one asset had two URLs in one process. It also emitted nothing
-      // at all when no origin was configured, and the harness's copy dropped
-      // every relative URL outright — so a local-filesystem deployment with a
-      // blank `assets.local.public_url_base` produced feeds with images or
-      // without them depending on which root composed it.
-      //
-      // What is left is the one judgement that is genuinely this feed's:
-      // **a signed URL is not publishable**, because it expires and a feed
-      // reader fetches it days later (FR-043). That test is unchanged and is
-      // now the only reason an asset is skipped — it used to sit in front of a
-      // join that could not have absolutized a signed URL anyway.
-      resolvePublicImageUrls: async (assetIds: string[]) => {
-        const out = new Map<string, string>();
-        if (assetIds.length === 0) return out;
-        const assets = (await assetReadPort().findByIds(assetIds, { liveOnly: true })).filter(
-          (asset) => asset.visibility === 'public',
-        );
-        for (const asset of assets) {
-          try {
-            const resolved = await assetsLibrary.handle.service.resolveUrl(asset.id);
-            if (resolved.expiresAt !== null) continue; // signed ⇒ not stable
-            out.set(asset.id, resolved.url);
-          } catch {
-            // An unresolvable asset is simply not an image for this feed.
-          }
-        }
-        return out;
-      },
-    } satisfies ProductFeedsBridge,
-  });
+  // **This root contributes nothing to it** (`specs/110-instance-repository/`
+  // T118c). `productFeedsBridge` was one contributed name carrying four
+  // members, and every one of them is now a published port the module resolves
+  // for itself: `objectStoragePort` for the artefact bytes,
+  // `inventoryAvailabilityPort` for the bands, `catalogCategoryReadPort`'s
+  // `expandCategoryProductIds` for the criteria compiler's subtree walk, and
+  // `assetReadPort`'s `resolvePublicUrls` for FR-043's stable-URL rule. Three of
+  // the four needed a publication and the fourth needed a type argument; the
+  // interface is deleted rather than relocated, so there is nothing left here
+  // for a client's own tree to fork.
+  //
+  // What is still contributed for this module is what a deployment owns and a
+  // module cannot read: whether this process runs the BullMQ consumers
+  // (Principle X), the public base URL a feed link is built on, the token
+  // encryption key, and the test-only taxonomy and delivery seams.
   // Feature 072 (T137) — the three boot reconciles (predefined templates,
   // bundled taxonomies, per-feed schedules) moved into the module's own
   // `ctx.onBoot`, where the schedule one reads the same `runWorkers` decision

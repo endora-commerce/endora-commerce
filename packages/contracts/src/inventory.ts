@@ -822,3 +822,38 @@ export interface InventoryFulfilmentPlanningPort {
    */
   planAllocations(input: ResolveAllocationsInput): AllocationOutcome;
 }
+
+/**
+ * Container name: `inventoryAvailabilityPort`. Owner: `inventory`.
+ *
+ * One product's display band and its channel-public in-stock flag, in batch,
+ * for a caller that is projecting a catalogue outward — `catalog`'s external
+ * product surface and `product_feeds`' generation pipeline.
+ *
+ * Cumulative on-hand across the warehouses the sales channel is served from,
+ * mapped through the product / category / global threshold chain. A product
+ * with no stock rows still gets an entry: `out_of_stock`, or `available` when
+ * stock is not managed for it. That is what makes the result usable as a map —
+ * a caller can tell "no stock" from "not asked about".
+ *
+ * The shape was declared inline in a composition root's local type and in this
+ * module's own cradle, twice, and the `providePort` call carried no type
+ * argument at all — so a consumer resolving it had nothing to name and
+ * `check:port-shape` had nothing to compare the registration to. Published in
+ * `specs/110-instance-repository/` T118c, when the first consumer stopped being
+ * a root.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
+ * half-executes. `catalog` declares this edge `degrades-without` and decides
+ * presence in front of the gate, which is a consumer's judgement about its own
+ * surface and not a property of this port; `product_feeds` binds it, because a
+ * feed whose availability column is silently absent is worse than a run that
+ * stops and records why.
+ */
+export interface InventoryAvailabilityPort {
+  resolveAvailabilityBands(
+    productIds: string[],
+    salesChannelId: string,
+  ): Promise<Map<string, { band: StockDisplayBand; inStock: boolean }>>;
+}

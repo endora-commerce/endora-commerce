@@ -14,17 +14,14 @@ import {
   type CredentialsPort,
   type CustomFieldDefinitionReadPort,
   type LanguageReadPort,
+  type ObjectStoragePort,
   type PriceListReadPort,
   type TaxServicePort,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { rethrowIfModuleDisabled, SalesChannel } from '@endora-commerce/platform/kernel';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
-import {
-  ArtefactStore,
-  type ArtefactStorageAdapterProvider,
-  type ArtefactStorePort,
-} from './services/artefact-store.js';
+import { ArtefactStore, type ArtefactStorePort } from './services/artefact-store.js';
 import {
   NoopFeedTokenCache,
   RedisFeedTokenCache,
@@ -320,8 +317,12 @@ export interface ProductFeedsModuleOptions {
   requireAdmin: RequireAdminFactory;
   commandBus: CommandBus;
   eventBus: ProductFeedsEventBus;
-  /** Assets Library storage adapters — bytes only, never an `Asset` row (FR-043). */
-  storageAdapters: ArtefactStorageAdapterProvider;
+  /**
+   * `assets_library`' published object store — bytes only, never an `Asset` row
+   * (FR-043). Which bucket this deployment writes to, with which credentials,
+   * and nothing about the asset library itself.
+   */
+  objectStorage: ObjectStoragePort;
   /** The ONE sanctioned channel accessor (Principle XII). */
   salesChannelMembership: SalesChannelMembershipPort;
   pricingService: FeedPricingPort;
@@ -495,7 +496,7 @@ export function productFeedsModule(
   options: ProductFeedsModuleOptions,
 ): ProductFeedsModuleResult {
   const artefactStore: ArtefactStorePort =
-    options.artefactStore ?? new ArtefactStore(options.storageAdapters);
+    options.artefactStore ?? new ArtefactStore(options.objectStorage);
   const tokenCache: FeedTokenCache = options.redis
     ? new RedisFeedTokenCache(options.redis)
     : new NoopFeedTokenCache();

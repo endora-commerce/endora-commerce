@@ -2093,6 +2093,34 @@ export interface CatalogCategoryReadPort {
   listProductIdsInCategory(categoryId: string): Promise<string[]>;
 
   /**
+   * Product ids assigned to each requested category **or to any live category
+   * below it**, keyed by the requested id. Every id asked for is present, with
+   * an empty set when nothing matches — so a criterion naming a deleted
+   * category narrows to nothing rather than silently disappearing.
+   *
+   * **Not a batched {@link listProductIdsInSubtree}, and the two are not
+   * interchangeable.** That one is structural, for a caller re-projecting
+   * because a category changed. This one is a *selection*: the descendant walk
+   * skips soft-deleted categories, because a rule that says "everything under
+   * Footwear" must not keep publishing the products of a branch an operator
+   * deleted. It is also **cycle-tolerant** — the walk carries a visited set per
+   * root — where the structural read is a recursive CTE with no guard. The
+   * write path forbids a cycle in `parent_category_id`; its guard is written to
+   * tolerate a *pre-existing* one, so corrupt data is reachable here, and a
+   * caller that assembled this from the structural read would hang.
+   *
+   * No channel scoping: the caller applies its own eligibility floor, which for
+   * a feed is stricter than the storefront's.
+   *
+   * `product_feeds`' criteria compiler is the requirement (FR-025) — it must
+   * evaluate category membership including descendants without learning the
+   * shape of `product_categories` or of the tree. It reached this through a
+   * composition root's closure over an unpublished container name until
+   * `specs/110-instance-repository/` T118c.
+   */
+  expandCategoryProductIds(categoryIds: readonly string[]): Promise<Map<string, Set<string>>>;
+
+  /**
    * How many **live** products sit in each of `categoryIds` — one grouped read,
    * not a count per id (feature 075 / D-87).
    *
