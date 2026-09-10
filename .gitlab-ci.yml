@@ -76,9 +76,14 @@
 # `default: interruptible: true` below makes every job in this file eligible for
 # GitLab's redundant-pipeline cancellation, which is right for a merge request —
 # a superseded run costs the shared runner and tells nobody anything. It is
-# wrong for the nightly, and measurably so: pipeline 13361, the first scheduled
-# run ever, started at 00:03, ran for 2 h 17 m, and was cancelled at 04:41,
-# five seconds after a push to `master` created pipeline 13362.
+# wrong for the nightly, and measurably so: pipeline 13361 — the nineteenth
+# scheduled run, and the first in the 22:03Z window — started at 22:03Z, ran for
+# 6 h 39 m, and the sweep took its remaining jobs at 04:41Z, five seconds after a
+# push to `master` created pipeline 13362. Its own final status is **`failed`**
+# rather than `canceled`, because jobs had already failed before the sweep
+# arrived; the mechanism below is about cancellation, and reading that status as
+# "cancelled" is what made this block look, for a day, like a guard that had not
+# held.
 #
 # What that cost is the whole point of the schedule. `test:backend` shards five
 # ways and the shards *serialise* (`resource_group: backend-suite`), so they are
@@ -93,10 +98,30 @@
 # `when: always` rather than a narrower one — this block must change *what is
 # cancelled* and not *what is created*.
 #
-# `interruptible: false` on `test:backend` was the alternative and is worse: it
-# would also stop a superseded **push** pipeline's suite from being cancelled,
-# which is three hours of a shared runner spent on a commit that is no longer
-# the tip.
+# `interruptible: false` on `test:backend` was the alternative and is worse for
+# two reasons. It would also stop a superseded **push** pipeline's suite from
+# being cancelled, which is hours of a shared runner spent on a commit that is
+# no longer the tip. And against this failure it would do nothing at all: GitLab
+# treats a job that has not started as `interruptible: true` whatever it
+# declares, and the nightly's shards are last in the queue by construction, so
+# it is defenceless in exactly the window where it is most valuable.
+#
+# **Which pipeline's `auto_cancel` is read** is the fact everything here rests
+# on, and it is the one a reader will re-litigate: it is read from the pipeline
+# being **cancelled**, never from the one whose creation triggers the sweep, so
+# this block belongs on the schedule's side and needs no companion rule on the
+# push side. Derived from GitLab 19.3.1's own
+# `Ci::PipelineCreation::CancelRedundantPipelinesService`, which switches on
+# `cancelable.auto_cancel_on_new_commit` and uses the new pipeline only as
+# `canceled_by_pipeline_id` in a log line.
+#
+# **This guard has not yet been observed working**, which is a different state
+# from working. One cron nightly has run since it landed and no merge fell
+# inside its window, so nothing here distinguishes "it holds" from "it has not
+# been tested" — the shape this estate refuses everywhere else. It is proven by
+# a probe branch with a deleted-`workflow`-block control, not by a quiet week.
+# Note also that a re-run on the **same** commit proves nothing: two pipelines
+# on one sha never cancel each other.
 # ---------------------------------------------------------------------------
 workflow:
   rules:
