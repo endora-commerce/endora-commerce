@@ -262,6 +262,16 @@ describe('T118 — the contribution wiring is the platform’s and the values ar
     // `catalogCategoryReadPort`. The fourth, FR-043's stable-URL rule, went to
     // its owner as `assetReadPort.resolvePublicUrls`, because only the owner can
     // tell a stable URL from a signed one.
+    // The fifth is `megamenu`'s pair, and the sixth is `pwaBridge`: one name,
+    // **eight** members, and the third bridge in a row to go entirely. Six of
+    // the eight were published ports or names the platform already contributes
+    // — `assetsLibraryPort`, the kernel's `salesChannelResolutionPort`,
+    // `orderReadPort`, `adminAuditActorResolver` and `request.actor` — one was
+    // the `resolveAuditContext` duplicate `mfa` found in its own bridge two
+    // targets earlier, and one, `resolveChannelIdByCode`, was called by nothing
+    // at either end and is deleted rather than drained. `pwaRunWorkers` is not
+    // in this movement: the flag is a deployment decision and the platform's
+    // own contribution, so it counts on the other side of the sum.
     // The floor below read `> 30` and is now `> 0`, because it was a **second**
     // number the sweep moves and it moved first: this drain took the deployment
     // to exactly 30. It was never the guard it looks like — a walk that stopped
@@ -272,7 +282,15 @@ describe('T118 — the contribution wiring is the platform’s and the values ar
 
     expect(deployment.size, 'the reference deployment contributes nothing — the walk broke')
       .toBeGreaterThan(0);
-    expect(deployment.size + PLATFORM_CONTRIBUTIONS.length).toBe(54);
+    // **53, re-measured on the union and not carried from either side.** Both
+    // `product_feeds` and `pwa` drained from a tree contributing 55, so each
+    // branch correctly recorded 54 against its own base and the two numbers are
+    // the same number for different reasons. A rebase that took either side
+    // whole would have asserted one bridge's removal and silently un-asserted
+    // the other's — which is what a ledger derived *about* the contributions
+    // costs when two targets land together, and why this one is measured on the
+    // combined tree rather than decremented.
+    expect(deployment.size + PLATFORM_CONTRIBUTIONS.length).toBe(53);
   });
 
   it('contributes before the caller’s callback, so a deployment can still override', () => {

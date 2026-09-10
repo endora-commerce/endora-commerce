@@ -2,37 +2,69 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type { Redis } from 'ioredis';
 import type {
+  AssetsLibraryPort,
   CustomerAccountReadPort,
   CustomerGroupReadPort,
+  OrderReadPort,
   OrganizationDetailsPort,
 } from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { lazyPort } from '@endora-commerce/platform/kernel';
-import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type {
+  RequireAdminFactory,
+  SalesChannelResolutionPort,
+} from '@endora-commerce/platform/kernel';
 import { pwaModule, type PwaModuleOptions, type PwaModuleResult } from './plugin.js';
+import {
+  createAssetUrlResolver,
+  createChannelCodeResolver,
+  createDefaultChannelIdResolver,
+  createOrderPushTargetResolver,
+  type PwaCrossModulePorts,
+} from './services/cross-module-context.js';
 import { PushMessageDelivery } from './entities/push-message-delivery.entity.js';
 import { PushMessage } from './entities/push-message.entity.js';
 import { PushSubscription } from './entities/push-subscription.entity.js';
 import { PwaIconRendition } from './entities/pwa-icon-rendition.entity.js';
 
 /**
- * `pwa` — twenty options, and nine of them are one idea (feature 072, wave 2,
- * T116).
+ * `pwa` — and **there is no bridge any more**
+ * (`specs/110-instance-repository/` T118c).
  *
- * The nine are every way this module reaches outside itself: uploading an icon
- * through `assets_library`, turning a sales-channel code into an id and back,
- * naming the acting admin, and resolving an order or quote event into a push
- * target. They are contributed as a single {@link PwaBridge} for the reason
- * `mfa`'s actor bridge is one name — they are always supplied together, by the
- * same caller, and a composition that knows four of the nine is not a coherent
- * state. Splitting them would produce nine registrations that can each go
- * missing on their own.
+ * `PwaBridge` was one contributed name carrying eight members, written as
+ * closures in `backend/src/composition.ts` and again in
+ * `backend/test/helpers/test-server.ts`, on the reasoning that "a composition
+ * knows how to reach `assets_library` and `sales_channels`, or it does not".
+ * Re-derived member by member, none of the eight was a composition's answer to
+ * give:
  *
- * Three of the nine are optional *within* the bridge, and that is real rather
- * than lazy: `resolveCustomerAccountId`, `resolveOrderTarget` and
- * `resolveQuoteTarget` drive the FR-024 auto-trigger, and a deployment that
- * does not push on order or quote events genuinely has nothing to supply. Their
- * absence removes a trigger; it does not weaken a check.
+ *  - `assetUpload` and `resolveAssetUrl` are `assets_library`' published
+ *    `assetsLibraryPort`. The first was a *structural subset* of
+ *    `AssetsLibraryPort.upload` all along — a Node `Readable` satisfies
+ *    `AssetUploadStream`, `AssetDetail` satisfies `{ id: string }` — and the
+ *    second is `getAsset(id).url` under D-223, which is why `resolveUrl` is
+ *    published on no port.
+ *  - `defaultChannelId` and `channelCodeForId` are the kernel's own
+ *    `salesChannelResolutionPort`, a **platform** name (Constitution XII), so
+ *    they add nothing to this module's manifest. The second replaces a root's
+ *    hand-written `em.findOne(SalesChannel, { id })`, which is what `getById`
+ *    already is.
+ *  - `resolveAuditContext` was byte-identical to `adminAuditActorResolver`,
+ *    which the platform contributes in `compose-app.ts` and whose own comment
+ *    says it exists because "six modules each declared an identically-shaped
+ *    `resolveAuditContext` option". This was one of the six. The harness's copy
+ *    was **not** identical — it answered `TEST_ADMIN_ID` where production
+ *    answered `null` — so draining it also settles a divergence.
+ *  - `resolveCustomerAccountId` is a read of `request.actor`, whose
+ *    augmentation became the platform's at T118b; see `request-actor.ts`.
+ *  - `resolveOrderTarget` is `orders`' published `orderReadPort` plus a
+ *    sentence, and `orders` joins `dependencies` for it.
+ *  - `resolveChannelIdByCode` was **called by nothing** and is deleted rather
+ *    than drained; see the note in `routes.storefront.ts`.
+ *
+ * What is left of the coupling is {@link PwaCrossModulePorts} — three published
+ * ports and no closure, resolved here and mapped in
+ * `services/cross-module-context.ts`.
  *
  * `vapidSubject` comes from the environment, read here rather than threaded
  * from a root — a packaged module reads its own configuration.
@@ -48,26 +80,6 @@ import { PwaIconRendition } from './entities/pwa-icon-rendition.entity.js';
  * differ.
  */
 
-/**
- * Everything this module reaches outside itself, contributed whole.
- *
- * A composition knows how to reach `assets_library` and `sales_channels`, or it
- * does not; there is no coherent state where it knows some of that and not the
- * rest.
- */
-export interface PwaBridge {
-  readonly assetUpload: PwaModuleOptions['assetUpload'];
-  readonly resolveAssetUrl: PwaModuleOptions['resolveAssetUrl'];
-  readonly resolveChannelIdByCode: PwaModuleOptions['resolveChannelIdByCode'];
-  readonly defaultChannelId: PwaModuleOptions['defaultChannelId'];
-  readonly channelCodeForId: PwaModuleOptions['channelCodeForId'];
-  readonly resolveAuditContext: PwaModuleOptions['resolveAuditContext'];
-  /** FR-024 auto-trigger; absent on a deployment that pushes on neither. */
-  readonly resolveCustomerAccountId?: PwaModuleOptions['resolveCustomerAccountId'];
-  readonly resolveOrderTarget?: PwaModuleOptions['resolveOrderTarget'];
-  readonly resolveQuoteTarget?: PwaModuleOptions['resolveQuoteTarget'];
-}
-
 export interface PwaCradle {
   readonly emFactory: () => EntityManager;
   readonly redis: Redis;
@@ -80,7 +92,17 @@ export interface PwaCradle {
   readonly requireAdmin: RequireAdminFactory;
   readonly settingsReadPort: PwaModuleOptions['settings'];
   readonly settingsAdminService: PwaModuleOptions['settingsWrite'];
-  readonly pwaBridge: PwaBridge;
+  /**
+   * How this deployment names the acting admin on an audit record: the admin's
+   * id, or `null` for a non-admin caller.
+   *
+   * A **cradle** read rather than a port, which is what the eight other modules
+   * taking this name already do (`autopay`, `catalog`, `dhl_parcel`,
+   * `google_analytics`, `inpost`, …): it is a contribution the platform makes in
+   * `compose-app.ts`, not a capability any module owns, so there is nothing to
+   * gate and nothing to declare.
+   */
+  readonly adminAuditActorResolver: PwaModuleOptions['resolveAuditContext'];
   readonly pwa: PwaModuleResult;
 }
 
@@ -88,8 +110,15 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     pwa: ctx
       .asFunction(({ emFactory, redis, pwaRunWorkers }: PwaCradle): PwaModuleResult => {
-        const bridge = (): PwaBridge => ctx.cradle<PwaCradle>().pwaBridge;
-        const b = bridge();
+        // T118c — the three ports that replace `PwaBridge`. Each is a `lazyPort`
+        // proxy, so it resolves per call and nothing here captures a
+        // registration: a switched-off owner refuses at the call site rather
+        // than through a gate frozen when this singleton was built.
+        const ports: PwaCrossModulePorts = {
+          assets: lazyPort<AssetsLibraryPort>(ctx, 'assetsLibraryPort'),
+          channels: lazyPort<SalesChannelResolutionPort>(ctx, 'salesChannelResolutionPort'),
+          orders: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
+        };
         return pwaModule({
           emFactory,
           redis,
@@ -111,27 +140,21 @@ export function registerModule(ctx: ModuleContext): void {
           // `PwaModuleOptions.log`. The module swaps to `app.log` when its
           // routes register.
           log: ctx.log,
-          // Forwarded through the bridge so a root supplies them once, together.
-          assetUpload: b.assetUpload,
-          resolveAssetUrl: (assetId) => bridge().resolveAssetUrl(assetId),
-          resolveChannelIdByCode: (code) => bridge().resolveChannelIdByCode(code),
-          defaultChannelId: () => bridge().defaultChannelId(),
-          channelCodeForId: (channelId) => bridge().channelCodeForId(channelId),
+          // `AssetsLibraryPort` is a structural supertype of `AssetUploadPort`:
+          // the icon pipeline names the one method it calls, and the port
+          // satisfies it. That was true before T118c too, which is why draining
+          // this member cost nothing but the deletion of two closures.
+          assetUpload: ports.assets,
+          resolveAssetUrl: createAssetUrlResolver(ports.assets),
+          defaultChannelId: createDefaultChannelIdResolver(ports.channels),
+          channelCodeForId: createChannelCodeResolver(ports.channels),
+          // The platform's contribution, read through the cradle per request so
+          // a deployment that supplies its own still wins.
           resolveAuditContext: (request: FastifyRequest) =>
-            bridge().resolveAuditContext(request),
-          // Spread rather than assigned: `exactOptionalPropertyTypes` makes an
-          // omitted property and an explicit `undefined` different types, and
-          // these three are genuinely absent on a deployment that pushes on
-          // neither order nor quote events.
-          ...(b.resolveCustomerAccountId === undefined
-            ? {}
-            : { resolveCustomerAccountId: b.resolveCustomerAccountId }),
-          ...(b.resolveOrderTarget === undefined
-            ? {}
-            : { resolveOrderTarget: b.resolveOrderTarget }),
-          ...(b.resolveQuoteTarget === undefined
-            ? {}
-            : { resolveQuoteTarget: b.resolveQuoteTarget }),
+            ctx.cradle<PwaCradle>().adminAuditActorResolver(request),
+          resolveOrderTarget: createOrderPushTargetResolver(ports.orders),
+          // `resolveQuoteTarget` is passed by nobody and never has been — see
+          // `PwaModuleOptions`, where the measurement is written down.
         });
       })
       .singleton(),

@@ -1068,7 +1068,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // No action and no route moved. Quality-job shape: the ignored copies
     // `composer:generate` places under `docs/docs/modules/` swept first, because no job
     // has placed them when these checks run.
-    files: 2001,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the two module sources the branch adds —
+    // `packages/modules/pwa/src/backend/services/cross-module-context.ts` and
+    // `.../request-actor.ts`. This walk reads a module's non-test `.ts`, so the two
+    // co-located tests beside them, the backend integration test and the changeset are
+    // in no population of its own.
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 2002 -> 2003. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
+    // combined tree, never summed from the two sides' deltas.
+    files: 2003,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1354,7 +1365,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Quality-job shape: the ignored copies `composer:generate` places under
     // `docs/docs/modules/` swept first, because no job has placed them when these checks
     // run.
-    files: 2128,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the two module sources the branch adds —
+    // `packages/modules/pwa/src/backend/services/cross-module-context.ts` and
+    // `.../request-actor.ts`. This walk reads a module's non-test `.ts`, so the two
+    // co-located tests beside them, the backend integration test and the changeset are
+    // in no population of its own.
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 2129 -> 2130. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
+    // combined tree, never summed from the two sides' deltas.
+    files: 2130,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1446,7 +1468,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // It writes nothing, so no site moves. Quality-job shape: the ignored copies
     // `composer:generate` places under `docs/docs/modules/` swept first, because no job
     // has placed them when these checks run.
-    files: 1704,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the two module sources the branch adds —
+    // `packages/modules/pwa/src/backend/services/cross-module-context.ts` and
+    // `.../request-actor.ts`. This walk reads a module's non-test `.ts`, so the two
+    // co-located tests beside them, the backend integration test and the changeset are
+    // in no population of its own.
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 1705 -> 1706. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
+    // combined tree, never summed from the two sides' deltas.
+    files: 1706,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -1549,7 +1582,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and the three co-located tests. Quality-job shape: the ignored copies
     // `composer:generate` places under `docs/docs/modules/` swept first, because no job
     // has placed them when these checks run.
-    files: 2207,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the two module sources the branch adds
+    // (`services/cross-module-context.ts`, `request-actor.ts`) plus their two
+    // co-located tests, this walk reading a module package's `.test.ts` as well as its
+    // sources.
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 2207 -> 2211. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
+    // combined tree, never summed from the two sides' deltas.
+    files: 2211,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -1974,7 +2017,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and the three co-located tests — this walk is the whole tree. Quality-job shape: the
     // ignored copies `composer:generate` places under `docs/docs/modules/` swept first,
     // because no job has placed them when these checks run.
-    files: 5482,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the branch's five new TypeScript files — two `pwa` module sources,
+    // their two co-located tests, and
+    // `backend/test/integration/pwa/cross-module-wiring.test.ts`. `sites` falls by one,
+    // and the one is the whole of what this drain does to this check's population:
+    // `payload.to.replace(/_/g, ' ')`, the order-status presentation, was written in
+    // **both** composition roots and is now written once, in
+    // `createOrderPushTargetResolver`.
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 5483 -> 5487. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first.
+    files: 5487,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2084,7 +2139,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fewer files than the 540 recorded against the tree before it: 541. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    sites: 544,
+    sites: 543,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -2264,7 +2319,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and the three co-located tests. Quality-job shape: the ignored copies
     // `composer:generate` places under `docs/docs/modules/` swept first, because no job
     // has placed them when these checks run.
-    files: 2386,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the two module sources the branch adds
+    // (`services/cross-module-context.ts`, `request-actor.ts`) plus their two
+    // co-located tests, this walk reading a module package's `.test.ts` as well as its
+    // sources.
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 2386 -> 2390. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first.
+    files: 2390,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -2674,7 +2738,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // It declares no entity. Quality-job shape: the ignored copies `composer:generate`
     // places under `docs/docs/modules/` swept first, because no job has placed them when
     // these checks run.
-    files: 2128,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the two module sources the branch adds —
+    // `packages/modules/pwa/src/backend/services/cross-module-context.ts` and
+    // `.../request-actor.ts`. This walk reads a module's non-test `.ts`, so the two
+    // co-located tests beside them, the backend integration test and the changeset are
+    // in no population of its own.
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 2129 -> 2130. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first.
+    files: 2130,
     sites: 260,
     sources: ['manifest-index'],
   },
@@ -2939,7 +3013,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // It starts no timer and declares no boot hook. Quality-job shape: the ignored copies
     // `composer:generate` places under `docs/docs/modules/` swept first, because no job
     // has placed them when these checks run.
-    files: 2128,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the two module sources the branch adds —
+    // `packages/modules/pwa/src/backend/services/cross-module-context.ts` and
+    // `.../request-actor.ts`. This walk reads a module's non-test `.ts`, so the two
+    // co-located tests beside them, the backend integration test and the changeset are
+    // in no population of its own.
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 2129 -> 2130. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
+    // combined tree, never summed from the two sides' deltas.
+    files: 2130,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3204,7 +3289,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // It is no entry point of any of the six classes. Quality-job shape: the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run.
-    files: 2128,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the two module sources the branch adds —
+    // `packages/modules/pwa/src/backend/services/cross-module-context.ts` and
+    // `.../request-actor.ts`. This walk reads a module's non-test `.ts`, so the two
+    // co-located tests beside them, the backend integration test and the changeset are
+    // in no population of its own.
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 2129 -> 2130. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
+    // combined tree, never summed from the two sides' deltas.
+    files: 2130,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -3627,7 +3723,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and none of them counted in the 1584 recorded before it: 1586. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 1586,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the one file the branch adds under `backend/test/` —
+    // `integration/pwa/cross-module-wiring.test.ts`, the half of the proof that can see
+    // the wiring. Its one new `sites` entry is the `push_messages` read the
+    // order-status case polls, bound to a name and branched on rather than defaulted.
+    files: 1587,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -3665,7 +3766,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the same population leaving, not the #235/#237 shape.
     // **D-223: sites 579 -> 580 (+1).** One more entity read in the two integration tests
     // this branch adds, neither of them defaulted.
-    sites: 581,
+    sites: 582,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -3795,7 +3896,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and none of them counted in the 1584 recorded before it: 1586. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 1586,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the one file the branch adds under `backend/test/` —
+    // `integration/pwa/cross-module-wiring.test.ts`, the half of the proof that can see
+    // the wiring.
+    files: 1587,
     sites: null,
     sources: [],
   },
@@ -4076,7 +4181,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Quality-job shape: the ignored copies `composer:generate` places under
     // `docs/docs/modules/` swept first, because no job has placed them when these checks
     // run.
-    files: 2128,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the two module sources the branch adds —
+    // `packages/modules/pwa/src/backend/services/cross-module-context.ts` and
+    // `.../request-actor.ts`. This walk reads a module's non-test `.ts`, so the two
+    // co-located tests beside them, the backend integration test and the changeset are
+    // in no population of its own.
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 2129 -> 2130. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
+    // combined tree, never summed from the two sides' deltas.
+    files: 2130,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -4179,7 +4295,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // twenty entries below are this merge request's own and none is a subtraction.
     files: 308,
     // **2026-09-04: 14 -> 15.** One further named-subject lock claim.
-    sites: 15,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge` retired):**
+    // sites 15 -> 17, files unchanged. `pwa`'s manifest gains `orders` in its
+    // `dependencies`, and the comment above the array says why the bind costs no operator
+    // a control — which is a named-subject lock claim, so this check reads it. Two of the
+    // three ids that sentence names land as claims (`orders`, `sales_channels`); the third,
+    // `assets_library`, shares its assertion with a nearer subject and is out of the window
+    // by construction. `files` does not move because the manifest was already in the walk.
+    sites: 17,
     sources: ['manifest-index', 'contracts-barrel'],
   },
   'backend/scripts/check-admin-zones.ts': {
@@ -4403,7 +4526,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Quality-job shape: the ignored copies `composer:generate` places under
     // `docs/docs/modules/` swept first, because no job has placed them when these checks
     // run.
-    files: 2737,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the two module sources the branch adds
+    // (`services/cross-module-context.ts`, `request-actor.ts`) plus their two
+    // co-located tests, this walk reading a module package's `.test.ts` as well as its
+    // sources.
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 2737 -> 2741. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
+    // combined tree, never summed from the two sides' deltas.
+    files: 2741,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
     sites: 56,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
@@ -4509,7 +4642,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Quality-job shape: the ignored copies `composer:generate` places under
     // `docs/docs/modules/` swept first, because no job has placed them when these checks
     // run.
-    files: 2097,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the two module sources the branch adds —
+    // `packages/modules/pwa/src/backend/services/cross-module-context.ts` and
+    // `.../request-actor.ts`. This walk reads a module's non-test `.ts`, so the two
+    // co-located tests beside them, the backend integration test and the changeset are
+    // in no population of its own.
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 2098 -> 2099. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
+    // combined tree, never summed from the two sides' deltas.
+    files: 2099,
     // The finer population, and it is the one that moves when nothing else does
     // (issues #235/#237): tree sites, unreadable sites, renderer-map sites, the
     // block declarations and the declared `(key, context)` sections. A block
@@ -4584,7 +4728,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and the three co-located tests. Quality-job shape: the ignored copies
     // `composer:generate` places under `docs/docs/modules/` swept first, because no job
     // has placed them when these checks run.
-    files: 2835,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the two module sources the branch adds
+    // (`services/cross-module-context.ts`, `request-actor.ts`) plus their two
+    // co-located tests, this walk reading a module package's `.test.ts` as well as its
+    // sources.
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 2835 -> 2839. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
+    // combined tree, never summed from the two sides' deltas.
+    files: 2839,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -4830,7 +4984,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Quality-job shape: the ignored copies `composer:generate` places under
     // `docs/docs/modules/` swept first, because no job has placed them when these checks
     // run.
-    files: 1716,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the two module sources the branch adds —
+    // `packages/modules/pwa/src/backend/services/cross-module-context.ts` and
+    // `.../request-actor.ts`. This walk reads a module's non-test `.ts`, so the two
+    // co-located tests beside them, the backend integration test and the changeset are
+    // in no population of its own. `sites` moves by the nine literals those two files
+    // put on the classifier's path, every one of them English and therefore not a
+    // finding under this check's asymmetry.
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 1717 -> 1718. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first.
+    files: 1718,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -4911,7 +5077,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // classifies in that file, all English. Quality-job shape: the ignored copies
     // `composer:generate` places under `docs/docs/modules/` swept first, because no job
     // has placed them when these checks run.
-    sites: 34501,
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 34504 -> 34510. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first.
+    sites: 34510,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -5436,7 +5606,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // each counted in both the module walk and the whole-tree SQL walk. Quality-job shape:
     // the ignored copies `composer:generate` places under `docs/docs/modules/` swept
     // first, because no job has placed them when these checks run.
-    files: 5022,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the two module sources plus their two co-located tests, counted
+    // **twice** because this check's `files` is a sum over its passes and both the
+    // import walk and the SQL walk open a module's sources. The module-walk half moves
+    // 2490 -> 2494 in place. `sites` is the sum of import specifiers and table
+    // references examined.
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 5022 -> 5030. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
+    // combined tree, never summed from the two sides' deltas.
+    files: 5030,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -5511,7 +5692,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // every one of them names `@endora-commerce/contracts` or its own module. Quality-job
     // shape: the ignored copies `composer:generate` places under `docs/docs/modules/`
     // swept first, because no job has placed them when these checks run.
-    sites: 12626,
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 12620 -> 12642. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
+    // combined tree, never summed from the two sides' deltas.
+    sites: 12642,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -6242,7 +6428,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and this merge request's changeset — this walk reads every extension. Quality-job
     // shape: the ignored copies `composer:generate` places under `docs/docs/modules/`
     // swept first, because no job has placed them when these checks run.
-    files: 8140,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the branch's five new TypeScript files — two `pwa` module sources,
+    // their two co-located tests and one backend integration test — plus the changeset,
+    // this walk reading markdown too.
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 8141 -> 8146. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
+    // combined tree, never summed from the two sides' deltas.
+    files: 8146,
     sites: null,
     sources: [],
     //
@@ -6692,7 +6887,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // does not move. Quality-job shape: the ignored copies `composer:generate` places
     // under `docs/docs/modules/` swept first, because no job has placed them when these
     // checks run.
-    sites: 221,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the two module sources the branch adds —
+    // `packages/modules/pwa/src/backend/services/cross-module-context.ts` and
+    // `.../request-actor.ts`. This walk reads a module's non-test `.ts`, so the two
+    // co-located tests beside them, the backend integration test and the changeset are
+    // in no population of its own. `sites` moves by the three `lazyPort` resolutions
+    // the module gains — `assetsLibraryPort`, `salesChannelResolutionPort` and
+    // `orderReadPort` — which is this walk's population rather than the `catch` count.
+    // **One** `catch` arrives with them, in `createAssetUrlResolver`, and it is
+    // compliant: `rethrowIfModuleDisabled` is its first line, so a deleted asset still
+    // answers 404 on one icon size while an owner's refusal is not absorbed.
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 216 -> 224. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
+    // combined tree, never summed from the two sides' deltas.
+    sites: 224,
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 2138 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
@@ -6745,7 +6956,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Quality-job shape: the ignored copies `composer:generate` places under
     // `docs/docs/modules/` swept first, because no job has placed them when these checks
     // run.
-    files: 2128,
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 2129 -> 2130. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
+    // combined tree, never summed from the two sides' deltas.
+    files: 2130,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -6849,7 +7065,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Quality-job shape: the ignored copies `composer:generate` places under
     // `docs/docs/modules/` swept first, because no job has placed them when these checks
     // run.
-    files: 1948,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the two module sources the branch adds —
+    // `packages/modules/pwa/src/backend/services/cross-module-context.ts` and
+    // `.../request-actor.ts`. This walk reads a module's non-test `.ts`, so the two
+    // co-located tests beside them, the backend integration test and the changeset are
+    // in no population of its own. `sites` moves by the same three resolutions. Only
+    // one of them is a manifest edge — `orderReadPort` puts `orders` in `pwa`'s
+    // `dependencies` — because `assets_library` was already declared and
+    // `salesChannelResolutionPort` is on `PLATFORM_OWNED_NAMES`.
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 1949 -> 1950. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
+    // combined tree, never summed from the two sides' deltas.
+    files: 1950,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 1471 -> 1535.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
@@ -6868,7 +7098,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Quality-job shape: the ignored copies `composer:generate` places under
     // `docs/docs/modules/` swept first, because no job has placed them when these checks
     // run.
-    sites: 1573,
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 1571 -> 1576. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
+    // combined tree, never summed from the two sides' deltas.
+    sites: 1576,
     sources: ['manifest-index'],
   },
   // Two derivations, deliberately, because the check has two inputs that can be
@@ -7108,7 +7343,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Quality-job shape: the ignored copies `composer:generate` places under
     // `docs/docs/modules/` swept first, because no job has placed them when these checks
     // run.
-    files: 2426,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the two module sources the branch adds —
+    // `packages/modules/pwa/src/backend/services/cross-module-context.ts` and
+    // `.../request-actor.ts`. This walk reads a module's non-test `.ts`, so the two
+    // co-located tests beside them, the backend integration test and the changeset are
+    // in no population of its own. `sites` moves by the four platform reaches the two
+    // files add: `rethrowIfModuleDisabled` and `SalesChannelResolutionPort` in
+    // `cross-module-context.ts`, the same type again in the barrel, and the side-effect
+    // import of the `./http` barrel in `request-actor.ts` — which is how T118b's
+    // `request.actor` augmentation reaches this package's program, and which is not a
+    // `whole-file-reach` because reaching a published barrel is reaching the surface.
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 2427 -> 2428. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
+    // combined tree, never summed from the two sides' deltas.
+    files: 2428,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -7206,7 +7457,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fewer files than the 1853 recorded against the tree before it: 1847. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    sites: 1847,
+    sites: 1851,
     // count moves with the file count here because the reaches that went are exactly
     // the files that went.
     // **T119a: sites 1870 -> 1861.** The same nine files, each the single relative
@@ -7351,7 +7602,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Quality-job shape: the ignored copies `composer:generate` places under
     // `docs/docs/modules/` swept first, because no job has placed them when these checks
     // run.
-    files: 2047,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the two module sources the branch adds —
+    // `packages/modules/pwa/src/backend/services/cross-module-context.ts` and
+    // `.../request-actor.ts`. This walk reads a module's non-test `.ts`, so the two
+    // co-located tests beside them, the backend integration test and the changeset are
+    // in no population of its own. `sites` moves by the same three resolutions, all of
+    // them over published container names typed on a contract or kernel port.
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 2048 -> 2049. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
+    // combined tree, never summed from the two sides' deltas.
+    files: 2049,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 692 -> 721.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -7368,7 +7631,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // that gained a type argument. Quality-job shape: the ignored copies
     // `composer:generate` places under `docs/docs/modules/` swept first, because no job
     // has placed them when these checks run.
-    sites: 742,
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 739 -> 745. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
+    // combined tree, never summed from the two sides' deltas.
+    sites: 745,
     sources: ['manifest-index', 'ports-subpaths'],
   },
   // Small on purpose: this population is the *workspace*, not a source tree —
@@ -7654,7 +7922,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and none of them counted in the 1584 recorded before it: 1586. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 1586,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the one file the branch adds under `backend/test/` —
+    // `integration/pwa/cross-module-wiring.test.ts`, the half of the proof that can see
+    // the wiring.
+    files: 1587,
     sites: 163,
     sources: [],
   },
@@ -7971,7 +8243,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // It subscribes to nothing and constructs no worker. Quality-job shape: the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run.
-    files: 2128,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the two module sources the branch adds —
+    // `packages/modules/pwa/src/backend/services/cross-module-context.ts` and
+    // `.../request-actor.ts`. This walk reads a module's non-test `.ts`, so the two
+    // co-located tests beside them, the backend integration test and the changeset are
+    // in no population of its own.
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 2129 -> 2130. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
+    // combined tree, never summed from the two sides' deltas.
+    files: 2130,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -8119,7 +8402,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the branch adds. Quality-job shape: the ignored copies `composer:generate` places
     // under `docs/docs/modules/` swept first, because no job has placed them when these
     // checks run.
-    files: 1704,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the branch's three new test files: the two co-located beside their
+    // subjects in `packages/modules/pwa`, and
+    // `backend/test/integration/pwa/cross-module-wiring.test.ts`, which is
+    // harness-using and so owes this check's ledger nothing.
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 1704 -> 1707. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
+    // combined tree, never summed from the two sides' deltas.
+    files: 1707,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -8427,7 +8720,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Quality-job shape: the ignored copies `composer:generate` places under
     // `docs/docs/modules/` swept first, because no job has placed them when these checks
     // run.
-    files: 2128,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the two module sources the branch adds —
+    // `packages/modules/pwa/src/backend/services/cross-module-context.ts` and
+    // `.../request-actor.ts`. This walk reads a module's non-test `.ts`, so the two
+    // co-located tests beside them, the backend integration test and the changeset are
+    // in no population of its own.
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 2129 -> 2130. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
+    // combined tree, never summed from the two sides' deltas.
+    files: 2130,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -8772,7 +9076,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Quality-job shape: the ignored copies `composer:generate` places under
     // `docs/docs/modules/` swept first, because no job has placed them when these checks
     // run.
-    files: 4507,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the branch's five new TypeScript files — two `pwa` module sources,
+    // their two co-located tests, and
+    // `backend/test/integration/pwa/cross-module-wiring.test.ts`.
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 4508 -> 4512. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
+    // combined tree, never summed from the two sides' deltas.
+    files: 4512,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -9510,7 +9823,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and this merge request's changeset. Read on the **staged** tree. Quality-job shape:
     // the ignored copies `composer:generate` places under `docs/docs/modules/` swept
     // first, because no job has placed them when these checks run.
-    files: 8200,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the branch's five new TypeScript files — two `pwa` module sources,
+    // their two co-located tests and one backend integration test — plus the changeset,
+    // this walk reading markdown too.
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 8201 -> 8206. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
+    // combined tree, never summed from the two sides' deltas.
+    files: 8206,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -9948,7 +10270,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Read on the **staged** tree, as this entry's own block above requires. Quality-job
     // shape: the ignored copies `composer:generate` places under `docs/docs/modules/`
     // swept first, because no job has placed them when these checks run.
-    files: 6113,
+    // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge`
+    // retired):** the branch's five new TypeScript files — two `pwa` module sources,
+    // their two co-located tests, and
+    // `backend/test/integration/pwa/cross-module-wiring.test.ts`.
+    // **Re-measured on the union after rebasing onto the `product_feeds` drain.** Both targets
+    // landed the same day and each added its own module sources, co-located tests and wiring
+    // test, so the recorded value describes neither tree alone: 6114 -> 6118. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
+    // combined tree, never summed from the two sides' deltas.
+    files: 6118,
     sites: null,
     sources: ['manifest-index'],
     //
