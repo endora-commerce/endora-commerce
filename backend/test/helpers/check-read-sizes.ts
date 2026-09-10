@@ -795,11 +795,14 @@ export interface RecordedReadSize {
  *     `check-harness-teardown`, `check-shared-table-wipes`;
  *   - `check-test-ownership` gains **2** — the co-located test and the backend one —
  *     and `check-singleton-identity` **3**, all three files;
- *   - the four whole-tree walks gain **3**, all three files being `.ts`:
- *     `check-nul-bytes`, `check-diacritic-folds`, `check-naming.sh` and
- *     `check-language.sh`. The `assets_library` census recorded 3-or-4 for this
- *     group because its fourth file was not one the narrower two open; here there
- *     is no such file and all four agree.
+ *   - the four whole-tree walks gain **3** for the three `.ts` files, and the two
+ *     that read every extension gain a **fourth** for this merge request's own
+ *     changeset: `check-nul-bytes` 8132 -> 8136 and `check-naming.sh`
+ *     8192 -> 8196, against `check-diacritic-folds` (`.ts`/`.tsx`/`.js`) and
+ *     `check-language.sh` (markdown half is `docs/docs/**`) at +3. Both were first
+ *     recorded at +3 and re-measured after the changeset was written, which is the
+ *     trap the `assets_library` census names: the changeset is a file this walk
+ *     opens like any other, and it is the last one a drain writes.
  *   - `check-module-boundary` gains **4** for two files, the same reason that census
  *     gives: the walk reaches a module package's sources under more than one root,
  *     and the backend test is outside its population.
@@ -5082,8 +5085,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-nul-bytes.ts': {
     prefix: '[nul-bytes]',
     run: { kind: 'tsx', path: 'scripts/check-nul-bytes.ts', args: [] },
-    // **T118c, `mfaActorBridge`: +3 files** — the three new files, this walk being the whole
-    // repository.
+    // **T118c, `mfaActorBridge`: +4 files** — the three new source files and the merge
+    // request's own changeset, this walk being the whole repository. The changeset is the
+    // fourth file and the one a drain is apt to record before writing it, which is what
+    // the `assets_library` census above says about the two shell entries.
     // Both bounds are asserted again (issue #248). The number now agrees
     // between a clean checkout and a tree that had built the docs site and
     // served uploads — 8288 against 5163 before, 5165 against 5165 after —
@@ -5712,7 +5717,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 8116 -> 8122. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 8135,
+    files: 8136,
     sites: null,
     sources: [],
     //
@@ -8073,8 +8078,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'scripts/check-naming.sh': {
     prefix: '[naming]',
     run: { kind: 'bash', path: 'scripts/check-naming.sh', args: [] },
-    // **T118c, `mfaActorBridge`: +3 files** — the three new files, measured on the *staged*
-    // tree for the reason the header gives.
+    // **T118c, `mfaActorBridge`: +4 files** — the three new source files and the merge
+    // request's own changeset, measured on the *staged* tree for the reason the header
+    // gives. Recorded at 8195 first, which was this branch before it had written its
+    // changeset: the file this walk opens like any other.
     // **Batch 13 (feature 091, Phase 4): +2.** Whole-tree arithmetic: twenty-four
     // files move into the module packages, twenty-four leave `admin/src`, the
     // `FulfilmentStrategyPicker` shim there is deleted with its last reader, the
@@ -8628,7 +8635,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 8178 -> 8182. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 8195,
+    files: 8196,
     sites: null,
     sources: ['manifest-index'],
     //
