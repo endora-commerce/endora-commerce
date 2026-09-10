@@ -8,8 +8,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { PriceList, PriceListPriceBracket, PriceListProduct } from '../../helpers/package-entities.js';
-import { SalesChannel } from '../../../src/kernel/sales-channels/sales-channel.entity.js';
-import { resolvePublicApiBaseUrl } from '../../../src/kernel/index.js';
+import { SalesChannel, resolvePublicApiBaseUrl } from '@endora-commerce/platform/kernel';
 import { setChannelStorefrontUrl } from '../../helpers/seed-product-feeds.js';
 import {
   SEED_PRODUCT_101_ID,
