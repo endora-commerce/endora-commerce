@@ -125,11 +125,19 @@ export {
 } from '../kernel/module-context.js';
 export { registerRequestScopeHook } from '../kernel/request-scope-hook.js';
 export { platformLogger } from '../kernel/logging.js';
-// The promotion hook a root hands the admin guard factory, and the absolutiser
-// the root applies to a configured public base URL. `./kernel` carries the
-// factory types and the configuration refusal, which is what a module reads;
-// neither of these is a module's to supply.
-export { type AdminActorPromotion } from '../kernel/ports/require-admin.js';
+// The absolutiser a root applies to a configured public base URL. `./kernel`
+// carries the factory types and the configuration refusal, which is what a
+// module reads; this is not a module's to supply.
+//
+// `AdminActorPromotion` was here until T118c drained `mfaActorBridge`. That
+// bridge held the application's last reach for the type — `composition.ts`
+// read `promoteAdminActor` off the cradle to build it — and with the bridge
+// gone the type has no consumer outside this package. The barrel is held to
+// its consumers **both** ways, so it comes off rather than standing as a name
+// nobody names; the declaration itself is untouched in
+// `../kernel/ports/require-admin.js`, and it returns here the day an
+// application needs it again. Neither branch was wrong alone: T119b put it on
+// because a consumer existed, and this one removed the consumer.
 export { absolutizePublicUrl } from '../kernel/public-api-base-url.js';
 
 // --- kernel: the lifecycle a root primes and reconciles -------------------

@@ -1032,7 +1032,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 2001 -> 2002. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 2014,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 2003 rather than the
+    // 2014 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 2003,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1282,7 +1288,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 2128 -> 2129. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 2141,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 2130 rather than the
+    // 2141 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 2130,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1829,7 +1841,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 5466 -> 5469. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 5483,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 5472 rather than the
+    // 5483 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 5472,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2464,7 +2482,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 2128 -> 2129. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 2141,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 2130 rather than the
+    // 2141 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 2130,
     sites: 260,
     sources: ['manifest-index'],
   },
@@ -2693,7 +2717,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 2128 -> 2129. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 2141,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 2130 rather than the
+    // 2141 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 2130,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2922,7 +2952,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 2128 -> 2129. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 2141,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 2130 rather than the
+    // 2141 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 2130,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -3714,7 +3750,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 2128 -> 2129. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 2141,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 2130 rather than the
+    // 2141 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 2130,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -3731,7 +3773,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // task publishes joined export declarations that already existed, so they add no site.
     // `into-modules` stays 0, which is what the rule is about, and `platform-subpaths` moves 13
     // -> 14 with `./demo` — a derived reconciliation and not a band.
-    sites: 141,
+    // **T118c, `mfaActorBridge`: sites −1.** Resolving this branch against T119b took
+    // `AdminActorPromotion` off the `./composition` barrel — the drain removed the
+    // application's last consumer of the type, and the barrel is held to its consumers both
+    // ways — so the re-export line itself, which this walk counts as an outward import, is
+    // gone: 141 -> 140.
+    sites: 140,
     // `platform-subpaths` is T118a's second author over rule B's population: the
     // platform's `exports` map is a different program's answer to "which directories
     // does this package have", and a published subpath naming no walked directory is a
@@ -5717,7 +5764,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 8116 -> 8122. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 8136,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 8126 rather than the
+    // 8136 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 8126,
     sites: null,
     sources: [],
     //
@@ -6172,7 +6225,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 2128 -> 2129. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 2141,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 2130 rather than the
+    // 2141 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 2130,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -6470,7 +6529,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 2426 -> 2427. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 2439,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 2428 rather than the
+    // 2439 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 2428,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -7241,7 +7306,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 2128 -> 2129. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 2141,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 2130 rather than the
+    // 2141 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 2130,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -7635,7 +7706,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 2128 -> 2129. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 2141,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 2130 rather than the
+    // 2141 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 2130,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -7938,7 +8015,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 4491 -> 4494. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 4508,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 4497 rather than the
+    // 4508 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 4497,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -8635,7 +8718,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 8178 -> 8182. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 8196,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 8186 rather than the
+    // 8196 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 8186,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -9032,7 +9121,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither tree alone: 6097 -> 6100. Taken in the **quality-job shape** — the ignored
     // copies `composer:generate` places under `docs/docs/modules/` swept first, because no
     // job has placed them when these checks run and a developer's tree reads ~80 higher.
-    files: 6114,
+    // **Re-measured on the union after rebasing onto T119b.** That task deleted eleven
+    // re-export shims — `backend/src/http/` and `backend/src/kernel/ports/` went entirely —
+    // so every entry here moves by the same −11 and this one lands at 6103 rather than the
+    // 6114 recorded against a tree that still held them. Quality-job shape: the ignored
+    // copies under `docs/docs/modules/` swept first, since no job has placed them when
+    // these checks run.
+    files: 6103,
     sites: null,
     sources: ['manifest-index'],
     //
