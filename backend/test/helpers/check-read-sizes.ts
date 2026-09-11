@@ -7037,9 +7037,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `specs/114-release-shape-gate/tasks.md`. This walk is the whole tree, JSON included.
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
     // the combined tree, never summed from the two sides' deltas.
+    // **Feature 114, Phase 1: 8294 -> 8295.** One file, and it is the whole move —
+    // `.changeset/release-shape-classification.md`, the empty changeset this branch
+    // carries. Its four subjects are a check, two tests and a CI job, all of which
+    // already existed; this walk is the whole repository and `.changeset/*.md` is in
+    // it. Attributed by parking the file and re-running: 8294 without it, 8295 with,
+    // in the same tree and in the quality job's shape.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 8300,
+    // **Merged with `origin/master` at f788f9af5, and re-measured rather than reconciled.** Feature 114's Phase 1 moved this walk by one — its own empty changeset — and this branch moved it by six, so each side's number describes a tree without the other's files and no arithmetic over the two produces the union. The number below is a fresh measurement on the merged tree, taken in a worktree created from the merge commit and reporting an empty `git status`.
+    files: 8295,
     sites: null,
     sources: [],
     //
@@ -10727,9 +10734,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The delta is all five files the master side adds, this walk being the whole tree.
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
     // the combined tree, never summed from the two sides' deltas.
+    // **Feature 114, Phase 1: 8354 -> 8355**, the same one file as the walk above —
+    // this branch's empty changeset. The park-and-re-measure caveat three lines up is
+    // why it is attributed differently: this population is the **index**, so the file
+    // stayed listed after it was taken off disk and the walk read 8355 both ways. It is
+    // attributed from the branch's own added-file list instead
+    // (`git diff --diff-filter=A origin/master...HEAD` names exactly that one path),
+    // which is the index's own answer to the same question.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 8360,
+    // **Merged with `origin/master` at f788f9af5, and re-measured rather than reconciled.** Feature 114's Phase 1 moved this walk by one — its own empty changeset — and this branch moved it by six, so each side's number describes a tree without the other's files and no arithmetic over the two produces the union. The number below is a fresh measurement on the merged tree, taken in a worktree created from the merge commit and reporting an empty `git status`.
+    files: 8355,
     sites: null,
     sources: ['manifest-index'],
     //

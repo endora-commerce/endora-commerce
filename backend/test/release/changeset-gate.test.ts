@@ -38,9 +38,26 @@ import { afterEach, describe, expect, it } from 'vitest';
  *      job.** `pnpm run version:packages` consumes the pending changesets, so
  *      its merge request changes every bumped manifest and carries zero
  *      changesets — precisely the shape the gate exists to fail. The
- *      discriminator is the diff (files deleted under `.changeset/`, none
- *      added), never a branch name, and on such a branch the job asks the
- *      inverted question instead: did anything's `version` move.
+ *      discriminator is the diff, never a branch name, and on such a branch the
+ *      job asks a different question: did this branch release anything.
+ *
+ * ## What changed with feature 114, and what this file stopped doing
+ *
+ * The discriminator used to be *"changeset files deleted and none added"* —
+ * a **tool's signature**, `changeset version`'s — and it lived in twelve lines
+ * of `.gitlab-ci.yml`. This file re-implemented those two `git diff`
+ * invocations and asserted about **its own copy**, which made it the only judge
+ * the shell ever had and made the pair two derivations of one predicate.
+ *
+ * D-212 classifies a branch by what it **produced**: a moved `version` in a
+ * versionable package's manifest, an added `## <version>` CHANGELOG section, or
+ * both. That decision moved into `check-release-intent`, where contract §8's
+ * eight red proofs drive it on synthetic input at the top of the analysis —
+ * something a shell cannot take (issue #130). So the re-implementation is gone
+ * and what is left here is the half a fixture cannot prove: the same branch
+ * shapes over **real git**, judged by the one implementation, including the two
+ * D-210 performs (the hand-set release and the history landing) and the empty
+ * changeset that used to open the gate for both.
  */
 
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url)).replace(/\/$/, '');
@@ -285,57 +302,60 @@ describe('a release branch is the one branch the gate would refuse for doing its
   });
 
   /**
-   * The discriminator itself: the two `git diff --diff-filter` invocations
-   * `release:changeset` runs, over the branch shapes it has to tell apart. A
-   * branch name would have been the easy answer and is not a fact about the
-   * diff; consuming changeset files is.
+   * The classification itself, over real branches, through the check that owns
+   * it (feature 114, D-212).
+   *
+   * **This block used to re-implement the gate.** It ran the same two
+   * `git diff --diff-filter` invocations `release:changeset` carried in shell
+   * and asserted about its own copy — two derivations of one predicate, and the
+   * only judge the shell's twelve lines ever had. Contract §5 is why they are
+   * gone: a shell cannot take a fixture at the top of its analysis (issue #130),
+   * so the classification moved into `check-release-intent`, where the eight red
+   * proofs of contract §8 drive it on synthetic input. What is left here is the
+   * half a fixture cannot prove — the same shapes over **real git**, judged by
+   * the one implementation.
    */
-  const consumed = (dir: string, filter: 'D' | 'A'): readonly string[] =>
-    git(
-      dir,
-      'diff',
-      // Without this, git folds "a changeset consumed and another written" into
-      // one rename — two changeset files differing by a single word are well
-      // over the similarity threshold — and the classification becomes a
-      // function of how alike two summaries happen to read. Measured: the
-      // consume-and-write case below reported no delete and no add.
-      '--no-renames',
-      `--diff-filter=${filter}`,
-      '--name-only',
-      'master...HEAD',
-      '--',
-      '.changeset',
-    )
-      .split('\n')
-      .filter((line) => line.endsWith('.md') && !line.toLowerCase().endsWith('readme.md'));
+  it('passes a release branch, and says which shape it measured', () => {
+    const run = releaseGate(releaseBranch());
 
-  it('classifies a release branch as one that deletes changesets and adds none', () => {
-    const dir = releaseBranch();
-
-    expect(consumed(dir, 'D')).toEqual(['.changeset/a.md']);
-    expect(consumed(dir, 'A')).toEqual([]);
+    expect(run.status).toBe(0);
+    expect(run.output).toContain('shape=release');
+    expect(run.output).toContain('violations=0');
   });
 
-  it('does not classify an ordinary branch that adds one as a release', () => {
+  it('passes an ordinary branch that adds a changeset', () => {
     const dir = fixture();
     initialCommit(dir);
     git(dir, 'checkout', '-q', '-b', 'topic');
+    writeFileSync(join(dir, 'packages/contracts/src/index.ts'), 'export const marker = 2;\n');
     writeFileSync(join(dir, '.changeset/a.md'), changeset('@endora-commerce/contracts', 'minor'));
     git(dir, 'add', '-A');
     git(dir, 'commit', '-q', '-m', 'topic');
 
-    expect(consumed(dir, 'D')).toEqual([]);
-    expect(consumed(dir, 'A')).toEqual(['.changeset/a.md']);
+    const run = releaseGate(dir);
+
+    expect(run.status).toBe(0);
+    expect(run.output).toContain('shape=ordinary');
   });
 
   /**
-   * And the branch that both consumes and writes — a release rebased onto new
-   * intent. It is **not** a release branch to the discriminator, so it goes to
-   * `changeset status`, which is right: it carries a changeset, so the ordinary
-   * question has an ordinary answer.
+   * Contract §9 — the one assertion in this file that encoded the superseded
+   * rule, rewritten to the classification that replaces it rather than kept
+   * beside it.
+   *
+   * It read *"does not classify a branch that consumes and writes as a
+   * release"*, which was a statement about the **tool's signature**: the branch
+   * both deleted and added changeset files, so the shell's
+   * deleted-and-none-added test did not match it and it fell through to
+   * `changeset status`. Under D-212 the same branch is classified by what it
+   * **produced** — a release rebased onto new intent has produced the artefacts,
+   * so it is a release. The verdict is unchanged, and the route to it is not:
+   * this passed then and it passes now.
    */
-  it('does not classify a branch that consumes and writes as a release', () => {
-    const dir = fixture({ files: { '.changeset/a.md': changeset('@endora-commerce/contracts', 'minor') } });
+  it('classifies a release rebased onto new intent by its artefacts, not by what it consumed', () => {
+    const dir = fixture({
+      files: { '.changeset/a.md': changeset('@endora-commerce/contracts', 'minor') },
+    });
     initialCommit(dir);
     git(dir, 'checkout', '-q', '-b', 'topic');
     runChangeset(dir, ['version']);
@@ -343,50 +363,169 @@ describe('a release branch is the one branch the gate would refuse for doing its
     git(dir, 'add', '-A');
     git(dir, 'commit', '-q', '-m', 'topic');
 
-    expect(consumed(dir, 'D')).toEqual(['.changeset/a.md']);
-    expect(consumed(dir, 'A')).toEqual(['.changeset/b.md']);
-    expect(runChangeset(dir, ['status', '--since=master']).status).toBe(0);
+    const run = releaseGate(dir);
+
+    expect(run.status).toBe(0);
+    expect(run.output).toContain('shape=release');
   });
 
   /**
-   * The inverted question the job asks on a release branch: did it release
-   * anything. A `changeset version` that moved nothing produces a branch with
-   * consumed changesets and no `"version"` line in the diff — which is the
-   * `privatePackages.version: false` no-op arriving through the other door.
+   * The refusal, and the shape it is aimed at: a `changeset version` that moved
+   * nothing, followed by a human deleting the files while tidying up. Measured
+   * in `research.md` §4 — under `privatePackages.version: false` the no-op
+   * writes no version, writes no changelog and does not even delete the
+   * changeset files, which is why widening the artefact to a changelog section
+   * cannot reach it.
    */
-  it('shows a moved `version` line on a real release and none on a vacuous one', () => {
-    const real = releaseBranch();
-    expect(git(real, 'diff', '-U0', 'master...HEAD', '--', '*/package.json')).toMatch(
-      /^\+\s*"version"\s*:/m,
-    );
-
-    // The changeset names a **private** package: `privatePackages.version:
-    // false` is what makes this run vacuous, and it governs private packages
-    // only, so naming a public one would produce a real release rather than the
-    // no-op under test — which is exactly what it did once feature 104 made
-    // `contracts` public, and again once it published `email-components` too.
-    // The fixture declares the privacy rather than borrowing it, so the case
-    // states its own precondition instead of resting on the day's tree.
-    const vacuous = fixture({
+  function vacuousRelease(): string {
+    const dir = fixture({
       privateLibraries: ['email-components'],
       mutateConfig: (config) => {
         config['privatePackages'] = { version: false, tag: false };
       },
       files: { '.changeset/a.md': changeset('@endora-commerce/email-components', 'minor') },
     });
-    initialCommit(vacuous);
-    git(vacuous, 'checkout', '-q', '-b', 'release/version');
-    runChangeset(vacuous, ['version']);
-    // Nothing moved, so there is nothing to commit but the deletion a human
-    // would have made while "cleaning up".
-    rmSync(join(vacuous, '.changeset/a.md'));
-    git(vacuous, 'add', '-A');
-    git(vacuous, 'commit', '-q', '-m', 'chore: version packages');
+    initialCommit(dir);
+    git(dir, 'checkout', '-q', '-b', 'release/version');
+    runChangeset(dir, ['version']);
+    rmSync(join(dir, '.changeset/a.md'));
+    return dir;
+  }
 
-    expect(consumed(vacuous, 'D')).toEqual(['.changeset/a.md']);
-    expect(git(vacuous, 'diff', '-U0', 'master...HEAD', '--', '*/package.json')).not.toMatch(
-      /^\+\s*"version"\s*:/m,
+  it('refuses a branch that consumed the changesets and released nothing', () => {
+    const dir = vacuousRelease();
+    git(dir, 'add', '-A');
+    git(dir, 'commit', '-q', '-m', 'chore: version packages');
+
+    const run = releaseGate(dir);
+
+    expect(run.status).toBe(1);
+    expect(run.output).toContain('vacuous-release');
+    expect(run.output).toContain('shape=vacuous');
+  });
+
+  /**
+   * The lockpick, over real git (A4). Measured under the superseded rule: one
+   * empty changeset took the *same* branch to exit 0 — and for the history
+   * landing it removed the branch from the release class entirely, so nothing
+   * anywhere asked whether it had released anything. An empty changeset is a
+   * human's "I looked, there is nothing to release", never a declaration that a
+   * release happened.
+   */
+  it('is not opened by an empty changeset', () => {
+    const dir = vacuousRelease();
+    writeFileSync(join(dir, '.changeset/empty.md'), '---\n---\n\nnothing to release\n');
+    git(dir, 'add', '-A');
+    git(dir, 'commit', '-q', '-m', 'chore: version packages');
+
+    const run = releaseGate(dir);
+
+    expect(run.status).toBe(1);
+    expect(run.output).toContain('vacuous-release');
+  });
+
+  /** The manifest a branch edits by hand, with `mutate` applied to it. */
+  function editManifest(
+    dir: string,
+    relative: string,
+    mutate: (manifest: Record<string, unknown>) => void,
+  ): void {
+    const manifest = JSON.parse(readFileSync(join(dir, relative), 'utf8')) as Record<
+      string,
+      unknown
+    >;
+    mutate(manifest);
+    writeFileSync(join(dir, relative), JSON.stringify(manifest, null, 2));
+  }
+
+  /**
+   * D-210's first act, over real git (A1): every versionable package's `version`
+   * moves in one commit, no changeset is consumed, no changelog is written.
+   * `changeset status` refuses it — it attributes any changed file under
+   * `packages/<p>/` to that package, including the one file whose change **is**
+   * the release — and the measurement above this describe is that refusal.
+   */
+  it('passes the hand-set release, which `changeset status` refuses', () => {
+    const dir = fixture();
+    initialCommit(dir);
+    git(dir, 'checkout', '-q', '-b', 'release-by-hand');
+    for (const name of LIBRARIES) {
+      editManifest(dir, `packages/${name}/package.json`, (manifest) => {
+        // A version the tree is not already at — the manifests are copied from
+        // this repository, so writing today's number commits nothing and the
+        // case would measure an empty branch.
+        manifest['version'] = '9.9.9';
+      });
+    }
+    git(dir, 'add', '-A');
+    git(dir, 'commit', '-q', '-m', 'chore: set the first version');
+
+    expect(runChangeset(dir, ['status', '--since=master']).status).toBe(1);
+
+    const run = releaseGate(dir);
+
+    expect(run.status).toBe(0);
+    expect(run.output).toContain('shape=release');
+    expect(run.output).toContain(`versions-moved=${String(LIBRARIES.length)}`);
+  });
+
+  /**
+   * D-210's second act, over real git (A2): the pending changesets become the
+   * released version's history. Every changeset file goes, one `## <version>`
+   * section is written per released package, and **no version moves** — which is
+   * precisely the shape the superseded inverted question refused, that question
+   * having been aimed at a `changeset version` that silently did nothing.
+   */
+  it('passes the history landing, which consumes everything and moves no version', () => {
+    const dir = fixture({
+      files: { '.changeset/a.md': changeset('@endora-commerce/contracts', 'minor') },
+    });
+    initialCommit(dir);
+    git(dir, 'checkout', '-q', '-b', 'land-the-history');
+    rmSync(join(dir, '.changeset/a.md'));
+    writeFileSync(
+      join(dir, 'packages/contracts/CHANGELOG.md'),
+      '# @endora-commerce/contracts\n\n## 0.7.0\n\n- a change worth releasing\n',
     );
+    git(dir, 'add', '-A');
+    git(dir, 'commit', '-q', '-m', 'chore: land the accumulated changesets at 0.7.0');
+
+    const run = releaseGate(dir);
+
+    expect(run.status).toBe(0);
+    expect(run.output).toContain('shape=release');
+    expect(run.output).toContain('changelog-sections=1');
+    expect(run.output).toContain('versions-moved=0');
+  });
+
+  /**
+   * A5 — the half nothing else in this repository can see. The `version` field
+   * is release-neutral and every other key of a manifest is consumer-facing:
+   * `exports` compiles into nothing, so neither `changeset status` nor the
+   * published-surface pass can see it narrow, and a file-level exemption would
+   * wave the whole manifest through.
+   */
+  it('refuses a branch that moves a version and narrows an `exports` map', () => {
+    const dir = fixture();
+    initialCommit(dir);
+    git(dir, 'checkout', '-q', '-b', 'release-and-narrow');
+    editManifest(dir, 'packages/contracts/package.json', (manifest) => {
+      manifest['version'] = '9.9.9';
+      // The real manifest publishes `.` and `./*`; this keeps the first and
+      // drops the second, which is a subpath a consumer resolves today and
+      // would stop resolving — invisible to `changeset status`, which sees a
+      // changed file under the package's own directory and attributes it to the
+      // release this branch claims to be.
+      manifest['exports'] = { '.': { types: './dist/index.d.ts', default: './dist/index.js' } };
+    });
+    git(dir, 'add', '-A');
+    git(dir, 'commit', '-q', '-m', 'chore: set the first version');
+
+    const run = releaseGate(dir);
+
+    expect(run.status).toBe(1);
+    expect(run.output).toContain('manifest-changed-beyond-version');
+    expect(run.output).toContain('@endora-commerce/contracts');
   });
 });
 
@@ -425,8 +564,15 @@ const hostPackageFiles = (): Readonly<Record<string, string>> => ({
   [HOST_SOURCE]: 'export const marker = 1;\n',
 });
 
-/** The second command of `release:changeset`, run the way the job runs it. */
-function publishedSurfaceGate(dir: string, since = 'master'): { status: number; output: string } {
+/**
+ * The gate, run the way `release:changeset` runs it.
+ *
+ * It was the job's *second* command until feature 114; it is now the only one,
+ * and it spawns `changeset status` itself for the branches it classifies as
+ * ordinary (FR-006, FR-007). The name says the whole gate because that is what
+ * the one invocation is.
+ */
+function releaseGate(dir: string, since = 'master'): { status: number; output: string } {
   const result = spawnSync(
     join(REPO_ROOT, 'backend/node_modules/.bin/tsx'),
     [join(REPO_ROOT, 'backend/scripts/check-release-intent.ts'), '--root', dir, '--since', since],
@@ -495,7 +641,7 @@ describe('a package whose sources are not its own directory (D-162)', () => {
       writeFileSync(join(root, HOST_SOURCE), 'export const marker = 2;\n');
     });
 
-    const run = publishedSurfaceGate(dir);
+    const run = releaseGate(dir);
 
     expect(run.status).toBe(1);
     expect(run.output).toContain('unattributed-published-change');
@@ -509,7 +655,7 @@ describe('a package whose sources are not its own directory (D-162)', () => {
       writeFileSync(join(root, '.changeset/a.md'), changeset('@endora-commerce/platform', 'patch'));
     });
 
-    expect(publishedSurfaceGate(dir).status).toBe(0);
+    expect(releaseGate(dir).status).toBe(0);
   });
 
   /**
@@ -517,13 +663,22 @@ describe('a package whose sources are not its own directory (D-162)', () => {
    * rather than redundant: a change inside a package's own directory is the
    * CLI's question, and the second gate says nothing about it.
    */
-  it('says nothing about a change `changeset status` already refuses', () => {
+  it('says nothing of its own about a change `changeset status` already refuses', () => {
     const dir = branch((root) => {
       writeFileSync(join(root, 'packages/contracts/src/index.ts'), 'export const marker = 2;\n');
     });
 
     expect(runChangeset(dir, ['status', '--since=master']).status).toBe(1);
-    expect(publishedSurfaceGate(dir).status).toBe(0);
+
+    const run = releaseGate(dir);
+
+    // Refused, and by the CLI's own verdict rather than by a second one: the
+    // gate is one invocation since feature 114, so "the published-surface
+    // question says nothing about this" is now a statement about which finding
+    // comes back, not about the exit code.
+    expect(run.status).toBe(1);
+    expect(run.output).toContain('unattributed-package-change');
+    expect(run.output).not.toContain('unattributed-published-change');
   });
 
   /** An application file no package compiles stays an application file. */
@@ -533,7 +688,7 @@ describe('a package whose sources are not its own directory (D-162)', () => {
     });
 
     expect(runChangeset(dir, ['status', '--since=master']).status).toBe(0);
-    expect(publishedSurfaceGate(dir).status).toBe(0);
+    expect(releaseGate(dir).status).toBe(0);
   });
 
   /** `release:changeset` names the command, or the edge is closed by nothing. */
@@ -605,14 +760,14 @@ describe('the baseline, and the two ways a diff comes back empty', () => {
   };
 
   it('goes red on a branch that changes a published surface and carries no changeset', () => {
-    const run = publishedSurfaceGate(topic('topic', changesAPublishedFile));
+    const run = releaseGate(topic('topic', changesAPublishedFile));
 
     expect(run.status).toBe(1);
     expect(run.output).toContain('unattributed-published-change');
   });
 
   it('passes the same branch once it carries a changeset', () => {
-    const run = publishedSurfaceGate(
+    const run = releaseGate(
       topic('topic', (root) => {
         changesAPublishedFile(root);
         writeFileSync(
@@ -637,7 +792,7 @@ describe('the baseline, and the two ways a diff comes back empty', () => {
     git(dir, 'checkout', '-q', '-b', 'topic');
     git(dir, 'commit', '-q', '--allow-empty', '-m', 'topic');
 
-    const run = publishedSurfaceGate(dir);
+    const run = releaseGate(dir);
 
     expect(run.status).toBe(2);
     expect(run.output).toContain('changes no file at all');
@@ -652,10 +807,10 @@ describe('the baseline, and the two ways a diff comes back empty', () => {
    */
   it('reports containment, not an empty diff, once the branch is merged into the baseline', () => {
     const dir = topic('topic', changesAPublishedFile);
-    expect(publishedSurfaceGate(dir).status).toBe(1);
+    expect(releaseGate(dir).status).toBe(1);
 
     mergeIntoMaster(dir, 'topic');
-    const run = publishedSurfaceGate(dir);
+    const run = releaseGate(dir);
 
     expect(run.status).toBe(0);
     expect(run.output).toContain('already contained in `master`');
@@ -678,7 +833,7 @@ describe('the baseline, and the two ways a diff comes back empty', () => {
     git(dir, 'commit', '-q', '-m', 'squashed topic');
     git(dir, 'checkout', '-q', 'topic');
 
-    const run = publishedSurfaceGate(dir);
+    const run = releaseGate(dir);
 
     expect(run.status).toBe(1);
     expect(run.output).toContain('unattributed-published-change');
@@ -692,22 +847,25 @@ describe('the baseline, and the two ways a diff comes back empty', () => {
    */
   it('reads containment off the commit graph, never off the branch name', () => {
     const unmerged = topic('release/version', changesAPublishedFile);
-    expect(publishedSurfaceGate(unmerged).status).toBe(1);
+    expect(releaseGate(unmerged).status).toBe(1);
 
     const merged = topic('feature/still-in-flight', changesAPublishedFile);
     mergeIntoMaster(merged, 'feature/still-in-flight');
-    expect(publishedSurfaceGate(merged).status).toBe(0);
-    expect(publishedSurfaceGate(merged).output).toContain('already contained');
+    expect(releaseGate(merged).status).toBe(0);
+    expect(releaseGate(merged).output).toContain('already contained');
   });
 
   /**
-   * And the release branch itself, merged. The discriminator that recognises one
-   * lives in `release:changeset`'s shell and reads deleted-and-none-added off
-   * the diff; containment makes that diff empty, so it correctly stops
-   * classifying the branch as a release — the classification was never a name,
-   * and there is nothing left for it to classify.
+   * And the release branch itself, merged. Containment is answered before
+   * anything is read, so it reaches the branch the classification would
+   * otherwise have the most to say about — and it answers it the same way as any
+   * other merged branch: there is no delta left to judge, and that is a verdict
+   * rather than an empty measurement.
+   *
+   * The unmerged half of the pair is the premise: the same branch, before the
+   * merge, is classified a release on its own artefacts.
    */
-  it('leaves a merged release branch with nothing to classify, from the diff', () => {
+  it('reports containment for a merged release branch, ahead of any classification', () => {
     const dir = fixture({
       files: { '.changeset/a.md': changeset('@endora-commerce/contracts', 'minor') },
     });
@@ -717,24 +875,16 @@ describe('the baseline, and the two ways a diff comes back empty', () => {
     git(dir, 'add', '-A');
     git(dir, 'commit', '-q', '-m', 'chore: version packages');
 
-    const deleted = (): string =>
-      git(
-        dir,
-        'diff',
-        '--no-renames',
-        '--diff-filter=D',
-        '--name-only',
-        'master...HEAD',
-        '--',
-        '.changeset',
-      );
-    expect(deleted()).toContain('.changeset/a.md');
+    expect(releaseGate(dir).output).toContain('shape=release');
 
     git(dir, 'checkout', '-q', 'master');
     git(dir, 'merge', '-q', '--no-ff', '-m', 'merge release', 'release/version');
     git(dir, 'checkout', '-q', 'release/version');
 
-    expect(deleted()).toBe('');
-    expect(publishedSurfaceGate(dir).status).toBe(0);
+    const run = releaseGate(dir);
+
+    expect(run.status).toBe(0);
+    expect(run.output).toContain('contained=yes');
+    expect(run.output).not.toContain('shape=');
   });
 });

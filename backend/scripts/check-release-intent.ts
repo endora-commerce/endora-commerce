@@ -135,6 +135,56 @@
  * that installs git and resolves the target branch — rather than in `quality`.
  * The default mode is untouched by it and reads no build configuration at all.
  *
+ * ## And it classifies the branch before it asks — `--since`, feature 114
+ *
+ * `release:changeset` used to decide, in twelve lines of shell, whether a branch
+ * was a *release* — and it decided it by a **tool's signature**: changeset files
+ * deleted and none added, which is what `changeset version` leaves behind.
+ * D-210 performs a release **without** that tool, in two acts, and neither
+ * carries the signature, so neither had a verdict. Measured:
+ *
+ * ```
+ * the hand-set release (79 `version` fields moved, nothing consumed)
+ *     -> ordinary branch -> `changeset status` -> exit 1
+ * the history landing (215 changesets consumed, no `version` moved)
+ *     -> classified a release -> "it moved no package version" -> exit 1
+ * either shape, plus one EMPTY changeset
+ *     -> exit 0, and for the landing the branch leaves the release class
+ *        entirely, so nothing asks whether it released anything
+ * ```
+ *
+ * The gap was never that the gate refused these shapes. It is that **the only
+ * way past it was a lockpick**, and AGENTS.md's own instruction about the empty
+ * changeset — *"write the empty changeset rather than looking for a way past the
+ * gate"* — is the thing that ruled the repair out while the measurement showed
+ * it available.
+ *
+ * D-212 replaces the signature with the **artefact**:
+ *
+ *   * `vacuous-release` — the branch deleted changeset files and produced no
+ *     release artefact of any kind. The refusal the shell already carried, with
+ *     its teeth where they were: under `privatePackages.version: false` the
+ *     no-op writes no version, writes no changelog and does not even delete the
+ *     changeset files, so widening the artefact to *a changelog section* cannot
+ *     reach it.
+ *   * `manifest-changed-beyond-version` — a versionable package's manifest moved
+ *     in some key other than `version` while the branch adds no changeset.
+ *     Release-neutrality is **field-level**: an accidental version edit passes,
+ *     an accidental `exports` narrowing does not, and that is the half nothing
+ *     else in this repository can see.
+ *   * `unattributed-package-change` — `changeset status`' own exit, attributed
+ *     rather than relayed. FR-007: the command is unchanged and is not
+ *     reimplemented; what moved is the decision of which branch to ask it of,
+ *     which was never the CLI's. That decision is here rather than in the shell
+ *     because a shell cannot take a fixture at the top of its analysis
+ *     (issue #130), and its only judge was a *second implementation* of the same
+ *     two `git diff` invocations inside `changeset-gate.test.ts` — two
+ *     derivations of one predicate.
+ *
+ * {@link classifyReleaseShape} is the table, {@link readReleaseArtefacts} is
+ * where the facts come from, and `contracts/release-shape-classification.md` in
+ * `specs/114-release-shape-gate/` is normative for both.
+ *
  * ## Family or application, derived
  *
  * `pnpm-workspace.yaml` is the authority and the discriminator is the **shape of
@@ -277,6 +327,17 @@
  * publishes nothing outside its own directory", which is the answer that lets
  * the gate stay quiet.
  *
+ * Feature 114 adds four more, one per input whose absence would make the
+ * *classification* vacuous (contract §7), and all four live **inside** the
+ * analysis so that a red proof entering where a real run enters can reach them:
+ * a `CHANGELOG.md` side that could not be read; a `package.json` side that does
+ * not parse; a branch that changed a versionable package's directory and for
+ * which the artefact walk produced no fact at all; and `changeset status`
+ * failing to *run*, as opposed to exiting 1, which is a finding. The first two
+ * are a pair on purpose — the same defect on the two file kinds the
+ * classification reads — because a check that refused one and skipped the other
+ * would be a check whose blindness depends on which file went wrong.
+ *
  * ## The empty diff is two facts, and only one of them is a refusal
  *
  * Pipeline 11491 failed a correct merge request. !916 changed three Dockerfiles,
@@ -323,6 +384,7 @@
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { execFileSync, spawnSync } from 'node:child_process';
 import { readdirSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { readSizeRefusal, reportReadSize, type ReadCoverage } from './lib/read-size.js';
@@ -410,6 +472,9 @@ export type ReleaseIntentFindingKind =
   | 'stale-ignore-entry'
   | 'stale-group-member'
   | 'unversionable-changeset'
+  | 'vacuous-release'
+  | 'manifest-changed-beyond-version'
+  | 'unattributed-package-change'
   | 'unattributed-published-change';
 
 export interface ReleaseIntentFinding {
@@ -1256,8 +1321,19 @@ export interface PublishedSurface {
   readonly filesRead: number;
 }
 
-/** The branch, as two lists of repository-relative paths, against a named baseline. */
-export interface BranchDiff {
+/**
+ * The branch as git alone answers it: lists of repository-relative paths against
+ * a named baseline, with nothing read out of a file.
+ *
+ * It is told apart from {@link BranchDiff} because the release-shape
+ * classification (feature 114, contract §5.1) rests on facts that are **not** in
+ * the commit graph — whether a `version` field moved, and whether a
+ * `CHANGELOG.md` gained a section. Both are properties of the two sides'
+ * *contents*, so they are resolved inside the analysis, where a red proof can
+ * hand it a two-sided reader; a git reader that resolved them would put them
+ * where no fixture can enter (issue #130).
+ */
+export interface BranchPaths {
   /** The ref the branch was measured against, as it was given on the command line. */
   readonly baseline: string;
   /**
@@ -1273,7 +1349,94 @@ export interface BranchDiff {
   readonly changedPaths: readonly string[];
   /** The `.changeset/*.md` files the branch **adds** (README excluded). */
   readonly addedChangesets: readonly string[];
+  /**
+   * The `.changeset/*.md` files the branch **deletes** (README excluded).
+   *
+   * Consumption is deliberately *not* part of the classification (D-212,
+   * contract §3.1) — it appears only in {@link ReleaseIntentFindingKind}'s
+   * `vacuous-release` refusal, which is what gives the hand-set release and the
+   * history landing one verdict apiece while keeping the teeth of the refusal
+   * the `privatePackages.version: false` no-op arrives through.
+   */
+  readonly deletedChangesets: readonly string[];
 }
+
+/**
+ * What one versionable package's manifest and changelog say about this branch.
+ *
+ * The three booleans are the two derived facts of contract §2, per package:
+ * `versionMoved` and `changelogSectionAdded` are §2.1's *release artefact*, and
+ * `manifestChangedBeyondVersion` is §2.2's release-neutrality. A record exists
+ * for every versionable package the branch **touched**, whether or not any of
+ * the three is true — an all-false record is the answer "this package changed
+ * and released nothing", and it is what makes contract §7.3's refusal (a
+ * touched package for which the walk produced no fact at all) mean the walk
+ * stopped working rather than the branch being ordinary.
+ */
+export interface ReleaseArtefact {
+  /** The versionable package's name, as its manifest declares it. */
+  readonly package: string;
+  /** Its `package.json` `version` differs between the two sides of the diff. */
+  readonly versionMoved: boolean;
+  /** Its `CHANGELOG.md` gains a `## <version>` heading the baseline has not. */
+  readonly changelogSectionAdded: boolean;
+  /**
+   * Its `package.json` changed in some key other than `version`.
+   *
+   * The exemption is **field-level, never file-level** (contract §2.2):
+   * `exports`, `peerDependencies`, `files` and `types` are consumer-facing, they
+   * compile into nothing, and so neither `changeset status` nor this check's
+   * published-surface pass can see them move — every versionable package's
+   * surface resolves to its own `src` tree. A file-level exemption would open
+   * exactly that hole, which is scenario 3 of the spec.
+   */
+  readonly manifestChangedBeyondVersion: boolean;
+}
+
+/** The branch, with the artefact facts contract §2 derives from both sides of it. */
+export interface BranchDiff extends BranchPaths {
+  /** One record per versionable package the branch touched. */
+  readonly releaseArtefacts: readonly ReleaseArtefact[];
+}
+
+/**
+ * One side of one file, as text.
+ *
+ * Three answers, and the middle one is why this is not `string | null`:
+ *
+ *   * the text — the file is there at that ref;
+ *   * `''` — the ref does not carry that path *at all*. A `CHANGELOG.md` the
+ *     branch creates has no baseline side, and the history landing creates one
+ *     per released package, so reading that absence as a failure would refuse
+ *     the largest release-shaped branch in this repository's history;
+ *   * `null` — the read **failed**. That is contract §7.1/§7.2's exit 2: an
+ *     artefact question answered by a silence is not an answer, and the silence
+ *     reads as "no release", which is the direction that agrees with the defect.
+ *
+ * The distinction is git's own — `git cat-file -e <ref>:<path>` exits 1 for a
+ * path the ref does not carry and 128 for anything else — and not a guess made
+ * from an error message.
+ */
+export type SideReader = (ref: string, path: string) => string | null;
+
+/** What `changeset status` answered, or `null` when it could not be run at all. */
+export interface ChangesetStatusAnswer {
+  readonly status: number;
+  readonly output: string;
+}
+
+/**
+ * The changesets CLI's own command, injected.
+ *
+ * FR-007: `changeset status` is **not** reimplemented and this contract does not
+ * change what it asks. What moved is the decision of *which* branch to ask it
+ * of, which was never the CLI's. Injecting it is what lets a red proof drive
+ * contract §8's fixture 5 — an ordinary branch whose CLI answer is red — without
+ * a git repository, and what makes "the invocation could not run at all"
+ * (contract §7.4) reachable from a fixture as the refusal it is, rather than as
+ * a finding.
+ */
+export type ChangesetStatusRunner = (baseline: string) => ChangesetStatusAnswer | null;
 
 /**
  * The baseline already contains the branch, so there is no delta to judge.
@@ -1314,9 +1477,21 @@ export interface ReleaseIntentContainment {
   readonly contained: string;
 }
 
-export interface PublishedSurfaceResult {
+/**
+ * What the `--since` mode measured about one branch.
+ *
+ * It was `PublishedSurfaceResult` while the mode asked one question; feature 114
+ * gave the mode the release-shape classification, so the result carries the
+ * verdict (`shape`) and the facts it was reached from (`artefacts`) beside the
+ * surfaces the D-162 question is asked over.
+ */
+export interface BranchIntentResult {
   readonly findings: readonly ReleaseIntentFinding[];
   readonly surfaces: readonly PublishedSurface[];
+  /** The classification (D-212, contract §3), printed so the verdict is readable. */
+  readonly shape: 'release' | 'vacuous' | 'ordinary';
+  /** One record per versionable package the branch touched. */
+  readonly artefacts: readonly ReleaseArtefact[];
   readonly files: number;
   readonly sites: number;
   readonly coverage: readonly ReadCoverage[];
@@ -1479,6 +1654,307 @@ export function compilesPath(surface: PublishedSurface, path: string): boolean {
 }
 
 /**
+ * The `## <version>` headings a changelog carries.
+ *
+ * A section is recognised by its heading being a version, not by its being a
+ * level-two heading: `applyReleasePlan` writes `## 0.7.0`, and a changelog is
+ * ordinary markdown in which `## Unreleased` or `## Migration notes` is a
+ * heading somebody wrote by hand and not a release.
+ */
+export function changelogSections(text: string): readonly string[] {
+  const sections: string[] = [];
+  for (const line of text.split('\n')) {
+    const match = /^##\s+v?(\d+\.\d+\.\d+\S*)\s*$/.exec(line.trim());
+    if (match !== null) sections.push(match[1]!);
+  }
+  return sections;
+}
+
+/**
+ * A value as text, with every object's keys in a fixed order.
+ *
+ * Written out rather than reached for through `JSON.stringify`'s array
+ * replacer, which looks like the same thing and is not: an array replacer is a
+ * **key filter applied at every level**, so a top-level key list drops every
+ * nested key. Measured — with it, `exports` compared equal to a narrowed
+ * `exports`, because both serialised to `{}` — which is the one comparison
+ * FR-004 exists for.
+ */
+function stableText(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'undefined';
+  if (Array.isArray(value)) return `[${value.map(stableText).join(',')}]`;
+  const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>
+    a < b ? -1 : a > b ? 1 : 0,
+  );
+  return `{${entries.map(([key, member]) => `${JSON.stringify(key)}:${stableText(member)}`).join(',')}}`;
+}
+
+/**
+ * Every key of a manifest except `version`, as comparable text.
+ *
+ * Contract §2.2: both sides are parsed, `version` is removed from each, and the
+ * remainders are compared. Parsed rather than diffed as text because a
+ * reformatting — `changeset version` rewrites the file through the workspace's
+ * own formatter — is not a consumer-facing change, and the question is about the
+ * *values* a consumer resolves.
+ */
+function manifestBeyondVersion(manifest: Record<string, unknown>): string {
+  const rest: Record<string, unknown> = { ...manifest };
+  delete rest['version'];
+  return stableText(rest);
+}
+
+/**
+ * Contract §2, per versionable package, over both sides of the branch.
+ *
+ * Pure over `(versionable, diff, readSide)`: every byte it judges arrives
+ * through the reader, so a red proof supplies a synthetic diff and a two-sided
+ * reader and reaches every one of the refusals below — which is what contract
+ * §7 asks for and what `reportReadSize` living in the CLI could not give
+ * (issue #130).
+ *
+ * Three of contract §7's four refusals are here, because this is where their
+ * input is: an unreadable `CHANGELOG.md` side, a `package.json` side that does
+ * not parse, and a branch that touched a versionable package's directory and
+ * produced no fact at all. The first two are stated as a pair on purpose — they
+ * are the same defect on the two file kinds this reads, and a check that refused
+ * one and skipped the other would be a check whose blindness depends on which
+ * file went wrong.
+ */
+export function readReleaseArtefacts(
+  versionable: readonly { readonly name: string; readonly dir: string }[],
+  diff: BranchPaths,
+  readSide: SideReader,
+): readonly ReleaseArtefact[] | ReleaseIntentRefusal {
+  const changed = new Set(diff.changedPaths);
+  const artefacts: ReleaseArtefact[] = [];
+
+  for (const member of versionable) {
+    const touched =
+      changed.has(`${member.dir}/package.json`) ||
+      diff.changedPaths.some((path) => path.startsWith(`${member.dir}/`));
+    if (!touched) continue;
+
+    const manifestPath = `${member.dir}/package.json`;
+    let versionMoved = false;
+    let manifestChangedBeyondVersion = false;
+    if (changed.has(manifestPath)) {
+      const sides: Record<string, unknown>[] = [];
+      for (const ref of [diff.baseline, 'HEAD']) {
+        const text = readSide(ref, manifestPath);
+        if (text === null) {
+          return {
+            reason:
+              `\`${manifestPath}\` could not be read at \`${ref}\` — the manifest is what ` +
+              'answers whether this branch moved a version and whether it changed anything ' +
+              'else, and a silence there reads as "no release", which is the direction that ' +
+              'agrees with the defect',
+          };
+        }
+        // An empty read is the ref not carrying the path at all — a package the
+        // branch adds. Its baseline remainder is `{}`, so every key it declares
+        // is a change beyond `version`, which is the fail-closed answer: a new
+        // package reaches a consumer and needs a changeset.
+        if (text.trim() === '') {
+          sides.push({});
+          continue;
+        }
+        try {
+          const parsed: unknown = JSON.parse(text);
+          if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            throw new Error('not an object');
+          }
+          sides.push(parsed as Record<string, unknown>);
+        } catch {
+          return {
+            reason:
+              `\`${manifestPath}\` does not parse at \`${ref}\` — never "changed beyond ` +
+              'version" and never "release-neutral"; a manifest this run could not read is a ' +
+              'manifest it has no verdict about',
+          };
+        }
+      }
+      const [before, after] = sides as [Record<string, unknown>, Record<string, unknown>];
+      versionMoved =
+        typeof before['version'] === 'string' &&
+        typeof after['version'] === 'string' &&
+        before['version'] !== after['version'];
+      manifestChangedBeyondVersion =
+        manifestBeyondVersion(before) !== manifestBeyondVersion(after);
+    }
+
+    const changelogPath = `${member.dir}/CHANGELOG.md`;
+    let changelogSectionAdded = false;
+    if (changed.has(changelogPath)) {
+      const sides: string[] = [];
+      for (const ref of [diff.baseline, 'HEAD']) {
+        const text = readSide(ref, changelogPath);
+        if (text === null) {
+          return {
+            reason:
+              `\`${changelogPath}\` could not be read at \`${ref}\` — an added changelog ` +
+              'section is one of the two release artefacts this branch is classified by, and ' +
+              'a question answered by a silence reads as "no release"',
+          };
+        }
+        sides.push(text);
+      }
+      const [before, after] = sides as [string, string];
+      const had = new Set(changelogSections(before));
+      changelogSectionAdded = changelogSections(after).some((section) => !had.has(section));
+    }
+
+    artefacts.push({
+      package: member.name,
+      versionMoved,
+      changelogSectionAdded,
+      manifestChangedBeyondVersion,
+    });
+  }
+
+  // Contract §7.3, and it is a floor over a population **the walk did not
+  // compute**: the changed files that carry a release — a manifest or a
+  // changelog — sitting where a versionable package sits, under a directory that
+  // holds one. If the walk attributed *none* of them to any member while the
+  // branch changed one, the walk has stopped matching the tree, and what it
+  // would otherwise print is a clean line over an unjudged branch.
+  //
+  // Why it is narrow: it fires only when the walk produced **nothing at all**,
+  // so a branch that edits one stray manifest beside a package it did attribute
+  // is judged normally. And why it is exit 2 rather than a finding: a manifest
+  // under the library tree that belongs to no workspace member — a package the
+  // branch deletes, or one the workspace globs stopped reaching — is a
+  // consumer-facing change this check has no member to attribute, which is a
+  // measurement it did not take rather than a verdict about the branch.
+  const versionableDirs = new Set(versionable.map((member) => member.dir));
+  const parents = new Set(versionable.map((member) => parentOf(member.dir)));
+  const unattributed = diff.changedPaths.filter((path) => {
+    const base = path.slice(path.lastIndexOf('/') + 1);
+    if (base !== 'package.json' && base !== 'CHANGELOG.md') return false;
+    const dir = parentOf(path);
+    return parents.has(parentOf(dir)) && !versionableDirs.has(dir);
+  });
+  if (unattributed.length > 0 && artefacts.length === 0) {
+    return {
+      reason:
+        `this branch changes ${String(unattributed.length)} release-bearing file(s) where a ` +
+        `versionable package sits and the artefact walk attributed none of them: ` +
+        `${unattributed.slice(0, 5).join(', ')}${unattributed.length > 5 ? ', …' : ''}. ` +
+        'Either a package left the workspace while its manifest stayed, or the walk has ' +
+        'stopped matching the tree; a clean line over an unjudged branch is what this would ' +
+        'otherwise print',
+    };
+  }
+  return artefacts;
+}
+
+/** The parent of a repository-relative POSIX path, or `''` at the top. */
+function parentOf(path: string): string {
+  const cut = path.lastIndexOf('/');
+  return cut < 0 ? '' : path.slice(0, cut);
+}
+
+/**
+ * What shape of branch this is (D-212, contract §3).
+ *
+ * | Release artefact | Verdict |
+ * | --- | --- |
+ * | present | `release` |
+ * | absent, and changeset files were deleted | `vacuous` |
+ * | absent, otherwise | `ordinary` |
+ *
+ * Three properties of that table are load-bearing, and a fourth is a
+ * reconciliation this function has to state rather than leave to a reader.
+ *
+ * **Consumption is not in the classification.** It appears only in the refusal:
+ * a branch that deleted changeset files and produced nothing is refused, and a
+ * branch that produced something is a release whether it consumed or not. That
+ * is what gives the hand-set release (D-210's first act, which consumes nothing)
+ * and the history landing (its second, which consumes everything and moves no
+ * version) one verdict apiece.
+ *
+ * **An added changeset does not reclassify.** Neither row consults
+ * {@link BranchPaths.addedChangesets}. An empty changeset is a human's *"I
+ * looked, there is nothing to release"* and never a declaration that a release
+ * happened — measured, one empty changeset turned both unrecognised shapes green
+ * under the superseded rule, and for the history landing it removed the branch
+ * from the release class entirely, so nothing asked whether it released
+ * anything.
+ *
+ * **The refusal keeps its teeth.** Under `privatePackages.version: false` —
+ * the silent no-op the refusal exists to catch — `changeset version` writes no
+ * version, writes no changelog, and does not even delete the changeset files. So
+ * a changelog section is written by the operation the gate wants to see and by
+ * nothing else, and widening the artefact from *a moved version* to *a moved
+ * version or an added changelog section* cannot reach the no-op.
+ *
+ * **And release-neutrality is part of being a release**, which is the
+ * reconciliation: contract §8's proof 4 is a branch that moves a `version`
+ * **and** narrows an `exports` map, and its expectation is both the
+ * `manifest-changed-beyond-version` finding *and* §4.1 being asked. A manifest
+ * that changed in another key carries a change needing a changeset, so the
+ * branch is not exempt from the ordinary questions; §2.1's artefact is what
+ * makes it a release, §2.2's neutrality is what makes the release *all* it is.
+ */
+export function classifyReleaseShape(diff: BranchDiff): 'release' | 'vacuous' | 'ordinary' {
+  const produced = diff.releaseArtefacts.some(
+    (artefact) => artefact.versionMoved || artefact.changelogSectionAdded,
+  );
+  if (!produced) return diff.deletedChangesets.length > 0 ? 'vacuous' : 'ordinary';
+  return diff.releaseArtefacts.some((artefact) => artefact.manifestChangedBeyondVersion)
+    ? 'ordinary'
+    : 'release';
+}
+
+/**
+ * The classification's own findings: the vacuous release, and the manifest that
+ * changed in a key a release does not.
+ *
+ * Pure over the classified diff, like every other analysis in this file, so a
+ * red proof enters with a synthetic one.
+ */
+export function analyzeReleaseShape(diff: BranchDiff): readonly ReleaseIntentFinding[] {
+  const findings: ReleaseIntentFinding[] = [];
+
+  if (classifyReleaseShape(diff) === 'vacuous') {
+    findings.push({
+      kind: 'vacuous-release',
+      subject: diff.baseline,
+      message:
+        `deletes ${String(diff.deletedChangesets.length)} changeset file(s) and produced no ` +
+        'release artefact: no versionable package moved its `version` and none gained a ' +
+        '`## <version>` changelog section. That is what `changeset version` does when ' +
+        '`.changeset/config.json` cannot see the packages — it exits 0, reports success and ' +
+        'bumps nothing — followed by a human deleting the files while tidying up. Run ' +
+        '`pnpm --filter backend run check:release-intent`. An **empty changeset does not ' +
+        'answer this**: the classification is over artefacts, and adding one is the lockpick ' +
+        'D-212 closes.',
+    });
+  }
+
+  // Suppressed by an added changeset for the same reason the published-surface
+  // question is: the branch has said what it releases, and the per-package gap
+  // is a reviewer's to close.
+  if (diff.addedChangesets.length === 0) {
+    for (const artefact of diff.releaseArtefacts) {
+      if (!artefact.manifestChangedBeyondVersion) continue;
+      findings.push({
+        kind: 'manifest-changed-beyond-version',
+        subject: artefact.package,
+        message:
+          'changed its `package.json` in a key other than `version`, and this branch adds no ' +
+          'changeset. A `version` field is release-neutral; `exports`, `peerDependencies`, ' +
+          '`files`, `types` and every other key is consumer-facing and compiles into nothing, ' +
+          'so neither `changeset status` nor the published-surface pass above can see it move. ' +
+          'Write the changeset, or an empty one if the change carries no release meaning.',
+      });
+    }
+  }
+
+  return findings;
+}
+
+/**
  * The findings `changeset status` structurally cannot produce.
  *
  * Pure over the resolved surfaces and the diff, so a red proof drives it with a
@@ -1486,7 +1962,7 @@ export function compilesPath(surface: PublishedSurface, path: string): boolean {
  */
 export function analyzePublishedSurfaceIntent(
   surfaces: readonly PublishedSurface[],
-  diff: BranchDiff,
+  diff: BranchPaths,
 ): readonly ReleaseIntentFinding[] {
   if (diff.addedChangesets.length > 0) return [];
 
@@ -1512,13 +1988,34 @@ export function analyzePublishedSurfaceIntent(
   return findings;
 }
 
-/** The `--since` mode over a checkout: resolve every published surface, then analyse. */
-export function checkPublishedSurfaceIntent(
+/**
+ * The two readers the `--since` mode's analysis is driven by.
+ *
+ * They are parameters rather than calls because both reach outside the
+ * checkout's *files* — one into the commit graph's contents, one into another
+ * program — and a red proof that could not supply them would have to enter the
+ * analysis below the classification, which is the defect issue #130 records.
+ */
+export interface BranchProbe {
+  readonly readSide: SideReader;
+  readonly askChangesetStatus: ChangesetStatusRunner;
+}
+
+/**
+ * The `--since` mode over a checkout: classify the branch by what it produced,
+ * and ask the ordinary branch the ordinary questions.
+ *
+ * The order is the contract's (§3 then §4) and each step's refusal is inside
+ * this function, never in the printing: a red proof entering here — where a real
+ * run enters — reaches all four of contract §7's refusals.
+ */
+export function checkBranchIntent(
   repoRoot: string,
   fs: WorkspaceFs,
   listChangesets: (dir: string) => readonly string[] | null,
-  diff: BranchDiff,
-): PublishedSurfaceResult | ReleaseIntentContainment | ReleaseIntentRefusal {
+  diff: BranchPaths,
+  probe: BranchProbe,
+): BranchIntentResult | ReleaseIntentContainment | ReleaseIntentRefusal {
   // First, and before anything is read: containment is a property of the commit
   // graph, so nothing below it has an input. Answering it here rather than in
   // the CLI is what lets a red proof drive it where a real run enters, and what
@@ -1565,20 +2062,61 @@ export function checkPublishedSurfaceIntent(
     };
   }
 
+  const artefacts = readReleaseArtefacts(versionable, diff, probe.readSide);
+  if ('reason' in artefacts) return artefacts;
+  const classified: BranchDiff = { ...diff, releaseArtefacts: artefacts };
+  const shape = classifyReleaseShape(classified);
+
   const coverage: readonly ReadCoverage[] = [
     { source: 'versionable-packages', expected: versionable.length, covered: surfaces.length },
   ];
   // Every tsconfig each `extends` chain actually opened, on top of what the
   // default mode opened. Files, not chains: `files` is what the walk opened.
   const files = inputs.files + surfaces.reduce((total, surface) => total + surface.filesRead, 0);
-  // One decision per (surface, changed path) pair: does this package compile it,
-  // and can the CLI see that it does.
-  const sites = surfaces.length * diff.changedPaths.length;
+  // One decision per (surface, changed path) pair — does this package compile it,
+  // and can the CLI see that it does — plus the three artefact questions
+  // (feature 114) asked of every versionable package: did its `version` move,
+  // did its changelog gain a section, did its manifest change in any other key.
+  const sites = surfaces.length * diff.changedPaths.length + versionable.length * 3;
 
   const short = readSizeRefusal({ prefix: PREFIX, files, sites, coverage });
   if (short !== null) return { reason: short.message };
 
-  return { findings: analyzePublishedSurfaceIntent(surfaces, diff), surfaces, files, sites, coverage };
+  const findings: ReleaseIntentFinding[] = [...analyzeReleaseShape(classified)];
+
+  // §4 — the ordinary branch's questions, asked of the ordinary branch. A
+  // release is exempt from them because the files it changes *are* the release;
+  // one that also changed a manifest beyond `version` is not classified as a
+  // release in the first place (see `classifyReleaseShape`), so it is asked them
+  // here with the rest.
+  if (shape === 'ordinary') {
+    findings.push(...analyzePublishedSurfaceIntent(surfaces, diff));
+
+    const answer = probe.askChangesetStatus(diff.baseline);
+    if (answer === null) {
+      return {
+        reason:
+          '`changeset status` could not be run at all — that is contract §7.4 and not a ' +
+          'finding: an exit code this run never obtained is not a verdict about the branch. ' +
+          'The command is the changesets CLI\'s own and is not reimplemented here; what this ' +
+          'check decides is which branch to ask it of',
+      };
+    }
+    if (answer.status !== 0) {
+      findings.push({
+        kind: 'unattributed-package-change',
+        subject: 'changeset status',
+        message:
+          `exited ${String(answer.status)} for this branch: a versionable package changed and ` +
+          'the branch carries no changeset. This is the changesets CLI\'s own verdict, ' +
+          'attributed rather than relayed — the branch is not a release (no `version` moved ' +
+          'and no changelog section was added), so it is asked the ordinary question. Its ' +
+          `output follows.\n${answer.output.trim()}`,
+      });
+    }
+  }
+
+  return { findings, surfaces, shape, artefacts, files, sites, coverage };
 }
 
 // --- CLI -------------------------------------------------------------------
@@ -1598,7 +2136,7 @@ function listDirectoryFiles(dir: string): readonly string[] | null {
  * diff: "nothing changed" and "git could not answer" are the same silence the
  * whole file exists to refuse.
  */
-function readBranchDiff(repoRoot: string, since: string): BranchDiff | ReleaseIntentRefusal {
+function readBranchDiff(repoRoot: string, since: string): BranchPaths | ReleaseIntentRefusal {
   const run = (args: readonly string[]): string[] | null => {
     try {
       return execFileSync('git', [...args], { cwd: repoRoot, encoding: 'utf8' })
@@ -1648,14 +2186,98 @@ function readBranchDiff(repoRoot: string, since: string): BranchDiff | ReleaseIn
     '.changeset',
   ]);
   if (added === null) return { reason: `\`git diff --diff-filter=A ${since}...HEAD\` failed` };
+  // `--no-renames` on both halves, and it is not tidiness: without it git folds
+  // "a changeset consumed and another written" into one rename — two changeset
+  // files differing by a single word are well over the similarity threshold —
+  // and the branch's consumption becomes a function of how alike two summaries
+  // happen to read. Measured in `test/release/changeset-gate.test.ts`.
+  const deleted = run([
+    'diff',
+    '--no-renames',
+    '--diff-filter=D',
+    '--name-only',
+    `${since}...HEAD`,
+    '--',
+    '.changeset',
+  ]);
+  if (deleted === null) return { reason: `\`git diff --diff-filter=D ${since}...HEAD\` failed` };
+
+  const changesetFiles = (paths: readonly string[]): readonly string[] =>
+    paths.filter((path) => path.endsWith('.md') && !path.toLowerCase().endsWith('readme.md'));
 
   return {
     baseline: since,
     containedInBaseline,
     changedPaths,
-    addedChangesets: added.filter(
-      (path) => path.endsWith('.md') && !path.toLowerCase().endsWith('readme.md'),
-    ),
+    addedChangesets: changesetFiles(added),
+    deletedChangesets: changesetFiles(deleted),
+  };
+}
+
+/**
+ * Both sides of a file, through git.
+ *
+ * `git ls-tree` first, because the two answers this reader has to keep apart are
+ * *"the ref does not carry this path"* and *"the read failed"*, and `git show`
+ * spells both as a non-zero exit with a message on stderr. `ls-tree` answers the
+ * first as **exit 0 with no output** and the second as a non-zero exit, which is
+ * git's own discrimination and not one inferred from an error string.
+ *
+ * `git cat-file -e <ref>:<path>` was the obvious reader and is the wrong one,
+ * measured: it exits **128** for a path a ref does not carry, exactly as it does
+ * for a ref that does not exist. Every changelog the history landing creates has
+ * no baseline side, so reading that absence as a failure refused the largest
+ * release-shaped branch in this repository's history — which is what it did,
+ * here, before this note was written. See {@link SideReader}.
+ */
+function gitSideReader(repoRoot: string): SideReader {
+  return (ref, path) => {
+    const listed = spawnSync('git', ['ls-tree', '--name-only', ref, '--', path], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+    });
+    if (listed.status !== 0) return null;
+    if ((listed.stdout ?? '').trim() === '') return '';
+    try {
+      return execFileSync('git', ['show', `${ref}:${path}`], {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        maxBuffer: 64 * 1024 * 1024,
+      });
+    } catch {
+      return null;
+    }
+  };
+}
+
+/**
+ * `changeset status --since=<baseline>`, spawned.
+ *
+ * The command is the changesets CLI's own and is byte-for-byte the one
+ * `.gitlab-ci.yml` used to run (FR-007); what moved into this file is the
+ * *decision* to ask it, which was never the CLI's. The binary is resolved from
+ * **this script's** own module graph rather than from `repoRoot`, because
+ * `--root` routinely names a synthetic checkout with no `node_modules` — which
+ * is how `test/release/changeset-gate.test.ts` drives the gate over real
+ * branches — and a resolution that could not answer there would put the whole
+ * classification outside that file's reach.
+ *
+ * `null` is *"it did not run"*, never *"it passed"*: contract §7.4.
+ */
+function changesetStatusRunner(repoRoot: string): ChangesetStatusRunner {
+  return (baseline) => {
+    let bin: string;
+    try {
+      bin = createRequire(import.meta.url).resolve('@changesets/cli/bin.js');
+    } catch {
+      return null;
+    }
+    const result = spawnSync(process.execPath, [bin, 'status', `--since=${baseline}`], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+    });
+    if (result.error !== undefined || result.status === null) return null;
+    return { status: result.status, output: `${result.stdout ?? ''}${result.stderr ?? ''}` };
   };
 }
 
@@ -1701,7 +2323,10 @@ function reportPublishedSurface(repoRoot: string, since: string): number {
     return 2;
   }
 
-  const result = checkPublishedSurfaceIntent(repoRoot, nodeWorkspaceFs(), listDirectoryFiles, diff);
+  const result = checkBranchIntent(repoRoot, nodeWorkspaceFs(), listDirectoryFiles, diff, {
+    readSide: gitSideReader(repoRoot),
+    askChangesetStatus: changesetStatusRunner(repoRoot),
+  });
   if ('contained' in result) {
     // Loud on stdout rather than a bare exit 0: the verdict is a pass, and a
     // pass nobody can tell from an ordinary one is how "measured nothing" would
@@ -1721,16 +2346,25 @@ function reportPublishedSurface(repoRoot: string, since: string): number {
     sites: result.sites,
     coverage: result.coverage,
   });
+  // The classification is printed whatever it is, and the artefact counts with
+  // it: a pass that does not say *why* it passed is a pass nobody can tell from
+  // one the gate stopped asking for.
+  const released = result.artefacts.filter(
+    (artefact) => artefact.versionMoved || artefact.changelogSectionAdded,
+  );
   console.log(
-    `${PREFIX} --since=${since} surfaces=${result.surfaces.length} ` +
+    `${PREFIX} --since=${since} shape=${result.shape} surfaces=${result.surfaces.length} ` +
       `changed=${diff.changedPaths.length} changesets-added=${diff.addedChangesets.length} ` +
-      `violations=${result.findings.length}`,
+      `changesets-deleted=${diff.deletedChangesets.length} ` +
+      `versions-moved=${result.artefacts.filter((a) => a.versionMoved).length} ` +
+      `changelog-sections=${result.artefacts.filter((a) => a.changelogSectionAdded).length} ` +
+      `released=${released.length} violations=${result.findings.length}`,
   );
 
   if (result.findings.length > 0) {
     console.error(
-      '\nThis branch changes a published surface that `changeset status` cannot attribute to ' +
-        'its package, so the gate exits 0 over a change a consumer will receive:',
+      '\nThis branch is refused. Each finding below is a question `changeset status` either ' +
+        'answered or structurally cannot ask:',
     );
     for (const finding of result.findings) {
       console.error(`  - [${finding.kind}] ${finding.subject} ${finding.message}`);

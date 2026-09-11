@@ -337,12 +337,12 @@ import { reportsOnlyTheSourceFile } from '../../helpers/nul-bytes-check-fixture.
 import { createShellCheckFixture } from '../../helpers/shell-check-fixture.js';
 import { RECORDED_READ_SIZES } from '../../helpers/check-read-sizes.js';
 import {
-  checkPublishedSurfaceIntent,
+  checkBranchIntent,
   checkReleaseIntent,
-  type BranchDiff,
   type ReleaseIntentFindingKind,
 } from '../../../scripts/check-release-intent.js';
 import {
+  branch as releaseIntentBranch,
   checkout as releaseIntentCheckout,
   configuredAs as releaseIntentConfiguredAs,
   FIXTURE_ROOT as RELEASE_INTENT_ROOT,
@@ -350,6 +350,7 @@ import {
   PRIVATE_BETA,
   PUBLISHED_ALPHA,
   publishedAlphaAs,
+  type BranchOptions as ReleaseIntentBranch,
   type FileMap as ReleaseIntentFiles,
 } from '../../helpers/release-intent-check-fixture.js';
 
@@ -752,18 +753,44 @@ function releaseIntentRefusal(overrides: ReleaseIntentFiles, expected: string): 
  */
 function publishedSurfaceFindings(
   overrides: ReleaseIntentFiles,
-  diff: BranchDiff,
+  options: ReleaseIntentBranch,
   kind: ReleaseIntentFindingKind,
 ): number {
-  const tree = releaseIntentCheckout(overrides);
-  const result = checkPublishedSurfaceIntent(
+  const fixture = releaseIntentBranch(overrides, options);
+  const result = checkBranchIntent(
     RELEASE_INTENT_ROOT,
-    tree.fs,
-    tree.listChangesets,
-    diff,
+    fixture.tree.fs,
+    fixture.tree.listChangesets,
+    fixture.paths,
+    fixture.probe,
   );
   if ('contained' in result || 'reason' in result) return 0;
   return result.findings.filter((finding) => finding.kind === kind).length;
+}
+
+/**
+ * The same `--since` analysis, over an input it must **refuse**.
+ *
+ * Four of feature 114's proofs are refusals rather than findings (contract §7),
+ * and the distinction is the whole of issue #113: an exit code this run never
+ * obtained, a file it could not read, a walk that attributed nothing — each of
+ * them read as a verdict would be the gate reporting a clean line over a branch
+ * it did not judge.
+ */
+function branchIntentRefusal(
+  overrides: ReleaseIntentFiles,
+  options: ReleaseIntentBranch,
+  expected: string,
+): number {
+  const fixture = releaseIntentBranch(overrides, options);
+  const result = checkBranchIntent(
+    RELEASE_INTENT_ROOT,
+    fixture.tree.fs,
+    fixture.tree.listChangesets,
+    fixture.paths,
+    fixture.probe,
+  );
+  return 'reason' in result && result.reason.includes(expected) ? 1 : 0;
 }
 
 function bundleResidueRefusal(bundleFiles: readonly string[]): number {
@@ -10145,28 +10172,141 @@ const CHECKS: readonly CheckEntry[] = [
       'unattributed-published-change': top(() =>
         publishedSurfaceFindings(
           HOST_SOURCED_PACKAGE,
-          {
-            baseline: 'origin/master',
-            containedInBaseline: false,
-            changedPaths: ['apps/host/src/kernel/settings/settings-cache.ts'],
-            addedChangesets: [],
-          },
+          { changedPaths: ['apps/host/src/kernel/settings/settings-cache.ts'] },
           'unattributed-published-change',
         ),
       ),
       // A build configuration it cannot read must be a refusal: read as absent,
       // it says the package publishes nothing outside its own directory, which
       // is the answer that leaves the gate exactly as quiet as it was.
-      'unreadable-build-configuration': top(() => {
-        const tree = releaseIntentCheckout({ 'packages/alpha/tsconfig.build.json': null });
-        const result = checkPublishedSurfaceIntent(RELEASE_INTENT_ROOT, tree.fs, tree.listChangesets, {
-          baseline: 'origin/master',
-          containedInBaseline: false,
-          changedPaths: ['apps/host/src/a.ts'],
-          addedChangesets: [],
-        });
-        return 'reason' in result && result.reason.includes('could not be read') ? 1 : 0;
-      }),
+      'unreadable-build-configuration': top(() =>
+        branchIntentRefusal(
+          { 'packages/alpha/tsconfig.build.json': null },
+          { changedPaths: ['apps/host/src/a.ts'] },
+          'could not be read',
+        ),
+      ),
+      // Feature 114, D-212 — the release-shape classification, one key per
+      // shape. The branch used to be classified by a **tool's signature**
+      // (changeset files deleted and none added, which is what `changeset
+      // version` leaves behind), so D-210's two acts — a release performed
+      // without that tool — fell outside it and neither had a verdict.
+      //
+      // The refusal it replaces is the one kept: a branch that consumed and
+      // produced nothing is the `privatePackages.version: false` no-op arriving
+      // through the other door. Measured, that no-op writes no version, writes
+      // no changelog and does not even delete the changeset files, so widening
+      // the artefact to *a changelog section* cannot reach it.
+      'vacuous-release': top(() =>
+        publishedSurfaceFindings(
+          {},
+          { changedPaths: ['.changeset/a.md'], deletedChangesets: ['.changeset/a.md'] },
+          'vacuous-release',
+        ),
+      ),
+      // The lockpick, and the reason this classification is worth landing.
+      // Measured under the superseded rule: one **empty** changeset turned both
+      // unrecognised shapes green, and for the history landing it removed the
+      // branch from the release class entirely, so nothing asked whether the
+      // largest release-shaped change in this repository's history had released
+      // anything. A proof of the refusal alone would be satisfied by a check
+      // the lockpick still opens.
+      'vacuous-release-with-an-empty-changeset-added': top(() =>
+        publishedSurfaceFindings(
+          {},
+          {
+            changedPaths: ['.changeset/a.md', '.changeset/empty.md'],
+            deletedChangesets: ['.changeset/a.md'],
+            addedChangesets: ['.changeset/empty.md'],
+          },
+          'vacuous-release',
+        ),
+      ),
+      // FR-004, and the half nothing else in this repository can see. A
+      // `version` field is release-neutral; `exports` is consumer-facing and
+      // compiles into nothing, so the published-surface pass above cannot see
+      // it move and `changeset status` attributes it to the package whose
+      // release the branch claims to be. The exemption is field-level for
+      // exactly this reason — a file-level one opens the hole.
+      'manifest-changed-beyond-version': top(() =>
+        publishedSurfaceFindings(
+          {},
+          {
+            changedPaths: ['packages/alpha/package.json'],
+            before: {
+              'packages/alpha/package.json': JSON.stringify({
+                name: '@fx/alpha',
+                version: '0.9.0',
+                license: 'MIT',
+                repository: {
+                  type: 'git',
+                  url: 'https://example.invalid/fx.git',
+                  directory: 'packages/alpha',
+                },
+                publishConfig: { access: 'public' },
+                exports: { '.': './dist/index.js', './lib': './dist/lib.js' },
+              }),
+            },
+          },
+          'manifest-changed-beyond-version',
+        ),
+      ),
+      // `changeset status`' own exit, attributed rather than relayed (FR-007).
+      // The command is unchanged and is not reimplemented here; what moved is
+      // the decision of which branch to ask it of, which was never the CLI's.
+      'unattributed-package-change': top(() =>
+        publishedSurfaceFindings(
+          {},
+          {
+            changedPaths: ['packages/alpha/src/index.ts'],
+            changesetStatus: { status: 1, output: 'no changesets were found' },
+          },
+          'unattributed-package-change',
+        ),
+      ),
+      // Contract §7.1 and §7.2, stated as a pair because they are the same
+      // defect on the two file kinds the classification reads: an artefact
+      // question answered by a silence is not an answer, and the silence reads
+      // as "no release" — the direction that agrees with the defect.
+      'unreadable-changelog-side': top(() =>
+        branchIntentRefusal(
+          {},
+          {
+            changedPaths: ['packages/alpha/CHANGELOG.md'],
+            before: { 'packages/alpha/CHANGELOG.md': null },
+          },
+          'could not be read',
+        ),
+      ),
+      'unparseable-manifest-side': top(() =>
+        branchIntentRefusal(
+          {},
+          {
+            changedPaths: ['packages/alpha/package.json'],
+            before: { 'packages/alpha/package.json': '{ "name": ' },
+          },
+          'does not parse',
+        ),
+      ),
+      // Contract §7.3 — a release-bearing file where a versionable package sits
+      // that the walk attributed to nobody. The population is not the walk's
+      // own, which is what makes it a floor rather than a self-report.
+      'unattributed-release-bearing-file': top(() =>
+        branchIntentRefusal(
+          {},
+          { changedPaths: ['packages/gamma/package.json'] },
+          'attributed none of them',
+        ),
+      ),
+      // Contract §7.4 — "it did not run" is not "it passed", and it is not the
+      // exit 1 that is a finding either.
+      'changeset-status-did-not-run': top(() =>
+        branchIntentRefusal(
+          {},
+          { changedPaths: ['packages/alpha/src/index.ts'], changesetStatus: null },
+          'could not be run at all',
+        ),
+      ),
       // Pipeline 11491, as a discrimination rather than as one assertion. An
       // empty diff is two facts, and the refusal belongs to exactly one of them:
       // a branch with a real fork point that changes no file is still exit 2 —
@@ -10178,19 +10318,14 @@ const CHECKS: readonly CheckEntry[] = [
       // failure it must not become. So the fixture drives the same empty diff
       // twice, differing in one field, and both answers have to be right.
       'empty-diff-from-a-real-fork-point': top(() => {
-        const emptyDiff = (containedInBaseline: boolean): BranchDiff => ({
-          baseline: 'origin/master',
-          containedInBaseline,
-          changedPaths: [],
-          addedChangesets: [],
-        });
         const answer = (containedInBaseline: boolean) => {
-          const tree = releaseIntentCheckout({});
-          return checkPublishedSurfaceIntent(
+          const fixture = releaseIntentBranch({}, { containedInBaseline });
+          return checkBranchIntent(
             RELEASE_INTENT_ROOT,
-            tree.fs,
-            tree.listChangesets,
-            emptyDiff(containedInBaseline),
+            fixture.tree.fs,
+            fixture.tree.listChangesets,
+            fixture.paths,
+            fixture.probe,
           );
         };
 
@@ -10780,7 +10915,14 @@ describe('every red proof enters at the top of the analysis', () => {
       // reads identically and which is how it arrives from somebody who thought
       // they had answered it — plus `unresolvable-license-file` for the paid
       // half of the model, `SEE LICENSE IN LICENSE.md` with no such file.
-      'backend/scripts/check-release-intent.ts': 21,
+      //
+      // **21 -> 29 (feature 114, D-212).** Three new finding kinds and four new
+      // refusals, plus the one discrimination without which the classification
+      // would be worth nothing: `vacuous-release` in both spellings — the branch
+      // that consumed and produced nothing, and the *same* branch carrying one
+      // **empty** changeset, which under the superseded rule turned it green and
+      // for the history landing took it out of the release class entirely.
+      'backend/scripts/check-release-intent.ts': 29,
       // Two findings — the centre and the undecidable gate — plus the ledger's
       // three directions and the three refusals `vacuousReason` answers. The
       // fourth refusal is `readSizeRefusal`'s `short-walk` over the
