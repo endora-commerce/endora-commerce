@@ -13,6 +13,11 @@
  * It lives here rather than beside the companion test because the inventory's
  * red proofs need the same tree.
  */
+import type {
+  BranchPaths,
+  BranchProbe,
+  ChangesetStatusAnswer,
+} from '../../scripts/check-release-intent.js';
 import type { WorkspaceFs } from '../../scripts/lib/workspace-packages.js';
 
 /** Where the synthetic checkout is rooted. Never touched on disk. */
@@ -258,3 +263,81 @@ export const NESTED_FAMILY_PACKAGE: FileMap = {
   'packages/modules/gamma/tsconfig.build.json':
     '{ "compilerOptions": { "rootDir": "./src" }, "include": ["src/**/*"] }',
 };
+
+/**
+ * A branch, for the release-shape classification (feature 114, contract §8).
+ *
+ * The classifier is pure over `(diff, readSide)`, so a proof supplies a
+ * synthetic diff and a **two-sided reader** and never a pre-computed
+ * classification — which is the defect issue #130 records for
+ * `check-entry-scope`, where a pre-classified record meant the classifier under
+ * test never ran.
+ *
+ * The reader's default is the checkout itself on **both** sides, so a fixture
+ * states only what its branch changed: `before` is the baseline side of the
+ * files this branch moved, and a path absent from a side reads as `''` — the ref
+ * not carrying it, which is a `CHANGELOG.md` the branch creates and not a
+ * failure. `null` on either side is the read having failed, which is contract
+ * §7.1/§7.2's exit 2.
+ */
+export interface BranchOptions {
+  readonly baseline?: string;
+  readonly containedInBaseline?: boolean;
+  readonly changedPaths?: readonly string[];
+  readonly addedChangesets?: readonly string[];
+  readonly deletedChangesets?: readonly string[];
+  /** The baseline side of the files this branch moved. `null` = unreadable. */
+  readonly before?: Readonly<Record<string, string | null>>;
+  /** The HEAD side, where it is not the checkout's own file. `null` = unreadable. */
+  readonly after?: Readonly<Record<string, string | null>>;
+  /**
+   * What `changeset status` answers, or `null` for *"it could not be run"* —
+   * contract §7.4, which is a refusal and never a finding. The default is a
+   * clean exit, so a fixture that says nothing about the CLI is not silently
+   * asserting its red.
+   */
+  readonly changesetStatus?: ChangesetStatusAnswer | null;
+}
+
+export interface BranchFixture {
+  readonly tree: Checkout;
+  readonly paths: BranchPaths;
+  readonly probe: BranchProbe;
+  /** How many times the fixture's `changeset status` was asked — FR-003's half. */
+  readonly asked: () => number;
+}
+
+/** {@link BranchOptions}, resolved against a checkout. */
+export function branch(files: FileMap = {}, options: BranchOptions = {}): BranchFixture {
+  const merged: Record<string, string | null> = { ...DEFAULT_CHECKOUT, ...files };
+  const baseline = options.baseline ?? 'origin/master';
+  let asked = 0;
+
+  const side = (overrides: Readonly<Record<string, string | null>> | undefined, path: string):
+    | string
+    | null => {
+    if (overrides !== undefined && path in overrides) return overrides[path] ?? null;
+    return merged[path] ?? '';
+  };
+
+  return {
+    tree: checkout(files),
+    paths: {
+      baseline,
+      containedInBaseline: options.containedInBaseline ?? false,
+      changedPaths: options.changedPaths ?? [],
+      addedChangesets: options.addedChangesets ?? [],
+      deletedChangesets: options.deletedChangesets ?? [],
+    },
+    probe: {
+      readSide: (ref, path) => side(ref === baseline ? options.before : options.after, path),
+      askChangesetStatus: () => {
+        asked += 1;
+        return options.changesetStatus === undefined
+          ? { status: 0, output: 'Packages to be bumped:\n' }
+          : options.changesetStatus;
+      },
+    },
+    asked: () => asked,
+  };
+}

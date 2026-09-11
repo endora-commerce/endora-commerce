@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   analyzeReleaseIntent,
-  checkPublishedSurfaceIntent,
+  changelogSections,
+  checkBranchIntent,
   checkReleaseIntent,
   compilesPath,
   groupMembers,
@@ -17,13 +18,13 @@ import {
   readReleaseIntent,
   unreadablePattern,
   unservableScope,
-  type BranchDiff,
   type PublishScope,
   type ReleaseIntentFinding,
   type ReleaseIntentFindingKind,
 } from '../../../scripts/check-release-intent.js';
 import { nodeWorkspaceFs } from '../../../scripts/lib/workspace-packages.js';
 import {
+  branch,
   checkout,
   configuredAs,
   FIXTURE_ROOT,
@@ -32,6 +33,7 @@ import {
   PRIVATE_BETA,
   PUBLISHED_ALPHA,
   publishedAlphaAs,
+  type BranchOptions,
   type FileMap,
 } from '../../helpers/release-intent-check-fixture.js';
 
@@ -966,26 +968,44 @@ describe('check-release-intent --since — a published surface the gate cannot s
     changedPaths: readonly string[],
     addedChangesets: readonly string[] = [],
     containedInBaseline = false,
-  ): BranchDiff => ({ baseline: 'origin/master', containedInBaseline, changedPaths, addedChangesets });
+  ): BranchOptions => ({ changedPaths, addedChangesets, containedInBaseline });
 
-  function surfaceFindings(overrides: FileMap, branch: BranchDiff): readonly ReleaseIntentFinding[] {
-    const tree = checkout(overrides);
-    const result = checkPublishedSurfaceIntent(FIXTURE_ROOT, tree.fs, tree.listChangesets, branch);
+  function surfaceFindings(overrides: FileMap, options: BranchOptions): readonly ReleaseIntentFinding[] {
+    const fixture = branch(overrides, options);
+    const result = checkBranchIntent(
+      FIXTURE_ROOT,
+      fixture.tree.fs,
+      fixture.tree.listChangesets,
+      fixture.paths,
+      fixture.probe,
+    );
     if ('contained' in result) throw new Error('expected a verdict, got a containment answer');
     if ('reason' in result) throw new Error(`expected a verdict, got a refusal: ${result.reason}`);
     return result.findings;
   }
 
-  function surfaceRefusal(overrides: FileMap, branch: BranchDiff): string {
-    const tree = checkout(overrides);
-    const result = checkPublishedSurfaceIntent(FIXTURE_ROOT, tree.fs, tree.listChangesets, branch);
+  function surfaceRefusal(overrides: FileMap, options: BranchOptions): string {
+    const fixture = branch(overrides, options);
+    const result = checkBranchIntent(
+      FIXTURE_ROOT,
+      fixture.tree.fs,
+      fixture.tree.listChangesets,
+      fixture.paths,
+      fixture.probe,
+    );
     if (!('reason' in result)) throw new Error('expected a refusal, got a verdict');
     return result.reason;
   }
 
-  function surfaceContainment(overrides: FileMap, branch: BranchDiff): string {
-    const tree = checkout(overrides);
-    const result = checkPublishedSurfaceIntent(FIXTURE_ROOT, tree.fs, tree.listChangesets, branch);
+  function surfaceContainment(overrides: FileMap, options: BranchOptions): string {
+    const fixture = branch(overrides, options);
+    const result = checkBranchIntent(
+      FIXTURE_ROOT,
+      fixture.tree.fs,
+      fixture.tree.listChangesets,
+      fixture.paths,
+      fixture.probe,
+    );
     if (!('contained' in result)) throw new Error('expected a containment answer, got a verdict');
     return result.contained;
   }
@@ -1094,16 +1114,9 @@ describe('check-release-intent --since — a published surface the gate cannot s
 
     /** The ref is the one that was measured against, never a name written down. */
     it('names the baseline it was given', () => {
-      const tree = checkout({});
-      const result = checkPublishedSurfaceIntent(FIXTURE_ROOT, tree.fs, tree.listChangesets, {
-        baseline: 'origin/release-2026-09',
-        containedInBaseline: true,
-        changedPaths: [],
-        addedChangesets: [],
-      });
-
-      if (!('contained' in result)) throw new Error('expected a containment answer');
-      expect(result.contained).toContain('`origin/release-2026-09`');
+      expect(
+        surfaceContainment({}, { baseline: 'origin/release-2026-09', containedInBaseline: true }),
+      ).toContain('`origin/release-2026-09`');
     });
   });
 });
@@ -1149,7 +1162,7 @@ describe('check-release-intent --since — the derivation underneath', () => {
    * arrival the change this mode exists for.
    */
   it('resolves every versionable package in this repository', () => {
-    const result = checkPublishedSurfaceIntent(
+    const result = checkBranchIntent(
       REPO_ROOT.replace(/\/$/, ''),
       nodeWorkspaceFs(),
       (dir) =>
@@ -1161,6 +1174,17 @@ describe('check-release-intent --since — the derivation underneath', () => {
         containedInBaseline: false,
         changedPaths: ['README.md'],
         addedChangesets: [],
+        deletedChangesets: [],
+      },
+      // The branch changes one file at the repository root, so no versionable
+      // package is touched and the artefact walk reads nothing — a reader that
+      // refused every call is still right here, and saying so is what keeps this
+      // case a statement about the *surfaces*. The CLI answer is stubbed clean
+      // because an ordinary branch is asked one, and asking the real one would
+      // make a unit test spawn a release tool.
+      {
+        readSide: () => null,
+        askChangesetStatus: () => ({ status: 0, output: 'stubbed: this case is about surfaces' }),
       },
     );
     if ('contained' in result) throw new Error('expected a verdict, got a containment answer');
@@ -1338,5 +1362,334 @@ describe('check-release-intent — the publish scope', () => {
     expect(
       inputs.members.filter((member) => member.dir.startsWith('packages/modules/')).length,
     ).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * The release-shape classification (feature 114, D-212; contract §8).
+ *
+ * One proof per shape the classification claims to answer, each entering at the
+ * **top** of the analysis with a synthetic diff and a two-sided reader — never a
+ * pre-computed classification, which is the defect issue #130 records for
+ * `check-entry-scope`, where the fixture entered below the classifier and the
+ * classifier therefore never ran.
+ *
+ * The proofs are the contract's table, in its order, and the two that matter
+ * most are the last two of the first six: proof 4 is the half nothing else in
+ * this repository can see (a `version` moved beside an `exports` narrowed), and
+ * proof 6 is the one that makes the whole thing worth landing — without it the
+ * classification would accept the one-file lockpick `research.md` §3.3 measured,
+ * which is an empty changeset turning a release-shaped branch green and, for the
+ * history landing, taking it out of the release class entirely.
+ */
+describe('check-release-intent --since — the release shape (D-212)', () => {
+  interface Judged {
+    readonly shape: 'release' | 'vacuous' | 'ordinary';
+    readonly kinds: readonly ReleaseIntentFindingKind[];
+    readonly asked: number;
+  }
+
+  function judge(files: FileMap, options: BranchOptions): Judged {
+    const fixture = branch(files, options);
+    const result = checkBranchIntent(
+      FIXTURE_ROOT,
+      fixture.tree.fs,
+      fixture.tree.listChangesets,
+      fixture.paths,
+      fixture.probe,
+    );
+    if ('contained' in result) throw new Error('expected a verdict, got a containment answer');
+    if ('reason' in result) throw new Error(`expected a verdict, got a refusal: ${result.reason}`);
+    return { shape: result.shape, kinds: kinds(result.findings), asked: fixture.asked() };
+  }
+
+  function refused(files: FileMap, options: BranchOptions): string {
+    const fixture = branch(files, options);
+    const result = checkBranchIntent(
+      FIXTURE_ROOT,
+      fixture.tree.fs,
+      fixture.tree.listChangesets,
+      fixture.paths,
+      fixture.probe,
+    );
+    if (!('reason' in result)) throw new Error('expected a refusal, got a verdict');
+    return result.reason;
+  }
+
+  /** The two manifests of the default checkout, at a version the branch left behind. */
+  const atVersion = (version: string): Readonly<Record<string, string>> => ({
+    'packages/alpha/package.json': JSON.stringify({
+      name: '@fx/alpha',
+      version,
+      license: 'MIT',
+      repository: { type: 'git', url: 'https://example.invalid/fx.git', directory: 'packages/alpha' },
+      publishConfig: { access: 'public' },
+    }),
+    'packages/beta/package.json': JSON.stringify({
+      name: '@fx/beta',
+      version,
+      license: 'MIT',
+      repository: { type: 'git', url: 'https://example.invalid/fx.git', directory: 'packages/beta' },
+      publishConfig: { access: 'public' },
+    }),
+  });
+
+  const MANIFESTS = ['packages/alpha/package.json', 'packages/beta/package.json'];
+  const CHANGELOGS = ['packages/alpha/CHANGELOG.md', 'packages/beta/CHANGELOG.md'];
+
+  /**
+   * Proof 1 — the refusal, unchanged in substance from the shell it replaces:
+   * changeset files deleted and no artefact of any kind. This is the
+   * `privatePackages.version: false` no-op arriving through the other door — a
+   * human ran it, it reported success, wrote nothing, and they deleted the
+   * files while tidying up.
+   */
+  it('refuses a branch that consumed changesets and produced nothing', () => {
+    const judged = judge(
+      {},
+      { changedPaths: ['.changeset/a.md'], deletedChangesets: ['.changeset/a.md'] },
+    );
+
+    expect(judged.shape).toBe('vacuous');
+    expect(judged.kinds).toEqual(['vacuous-release']);
+  });
+
+  /**
+   * Proof 2 — the history landing (D-213): every pending changeset consumed,
+   * one `## <version>` section written per released package, and **no version
+   * moved**. 214 and 79 in this repository; two and two here, because the
+   * property is the classification and not the arithmetic.
+   *
+   * Under the superseded rule this branch was classified a release and then
+   * refused for having moved no version — the inverted question, aimed at a
+   * silent no-op, fired at the largest release-shaped change in this
+   * repository's history.
+   */
+  it('passes the history landing, which moves no version and writes changelogs', () => {
+    const judged = judge(
+      {},
+      {
+        changedPaths: [...CHANGELOGS, '.changeset/a.md', '.changeset/b.md'],
+        deletedChangesets: ['.changeset/a.md', '.changeset/b.md'],
+        // The baseline carries no changelog at all: the landing creates one per
+        // released package, which is the `''` side {@link SideReader} exists to
+        // tell apart from a read that failed.
+        after: {
+          'packages/alpha/CHANGELOG.md': '# @fx/alpha\n\n## 1.0.0\n\n- a change\n',
+          'packages/beta/CHANGELOG.md': '# @fx/beta\n\n## 1.0.0\n\n- a change\n',
+        },
+      },
+    );
+
+    expect(judged.shape).toBe('release');
+    expect(judged.kinds).toEqual([]);
+    // FR-003's other half: a release is not asked the ordinary question, so a
+    // pass here is a verdict rather than the CLI's silence.
+    expect(judged.asked).toBe(0);
+  });
+
+  /**
+   * Proof 3 — the hand-set release (D-210's first act): every `version` moved,
+   * nothing consumed, no changelog. `changeset status` refuses it, because it
+   * attributes any changed file under `packages/<p>/` to that package —
+   * including the one file whose change **is** the release.
+   */
+  it('passes a branch that moved versions and consumed nothing', () => {
+    const judged = judge(
+      {},
+      { changedPaths: MANIFESTS, before: atVersion('0.9.0') },
+    );
+
+    expect(judged.shape).toBe('release');
+    expect(judged.kinds).toEqual([]);
+    expect(judged.asked).toBe(0);
+  });
+
+  /**
+   * Proof 4 — the half nothing else in this repository can see (FR-004). A
+   * `version` field is release-neutral and every other key of a manifest is
+   * consumer-facing: `exports` compiles into nothing, so the published-surface
+   * pass cannot see it move and `changeset status` attributes it to the package
+   * whose release this branch claims to be.
+   *
+   * Release-neutrality is part of *being* a release, so this branch is not
+   * exempt from the ordinary question either — the contract's expectation is
+   * both the finding and §4.1 being asked.
+   */
+  it('refuses a branch that moved a version and narrowed an `exports` map', () => {
+    const judged = judge(
+      {},
+      {
+        changedPaths: ['packages/alpha/package.json'],
+        before: {
+          'packages/alpha/package.json': JSON.stringify({
+            name: '@fx/alpha',
+            version: '0.9.0',
+            license: 'MIT',
+            repository: {
+              type: 'git',
+              url: 'https://example.invalid/fx.git',
+              directory: 'packages/alpha',
+            },
+            publishConfig: { access: 'public' },
+            exports: { '.': './dist/index.js', './lib': './dist/lib.js' },
+          }),
+        },
+      },
+    );
+
+    expect(judged.shape).toBe('ordinary');
+    expect(judged.kinds).toContain('manifest-changed-beyond-version');
+    expect(judged.asked).toBe(1);
+  });
+
+  /**
+   * Proof 5 — the ordinary branch, which is the overwhelming majority and the
+   * one this whole classification exists to leave alone. The CLI's exit is
+   * attributed rather than relayed, so the reader of a red pipeline is told
+   * which question was asked and why this branch was asked it.
+   */
+  it('asks `changeset status` of an ordinary branch and attributes its exit', () => {
+    const judged = judge(
+      {},
+      {
+        changedPaths: ['packages/alpha/src/index.ts'],
+        changesetStatus: {
+          status: 1,
+          output: 'Some packages have been changed but no changesets were found',
+        },
+      },
+    );
+
+    expect(judged.shape).toBe('ordinary');
+    expect(judged.kinds).toEqual(['unattributed-package-change']);
+    expect(judged.asked).toBe(1);
+  });
+
+  /**
+   * Proof 6 — the lockpick, closed. Measured under the superseded rule: one
+   * empty changeset made both unrecognised shapes exit 0, and for the history
+   * landing it removed the branch from the release class entirely, so nothing
+   * anywhere asked whether it had released anything. The classification is over
+   * artefacts and consults the added-changeset list nowhere.
+   */
+  it('is not reclassified by an added empty changeset', () => {
+    const judged = judge(
+      {},
+      {
+        changedPaths: ['.changeset/a.md', '.changeset/empty.md'],
+        deletedChangesets: ['.changeset/a.md'],
+        addedChangesets: ['.changeset/empty.md'],
+      },
+    );
+
+    expect(judged.shape).toBe('vacuous');
+    expect(judged.kinds).toEqual(['vacuous-release']);
+  });
+
+  /**
+   * Proof 7 — contract §7.1. An artefact question answered by a silence is not
+   * an answer, and the silence reads as *"no release"*, which is the direction
+   * that agrees with the defect: the branch would be classified ordinary and
+   * refused for something it did not do.
+   */
+  it('refuses a changelog whose baseline side could not be read', () => {
+    const reason = refused(
+      {},
+      {
+        changedPaths: ['packages/alpha/CHANGELOG.md'],
+        before: { 'packages/alpha/CHANGELOG.md': null },
+        after: { 'packages/alpha/CHANGELOG.md': '## 1.0.0\n' },
+      },
+    );
+
+    expect(reason).toContain('packages/alpha/CHANGELOG.md');
+    expect(reason).toContain('could not be read');
+  });
+
+  /**
+   * Proof 8 — contract §7.2, the same defect on the other file kind. Never
+   * "changed beyond version" and never "release-neutral": both readings are
+   * verdicts this run has no basis for.
+   */
+  it('refuses a manifest that does not parse, on either side', () => {
+    expect(
+      refused(
+        {},
+        {
+          changedPaths: ['packages/alpha/package.json'],
+          before: { 'packages/alpha/package.json': '{ "name": "@fx/alpha", ' },
+        },
+      ),
+    ).toContain('does not parse');
+
+    expect(
+      refused(
+        {},
+        {
+          changedPaths: ['packages/alpha/package.json'],
+          after: { 'packages/alpha/package.json': 'not json at all' },
+        },
+      ),
+    ).toContain('does not parse');
+  });
+
+  /**
+   * Contract §7.3 — the walk having stopped matching the tree. The population
+   * is not the walk's own: it is the changed files that *carry* a release,
+   * sitting where a versionable package sits, and the refusal fires only when
+   * the walk attributed none of them to any member.
+   */
+  it('refuses a release-bearing file under the library tree that no member claims', () => {
+    const reason = refused({}, { changedPaths: ['packages/gamma/package.json'] });
+
+    expect(reason).toContain('packages/gamma/package.json');
+    expect(reason).toContain('attributed none of them');
+  });
+
+  /**
+   * Contract §7.4 — the invocation that did not run, which is not the same fact
+   * as the exit code 1 that is a finding. An answer this run never obtained is
+   * not a verdict about the branch.
+   */
+  it('refuses a `changeset status` that could not be run at all', () => {
+    const reason = refused(
+      {},
+      { changedPaths: ['packages/alpha/src/index.ts'], changesetStatus: null },
+    );
+
+    expect(reason).toContain('could not be run at all');
+  });
+
+  /**
+   * The discrimination proof 1 is worth nothing without: the *same* consumed
+   * changesets, with a release actually performed. Proving only the refusal
+   * would be satisfied by a check that refuses every release branch, which is
+   * the state this feature repairs.
+   */
+  it('tells the vacuous release from the real one on the same consumed set', () => {
+    const consumed = { changedPaths: ['.changeset/a.md'], deletedChangesets: ['.changeset/a.md'] };
+
+    expect(judge({}, consumed).shape).toBe('vacuous');
+    expect(
+      judge({}, {
+        ...consumed,
+        changedPaths: [...consumed.changedPaths, ...MANIFESTS],
+        before: atVersion('0.9.0'),
+      }).shape,
+    ).toBe('release');
+  });
+
+  /**
+   * And the classification's own vocabulary, at its own level: a heading is a
+   * release section because it is a **version**, not because it is a level-two
+   * heading. A changelog is ordinary markdown, and `## Unreleased` is something
+   * somebody wrote by hand.
+   */
+  it('reads a `## <version>` section and not every level-two heading', () => {
+    expect(changelogSections('## 0.7.0\n\n## Unreleased\n\n## v1.2.3-rc.1\n')).toEqual([
+      '0.7.0',
+      '1.2.3-rc.1',
+    ]);
   });
 });

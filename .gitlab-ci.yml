@@ -865,26 +865,31 @@ release:changeset:
         echo "release:changeset — no merge base between HEAD and origin/$base; refusing to report a pass measured against nothing." >&2
         exit 2
       fi
-      consumed=$(git diff --no-renames --diff-filter=D --name-only "origin/$base...HEAD" -- '.changeset/*.md' | grep -viE '/readme\.md$' || true)
-      written=$(git diff --no-renames --diff-filter=A --name-only "origin/$base...HEAD" -- '.changeset/*.md' | grep -viE '/readme\.md$' || true)
-      if [ -n "$consumed" ] && [ -z "$written" ]; then
-        echo "release:changeset — this branch deletes changeset files and adds none, so it is a release branch; asking whether it released anything instead."
-        echo "$consumed" | sed 's/^/  consumed: /'
-        if git diff -U0 "origin/$base...HEAD" -- '*/package.json' | grep -qE '^\+[[:space:]]*"version"[[:space:]]*:'; then
-          git diff -U0 "origin/$base...HEAD" -- '*/package.json' | grep -E '^\+[[:space:]]*"version"[[:space:]]*:' | sed 's/^/  released: /'
-          exit 0
-        fi
-        echo "release:changeset — it consumed the changesets above and moved no package version. That is what \`changeset version\` does when \`.changeset/config.json\` cannot see the packages: it exits 0, reports success and bumps nothing. Run \`pnpm --filter backend run check:release-intent\`." >&2
-        exit 1
-      fi
-      pnpm exec changeset status --since="origin/$base"
-      # D-162 — the edge the command above structurally cannot see. It
-      # attributes a changed file to a package by the package **directory**,
-      # and `@endora-commerce/platform` compiles `backend/src`, which is in
-      # `ignore`. So the gate waives a changeset for the files that reach a
-      # consumer and demands one for the files that do not. The population is
-      # derived from each versionable package's own `tsconfig.build.json`;
-      # this mode lives here rather than in `quality` because it needs git.
+      # One invocation, and no `if` over the diff (feature 114, FR-006).
+      #
+      # Twelve lines of shell used to classify the branch here, and they
+      # classified it by a **tool's signature** — changeset files deleted and
+      # none added, which is what `changeset version` leaves behind. D-210
+      # performs a release *without* that tool, in two acts, so neither act
+      # carried the signature and neither had a verdict: measured, the hand-set
+      # release was refused by `changeset status` and the history landing by the
+      # inverted question this block asked of a release branch. Worse, one
+      # **empty** changeset turned both green, which made the only way past the
+      # gate a lockpick.
+      #
+      # D-212 classifies by what the branch **produced** — a moved `version`, an
+      # added `## <version>` changelog section, or both — and that decision lives
+      # in the check, for two reasons. A shell cannot take a fixture at the top
+      # of its analysis (issue #130), so its only judge was a *second
+      # implementation* of the same two `git diff` invocations inside
+      # `changeset-gate.test.ts`: two derivations of one predicate. And the whole
+      # gate now reports in one grammar with one `read:` line.
+      #
+      # `changeset status` is still the changesets CLI's own command and is not
+      # reimplemented (FR-007); the check spawns it, of the branches it
+      # classifies as ordinary. The D-162 question — a package whose sources are
+      # not its own directory, which the CLI structurally cannot attribute —
+      # rides along, as it already did.
       pnpm --filter backend run check:release-intent -- --since "origin/$base"
     # Feature 080 (T043) — the gate above, measured over real branches, against
     # a real target branch. `node:22.17-slim` ships no git, so this job installs
