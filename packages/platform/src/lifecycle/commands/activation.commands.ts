@@ -39,6 +39,13 @@ export interface SetModuleActivationInput {
   active: boolean;
 }
 
+export interface SetModuleActivationResult {
+  moduleId: string;
+  active: boolean;
+  /** Dependents written off in the same transaction when the owner opted into cascade. */
+  cascaded: string[];
+}
+
 /**
  * Refuse before the Command opens a transaction.
  *
@@ -99,18 +106,23 @@ export function assertActivationWritable(moduleId: string, active: boolean): str
   if (!active) {
     const blockedBy = graph.presentDependentsOf(moduleId, isPresent);
     if (blockedBy.length > 0) {
-      // A distinct code from MODULE_NOT_DEACTIVATABLE, which says "there is
-      // nothing here to switch, ever". This one is "not in this order", and the
-      // remedy is in `details.blockedBy` — the admin renders the two
-      // differently, and so does the CLI (`non-deactivatable` vs
-      // `dependents-block`).
-      throw new HttpError(
-        409,
-        ERROR_CODES.MODULE_DEPENDENTS_PRESENT,
-        `Module "${moduleId}" cannot be switched off while these modules need it: ` +
-          `${blockedBy.join(', ')}. Switch them off first.`,
-        { moduleId, blockedBy },
-      );
+      const canCascade =
+        declaration.cascadeDependentsOnDeactivate === true &&
+        blockedBy.every((id) => registryCache.activationDeclaration(id)?.settingCode != null);
+      if (!canCascade) {
+        // A distinct code from MODULE_NOT_DEACTIVATABLE, which says "there is
+        // nothing here to switch, ever". This one is "not in this order", and the
+        // remedy is in `details.blockedBy` — the admin renders the two
+        // differently, and so does the CLI (`non-deactivatable` vs
+        // `dependents-block`).
+        throw new HttpError(
+          409,
+          ERROR_CODES.MODULE_DEPENDENTS_PRESENT,
+          `Module "${moduleId}" cannot be switched off while these modules need it: ` +
+            `${blockedBy.join(', ')}. Switch them off first.`,
+          { moduleId, blockedBy },
+        );
+      }
     }
   } else {
     const missing = graph.absentDependenciesOf(moduleId, isPresent);
@@ -138,7 +150,7 @@ export function assertActivationWritable(moduleId: string, active: boolean): str
  */
 export function makeSetActivationCommand(
   input: SetModuleActivationInput,
-): Command<{ moduleId: string; active: boolean }> {
+): Command<SetModuleActivationResult> {
   const settingCode = assertActivationWritable(input.moduleId, input.active);
 
   return {
@@ -151,6 +163,38 @@ export function makeSetActivationCommand(
       activated: effectiveState.presence(input.moduleId)?.operatorActivated ?? true,
     }),
     run: async ({ em }) => {
+      const cascaded: string[] = [];
+      if (!input.active) {
+        const declaration = registryCache.activationDeclaration(input.moduleId);
+        if (declaration?.cascadeDependentsOnDeactivate === true) {
+          const dependents = gatingGraph().presentDependentsOf(input.moduleId, (id) =>
+            effectiveState.isPresent(id),
+          );
+          for (const dependentId of dependents) {
+            const dependent = registryCache.activationDeclaration(dependentId);
+            if (!dependent?.settingCode) {
+              throw new HttpError(
+                409,
+                ERROR_CODES.MODULE_DEPENDENTS_PRESENT,
+                `Module "${input.moduleId}" cannot be switched off while these modules need it: ` +
+                  `${dependentId}. Switch them off first.`,
+                { moduleId: input.moduleId, blockedBy: dependents },
+              );
+            }
+            const dependentSetting = await em.findOne(Setting, { code: dependent.settingCode });
+            if (!dependentSetting) {
+              throw new HttpError(
+                500,
+                ERROR_CODES.SETTING_NOT_REGISTERED,
+                `Module "${dependentId}" declares activation setting "${dependent.settingCode}", which is not registered.`,
+              );
+            }
+            dependentSetting.globalValue = false;
+            cascaded.push(dependentId);
+          }
+        }
+      }
+
       const setting = await em.findOne(Setting, { code: settingCode });
       if (!setting) {
         // The reconciler creates the row from the module's settings manifest at
@@ -166,11 +210,12 @@ export function makeSetActivationCommand(
       await em.flush();
 
       return {
-        result: { moduleId: input.moduleId, active: input.active },
+        result: { moduleId: input.moduleId, active: input.active, cascaded },
         after: {
           moduleId: input.moduleId,
           settingCode,
           activated: input.active,
+          cascaded,
         },
       };
     },

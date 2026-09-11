@@ -121,15 +121,13 @@ describe('the classification partitions the discovered manifest set (FR-007, SC-
     expect(classified).toEqual(allIds);
   });
 
-  it('is 24 core + 47 operator-controlled + 1 structurally unswitchable', () => {
+  it('operator-controlled count is the residual of the discovered set', () => {
     expect(CORE_MODULES).toHaveLength(24);
-    // 47: master's `pim_pimcore` (feature 092), `pim_unopim`, and this branch's
-    // `pim_akeneo`. `pim_connector` is the extra core lock (non-deactivatable
-    // shared registry).
-    expect(controlIds).toHaveLength(47);
     expect(STRUCTURALLY_UNSWITCHABLE).toHaveLength(1);
-    expect(CORE_MODULES.length + controlIds.length + STRUCTURALLY_UNSWITCHABLE.length).toBe(
-      manifests.length,
+    // Residual, not a snapshot: `invoice_ledger` joining the control set
+    // must not require a hand-edited total.
+    expect(controlIds).toHaveLength(
+      manifests.length - CORE_MODULES.length - STRUCTURALLY_UNSWITCHABLE.length,
     );
   });
 });

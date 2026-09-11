@@ -238,8 +238,14 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.subscribe('module.activation.changed', async (payload) => {
     const event = payload as ModuleActivationChangedPayload;
     if (typeof event.moduleId !== 'string' || typeof event.active !== 'boolean') return;
-    if (!LEDGER_VENDOR_IDS.has(event.moduleId)) return;
     const registry = lazyPort<InvoiceLedgerRegistryPort>(ctx, 'invoiceLedgerRegistryPort');
+    if (event.moduleId === 'invoice_ledger' && !event.active) {
+      for (const vendorId of LEDGER_VENDOR_IDS) {
+        await registry.clearActive(vendorId);
+      }
+      return;
+    }
+    if (!LEDGER_VENDOR_IDS.has(event.moduleId)) return;
     if (event.active) {
       await registry.recordActive(event.moduleId, null);
     } else {
