@@ -61,7 +61,23 @@ const ALL_MODULE_IDS = REGISTERED_MANIFESTS.map((e) => e.manifest.id);
  * cases went red on `master` (measured on this branch by restoring the shim and the
  * old key). Phase 7's rewrite is
  * the repair. If the root's specifier changes again, this key changes with it.
+ *
+ * **The key being right is not sufficient, which is how this broke a second
+ * time.** A `vi.mock` reaches `composeApp` only if `composition/compose-app.ts`
+ * is evaluated *after* the registration, and a `setupFiles` entry is evaluated
+ * before every test file — so one that names
+ * `@endora-commerce/platform/composition` binds the real `loadModulePresence`
+ * into `composeApp` before this factory can exist.
+ * `specs/110-instance-repository/` T119b put exactly that import in
+ * `test/tenancy-setup.ts`, and the four cases below went red again for a reason
+ * nothing in this file names — the override still ran and `composeApp` never saw
+ * it. `test/unit/harness/setup-file-imports.test.ts` is the guard;
+ * `applied the presence override` below is this file saying it in its own words,
+ * so the next silent break is one case about the fixture instead of four
+ * assertions about the platform.
  */
+let overrideApplied = false;
+
 vi.mock('@endora-commerce/platform/lifecycle', async (importOriginal) => {
   const actual =
     await importOriginal<typeof import('@endora-commerce/platform/lifecycle')>();
@@ -75,6 +91,7 @@ vi.mock('@endora-commerce/platform/lifecycle', async (importOriginal) => {
         '../../../src/kernel/lifecycle/registry-cache.js'
       );
       cache.__setEnabledForTesting(ALL_MODULE_IDS.filter((id) => id !== 'settings'));
+      overrideApplied = true;
     },
   };
 });
@@ -106,6 +123,21 @@ describe('the production composition root refuses to start without a required mo
     registryCache.__setEnabledForTesting(ALL_MODULE_IDS);
     if (originalRole === undefined) delete process.env['BACKEND_ROLE'];
     else process.env['BACKEND_ROLE'] = originalRole;
+  });
+
+  // First, because every case below is about a composition that was *told* one
+  // module is absent. If the override did not reach `composeApp`, the four of
+  // them report a platform that refuses nothing while the platform is fine and
+  // the fixture is what is broken — which is what happened twice.
+  it('applied the presence override the rest of this file rests on', () => {
+    expect(
+      overrideApplied,
+      'the `loadModulePresence` override never ran, so `settings` was never withdrawn and ' +
+        'nothing below is a statement about the refusal. Something evaluated ' +
+        '`composition/compose-app.ts` before this file\'s `vi.mock` — a `setupFiles` entry ' +
+        'naming `@endora-commerce/platform/composition` is the way that happens; see ' +
+        'test/unit/harness/setup-file-imports.test.ts',
+    ).toBe(true);
   });
 
   it('refuses the composition instead of starting', () => {

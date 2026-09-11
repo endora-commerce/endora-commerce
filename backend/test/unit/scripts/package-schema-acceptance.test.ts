@@ -390,12 +390,19 @@ describe('the fixture package is the thing the contract describes', () => {
     expect(readFileSync(join(migrationsDir, file), 'utf8')).toContain(`export class ${className}`);
     // **Nothing here relates the stamp to `BASELINE_THROUGH`, and nothing may.**
     // This file used to assert `stamp > '20260801T000000'` with the reason that a
-    // lower stamp would have joined the frozen historical prefix. It could not:
-    // baseline membership is `origin === 'core' && stamp <= BASELINE_THROUGH`
-    // (D-114), and `package-runtime.ts` tags every entry read out of a package
-    // `origin: 'external'` unconditionally, so a package's stamp is never
-    // compared against the watermark at all. The stamp above is simply this
-    // package's first migration, with nothing to place it before.
+    // lower stamp would have joined the frozen historical prefix. It could not,
+    // and since 2026-09-06 it could not for a stronger reason: baseline
+    // membership is by **identity** — the class name is on the published
+    // `BASELINE_MIGRATIONS` list, generated from what the committed core
+    // registry contributes at or below the watermark
+    // (`specs/110-instance-repository/contracts/instance-migration-order.md`
+    // R1.1). A name is not a claim an arriving package can make, so no stamp of
+    // this package's is ever compared against the watermark at all. It used to
+    // be `origin === 'core' && stamp <= BASELINE_THROUGH` (D-114) with
+    // `package-runtime.ts` tagging a package's entries `origin: 'external'`;
+    // that conjunction answered *"came out of our build"* and went wrong the
+    // moment every module became an installed package. The stamp above is simply
+    // this package's first migration, with nothing to place it before.
     //
     // It was the only executable claim in this repository about a package stamp
     // and the watermark, so it stood exactly where a package author greps, while

@@ -57,12 +57,13 @@ import type { MigrationOrigin } from '@endora-commerce/platform/db';
  * the consumer reports a clean tree.
  *
  * So the roots are a **parameter**, they must resolve, and each one says where
- * the modules under it come from. The origin is not decoration: baseline-block
- * membership is `origin === 'core'` **and** the stamp (`migration-order.ts`,
- * Step 2), and until this scan could express an origin it tested the stamp
- * alone — which D-105 justified and D-106 overruled. A package migration
- * stamped inside the baseline window is placed in the *open* block by
- * `orderMigrations` and was skipped outright by the position check reading this
+ * the modules under it come from. The origin is not decoration: the baseline
+ * block this graph's readers skip is *what the committed sources contribute at
+ * or below the watermark*, and the origin is the half of that sentence a stamp
+ * cannot express. Until this scan could express one it tested the stamp alone —
+ * which D-105 justified and D-106 overruled. A migration stamped inside the
+ * baseline window that came from outside the committed registry is placed in
+ * the *open* block, and was skipped outright by the position check reading this
  * graph: a false negative on precisely the input that check exists for (D-154).
  */
 
@@ -153,10 +154,18 @@ export interface MigrationSource {
    * The origin of the root this file was found under. `db/migrations/` is
    * `'core'` by definition — it is the committed registry's own group.
    *
-   * Carried because baseline membership needs it: `isBaseline` in
-   * `migration-order.ts` is `origin === 'core' && stamp <= BASELINE_THROUGH`,
-   * and a reader of this graph that tests the stamp alone agrees with it on
-   * every core file and disagrees on exactly the one it is guarding against.
+   * Carried because baseline membership needs it, and the rule it serves is the
+   * **generation** one rather than the runtime one. `migration-order.ts` has no
+   * `isBaseline` since 2026-09-06: it enters the frozen prefix by identity,
+   * against `BASELINE_MIGRATIONS`
+   * (`specs/110-instance-repository/contracts/instance-migration-order.md` R1.1).
+   * That list cannot be the predicate here, because this scan's subject is a
+   * **file** and the list names registered **classes**. What it can be held to
+   * is the rule the list is generated from (R1.3) — the committed sources at or
+   * below `BASELINE_THROUGH` — and that is `origin === 'core' && stamp <=
+   * BASELINE_THROUGH` exactly. A reader of this graph that tested the stamp
+   * alone would agree on every committed file and disagree on precisely the one
+   * it is guarding against.
    */
   origin: MigrationOrigin;
 }

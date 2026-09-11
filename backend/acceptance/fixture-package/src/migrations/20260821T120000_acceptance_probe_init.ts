@@ -14,14 +14,15 @@ import { Migration } from '@mikro-orm/migrations';
  * The stamp is after `BASELINE_THROUGH` (`20260801T000000`) because it is this
  * package's first migration and there was nothing to place it before — **not**
  * because a lower stamp would have joined the frozen historical prefix. It
- * could not: since T004b/D-114 baseline membership is
- * `origin === 'core' && stamp <= BASELINE_THROUGH`, and `package-runtime.ts`
- * tags every entry it reads out of a package `origin: 'external'`
- * unconditionally, so a package's stamp is never compared against the watermark
- * at all. That origin condition is the whole point of D-114 — without it a
- * back-dated third-party stamp lands ahead of the platform's own foundation
- * migration — and it is what makes the watermark a core-tree fact a package
- * author can ignore (`contracts/migration-identity.md` §4).
+ * could not: baseline membership is by **identity**, the class name being on the
+ * `BASELINE_MIGRATIONS` list `@endora-commerce/platform` publishes
+ * (`specs/110-instance-repository/contracts/instance-migration-order.md` R1.1),
+ * so no stamp of this package's is compared against the watermark at all. It was
+ * `origin === 'core' && stamp <= BASELINE_THROUGH` until 2026-09-06 (T004b,
+ * D-114), which kept a back-dated third-party stamp out for the same purpose and
+ * by a weaker means: an origin is a field an entry carries and a name is not a
+ * claim an arriving package can make. Either way the watermark stays a core-tree
+ * fact a package author can ignore (`contracts/migration-identity.md` §4).
  *
  * What does order this chain is the module graph: a stamp orders a module's own
  * migrations and nothing else.
