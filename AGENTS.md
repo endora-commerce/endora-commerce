@@ -1612,33 +1612,39 @@ why D-107 chose this tool: a change to `@endora-commerce/contracts` can be break
 `@endora-commerce/api-client` and inert for `@endora-commerce/cms-components`, and no commit
 prefix knows which.
 
-**Versioning is independent, with one `linked` group** (D-108):
-`@endora-commerce/page-builder-core`, `@endora-commerce/cms-components` and
-`@endora-commerce/email-components` take one version number whenever a release includes more
-than one of them. `page-builder-core` is a **peer**
-dependency of the other two and ships React contexts and hooks, so the consuming application
-resolves exactly one copy; ranges that disagree resolve two, and a provider in one copy against
-a consumer in the other is a `null` context at runtime, not a type error.
-`@endora-commerce/contracts` and `@endora-commerce/api-client` version independently — Changesets patch-bumps a
-dependent on its own (`updateInternalDependencies: "patch"`).
+**Versioning is independent, with one `linked` group** (D-108), built around
+`@endora-commerce/page-builder-core`: its members take one version number whenever a release
+includes more than one of them. **Who the members are is not written here** — `.changeset/config.json`'s
+`linked` answers it, and this sentence named three of them while the file declared four
+(`page-builder-admin` joined and nothing said so), which is D-100 met in the paragraph that
+exists to explain the group. `page-builder-core` is a **peer** dependency of the rest and ships
+React contexts and hooks, so the consuming application resolves exactly one copy; ranges that
+disagree resolve two, and a provider in one copy against a consumer in the other is a `null`
+context at runtime, not a type error. Everything outside the group versions on its own —
+Changesets patch-bumps a dependent by itself (`updateInternalDependencies: "patch"`).
 
-**Read `linked` precisely, because the sentence that used to stand here was measured wrong**
-(feature 080, T043). It said *"a release of `page-builder-core` therefore always carries all
-three"*, and that is true today for a reason nobody wrote down: `linked` **raises a package
-that is already in a release** to the group's highest number, and it never *adds* one. What
-puts `cms-components` and `email-components` into a `page-builder-core` release is their
-`peerDependencies` range going **out of range** — and every package sits at `0.0.0`, where
-`workspace:^` resolves to `^0.0.0` and any bump at all breaks it. Measured over the real
-manifests: at `0.0.0` a minor on `page-builder-core` moves all three to `0.1.0`; seeded at
-`1.4.2`, the same minor moves `page-builder-core` to `1.5.0` and leaves the other two where
-they are, while a **major** takes them out of range and moves all three to `2.0.0`.
+**Read `linked` precisely, because it does less than its name suggests and the regime decides
+the rest.** `linked` **raises a package that is already in a release** to the group's highest
+number; it never *adds* one. What puts the other members into a `page-builder-core` release is
+their `peerDependencies` range going **out of range**, so the behaviour is a fact about the
+version the group currently sits at and not about the group:
 
-That divergence is correct, not a defect: the requirement is that the application resolve one
-copy, and `^1.4.2` satisfied by `1.5.0` resolves one copy. The shared number was the
-mechanism, never the requirement. It is asserted in both regimes by
-`backend/test/unit/release/changeset-flow.test.ts`, so the first real release does not
-discover it in a merge request. A patch on `cms-components` alone moves only itself, at every
-version — it carries no runtime the app resolves once.
+| seeded at | patch on one member | minor on `page-builder-core` | major |
+| --- | --- | --- | --- |
+| `0.0.0` | the member **and its dependents** (`^0.0.0` is `>=0.0.0 <0.0.1`) | the whole group | the whole group |
+| `0.7.0` | the member alone | **the whole group** (`^0.7.0` is `>=0.7.0 <0.8.0`) | the whole group |
+| `1.4.2` | the member alone | `page-builder-core` alone | the whole group |
+
+Measured, over the real manifests, in `backend/test/unit/release/changeset-flow.test.ts` — which
+seeds its own base rather than reading the tree's, because the tree's version is a release
+decision that moves and it falsified four of these measurements once already. **The `0.7.0` row is
+the one this repository is in**, and it is why D-225's `major` → `minor` translation costs nothing:
+in `0.x` a minor already takes every caret peer out of range, which is the whole consumer-facing
+meaning of a break.
+
+The `1.4.2` divergence is correct, not a defect: the requirement is that the application resolve
+one copy, and `^1.4.2` satisfied by `1.5.0` resolves one copy. The shared number was the
+mechanism, never the requirement.
 
 **The version step is `pnpm run version:packages`, and it runs locally.** It cuts a
 `release/version-<date>` branch, runs `changeset version`, and refuses two things a bare
