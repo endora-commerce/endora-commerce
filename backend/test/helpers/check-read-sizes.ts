@@ -1023,7 +1023,17 @@ export interface RecordedReadSize {
  * see, and each was **measured** on the tree rather than summed from a delta.
  *
  *   - **The two whole-tree walks take all fourteen** — `check-nul-bytes`
- *     8171 -> **8185** and `check-naming.sh` 8231 -> **8245**.
+ *     8087 -> **8101** and `check-naming.sh` 8147 -> **8161**. Those two are the
+ *     **only** numbers in this block that moved when the branch caught up with
+ *     `origin/master` at `86fea9052`, and what moved them was not this branch:
+ *     it recorded 8171 -> 8185 and 8231 -> 8245 against its own branch point,
+ *     and then `release/version-0.8.0` consumed all 85 remaining changesets,
+ *     taking 85 files out of both whole-tree populations. The delta is the same
+ *     fourteen on either side of that; the base is not. Re-measured on the
+ *     merged tree after the resolution was committed and with `git status`
+ *     empty, which for `check-naming.sh` is mandatory rather than tidy — it
+ *     reads `git ls-files --cached`, the index, where a conflicted path is
+ *     listed once per stage.
  *   - **`check-doc-snippets` takes the twelve documents**, 1303 -> **1315**: its
  *     roots are `docs/docs` and `specs`, and `specs/conventions/` is under the
  *     second. Its `sites` also moves, 12 -> **13**, and that one is worth a
@@ -1063,8 +1073,9 @@ export interface RecordedReadSize {
  *     six more expressions in the population the check examines, which is the
  *     ordinary re-record.
  *
- * **Measured in a worktree stood up from `origin/master` for this branch and
- * worked in nowhere else**, with `git clean -fX docs/docs/modules` and
+ * **Measured twice in a worktree stood up for this branch and worked in nowhere
+ * else** — once against its branch point and once against `86fea9052` after the
+ * catch-up merge — with `git clean -fX docs/docs/modules` and
  * `rm -f docs/.module-docs-copies.json` first and `pnpm run build:packages`
  * before anything. The census agreed on all 44 entries at the branch point, which
  * is what makes the deltas above attributable: every one of them is exactly the
@@ -1072,6 +1083,14 @@ export interface RecordedReadSize {
  * `check-nul-bytes` — the one walk that reads git-ignored files, and therefore
  * the one that would have absorbed any local residue — moved by precisely the
  * fourteen tracked files and nothing else.
+ *
+ * **The census was established on the new base before anything was attributed to
+ * it**, in a second pristine worktree detached at `86fea9052`: 0 drifted, 44
+ * agree, 0 not measured, of 44 recorded. That is what makes the catch-up honest.
+ * Of the ten entries this block records, `master` had moved the base of exactly
+ * two, and the census over the merged tree then reported exactly those two as
+ * drifted and nothing else — a prediction and its measurement, in that order.
+ * Neither number is a sum of the two sides' deltas; both were read off the run.
  */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
@@ -7133,7 +7152,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // on both sides in one worktree created from the branch, `quality`-job tree shape, with
     // nothing rebuilt between the two runs: `origin/master` reads 8171, the recorded value
     // exactly, and the branch reads 8172.
-    files: 8087,
+    files: 8101,
     sites: null,
     sources: [],
     //
@@ -10885,7 +10904,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // on both sides in one worktree created from the branch, `quality`-job tree shape, with
     // nothing rebuilt between the two runs: `origin/master` reads 8231, the recorded value
     // exactly, and the branch reads 8232.
-    files: 8147,
+    files: 8161,
     sites: null,
     sources: ['manifest-index'],
     //
