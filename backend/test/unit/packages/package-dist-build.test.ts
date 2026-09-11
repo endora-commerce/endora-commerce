@@ -60,7 +60,10 @@
  *     `[]` and passed. The repair takes that child from 701 MB to 1280 MB of peak RSS,
  *     so the read is a precondition and not a follow-up. Every spawn here now goes
  *     through `test/helpers/check-process.ts`, whose `CheckTermination` keeps `exit`,
- *     `signal` and `unspawned` apart by construction.
+ *     `signal`, `relayed-signal` and `unspawned` apart by construction — the third
+ *     because a kill reaches the parent as an exit code whenever anything survives the
+ *     process that took the signal, which `node_modules/.bin/tsc` does not do today and
+ *     `pnpm exec tsx` does.
  *   * **D-181**: *if a specifier survives into a package's emitted `.d.ts`, that package
  *     declares it as a real dependency.* `tsc` copies the import into the declarations
  *     verbatim, so a consumer type-checking the package must resolve it — and a
@@ -85,7 +88,7 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawnCheck, type SpawnedCheck } from '../../helpers/check-process.js';
+import { oomSentence, spawnCheck, type SpawnedCheck } from '../../helpers/check-process.js';
 import {
   emittedDeclarationSpecifiers,
   firstNonContractReach,
@@ -1009,14 +1012,20 @@ describe('the built declarations compile under `moduleResolution: NodeNext` (D-1
   ): string[] {
     if (seen.termination.kind !== 'exit') {
       throw new Error(
-        seen.termination.kind === 'signal'
-          ? `the NodeNext probe's compiler was killed by ${seen.termination.signal} after ` +
-            `printing ${seen.bytes} byte(s). It reached no verdict of its own, so this says ` +
-            `nothing about what the packages emit and everything about what it was run ` +
-            `inside — the probe's own child peaks around 1.3 GB, which on a memory-limited ` +
-            `runner is the OOM killer. Reading its empty output as "no diagnostics" is the ` +
-            `fail-open this read exists to close.`
-          : `the NodeNext probe's compiler could not be spawned: ${seen.termination.reason}`,
+        seen.termination.kind === 'unspawned'
+          ? `the NodeNext probe's compiler could not be spawned: ${seen.termination.reason}`
+          : // Both kill shapes, deliberately in one branch: the compiler is dead either way,
+            // and which of the two arrives is a property of the launcher rather than of the
+            // failure. `node_modules/.bin/tsc` is a `sh` shim that `exec`s, so today the
+            // kernel's own signal is what reaches this process; a shim that forked would
+            // relay `128 + signum` instead, and that is the shape which read as a verdict
+            // until `check-process.ts` learned it.
+            `the NodeNext probe's compiler was killed by ${seen.termination.signal} after ` +
+            `printing ${String(seen.bytes)} byte(s). It reached no verdict of its own, so ` +
+            `this says nothing about what the packages emit and everything about what it ` +
+            `was run inside — the probe's own child peaks around 1.3 GB, which on a ` +
+            `memory-limited runner is the OOM killer. Reading its empty output as "no ` +
+            `diagnostics" is the fail-open this read exists to close. ${oomSentence(seen.oom)}`,
       );
     }
     return seen.output

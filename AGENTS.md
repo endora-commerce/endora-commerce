@@ -1324,18 +1324,50 @@ merge request that adds a check. The copies that stood in `check-read-sizes.ts`'
 `check-inventory.test.ts`' own headers were removed rather than decremented (feature 091,
 Phase 5 T5): what they meant was *"every check in `CHECKS`"*, which is what they now say.
 
-**That spawning test tolerates a non-zero exit and refuses a *signal*, and the two are not
+**That spawning test tolerates a non-zero exit and refuses a *kill*, and the two are not
 the same finding.** A check may legitimately be red on the working tree and still has to
 disclose what it read; a check the kernel killed disclosed nothing for a reason that is not
 its own. Collapsing both into one caught error is how `master` came to fail with
 `check-port-catches.ts printed no read line` — a content-shaped assertion, exit 1 rather than
 137, matching nothing anyone greps for after an OOM — while the truth was that the two
-heaviest checks (746 MB and 627 MB of peak RSS, measured) had been SIGKILLed inside a 4 GB
-runner. `backend/test/helpers/check-process.ts` keeps the `close` event's answers apart, and
+heaviest checks had been SIGKILLed inside a 4 GB runner.
+`backend/test/helpers/check-process.ts` keeps the `close` event's answers apart, and
 `backend/test/helpers/spawn-pool.ts` sizes the pool from the container's own accounting
 rather than from a number somebody picked: cores, intersected with what cgroup v2 says is
 left, minus one child's worth of headroom. If you write a test that spawns processes, spawn
 them through those two — the next resource failure will wear the same disguise.
+
+**And it refuses a kill *whichever layer took the signal*, which is the half that repair
+missed and the reason this paragraph says "kill" rather than "signal".** `signal !== null` on
+the `close` event is the kernel's own discrimination and it is correct for a **direct child**;
+the estate is spawned as `pnpm exec tsx <check>`, three processes deep, and the one holding
+the TypeScript program is the innermost. Its two ancestors survive, observe a child that died
+on a signal, and report it the way POSIX has always reported one — by exiting `128 + signum`
+themselves — so the parent's `close` carries `code: 137, signal: null` and the discrimination
+never fires. Scheduled pipeline 13573 therefore printed *"exited 137 … it ran to a verdict of
+its own, so this is the check's behaviour"* over a `check-port-shape` the kernel had killed,
+and sent its reader into an analysis with no bug in it. A relay is now its own termination
+kind, and the two questions it raises are answered by two different authorities on purpose:
+**was it a signal** is the `128 + n` convention, un-mapped through Node's own
+`os.constants.signals` so nothing writes `137` or `SIGKILL` down; **was it memory** is the
+container's `memory.events`, read through `backend/test/oom-evidence.ts` — the same derivation
+the suite's own OOM verdict uses, asked over the window the child was alive for. Neither can
+answer the other's question, and an external `kill -9` is the case that proves it. The one
+reading it can get wrong — a check that exits `128 + n` as a verdict of its own, which none
+does — is named in the message rather than hidden, because at the `close` event the two are
+the same two values and no analysis here can separate them.
+
+**A check's peak RSS is a measurement with an expiry date, and it has expired once already.**
+`PEAK_BYTES_PER_CHECK` in `check-read-size.test.ts` is the divisor the pool is sized with, and
+the numbers that stood beside it (746 MB and 627 MB for the two heaviest, 2026-08-24) were an
+**under**-estimate of the tree eighteen days later: re-measured 2026-09-11 over every recorded
+check, `check-port-shape` peaks at 836 MB and `check-port-catches` at 828, the 41 `tsx` checks
+run 232–836 MB with a median of 593, and nothing else reaches 700. Do not write those numbers
+anywhere else — they are in that constant's own doc block, where the derivation reads them —
+and re-measure rather than widen when the tree grows. **`check-port-shape` growing by a third
+in eighteen days is its own piece of work** and is not a message repair: it is a single
+process that will not fit a 4 GB container beside three sibling vitest forks for very much
+longer.
 
 The inventory entry carries the red proofs, and two properties decide whether they are worth
 anything (issue #130). **The fixture enters at the top of the analysis** — source text, a
