@@ -1,6 +1,6 @@
 # Endora Commerce (b2b-platform) — Agent Instructions
 
-Last updated: 2026-08-25
+Last updated: 2026-09-07
 
 **This file is the single source of truth for every AI coding agent working in this
 repository.** `CLAUDE.md` and `.cursor/rules/specify-rules.mdc` are thin pointers to it —
@@ -1904,6 +1904,8 @@ pointing at whichever tree it was created from; the same property issue #255 dep
 - PostgreSQL — ~12 tables owned by `pim_unopim`, 0–2 small tables owned by `pim_connector` (089-unopim-pim-sync)
 - TypeScript 5.x strict on Node.js >= 22.17 for Endora; PHP 8.2+ package code in the sibling `pim-integrations` workspace + Existing Fastify, MikroORM, Zod, ioredis, BullMQ, React 19 and platform ports; PHP uses the existing Pimcore/Symfony/Composer stack; **no new runtime dependency** (089-pimcore-pim-sync)
 - PostgreSQL for connection, delivery, complete-record inbox, source/media links, protection, run and issue state; Redis/BullMQ for durable asynchronous apply and stale-run recovery (089-pimcore-pim-sync)
+- TypeScript 5.x `strict`, Node.js ≥ 22.17, ESM; React 19 admin + Fastify, MikroORM (PostgreSQL), Zod, ioredis, BullMQ, existing `CredentialsPort` — **no new runtime dependency** (feat/119-infakt-integration)
+- PostgreSQL tables owned by `invoice_ledger` (lock, client maps, document maps, deliveries, webhook receipts). Credentials rows in the existing credentials module. No Infakt id column on `invoices`. (feat/119-infakt-integration)
 
 - TypeScript 5.x strict on Node.js ≥ 22.17; Fastify + MikroORM (PostgreSQL) + Zod + ioredis + BullMQ + Meilisearch (backend)
 - React 19 + Vite + react-router-dom 7 + Tailwind 4 (admin); Next.js 15 App Router + React 19 + Tailwind v4 (storefront)
@@ -1914,9 +1916,7 @@ pointing at whichever tree it was created from; the same property issue #255 dep
 See "Repo map" above.
 
 ## Recent Changes
+- feat/119-infakt-integration: Added TypeScript 5.x `strict`, Node.js ≥ 22.17, ESM; React 19 admin + Fastify, MikroORM (PostgreSQL), Zod, ioredis, BullMQ, existing `CredentialsPort` — **no new runtime dependency**
 - 094-akeneo-pim-sync: Added TypeScript 5.x strict on Node.js ≥ 22.17 for Endora; PHP 8.2+ Symfony bundles for Akeneo PIM Community/Enterprise (self-hosted) + Existing Fastify, MikroORM, Zod, ioredis, BullMQ, React 19 and platform ports; Akeneo packages use the PIM’s Symfony/Composer stack and Storage events / Batch jobs; **no new runtime npm dependency**
 - 089-unopim-pim-sync: Added TypeScript 5.x `strict`, Node.js ≥ 22.17, ESM + Fastify, MikroORM (PostgreSQL), Zod, ioredis, BullMQ — **no new runtime
 - 089-pimcore-pim-sync: Added TypeScript 5.x strict on Node.js >= 22.17 for Endora; PHP 8.2+ package code in the sibling `pim-integrations` workspace + Existing Fastify, MikroORM, Zod, ioredis, BullMQ, React 19 and platform ports; PHP uses the existing Pimcore/Symfony/Composer stack; **no new runtime dependency**
-- 068-inpost-shipping: InPost ShipX PL module (`inpost`) — dual shipping adapters, Geowidget v5, BullMQ poll, PDF labels; orders `shipping_adapter_data`.
-- 072-module-kernel-di: Added TypeScript 5.x `strict`, Node.js ≥ 22.17, ESM + Fastify, MikroORM (PostgreSQL), Zod, ioredis, BullMQ. **One new runtime dependency: `awilix`** — see Complexity Tracking
-- 073-lifecycle-gating-completion: Added TypeScript 5.x `strict`, Node.js ≥ 22.17, ESM + Fastify, MikroORM (PostgreSQL), Zod, ioredis, BullMQ (backend); React 19 + Vite + react-router-dom 7 (admin); Next.js 15 App Router + React 19 (storefront). **No new runtime dependency** (Constitution IV, FR-062)

@@ -278,6 +278,14 @@ const modules = [
   },
   {
     type: 'category',
+    label: 'Infakt',
+    link: { type: 'doc', id: 'modules/infakt' },
+    items: [
+      'module-reference/infakt',
+    ],
+  },
+  {
+    type: 'category',
     label: 'InPost',
     link: { type: 'doc', id: 'modules/inpost' },
     items: [
@@ -290,6 +298,14 @@ const modules = [
     link: { type: 'doc', id: 'modules/inventory' },
     items: [
       'module-reference/inventory',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'Invoice ledger',
+    link: { type: 'doc', id: 'modules/invoice-ledger' },
+    items: [
+      'module-reference/invoice-ledger',
     ],
   },
   {

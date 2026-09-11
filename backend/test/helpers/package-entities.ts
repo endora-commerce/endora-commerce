@@ -37,6 +37,7 @@ import { entities as customerAccountsEntities } from '@endora-commerce/mod-custo
 import { entities as inventoryEntities } from '@endora-commerce/mod-inventory/backend';
 import { entities as emailEntities } from '@endora-commerce/mod-email/backend';
 import { entities as invoicesEntities } from '@endora-commerce/mod-invoices/backend';
+import { entities as invoiceLedgerEntities } from '@endora-commerce/mod-invoice-ledger/backend';
 import { entities as pimErgonodeEntities } from '@endora-commerce/mod-pim-ergonode/backend';
 import { entities as pimUnopimEntities } from '@endora-commerce/mod-pim-unopim/backend';
 import { entities as pimPimcoreEntities } from '@endora-commerce/mod-pim-pimcore/backend';
@@ -173,6 +174,10 @@ import type { AkeneoImportRun as AkeneoImportRunRow } from '../../../packages/mo
 import type { AkeneoMediaLink as AkeneoMediaLinkRow } from '../../../packages/modules/pim_akeneo/src/backend/entities/akeneo-media-link.entity.js';
 import type { AkeneoSourceLink as AkeneoSourceLinkRow } from '../../../packages/modules/pim_akeneo/src/backend/entities/akeneo-source-link.entity.js';
 import type { EmailDelivery as EmailDeliveryRow } from '../../../packages/modules/email/src/backend/entities/email-delivery.entity.js';
+import type { InvoiceLedgerClientMap as InvoiceLedgerClientMapRow } from '../../../packages/modules/invoice_ledger/src/backend/entities/invoice-ledger-client-map.entity.js';
+import type { InvoiceLedgerDelivery as InvoiceLedgerDeliveryRow } from '../../../packages/modules/invoice_ledger/src/backend/entities/invoice-ledger-delivery.entity.js';
+import type { InvoiceLedgerDocumentMap as InvoiceLedgerDocumentMapRow } from '../../../packages/modules/invoice_ledger/src/backend/entities/invoice-ledger-document-map.entity.js';
+import type { InvoiceLedgerWebhookReceipt as InvoiceLedgerWebhookReceiptRow } from '../../../packages/modules/invoice_ledger/src/backend/entities/invoice-ledger-webhook-receipt.entity.js';
 import type { Invoice as InvoiceRow } from '../../../packages/modules/invoices/src/backend/entities/invoice.entity.js';
 import type { InvoiceLine as InvoiceLineRow } from '../../../packages/modules/invoices/src/backend/entities/invoice-line.entity.js';
 import type { InvoiceNumberCounter as InvoiceNumberCounterRow } from '../../../packages/modules/invoices/src/backend/entities/invoice-number-counter.entity.js';
@@ -664,6 +669,22 @@ export const Warehouse = classNamed<WarehouseRow>(
   'Warehouse',
 );
 export const EmailDelivery = classNamed<EmailDeliveryRow>(emailEntities, 'EmailDelivery');
+export const InvoiceLedgerClientMap = classNamed<InvoiceLedgerClientMapRow>(
+  invoiceLedgerEntities,
+  'InvoiceLedgerClientMap',
+);
+export const InvoiceLedgerDelivery = classNamed<InvoiceLedgerDeliveryRow>(
+  invoiceLedgerEntities,
+  'InvoiceLedgerDelivery',
+);
+export const InvoiceLedgerDocumentMap = classNamed<InvoiceLedgerDocumentMapRow>(
+  invoiceLedgerEntities,
+  'InvoiceLedgerDocumentMap',
+);
+export const InvoiceLedgerWebhookReceipt = classNamed<InvoiceLedgerWebhookReceiptRow>(
+  invoiceLedgerEntities,
+  'InvoiceLedgerWebhookReceipt',
+);
 export const Invoice = classNamed<InvoiceRow>(invoicesEntities, 'Invoice');
 export const InvoiceLine = classNamed<InvoiceLineRow>(invoicesEntities, 'InvoiceLine');
 export const InvoiceNumberCounter = classNamed<InvoiceNumberCounterRow>(

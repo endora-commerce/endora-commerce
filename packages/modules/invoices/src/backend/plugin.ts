@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { OrderReadPort, OrderRecord, TransactionalEmailSender } from '@endora-commerce/contracts';
 import { InvoiceService, type InvoiceAuditRecorder } from './services/invoice-service.js';
+import type { LedgerNumberingLookup } from './services/vendor-number-hold.js';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { InvoicePdfRenderer } from './services/invoice-pdf-renderer.js';
 import type { LoadAssetImage } from './pdf-components/embed-logo-images.js';
@@ -82,6 +83,8 @@ export interface InvoicesModuleOptions {
    * self-fetching `/assets/file/:id` during Preview PDF).
    */
   loadAssetImage: LoadAssetImage;
+  /** Mode B wait. Absent ledger degrades to today's ready path. */
+  ledgerRouting?: LedgerNumberingLookup;
 }
 
 export interface InvoicesModuleHandle {
@@ -112,6 +115,7 @@ export function invoicesModule(options: InvoicesModuleOptions): {
     createSettingsPatternResolver(options.settingsService),
   );
   const sellerSettings = new SellerSettingsResolver(options.settingsService);
+  const emailOnReadyHolder: { dispatch?: (invoiceId: string) => Promise<void> } = {};
   const invoiceService = new InvoiceService(
     options.emFactory,
     options.orderReadPort,
@@ -124,6 +128,10 @@ export function invoicesModule(options: InvoicesModuleOptions): {
             options.eventBus!.emit!(eventName, payload as { eventId: string; occurredAt: string }),
         }
       : undefined,
+    async (invoiceId) => {
+      await emailOnReadyHolder.dispatch?.(invoiceId);
+    },
+    options.ledgerRouting,
   );
   const pdfRenderer = new InvoicePdfRenderer({ loadAssetImage: options.loadAssetImage });
   const templateService = new InvoiceTemplateService(options.emFactory, options.auditLog);
@@ -142,6 +150,9 @@ export function invoicesModule(options: InvoicesModuleOptions): {
     resolveRecipientEmail: options.resolveRecipientEmail,
     resolveLanguage: options.resolveLanguage,
   });
+  emailOnReadyHolder.dispatch = async (invoiceId) => {
+    await emailDispatcher.dispatch(invoiceId);
+  };
 
   // FR-002 — the auto-issue reactor. `backend.ts` registers it through
   // `ctx.subscribe`, so a switched-off module issues nothing.

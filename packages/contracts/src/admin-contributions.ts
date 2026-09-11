@@ -385,7 +385,27 @@ export const AdminZoneNameSchema = z.enum([
    * module now contributes its own tab, with its own label in its own bundle.
    */
   'order.entry.tabs',
-]);
+  /**
+   * The switch between invoice-ledger deliveries, routing, and vendor adapter
+   * connection screens.
+   *
+   * **A tab strip**, same renderer as `order.entry.tabs`: `<RouteTabsZone>`.
+   * `invoice_ledger` contributes Deliveries and Routing. A vendor adapter
+   * (`infakt` today) contributes its connection tab. The sidebar keeps one
+   * **Invoice ledger** row. Props: {@link LedgerSectionTabsZoneProps}.
+   *
+   * The name is `ledger.section.tabs` and not `invoice_ledger.section.tabs`
+   * so an adapter file that mounts the strip does not spell a sibling module
+   * id (`check:admin-zones` `foreign-module-id`).
+   *
+   * **Three hosts and one place**, the same Z13 exception `order.entry.tabs`
+   * records: the switch must appear on every page it switches between or it
+   * is not a switch. `unrendered-zone` is per member, so
+   * `admin/test/modules/invoice_ledger/ledger-section-tabs-zone.test.tsx`
+   * asserts all three mounts by name.
+   */
+  'ledger.section.tabs',
+])
 
 export type AdminZoneName = z.infer<typeof AdminZoneNameSchema>;
 
@@ -550,6 +570,14 @@ export interface OrderShipmentsActionsZoneProps {
  */
 export interface OrderEntryTabsZoneProps {}
 
+/**
+ * A zone mounted on the invoice-ledger section strip, carrying nothing.
+ *
+ * Empty on {@link OrderEntryTabsZoneProps}' terms: the contributions are the
+ * tabs, and the host has no entity id to pass.
+ */
+export interface LedgerSectionTabsZoneProps {}
+
 /** A zone mounted beside one field of the product editor. */
 export interface ProductEditorFieldZoneProps {
   readonly productId: string;
@@ -609,6 +637,7 @@ export interface AdminZonePropsMap extends Record<AdminZoneName, object> {
   'order.shipment.row.actions': OrderShipmentRowZoneProps;
   'order.shipments.tab.actions': OrderShipmentsActionsZoneProps;
   'order.entry.tabs': OrderEntryTabsZoneProps;
+  'ledger.section.tabs': LedgerSectionTabsZoneProps;
 }
 
 /** The props of one zone, by name. */

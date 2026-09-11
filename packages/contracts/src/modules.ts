@@ -868,6 +868,23 @@ export const ModuleManifestSchema = z.object({
    */
   pimConnector: z.literal(true).optional(),
   /**
+   * When `true`, the module participates in the invoice-ledger mutual-exclusion
+   * set (feature 119).
+   *
+   * **Nothing reads it.** `invoice_ledger`'s registry answers
+   * `assertCanActivate` from `INVOICE_LEDGER_MODULES` in
+   * `packages/contracts/src/invoice-ledger.ts`, which is the compile-time table
+   * the exclusion is derived from; this flag is the same fact declared a second
+   * time, in a second place, with nobody to keep the two in agreement. It is
+   * kept because `pimConnector` above is the identical pair — declared by
+   * `pim_unopim`, read by nothing, the mutex answered from the module's own
+   * `pimConnectorRegistry` — and one of two duplicates is not the thing to
+   * remove on its own. Deciding between "the flag is the source and the table
+   * derives from it" and "the table is the source and the flag goes" is a sweep
+   * over both families, not a line here.
+   */
+  invoiceLedger: z.literal(true).optional(),
+  /**
    * The operator-visible error codes this module owns (feature 090, D-182).
    *
    * The declaration is what routes the code's sentence to this module's bundle:

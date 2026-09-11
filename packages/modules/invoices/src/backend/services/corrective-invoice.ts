@@ -6,6 +6,10 @@ import { Invoice } from '../entities/invoice.entity.js';
 import { InvoiceLine } from '../entities/invoice-line.entity.js';
 import type { InvoiceNumberGenerator } from './invoice-number-generator.js';
 import type { InvoiceAuditRecorder, InvoiceDomainEventEmitter } from './invoice-service.js';
+import {
+  shouldHoldForVendorNumber,
+  type LedgerNumberingLookup,
+} from './vendor-number-hold.js';
 import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import { refuseDuplicateInvoiceNumber } from './duplicate-number-refusal.js';
 // Feature 075, Phase C — `returns` states this shape and `invoices` satisfies
@@ -83,6 +87,7 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
     private readonly numbers?: () => InvoiceNumberGenerator,
     private readonly audit?: InvoiceAuditRecorder,
     private readonly events?: InvoiceDomainEventEmitter,
+    private readonly ledgerRouting?: LedgerNumberingLookup,
   ) {}
 
   async createCorrection(input: CorrectiveInvoiceInput): Promise<CorrectiveInvoiceResult> {
@@ -185,6 +190,7 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
     const netTotal = round2(credited - taxTotal);
 
     const issuedAt = new Date();
+    const holdForVendor = await shouldHoldForVendorNumber(this.ledgerRouting, salesChannelId);
     // Captured out of the transaction: see the same note in `InvoiceService`.
     let drawnNumber: string | null = null;
     const runCorrection = async (tx: EntityManager): Promise<Invoice> => {
@@ -219,7 +225,7 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
         ...(original.buyerSnapshot ? { buyerSnapshot: original.buyerSnapshot } : {}),
         ...(original.sellerSnapshot ? { sellerSnapshot: original.sellerSnapshot } : {}),
         issuedBy: 'system',
-        status: 'ready',
+        status: holdForVendor ? 'pending' : 'ready',
       });
       await tx.persistAndFlush(inv);
 

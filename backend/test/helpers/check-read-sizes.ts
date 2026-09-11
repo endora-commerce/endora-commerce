@@ -824,6 +824,88 @@ export interface RecordedReadSize {
  * `sites` that had moved here would mean somebody wrote one.
  */
 /**
+ * **Re-recorded on 2026-09-11 by `review/119-infakt-adaptations`, 58 fields across
+ * 39 entries — the whole of feature 119's growth, measured on one tree.**
+ *
+ * The drift census read `39 drifted, 5 agree, 0 not measured, of 44 recorded`
+ * before this sweep and `0 drifted` after it. Every number is growth: the
+ * `sources=` token of every one of the 39 reconciles in full, which is the
+ * evidence that these are walks reading the same trees with more files in them
+ * rather than walks that stopped looking. **No band was widened and no
+ * assertion moved.**
+ *
+ * **One cause covers nearly all of it.** `feat/119-infakt-integration` adds two
+ * module packages — `invoice_ledger` (the shared ledger rails) and `infakt` (the
+ * vendor adapter) — each with backend sources, an admin layer, an `i18n/` pair,
+ * a `docs/` page and co-located tests. That is one population arriving in
+ * thirty-nine checks, seen through each one's own filter:
+ *
+ *   - a **module `.ts` walk** gains **45**: `check-channel-resolution`,
+ *     `check-entity-tenant-classification`, `check-entry-presence`,
+ *     `check-entry-scope`, `check-kernel-boundary`, `check-port-catches`,
+ *     `check-subscribe-seam` and `check-transaction-context` all move
+ *     2131 -> 2176, and `check-port-dependencies` 1951 -> 1996 on its own
+ *     narrower root;
+ *   - a walk over module `.ts` **and** `.tsx` gains more, because both packages
+ *     ship an admin layer: `check-platform-surface` 2429 -> 2479 and
+ *     `check-block-names` 2100 -> 2150 at +50, `check-port-shape`
+ *     2050 -> 2097 at +47, `check-action-route-permissions` 2004 -> 2044 at +40;
+ *   - a walk that also opens a package's **tests** gains 57–64:
+ *     `check-container-imports` 2213 -> 2270 and `check-divergence`
+ *     2392 -> 2449, `check-admin-zones` 2743 -> 2807 and
+ *     `check-class-vocabulary` 2841 -> 2905 on the wider roots;
+ *   - a **whole-tree** walk gains 97–132: `check-nul-bytes` 8153 -> 8285 and
+ *     `check-naming.sh` 8213 -> 8345 read every extension, so they also count
+ *     the two packages' JSON bundles, their manifests and this branch's own
+ *     changeset; `check-language.sh` 6123 -> 6226 and `check-diacritic-folds`
+ *     5492 -> 5589 are the same walk minus the roots each excludes;
+ *   - the **small** populations move by exactly what arrived and are the easiest
+ *     to check: `check-bundle-pairing` and `check-error-translations` 130 -> 134,
+ *     two modules × two shipped languages; `check-module-docs` 106 -> 108, one
+ *     page each; `check-overlay-determinism` and `check-release-intent` 87 -> 89,
+ *     two workspace members; `check-lock-claims` 308 -> 312, two manifests plus
+ *     the two files `packages/contracts/src/index.ts` now re-exports.
+ *
+ * **Three numbers are this adaptation branch's own, and they are the ones to
+ * read if the record is ever doubted**, because each is a file moving between
+ * two populations rather than a file arriving:
+ *
+ *   - the three `backend/test/**` walks — `check-fixture-substitution`,
+ *     `check-harness-teardown` and `check-shared-table-wipes` — move
+ *     1590 -> 1620, which is **+30 and not +39**. The feature adds 39 backend
+ *     test files; this branch moves **9** of them into the packages that own
+ *     their subjects, which is what `check:test-ownership` was red about, so
+ *     thirty is what is left under `backend/test`.
+ *   - `check-test-ownership` itself moves 1711 -> 1750 and its `sites` do not
+ *     move at all. Its population is application **and** packages, so the same
+ *     nine files are in it before and after: the move is net zero there by
+ *     construction, which is the cross-check on the paragraph above.
+ *   - `check-singleton-identity` moves `files` 4517 -> 4611 and its **`sites`
+ *     stay at 869**, which they would not have done without the move. Its sites
+ *     are value reaches into a module package's *source* by filesystem path, and
+ *     the nine moved files held fifteen of them
+ *     (`../../../../packages/modules/<id>/src/...`). Rewritten as relative
+ *     specifiers inside the package, those reaches leave the population
+ *     entirely — the same shape D-168's repair note records one check over.
+ *
+ * **Two `sites` numbers are the feature's own declarations rather than its
+ * files**, and are worth naming because a reviewer can count them.
+ * `check-off-state-coverage` 202 -> 205 is measured per call and decomposes
+ * exactly: two `expectModuleAbsent` sites — the `infakt` and `invoice_ledger`
+ * off-state files — plus one `withModuleOff` in
+ * `backend/test/contract/infakt/webhook.test.ts`. Both spellings are in that
+ * check's walk and only the first is in its finding population, which is why
+ * the site total moves by three where the coverage answer moves by two. And
+ * `check-entity-tenant-classification` 260 -> 265 is the five entity classes
+ * `invoice_ledger` owns; `infakt` owns none, which is why its `./backend`
+ * barrel publishes an empty `entities` array.
+ *
+ * Everything else is the two packages seen through a narrower filter. The
+ * measurement was taken in the shape the `quality` job runs in — the generated
+ * module-documentation copies cleaned and `docs/.module-docs-copies.json`
+ * removed — because those copies are in `check-nul-bytes`' and
+ * `check-naming.sh`' walks and a working tree that has built the docs site reads
+ * seventy-nine files more than CI does.
  * **Re-recorded on 2026-09-11 by `specs/110-instance-repository/` T140 — ten
  * entries, all of them this merge request's own, all of them `files`.**
  *
@@ -898,6 +980,35 @@ export interface RecordedReadSize {
  * afterwards reports drift against a number no clean tree can produce. It is the
  * `docs/docs/modules` trap in a second costume: the tree shape is not only the
  * module doc copies, it is everything ignored.
+ */
+/**
+ * **Catch-up merge of `origin/master` into `feat/119-infakt-integration`, 2026-09-11
+ * — thirteen fields across eleven entries, none of them new work.**
+ *
+ * The two blocks above are the two sides of this merge and both are true of the
+ * merged tree: feature 119's two module packages arrived on one side while
+ * `specs/110-instance-repository/` T140 and !1583 arrived on the other, and no
+ * entry's recorded value described the union. Every number below was
+ * **re-measured on the merged tree**; none was summed from the two sides'
+ * deltas, and no band was widened.
+ *
+ * **The attribution is a measurement rather than an arithmetic.** With the five
+ * files the master side adds withdrawn from the tree — the acceptance criterion,
+ * its judgement, its recorded expectation, its unit test and
+ * `specs/114-release-shape-gate/tasks.md` — and its edit to
+ * `test/unit/release/changeset-flow.test.ts` reverted, all nine affected
+ * TypeScript checks read back the branch's own recorded value exactly: 8289,
+ * 5591/547, 1302, 1622/586, 1622, 1622, 1751, 2479, 4613. So the two sides'
+ * populations are disjoint here and nothing is double-counted. That the observed
+ * deltas then match `master`'s own recorded deltas file for file is a
+ * cross-check on the record, not the method that produced it.
+ *
+ * **`check:naming` and `check:language` are the two the parking method cannot
+ * reach**, and they are measured after **staging** the resolution instead. Their
+ * population is `git ls-files --cached --others --exclude-standard` — the index,
+ * not the disk — so withdrawing a staged file leaves it listed, and during an
+ * unresolved merge a conflicted path is listed once per stage, which reads two
+ * high. Measured staged: 8354 and 6232.
  */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
@@ -1158,7 +1269,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T118c, `invoicesBridge`: +1 file** — `invoices`' new module source
     // (`services/cross-module-context.ts`). It declares no action, so nothing else
     // moves.
-    files: 2004,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 2004 -> 2044.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2044,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1174,7 +1288,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 86 -> 88.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
-    sites: 88,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 88 -> 90.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 90,
     // `emitted-manifests` is this check saying which artefact its manifest half
     // came from: the manifests are imported rather than walked, and a packaged
     // module's resolves at its build output. It is the disclosure half of the
@@ -1457,7 +1574,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // combined tree, never summed from the two sides' deltas.
     // **T118c, `invoicesBridge`: +1 file** — `invoices`' new module source
     // (`services/cross-module-context.ts`).
-    files: 2131,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 2131 -> 2176.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2176,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1562,7 +1682,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // combined tree, never summed from the two sides' deltas.
     // **T118c, `invoicesBridge`: +1 file** — `invoices`' new module source
     // (`services/cross-module-context.ts`). It writes nothing.
-    files: 1707,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 1707 -> 1750.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 1750,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -1677,7 +1800,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // combined tree, never summed from the two sides' deltas.
     // **T118c, `invoicesBridge`: +2 files** — `invoices`' new module source
     // (`services/cross-module-context.ts`) and its co-located test.
-    files: 2213,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 2213 -> 2270.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2270,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -2132,8 +2258,36 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own guard and harness constant, so the recorded value describes neither tree: 5489 -> 5494.
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
     // the combined tree, never summed from the two sides' deltas.
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 5492 -> 5589.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    // **Re-measured on the union after merging `origin/master` into
+    // `feat/119-infakt-integration` (14 commits): files 5589 -> 5591.** Neither side's
+    // recorded value describes this tree: this branch's 5589 was measured before
+    // `fix/required-module-refusal-stopped`, T161's sweep and
+    // `fix/110-instance-template-symbols` landed on `master`, and `master`'s 5494 was measured
+    // without feature 119's two module packages. The +2 is attributed by measurement and not
+    // by subtraction: with the four files the master side adds parked, this walk reads 5589
+    // exactly, so the whole delta is `backend/test/harness-tenant-scope.ts` and
+    // `backend/test/unit/harness/setup-file-imports.test.ts`. The other two are outside this
+    // population — `packages/cli/test` is one of this check's excluded subtrees, and a
+    // changeset is not a `.ts`. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed from the
+    // two sides' deltas.
     // **T140 (the instance acceptance criterion): files 5494 -> 5495.** One: the criterion's own unit test. This walk excludes `backend/scripts` and `backend/test/unit/scripts`, so neither of the two new script files is in its population, and it reads no JSON.
-    files: 5495,
+    // **Re-measured on the union after merging `origin/master` into `feat/119-infakt-integration`
+    // (13 commits): files 5591 -> 5592.** Neither side's recorded value describes this tree: the
+    // branch's 5591 was measured before `specs/110-instance-repository/` T140 and !1583 landed on
+    // `master`, and `master`'s own value was measured without feature 119's two module packages.
+    // Attributed by parking and re-measuring rather than by subtraction: with the five files the
+    // master side adds withdrawn and its edit to `test/unit/release/changeset-flow.test.ts`
+    // reverted, this walk reads 5591 exactly, so the whole delta is
+    // `backend/test/unit/acceptance/instance-assertions.test.ts`. Its walk excludes
+    // `backend/scripts` and `backend/test/unit/scripts`, so neither acceptance script is in its
+    // population, and it reads no JSON and no `specs/`. Quality-job shape — the ignored copies
+    // under `docs/docs/modules/` swept first. Measured on the combined tree, never summed from the
+    // two sides' deltas.
+    files: 5592,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2255,7 +2409,32 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own guard and harness constant, so the recorded value describes neither tree: 544 -> 545.
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    sites: 546,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 544 -> 546.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    // **Re-measured on the union after merging `origin/master` into
+    // `feat/119-infakt-integration` (14 commits): sites 546 -> 547.** Neither side's recorded
+    // value describes this tree: this branch's 546 was measured before
+    // `fix/required-module-refusal-stopped`, T161's sweep and
+    // `fix/110-instance-template-symbols` landed on `master`, and `master`'s 545 was measured
+    // without feature 119's two module packages. The +1 is the guard's single `.replace()`,
+    // the one master's block above names: it rewrites a `.js` specifier to its `.ts` source
+    // while walking the setup path's imports. Measured — with the master side's four files
+    // parked this walk reads 546 exactly. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed from the
+    // two sides' deltas.
+    // **Re-measured on the union after merging `origin/master` into `feat/119-infakt-integration`
+    // (13 commits): sites 547 -> 548.** Neither side's recorded value describes this tree: the
+    // branch's 547 was measured before `specs/110-instance-repository/` T140 and !1583 landed on
+    // `master`, and `master`'s own value was measured without feature 119's two module packages.
+    // Attributed by parking and re-measuring rather than by subtraction: with the five files the
+    // master side adds withdrawn and its edit to `test/unit/release/changeset-flow.test.ts`
+    // reverted, this walk reads 547 exactly, so the whole delta is the `.replace()` that strips
+    // the scope off a package name, in the derivation of the `linked` group
+    // `changeset-flow.test.ts` now reads out of `.changeset/config.json`. Quality-job shape — the
+    // ignored copies under `docs/docs/modules/` swept first. Measured on the combined tree, never
+    // summed from the two sides' deltas.
+    sites: 548,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -2446,7 +2625,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // shape — the ignored copies under `docs/docs/modules/` swept first.
     // **T118c, `invoicesBridge`: +2 files** — `invoices`' new module source
     // (`services/cross-module-context.ts`) and its co-located test.
-    files: 2392,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 2392 -> 2449.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2449,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -2579,7 +2761,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // while the branch was open, and this walk's population is the documents.
     // **+1, and it is not this branch's.** The document is `specs/113-module-owned-demo-data/tasks.md`, from the chained base.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The 12 spec pages and 2 documentation pages the branch adds, which this walk opens as documents.
-    files: 1285,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 1284 -> 1302.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    // **Re-measured on the union after merging `origin/master` into `feat/119-infakt-integration`
+    // (13 commits): files 1302 -> 1303.** Neither side's recorded value describes this tree: the
+    // branch's 1302 was measured before `specs/110-instance-repository/` T140 and !1583 landed on
+    // `master`, and `master`'s own value was measured without feature 119's two module packages.
+    // Attributed by parking and re-measuring rather than by subtraction: with the five files the
+    // master side adds withdrawn and its edit to `test/unit/release/changeset-flow.test.ts`
+    // reverted, this walk reads 1302 exactly, so the whole delta is
+    // `specs/114-release-shape-gate/tasks.md`. Its population is `docs/docs` plus `specs`, so none
+    // of T140's four files is in it. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed from the two
+    // sides' deltas.
+    files: 1303,
     sites: 12,
     sources: [],
     //
@@ -2868,8 +3064,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // shape — the ignored copies under `docs/docs/modules/` swept first.
     // **T118c, `invoicesBridge`: +1 file** — `invoices`' new module source
     // (`services/cross-module-context.ts`). It declares no entity.
-    files: 2131,
-    sites: 260,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 2131 -> 2176.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2176,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 260 -> 265.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 265,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-entry-presence.ts': {
@@ -3147,7 +3349,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T118c, `invoicesBridge`: +1 file** — `invoices`' new module source
     // (`services/cross-module-context.ts`). It starts no timer and registers no boot
     // hook.
-    files: 2131,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 2131 -> 2176.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2176,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3426,7 +3631,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T118c, `invoicesBridge`: +1 file** — `invoices`' new module source
     // (`services/cross-module-context.ts`). It is no entry point: every function in it
     // is called from a registration.
-    files: 2131,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 2131 -> 2176.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2176,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -3468,7 +3676,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // program** and leaves the population: `program` falls 5 -> 4 and `package-scripts` 10
     // -> 9. A downward move, recorded in the merge request that shrank the population and
     // nowhere else.
-    sites: 44,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 44 -> 45.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 45,
     sources: ['manifest-index', 'package-scripts'],
   },
   'backend/scripts/check-env-inputs.ts': {
@@ -3674,7 +3885,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 128 -> 130.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
-    files: 130,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 130 -> 134.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 134,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 867 -> 883.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -3684,7 +3898,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `errors.PIM_CONNECTOR_ALREADY_ACTIVE` copies leave `pim_akeneo`'s bundles. The
     // `sources` token moves with it, `manifest-index:39/39` -> `40/40`: `pim_akeneo` joins
     // the modules that declare an error code, which is this walk's floor.
-    sites: 888,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 888 -> 905.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 905,
     // Feature 080's T010, and feature 090's Phase 4 for the second entry.
     // `manifest-index` expects the module directories that declare a code:
     // every id the generated index registers, less the ones whose manifest
@@ -3872,8 +4089,32 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own guard and harness constant, so the recorded value describes neither tree: 1589 -> 1592.
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
     // the combined tree, never summed from the two sides' deltas.
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 1590 -> 1620.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    // **Re-measured on the union after merging `origin/master` into
+    // `feat/119-infakt-integration` (14 commits): files 1620 -> 1622.** Neither side's
+    // recorded value describes this tree: this branch's 1620 was measured before
+    // `fix/required-module-refusal-stopped`, T161's sweep and
+    // `fix/110-instance-template-symbols` landed on `master`, and `master`'s 1592 was measured
+    // without feature 119's two module packages. The +2 is the two files the master side adds
+    // under `backend/test/`, which is this walk's whole population; measured by parking all
+    // four of that side's additions, which reads 1620 exactly. Quality-job shape — the ignored
+    // copies under `docs/docs/modules/` swept first. Measured on the combined tree, never
+    // summed from the two sides' deltas.
     // **T140 (the instance acceptance criterion): files 1592 -> 1593.** One: `backend/test/unit/acceptance/instance-assertions.test.ts`. Its population is `backend/test/**` and the criterion's own sources are not tests.
-    files: 1593,
+    // **Re-measured on the union after merging `origin/master` into `feat/119-infakt-integration`
+    // (13 commits): files 1622 -> 1623.** Neither side's recorded value describes this tree: the
+    // branch's 1622 was measured before `specs/110-instance-repository/` T140 and !1583 landed on
+    // `master`, and `master`'s own value was measured without feature 119's two module packages.
+    // Attributed by parking and re-measuring rather than by subtraction: with the five files the
+    // master side adds withdrawn and its edit to `test/unit/release/changeset-flow.test.ts`
+    // reverted, this walk reads 1622 exactly, so the whole delta is
+    // `backend/test/unit/acceptance/instance-assertions.test.ts`; its population is
+    // `backend/test/**` and the criterion's own sources are not tests. Quality-job shape — the
+    // ignored copies under `docs/docs/modules/` swept first. Measured on the combined tree, never
+    // summed from the two sides' deltas.
+    files: 1623,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -3911,7 +4152,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the same population leaving, not the #235/#237 shape.
     // **D-223: sites 579 -> 580 (+1).** One more entity read in the two integration tests
     // this branch adds, neither of them defaulted.
-    sites: 583,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 582 -> 586.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    // **Re-measured on the union after merging `origin/master` into `feat/119-infakt-integration`
+    // (13 commits): sites 586 -> 587.** Neither side's recorded value describes this tree: the
+    // branch's 586 was measured before `specs/110-instance-repository/` T140 and !1583 landed on
+    // `master`, and `master`'s own value was measured without feature 119's two module packages.
+    // Attributed by parking and re-measuring rather than by subtraction: with the five files the
+    // master side adds withdrawn and its edit to `test/unit/release/changeset-flow.test.ts`
+    // reverted, this walk reads 586 exactly, so the whole delta is the `manifests.find(...)` that
+    // derivation uses — `find` is in this check's read vocabulary, and the site is correctly
+    // **not** a violation because its fallback is a `throw` rather than a fabricated value.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    sites: 587,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -4063,8 +4318,31 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own guard and harness constant, so the recorded value describes neither tree: 1589 -> 1592.
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
     // the combined tree, never summed from the two sides' deltas.
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 1590 -> 1620.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    // **Re-measured on the union after merging `origin/master` into
+    // `feat/119-infakt-integration` (14 commits): files 1620 -> 1622.** Neither side's
+    // recorded value describes this tree: this branch's 1620 was measured before
+    // `fix/required-module-refusal-stopped`, T161's sweep and
+    // `fix/110-instance-template-symbols` landed on `master`, and `master`'s 1592 was measured
+    // without feature 119's two module packages. The +2 is the two files the master side adds
+    // under `backend/test/`, which is this walk's whole population; measured by parking all
+    // four of that side's additions, which reads 1620 exactly. Quality-job shape — the ignored
+    // copies under `docs/docs/modules/` swept first. Measured on the combined tree, never
+    // summed from the two sides' deltas.
     // **T140 (the instance acceptance criterion): files 1592 -> 1593.** The same one test file, on the same `backend/test/**` population.
-    files: 1593,
+    // **Re-measured on the union after merging `origin/master` into `feat/119-infakt-integration`
+    // (13 commits): files 1622 -> 1623.** Neither side's recorded value describes this tree: the
+    // branch's 1622 was measured before `specs/110-instance-repository/` T140 and !1583 landed on
+    // `master`, and `master`'s own value was measured without feature 119's two module packages.
+    // Attributed by parking and re-measuring rather than by subtraction: with the five files the
+    // master side adds withdrawn and its edit to `test/unit/release/changeset-flow.test.ts`
+    // reverted, this walk reads 1622 exactly, so the whole delta is the same one test file, on the
+    // same `backend/test/**` population. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed from the two
+    // sides' deltas.
+    files: 1623,
     sites: null,
     sources: [],
   },
@@ -4358,7 +4636,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // combined tree, never summed from the two sides' deltas.
     // **T118c, `invoicesBridge`: +1 file** — `invoices`' new module source
     // (`services/cross-module-context.ts`).
-    files: 2131,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 2131 -> 2176.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2176,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -4459,7 +4740,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // judges. Attributed by running this census on a pristine `origin/master`
     // worktree — `0 drifted, 44 agree, 0 not measured, of 44 recorded` — so all
     // twenty entries below are this merge request's own and none is a subtraction.
-    files: 308,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 308 -> 312.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 312,
     // **2026-09-04: 14 -> 15.** One further named-subject lock claim.
     // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge` retired):**
     // sites 15 -> 17, files unchanged. `pwa`'s manifest gains `orders` in its
@@ -4704,9 +4988,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // combined tree, never summed from the two sides' deltas.
     // **T118c, `invoicesBridge`: +2 files** — `invoices`' new module source
     // (`services/cross-module-context.ts`) and its co-located test.
-    files: 2743,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 2743 -> 2807.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2807,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
-    sites: 56,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 56 -> 66.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 66,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
     // is the second declaration reconciled against it, so a member added
@@ -4823,7 +5113,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // combined tree, never summed from the two sides' deltas.
     // **T118c, `invoicesBridge`: +1 file** — `invoices`' new module source
     // (`services/cross-module-context.ts`). It declares no block.
-    files: 2100,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 2100 -> 2150.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2150,
     // The finer population, and it is the one that moves when nothing else does
     // (issues #235/#237): tree sites, unreadable sites, renderer-map sites, the
     // block declarations and the declared `(key, context)` sections. A block
@@ -4910,13 +5203,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // combined tree, never summed from the two sides' deltas.
     // **T118c, `invoicesBridge`: +2 files** — `invoices`' new module source
     // (`services/cross-module-context.ts`) and its co-located test.
-    files: 2841,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 2841 -> 2905.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2905,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
     // is the syntax walk going blind rather than the tree shrinking.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The class-attribute sites in the module's admin layer.
-    sites: 5397,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 5397 -> 5433.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 5433,
     // `manifest-index` is issue #215's shared floor over the module half of the
     // render walk. `design-system` is the `exports` maps' own answer to *"which
     // packages publish `./theme.css`"* against the stylesheets this run opened,
@@ -4940,14 +5239,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 128 -> 130.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
-    files: 130,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 130 -> 134.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 134,
     // Every registered module, shipping or not. It moves only with the module
     // set, so a run whose `sites` fell while `files` held is a module that left
     // the index rather than a translation that left a package.
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 71 -> 72.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
-    sites: 72,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 72 -> 74.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 74,
     // `manifest-index` is issue #215's shared floor over the module walk, whose
     // unit here is the module's **own directory** — `dirname(manifestPath)`, the
     // anchor the boot reconciler joins `bundlesDir` to. `shipped-languages` is
@@ -4969,7 +5274,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 104 -> 106.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
-    files: 106,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 106 -> 108.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 108,
     // The finer population, and it answers a different question: the navigation
     // entries the committed sidebar names, the rows the committed map carries,
     // and the relative links a module-owned page writes (R3.7). A page added and
@@ -4998,7 +5306,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 264 -> 266.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
-    sites: 266,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 266 -> 270.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 270,
     // Three authors, each seeing something the others cannot. `manifest-index`
     // is issue #215's shared floor over the module walk, whose unit is the
     // module's own directory. `sidebar-entries` is the **committed artefact's**
@@ -5172,7 +5483,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (`services/cross-module-context.ts`). The five `sites` are the literals the new
     // file writes; all of them are English, which is what this check has nothing to say
     // about.
-    files: 1719,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 1719 -> 1762.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 1762,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -5257,7 +5571,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // landed the same day and each added its own module sources, co-located tests and wiring
     // test, so the recorded value describes neither tree alone: 34504 -> 34510. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first.
-    sites: 34515,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 34515 -> 35188.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 35188,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -5445,7 +5762,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 392 -> 403.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
-    files: 403,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 403 -> 417.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 417,
     // **Batch 13 (feature 091, Phase 4): 2361 -> 2305, and the cause is the move's
     // spelling rather than its size.** A published-symbol reach is counted per
     // import statement, and the twenty-four moved screens rewrote thirty `@/…`
@@ -5487,7 +5807,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Measured rather than reasoned: removing the `useAuth` import this branch also adds
     // to `ProductsList.tsx` leaves the number at 2239, and removing the route entry alone
     // returns it to 2238. `files` does not move — the branch adds no file this walk opens.
-    sites: 2239,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 2239 -> 2296.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 2296,
     // **Three** derivations since Phase 5's T3, none of them the walk counting
     // itself: the generated manifest index for the modules a walked file is
     // attributed to; the kit's own `exports` map against the barrels on disk —
@@ -5797,7 +6120,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // module package's sources under more than one root, which is the reason the `mfa`
     // census gives. The nine `sites` are the import specifiers and table references
     // those two files write; the backend integration test is outside this population.
-    files: 5034,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 5034 -> 5155.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 5155,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -5877,7 +6203,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 12620 -> 12642. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    sites: 12651,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 12651 -> 12915.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 12915,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -6647,8 +6976,34 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this walk opens like any other file. Attributed by measurement rather than by subtraction:
     // both were moved aside and the three drifting checks re-run, and the tree underneath read
     // 8155 exactly, so the whole delta is this branch's.
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 8153 -> 8285.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    // **Re-measured on the union after merging `origin/master` into
+    // `feat/119-infakt-integration` (14 commits): files 8285 -> 8289.** Neither side's
+    // recorded value describes this tree: this branch's 8285 was measured before
+    // `fix/required-module-refusal-stopped`, T161's sweep and
+    // `fix/110-instance-template-symbols` landed on `master`, and `master`'s 8157 was measured
+    // without feature 119's two module packages. The +4 is every file the master side adds —
+    // the two under `backend/test/`,
+    // `packages/cli/test/new-instance/template-reconciliation.test.ts` and this side's
+    // changeset — because this walk reads the whole repository and every extension. Measured
+    // twice: parking all four reads 8285, and parking the `packages/cli` test alone reads
+    // 8288. Quality-job shape — the ignored copies under `docs/docs/modules/` swept first.
+    // Measured on the combined tree, never summed from the two sides' deltas.
     // **T140 (the instance acceptance criterion): files 8157 -> 8161.** Four, which is every file this merge request adds: the criterion, its judgement, its recorded expectation and its unit test. The whole-tree walk counts the JSON; there is no changeset, because `backend` is in the changesets `ignore` list.
-    files: 8162,
+    // **Re-measured on the union after merging `origin/master` into `feat/119-infakt-integration`
+    // (13 commits): files 8289 -> 8294.** Neither side's recorded value describes this tree: the
+    // branch's 8289 was measured before `specs/110-instance-repository/` T140 and !1583 landed on
+    // `master`, and `master`'s own value was measured without feature 119's two module packages.
+    // Attributed by parking and re-measuring rather than by subtraction: with the five files the
+    // master side adds withdrawn and its edit to `test/unit/release/changeset-flow.test.ts`
+    // reverted, this walk reads 8289 exactly, so the whole delta is every file the master side
+    // adds: the criterion, its judgement, its recorded expectation, its unit test and
+    // `specs/114-release-shape-gate/tasks.md`. This walk is the whole tree, JSON included.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 8294,
     sites: null,
     sources: [],
     //
@@ -6680,7 +7035,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 110 -> 111.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
-    files: 111,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 111 -> 114.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 114,
     // The finer population, and the one that moves when a **resolver shape** is
     // added or lost: every `expectModuleAbsent` and `withModuleOff` call the
     // walk read, both helpers, one per call however many modules the call
@@ -6694,7 +7052,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 201 -> 202.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
-    sites: 202,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 202 -> 205.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 205,
     // Two independent authors, so the check computes no module list and no
     // call-name list of its own. `manifest-index` is every entry the generated
     // index carries against every entry whose manifest this run could classify
@@ -6816,11 +7177,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 874 -> 885.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
-    sites: 885,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 885 -> 905.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 905,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 86 -> 87.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
-    files: 87,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 87 -> 89.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 89,
     sources: [],
   },
   'backend/scripts/check-port-catches.ts': {
@@ -7188,7 +7555,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 2129 -> 2130. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    files: 2131,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 2131 -> 2176.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2176,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -7310,7 +7680,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (`services/cross-module-context.ts`). The three `sites` are **net**: five
     // resolutions arrive in `invoices`' registration — two `lazyPort` reads and three
     // contributed-name reads — against the two `invoicesBridge` cradle reads that go.
-    files: 1951,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 1951 -> 1996.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 1996,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 1471 -> 1535.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
@@ -7334,7 +7707,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 1571 -> 1576. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    sites: 1579,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 1579 -> 1645.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 1645,
     sources: ['manifest-index'],
   },
   // Two derivations, deliberately, because the check has two inputs that can be
@@ -7594,8 +7970,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (`services/cross-module-context.ts`). The two `sites` are its two reaches into
     // the platform: `SalesChannel` off `@endora-commerce/platform/kernel`, for the
     // channel-language read that came out of a root.
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 2429 -> 2479.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
     // **T140 (the instance acceptance criterion): files 2429 -> 2431.** Two: the criterion and its judgement, both application sources under `backend/scripts/`. Its application half is what opens them; the JSON and the test file are outside both populations.
-    files: 2431,
+    // **Re-measured on the union after merging `origin/master` into `feat/119-infakt-integration`
+    // (13 commits): files 2479 -> 2481.** Neither side's recorded value describes this tree: the
+    // branch's 2479 was measured before `specs/110-instance-repository/` T140 and !1583 landed on
+    // `master`, and `master`'s own value was measured without feature 119's two module packages.
+    // Attributed by parking and re-measuring rather than by subtraction: with the five files the
+    // master side adds withdrawn and its edit to `test/unit/release/changeset-flow.test.ts`
+    // reverted, this walk reads 2479 exactly, so the whole delta is the criterion and its
+    // judgement, both application sources under `backend/scripts/`. The JSON, the test file and
+    // the spec page are outside both of its populations. Quality-job shape — the ignored copies
+    // under `docs/docs/modules/` swept first. Measured on the combined tree, never summed from the
+    // two sides' deltas.
+    files: 2481,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -7693,7 +8083,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fewer files than the 1853 recorded against the tree before it: 1847. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    sites: 1853,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 1853 -> 1896.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 1896,
     // count moves with the file count here because the reaches that went are exactly
     // the files that went.
     // **T119a: sites 1870 -> 1861.** The same nine files, each the single relative
@@ -7854,7 +8247,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (`services/cross-module-context.ts`). The two `sites` are the two `lazyPort<T>`
     // calls and not the three cradle reads, which are contributed names rather than
     // ports.
-    files: 2050,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 2050 -> 2097.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2097,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 692 -> 721.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -7876,7 +8272,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 739 -> 745. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    sites: 747,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 747 -> 788.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 788,
     sources: ['manifest-index', 'ports-subpaths'],
   },
   // Small on purpose: this population is the *workspace*, not a source tree —
@@ -7988,11 +8387,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 86 -> 87.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
-    files: 87,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 87 -> 89.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 89,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 495 -> 501.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
-    sites: 501,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 501 -> 513.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 513,
     sources: ['workspace-globs'],
   },
   'backend/scripts/check-rsc-discipline.ts': {
@@ -8184,8 +8589,31 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own guard and harness constant, so the recorded value describes neither tree: 1589 -> 1592.
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
     // the combined tree, never summed from the two sides' deltas.
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 1590 -> 1620.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    // **Re-measured on the union after merging `origin/master` into
+    // `feat/119-infakt-integration` (14 commits): files 1620 -> 1622.** Neither side's
+    // recorded value describes this tree: this branch's 1620 was measured before
+    // `fix/required-module-refusal-stopped`, T161's sweep and
+    // `fix/110-instance-template-symbols` landed on `master`, and `master`'s 1592 was measured
+    // without feature 119's two module packages. The +2 is the two files the master side adds
+    // under `backend/test/`, which is this walk's whole population; measured by parking all
+    // four of that side's additions, which reads 1620 exactly. Quality-job shape — the ignored
+    // copies under `docs/docs/modules/` swept first. Measured on the combined tree, never
+    // summed from the two sides' deltas.
     // **T140 (the instance acceptance criterion): files 1592 -> 1593.** The same one test file, on the same `backend/test/**` population.
-    files: 1593,
+    // **Re-measured on the union after merging `origin/master` into `feat/119-infakt-integration`
+    // (13 commits): files 1622 -> 1623.** Neither side's recorded value describes this tree: the
+    // branch's 1622 was measured before `specs/110-instance-repository/` T140 and !1583 landed on
+    // `master`, and `master`'s own value was measured without feature 119's two module packages.
+    // Attributed by parking and re-measuring rather than by subtraction: with the five files the
+    // master side adds withdrawn and its edit to `test/unit/release/changeset-flow.test.ts`
+    // reverted, this walk reads 1622 exactly, so the whole delta is the same one test file, on the
+    // same `backend/test/**` population. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed from the two
+    // sides' deltas.
+    files: 1623,
     sites: 163,
     sources: [],
   },
@@ -8516,7 +8944,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T118c, `invoicesBridge`: +1 file** — `invoices`' new module source
     // (`services/cross-module-context.ts`). It subscribes to nothing and constructs no
     // worker.
-    files: 2131,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 2131 -> 2176.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2176,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -8692,8 +9123,33 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own guard and harness constant, so the recorded value describes neither tree: 1708 -> 1712.
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
     // the combined tree, never summed from the two sides' deltas.
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 1711 -> 1750.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    // **Re-measured on the union after merging `origin/master` into
+    // `feat/119-infakt-integration` (14 commits): files 1750 -> 1751.** Neither side's
+    // recorded value describes this tree: this branch's 1750 was measured before
+    // `fix/required-module-refusal-stopped`, T161's sweep and
+    // `fix/110-instance-template-symbols` landed on `master`, and `master`'s 1712 was measured
+    // without feature 119's two module packages. **+1 and not +3**, for the reason master's
+    // block above gives and which holds for the third file as well: this check's population is
+    // test files, so only `backend/test/unit/harness/setup-file-imports.test.ts` is in it.
+    // `harness-tenant-scope.ts` is a harness module rather than a test, and parking
+    // `packages/cli/test/new-instance/template-reconciliation.test.ts` on its own leaves 1751
+    // — it is outside this walk. `sites` does not move and is not re-recorded. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
+    // combined tree, never summed from the two sides' deltas.
     // **T140 (the instance acceptance criterion): files 1712 -> 1713.** The same one test file.
-    files: 1713,
+    // **Re-measured on the union after merging `origin/master` into `feat/119-infakt-integration`
+    // (13 commits): files 1751 -> 1752.** Neither side's recorded value describes this tree: the
+    // branch's 1751 was measured before `specs/110-instance-repository/` T140 and !1583 landed on
+    // `master`, and `master`'s own value was measured without feature 119's two module packages.
+    // Attributed by parking and re-measuring rather than by subtraction: with the five files the
+    // master side adds withdrawn and its edit to `test/unit/release/changeset-flow.test.ts`
+    // reverted, this walk reads 1751 exactly, so the whole delta is the same one test file.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 1752,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -9014,7 +9470,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // combined tree, never summed from the two sides' deltas.
     // **T118c, `invoicesBridge`: +1 file** — `invoices`' new module source
     // (`services/cross-module-context.ts`). It opens no transaction and writes no SQL.
-    files: 2131,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 2131 -> 2176.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2176,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -9387,8 +9846,34 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own guard and harness constant, so the recorded value describes neither tree: 4514 -> 4519.
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
     // the combined tree, never summed from the two sides' deltas.
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 4517 -> 4611.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    // **Re-measured on the union after merging `origin/master` into
+    // `feat/119-infakt-integration` (14 commits): files 4611 -> 4613.** Neither side's
+    // recorded value describes this tree: this branch's 4611 was measured before
+    // `fix/required-module-refusal-stopped`, T161's sweep and
+    // `fix/110-instance-template-symbols` landed on `master`, and `master`'s 4519 was measured
+    // without feature 119's two module packages. The +2 is the two files the master side adds
+    // under `backend/test/`; parking all four reads 4611, and parking the `packages/cli` test
+    // on its own leaves 4613, so that file is outside this walk. `sites` stays at 869 and is
+    // not re-recorded: none of the three arriving TypeScript files reaches a module package's
+    // source by filesystem path, which is what this check counts sites over. Quality-job shape
+    // — the ignored copies under `docs/docs/modules/` swept first. Measured on the combined
+    // tree, never summed from the two sides' deltas.
     // **T140 (the instance acceptance criterion): files 4519 -> 4522.** Three: the criterion, its judgement and its unit test — `layout.sourceRoots` is the whole application tree, `backend/test/**` included, and it reads no JSON.
-    files: 4522,
+    // **Re-measured on the union after merging `origin/master` into `feat/119-infakt-integration`
+    // (13 commits): files 4613 -> 4616.** Neither side's recorded value describes this tree: the
+    // branch's 4613 was measured before `specs/110-instance-repository/` T140 and !1583 landed on
+    // `master`, and `master`'s own value was measured without feature 119's two module packages.
+    // Attributed by parking and re-measuring rather than by subtraction: with the five files the
+    // master side adds withdrawn and its edit to `test/unit/release/changeset-flow.test.ts`
+    // reverted, this walk reads 4613 exactly, so the whole delta is the criterion, its judgement
+    // and its unit test — `layout.sourceRoots` is the whole application tree, `backend/test/**`
+    // included, and it reads no JSON. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed from the two
+    // sides' deltas.
+    files: 4616,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -9504,7 +9989,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 421 -> 429.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
-    files: 429,
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 429 -> 436.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 436,
     sites: null,
     // `admin-ui` is the workspace manifests' own answer to "how many packages
     // ship a tree of admin UI", reconciled against how many of them the walk
@@ -10159,8 +10647,35 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/cli/test/new-instance/template-reconciliation.test.ts` and its changeset. Rule 1
     // judges names, so both sit in its population; measured on a tree with both moved aside,
     // which read 8215 exactly.
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 8213 -> 8345.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    // **Re-measured on the union after merging `origin/master` into
+    // `feat/119-infakt-integration` (14 commits): files 8345 -> 8349.** Neither side's
+    // recorded value describes this tree: this branch's 8345 was measured before
+    // `fix/required-module-refusal-stopped`, T161's sweep and
+    // `fix/110-instance-template-symbols` landed on `master`, and `master`'s 8217 was measured
+    // without feature 119's two module packages. The +4 is the four files the master side
+    // adds, every one of them tracked; Rule 1 judges names, so the changeset sits in this
+    // population beside the three sources. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first, and the resolution of this file **staged** before the
+    // run: this walk takes its population from `git ls-files --cached --others
+    // --exclude-standard`, so it reads the index rather than the disk, and an unmerged path is
+    // listed once per conflict stage. Measured on the combined tree, never summed from the two
+    // sides' deltas.
     // **T140 (the instance acceptance criterion): files 8217 -> 8221.** Four: the three `.ts` files plus `backend/acceptance/instance-expected-state.json`, this walk being the whole tree.
-    files: 8222,
+    // **Re-measured on the union after merging `origin/master` into `feat/119-infakt-integration`
+    // (13 commits): files 8349 -> 8354.** Neither side's recorded value describes this tree: the
+    // branch's 8349 was measured before `specs/110-instance-repository/` T140 and !1583 landed on
+    // `master`, and `master`'s own value was measured without feature 119's two module packages.
+    // Park-and-re-measure does not reach this check: its population is `git ls-files --cached
+    // --others --exclude-standard`, the **index** rather than the disk, so withdrawing a staged
+    // file leaves it listed. It is measured after staging the resolution instead — during an
+    // unresolved merge a conflicted path is listed once per stage and this walk reads two high.
+    // The delta is all five files the master side adds, this walk being the whole tree.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 8354,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -10631,8 +11146,37 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // source-code comments, so it takes `packages/cli/test/new-instance/template-reconciliation.test.ts`
     // and not the branch's changeset markdown, which `.changeset/` holds and no `/docs/` page
     // reaches. Measured on a tree with both moved aside, which read 6125 exactly.
+    // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 6123 -> 6226.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    // **Re-measured on the union after merging `origin/master` into
+    // `feat/119-infakt-integration` (14 commits): files 6226 -> 6229.** Neither side's
+    // recorded value describes this tree: this branch's 6226 was measured before
+    // `fix/required-module-refusal-stopped`, T161's sweep and
+    // `fix/110-instance-template-symbols` landed on `master`, and `master`'s 6126 was measured
+    // without feature 119's two module packages. The +3 is the three TypeScript files the
+    // master side adds. **+3 and not +4**, and the difference is this walk's population: it
+    // scans source-code comments and `docs/docs/**`, so the master side's changeset markdown,
+    // which `.changeset/` holds and no `/docs/` page reaches, is not in it. Quality-job shape
+    // — the ignored copies under `docs/docs/modules/` swept first, and the resolution of this
+    // file **staged** before the run: this walk takes its population from `git ls-files
+    // --cached --others --exclude-standard`, so it reads the index rather than the disk, and
+    // an unmerged path is listed once per conflict stage. Measured on the combined tree, never
+    // summed from the two sides' deltas.
     // **T140 (the instance acceptance criterion): files 6126 -> 6129.** Three `.ts` files — the criterion, its judgement and its unit test. Its per-extension walk reads no JSON, which is the whole of its difference from `check:naming` here.
-    files: 6129,
+    // **Re-measured on the union after merging `origin/master` into `feat/119-infakt-integration`
+    // (13 commits): files 6229 -> 6232.** Neither side's recorded value describes this tree: the
+    // branch's 6229 was measured before `specs/110-instance-repository/` T140 and !1583 landed on
+    // `master`, and `master`'s own value was measured without feature 119's two module packages.
+    // Park-and-re-measure does not reach this check: its population is `git ls-files --cached
+    // --others --exclude-standard`, the **index** rather than the disk, so withdrawing a staged
+    // file leaves it listed. It is measured after staging the resolution instead — during an
+    // unresolved merge a conflicted path is listed once per stage and this walk reads two high.
+    // The delta is the master side's three `.ts` files; its per-extension walk reads no JSON and
+    // does not reach `specs/`, which is the whole of its difference from `check:naming` here.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 6232,
     sites: null,
     sources: ['manifest-index'],
     //

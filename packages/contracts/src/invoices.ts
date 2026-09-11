@@ -306,6 +306,63 @@ export interface InvoicePdfPort {
   renderBulk(invoices: readonly InvoicePdfLine[]): Uint8Array;
 }
 
+export const INVOICE_NUMBERING_HOST_PORT = 'invoiceNumberingHostPort' as const;
+export const INVOICE_PAID_HOST_PORT = 'invoicePaidHostPort' as const;
+export const INVOICE_COPY_HOST_PORT = 'invoiceCopyHostPort' as const;
+export const INVOICE_KSEF_ASSIGNMENT_PORT = 'invoiceKsefAssignmentPort' as const;
+
+/**
+ * Container name: `invoiceNumberingHostPort`. Owner: `invoices`.
+ * Ledger vendor number wait (mode B) → ready + unique number.
+ */
+export interface InvoiceNumberingHostPort {
+  applyVendorAssignedNumber(invoiceId: string, number: string): Promise<void>;
+}
+
+/**
+ * Container name: `invoicePaidHostPort`. Owner: `invoices`.
+ * Infakt `invoice_paid` stamps paidTotal only. Never Payments.
+ */
+export interface InvoicePaidHostPort {
+  recordPaidFromLedger(invoiceId: string): Promise<void>;
+}
+
+/**
+ * Container name: `invoiceKsefAssignmentPort`. Owner: `invoices`.
+ * Native ksef and Infakt delegated KSeF success both call this. Idempotent
+ * same number; 409 on a different number.
+ */
+export interface InvoiceKsefAssignmentPort {
+  recordKsefAssignment(
+    invoiceId: string,
+    assignment: { ksefReferenceNumber: string; ksefProcessedAt: Date },
+  ): Promise<void>;
+}
+
+/**
+ * Container name: `invoiceCopyHostPort`. Owner: `invoices`.
+ * Ledger / Infakt VAT copy: buyer snapshot and lines, never a catalog write.
+ */
+export interface InvoiceCopyRecord {
+  invoiceId: string;
+  organizationId: string;
+  number: string;
+  kind: InvoiceKind;
+  salesChannelId: string | null;
+  currency: string;
+  saleDate: string | null;
+  paymentDueDate: string | null;
+  paymentMethod: string | null;
+  /** Set on a `correction`: the VAT document this one credits. */
+  originalInvoiceId: string | null;
+  buyer: InvoiceBuyer;
+  lines: InvoiceLine[];
+}
+
+export interface InvoiceCopyHostPort {
+  getById(invoiceId: string): Promise<InvoiceCopyRecord | null>;
+}
+
 // ---------------------------------------------------------------------------
 // Numbering — the pattern vocabulary and the collision shapes (feature 078, D-95)
 // ---------------------------------------------------------------------------

@@ -29,7 +29,14 @@ registerAdminServiceWorker();
 
 createRoot(rootElement).render(
   <StrictMode>
-    <BrowserRouter>
+    {/*
+      Module screens are `lazy()` inside `ModuleRoute`. RR 7's default
+      `startTransition` update leaves `useLocation()` on the previous
+      module while `history` already moved — URL changes, Outlet does not.
+      Home works because it is eager. This flag makes location commit
+      synchronously (react-router 7.14 `unstable_useTransitions`).
+    */}
+    <BrowserRouter unstable_useTransitions={false}>
       <AuthProvider>
         <App contributions={MODULE_ADMIN_CONTRIBUTIONS} />
       </AuthProvider>
