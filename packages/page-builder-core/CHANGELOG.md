@@ -1,0 +1,287 @@
+# @endora-commerce/page-builder-core
+
+## 0.7.0
+
+### Major Changes
+
+- 11fc9f3: Renamed from `@b2b/page-builder-core` to `@endora-commerce/page-builder-core`. Nothing
+  else about the package changed — same `exports` subpaths, same React contexts and hooks.
+
+  Update the dependency and every specifier, root and subpath alike:
+
+  ```diff
+  -"@b2b/page-builder-core": "workspace:^"
+  +"@endora-commerce/page-builder-core": "workspace:^"
+  ```
+
+  ```diff
+  -import { DEFAULT_BREAKPOINTS } from '@b2b/page-builder-core/types/responsive';
+  -import { usePageBuilderPuck } from '@b2b/page-builder-core/editor';
+  +import { DEFAULT_BREAKPOINTS } from '@endora-commerce/page-builder-core/types/responsive';
+  +import { usePageBuilderPuck } from '@endora-commerce/page-builder-core/editor';
+  ```
+
+  This package is a **peer** dependency of `@endora-commerce/cms-components` and
+  `@endora-commerce/email-components` and ships React contexts, so the application has to
+  resolve exactly one copy of it. Rename it in the same install as those two: a tree that
+  holds `@b2b/page-builder-core` for one consumer and `@endora-commerce/page-builder-core`
+  for another resolves two copies, and a provider in one against a consumer in the other is
+  a `null` context at runtime, not a type error.
+
+- f66ce9b: `@endora-commerce/page-builder-core` now ships compiled JavaScript and declarations. `main`, `types`
+  and all nine `exports` subpaths resolve under `./dist`; `files` is `["dist"]`.
+
+  **What changes for you.** The package no longer hands you TypeScript. Every subpath keeps
+  its public name and its target file, one directory over:
+
+  ```
+  '@endora-commerce/page-builder-core'                            ./src/index.ts        → ./dist/index.js
+  '@endora-commerce/page-builder-core/client'                     ./src/client.ts       → ./dist/client.js
+  '@endora-commerce/page-builder-core/editor'                     ./src/editor.ts       → ./dist/editor.js
+  '@endora-commerce/page-builder-core/types/responsive'           ./src/types/…         → ./dist/types/…
+  '@endora-commerce/page-builder-core/fields/hide-on-field'       ./src/fields/….tsx    → ./dist/fields/….js
+  ```
+
+  so no import statement changes — but the `transpilePackages` entry, loader or bundler
+  plugin you needed to compile its source does, and can go. `ResponsiveProp`,
+  `DEFAULT_BREAKPOINTS`, `defineComponent` and the rest keep their names and shapes.
+
+  **`"use client"` is preserved verbatim**, as the first line of each emitted file, above
+  the injected JSX-runtime import. That is a property of `tsc`'s emit, and it is why this
+  package is compiled rather than bundled: module merging is what hoists a directive out of
+  place, and no bundler runs here.
+
+  **React and `@measured/puck` remain optional peer dependencies.** This package ships React
+  contexts and hooks, so the consuming application must resolve exactly one copy of it —
+  two copies mean a provider in one and a consumer in the other, which is a `null` context
+  at runtime and not a type error. That is also why its version moves together with
+  `@endora-commerce/cms-components` and `@endora-commerce/email-components`.
+
+### Minor Changes
+
+- 5fc0550: A stored Page Builder block whose owning module is absent now degrades to a visible,
+  data-preserving placeholder instead of vanishing.
+
+  **`@endora-commerce/cms-components`** gains `withMissingBlockPlaceholders(config, storedNames)`.
+  Give it a Puck `Config` and the block names a stored document carries, and every name the
+  config cannot render comes back keyed to a placeholder that names the block and its owning
+  module. It adds no category entry: a degraded block stays editable where it already is and is
+  insertable by nobody.
+
+  ```diff
+   const filtered = filterConfigByContext(merged, context);
+  +const degraded = withMissingBlockPlaceholders(filtered, [...countBlockNames(doc).keys()]);
+  ```
+
+  It takes names rather than the document deliberately — a React caller needs a stable memo key,
+  and a keystroke inside a text block moves the document without moving its names.
+
+  **`makeMissingComponentConfig` gains a third, optional argument**, `{ visible?: boolean }`.
+  Existing calls are unchanged: omitting it keeps the placeholder deciding for itself from the
+  `?cms_admin=1` preview parameter, which is right for a customer-facing surface. Pass
+  `{ visible: true }` on an editing surface, where the operator has to be told which module the
+  block is waiting on.
+
+  **`@endora-commerce/page-builder-core`** exports `countBlockNames`, `mapBlockNames`,
+  `renameBlockNames` and their two types from the package root. They were reachable only through
+  the `./migration` subpath, which still exports them, so no existing import changes. What that
+  subpath quarantines is the frozen rename map; the walk itself is a generic "which node `type`
+  values does this document hold" and is now needed at runtime.
+
+  **`@endora-commerce/mod-cms`**'s `PageBuilderEditor` applies both. Its canvas previously
+  rendered nothing at all for a block whose owner had been switched off — indistinguishable
+  from a block somebody had deleted — because the placeholder it merged was built only for
+  names the backend descriptor declares, and a switched-off module's blocks are filtered out
+  of that descriptor. Every placeholder it did merge rendered an empty `<span>`, the
+  `?cms_admin=1` parameter being set by nothing.
+
+- 727cbf5: Publish the four readers of a Page Builder block name.
+
+  ```ts
+  import {
+    formatBlockName,
+    isNamespaced,
+    ownerOf,
+    parseBlockName,
+    type ParsedBlockName,
+  } from '@endora-commerce/page-builder-core';
+  // or, from a migration, which wants none of this package's React:
+  import { ownerOf } from '@endora-commerce/page-builder-core/block-name';
+
+  parseBlockName('catalog.ProductGrid'); // { owner: 'catalog', local: 'ProductGrid' }
+  parseBlockName('Row'); // null
+  ownerOf('orders.EmailOrderSummary'); // 'orders'
+  isNamespaced('Row'); // false
+  formatBlockName('catalog', 'ProductGrid'); // 'catalog.ProductGrid'
+  ```
+
+  A block name is `<ownerModuleId>.<LocalName>` and is persisted, so **import these
+  rather than splitting the string yourself** — that is the whole point of the
+  export, and the next release adds a CI check that refuses a second copy.
+
+  Two asymmetries are deliberate, and a consumer should know which side of each it
+  is on. **`parseBlockName` and `ownerOf` answer `null`** where the string is not a
+  well-formed block name, because the callers that matter are a data migration and
+  an operator report, both of which meet unrecognised names as a matter of course
+  and must leave the row byte-identical. **`formatBlockName` throws**, because
+  writing an unparseable name persists a node nothing can ever render.
+
+  **`isNamespaced` is stricter than `name.includes('.')`.** They agree on every
+  name in the pre-migration vocabulary, none of which contains a dot; they differ
+  on a _malformed_ dotted name such as `acme.banner`, which the lax test would
+  report as already namespaced and this one reports as unrecognised — which is the
+  classification that gets it in front of an operator.
+
+  This package now depends on `@endora-commerce/contracts`, which authors the name
+  grammar (`blockNameRe`) that the manifest schema also has to enforce. It is a
+  workspace dependency and pulls in no third-party package a consumer of the
+  contracts is not already resolving.
+
+- f66359f: Page Builder block names are namespaced. **Every renderer map is re-keyed.**
+
+  `defaultPageBuilderConfig` and `defaultEmailBuilderConfig` stop being `Config` objects
+  keyed by bare names (`Row`, `EmailHeading`) and become renderer maps keyed by the
+  persisted, namespaced name (`cms.Row`, `transactional_emails.EmailHeading`). The
+  `categories` block is **deleted** from both: a palette section is declared by the module
+  whose blocks occupy it and is served, merged across the effectively present modules, by
+  `GET /api/v1/admin/cms/page-builder/config`.
+
+  ```diff
+  -import { defaultPageBuilderConfig } from '@endora-commerce/cms-components';
+  -const row = defaultPageBuilderConfig.components?.Row;
+  -const layout = defaultPageBuilderConfig.categories?.layout;
+  +import { defaultPageBuilderConfig, buildPaletteCategories } from '…';
+  +const row = defaultPageBuilderConfig.components?.['cms.Row'];
+  +// Sections come from the descriptor, merged per (key, context):
+  +const layout = buildPaletteCategories(descriptor.components, descriptor.categories, 'cms', {
+  +  title: (section) => t(section.ownerModule, section.titleKey),
+  +  renderable: new Set(Object.keys(config.components ?? {})),
+  +});
+  ```
+
+  `@endora-commerce/email-components` additionally re-keys `EMAIL_SAFE_COMPONENT_NAMES`,
+  `EMAIL_COMPONENT_REQUIRED_VARIABLES` and `EMAIL_ORDER_LABELED_FIELDS`, and its 28 renderer
+  `case` labels in `render-email-html` / `render-email-text`. `emailContexts` is gone: every
+  entry now declares `contexts: ['email']`, and the newsletter palette is served by the
+  `email → newsletter` admission rather than by a widened declaration.
+
+  `@endora-commerce/page-builder-core` gains two things and breaks nothing:
+  - `buildPaletteCategories(blocks, sections, context, options)` — the one implementation of
+    "which sections does the palette for this context have, and what is in them". It applies
+    `contextAdmits` to blocks **and** to sections, which is what keeps the newsletter palette
+    sectioned rather than 28 entries in Puck's _Other_ drawer.
+  - a `./migration` subpath exporting `FROZEN_BLOCK_RENAMES`, its inverse, the structural
+    walk (`renameBlockNames`, `countBlockNames`, `mapBlockNames`) and the SQL builders the
+    five rename migrations use. **It is not a runtime path** — the map is a frozen historical
+    constant, not an alias table, and the difference is only real while nothing resolves
+    through it.
+
+  `@endora-commerce/contracts` extends `cmsPageBuilderDescriptorSchema.categories` additively
+  with `ownerModule`: the module whose declaration won the merge, derived and never declared.
+
+- b9d15af: Adds `contextAdmits(declared, target)` — the one implementation of _"does a block
+  declared for these contexts appear in this palette"_.
+
+  If you were writing `contexts.includes(context)` to decide whether a block belongs
+  in a palette, that is right for `cms`, `email` and `invoice` and **wrong for
+  `newsletter`**: the platform admits every `email` block into the newsletter
+  palette, and no block declares `newsletter` at all. Import `contextAdmits`
+  instead.
+
+  Nothing is removed and no behaviour changes. `filterConfigByContext` and
+  `getDisallowedComponentNames` now call it rather than each carrying their own
+  copy of the rule — they had one apiece, one positive and one negated, and the two
+  were proved equivalent over all 64 subset/context combinations before the
+  extraction rather than after.
+
+- e1465e0: These three packages stop being `"private": true` and can be published.
+
+  They are the set a scaffolded storefront resolves (D-195), derived rather than chosen:
+  `storefront/package.json` declares exactly these three `@endora-commerce/*` ranges, and their
+  closure over `dependencies` and `peerDependencies` adds nothing.
+
+  Each now declares `repository` — a consumer's path back to the code, and npm's prerequisite for
+  provenance — and `publishConfig.access: "public"`, which is a property of the package rather than
+  of the registry it happens to reach. **No `publishConfig.registry` in any of them**: the registry
+  is CI configuration and the client's `.npmrc`, so moving from the private rehearsal to npmjs is
+  one variable rather than three manifest edits.
+
+  Nothing about the packages' own API changes in this release. What changes is that there is one:
+  a consumer can install them by version instead of by tarball path.
+
+  Two consequences worth knowing before the first `changeset version` run. `page-builder-core` and
+  `cms-components` are in the `linked` group with `email-components` and `page-builder-admin`
+  (D-108), and at `0.0.0` a `workspace:^` peer range is out of range after any bump — so those two
+  will have their `version` fields advanced while staying private and unpublished. That is correct
+  and needs no repair. And the private registry's version history is independent of npmjs': a
+  version a deployment consumes privately is not thereby taken on the public registry, and
+  `changeset publish` replays no history — it publishes the current version of each package or
+  nothing.
+
+### Patch Changes
+
+- Updated dependencies [73d0887]
+- Updated dependencies [0a08996]
+- Updated dependencies [93a300c]
+- Updated dependencies [b2552d5]
+- Updated dependencies [cebad9c]
+- Updated dependencies [196fbfa]
+- Updated dependencies [543151a]
+- Updated dependencies [e5ae42c]
+- Updated dependencies [f11ccdb]
+- Updated dependencies [21dac4f]
+- Updated dependencies [43e1968]
+- Updated dependencies [a28c796]
+- Updated dependencies [727cbf5]
+- Updated dependencies [f66359f]
+- Updated dependencies [81726cf]
+- Updated dependencies [1ba52e1]
+- Updated dependencies [86359f8]
+- Updated dependencies [b0df9c1]
+- Updated dependencies [4ed4b84]
+- Updated dependencies [11fc9f3]
+- Updated dependencies [f66ce9b]
+- Updated dependencies [a80e2bb]
+- Updated dependencies [d23bce2]
+- Updated dependencies [2f04481]
+- Updated dependencies [04cba90]
+- Updated dependencies [7e71642]
+- Updated dependencies [ee02c59]
+- Updated dependencies [cb44af0]
+- Updated dependencies [eeb6a47]
+- Updated dependencies [cd013dd]
+- Updated dependencies [3c8102e]
+- Updated dependencies [dc5c19d]
+- Updated dependencies [c53fef3]
+- Updated dependencies [c94c52d]
+- Updated dependencies [4013a8b]
+- Updated dependencies [fc34995]
+- Updated dependencies [1050b9a]
+- Updated dependencies [32cc6e4]
+- Updated dependencies [63be98c]
+- Updated dependencies [9ce0b40]
+- Updated dependencies [07b2715]
+- Updated dependencies [9b2a43e]
+- Updated dependencies [c4703f9]
+- Updated dependencies [49164fb]
+- Updated dependencies [284276b]
+- Updated dependencies [d59f846]
+- Updated dependencies [566f233]
+- Updated dependencies [0ec3f95]
+- Updated dependencies [13e12bd]
+- Updated dependencies [f2fa9ea]
+- Updated dependencies [28c7f22]
+- Updated dependencies [30a5475]
+- Updated dependencies [31975ca]
+- Updated dependencies [e1465e0]
+- Updated dependencies [a47dcc8]
+- Updated dependencies [456ffa7]
+- Updated dependencies [49164fb]
+- Updated dependencies [49164fb]
+- Updated dependencies [7f02d62]
+- Updated dependencies [bbf9258]
+- Updated dependencies [e3a6a02]
+- Updated dependencies [184fa9f]
+- Updated dependencies [2c8635b]
+- Updated dependencies [aab5273]
+  - @endora-commerce/contracts@0.7.0

@@ -1,0 +1,178 @@
+# @endora-commerce/mod-google-analytics
+
+## 0.7.0
+
+### Minor Changes
+
+- fa8f183: New package: the Google Analytics module, the third to leave `backend/src/modules/`
+  (feature 080, T040b).
+
+  Three subpaths, no root wildcard, every one of them compiled output (D-164):
+  - `@endora-commerce/mod-google-analytics` — the manifest. Isomorphic,
+    `@endora-commerce/contracts` its only import, and where the generated manifest index reads
+    the module's identity, its eight settings, its two palette actions and its activation
+    control (`google_analytics.module_enabled`) from.
+  - `@endora-commerce/mod-google-analytics/backend` — `registerModule(ctx)` and the `entities`
+    array the host's ORM registry spreads. **`GaCustomEvent` is not exported by name** (D-168):
+    the barrel imports it to build that array and nothing else, so
+    `import type { GaCustomEvent } from '@endora-commerce/mod-google-analytics/backend'` does
+    not compile in a consumer's tree, whoever the consumer is. Nothing is lost by that — the
+    table's one cross-module edge is a foreign key into `sales_channels`, and a foreign key
+    needs the table, never the owner's class (D-169).
+  - `@endora-commerce/mod-google-analytics/migrations` — the `migrations` array the platform's
+    package loader reads, plus `Migration20260715T171116GoogleAnalyticsInit` by name for the
+    host's migration registry. One class, which is the case most likely to tempt an author into
+    publishing the class alone: a missing `migrations` array makes the loader refuse the package
+    outright at boot.
+
+  `@endora-commerce/platform` is a `peerDependency` (D-160.2), and so are
+  `@endora-commerce/contracts`, `@mikro-orm/*`, `fastify` and `zod`. This is the first module
+  package to take **`bullmq`** as a peer, and it takes `ioredis` with it: the module builds its
+  own `Queue` and `Worker` for server-side GA4 delivery and receives the connection from the
+  host under `moduleQueueRedis`.
+
+  The manifest id stays `google_analytics` — identity of record for the lifecycle registry, the
+  settings store, the `google_analytics:read` / `google_analytics:write` permission codes, the
+  i18n bundle paths and the ownership of its migration (D-142). The npm name is only how npm
+  keeps names unique.
+
+  **What this package proves that the first two could not.** It is the first with a real BullMQ
+  consumer: `blog` has none and `quote_requests`' `RfqExpiryWorker` is a plain `sweep()`, which
+  is why neither needed `bullmq`. `ctx.worker` is `defineModuleWorker`, and a packaged module
+  that registered its worker outside that seam would leave the platform's stop switch attached
+  to nothing while every existing test stayed green.
+  `backend/test/integration/google_analytics/packaged-worker.test.ts` composes the package with
+  a real Redis and measures both halves: a job the packaged producer enqueues is consumed, and
+  `pauseWorkersFor('google_analytics')` reaches that worker and stops it.
+
+- a92d972: `google_analytics` ships its admin surface, on a new `./admin` subpath.
+
+  The package now exports `contributions` from `@endora-commerce/mod-google-analytics/admin`
+  — three routes (`/google-analytics`, `/google-analytics/new`, `/google-analytics/:id`) and
+  one sidebar entry — as an `AdminContributions` object. Every component is a dynamic-import
+  factory, so a consumer's bundler splits the screens without being asked; the two editor
+  routes share one factory, so they are one chunk and not two.
+
+  Two things a consumer has to know:
+  - **The sidebar label moved namespace.** It was `appShell.nav.googleAnalytics` in
+    `@endora-commerce/mod-i18n`'s shared `core` bundle and is now
+    `nav.googleAnalytics.label` in this package's own `i18n/`, resolved in the
+    `google_analytics` scope. Anything reading the old key gets a raw key back.
+  - **The package peers on `@endora-commerce/admin-kit`, `react` and
+    `react-router-dom`.** They are peers rather than dependencies for the reason
+    `page-builder-core` is: the application must resolve exactly one copy, and a provider in
+    one copy against a consumer in the other is a `null` context at runtime rather than a type
+    error.
+
+### Patch Changes
+
+- 73da94f: Each of these packages now carries the unit tests that cover its own sources,
+  and a `vitest` configuration and `test` script to run them.
+
+  For a consumer the manifest is what changed: `vitest` joins `peerDependencies`
+  and `devDependencies`, and `scripts.test` is `vitest run`. Both are rendered by
+  `manifests:generate` from the package's own layer inventory, so they follow the
+  test files rather than being declared by hand. Nothing exported moves: the test
+  files are excluded from `tsconfig.build.json`'s emit and from the `files` list,
+  so the published tarball is byte-identical apart from the manifest.
+
+  Running them needs nothing but the package — that is the property that decided
+  which files moved. A test that composes a backend server, reads a live Postgres
+  or Redis, or names anything under `backend/` stayed where it was.
+
+- Updated dependencies [73d0887]
+- Updated dependencies [0a08996]
+- Updated dependencies [93a300c]
+- Updated dependencies [68044b1]
+- Updated dependencies [a85b425]
+- Updated dependencies [4c9892c]
+- Updated dependencies [972e7ed]
+- Updated dependencies [b1589fd]
+- Updated dependencies [316f44b]
+- Updated dependencies [45e77bb]
+- Updated dependencies [ebc08af]
+- Updated dependencies [47c958f]
+- Updated dependencies [b2552d5]
+- Updated dependencies [7140eed]
+- Updated dependencies [cebad9c]
+- Updated dependencies [1d84094]
+- Updated dependencies [196fbfa]
+- Updated dependencies [543151a]
+- Updated dependencies [e5ae42c]
+- Updated dependencies [f11ccdb]
+- Updated dependencies [21dac4f]
+- Updated dependencies [43e1968]
+- Updated dependencies [a28c796]
+- Updated dependencies [727cbf5]
+- Updated dependencies [f66359f]
+- Updated dependencies [81726cf]
+- Updated dependencies [1ba52e1]
+- Updated dependencies [86359f8]
+- Updated dependencies [b0df9c1]
+- Updated dependencies [4ed4b84]
+- Updated dependencies [4db867c]
+- Updated dependencies [11fc9f3]
+- Updated dependencies [f66ce9b]
+- Updated dependencies [a80e2bb]
+- Updated dependencies [d23bce2]
+- Updated dependencies [2f04481]
+- Updated dependencies [04cba90]
+- Updated dependencies [fbf1bf8]
+- Updated dependencies [469a5f4]
+- Updated dependencies [7e71642]
+- Updated dependencies [ee02c59]
+- Updated dependencies [cb44af0]
+- Updated dependencies [cc9c2f4]
+- Updated dependencies [eeb6a47]
+- Updated dependencies [cd013dd]
+- Updated dependencies [214cbdb]
+- Updated dependencies [3c8102e]
+- Updated dependencies [4e964e0]
+- Updated dependencies [dc5c19d]
+- Updated dependencies [c53fef3]
+- Updated dependencies [c94c52d]
+- Updated dependencies [4013a8b]
+- Updated dependencies [fc34995]
+- Updated dependencies [1050b9a]
+- Updated dependencies [32cc6e4]
+- Updated dependencies [63be98c]
+- Updated dependencies [9ce0b40]
+- Updated dependencies [07b2715]
+- Updated dependencies [9b2a43e]
+- Updated dependencies [c4703f9]
+- Updated dependencies [49164fb]
+- Updated dependencies [284276b]
+- Updated dependencies [d59f846]
+- Updated dependencies [566f233]
+- Updated dependencies [0ec3f95]
+- Updated dependencies [13e12bd]
+- Updated dependencies [f2fa9ea]
+- Updated dependencies [28c7f22]
+- Updated dependencies [30a5475]
+- Updated dependencies [1f4475e]
+- Updated dependencies [ce1d197]
+- Updated dependencies [028d8b4]
+- Updated dependencies [81f4b08]
+- Updated dependencies [31975ca]
+- Updated dependencies [e1465e0]
+- Updated dependencies [e7bbadc]
+- Updated dependencies [a84ad28]
+- Updated dependencies [a47dcc8]
+- Updated dependencies [a47dcc8]
+- Updated dependencies [31975ca]
+- Updated dependencies [456ffa7]
+- Updated dependencies [49164fb]
+- Updated dependencies [49164fb]
+- Updated dependencies [7f02d62]
+- Updated dependencies [2cd9c14]
+- Updated dependencies [aab1f32]
+- Updated dependencies [764b379]
+- Updated dependencies [bbf9258]
+- Updated dependencies [0a2bbd4]
+- Updated dependencies [e3a6a02]
+- Updated dependencies [184fa9f]
+- Updated dependencies [2c8635b]
+- Updated dependencies [aab5273]
+  - @endora-commerce/contracts@0.7.0
+  - @endora-commerce/admin-kit@0.7.0
+  - @endora-commerce/platform@0.7.0

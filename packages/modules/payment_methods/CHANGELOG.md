@@ -1,0 +1,314 @@
+# @endora-commerce/mod-payment-methods
+
+## 0.7.0
+
+### Major Changes
+
+- df749d7: `delivery_methods` declares `delivery_methods:read` and `delivery_methods:write`, and its admin
+  routes enforce them instead of `catalog:read` / `catalog:write`.
+
+  **Breaking for anyone whose roles reach either module's admin API.** The three
+  `delivery_methods` routes moved:
+
+  ```
+  GET    /api/v1/admin/delivery-methods         catalog:read   -> delivery_methods:read
+  PUT    /api/v1/admin/delivery-methods/:code   catalog:write  -> delivery_methods:write
+  DELETE /api/v1/admin/delivery-methods/:id     catalog:write  -> delivery_methods:write
+  ```
+
+  And the shared route `@endora-commerce/mod-payment-methods` registers moved with them:
+
+  ```
+  GET    /api/v1/admin/order-statuses
+    payment_methods:read OR catalog:read  ->  payment_methods:read OR delivery_methods:read
+  ```
+
+  That route is read by two admin editors — the payment-method screen and the delivery-method one
+  — which is why it is an any-of. The `catalog:read` member was a placeholder for the delivery
+  editor's gate while `delivery_methods` still borrowed the catalogue's authority; it is now that
+  module's own read code, so no catalogue holder reaches the shared list any more.
+
+  There is no data migration and that is deliberate: granting the new codes to every holder of
+  `catalog:read` would reproduce the distribution the change exists to remove, which would make it a
+  change of spelling rather than of authority. A role that was configuring delivery methods through
+  the catalogue codes is granted `delivery_methods:read` / `delivery_methods:write` on
+  `/admin-roles`, where the manifest puts them automatically.
+
+  `@endora-commerce/mod-i18n` carries the two `adminRoles.permission.delivery_methods:*` labels and
+  the screen's refusal notice, in `en` and `pl`.
+
+- 82bcd8b: `payment_methods` declares `payment_methods:read` and `payment_methods:write`, and its admin routes
+  enforce them instead of `catalog:read` / `catalog:write`.
+
+  **Breaking for anyone whose roles reach this module's admin API.** The six admin routes moved:
+
+  ```
+  GET    /api/v1/admin/payment-methods              catalog:read   -> payment_methods:read
+  GET    /api/v1/admin/payment-methods/adapters     catalog:read   -> payment_methods:read
+  PUT    /api/v1/admin/payment-methods/:code        catalog:write  -> payment_methods:write
+  PATCH  /api/v1/admin/payment-methods/:id/status   catalog:write  -> payment_methods:write
+  DELETE /api/v1/admin/payment-methods/:id          catalog:write  -> payment_methods:write
+  GET    /api/v1/admin/order-statuses               catalog:read   -> payment_methods:read OR catalog:read
+  ```
+
+  There is no data migration and that is deliberate: granting the new codes to every holder of
+  `catalog:read` would reproduce the distribution the change exists to remove, which would make it a
+  change of spelling rather than of authority. A role that was configuring payment methods through
+  the catalogue codes is granted `payment_methods:read` / `payment_methods:write` on `/admin-roles`,
+  where the manifest puts them automatically.
+
+  `GET /api/v1/admin/order-statuses` is an any-of and not a widening: the route is registered by this
+  package and read by two admin editors, and `delivery_methods` still gates its own screen on
+  `catalog:read`. That member is removed by the merge request that gives `delivery_methods` its own
+  pair.
+
+  The manifest's `open-payment-methods` palette action declares `payment_methods:read`, so the
+  palette goes on advertising exactly what the target route opens.
+
+### Minor Changes
+
+- 4013a8b: `promotions`, `payment_methods`, `customer_accounts` and `product_feeds` ship their admin
+  surfaces, on a new `./admin` subpath each; `KnownIconNameSchema` gains one member and the kit's
+  icon map the glyph behind it.
+
+  Each of the four module packages now exports `contributions` from
+  `@endora-commerce/mod-<id>/admin` as an `AdminContributions` object whose every component is a
+  dynamic-import factory, so a consumer's bundler emits one chunk per screen and none of it is
+  downloaded by an operator who cannot reach it. Seventeen routes and eight sidebar entries move,
+  and not one of the routes changes its path: `/promotions`, `/promotions/new`, `/promotions/:id`,
+  `/promotions/:id/stats` and `/promotion-rules`; `/payment-methods`; `/customer-groups`; and the
+  ten `/product-feeds*` paths.
+
+  Six things a consumer has to know:
+  - **The subpath is a new `exports` entry, so it needs a build.** `./admin` resolves at
+    `dist/admin/index.js`, emitted by each package's new `tsconfig.ui.json`. A checkout that has
+    not run `pnpm run build:packages` cannot resolve it.
+  - **`@endora-commerce/admin-kit`, `react`, `lucide-react` and `react-router-dom` become peer
+    dependencies of all four.** They were backend-only packages before this. The kit is where
+    every screen's design-system import now resolves, and React is peered rather than depended on
+    so the application resolves one copy.
+  - **Every route carries a `requiredPermission`, and the admin enforces it.** `promotions:read`
+    for all five promotion routes, `payment_methods:read`, `customer_groups:read` and
+    `product_feeds:read` — in each case the code the screen's own API enforces on its entry
+    handler. A host `<Route>` was ungated, so a consumer who deep-links one of these paths for an
+    operator without the code now gets the admin's not-found treatment where the screen used to
+    render and its API answered 403. The write codes each of these modules also owns
+    (`promotions:write`, `promotions:delete`, `payment_methods:write`, `customer_groups:write`,
+    `product_feeds:write`) gate controls **inside** a screen and are unchanged.
+  - **`KnownIconNameSchema` gains `PercentDiamond`.** A nav entry names its icon, and both of
+    `promotions`' sidebar rows drew that glyph as a `lucide-react` import inside the admin's own
+    `AppShell.tsx` until this change — so keeping the sidebar looking the same meant adding the
+    name rather than substituting one already on the allowlist.
+    `@endora-commerce/admin-kit`'s `resolveIcon` maps it. Widening a `z.enum` is additive for a
+    producer and narrowing for a consumer that exhaustively switches on `KnownIconName`; nothing
+    in this repository does. The other three modules needed nothing — `CreditCard`, `Users` and
+    `Rss` are already on the list, each added by an earlier palette action of that same module.
+  - **`@endora-commerce/mod-product-feeds` gains two sales-channel reads of its own.**
+    `feedSalesChannelReads.list()` and `.getByCode()` on the module's admin client build
+    `GET /api/v1/admin/sales-channels` requests from the published `apiClient` and the contract's
+    own `SalesChannelListResponse` / `SalesChannelDetail`. The create form used to import
+    `sales_channels`' admin client for the same two calls; duplicating one HTTP call is
+    deliberate, because the only place two modules could share it is the admin kit and the kit
+    holds no module knowledge.
+  - **`product_feeds`' download anchors now read the API origin from
+    `@endora-commerce/admin-kit`'s `apiBaseUrl`.** They read `import.meta.env.VITE_API_BASE_URL`
+    directly before, with a `''` fallback — same-origin, which in a dev tree is the Vite server
+    and has no API behind it. The kit's fallback is `http://localhost:3001`. Whenever the
+    variable is set the two are identical, so this is a repair to the unset case and not a change
+    to any configured one.
+
+  Each of the four modules' nav labels move out of the shared `_i18n` bundle into the package's
+  own `i18n/`, under module-relative keys (`nav.promotions.label`, `nav.promotionRules.label`,
+  `nav.paymentMethods.label`, `nav.customerGroups.label`, `nav.productFeeds.label`). One shared
+  key is deliberately kept: `appShell.nav.paymentMethods` is still the parent crumb of five
+  breadcrumb trails the admin holds for the payment-gateway settings screens.
+
+  Nothing is removed and no existing export changes shape, so a consumer of any of the four
+  `./backend`, `./migrations`, `./ports` or root subpaths is unaffected.
+
+- 3ad96d8: Ten new packages: the first **batch** of modules to leave `backend/src/modules/`
+  (feature 080, T040b). Five moved one at a time before them; these ten move together, and
+  the properties below are the same ten times over.
+
+  **One changeset, not ten, and that is a judgement rather than a shortcut.** A changeset is
+  written for the consumer of a package, and for a package that did not exist a moment ago
+  there is no upgrader to instruct — every one of the ten says the same thing, _"this package
+  now exists, here are its subpaths, and here is what it deliberately does not export"_. Ten
+  files carrying one rationale would be nine copies of a derived fact. What genuinely differs
+  per package is its layer inventory, and that is the table below.
+
+  Every subpath is compiled output (D-164); none has a root wildcard; each package's `.` is
+  its `manifest.ts`, where the generated manifest index reads the module's identity, its
+  `dependencies`, its permission codes, its command-palette actions, its settings and its
+  activation control.
+
+  | Package                                | Subpaths                         | Entities                          | Migrations | Ships          |
+  | -------------------------------------- | -------------------------------- | --------------------------------- | ---------- | -------------- |
+  | `@endora-commerce/mod-health-checks`   | `.`, `./backend`                 | —                                 | —          | `dist`         |
+  | `@endora-commerce/mod-audit-logs`      | `.`, `./backend`                 | —                                 | —          | `dist`         |
+  | `@endora-commerce/mod-addresses`       | `.`, `./backend`                 | `Address`                         | —          | `dist`         |
+  | `@endora-commerce/mod-currencies`      | `.`, `./backend`                 | `Currency`                        | —          | `dist`         |
+  | `@endora-commerce/mod-languages`       | `.`, `./backend`, `./migrations` | `Language`                        | 1          | `dist`         |
+  | `@endora-commerce/mod-seo`             | `.`, `./backend`, `./migrations` | `SeoMetaOverride`, `SitemapCache` | 1          | `dist`         |
+  | `@endora-commerce/mod-analytics`       | `.`, `./backend`, `./migrations` | `AnalyticsEvent`                  | 1          | `dist`         |
+  | `@endora-commerce/mod-import-export`   | `.`, `./backend`                 | —                                 | —          | `dist`, `i18n` |
+  | `@endora-commerce/mod-shipments`       | `.`, `./backend`, `./migrations` | `Shipment`                        | 2          | `dist`         |
+  | `@endora-commerce/mod-payment-methods` | `.`, `./backend`, `./migrations` | `PaymentMethod`                   | 2          | `dist`, `i18n` |
+
+  **`./backend` publishes `registerModule(ctx)` and an `entities` array, and no entity class by
+  name** (D-168). The classes in that column are imported to build the array and are exported
+  under no name, so `import type { PaymentMethod } from '@endora-commerce/mod-payment-methods/backend'`
+  does not compile in a consumer's tree, whoever the consumer is. A foreign key still works —
+  `shipments.order_id -> orders.id` is between two column names and needs the table, never the
+  owner's class.
+
+  **Three of the ten own no table, and say so with an empty array rather than by omission.**
+  `health-checks`, `audit-logs` and `import-export` export `entities: readonly never[] = []`.
+  The distinction is not cosmetic: the platform's package loader answers a _missing_ export with
+  `[]`, so "this module has no table" and "somebody forgot the array" would otherwise arrive as
+  one silence, whose only symptom is a query against a table nobody created.
+
+  **`./migrations` publishes a `migrations` array plus each class by name.** The asymmetry with
+  `./backend` is deliberate — `mikro_orm_migrations` persists the class name, so it is a string
+  every already-migrated database holds, while an entity class name is contract to nobody.
+
+  **Two behavioural removals, both in `./backend`, both affecting no caller in this repository.**
+  `@endora-commerce/mod-currencies/backend` no longer re-exports `CURRENCY_CHANGED_EVENT` and
+  `@endora-commerce/mod-languages/backend` no longer re-exports `LANGUAGE_CHANGED_EVENT`. Both
+  constants live in `@endora-commerce/contracts` and have since feature 075's Phase P; the
+  re-exports were that phase's compatibility shim, kept for consumers that turned out not to
+  exist. Import them from `@endora-commerce/contracts`, which is where the one and only
+  `dictionaries` consumer already reads them.
+
+  ```ts
+  // before — from the module barrel
+  import { CURRENCY_CHANGED_EVENT } from '@endora-commerce/mod-currencies/backend';
+  // after — from the contracts package, where the constant is declared
+  import { CURRENCY_CHANGED_EVENT } from '@endora-commerce/contracts';
+  ```
+
+### Patch Changes
+
+- 896d52c: Both modules' activation-control descriptions now say what switching them off does to a
+  shop, not only which surfaces disappear.
+
+  No code, schema, export or manifest field other than the `description` string changes. The
+  descriptions were accurate and stopped one step short of the consequence: _"the public list
+  a checkout picks from"_ is exactly right, and what it means is that order placement answers
+  `Delivery method is not active` / `Payment method is not active` and the shop takes no
+  orders at all. An operator deciding whether to flip a switch reads the switch, so that
+  sentence has to be there.
+
+  If you render either description in your own operator surface, it is longer by one
+  sentence.
+
+- 73da94f: Each of these packages now carries the unit tests that cover its own sources,
+  and a `vitest` configuration and `test` script to run them.
+
+  For a consumer the manifest is what changed: `vitest` joins `peerDependencies`
+  and `devDependencies`, and `scripts.test` is `vitest run`. Both are rendered by
+  `manifests:generate` from the package's own layer inventory, so they follow the
+  test files rather than being declared by hand. Nothing exported moves: the test
+  files are excluded from `tsconfig.build.json`'s emit and from the `files` list,
+  so the published tarball is byte-identical apart from the manifest.
+
+  Running them needs nothing but the package — that is the property that decided
+  which files moved. A test that composes a backend server, reads a live Postgres
+  or Redis, or names anything under `backend/` stayed where it was.
+
+- Updated dependencies [73d0887]
+- Updated dependencies [0a08996]
+- Updated dependencies [93a300c]
+- Updated dependencies [68044b1]
+- Updated dependencies [a85b425]
+- Updated dependencies [4c9892c]
+- Updated dependencies [972e7ed]
+- Updated dependencies [b1589fd]
+- Updated dependencies [316f44b]
+- Updated dependencies [45e77bb]
+- Updated dependencies [ebc08af]
+- Updated dependencies [47c958f]
+- Updated dependencies [b2552d5]
+- Updated dependencies [7140eed]
+- Updated dependencies [cebad9c]
+- Updated dependencies [1d84094]
+- Updated dependencies [196fbfa]
+- Updated dependencies [543151a]
+- Updated dependencies [e5ae42c]
+- Updated dependencies [f11ccdb]
+- Updated dependencies [21dac4f]
+- Updated dependencies [43e1968]
+- Updated dependencies [a28c796]
+- Updated dependencies [727cbf5]
+- Updated dependencies [f66359f]
+- Updated dependencies [81726cf]
+- Updated dependencies [1ba52e1]
+- Updated dependencies [86359f8]
+- Updated dependencies [b0df9c1]
+- Updated dependencies [4ed4b84]
+- Updated dependencies [4db867c]
+- Updated dependencies [11fc9f3]
+- Updated dependencies [f66ce9b]
+- Updated dependencies [a80e2bb]
+- Updated dependencies [d23bce2]
+- Updated dependencies [2f04481]
+- Updated dependencies [04cba90]
+- Updated dependencies [fbf1bf8]
+- Updated dependencies [469a5f4]
+- Updated dependencies [7e71642]
+- Updated dependencies [ee02c59]
+- Updated dependencies [cb44af0]
+- Updated dependencies [cc9c2f4]
+- Updated dependencies [eeb6a47]
+- Updated dependencies [cd013dd]
+- Updated dependencies [214cbdb]
+- Updated dependencies [3c8102e]
+- Updated dependencies [4e964e0]
+- Updated dependencies [dc5c19d]
+- Updated dependencies [c53fef3]
+- Updated dependencies [c94c52d]
+- Updated dependencies [4013a8b]
+- Updated dependencies [fc34995]
+- Updated dependencies [1050b9a]
+- Updated dependencies [32cc6e4]
+- Updated dependencies [63be98c]
+- Updated dependencies [9ce0b40]
+- Updated dependencies [07b2715]
+- Updated dependencies [9b2a43e]
+- Updated dependencies [c4703f9]
+- Updated dependencies [49164fb]
+- Updated dependencies [284276b]
+- Updated dependencies [d59f846]
+- Updated dependencies [566f233]
+- Updated dependencies [0ec3f95]
+- Updated dependencies [13e12bd]
+- Updated dependencies [f2fa9ea]
+- Updated dependencies [28c7f22]
+- Updated dependencies [30a5475]
+- Updated dependencies [1f4475e]
+- Updated dependencies [ce1d197]
+- Updated dependencies [028d8b4]
+- Updated dependencies [81f4b08]
+- Updated dependencies [31975ca]
+- Updated dependencies [e1465e0]
+- Updated dependencies [e7bbadc]
+- Updated dependencies [a84ad28]
+- Updated dependencies [a47dcc8]
+- Updated dependencies [a47dcc8]
+- Updated dependencies [31975ca]
+- Updated dependencies [456ffa7]
+- Updated dependencies [49164fb]
+- Updated dependencies [49164fb]
+- Updated dependencies [7f02d62]
+- Updated dependencies [2cd9c14]
+- Updated dependencies [aab1f32]
+- Updated dependencies [764b379]
+- Updated dependencies [bbf9258]
+- Updated dependencies [0a2bbd4]
+- Updated dependencies [e3a6a02]
+- Updated dependencies [184fa9f]
+- Updated dependencies [2c8635b]
+- Updated dependencies [aab5273]
+  - @endora-commerce/contracts@0.7.0
+  - @endora-commerce/admin-kit@0.7.0
+  - @endora-commerce/platform@0.7.0
