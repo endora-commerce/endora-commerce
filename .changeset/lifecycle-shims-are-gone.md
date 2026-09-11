@@ -1,5 +1,5 @@
 ---
-'@endora-commerce/platform': major
+'@endora-commerce/platform': minor
 ---
 
 Narrowed `@endora-commerce/platform/lifecycle` to the names its consumers import, which is

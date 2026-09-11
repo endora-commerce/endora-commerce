@@ -1,5 +1,5 @@
 ---
-'@endora-commerce/mod-invoices': major
+'@endora-commerce/mod-invoices': minor
 ---
 
 Removed the `InvoicesBridge` interface and the `invoicesBridge` container name; `invoices`

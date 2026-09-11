@@ -1,7 +1,7 @@
 ---
 '@endora-commerce/contracts': minor
 '@endora-commerce/platform': minor
-'@endora-commerce/mod-organizations': major
+'@endora-commerce/mod-organizations': minor
 ---
 
 Published `OrganizationTaxProfilePort`, and moved the error envelope's assembly into the

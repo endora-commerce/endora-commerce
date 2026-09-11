@@ -7064,7 +7064,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // there is no arithmetic over the two that produces the union — the number below is a
     // fresh measurement on the merged tree, in a worktree created from the merge commit,
     // in the quality job's shape, reporting an empty `git status`.
-    files: 8171,
+    // **Feature 114 Phase 3 (D-225): +1 -> 8172.** This merge request adds exactly one
+    // tracked file — the empty changeset that records that neither half of it has any
+    // release meaning — and its other fifteen changeset edits are modifications. Measured
+    // on both sides in one worktree created from the branch, `quality`-job tree shape, with
+    // nothing rebuilt between the two runs: `origin/master` reads 8171, the recorded value
+    // exactly, and the branch reads 8172.
+    files: 8172,
     sites: null,
     sources: [],
     //
@@ -8467,7 +8473,31 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
     sites: 513,
-    sources: ['workspace-globs'],
+    // **Feature 114 Phase 3 (FR-017, D-225): a second author, and neither count
+    // moves.** `changeset-subjects` is the distinct package names the changeset
+    // files name, reconciled against the members the workspace globs produce.
+    // `files` and `sites` stay at 89 and 513 — measured before and after, the
+    // recorded values exactly — because the changeset population is exactly
+    // what !966 took out of both, and a token is not a walk.
+    //
+    // It is **conditional**, which is the only thing about it that is not
+    // ordinary: it is omitted when no changeset names a subject. After a
+    // release `.changeset/` holds `config.json` and `README.md`, and
+    // `read-size.ts` refuses `expected=0` as `no-expectation` — so a token
+    // printed `0/0` would exit 2 on every post-release tree, which is a refusal
+    // about the calendar rather than about the tree. This record therefore
+    // describes a tree with pending changesets, which is every tree except the
+    // one immediately after a release.
+    //
+    // That exception is stated here rather than discovered: `sources` is
+    // matched exactly, so the branch that consumes every changeset — the
+    // release, and nothing else — drops this token and re-records this one line
+    // with it. Written down because the alternative is worse in both
+    // directions: a token printed `0/0` exits 2 on that same tree, and a
+    // `sources` entry that could be declared optional would make an *absent*
+    // reconciliation indistinguishable from one somebody stopped computing,
+    // which is the whole thing this ledger is for.
+    sources: ['workspace-globs', 'changeset-subjects'],
   },
   'backend/scripts/check-rsc-discipline.ts': {
     prefix: '[rsc-discipline]',
@@ -10776,7 +10806,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the merged tree **after the resolution was committed**, which this population makes
     // mandatory rather than tidy: it is `git ls-files --cached`, the index, where a
     // conflicted path is listed once per stage and a run taken mid-merge reads high.
-    files: 8231,
+    // **Feature 114 Phase 3 (D-225): +1 -> 8232.** This merge request adds exactly one
+    // tracked file — the empty changeset that records that neither half of it has any
+    // release meaning — and its other fifteen changeset edits are modifications. Measured
+    // on both sides in one worktree created from the branch, `quality`-job tree shape, with
+    // nothing rebuilt between the two runs: `origin/master` reads 8231, the recorded value
+    // exactly, and the branch reads 8232.
+    files: 8232,
     sites: null,
     sources: ['manifest-index'],
     //

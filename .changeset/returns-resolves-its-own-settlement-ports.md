@@ -1,5 +1,5 @@
 ---
-'@endora-commerce/mod-returns': major
+'@endora-commerce/mod-returns': minor
 ---
 
 Removed `ReturnsBridge` from `@endora-commerce/mod-returns/backend`, and with it every

@@ -1,6 +1,6 @@
 ---
-'@endora-commerce/contracts': major
-'@endora-commerce/platform': major
+'@endora-commerce/contracts': minor
+'@endora-commerce/platform': minor
 ---
 
 Removed the module licence tier: `ModuleLicenseTierSchema`, the `ModuleLicenseTier` type, the

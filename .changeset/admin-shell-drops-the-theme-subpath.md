@@ -1,5 +1,5 @@
 ---
-'@endora-commerce/admin-shell': major
+'@endora-commerce/admin-shell': minor
 ---
 
 **`./theme.css` is withdrawn from this package.** It is now

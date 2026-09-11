@@ -1,5 +1,5 @@
 ---
-'@endora-commerce/platform': major
+'@endora-commerce/platform': minor
 ---
 
 Narrowed `@endora-commerce/platform/lifecycle` by six names, and made it the address the

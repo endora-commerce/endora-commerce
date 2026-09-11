@@ -1,5 +1,5 @@
 ---
-'@endora-commerce/mod-auth': major
+'@endora-commerce/mod-auth': minor
 '@endora-commerce/platform': minor
 '@endora-commerce/contracts': minor
 ---

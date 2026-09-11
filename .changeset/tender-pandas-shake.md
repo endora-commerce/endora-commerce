@@ -1,9 +1,9 @@
 ---
 '@endora-commerce/contracts': minor
 '@endora-commerce/mod-assets-library': minor
-'@endora-commerce/mod-catalog': major
+'@endora-commerce/mod-catalog': minor
 '@endora-commerce/mod-inventory': minor
-'@endora-commerce/mod-product-feeds': major
+'@endora-commerce/mod-product-feeds': minor
 ---
 
 Publish the object store, the availability port and the batched category and
