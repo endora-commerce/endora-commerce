@@ -14,6 +14,7 @@ import {
   normalizeRelative,
   parseChangeset,
   publishScope,
+  readChangesetDocument,
   readPublishedSurface,
   readReleaseIntent,
   unreadablePattern,
@@ -715,6 +716,233 @@ describe('check-release-intent — groups and written intent', () => {
   });
 });
 
+/**
+ * D-225, FR-017. No package leaves `0.x` before the move to public npmjs, and
+ * the rule is refused rather than remembered because the failure is **silent**:
+ * a `major` changeset sits in `.changeset/` for weeks and is applied by a
+ * release nobody is watching. `changeset status` reports it as ordinary intent,
+ * and nothing else in the repository reads a bump level at all.
+ *
+ * The discrimination is the whole rule — the predicate is derived **per
+ * package**, from that package's own `version` — so the first two proofs are
+ * one changeset over two manifests. The fixture's default is `1.0.0`, which is
+ * why the `0.x` case is the override: a fixture whose default were `0.x` would
+ * leave the negative unproven, and a check that reported *every* `major` would
+ * pass every positive proof in this file.
+ */
+describe('check-release-intent — the series stays in `0.x` (D-225)', () => {
+  const ZERO_SERIES: FileMap = {
+    'packages/alpha/package.json': JSON.stringify({
+      name: '@fx/alpha',
+      version: '0.7.0',
+      license: 'MIT',
+      repository: { type: 'git', url: 'https://example.invalid/fx.git', directory: 'packages/alpha' },
+      publishConfig: { access: 'public' },
+    }),
+  };
+
+  const MAJOR_CHANGESET: FileMap = {
+    '.changeset/x.md': '---\n"@fx/alpha": major\n---\n\nThe port takes an id, not an entity.\n',
+  };
+
+  it('reports a `major` declared for a package whose own version is `0.y.z` (A12)', () => {
+    const found = findings({ ...ZERO_SERIES, ...MAJOR_CHANGESET });
+    expect(kinds(found)).toContain('major-bump-in-a-zero-series');
+    const finding = found.find((entry) => entry.kind === 'major-bump-in-a-zero-series');
+    expect(finding?.subject).toBe('x.md:@fx/alpha');
+    // The message has to carry the remedy and the ruling, because there is no
+    // ledger and no override: the escape is deletion, in the merge request that
+    // performs the npmjs move.
+    expect(finding?.message).toContain('D-225');
+    expect(finding?.message).toContain('0.7.0');
+  });
+
+  it('reports nothing for the same `major` on a package at `1.y.z` (A13)', () => {
+    // The default fixture's packages are at `1.0.0`. One changeset, one
+    // manifest changed between the two cases, opposite verdicts.
+    expect(kinds(findings(MAJOR_CHANGESET))).not.toContain('major-bump-in-a-zero-series');
+  });
+
+  it('judges a mixed estate package by package, not estate-wide', () => {
+    const found = findings({
+      ...ZERO_SERIES,
+      '.changeset/x.md': '---\n"@fx/alpha": major\n"@fx/beta": major\n---\n\nboth\n',
+    });
+    // `@fx/beta` is still at `1.0.0`, so it is not judged — which is the same
+    // derivation that retires this rule one package at a time when the npmjs
+    // move happens.
+    expect(
+      found
+        .filter((entry) => entry.kind === 'major-bump-in-a-zero-series')
+        .map((entry) => entry.subject),
+    ).toEqual(['x.md:@fx/alpha']);
+  });
+
+  it('leaves `minor` and `patch` alone in the same series', () => {
+    const found = findings({
+      ...ZERO_SERIES,
+      '.changeset/x.md': '---\n"@fx/alpha": minor\n---\n\nbody\n',
+      '.changeset/y.md': '---\n"@fx/alpha": patch\n---\n\nbody\n',
+    });
+    expect(kinds(found)).not.toContain('major-bump-in-a-zero-series');
+  });
+
+  /**
+   * A15, and the trap this task was written around. `parseChangeset` returns
+   * `[]` for an empty changeset **correctly**, so a refusal keyed on *"the front
+   * matter yielded no entry"* refuses every one of them — ten of the eighty-four
+   * files pending when this landed. The discriminator is the presence of the
+   * `---` delimiters, not the entry count.
+   */
+  it('leaves an empty changeset alone — no finding and no refusal (A15)', () => {
+    const tree = checkout({
+      ...ZERO_SERIES,
+      '.changeset/empty.md': '---\n---\n\nThis change carries no release meaning.\n',
+    });
+    const result = checkReleaseIntent(FIXTURE_ROOT, tree.fs, tree.listChangesets);
+    if ('reason' in result) throw new Error(`expected a verdict, got a refusal: ${result.reason}`);
+    expect(result.findings).toEqual([]);
+  });
+
+  it('tells an empty changeset from a file with no front matter at all', () => {
+    expect(readChangesetDocument('empty.md', '---\n---\n\nbody\n')).toEqual({
+      file: 'empty.md',
+      hasFrontMatter: true,
+      frontMatterLines: 0,
+      releases: [],
+    });
+    expect(readChangesetDocument('prose.md', 'just a summary, no delimiters\n')).toEqual({
+      file: 'prose.md',
+      hasFrontMatter: false,
+      frontMatterLines: 0,
+      releases: [],
+    });
+  });
+
+  /**
+   * The closing delimiter is the **first** line that is exactly `---` after the
+   * opening one, so a horizontal rule in the summary is body text and not a
+   * second block.
+   */
+  it('does not read a `---` in the summary as a front-matter delimiter', () => {
+    const document = readChangesetDocument(
+      'x.md',
+      '---\n"@fx/alpha": major\n---\n\nbefore\n\n---\n\n"@fx/beta": major\n',
+    );
+    expect(document.releases).toEqual([{ file: 'x.md', packageName: '@fx/alpha', bump: 'major' }]);
+  });
+});
+
+describe('check-release-intent — four ways the series rule refuses (FR-017)', () => {
+  /**
+   * A14's first half, and a correction to FR-017: this refusal was recorded
+   * there as one the check already made, and it was not. `checkBranchIntent`
+   * refuses a workspace with no versionable package because the `--since` mode
+   * has no published surface to attribute a diff to; the default mode had no
+   * such refusal, so a workspace of nothing but applications answered every
+   * question above — this one included — vacuously clean.
+   */
+  it('refuses a workspace with no versionable package at all', () => {
+    expect(
+      refusal({
+        'pnpm-workspace.yaml': 'packages:\n  - apps/host\n',
+        'packages/alpha/package.json': null,
+        'packages/beta/package.json': null,
+      }),
+    ).toContain('no versionable package');
+  });
+
+  /**
+   * And the discrimination that keeps that refusal from eating this check's
+   * most valuable finding. A family every `ignore` pattern swallows is the
+   * 67-package failure mode — `ignored-family-member` — and not a workspace
+   * with no library in it, so the refusal is keyed on the family and not on
+   * "family and not ignored". Measured the other way round, this configuration
+   * refused and the finding disappeared.
+   */
+  it('reports a family swallowed by `ignore` rather than refusing for want of a package', () => {
+    const found = findings(
+      configuredAs((config) => {
+        config['ignore'] = ['host', '@fx/*'];
+      }),
+    );
+    expect(kinds(found)).toContain('ignored-family-member');
+  });
+
+  /**
+   * Issue #113: reading a file this check cannot parse as *"no `major` declared
+   * here"* agrees with the defect.
+   */
+  it('refuses a changeset file that carries no `---` front-matter block', () => {
+    expect(refusal({ '.changeset/x.md': 'a summary with no front matter at all\n' })).toContain(
+      'no `---` front-matter block',
+    );
+  });
+
+  it('refuses an entry naming a package whose `version` has no readable major', () => {
+    expect(
+      refusal({
+        'packages/alpha/package.json': JSON.stringify({
+          name: '@fx/alpha',
+          version: 'nightly',
+          license: 'MIT',
+          repository: { url: 'https://example.invalid/fx.git' },
+          publishConfig: { access: 'public' },
+        }),
+        '.changeset/x.md': '---\n"@fx/alpha": minor\n---\n\nbody\n',
+      }),
+    ).toContain('which series');
+  });
+
+  it('refuses a manifest that declares no `version` at all, rather than reading it as not `0.x`', () => {
+    expect(
+      refusal({
+        'packages/alpha/package.json': JSON.stringify({
+          name: '@fx/alpha',
+          license: 'MIT',
+          repository: { url: 'https://example.invalid/fx.git' },
+          publishConfig: { access: 'public' },
+        }),
+        '.changeset/x.md': '---\n"@fx/alpha": major\n---\n\nbody\n',
+      }),
+    ).toContain('no `version`');
+  });
+
+  /**
+   * Issue #237's shape over this population: the walk opened the files and the
+   * **entry reader** produced nothing. It is keyed on the front-matter lines
+   * rather than on the files, because a tree of nothing but empty changesets
+   * yields zero entries honestly and must not refuse.
+   */
+  it('refuses front-matter text that parsed to no entry at all', () => {
+    expect(
+      refusal({ '.changeset/x.md': '---\nthis is not an entry line at all\n---\n\nbody\n' }),
+    ).toContain('gone blind');
+  });
+
+  it('does not refuse a tree whose only changesets are empty ones', () => {
+    const tree = checkout({
+      '.changeset/a.md': '---\n---\n\none\n',
+      '.changeset/b.md': '---\n---\n\ntwo\n',
+    });
+    const result = checkReleaseIntent(FIXTURE_ROOT, tree.fs, tree.listChangesets);
+    expect('reason' in result ? result.reason : result.findings).toEqual([]);
+  });
+
+  /**
+   * The ordering is the design. A library tree that moved leaves no versionable
+   * package either, and issue #215's floor is the more specific diagnosis of
+   * that tree — so the series refusals are asked **after** it, or a workspace
+   * whose only defect is one glob that stopped resolving would be told it has
+   * no versionable package.
+   */
+  it('still answers a short walk with the short walk, not with the series refusal', () => {
+    expect(
+      refusal({ 'packages/alpha/package.json': null, 'packages/beta/package.json': null }),
+    ).toContain('residue of its population');
+  });
+});
+
 describe('check-release-intent — eight ways it refuses to report on what it did not read', () => {
   it('refuses a missing `.changeset/config.json`', () => {
     expect(refusal({ '.changeset/config.json': null })).toContain('missing');
@@ -852,7 +1080,57 @@ describe('check-release-intent — what it reads, beside what it finds', () => {
     // decision is the licensing ruling of 2026-09-06: is this package licensed,
     // and — for the one licence form that names a file — is that file there.
     expect(result.sites).toBe(19);
-    expect(result.coverage).toEqual([{ source: 'workspace-globs', expected: 2, covered: 2 }]);
+    expect(result.coverage).toEqual([
+      { source: 'workspace-globs', expected: 2, covered: 2 },
+      // The changeset names one subject, so the second author is on the line.
+      { source: 'changeset-subjects', expected: 1, covered: 1 },
+    ]);
+  });
+
+  /**
+   * T3-G. After a release `.changeset/` holds `config.json` and `README.md` and
+   * nothing else, and `read-size.ts` refuses `expected=0` as `no-expectation` —
+   * so a token printed `0/0` would exit 2 on **every post-release tree**, which
+   * is a refusal about the calendar rather than about the tree.
+   * `check:action-route-permissions`' `emitted-manifests` is the precedent for
+   * both halves: present when there is a population, absent when there is not.
+   */
+  it('omits `changeset-subjects` rather than printing `0/0` when no changeset names a subject', () => {
+    const tree = checkout();
+    const result = checkReleaseIntent(FIXTURE_ROOT, tree.fs, tree.listChangesets);
+    if ('reason' in result) throw new Error(result.reason);
+    expect(result.coverage.map((entry) => entry.source)).toEqual(['workspace-globs']);
+  });
+
+  /**
+   * An empty changeset names no subject, so a tree of nothing but empty ones is
+   * the post-release state as far as this token is concerned — and it must not
+   * refuse there either.
+   */
+  it('omits it for a tree of empty changesets, which name nothing', () => {
+    const tree = checkout({ '.changeset/x.md': '---\n---\n\nno release meaning\n' });
+    const result = checkReleaseIntent(FIXTURE_ROOT, tree.fs, tree.listChangesets);
+    if ('reason' in result) throw new Error(result.reason);
+    expect(result.coverage.map((entry) => entry.source)).toEqual(['workspace-globs']);
+  });
+
+  /**
+   * The token counts **distinct names**, not entries: it is the reconciliation
+   * of what the changeset authors wrote against the members the workspace globs
+   * produce, and one package named by two changesets is one subject.
+   */
+  it('counts the distinct subjects the changesets name, not the entries', () => {
+    const tree = checkout({
+      '.changeset/a.md': '---\n"@fx/alpha": minor\n"@fx/beta": patch\n---\n\none\n',
+      '.changeset/b.md': '---\n"@fx/alpha": patch\n---\n\ntwo\n',
+    });
+    const result = checkReleaseIntent(FIXTURE_ROOT, tree.fs, tree.listChangesets);
+    if ('reason' in result) throw new Error(result.reason);
+    expect(result.coverage).toContainEqual({
+      source: 'changeset-subjects',
+      expected: 2,
+      covered: 2,
+    });
   });
 
   /**

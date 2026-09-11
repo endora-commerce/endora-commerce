@@ -10146,6 +10146,89 @@ const CHECKS: readonly CheckEntry[] = [
           'unversionable-changeset',
         ),
       ),
+      // D-225, FR-017. The rule is an instrument rather than a note because the
+      // failure is **silent**: a `major` changeset sits in `.changeset/` for
+      // weeks and is applied by a release nobody is watching, while `changeset
+      // status` reports it as the ordinary intent it is and nothing else in the
+      // tree reads a bump level at all. The fixture moves `@fx/alpha` into
+      // `0.x`, because the derivation under test is **per package** from that
+      // package's own manifest — the default fixture sits at `1.0.0`, where the
+      // identical changeset is correct, and that discrimination is the whole
+      // rule (A12/A13, both proven in the companion test).
+      'major-bump-in-a-zero-series': top(() =>
+        releaseIntentFindings(
+          {
+            'packages/alpha/package.json': JSON.stringify({
+              name: '@fx/alpha',
+              version: '0.7.0',
+              license: 'MIT',
+              repository: { url: 'https://example.invalid/fx.git' },
+              publishConfig: { access: 'public' },
+            }),
+            '.changeset/x.md': '---\n"@fx/alpha": major\n---\n\nThe port takes an id.\n',
+          },
+          'major-bump-in-a-zero-series',
+        ),
+      ),
+      // Issue #113 over the series rule: a file this check cannot read as a
+      // changeset must not be read as one declaring no `major`. It is
+      // emphatically not the **empty** changeset — `---`, `---`, then a body —
+      // which is what AGENTS.md tells an author to write for a change with no
+      // release meaning and which ten of the eighty-four files pending when
+      // this landed are. The discriminator is the delimiters, never the entry
+      // count, and the green half is in the companion test.
+      'changeset-without-front-matter': top(() =>
+        releaseIntentRefusal(
+          { '.changeset/x.md': 'a summary with no front matter at all\n' },
+          'no `---` front-matter block',
+        ),
+      ),
+      // The predicate is *is this package in `0.x`*, so a version with no
+      // readable major is an answer this run did not obtain — never a package
+      // read as *not* `0.x`.
+      'unreadable-series-refusal': top(() =>
+        releaseIntentRefusal(
+          {
+            'packages/alpha/package.json': JSON.stringify({
+              name: '@fx/alpha',
+              version: 'nightly',
+              license: 'MIT',
+              repository: { url: 'https://example.invalid/fx.git' },
+              publishConfig: { access: 'public' },
+            }),
+            '.changeset/x.md': '---\n"@fx/alpha": minor\n---\n\nbody\n',
+          },
+          'which series',
+        ),
+      ),
+      // Issue #237's shape over this population: the walk opened the files and
+      // the **entry reader** produced nothing, which prints a cheerful
+      // `changesets=0` beside a perfectly healthy `files=`. Keyed on the
+      // front-matter lines rather than on the files, so a tree of nothing but
+      // empty changesets — which yields zero entries honestly — does not refuse.
+      'blind-changeset-entry-reader': top(() =>
+        releaseIntentRefusal(
+          { '.changeset/x.md': '---\nthis is not an entry line at all\n---\n\nbody\n' },
+          'gone blind',
+        ),
+      ),
+      // The workspace with no library family at all, which FR-017 recorded as a
+      // refusal this check already made and which it did not: `--since` refuses
+      // it because it has no published surface to attribute a diff to, and the
+      // default mode had nothing. It is keyed on the **family**, not on "family
+      // and not ignored" — a family every `ignore` pattern swallows is
+      // `ignored-family-member` above, and a refusal over that state would mask
+      // this check's most valuable finding.
+      'no-versionable-package-refusal': top(() =>
+        releaseIntentRefusal(
+          {
+            'pnpm-workspace.yaml': 'packages:\n  - apps/host\n',
+            'packages/alpha/package.json': null,
+            'packages/beta/package.json': null,
+          },
+          'no versionable package',
+        ),
+      ),
       // Issue #215 over this population. Moving the library tree does not empty
       // the walk — the four application manifests are still there and every
       // predicate still answers over them — so the floor is per workspace
@@ -10922,7 +11005,17 @@ describe('every red proof enters at the top of the analysis', () => {
       // that consumed and produced nothing, and the *same* branch carrying one
       // **empty** changeset, which under the superseded rule turned it green and
       // for the history landing took it out of the release class entirely.
-      'backend/scripts/check-release-intent.ts': 29,
+      //
+      // **29 -> 34 (feature 114, FR-017, D-225).** One new finding kind —
+      // `major-bump-in-a-zero-series`, the series rule — and four new refusals,
+      // one per input whose absence would make it vacuously clean: a changeset
+      // with no front-matter block, a version with no readable major, an entry
+      // reader that parsed nothing at all, and a workspace with no library
+      // family. The empty changeset's *green* is not a key here: it is a shape
+      // the check must **not** refuse, so it belongs beside the reds in the
+      // companion test rather than in a map whose every entry must come back
+      // non-zero.
+      'backend/scripts/check-release-intent.ts': 34,
       // Two findings — the centre and the undecidable gate — plus the ledger's
       // three directions and the three refusals `vacuousReason` answers. The
       // fourth refusal is `readSizeRefusal`'s `short-walk` over the
