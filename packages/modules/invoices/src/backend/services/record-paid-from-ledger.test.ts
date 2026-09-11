@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@endora-commerce/contracts';
-import { Invoice } from '../../../../packages/modules/invoices/src/backend/entities/invoice.entity.js';
-import { InvoiceService } from '../../../../packages/modules/invoices/src/backend/services/invoice-service.js';
+import { Invoice } from '../entities/invoice.entity.js';
+import { InvoiceService } from './invoice-service.js';
 
 function invoiceRow(overrides: Partial<Invoice> = {}): Invoice {
   return {

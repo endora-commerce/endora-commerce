@@ -33,7 +33,6 @@ export const invoiceLedgerDeliveryKindSchema = z.enum(INVOICE_LEDGER_DELIVERY_KI
 export type InvoiceLedgerDeliveryKind = z.infer<typeof invoiceLedgerDeliveryKindSchema>;
 
 export const INVOICE_LEDGER_SETTING_CODES = {
-  ACTIVATION: 'invoice_ledger.enabled',
   NUMBERING_MODE: 'invoice_ledger.numbering.mode',
   KSEF_ROUTING: 'invoice_ledger.ksef.routing',
 } as const;

@@ -3,6 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   INVOICE_LEDGER_DELIVERY_QUEUED_EVENT,
   INVOICE_LEDGER_MODULES,
+  INVOICE_LEDGER_VENDOR_KSEF_ABSENT_MESSAGE,
   invoiceCorrectedEventSchema,
   invoiceIssuedEventSchema,
   type InvoiceCopyHostPort,
@@ -29,10 +30,7 @@ import { InvoiceLedgerClientMap } from './entities/invoice-ledger-client-map.ent
 import { InvoiceLedgerDelivery } from './entities/invoice-ledger-delivery.entity.js';
 import { InvoiceLedgerDocumentMap } from './entities/invoice-ledger-document-map.entity.js';
 import { InvoiceLedgerWebhookReceipt } from './entities/invoice-ledger-webhook-receipt.entity.js';
-import {
-  INVOICE_LEDGER_VENDOR_KSEF_ABSENT_MESSAGE,
-  InvoiceLedgerDeliveryService,
-} from './services/invoice-ledger-delivery.service.js';
+import { InvoiceLedgerDeliveryService } from './services/invoice-ledger-delivery.service.js';
 import { InvoiceLedgerVendorFreezeRegistry } from './services/invoice-ledger-vendor-freeze-registry.js';
 import {
   defaultInvoiceLedgerPresence,
@@ -238,14 +236,8 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.subscribe('module.activation.changed', async (payload) => {
     const event = payload as ModuleActivationChangedPayload;
     if (typeof event.moduleId !== 'string' || typeof event.active !== 'boolean') return;
-    const registry = lazyPort<InvoiceLedgerRegistryPort>(ctx, 'invoiceLedgerRegistryPort');
-    if (event.moduleId === 'invoice_ledger' && !event.active) {
-      for (const vendorId of LEDGER_VENDOR_IDS) {
-        await registry.clearActive(vendorId);
-      }
-      return;
-    }
     if (!LEDGER_VENDOR_IDS.has(event.moduleId)) return;
+    const registry = lazyPort<InvoiceLedgerRegistryPort>(ctx, 'invoiceLedgerRegistryPort');
     if (event.active) {
       await registry.recordActive(event.moduleId, null);
     } else {

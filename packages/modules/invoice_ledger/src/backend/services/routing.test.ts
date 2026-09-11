@@ -4,7 +4,7 @@ import {
   type InvoiceLedgerKsefRouting,
   type InvoiceLedgerNumberingMode,
 } from '@endora-commerce/contracts';
-import { InvoiceLedgerRoutingService } from '../../../../packages/modules/invoice_ledger/src/backend/services/invoice-ledger-routing.service.js';
+import { InvoiceLedgerRoutingService } from './invoice-ledger-routing.service.js';
 import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 
 const CHANNEL_ID = '11111111-1111-4111-8111-111111111111';

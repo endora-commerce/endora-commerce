@@ -11,15 +11,6 @@ export const invoiceLedgerSettingsManifest = defineModuleSettingsManifest({
   groups: [{ code: 'invoice_ledger', name: 'Invoice ledger' }],
   settings: [
     {
-      code: INVOICE_LEDGER_SETTING_CODES.ACTIVATION,
-      name: 'Invoice ledger enabled',
-      description:
-        'Switches the shared invoice-ledger rails on or off. Switching off also switches off every active ledger adapter such as Infakt. Adapters cannot be switched on again until this is on. Maps and delivery history stay.',
-      groupCode: 'invoice_ledger',
-      valueType: 'boolean',
-      defaultValue: true,
-    },
-    {
       code: INVOICE_LEDGER_SETTING_CODES.NUMBERING_MODE,
       name: 'Invoice numbering source',
       description:
@@ -56,7 +47,7 @@ export const manifest = defineModuleManifest({
       kind: 'refuses-without',
       whenAbsent: 'Webhook apply cannot write vendor-assigned numbers while invoices is off.',
       reason:
-        'invoices is switchable; a hard dependency would freeze invoices while the ledger is on.',
+        'invoice_ledger is non-deactivatable, so invoices cannot be a hard dependency.',
     },
     {
       moduleId: 'invoices',
@@ -64,7 +55,7 @@ export const manifest = defineModuleManifest({
       kind: 'refuses-without',
       whenAbsent: 'Webhook apply cannot stamp paid from Infakt while invoices is off.',
       reason:
-        'invoices is switchable; a hard dependency would freeze invoices while the ledger is on.',
+        'invoice_ledger is non-deactivatable, so invoices cannot be a hard dependency.',
     },
     {
       moduleId: 'invoices',
@@ -72,7 +63,7 @@ export const manifest = defineModuleManifest({
       kind: 'refuses-without',
       whenAbsent: 'Webhook apply cannot record Infakt KSeF numbers while invoices is off.',
       reason:
-        'invoices is switchable; a hard dependency would freeze invoices while the ledger is on.',
+        'invoice_ledger is non-deactivatable, so invoices cannot be a hard dependency.',
     },
     {
       moduleId: 'invoices',
@@ -80,13 +71,13 @@ export const manifest = defineModuleManifest({
       kind: 'degrades-without',
       whenAbsent: 'Delivery list shows invoice ids without numbers while invoices is off.',
       reason:
-        'List reads invoice numbers through the invoices copy port. invoices is switchable, so it cannot be a hard dependency.',
+        'List reads invoice numbers through the invoices copy port. invoice_ledger is non-deactivatable, so invoices cannot be a hard dependency.',
     },
   ],
   activation: {
-    settingCode: INVOICE_LEDGER_SETTING_CODES.ACTIVATION,
-    default: true,
-    cascadeDependentsOnDeactivate: true,
+    nonDeactivatable: true,
+    reason:
+      'The shared invoice ledger registry must stay available so operator activation of a ledger vendor can be refused when another is already active.',
   },
   settings: invoiceLedgerSettingsManifest,
   i18n: { bundlesDir: 'i18n' },

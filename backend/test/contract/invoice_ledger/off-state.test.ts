@@ -10,15 +10,24 @@ import {
 /**
  * `invoice_ledger` off-state — Constitution XVII item 6.
  *
- * The four surfaces item 6 asks for map onto this module as follows:
+ * The module declares `activation.nonDeactivatable`, so it has **no operator
+ * axis**: the platform axis is the only one that can make it absent, and the
+ * harness reads which of the two applies from the manifest rather than from an
+ * argument. What the operator half asserts here is that the door is shut — a
+ * seeded deactivation leaves the module present and every surface answering.
+ * That is `expectModuleAbsent`'s own `isCore` branch and needs nothing from the
+ * caller.
+ *
+ * The surfaces item 6 asks for map onto this module as follows:
  *
  *  * **API rejection** — routing read and the delivery list. Those are the
- *    operator rails a switched-off ledger must not keep answering.
+ *    operator rails a ledger the deployment does not offer must not keep
+ *    answering.
  *  * **admin absence** — the presence projection both frontends gate on.
- *  * **non-editable configuration** — numbering mode. `invoice_ledger.enabled`
- *    is the activation control and is the exception item 6 names.
+ *  * **non-editable configuration** — numbering mode. The module owns no
+ *    activation control, so item 6's one exception has no subject here.
  *  * **storefront absence** has no subject. Ledger rails are operator-only.
- *  * **restoration** — asserted by the harness after both axes. Off is
+ *  * **restoration** — asserted by the harness after the platform axis. Off is
  *    non-destructive: maps and delivery rows stay.
  */
 describe('invoice_ledger off-state (Constitution XVII)', () => {

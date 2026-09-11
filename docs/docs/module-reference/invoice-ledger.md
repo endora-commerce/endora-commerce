@@ -22,7 +22,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 
 ## Activation
 
-An operator switches this module on and off on **/platform/modules**. The choice is the setting `invoice_ledger.enabled`, and it defaults to **on**.
+**This module cannot be switched off.** The shared invoice ledger registry must stay available so operator activation of a ledger vendor can be refused when another is already active.
 
 ## Dependencies
 
@@ -54,7 +54,6 @@ An operator switches this module on and off on **/platform/modules**. The choice
 
 | Code | Name | Type |
 | --- | --- | --- |
-| `invoice_ledger.enabled` | Invoice ledger enabled | `boolean` |
 | `invoice_ledger.ksef.routing` | KSeF submission routing | `string` |
 | `invoice_ledger.numbering.mode` | Invoice numbering source | `string` |
 

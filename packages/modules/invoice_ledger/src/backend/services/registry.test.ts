@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ERROR_CODES, INVOICE_LEDGER_MODULES } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import { InvoiceLedgerRegistryService } from '../../../../packages/modules/invoice_ledger/src/backend/services/invoice-ledger-registry.service.js';
+import { InvoiceLedgerRegistryService } from './invoice-ledger-registry.service.js';
 
 /**
  * T078 / T080 / SC-008. Production `INVOICE_LEDGER_MODULES` stays Infakt-only.

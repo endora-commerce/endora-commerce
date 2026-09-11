@@ -1,6 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
-  INVOICE_LEDGER_VENDOR_KSEF_ABSENT_MESSAGE,
   type InvoiceLedgerClientMapInput,
   type InvoiceLedgerDeliveryAttempt,
   type InvoiceLedgerDeliveryPort,
@@ -52,7 +51,6 @@ function appendAttempt(
   row.lastError = mappedDeliveryError(error);
 }
 
-export { INVOICE_LEDGER_VENDOR_KSEF_ABSENT_MESSAGE };
 
 export class InvoiceLedgerDeliveryService implements InvoiceLedgerDeliveryPort {
   constructor(private readonly emFactory: () => EntityManager) {}

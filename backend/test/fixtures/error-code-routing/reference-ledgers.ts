@@ -371,6 +371,51 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       + 'field protection names a key that does not match the grammar the apply path writes. '
       + 'The noun is the Akeneo ingress, which `pim_akeneo` owns.',
   },
+
+  // The shared invoice-ledger layer and the Infakt adapter, minted together by
+  // feature 119 (`specs/119-infakt-integration/`). Neither module existed when
+  // the prefix chain was deleted, so the frozen capture holds none of their five
+  // codes. The split between them is the same one `pim_connector` / `pim_unopim`
+  // states above: the shared layer owns the codes whose noun is the ledger, the
+  // adapter owns the codes whose noun is the vendor.
+  INVOICE_LEDGER_VENDOR_ALREADY_ACTIVE: {
+    to: 'invoice_ledger',
+    reason:
+      'Minted with the shared invoice-ledger layer (feature 119) for the refusal an operator '
+      + 'meets when they switch on a second ledger adapter while another is already active, and '
+      + 'two vendors numbering one invoice series would collide. The noun is the '
+      + 'vendor-exclusivity claim, which `invoice_ledger` owns for every ledger adapter.',
+  },
+  INVOICE_LEDGER_CREDENTIALS_MISSING: {
+    to: 'invoice_ledger',
+    reason:
+      'Minted with the shared invoice-ledger layer (feature 119) for the refusal a delivery '
+      + 'meets when the adapter has no stored API key for the environment it would send to. It '
+      + 'is raised by `infakt` and owned here, on `PIM_CONNECTOR_ALREADY_ACTIVE`\'s terms: the '
+      + 'noun is the ledger delivery, which `invoice_ledger` owns for every adapter, and the '
+      + 'sentence has to read the same whichever vendor is configured.',
+  },
+  INVOICE_LEDGER_DELIVERY_NOT_RETRYABLE: {
+    to: 'invoice_ledger',
+    reason:
+      'Minted with the shared invoice-ledger layer (feature 119) for the refusal an operator '
+      + 'meets when they retry a delivery that has already succeeded or is otherwise not in a '
+      + 'retryable state. The noun is the ledger delivery, which `invoice_ledger` owns.',
+  },
+  INFAKT_CONNECTION_FAILED: {
+    to: 'infakt',
+    reason:
+      'Minted with the Infakt adapter (feature 119) for the failure an operator meets when the '
+      + 'connection test cannot read the account details the stored API key should open. The '
+      + 'noun is the Infakt connection, which `infakt` owns.',
+  },
+  INFAKT_WEBHOOK_UNAUTHORIZED: {
+    to: 'infakt',
+    reason:
+      'Minted with the Infakt adapter (feature 119) for the refusal a webhook delivery meets '
+      + 'when its HMAC signature is missing or does not verify against the stored secret. The '
+      + 'noun is the Infakt ingress, which `infakt` owns.',
+  },
 };
 
 /**

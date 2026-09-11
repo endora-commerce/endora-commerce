@@ -348,15 +348,6 @@ export const ModuleActivationSchema = z.union([
     settingCode: z.string().regex(settingCodeRe),
     /** Applies when the operator has never chosen. Asserted, never assumed. */
     default: z.boolean(),
-    /**
-     * When switching this module off, also switch off present dependents
-     * that declare a settings-backed control. Feature 073 left global
-     * cascade out of v1; a module opts in when turning it off without
-     * its adapters is not a useful rest state (invoice_ledger).
-     * Turning this module back on does not turn the cascaded dependents
-     * back on.
-     */
-    cascadeDependentsOnDeactivate: z.boolean().optional(),
   }),
   z.object({
     /** The platform cannot run without this module. */
@@ -878,8 +869,19 @@ export const ModuleManifestSchema = z.object({
   pimConnector: z.literal(true).optional(),
   /**
    * When `true`, the module participates in the invoice-ledger mutual-exclusion
-   * set (feature 119). Consumed by `invoice_ledger` registry discovery — not by
-   * install ordering.
+   * set (feature 119).
+   *
+   * **Nothing reads it.** `invoice_ledger`'s registry answers
+   * `assertCanActivate` from `INVOICE_LEDGER_MODULES` in
+   * `packages/contracts/src/invoice-ledger.ts`, which is the compile-time table
+   * the exclusion is derived from; this flag is the same fact declared a second
+   * time, in a second place, with nobody to keep the two in agreement. It is
+   * kept because `pimConnector` above is the identical pair — declared by
+   * `pim_unopim`, read by nothing, the mutex answered from the module's own
+   * `pimConnectorRegistry` — and one of two duplicates is not the thing to
+   * remove on its own. Deciding between "the flag is the source and the table
+   * derives from it" and "the table is the source and the flag goes" is a sweep
+   * over both families, not a line here.
    */
   invoiceLedger: z.literal(true).optional(),
   /**
