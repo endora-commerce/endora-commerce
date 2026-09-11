@@ -17,9 +17,9 @@
 // that `.gitlab-ci.yml` still names `test:release-gate` — so a root nothing
 // runs fails somewhere that always runs.
 
-import { defineConfig, mergeConfig } from 'vitest/config';
+import { defineConfig } from 'vitest/config';
 import baseConfig from '../vitest.config.base.js';
-import { backendTestOptions } from './vitest.shared.js';
+import { backendTestOptions, mergeBackendConfig } from './vitest.shared.js';
 
 // Choosing this config *is* the declaration that the run has no services, in
 // the idiom of `vitest.unit.config.ts`: it is made here rather than left to
@@ -28,7 +28,7 @@ import { backendTestOptions } from './vitest.shared.js';
 // nothing.
 process.env['BACKEND_TEST_SERVICES'] = 'none';
 
-export default mergeConfig(
+export default mergeBackendConfig(
   baseConfig,
   defineConfig({
     test: {

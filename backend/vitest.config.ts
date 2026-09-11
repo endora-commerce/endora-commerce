@@ -2,11 +2,11 @@
 // Needs Postgres, Redis and Meilisearch. `vitest.unit.config.ts` is the fast
 // half of the same suite and needs none of them — see the header there.
 
-import { configDefaults, defineConfig, mergeConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 import baseConfig from '../vitest.config.base.js';
-import { backendTestOptions } from './vitest.shared.js';
+import { backendTestOptions, mergeBackendConfig } from './vitest.shared.js';
 
-export default mergeConfig(
+export default mergeBackendConfig(
   baseConfig,
   defineConfig({
     test: {

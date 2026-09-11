@@ -16,9 +16,9 @@
 // that keeps this honest: a new service-dependent unit test lands here first
 // and fails loudly at the harness seam, rather than being quietly left out.
 
-import { configDefaults, defineConfig, mergeConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 import baseConfig from '../vitest.config.base.js';
-import { backendTestOptions } from './vitest.shared.js';
+import { backendTestOptions, mergeBackendConfig } from './vitest.shared.js';
 import { SERVICE_DEPENDENT_UNIT_TEST_PATHS } from './test/service-dependent-unit-tests.js';
 import { SERVICE_FREE_OUTER_TEST_PATHS } from './test/service-free-outer-tests.js';
 
@@ -29,7 +29,7 @@ import { SERVICE_FREE_OUTER_TEST_PATHS } from './test/service-free-outer-tests.j
 // never a probe.
 process.env['BACKEND_TEST_SERVICES'] = 'none';
 
-export default mergeConfig(
+export default mergeBackendConfig(
   baseConfig,
   defineConfig({
     test: {

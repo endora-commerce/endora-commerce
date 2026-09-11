@@ -1285,6 +1285,33 @@ test:backend:
     # `exec vitest` (not `run test --`) — pnpm leaks the literal `--` into the
     # script args, which makes vitest ignore --shard and run the whole suite.
     - pnpm --filter backend exec vitest run --shard=$CI_NODE_INDEX/$CI_NODE_TOTAL
+  # The failure survives the log. GitLab stops collecting a job's output at
+  # 4 MB, and vitest prints its failure summary LAST — so a shard that crosses
+  # the limit fails with a trace ending in `Job's log exceeded limit of 4194304
+  # bytes`, `failure_reason: script_failure`, and no failing test named
+  # anywhere. That is pipeline 13573, and under D-198 this job is the only place
+  # the complete suite runs at all: a regression on `master` is found here or
+  # nowhere. The junit reporter has been running in every shard since long
+  # before that — `JUNIT report written to …/test-results.junit.xml` is in the
+  # log — and the report was being thrown away with the container.
+  #
+  # `when: always` is the whole point: a report uploaded only on success is a
+  # report nobody ever needs. The path is where `vitest.config.base.ts`'s
+  # `outputFile` lands under this job's own command — `pnpm --filter backend
+  # exec vitest` makes `backend/` vitest's root, and a GitLab artifact path is
+  # relative to $CI_PROJECT_DIR. Neither half is written down in one place, so
+  # `backend/test/unit/ci/junit-artifact.test.ts` derives both and fails when
+  # either moves; a path that has stopped matching uploads nothing and says so
+  # only as a warning, on a job that has already failed.
+  #
+  # The five shards need no distinct filenames: `parallel: 5` is five jobs in
+  # five containers, so there is no filesystem to collide on, and `--shard`
+  # partitions the file list, so no two of them report the same test case.
+  artifacts:
+    when: always
+    expire_in: 1 week
+    reports:
+      junit: backend/test-results.junit.xml
   cache:
     key:
       files:

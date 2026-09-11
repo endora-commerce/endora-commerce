@@ -2029,7 +2029,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // landed the same day and each added its own module sources, co-located tests and wiring
     // test, so the recorded value describes neither tree alone: 5483 -> 5487. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first.
-    files: 5487,
+    // **The nightly diagnostic repair: +2.** The two test files this merge request adds —
+    // `backend/test/unit/harness/vitest-reporters.test.ts` (the reporter union) and
+    // `backend/test/unit/ci/junit-artifact.test.ts` (the `test:backend` junit artefact).
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first.
+    files: 5489,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2139,7 +2143,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fewer files than the 540 recorded against the tree before it: 541. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    sites: 543,
+    // **The nightly diagnostic repair: sites +1.** `junit-artifact.test.ts`'s
+    // `.replace(/^\.\//, '')`, which strips a leading `./` from the `outputFile` path
+    // `vitest.config.base.ts` declares. The slug predicate reads the pattern and clears
+    // it; this field counts cleared sites too, which is what keeps it from moving with
+    // the findings.
+    sites: 544,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -3728,7 +3737,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `integration/pwa/cross-module-wiring.test.ts`, the half of the proof that can see
     // the wiring. Its one new `sites` entry is the `push_messages` read the
     // order-status case polls, bound to a name and branched on rather than defaulted.
-    files: 1587,
+    // **The nightly diagnostic repair: +2.** The two test files this merge request adds —
+    // `backend/test/unit/harness/vitest-reporters.test.ts` (the reporter union) and
+    // `backend/test/unit/ci/junit-artifact.test.ts` (the `test:backend` junit artefact).
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first.
+    files: 1589,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -3900,7 +3913,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // retired):** the one file the branch adds under `backend/test/` —
     // `integration/pwa/cross-module-wiring.test.ts`, the half of the proof that can see
     // the wiring.
-    files: 1587,
+    // **The nightly diagnostic repair: +2.** The two test files this merge request adds —
+    // `backend/test/unit/harness/vitest-reporters.test.ts` (the reporter union) and
+    // `backend/test/unit/ci/junit-artifact.test.ts` (the `test:backend` junit artefact).
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first.
+    files: 1589,
     sites: null,
     sources: [],
   },
@@ -6437,7 +6454,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 8141 -> 8146. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    files: 8146,
+    // **The nightly diagnostic repair: +2.** The two test files this merge request adds —
+    // `backend/test/unit/harness/vitest-reporters.test.ts` (the reporter union) and
+    // `backend/test/unit/ci/junit-artifact.test.ts` (the `test:backend` junit artefact).
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first.
+    // Measured on a tree carrying no `backend/test-results.junit.xml`. This walk is a
+    // deny-list over the whole repository, so it counts that report when a `CI=1` run has
+    // left one behind — 8149 rather than 8148, measured both ways. The clean-checkout
+    // number is the one to record: it is what the `quality` job reads, and the artefact is
+    // a run's output rather than a file of this tree (it is in `.gitignore` as of this
+    // merge request).
+    files: 8148,
     sites: null,
     sources: [],
     //
@@ -7926,7 +7953,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // retired):** the one file the branch adds under `backend/test/` —
     // `integration/pwa/cross-module-wiring.test.ts`, the half of the proof that can see
     // the wiring.
-    files: 1587,
+    // **The nightly diagnostic repair: +2.** The two test files this merge request adds —
+    // `backend/test/unit/harness/vitest-reporters.test.ts` (the reporter union) and
+    // `backend/test/unit/ci/junit-artifact.test.ts` (the `test:backend` junit artefact).
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first.
+    files: 1589,
     sites: 163,
     sources: [],
   },
@@ -8412,7 +8443,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 1704 -> 1707. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    files: 1707,
+    // **The nightly diagnostic repair: +2.** The two test files this merge request adds —
+    // `backend/test/unit/harness/vitest-reporters.test.ts` (the reporter union) and
+    // `backend/test/unit/ci/junit-artifact.test.ts` (the `test:backend` junit artefact).
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first.
+    files: 1709,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -9085,7 +9120,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 4508 -> 4512. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    files: 4512,
+    // **The nightly diagnostic repair: +2.** The two test files this merge request adds —
+    // `backend/test/unit/harness/vitest-reporters.test.ts` (the reporter union) and
+    // `backend/test/unit/ci/junit-artifact.test.ts` (the `test:backend` junit artefact).
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first.
+    files: 4514,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -9832,7 +9871,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 8201 -> 8206. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    files: 8206,
+    // **The nightly diagnostic repair: +2.** The two test files this merge request adds —
+    // `backend/test/unit/harness/vitest-reporters.test.ts` (the reporter union) and
+    // `backend/test/unit/ci/junit-artifact.test.ts` (the `test:backend` junit artefact).
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first.
+    files: 8208,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -10279,7 +10322,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 6114 -> 6118. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    files: 6118,
+    // **The nightly diagnostic repair: +2.** The two test files this merge request adds —
+    // `backend/test/unit/harness/vitest-reporters.test.ts` (the reporter union) and
+    // `backend/test/unit/ci/junit-artifact.test.ts` (the `test:backend` junit artefact).
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first.
+    files: 6120,
     sites: null,
     sources: ['manifest-index'],
     //
