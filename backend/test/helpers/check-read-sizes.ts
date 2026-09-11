@@ -906,6 +906,109 @@ export interface RecordedReadSize {
  * removed — because those copies are in `check-nul-bytes`' and
  * `check-naming.sh`' walks and a working tree that has built the docs site reads
  * seventy-nine files more than CI does.
+ * **Re-recorded on 2026-09-11 by `specs/110-instance-repository/` T140 — ten
+ * entries, all of them this merge request's own, all of them `files`.**
+ *
+ * The change adds four files and deletes none: the `endora new instance`
+ * acceptance criterion (`backend/scripts/acceptance/instance.ts`), its
+ * judgement (`instance-assertions.ts` beside it), its recorded expectation
+ * (`backend/acceptance/instance-expected-state.json`) and its unit test
+ * (`backend/test/unit/acceptance/instance-assertions.test.ts`). It adds no
+ * `check-*` script, so no entry arrives and no `sites` number moves anywhere.
+ *
+ * The ten movements are that arithmetic seen through each walk's own
+ * population, and reading them by extension and root is how to check them:
+ *
+ *   - **the whole tree, JSON included** gains all four — `check-nul-bytes`
+ *     8157 -> 8161 and `check-naming.sh` 8217 -> 8221. There is no changeset in
+ *     that four, which is the file a row is usually apt to forget: `backend` is
+ *     in the changesets `ignore` list, so a merge request touching only it
+ *     carries none;
+ *   - **the whole tree minus JSON** gains three — `check-language.sh`
+ *     6126 -> 6129;
+ *   - **the application tree including `backend/test/**`** gains three —
+ *     `check-singleton-identity` 4519 -> 4522;
+ *   - **the application tree excluding the tests** gains two, the criterion and
+ *     its judgement — `check-platform-surface` 2429 -> 2431;
+ *   - **`backend/test/**` alone** gains one, the unit test —
+ *     `check-fixture-substitution`, `check-harness-teardown`,
+ *     `check-shared-table-wipes` (all 1592 -> 1593) and `check-test-ownership`
+ *     (1712 -> 1713);
+ *   - **`check-diacritic-folds`** gains one for a reason worth stating, because
+ *     it is the only entry whose number does not fall out of the two clauses
+ *     above: its walk is the whole tree **minus `backend/scripts` and
+ *     `backend/test/unit/scripts`**, whose job is to spell the shapes it
+ *     refuses. So neither of the two new script files is in its population and
+ *     the unit test is the whole of its +1, 5494 -> 5495.
+ *
+ * Every entry was in agreement at the branch point, so there is nothing here
+ * belonging to another merge request and nothing apportioned.
+ *
+ * ## 2026-09-11 — the `linked` group is derived, and three entries this author owed
+ *
+ * Five entries, **all of them this author's and only two of them this branch's**,
+ * which is why the split is written down rather than folded into one number.
+ *
+ *   - **This branch's two are `sites`, not `files`**, because it adds no file: it
+ *     rewrites `test/unit/release/changeset-flow.test.ts` to read the `linked`
+ *     group out of `.changeset/config.json` instead of naming three of its four
+ *     members. `check-fixture-substitution` 582 -> **583** for the
+ *     `manifests.find(...)` the derivation uses — `find` is in that check's read
+ *     vocabulary, and the site is correctly **not** a violation because its
+ *     fallback is a `throw` rather than a fabricated value — and
+ *     `check-diacritic-folds` 545 -> **546** for the `.replace()` that strips the
+ *     scope off a package name, its `sites` being `replaceSites`. Both are
+ *     populations growing by one real construct, which is the ordinary
+ *     re-record.
+ *   - **The other three are `specs/114-release-shape-gate/tasks.md`**, landed in
+ *     !1583 by this author without a census: `check-nul-bytes` 8161 -> **8162**
+ *     and `check-naming.sh` 8221 -> **8222**, the two whole-tree walks, and
+ *     `check-doc-snippets` 1284 -> **1285**, whose population is `docs/docs` plus
+ *     `specs`. One file, three walks, +1 each. They are re-recorded here rather
+ *     than left for the next branch to discover, which is what this report is
+ *     for.
+ *
+ * **Measured in a pristine worktree, and that is the point of this entry.** The
+ * same census run in this author's working checkout reported `check-nul-bytes`
+ * at **8166** — eight files high, none of them tracked: two
+ * `admin/vite.config.ts.timestamp-*.mjs`, four `.env` files,
+ * `storefront/tsconfig.tsbuildinfo`, and a stale `packages/api-client/` directory
+ * left behind by the package D-202 deleted. That check reads git-ignored files by
+ * design, so a whole-tree walk measured in a working checkout reads high by
+ * whatever that checkout happens to be carrying — and recording 8166 would have
+ * put one developer's local residue into the shared record, where every CI run
+ * afterwards reports drift against a number no clean tree can produce. It is the
+ * `docs/docs/modules` trap in a second costume: the tree shape is not only the
+ * module doc copies, it is everything ignored.
+ */
+/**
+ * **Catch-up merge of `origin/master` into `feat/119-infakt-integration`, 2026-09-11
+ * — thirteen fields across eleven entries, none of them new work.**
+ *
+ * The two blocks above are the two sides of this merge and both are true of the
+ * merged tree: feature 119's two module packages arrived on one side while
+ * `specs/110-instance-repository/` T140 and !1583 arrived on the other, and no
+ * entry's recorded value described the union. Every number below was
+ * **re-measured on the merged tree**; none was summed from the two sides'
+ * deltas, and no band was widened.
+ *
+ * **The attribution is a measurement rather than an arithmetic.** With the five
+ * files the master side adds withdrawn from the tree — the acceptance criterion,
+ * its judgement, its recorded expectation, its unit test and
+ * `specs/114-release-shape-gate/tasks.md` — and its edit to
+ * `test/unit/release/changeset-flow.test.ts` reverted, all nine affected
+ * TypeScript checks read back the branch's own recorded value exactly: 8289,
+ * 5591/547, 1302, 1622/586, 1622, 1622, 1751, 2479, 4613. So the two sides'
+ * populations are disjoint here and nothing is double-counted. That the observed
+ * deltas then match `master`'s own recorded deltas file for file is a
+ * cross-check on the record, not the method that produced it.
+ *
+ * **`check:naming` and `check:language` are the two the parking method cannot
+ * reach**, and they are measured after **staging** the resolution instead. Their
+ * population is `git ls-files --cached --others --exclude-standard` — the index,
+ * not the disk — so withdrawing a staged file leaves it listed, and during an
+ * unresolved merge a conflicted path is listed once per stage, which reads two
+ * high. Measured staged: 8354 and 6232.
  */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
@@ -2171,7 +2274,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changeset is not a `.ts`. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed from the
     // two sides' deltas.
-    files: 5591,
+    // **T140 (the instance acceptance criterion): files 5494 -> 5495.** One: the criterion's own unit test. This walk excludes `backend/scripts` and `backend/test/unit/scripts`, so neither of the two new script files is in its population, and it reads no JSON.
+    // **Re-measured on the union after merging `origin/master` into `feat/119-infakt-integration`
+    // (13 commits): files 5591 -> 5592.** Neither side's recorded value describes this tree: the
+    // branch's 5591 was measured before `specs/110-instance-repository/` T140 and !1583 landed on
+    // `master`, and `master`'s own value was measured without feature 119's two module packages.
+    // Attributed by parking and re-measuring rather than by subtraction: with the five files the
+    // master side adds withdrawn and its edit to `test/unit/release/changeset-flow.test.ts`
+    // reverted, this walk reads 5591 exactly, so the whole delta is
+    // `backend/test/unit/acceptance/instance-assertions.test.ts`. Its walk excludes
+    // `backend/scripts` and `backend/test/unit/scripts`, so neither acceptance script is in its
+    // population, and it reads no JSON and no `specs/`. Quality-job shape — the ignored copies
+    // under `docs/docs/modules/` swept first. Measured on the combined tree, never summed from the
+    // two sides' deltas.
+    files: 5592,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2307,7 +2423,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // parked this walk reads 546 exactly. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed from the
     // two sides' deltas.
-    sites: 547,
+    // **Re-measured on the union after merging `origin/master` into `feat/119-infakt-integration`
+    // (13 commits): sites 547 -> 548.** Neither side's recorded value describes this tree: the
+    // branch's 547 was measured before `specs/110-instance-repository/` T140 and !1583 landed on
+    // `master`, and `master`'s own value was measured without feature 119's two module packages.
+    // Attributed by parking and re-measuring rather than by subtraction: with the five files the
+    // master side adds withdrawn and its edit to `test/unit/release/changeset-flow.test.ts`
+    // reverted, this walk reads 547 exactly, so the whole delta is the `.replace()` that strips
+    // the scope off a package name, in the derivation of the `linked` group
+    // `changeset-flow.test.ts` now reads out of `.changeset/config.json`. Quality-job shape — the
+    // ignored copies under `docs/docs/modules/` swept first. Measured on the combined tree, never
+    // summed from the two sides' deltas.
+    sites: 548,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -2637,7 +2764,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 1284 -> 1302.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    files: 1302,
+    // **Re-measured on the union after merging `origin/master` into `feat/119-infakt-integration`
+    // (13 commits): files 1302 -> 1303.** Neither side's recorded value describes this tree: the
+    // branch's 1302 was measured before `specs/110-instance-repository/` T140 and !1583 landed on
+    // `master`, and `master`'s own value was measured without feature 119's two module packages.
+    // Attributed by parking and re-measuring rather than by subtraction: with the five files the
+    // master side adds withdrawn and its edit to `test/unit/release/changeset-flow.test.ts`
+    // reverted, this walk reads 1302 exactly, so the whole delta is
+    // `specs/114-release-shape-gate/tasks.md`. Its population is `docs/docs` plus `specs`, so none
+    // of T140's four files is in it. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed from the two
+    // sides' deltas.
+    files: 1303,
     sites: 12,
     sources: [],
     //
@@ -3964,7 +4102,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // four of that side's additions, which reads 1620 exactly. Quality-job shape — the ignored
     // copies under `docs/docs/modules/` swept first. Measured on the combined tree, never
     // summed from the two sides' deltas.
-    files: 1622,
+    // **T140 (the instance acceptance criterion): files 1592 -> 1593.** One: `backend/test/unit/acceptance/instance-assertions.test.ts`. Its population is `backend/test/**` and the criterion's own sources are not tests.
+    // **Re-measured on the union after merging `origin/master` into `feat/119-infakt-integration`
+    // (13 commits): files 1622 -> 1623.** Neither side's recorded value describes this tree: the
+    // branch's 1622 was measured before `specs/110-instance-repository/` T140 and !1583 landed on
+    // `master`, and `master`'s own value was measured without feature 119's two module packages.
+    // Attributed by parking and re-measuring rather than by subtraction: with the five files the
+    // master side adds withdrawn and its edit to `test/unit/release/changeset-flow.test.ts`
+    // reverted, this walk reads 1622 exactly, so the whole delta is
+    // `backend/test/unit/acceptance/instance-assertions.test.ts`; its population is
+    // `backend/test/**` and the criterion's own sources are not tests. Quality-job shape — the
+    // ignored copies under `docs/docs/modules/` swept first. Measured on the combined tree, never
+    // summed from the two sides' deltas.
+    files: 1623,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -4005,7 +4155,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 582 -> 586.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 586,
+    // **Re-measured on the union after merging `origin/master` into `feat/119-infakt-integration`
+    // (13 commits): sites 586 -> 587.** Neither side's recorded value describes this tree: the
+    // branch's 586 was measured before `specs/110-instance-repository/` T140 and !1583 landed on
+    // `master`, and `master`'s own value was measured without feature 119's two module packages.
+    // Attributed by parking and re-measuring rather than by subtraction: with the five files the
+    // master side adds withdrawn and its edit to `test/unit/release/changeset-flow.test.ts`
+    // reverted, this walk reads 586 exactly, so the whole delta is the `manifests.find(...)` that
+    // derivation uses — `find` is in this check's read vocabulary, and the site is correctly
+    // **not** a violation because its fallback is a `throw` rather than a fabricated value.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    sites: 587,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -4170,7 +4331,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // four of that side's additions, which reads 1620 exactly. Quality-job shape — the ignored
     // copies under `docs/docs/modules/` swept first. Measured on the combined tree, never
     // summed from the two sides' deltas.
-    files: 1622,
+    // **T140 (the instance acceptance criterion): files 1592 -> 1593.** The same one test file, on the same `backend/test/**` population.
+    // **Re-measured on the union after merging `origin/master` into `feat/119-infakt-integration`
+    // (13 commits): files 1622 -> 1623.** Neither side's recorded value describes this tree: the
+    // branch's 1622 was measured before `specs/110-instance-repository/` T140 and !1583 landed on
+    // `master`, and `master`'s own value was measured without feature 119's two module packages.
+    // Attributed by parking and re-measuring rather than by subtraction: with the five files the
+    // master side adds withdrawn and its edit to `test/unit/release/changeset-flow.test.ts`
+    // reverted, this walk reads 1622 exactly, so the whole delta is the same one test file, on the
+    // same `backend/test/**` population. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed from the two
+    // sides' deltas.
+    files: 1623,
     sites: null,
     sources: [],
   },
@@ -6819,7 +6991,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // twice: parking all four reads 8285, and parking the `packages/cli` test alone reads
     // 8288. Quality-job shape — the ignored copies under `docs/docs/modules/` swept first.
     // Measured on the combined tree, never summed from the two sides' deltas.
-    files: 8289,
+    // **T140 (the instance acceptance criterion): files 8157 -> 8161.** Four, which is every file this merge request adds: the criterion, its judgement, its recorded expectation and its unit test. The whole-tree walk counts the JSON; there is no changeset, because `backend` is in the changesets `ignore` list.
+    // **Re-measured on the union after merging `origin/master` into `feat/119-infakt-integration`
+    // (13 commits): files 8289 -> 8294.** Neither side's recorded value describes this tree: the
+    // branch's 8289 was measured before `specs/110-instance-repository/` T140 and !1583 landed on
+    // `master`, and `master`'s own value was measured without feature 119's two module packages.
+    // Attributed by parking and re-measuring rather than by subtraction: with the five files the
+    // master side adds withdrawn and its edit to `test/unit/release/changeset-flow.test.ts`
+    // reverted, this walk reads 8289 exactly, so the whole delta is every file the master side
+    // adds: the criterion, its judgement, its recorded expectation, its unit test and
+    // `specs/114-release-shape-gate/tasks.md`. This walk is the whole tree, JSON included.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 8294,
     sites: null,
     sources: [],
     //
@@ -7789,7 +7973,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 2429 -> 2479.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    files: 2479,
+    // **T140 (the instance acceptance criterion): files 2429 -> 2431.** Two: the criterion and its judgement, both application sources under `backend/scripts/`. Its application half is what opens them; the JSON and the test file are outside both populations.
+    // **Re-measured on the union after merging `origin/master` into `feat/119-infakt-integration`
+    // (13 commits): files 2479 -> 2481.** Neither side's recorded value describes this tree: the
+    // branch's 2479 was measured before `specs/110-instance-repository/` T140 and !1583 landed on
+    // `master`, and `master`'s own value was measured without feature 119's two module packages.
+    // Attributed by parking and re-measuring rather than by subtraction: with the five files the
+    // master side adds withdrawn and its edit to `test/unit/release/changeset-flow.test.ts`
+    // reverted, this walk reads 2479 exactly, so the whole delta is the criterion and its
+    // judgement, both application sources under `backend/scripts/`. The JSON, the test file and
+    // the spec page are outside both of its populations. Quality-job shape — the ignored copies
+    // under `docs/docs/modules/` swept first. Measured on the combined tree, never summed from the
+    // two sides' deltas.
+    files: 2481,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -8406,7 +8602,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // four of that side's additions, which reads 1620 exactly. Quality-job shape — the ignored
     // copies under `docs/docs/modules/` swept first. Measured on the combined tree, never
     // summed from the two sides' deltas.
-    files: 1622,
+    // **T140 (the instance acceptance criterion): files 1592 -> 1593.** The same one test file, on the same `backend/test/**` population.
+    // **Re-measured on the union after merging `origin/master` into `feat/119-infakt-integration`
+    // (13 commits): files 1622 -> 1623.** Neither side's recorded value describes this tree: the
+    // branch's 1622 was measured before `specs/110-instance-repository/` T140 and !1583 landed on
+    // `master`, and `master`'s own value was measured without feature 119's two module packages.
+    // Attributed by parking and re-measuring rather than by subtraction: with the five files the
+    // master side adds withdrawn and its edit to `test/unit/release/changeset-flow.test.ts`
+    // reverted, this walk reads 1622 exactly, so the whole delta is the same one test file, on the
+    // same `backend/test/**` population. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed from the two
+    // sides' deltas.
+    files: 1623,
     sites: 163,
     sources: [],
   },
@@ -8932,7 +9139,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // — it is outside this walk. `sites` does not move and is not re-recorded. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    files: 1751,
+    // **T140 (the instance acceptance criterion): files 1712 -> 1713.** The same one test file.
+    // **Re-measured on the union after merging `origin/master` into `feat/119-infakt-integration`
+    // (13 commits): files 1751 -> 1752.** Neither side's recorded value describes this tree: the
+    // branch's 1751 was measured before `specs/110-instance-repository/` T140 and !1583 landed on
+    // `master`, and `master`'s own value was measured without feature 119's two module packages.
+    // Attributed by parking and re-measuring rather than by subtraction: with the five files the
+    // master side adds withdrawn and its edit to `test/unit/release/changeset-flow.test.ts`
+    // reverted, this walk reads 1751 exactly, so the whole delta is the same one test file.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 1752,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -9644,7 +9861,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // source by filesystem path, which is what this check counts sites over. Quality-job shape
     // — the ignored copies under `docs/docs/modules/` swept first. Measured on the combined
     // tree, never summed from the two sides' deltas.
-    files: 4613,
+    // **T140 (the instance acceptance criterion): files 4519 -> 4522.** Three: the criterion, its judgement and its unit test — `layout.sourceRoots` is the whole application tree, `backend/test/**` included, and it reads no JSON.
+    // **Re-measured on the union after merging `origin/master` into `feat/119-infakt-integration`
+    // (13 commits): files 4613 -> 4616.** Neither side's recorded value describes this tree: the
+    // branch's 4613 was measured before `specs/110-instance-repository/` T140 and !1583 landed on
+    // `master`, and `master`'s own value was measured without feature 119's two module packages.
+    // Attributed by parking and re-measuring rather than by subtraction: with the five files the
+    // master side adds withdrawn and its edit to `test/unit/release/changeset-flow.test.ts`
+    // reverted, this walk reads 4613 exactly, so the whole delta is the criterion, its judgement
+    // and its unit test — `layout.sourceRoots` is the whole application tree, `backend/test/**`
+    // included, and it reads no JSON. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed from the two
+    // sides' deltas.
+    files: 4616,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -10434,7 +10663,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // --exclude-standard`, so it reads the index rather than the disk, and an unmerged path is
     // listed once per conflict stage. Measured on the combined tree, never summed from the two
     // sides' deltas.
-    files: 8349,
+    // **T140 (the instance acceptance criterion): files 8217 -> 8221.** Four: the three `.ts` files plus `backend/acceptance/instance-expected-state.json`, this walk being the whole tree.
+    // **Re-measured on the union after merging `origin/master` into `feat/119-infakt-integration`
+    // (13 commits): files 8349 -> 8354.** Neither side's recorded value describes this tree: the
+    // branch's 8349 was measured before `specs/110-instance-repository/` T140 and !1583 landed on
+    // `master`, and `master`'s own value was measured without feature 119's two module packages.
+    // Park-and-re-measure does not reach this check: its population is `git ls-files --cached
+    // --others --exclude-standard`, the **index** rather than the disk, so withdrawing a staged
+    // file leaves it listed. It is measured after staging the resolution instead — during an
+    // unresolved merge a conflicted path is listed once per stage and this walk reads two high.
+    // The delta is all five files the master side adds, this walk being the whole tree.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 8354,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -10922,7 +11163,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // --cached --others --exclude-standard`, so it reads the index rather than the disk, and
     // an unmerged path is listed once per conflict stage. Measured on the combined tree, never
     // summed from the two sides' deltas.
-    files: 6229,
+    // **T140 (the instance acceptance criterion): files 6126 -> 6129.** Three `.ts` files — the criterion, its judgement and its unit test. Its per-extension walk reads no JSON, which is the whole of its difference from `check:naming` here.
+    // **Re-measured on the union after merging `origin/master` into `feat/119-infakt-integration`
+    // (13 commits): files 6229 -> 6232.** Neither side's recorded value describes this tree: the
+    // branch's 6229 was measured before `specs/110-instance-repository/` T140 and !1583 landed on
+    // `master`, and `master`'s own value was measured without feature 119's two module packages.
+    // Park-and-re-measure does not reach this check: its population is `git ls-files --cached
+    // --others --exclude-standard`, the **index** rather than the disk, so withdrawing a staged
+    // file leaves it listed. It is measured after staging the resolution instead — during an
+    // unresolved merge a conflicted path is listed once per stage and this walk reads two high.
+    // The delta is the master side's three `.ts` files; its per-extension walk reads no JSON and
+    // does not reach `specs/`, which is the whole of its difference from `check:naming` here.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 6232,
     sites: null,
     sources: ['manifest-index'],
     //

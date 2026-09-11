@@ -2045,6 +2045,110 @@ acceptance:storefront-scaffold:
         - .gitlab-ci.yml
 
 # ---------------------------------------------------------------------------
+# The acceptance criterion for `endora new instance`
+# (`specs/110-instance-repository/` FR-011, contract §6, T140).
+#
+# It scaffolds an INSTANCE outside this checkout, installs it from packed
+# tarballs with no symlink back, migrates a throwaway PostgreSQL through the
+# instance's own `migrate` script, and boots it through its own `start` script.
+#
+# **It exists as a job for a reason this repository has already paid for once.**
+# Nothing had ever run a scaffolded instance: `packages/cli/test/new-instance.test.ts`
+# asserts the plan the command builds, and the merge request before this one took
+# the created backend to `tsc --noEmit` exit 0 and said, honestly, that a
+# type-check was the whole of the evidence. The first run of this criterion found
+# that the tree compiles, installs, and then does nothing at all — every root
+# script delegates with `pnpm --filter backend`, the member is named
+# `<workspace>-backend`, and pnpm matches no project and exits 0. No source-tree
+# check in this pipeline can see that, which is `build:docs`' and `boot-gate`'s
+# reason one surface over.
+#
+# It is not a `check-*` script and must not become one:
+# `test/unit/scripts/check-read-size.test.ts` spawns every one of those, and a
+# pack plus an install plus a migration plus a boot inside a unit run is not a
+# test. Its judgement is `scripts/acceptance/instance-assertions.ts`, which
+# touches no process and is unit tested over fixture text.
+#
+# **Red today, and enforced as a ratchet rather than as a failure**, which is
+# `acceptance:package-schema`'s arrangement and for its reason. `:ci` compares
+# the run to `backend/acceptance/instance-expected-state.json` and fails on drift
+# in EITHER direction — a newly-red assertion fails, and so does a newly-green one
+# nobody recorded. Failing on the red instead would block every merge request
+# that touches a package manifest, and `allow_failure: true` would be a job whose
+# colour nobody reads.
+#
+# **Two supply routes, and this job takes the first.** `ENDORA_NPM_REGISTRY`
+# decides, and it is protected, so a merge-request pipeline resolves it to
+# nothing and this job measures the tarball route. The registry route is recorded
+# `unrun` until a run of it measures its states; that run drifts, which is what
+# makes the record arrive from a measurement rather than from a prediction.
+#
+# `stage: test`, so it fails the merge request that breaks the scaffold rather
+# than the default branch afterwards.
+# ---------------------------------------------------------------------------
+acceptance:instance:
+  stage: test
+  image: node:22.17-slim
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+    - name: redis:7-alpine
+      alias: redis
+    - name: getmeili/meilisearch:v1.11
+      alias: meilisearch
+  variables:
+    POSTGRES_USER: b2b
+    POSTGRES_PASSWORD: b2b
+    POSTGRES_DB: b2b
+    MEILI_MASTER_KEY: devMasterKeyChangeMe
+    MEILI_ENV: development
+    MEILI_NO_ANALYTICS: 'true'
+    # The runner DROPS and re-creates this database on every run, so its name
+    # must satisfy the disposable-name convention `(^|_)test(_|$)` — the same
+    # judgement `test/global-setup.ts` and the dev-seed guard make, shared
+    # through `scripts/acceptance/assertions.ts`' `resolveDatabaseTarget` rather
+    # than written a second time. It is what keeps a mistyped DSN from being a
+    # data-loss incident.
+    ACCEPTANCE_DATABASE_URL: postgresql://b2b:b2b@postgres:5432/b2b_instance_acceptance_test
+    REDIS_URL: redis://redis:6379
+    MEILISEARCH_URL: http://meilisearch:7700
+    MEILISEARCH_API_KEY: devMasterKeyChangeMe
+  before_script:
+    - corepack enable && corepack prepare pnpm@9.15.0 --activate
+    - pnpm install --frozen-lockfile
+    - pnpm run build:packages
+  script:
+    - pnpm --filter backend run acceptance:instance:ci
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        # The command and the template it renders.
+        - packages/cli/src/new-instance/**/*
+        - packages/cli/src/bin/endora.ts
+        # What an instance composes: the platform is the whole of its runtime,
+        # and `composition/`, `db/` and `lifecycle/` are what decide whether it
+        # boots and what it migrates.
+        - packages/platform/src/**/*
+        # Every manifest in the tree. A module package's `peerDependencies` are
+        # what the instance's install closure is derived from, and a package
+        # becoming or ceasing to be publishable changes what there is to pin.
+        - '**/package.json'
+        # The criterion itself, and its recorded expectation.
+        - backend/scripts/acceptance/instance*.ts
+        - backend/acceptance/instance-expected-state.json
+        # How anything resolves at all.
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+        - .gitlab-ci.yml
+
+# ---------------------------------------------------------------------------
 # Docs — build the Docusaurus site
 # ---------------------------------------------------------------------------
 #
