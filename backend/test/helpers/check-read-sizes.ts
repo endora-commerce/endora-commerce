@@ -823,6 +823,45 @@ export interface RecordedReadSize {
  * not match" is the fail-open the composition checklist's item 7 refuses. A
  * `sites` that had moved here would mean somebody wrote one.
  */
+/**
+ * **Re-recorded on 2026-09-11 by `specs/110-instance-repository/` T140 — ten
+ * entries, all of them this merge request's own, all of them `files`.**
+ *
+ * The change adds four files and deletes none: the `endora new instance`
+ * acceptance criterion (`backend/scripts/acceptance/instance.ts`), its
+ * judgement (`instance-assertions.ts` beside it), its recorded expectation
+ * (`backend/acceptance/instance-expected-state.json`) and its unit test
+ * (`backend/test/unit/acceptance/instance-assertions.test.ts`). It adds no
+ * `check-*` script, so no entry arrives and no `sites` number moves anywhere.
+ *
+ * The ten movements are that arithmetic seen through each walk's own
+ * population, and reading them by extension and root is how to check them:
+ *
+ *   - **the whole tree, JSON included** gains all four — `check-nul-bytes`
+ *     8157 -> 8161 and `check-naming.sh` 8217 -> 8221. There is no changeset in
+ *     that four, which is the file a row is usually apt to forget: `backend` is
+ *     in the changesets `ignore` list, so a merge request touching only it
+ *     carries none;
+ *   - **the whole tree minus JSON** gains three — `check-language.sh`
+ *     6126 -> 6129;
+ *   - **the application tree including `backend/test/**`** gains three —
+ *     `check-singleton-identity` 4519 -> 4522;
+ *   - **the application tree excluding the tests** gains two, the criterion and
+ *     its judgement — `check-platform-surface` 2429 -> 2431;
+ *   - **`backend/test/**` alone** gains one, the unit test —
+ *     `check-fixture-substitution`, `check-harness-teardown`,
+ *     `check-shared-table-wipes` (all 1592 -> 1593) and `check-test-ownership`
+ *     (1712 -> 1713);
+ *   - **`check-diacritic-folds`** gains one for a reason worth stating, because
+ *     it is the only entry whose number does not fall out of the two clauses
+ *     above: its walk is the whole tree **minus `backend/scripts` and
+ *     `backend/test/unit/scripts`**, whose job is to spell the shapes it
+ *     refuses. So neither of the two new script files is in its population and
+ *     the unit test is the whole of its +1, 5494 -> 5495.
+ *
+ * Every entry was in agreement at the branch point, so there is nothing here
+ * belonging to another merge request and nothing apportioned.
+ */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
     prefix: '[action-route-permissions]',
@@ -2056,7 +2095,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own guard and harness constant, so the recorded value describes neither tree: 5489 -> 5494.
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 5494,
+    // **T140 (the instance acceptance criterion): files 5494 -> 5495.** One: the criterion's own unit test. This walk excludes `backend/scripts` and `backend/test/unit/scripts`, so neither of the two new script files is in its population, and it reads no JSON.
+    files: 5495,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -3795,7 +3835,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own guard and harness constant, so the recorded value describes neither tree: 1589 -> 1592.
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 1592,
+    // **T140 (the instance acceptance criterion): files 1592 -> 1593.** One: `backend/test/unit/acceptance/instance-assertions.test.ts`. Its population is `backend/test/**` and the criterion's own sources are not tests.
+    files: 1593,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -3985,7 +4026,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own guard and harness constant, so the recorded value describes neither tree: 1589 -> 1592.
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 1592,
+    // **T140 (the instance acceptance criterion): files 1592 -> 1593.** The same one test file, on the same `backend/test/**` population.
+    files: 1593,
     sites: null,
     sources: [],
   },
@@ -6568,7 +6610,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // this walk opens like any other file. Attributed by measurement rather than by subtraction:
     // both were moved aside and the three drifting checks re-run, and the tree underneath read
     // 8155 exactly, so the whole delta is this branch's.
-    files: 8157,
+    // **T140 (the instance acceptance criterion): files 8157 -> 8161.** Four, which is every file this merge request adds: the criterion, its judgement, its recorded expectation and its unit test. The whole-tree walk counts the JSON; there is no changeset, because `backend` is in the changesets `ignore` list.
+    files: 8161,
     sites: null,
     sources: [],
     //
@@ -7514,7 +7557,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (`services/cross-module-context.ts`). The two `sites` are its two reaches into
     // the platform: `SalesChannel` off `@endora-commerce/platform/kernel`, for the
     // channel-language read that came out of a root.
-    files: 2429,
+    // **T140 (the instance acceptance criterion): files 2429 -> 2431.** Two: the criterion and its judgement, both application sources under `backend/scripts/`. Its application half is what opens them; the JSON and the test file are outside both populations.
+    files: 2431,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -8103,7 +8147,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own guard and harness constant, so the recorded value describes neither tree: 1589 -> 1592.
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 1592,
+    // **T140 (the instance acceptance criterion): files 1592 -> 1593.** The same one test file, on the same `backend/test/**` population.
+    files: 1593,
     sites: 163,
     sources: [],
   },
@@ -8610,7 +8655,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own guard and harness constant, so the recorded value describes neither tree: 1708 -> 1712.
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 1712,
+    // **T140 (the instance acceptance criterion): files 1712 -> 1713.** The same one test file.
+    files: 1713,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -9304,7 +9350,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own guard and harness constant, so the recorded value describes neither tree: 4514 -> 4519.
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 4519,
+    // **T140 (the instance acceptance criterion): files 4519 -> 4522.** Three: the criterion, its judgement and its unit test — `layout.sourceRoots` is the whole application tree, `backend/test/**` included, and it reads no JSON.
+    files: 4522,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -10075,7 +10122,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/cli/test/new-instance/template-reconciliation.test.ts` and its changeset. Rule 1
     // judges names, so both sit in its population; measured on a tree with both moved aside,
     // which read 8215 exactly.
-    files: 8217,
+    // **T140 (the instance acceptance criterion): files 8217 -> 8221.** Four: the three `.ts` files plus `backend/acceptance/instance-expected-state.json`, this walk being the whole tree.
+    files: 8221,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -10546,7 +10594,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // source-code comments, so it takes `packages/cli/test/new-instance/template-reconciliation.test.ts`
     // and not the branch's changeset markdown, which `.changeset/` holds and no `/docs/` page
     // reaches. Measured on a tree with both moved aside, which read 6125 exactly.
-    files: 6126,
+    // **T140 (the instance acceptance criterion): files 6126 -> 6129.** Three `.ts` files — the criterion, its judgement and its unit test. Its per-extension walk reads no JSON, which is the whole of its difference from `check:naming` here.
+    files: 6129,
     sites: null,
     sources: ['manifest-index'],
     //

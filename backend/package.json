@@ -8,6 +8,8 @@
     "node": ">=22.0.0"
   },
   "scripts": {
+    "acceptance:instance": "tsx scripts/acceptance/instance.ts",
+    "acceptance:instance:ci": "tsx scripts/acceptance/instance.ts --against-expectation",
     "acceptance:package-schema": "tsx scripts/acceptance/package-schema.ts",
     "acceptance:package-schema:ci": "tsx scripts/acceptance/package-schema.ts --against-expectation",
     "acceptance:storefront-scaffold": "tsx scripts/acceptance/storefront-scaffold.ts",
