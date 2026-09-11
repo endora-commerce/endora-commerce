@@ -293,6 +293,12 @@ describe('invoices — send-on-issue skips a pending vendor hold', () => {
         dispatch,
         sendOnIssueEnabled,
       } as unknown as InvoiceEmailDispatcher,
+      // Required since T118c drained the `invoices` bridge: an option no
+      // composition may omit is not typed as omittable. This test is about the
+      // email dispatch a pending hold suppresses, not about attribution, so it
+      // answers "no administrator" — the same value the route reads when the
+      // request carries no admin session.
+      resolveAdminUserId: () => null,
     };
 
     const app: FastifyInstance = Fastify();
