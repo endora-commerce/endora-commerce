@@ -7009,7 +7009,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // already existed; this walk is the whole repository and `.changeset/*.md` is in
     // it. Attributed by parking the file and re-running: 8294 without it, 8295 with,
     // in the same tree and in the quality job's shape.
-    files: 8295,
+    // **Feature 114, Phase 2 (the history landing): 8295 -> 8165.** The largest single
+    // move this record has taken, and it is the operation itself rather than anything
+    // that grew: D-213 consumes 214 changesets into `0.7.0`'s changelogs, so the branch
+    // deletes 214 `.changeset/*.md`, adds 83 `CHANGELOG.md` and adds the landing's
+    // verifier — net −130, which is the whole gap. Park-and-re-measure is not available
+    // for a deletion of 214 files, so it is cross-checked instead: the branch's own
+    // added and deleted lists account for −130 exactly, so the recorded 8295 does
+    // describe `master` and none of the move is anything else's. **Measured**, in a
+    // fresh worktree in the quality job's shape (`git clean -fX docs/docs/modules`, the
+    // copies file removed, `build:packages` first) — never computed from the delta; the
+    // arithmetic above is the attribution, not the number.
+    files: 8165,
     sites: null,
     sources: [],
     //
@@ -10688,7 +10699,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // attributed from the branch's own added-file list instead
     // (`git diff --diff-filter=A origin/master...HEAD` names exactly that one path),
     // which is the index's own answer to the same question.
-    files: 8355,
+    // **Feature 114, Phase 2 (the history landing): 8355 -> 8225.** The same −130 as the
+    // walk above and for the same reason: 214 `.changeset/*.md` deleted, 83
+    // `CHANGELOG.md` and one verifier added. This population is the **index**, so it is
+    // attributed from the branch's own added and deleted lists rather than by parking —
+    // `git diff --diff-filter=A origin/master...HEAD` names the 84 additions and
+    // `--diff-filter=D` the 214 deletions, which is the index's own answer to the same
+    // question. **Measured** in a fresh worktree in the quality job's shape, with the
+    // landing staged; never summed from a delta.
+    files: 8225,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -11189,7 +11208,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // does not reach `specs/`, which is the whole of its difference from `check:naming` here.
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 6232,
+    // **Feature 114, Phase 2 (the history landing): 6232 -> 6233.** One file, against the
+    // −130 the two whole-tree walks above take from the same branch, and the difference
+    // *is* this check's population: its source half is an extension list (`*.ts`, `*.mjs`,
+    // `*.sh`, …) and its docs half is `docs/docs/**`, so 214 deleted `.changeset/*.md` and
+    // 83 added `CHANGELOG.md` are in neither. What moves it is the landing's verifier,
+    // `specs/114-release-shape-gate/contracts/verify-landing.mjs`, which `*.mjs` reaches
+    // wherever it sits — the earlier note's "does not reach `specs/`" is about `.md` under
+    // `specs/`, not about the directory. **Measured** in a fresh worktree in the quality
+    // job's shape, with the landing staged, this population being the index.
+    files: 6233,
     sites: null,
     sources: ['manifest-index'],
     //
