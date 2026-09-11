@@ -2049,7 +2049,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which were not in the 5490 recorded against the tree before it: 5492. This branch's
     // own additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 5492,
+    // **`fix/required-module-refusal-stopped` (the issue #258 refusal, restored): files 5487 -> 5489.**
+    // The two files this branch adds under `backend/test/`: `harness-tenant-scope.ts`, which holds the tenant context the setup file enters so that `test/tenancy-setup.ts` need not name `@endora-commerce/platform/composition`, and `unit/harness/setup-file-imports.test.ts`, the guard that refuses a setup file which does. Measured rather than reasoned about: both were moved aside and every check re-run, and the base tree drifted on nothing — 0 of 44.
+    // **Re-measured on the union after rebasing onto T161's sweep.** That merge request made
+    // seven documents honest about the retired `isBaseline` predicate and this branch adds its
+    // own guard and harness constant, so the recorded value describes neither tree: 5489 -> 5494.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 5494,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2164,7 +2171,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `vitest.config.base.ts` declares. The slug predicate reads the pattern and clears
     // it; this field counts cleared sites too, which is what keeps it from moving with
     // the findings.
-    sites: 544,
+    // **`fix/required-module-refusal-stopped` (the issue #258 refusal, restored): files 543 -> 544.**
+    // **+1 site**: the guard's single `.replace()`, which rewrites a `.js` specifier to its `.ts` source while walking the setup path's imports. It collapses no run of non-ASCII-alphanumerics and builds no slug, so it is a site this check walked and not a finding it withheld.
+    // **Re-measured on the union after rebasing onto T161's sweep.** That merge request made
+    // seven documents honest about the retired `isBaseline` predicate and this branch adds its
+    // own guard and harness constant, so the recorded value describes neither tree: 544 -> 545.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    sites: 545,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -3774,7 +3788,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which were not in the 1588 recorded against the tree before it: 1590. This branch's
     // own additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 1590,
+    // **`fix/required-module-refusal-stopped` (the issue #258 refusal, restored): files 1587 -> 1589.**
+    // The two files this branch adds under `backend/test/`: `harness-tenant-scope.ts`, which holds the tenant context the setup file enters so that `test/tenancy-setup.ts` need not name `@endora-commerce/platform/composition`, and `unit/harness/setup-file-imports.test.ts`, the guard that refuses a setup file which does. Measured rather than reasoned about: both were moved aside and every check re-run, and the base tree drifted on nothing — 0 of 44.
+    // **Re-measured on the union after rebasing onto T161's sweep.** That merge request made
+    // seven documents honest about the retired `isBaseline` predicate and this branch adds its
+    // own guard and harness constant, so the recorded value describes neither tree: 1589 -> 1592.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 1592,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -3957,7 +3978,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which were not in the 1588 recorded against the tree before it: 1590. This branch's
     // own additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 1590,
+    // **`fix/required-module-refusal-stopped` (the issue #258 refusal, restored): files 1587 -> 1589.**
+    // The two files this branch adds under `backend/test/`: `harness-tenant-scope.ts`, which holds the tenant context the setup file enters so that `test/tenancy-setup.ts` need not name `@endora-commerce/platform/composition`, and `unit/harness/setup-file-imports.test.ts`, the guard that refuses a setup file which does. Measured rather than reasoned about: both were moved aside and every check re-run, and the base tree drifted on nothing — 0 of 44.
+    // **Re-measured on the union after rebasing onto T161's sweep.** That merge request made
+    // seven documents honest about the retired `isBaseline` predicate and this branch adds its
+    // own guard and harness constant, so the recorded value describes neither tree: 1589 -> 1592.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 1592,
     sites: null,
     sources: [],
   },
@@ -6527,7 +6555,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which were not in the 8151 recorded against the tree before it: 8153. This branch's
     // own additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 8153,
+    // **`fix/required-module-refusal-stopped` (the issue #258 refusal, restored): files 8146 -> 8148.**
+    // The two files this branch adds under `backend/test/`: `harness-tenant-scope.ts`, which holds the tenant context the setup file enters so that `test/tenancy-setup.ts` need not name `@endora-commerce/platform/composition`, and `unit/harness/setup-file-imports.test.ts`, the guard that refuses a setup file which does. Measured rather than reasoned about: both were moved aside and every check re-run, and the base tree drifted on nothing — 0 of 44.
+    // **Re-measured on the union after rebasing onto T161's sweep.** That merge request made
+    // seven documents honest about the retired `isBaseline` predicate and this branch adds its
+    // own guard and harness constant, so the recorded value describes neither tree: 8148 -> 8155.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 8155,
     sites: null,
     sources: [],
     //
@@ -8055,7 +8090,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which were not in the 1588 recorded against the tree before it: 1590. This branch's
     // own additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 1590,
+    // **`fix/required-module-refusal-stopped` (the issue #258 refusal, restored): files 1587 -> 1589.**
+    // The two files this branch adds under `backend/test/`: `harness-tenant-scope.ts`, which holds the tenant context the setup file enters so that `test/tenancy-setup.ts` need not name `@endora-commerce/platform/composition`, and `unit/harness/setup-file-imports.test.ts`, the guard that refuses a setup file which does. Measured rather than reasoned about: both were moved aside and every check re-run, and the base tree drifted on nothing — 0 of 44.
+    // **Re-measured on the union after rebasing onto T161's sweep.** That merge request made
+    // seven documents honest about the retired `isBaseline` predicate and this branch adds its
+    // own guard and harness constant, so the recorded value describes neither tree: 1589 -> 1592.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 1592,
     sites: 163,
     sources: [],
   },
@@ -8555,7 +8597,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which were not in the 1709 recorded against the tree before it: 1711. This branch's
     // own additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 1711,
+    // **`fix/required-module-refusal-stopped` (the issue #258 refusal, restored): files 1707 -> 1708.**
+    // **+1 and not +2**: this check's population is test files, so only `unit/harness/setup-file-imports.test.ts` is in it — `harness-tenant-scope.ts` is a harness module, not a test, and is judged by the ownership rule nowhere.
+    // **Re-measured on the union after rebasing onto T161's sweep.** That merge request made
+    // seven documents honest about the retired `isBaseline` predicate and this branch adds its
+    // own guard and harness constant, so the recorded value describes neither tree: 1708 -> 1712.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 1712,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -9242,7 +9291,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which were not in the 4515 recorded against the tree before it: 4517. This branch's
     // own additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 4517,
+    // **`fix/required-module-refusal-stopped` (the issue #258 refusal, restored): files 4512 -> 4514.**
+    // The two files this branch adds under `backend/test/`: `harness-tenant-scope.ts`, which holds the tenant context the setup file enters so that `test/tenancy-setup.ts` need not name `@endora-commerce/platform/composition`, and `unit/harness/setup-file-imports.test.ts`, the guard that refuses a setup file which does. Measured rather than reasoned about: both were moved aside and every check re-run, and the base tree drifted on nothing — 0 of 44.
+    // **Re-measured on the union after rebasing onto T161's sweep.** That merge request made
+    // seven documents honest about the retired `isBaseline` predicate and this branch adds its
+    // own guard and harness constant, so the recorded value describes neither tree: 4514 -> 4519.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 4519,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -10001,7 +10057,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which were not in the 8211 recorded against the tree before it: 8213. This branch's
     // own additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 8213,
+    // **`fix/required-module-refusal-stopped` (the issue #258 refusal, restored): files 8206 -> 8208.**
+    // The two files this branch adds under `backend/test/`: `harness-tenant-scope.ts`, which holds the tenant context the setup file enters so that `test/tenancy-setup.ts` need not name `@endora-commerce/platform/composition`, and `unit/harness/setup-file-imports.test.ts`, the guard that refuses a setup file which does. Measured rather than reasoned about: both were moved aside and every check re-run, and the base tree drifted on nothing — 0 of 44.
+    // **Re-measured on the union after rebasing onto T161's sweep.** That merge request made
+    // seven documents honest about the retired `isBaseline` predicate and this branch adds its
+    // own guard and harness constant, so the recorded value describes neither tree: 8208 -> 8215.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 8215,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -10460,7 +10523,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which were not in the 6121 recorded against the tree before it: 6123. This branch's
     // own additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    files: 6123,
+    // **`fix/required-module-refusal-stopped` (the issue #258 refusal, restored): files 6118 -> 6120.**
+    // The two files this branch adds under `backend/test/`: `harness-tenant-scope.ts`, which holds the tenant context the setup file enters so that `test/tenancy-setup.ts` need not name `@endora-commerce/platform/composition`, and `unit/harness/setup-file-imports.test.ts`, the guard that refuses a setup file which does. Measured rather than reasoned about: both were moved aside and every check re-run, and the base tree drifted on nothing — 0 of 44.
+    // **Re-measured on the union after rebasing onto T161's sweep.** That merge request made
+    // seven documents honest about the retired `isBaseline` predicate and this branch adds its
+    // own guard and harness constant, so the recorded value describes neither tree: 6120 -> 6125.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    files: 6125,
     sites: null,
     sources: ['manifest-index'],
     //
