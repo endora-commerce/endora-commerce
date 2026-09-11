@@ -133,10 +133,24 @@ interface Verdict {
 /**
  * Every repository script no job reaches, and why that is right.
  *
- * Twelve entries. It held thirteen until the merge request that wrote this file
- * put `manifests:check` into `quality`.
+ * **How many entries that is is not written here.** It read *"twelve"* until
+ * the merge request that added `acceptance:instance` made it thirteen, which is
+ * a count of a derived fact copied into prose (D-100) in a file whose whole
+ * subject is a derivation. The object below answers it, and it held one more
+ * before the merge request that wrote this file put `manifests:check` into
+ * `quality`.
  */
 const SCRIPTS_NO_JOB_RUNS: Readonly<Record<string, Verdict>> = {
+  'backend::acceptance:instance': {
+    kind: 'superseded',
+    coveredBy: 'backend::acceptance:instance:ci',
+    reason:
+      'The same pair one criterion over: the bare form exits on the criterion\'s own colour, ' +
+      'which is a developer asking "is it met today" and is exit 1 while a scaffolded ' +
+      'instance does not migrate. The `:ci` form asks the question a pipeline can hold a ' +
+      'branch to — drift against `backend/acceptance/instance-expected-state.json`, in both ' +
+      'directions — and that is the one the `acceptance:instance` job runs.',
+  },
   'backend::acceptance:package-schema': {
     kind: 'superseded',
     coveredBy: 'backend::acceptance:package-schema:ci',

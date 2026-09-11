@@ -1,0 +1,113 @@
+{
+  "$comment": [
+    "The recorded state of the `endora new instance` acceptance criterion",
+    "(`specs/110-instance-repository/` FR-011, contracts/instance-repository.md §6, T140).",
+    "`acceptance:instance:ci` compares a run to this file and fails on drift in EITHER",
+    "direction: a newly-red assertion fails, and so does a newly-green one nobody recorded.",
+    "An unrecorded pass is a criterion whose meaning moved without anybody reading it.",
+    "",
+    "IT LANDED WITH TWO REDS AND EIGHT UNMEASURED, AND THAT IS THE FINDING RATHER THAN A",
+    "SHORTFALL OF THE INSTRUMENT. Before this file existed nothing had ever run a scaffolded",
+    "instance: `packages/cli/test/new-instance.test.ts` asserts the plan, and the merge",
+    "request before this one (!1580) took the created backend to `tsc` exit 0 and said in as",
+    "many words that a type-check was the whole of the evidence. The first run of this",
+    "criterion found that the tree compiles, installs, and then does nothing at all — see A3.",
+    "",
+    "EVERY NON-PASS ENTRY BELOW NAMES THE CONTRACT OR TASK IT WAITS ON, AND THAT RULE IS",
+    "ENFORCED RATHER THAN INTENDED. `expectationRefusals` in",
+    "`../scripts/acceptance/instance-assertions.ts` refuses this file — exit 2, not a drift —",
+    "when a non-`pass` entry carries no reason, or a reason that names neither a task (T###)",
+    "nor a contract, or one of the four spellings of the word the row calls out:",
+    "`unimplemented`, `not implemented`, `TODO`, `not started`.",
+    "",
+    "THE `registry` MODE IS `unrun` AND NOT AN EMPTY `recorded`. A supply route nobody has",
+    "measured owes no assertion states, and writing a prediction of them is the thing this",
+    "file exists to refuse. The first run with ENDORA_NPM_REGISTRY set drifts — naming every",
+    "assertion it measured — which is what makes that record arrive from a measurement.",
+    "",
+    "THERE ARE FOURTEEN ASSERTIONS AND THE CONTRACTS SPELL THIRTEEN. `instance-repository.md`",
+    "R6.3 numbers A1…A13, its A13 being FR-023/SC-011's built-admin-stylesheet assertion;",
+    "`instance-tree.md` §6 adds one more and numbers that A13 as well — R1.4's wiring bound.",
+    "Two contracts, one id, two subjects. Dropping either would be the criterion answering one",
+    "contract and not the other, so A13 is R6.3's and `instance-tree.md` §6's is A14. Which of",
+    "the two contracts should be renumbered is the owner's, and is reported rather than done."
+  ],
+  "modes": {
+    "tarball": {
+      "state": "recorded",
+      "assertions": {
+        "A1": {
+          "status": "pass",
+          "reason": "The command's own `outwardReferences` derivation over the tree it wrote finds nothing naming anything above it. Evaluated before this run pins anything: publication's stand-in writes `file:` specifiers naming a directory outside the instance, and those are the harness's."
+        },
+        "A2": {
+          "status": "pass",
+          "reason": "`pnpm install` succeeds outside the checkout, from packed tarballs, with no symlink back. The pinning is the closure of what the instance declares rather than the declaration itself — measured, a `pnpm install` fetches four module packages the manifest never names, as non-optional peers of packages it does, and an override does not reach an auto-installed peer."
+        },
+        "A3": {
+          "status": "fail",
+          "reason": "NOT A CONTRACT GAP — A DEFECT IN THE CREATED TREE, and the one that makes `contracts/instance-tree.md` §2.5 false today. The root manifest's `migrate` script is `pnpm --filter backend run migrate` and the member it delegates to is named `<workspace>-backend`, so pnpm matches no project, prints `No projects matched the filters`, AND EXITS 0. Every root script is affected — `migrate`, `build`, `start`, `dev` and the five `module:*` — so a client who follows the command's own next steps runs a sequence of successful no-ops. Reported to the orchestrator for the register; repairing it is not this criterion's merge request. The assertion is red rather than unmeasured because the database this run created a moment earlier holds no `mikro_orm_migrations` table at all: an exit code is not evidence that a step ran."
+        },
+        "A4": {
+          "status": "fail",
+          "reason": "Follows A3's defect at the same seam and at the same contract clause (`contracts/instance-tree.md` §2.5, reconciled by T137): `pnpm run start` matches no project, so nothing listens and the health route never answers. THREE MORE DEFECTS STAND BEHIND IT, each measured by hand on a tree with the script names repaired, and each is reported to the orchestrator rather than fixed here. (1) `backend/src/mikro-orm.config.ts` passes `coreEntries: []` and `coreEntities: []`, so an instance runs NONE of the platform's own twelve migrations and registers none of its six entities; the first migration to reference a platform-owned table dies. (2) `defaultComposition` in `@endora-commerce/platform/composition` passes `core: []`, so `_lifecycle` — which arrives with the platform and is in every module set the command writes — is composed by no instance, and the boot refuses with `not-shipped: _lifecycle`. (3) With those supplied by hand the boot then refuses with `RequiredModuleAbsentError` over every module, because an installed package's `module_registrations` row is written by `module:install` and by no boot (D-157.6(b)), and nothing tells a client to run it."
+        },
+        "A5": {
+          "status": "unmeasured",
+          "reason": "The command writes no `admin/` member and prints the omission saying so. `contracts/instance-tree.md` §2.4 is that member's file manifest and T138 is the task; the package it needs (`@endora-commerce/admin-shell`) is on `master` at 0.7.0, so this waits on the writer rather than on the package."
+        },
+        "A6": {
+          "status": "unmeasured",
+          "reason": "The created tree holds no documentation member. `contracts/instance-tree.md` §2.6 lists the documentation registry among the three artefacts an instance generates and §2's file manifest lists no member that would hold it, and §2.5's `generate` script is not written either — T137."
+        },
+        "A7": {
+          "status": "unmeasured",
+          "reason": "Its three halves are the built admin bundle (A5's subject, T138), the API surface and the module enumeration (A4's). No half of it has a subject in the tree the command writes today."
+        },
+        "A8": {
+          "status": "unmeasured",
+          "reason": "It needs a booted instance (A4) and a divergence report. `contracts/instance-tree.md` §2.6 lists three generated artefacts and the divergence report of `specs/107-override-report-and-ladder/` is not among them, so an instance generates none — T137 is where the file manifest is reconciled."
+        },
+        "A9": {
+          "status": "unmeasured",
+          "reason": "It needs a booted instance with a migrated schema to read across tenants in — A4, and A3 below it. `contracts/instance-repository.md` R6.3 is the assertion; T141 is the task that turns it green."
+        },
+        "A10": {
+          "status": "pass",
+          "reason": "A module set missing a required module is refused with exit 1, the target directory untouched, and the refusal carries verbatim the `activation.reason` an installed manifest declares — which is what R5.6 and D-100 ask for and what an exit-code check alone would not see. The sentences are read out of the packages this run resolved, never from a list in the criterion."
+        },
+        "A11": {
+          "status": "unmeasured",
+          "reason": "Half of a two-part claim. `@endora-commerce/platform` resolves and none of the files the command wrote is byte-identical to any of the 601 it ships — measured. `@endora-commerce/admin-shell` does not resolve in the created instance, because there is no admin member to depend on it (A5, T138), so the other half is vacuously true and a green would be claiming it."
+        },
+        "A12": {
+          "status": "unmeasured",
+          "reason": "It needs a fixture registry to publish a platform patch into and a second install to pick it up. T144, gated on F10 (`specs/071-modular-packaging/roadmap.md`)."
+        },
+        "A13": {
+          "status": "unmeasured",
+          "reason": "The built admin stylesheet of a tree with no admin member. T138 writes the member and `contracts/admin-stylesheet-composition.md` is what the assertion is derived from."
+        },
+        "A14": {
+          "status": "pass",
+          "reason": "204 lines of wiring across the 11 files the command classified as wiring, counted on disk in the created tree rather than on the plan, against R1.4's bound of 250. `instance-tree.md` §6's own words: a scaffold that expanded a file after rendering is caught."
+        }
+      }
+    },
+    "registry": {
+      "state": "unrun",
+      "assertions": {}
+    }
+  },
+  "history": [
+    "2026-09-11 — T140. The criterion lands: `scripts/acceptance/instance.ts`, its judgement in",
+    "`scripts/acceptance/instance-assertions.ts`, this record and the `acceptance:instance` job.",
+    "First measurement on `master` at 55bebe991, mode `tarball`: 4 pass, 2 fail, 8 unmeasured.",
+    "The two reds are defects in the product, not in the contracts, and they are the reason the",
+    "row exists: A3 found that every root script of a scaffolded instance matches no project",
+    "and exits 0, so `migrate`, `build` and `start` are successful no-ops. Three further",
+    "defects behind it are recorded in A4's reason, each measured by hand on a repaired tree.",
+    "Nothing here is fixed by this merge request: the instrument's own merge request is not",
+    "the place to also repair what it finds."
+  ]
+}
