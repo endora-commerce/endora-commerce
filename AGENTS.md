@@ -1316,6 +1316,21 @@ census (`3 drifted, 32 agree, 0 not measured, of 35 recorded`), printed even whe
 drifted, because a silent report cannot be told from one that did not run; an entry the run
 could not measure is named as *not measured* and never counted as agreeing.
 
+**Measure a read size in a tree with the shape CI has, and that means a *clean* one.** Two
+things make a working checkout read high, and only the first is widely known. `composer:generate`
+places ~62–80 copies under `docs/docs/modules/` that no `quality` job has placed when the check
+runs, so `git clean -fX docs/docs/modules && rm -f docs/.module-docs-copies.json` comes before
+any measurement — that trap has caught four agents here. The second is the same mistake without
+the landmark: **`check-nul-bytes` reads git-ignored files by design**, so a whole-tree walk counts
+whatever else your checkout happens to be carrying. Measured on 2026-09-11, one working checkout
+against a pristine worktree of the same commit: **8166 against 8158** — two
+`admin/vite.config.ts.timestamp-*.mjs`, four `.env` files, `storefront/tsconfig.tsbuildinfo` and a
+stale `packages/api-client/` directory left behind by the package D-202 deleted. Recording the
+first number would have put one developer's local residue into the shared record, where every CI
+run afterwards reports drift against a value no clean tree can produce — a ratchet inverted into a
+permanent false positive. So re-record from a fresh `git worktree`, never from the tree you have
+been working in.
+
 **How many checks that is is not written here**: this sentence read
 *"all twenty-seven"* while `RECORDED_READ_SIZES` — the list the test actually spawns — held
 **34**, a count of a derived fact going stale by seven inside the paragraph whose entire

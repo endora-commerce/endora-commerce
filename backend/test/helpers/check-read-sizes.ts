@@ -861,6 +861,43 @@ export interface RecordedReadSize {
  *
  * Every entry was in agreement at the branch point, so there is nothing here
  * belonging to another merge request and nothing apportioned.
+ *
+ * ## 2026-09-11 — the `linked` group is derived, and three entries this author owed
+ *
+ * Five entries, **all of them this author's and only two of them this branch's**,
+ * which is why the split is written down rather than folded into one number.
+ *
+ *   - **This branch's two are `sites`, not `files`**, because it adds no file: it
+ *     rewrites `test/unit/release/changeset-flow.test.ts` to read the `linked`
+ *     group out of `.changeset/config.json` instead of naming three of its four
+ *     members. `check-fixture-substitution` 582 -> **583** for the
+ *     `manifests.find(...)` the derivation uses — `find` is in that check's read
+ *     vocabulary, and the site is correctly **not** a violation because its
+ *     fallback is a `throw` rather than a fabricated value — and
+ *     `check-diacritic-folds` 545 -> **546** for the `.replace()` that strips the
+ *     scope off a package name, its `sites` being `replaceSites`. Both are
+ *     populations growing by one real construct, which is the ordinary
+ *     re-record.
+ *   - **The other three are `specs/114-release-shape-gate/tasks.md`**, landed in
+ *     !1583 by this author without a census: `check-nul-bytes` 8161 -> **8162**
+ *     and `check-naming.sh` 8221 -> **8222**, the two whole-tree walks, and
+ *     `check-doc-snippets` 1284 -> **1285**, whose population is `docs/docs` plus
+ *     `specs`. One file, three walks, +1 each. They are re-recorded here rather
+ *     than left for the next branch to discover, which is what this report is
+ *     for.
+ *
+ * **Measured in a pristine worktree, and that is the point of this entry.** The
+ * same census run in this author's working checkout reported `check-nul-bytes`
+ * at **8166** — eight files high, none of them tracked: two
+ * `admin/vite.config.ts.timestamp-*.mjs`, four `.env` files,
+ * `storefront/tsconfig.tsbuildinfo`, and a stale `packages/api-client/` directory
+ * left behind by the package D-202 deleted. That check reads git-ignored files by
+ * design, so a whole-tree walk measured in a working checkout reads high by
+ * whatever that checkout happens to be carrying — and recording 8166 would have
+ * put one developer's local residue into the shared record, where every CI run
+ * afterwards reports drift against a number no clean tree can produce. It is the
+ * `docs/docs/modules` trap in a second costume: the tree shape is not only the
+ * module doc copies, it is everything ignored.
  */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
@@ -2218,7 +2255,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own guard and harness constant, so the recorded value describes neither tree: 544 -> 545.
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    sites: 545,
+    sites: 546,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -2542,7 +2579,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // while the branch was open, and this walk's population is the documents.
     // **+1, and it is not this branch's.** The document is `specs/113-module-owned-demo-data/tasks.md`, from the chained base.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The 12 spec pages and 2 documentation pages the branch adds, which this walk opens as documents.
-    files: 1284,
+    files: 1285,
     sites: 12,
     sources: [],
     //
@@ -3874,7 +3911,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the same population leaving, not the #235/#237 shape.
     // **D-223: sites 579 -> 580 (+1).** One more entity read in the two integration tests
     // this branch adds, neither of them defaulted.
-    sites: 582,
+    sites: 583,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -6611,7 +6648,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // both were moved aside and the three drifting checks re-run, and the tree underneath read
     // 8155 exactly, so the whole delta is this branch's.
     // **T140 (the instance acceptance criterion): files 8157 -> 8161.** Four, which is every file this merge request adds: the criterion, its judgement, its recorded expectation and its unit test. The whole-tree walk counts the JSON; there is no changeset, because `backend` is in the changesets `ignore` list.
-    files: 8161,
+    files: 8162,
     sites: null,
     sources: [],
     //
@@ -10123,7 +10160,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // judges names, so both sit in its population; measured on a tree with both moved aside,
     // which read 8215 exactly.
     // **T140 (the instance acceptance criterion): files 8217 -> 8221.** Four: the three `.ts` files plus `backend/acceptance/instance-expected-state.json`, this walk being the whole tree.
-    files: 8221,
+    files: 8222,
     sites: null,
     sources: ['manifest-index'],
     //
