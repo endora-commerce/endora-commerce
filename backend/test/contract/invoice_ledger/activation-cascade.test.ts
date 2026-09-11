@@ -1,11 +1,9 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { ERROR_CODES, INVOICE_LEDGER_SETTING_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, INFAKT_SETTING_CODES, INVOICE_LEDGER_SETTING_CODES } from '@endora-commerce/contracts';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { Setting } from '../../../src/kernel/settings/setting.entity.js';
-import {
-  activateInfakt,
-  deactivateInfakt,
-} from '../../integration/invoice_ledger/helpers.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
+import { activateInfakt } from '../../integration/invoice_ledger/helpers.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -13,6 +11,11 @@ import {
 } from '../../helpers/test-server.js';
 
 const ADMIN = { b2b_session: 'stub-admin-session' };
+const ALL_MODULE_IDS = REGISTERED_MANIFESTS.map((entry) => entry.manifest.id);
+const ACTIVATION_RESET_CODES = [
+  INVOICE_LEDGER_SETTING_CODES.ACTIVATION,
+  INFAKT_SETTING_CODES.ACTIVATION,
+];
 
 /**
  * Operator deactivation of `invoice_ledger` writes present ledger adapters
@@ -31,14 +34,15 @@ describe('invoice_ledger — activation cascade [contract]', () => {
   });
 
   afterEach(async () => {
-    await deactivateInfakt(h).catch(() => undefined);
-    const em = h.em();
-    await em.nativeUpdate(
+    // The harness seeds platform availability in memory, not in
+    // `module_registrations`. A full `refreshFromDb` would empty the enabled
+    // set and take `admin_roles` down with every other gated route.
+    await h.em().nativeUpdate(
       Setting,
-      { code: INVOICE_LEDGER_SETTING_CODES.ACTIVATION },
+      { code: { $in: ACTIVATION_RESET_CODES } },
       { globalValue: null },
     );
-    await registryCache.refreshFromDb(() => h.em());
+    registryCache.__setEnabledForTesting(ALL_MODULE_IDS);
   });
 
   async function flip(moduleId: string, active: boolean) {
