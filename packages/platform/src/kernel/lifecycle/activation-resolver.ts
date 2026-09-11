@@ -39,11 +39,6 @@ export interface ModuleActivationDeclaration {
   readonly default: boolean;
   /** Operator-facing reason; non-null exactly when `settingCode` is null. */
   readonly nonDeactivatableReason: string | null;
-  /**
-   * When true, deactivating this module also writes present dependents
-   * off. Absent or false keeps the 073 refusal (`MODULE_DEPENDENTS_PRESENT`).
-   */
-  readonly cascadeDependentsOnDeactivate?: boolean;
 }
 
 /**
@@ -72,7 +67,6 @@ export function activationDeclarationsFrom(
       settingCode: activation.settingCode,
       default: activation.default,
       nonDeactivatableReason: null,
-      cascadeDependentsOnDeactivate: activation.cascadeDependentsOnDeactivate === true,
     });
   }
   return declarations;

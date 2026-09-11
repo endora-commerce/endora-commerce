@@ -348,15 +348,6 @@ export const ModuleActivationSchema = z.union([
     settingCode: z.string().regex(settingCodeRe),
     /** Applies when the operator has never chosen. Asserted, never assumed. */
     default: z.boolean(),
-    /**
-     * When switching this module off, also switch off present dependents
-     * that declare a settings-backed control. Feature 073 left global
-     * cascade out of v1; a module opts in when turning it off without
-     * its adapters is not a useful rest state (invoice_ledger).
-     * Turning this module back on does not turn the cascaded dependents
-     * back on.
-     */
-    cascadeDependentsOnDeactivate: z.boolean().optional(),
   }),
   z.object({
     /** The platform cannot run without this module. */

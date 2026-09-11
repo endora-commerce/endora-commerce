@@ -213,9 +213,6 @@ export function registerModulePresenceRoutes(
         makeSetActivationCommand({ moduleId, active: body.active }),
       );
       await propagateActivationChange(propagation, result);
-      for (const cascadedId of result.cascaded) {
-        await propagateActivationChange(propagation, { moduleId: cascadedId, active: false });
-      }
 
       const presence = effectiveState.presence(moduleId);
       if (!presence) {

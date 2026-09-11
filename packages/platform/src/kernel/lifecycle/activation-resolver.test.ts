@@ -54,17 +54,6 @@ describe('activationDeclarationsFrom', () => {
       activation: { settingCode: 'fixture_control.activation', default: true },
     }),
     defineModuleManifest({
-      id: 'fixture_cascade',
-      name: 'Cascade owner',
-      version: '1.0.0',
-      dependencies: [],
-      activation: {
-        settingCode: 'fixture_cascade.enabled',
-        default: true,
-        cascadeDependentsOnDeactivate: true,
-      },
-    }),
-    defineModuleManifest({
       id: '_fixture_core',
       name: 'Core',
       version: '1.0.0',
@@ -86,18 +75,6 @@ describe('activationDeclarationsFrom', () => {
       settingCode: 'fixture_control.activation',
       default: true,
       nonDeactivatableReason: null,
-      cascadeDependentsOnDeactivate: false,
-    });
-  });
-
-  it('maps cascadeDependentsOnDeactivate when the module opts in', () => {
-    const decls = activationDeclarationsFrom(manifests);
-    expect(decls.find((d) => d.moduleId === 'fixture_cascade')).toEqual({
-      moduleId: 'fixture_cascade',
-      settingCode: 'fixture_cascade.enabled',
-      default: true,
-      nonDeactivatableReason: null,
-      cascadeDependentsOnDeactivate: true,
     });
   });
 
