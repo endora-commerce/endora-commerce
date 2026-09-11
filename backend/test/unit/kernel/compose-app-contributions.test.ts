@@ -223,7 +223,7 @@ describe('T118 — the contribution wiring is the platform’s and the values ar
     // the row: a `composition.ts` whose contributions the parser stopped seeing
     // would satisfy the disjointness above perfectly.
     //
-    // **61 -> 59 -> 58 -> 57 -> 55 -> 54, and the total is expected to fall.** This is a ledger
+    // **61 -> 59 -> 58 -> 57 -> 55 -> 54 -> 53, and the total is expected to fall.** This is a ledger
     // derived *about* the contributions rather than a copy of them, so T118c's
     // sweep — which drains the 31 cross-module names into ports, module by
     // module — reds it once per target module, in a merge request that has no
@@ -282,7 +282,11 @@ describe('T118 — the contribution wiring is the platform’s and the values ar
 
     expect(deployment.size, 'the reference deployment contributes nothing — the walk broke')
       .toBeGreaterThan(0);
-    // **53, re-measured on the union and not carried from either side.** Both
+    // **52 since `invoicesBridge` went, and the number below is re-derived on
+    // this tree rather than decremented from the one above.** The paragraph that
+    // follows is kept because it is the reason this file is read at all.
+    //
+    // **53 was re-measured on the union and not carried from either side.** Both
     // `product_feeds` and `pwa` drained from a tree contributing 55, so each
     // branch correctly recorded 54 against its own base and the two numbers are
     // the same number for different reasons. A rebase that took either side
@@ -290,7 +294,7 @@ describe('T118 — the contribution wiring is the platform’s and the values ar
     // the other's — which is what a ledger derived *about* the contributions
     // costs when two targets land together, and why this one is measured on the
     // combined tree rather than decremented.
-    expect(deployment.size + PLATFORM_CONTRIBUTIONS.length).toBe(53);
+    expect(deployment.size + PLATFORM_CONTRIBUTIONS.length).toBe(52);
   });
 
   it('contributes before the caller’s callback, so a deployment can still override', () => {

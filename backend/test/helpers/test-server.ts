@@ -128,7 +128,7 @@ import type { ShoppingListService } from '../../../packages/modules/shopping_lis
 // it nominal: `InvoiceNumberGenerator` does, and handing `h.invoices.numberGenerator`
 // to a `dist`-imported `CorrectiveInvoiceProvider` is TS2345 until this import
 // names the same build the runtime does.
-import type { InvoicesBridge, InvoicesCradle } from '../../../packages/modules/invoices/dist/backend/index.js';
+import type { InvoicesCradle } from '../../../packages/modules/invoices/dist/backend/index.js';
 import type { NewsletterBridge } from '../../../packages/modules/newsletter/src/backend/index.js';
 import type { CustomFieldsCradle } from '../../../packages/modules/custom_fields/src/backend/index.js';
 import type { CustomFieldDefinitionService } from '../../../packages/modules/custom_fields/src/backend/services/custom-field-definition.service.js';
@@ -179,7 +179,6 @@ import { ScriptedAkeneoMediaFetcher } from './scripted-akeneo-media-fetcher.js';
 import type { PimPimcoreCradle } from '@endora-commerce/mod-pim-pimcore/backend';
 import type { KsefApiClientPort } from '../../../packages/modules/ksef/src/backend/integrations/ksef-client.interface.js';
 import type { PwaCradle } from '../../../packages/modules/pwa/src/backend/index.js';
-import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { composeErrorEnvelopeOptions } from '@endora-commerce/platform/composition';
 import type { ComparisonsCradle } from '../../../packages/modules/comparisons/src/backend/index.js';
 // `catalog`'s service type names the package's **`dist`**, unlike the other
@@ -375,17 +374,17 @@ export interface BackendServerHandle {
     numberGenerator: InvoicesCradle['invoiceNumberGenerator'];
     pdfRenderer: InvoicesCradle['invoicePdfRenderer'];
     /**
-     * The bridge member that turns the operator's logo asset into the bytes a
-     * PDF embeds — projected so a test can assert the **wiring** and not only
-     * the mapping (D-223).
+     * What turns the operator's logo asset into the bytes a PDF embeds —
+     * projected so a test can assert the **wiring** and not only the mapping
+     * (D-223).
      *
-     * It is optional on `InvoicesBridge`, so its absence compiled, and this root
-     * omitted it entirely: every invoice rendered in this suite took the "no
-     * logo bytes" branch while production embedded the logo. The type stays
-     * optional here, because the first thing worth asserting is that it is
-     * there at all.
+     * It was a bridge member, optional, and this root omitted it entirely, so
+     * every invoice rendered in this suite took the "no logo bytes" branch while
+     * production embedded the logo. T118c made the module resolve it and the
+     * option required, so the type is no longer optional here either: the
+     * "is it there at all" assertion is now `tsc`'s.
      */
-    loadAssetImage: InvoicesCradle['invoicesBridge']['loadAssetImage'];
+    loadAssetImage: InvoicesCradle['invoices']['handle']['loadAssetImage'];
   };
   /** Feature 059 — KSeF handle (settings, auth, credentials, submissions). */
   ksef: KsefCradle['ksef']['handle'];
@@ -935,8 +934,12 @@ export async function setupBackendServer(
   // is the `mfa` target's `adminActorPromotion` shape again: a root accessor
   // whose last consumer was the bridge it existed for.
 
-  const assetReadPort = (): AssetReadPort =>
-    (container.cradle as never as { assetReadPort: AssetReadPort }).assetReadPort;
+  // `assetReadPort` had an accessor here until T118c, and `invoicesBridge`'s
+  // `loadAssetImage` was its **only** reader in this root — a member that was
+  // itself only one day old (D-223). `invoices` resolves the port itself now,
+  // so the read is gone from this composition rather than moved. The `assetRead`
+  // getter on the handle below is a different thing and stays: it is what a
+  // fixture resolves to read the port directly.
 
   // Feature 080 (T040b) — the roll-up and settings-collection ports, again
   // mirroring `composition.ts` name for name. Both roots imported the two
@@ -2291,63 +2294,24 @@ export async function setupBackendServer(
       // bridge kept alive: two copies of one answer, one per root, agreeing by
       // hand.
 
-      // Feature 047 — Invoices.
-      // Feature 072 (T113) — `invoices` owns its services and routes now. What
-      // stays here is how this composition reaches outside the module,
-      // contributed as one bridge.
-      composedModules.contribute({
-        invoicesBridge: {
-          resolveAdminUserId: (req) =>
-            req.testActor?.kind === 'admin' ? req.testActor.adminUserId : TEST_ADMIN_ID,
-          resolveCustomerContext: (req) => ({
-            customerAccountId:
-              req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : TEST_CUSTOMER_ID,
-            organizationId:
-              req.testActor?.kind === 'customer'
-                ? (req.testActor.organizationId ?? TEST_ORGANIZATION_ID)
-                : TEST_ORGANIZATION_ID,
-          }),
-          getTransactionalEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
-          resolveRecipientEmail: async (order) =>
-            (
-              await identityPorts().customerAccountReadPort.findById(order.placedByCustomerAccountId)
-            )?.email ?? null,
-          resolveLanguage: async (salesChannelId) =>
-            (salesChannelId
-              ? (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage
-              : null) ?? 'en-US',
-          // D-223 — `loadAssetImage` was **absent from this root entirely**. It
-          // is optional on the bridge, so its omission compiled, and the invoice
-          // PDF renderer simply took its "no logo bytes" branch in every test
-          // while production embedded the operator's logo. The member is not a
-          // URL and is untouched by the ruling itself; it is composed here
-          // because the ruling's survey is what found the hole, and an asset
-          // inside a document was the one thing neither root's tests exercised.
-          //
-          // Byte-for-byte `composition.ts`': the row read sits outside the
-          // `try`, because `assetReadPort` is a gated port and a `catch` around
-          // one turns "this capability is off" into "this asset is not an
-          // image" (composition checklist item 7). The `try` covers the storage
-          // adapter, where a backend that cannot stream is an invoice rendered
-          // without a logo.
-          loadAssetImage: async (assetId) => {
-            const a = await assetReadPort().findById(assetId, { liveOnly: true });
-            if (!a || !a.mimeType.startsWith('image/')) return null;
-            try {
-              const adapter = await assetsLibrary.handle.adapters.getForBackend(a.storageBackend);
-              if (!('open' in adapter) || typeof adapter.open !== 'function') return null;
-              const stream = await adapter.open({ locator: a.storageLocator || a.storageUrl });
-              const chunks: Buffer[] = [];
-              for await (const chunk of stream) {
-                chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-              }
-              return { bytes: Buffer.concat(chunks), mimeType: a.mimeType };
-            } catch {
-              return null;
-            }
-          },
-        } satisfies InvoicesBridge,
-      });
+      // Feature 047 — Invoices. **`invoicesBridge` is gone**
+      // (`specs/110-instance-repository/` T118c) and this harness contributes
+      // nothing for the module at all.
+      //
+      // Its six members were the divergence a bridge keeps alive, and this root
+      // held two halves of it. `loadAssetImage` was **absent entirely** until
+      // D-223 — optional on the bridge, so the omission compiled, and every
+      // invoice rendered in this suite took the "no logo bytes" branch while
+      // production embedded the operator's logo. And the two actor members
+      // spelled `adminContextResolver` and `customerContextResolver` a second
+      // time, a few hundred lines below the contributions that already answer
+      // both questions with the same `testActor` reads.
+      //
+      // The module resolves all six itself now: the platform's two actor
+      // resolvers, `transactional_emails`' sender accessor, and
+      // `customer_accounts`', the platform's and `assets_library`' published
+      // reads for the recipient, the language and the logo bytes.
+
       invoicesCradle = container.cradle as unknown as InvoicesCradle;
 
       // Feature 059 — KSeF. No redis queue in tests (submissions are processed by
@@ -2597,7 +2561,7 @@ export async function setupBackendServer(
       invoiceService: invoicesCradle.invoiceService,
       numberGenerator: invoicesCradle.invoiceNumberGenerator,
       pdfRenderer: invoicesCradle.invoicePdfRenderer,
-      loadAssetImage: invoicesCradle.invoicesBridge.loadAssetImage,
+      loadAssetImage: invoicesCradle.invoices.handle.loadAssetImage,
     },
     ksef: ksefCradle.ksef.handle,
     productFeeds: (container.cradle as unknown as ProductFeedsCradle).productFeeds.handle,

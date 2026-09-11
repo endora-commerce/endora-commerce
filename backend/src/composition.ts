@@ -20,7 +20,6 @@ import type {
   AdminPasswordVerificationPort,
   AdminRolePort,
   AdminUserReadPort,
-  AssetReadPort,
   CartMergeOutcome,
   CustomerAccountReadPort,
   CustomerPasswordVerificationPort,
@@ -96,7 +95,8 @@ import { effectiveState } from './kernel/lifecycle/effective-state.js';
 // declaration stays in the platform and returns to the barrel the day an
 // application needs it, which is the treatment `AdminActorPromotion` had.
 // Feature 046 — Returns & Complaints (Refunds, RMA).
-import type { InvoicesBridge } from '@endora-commerce/mod-invoices/backend';
+// Feature 047 — Invoices. No type import: T118c retired `invoicesBridge` and
+// this root contributes nothing for the module.
 import { DefaultChannelReconciler } from '@endora-commerce/platform/composition';
 // Feature 046 — Progressive Web App. No type import: T118c retired `pwaBridge`
 // and this deployment contributes nothing for the module.
@@ -107,7 +107,6 @@ import type { NewsletterBridge } from '@endora-commerce/mod-newsletter/backend';
 // Feature 063 — LinkedIn Ads.
 // Feature 064 — Meta Ads.
 // Feature 066 — Google Tag Manager.
-import { SalesChannel } from '@endora-commerce/platform/kernel';
 // T118 — the error envelope's assembly, by the **declared** subpath rather than
 // by a relative path into the platform. `./composition` is host-internal (a
 // module naming it is `check:platform-surface`'s `host-internal-subpath`), which
@@ -526,8 +525,11 @@ async function contributeReferenceDeployment(
   // port stays registered by `auth`; nothing in either composition root resolves
   // it today.
 
-  const assetReadPort = (): AssetReadPort =>
-    (container.cradle as never as { assetReadPort: AssetReadPort }).assetReadPort;
+  // `assetReadPort` had an accessor here until T118c, and `invoicesBridge`'s
+  // `loadAssetImage` was its **only** reader in this root. `invoices` resolves
+  // the port itself now and declares `assets_library` in its manifest, so the
+  // read is gone from this composition rather than moved — the same shape as
+  // `pwa`'s `orderReadPort` accessor and `mfa`'s `adminActorPromotion`.
 
   /**
    * The remaining container reads, against {@link ContainerReads} (T118).
@@ -601,61 +603,25 @@ async function contributeReferenceDeployment(
   // handed over through `OverlayModuleContext`, and an overlay module now
   // resolves `requireAdmin` from the container exactly as a core module does.
 
-  /**
-   * Resolver for routes that require an authenticated Customer **with** an
-   * Organization. Routes that work without one (cart-add, browsing,
-   * profile-read) use `resolveCartActor` or read `request.actor` directly.
-   *
-   * **The refusal below asserts an invariant; it does not describe a business
-   * state** (D-178). It was a 422 `organization_required`, introduced by
-   * feature 026 US2 for accounts that were allowed to have no Organization.
-   * Every transacting customer has one — `customer_accounts.organization_id` is
-   * `NOT NULL` and an individual is backed by a personal organisation — so a
-   * caller reaching this branch is a broken invariant, and a 422 telling a buyer
-   * to attach an Organization they have no way to attach is a lie with a
-   * remedy attached.
-   *
-   * The guard is **kept** rather than deleted: `request.actor.organizationId` is
-   * `string | null | undefined` at this seam and the consumers' input type is
-   * `organizationId: string`, so removing the check would push `undefined`
-   * through silently.
-   */
-  const customerResolver = (
-    request: FastifyRequest,
-  ): {
-    customerAccountId: string;
-    organizationId: string;
-    impersonatorAdminUserId?: string | null;
-  } => {
-    if (request.actor.kind !== 'customer') {
-      throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-    }
-    if (!request.actor.organizationId) {
-      throw new HttpError(
-        500,
-        ERROR_CODES.INTERNAL,
-        'Invariant violated: a customer account has no Organization (Principle XI).',
-        { code: 'customer_account_organization_missing' },
-      );
-    }
-    return {
-      customerAccountId: request.actor.customerAccountId,
-      organizationId: request.actor.organizationId,
-      impersonatorAdminUserId: request.actor.impersonatorAdminUserId ?? null,
-    };
-  };
-
-  const adminContextResolver = (request: FastifyRequest): { adminUserId: string } => {
-    if (request.actor.kind !== 'admin') {
-      throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-    }
-    return { adminUserId: request.actor.adminUserId };
-  };
+  // `customerResolver` and `adminContextResolver` stood here — two local copies
+  // of the platform's own `customerContextResolver` and `adminContextResolver`,
+  // which `composeApp` contributes (T118b) and which this file's own comments
+  // already described as mirrored. **`invoicesBridge` was their only caller in
+  // this root** (`specs/110-instance-repository/` T118c), so they are deleted
+  // rather than moved: what the bridge's two actor members did was spell a
+  // second time, in a second place, an answer this composition already
+  // publishes under another name — the divergence `mfa` found in two of its six
+  // members and `pwa` in one of its eight, here in its third and last shape.
+  //
+  // Both refusals and D-178's reasoning travel with them: the platform's
+  // versions carry the 401 and the 500 verbatim, with the invariant note in
+  // full. Nothing in this root asks either question directly any more.
 
   /**
    * Resolver for customer routes that work with or without an Organization
-   * (e.g. Returns history/submission). Unlike `customerResolver`, it does not
-   * require an Organization — it only asserts a customer session.
+   * (e.g. Returns history/submission). Unlike the platform's
+   * `customerContextResolver`, it does not require an Organization — it only
+   * asserts a customer session.
    */
   const resolveCustomerAccountId = (request: FastifyRequest): string => {
     if (request.actor.kind !== 'customer') {
@@ -1442,7 +1408,8 @@ async function contributeReferenceDeployment(
       if (request.actor.kind !== 'customer') {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
       }
-      // D-178 — an invariant, not a business state; see `customerResolver`.
+      // D-178 — an invariant, not a business state; see the platform's
+      // `customerContextResolver`, which carries the reasoning in full.
       if (!request.actor.organizationId) {
         throw new HttpError(
           500,
@@ -1598,50 +1565,16 @@ async function contributeReferenceDeployment(
   // Feature 047 — Invoices. Owns issuance, numbering, PDF rendering, admin +
   // customer routes. Constructed before returns so the corrective-invoice
   // provider can draw correction numbers from the shared number generator.
-  // Feature 072 (T113) — `invoices` owns its services and routes now. What
-  // stays here is how this composition reaches outside the module,
-  // contributed as one bridge.
-  composedModules.contribute({
-    invoicesBridge: {
-      resolveAdminUserId: (req) => adminContextResolver(req).adminUserId,
-      resolveCustomerContext: (req: FastifyRequest) => {
-        const c = customerResolver(req);
-        return { customerAccountId: c.customerAccountId, organizationId: c.organizationId };
-      },
-      getTransactionalEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
-      resolveRecipientEmail: async (order) =>
-        (
-          await identityPorts().customerAccountReadPort.findById(order.placedByCustomerAccountId)
-        )?.email ?? null,
-      resolveLanguage: async (salesChannelId) =>
-        (salesChannelId
-          ? (await em().findOne(SalesChannel, { id: salesChannelId }))?.defaultLanguage
-          : null) ?? 'en-US',
-      loadAssetImage: async (assetId) => {
-        // T052 — the row read sits **outside** the `try`, deliberately. It is a
-        // gated port now, and a `catch` around one turns "this capability is
-        // off" into "this asset is not an image" (composition checklist item
-        // 7). What the `try` is for is the storage adapter below: a backend
-        // that cannot stream the bytes is an invoice rendered without a logo,
-        // which is the degrade this bridge is written for.
-        const a = await assetReadPort().findById(assetId, { liveOnly: true });
-        if (!a || !a.mimeType.startsWith('image/')) return null;
-        try {
-          const adapter = await assetsLibrary.handle.adapters.getForBackend(a.storageBackend);
-          // Legacy resolver only has resolveUrl — cannot stream bytes for PDF embed.
-          if (!('open' in adapter) || typeof adapter.open !== 'function') return null;
-          const stream = await adapter.open({ locator: a.storageLocator || a.storageUrl });
-          const chunks: Buffer[] = [];
-          for await (const chunk of stream) {
-            chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-          }
-          return { bytes: Buffer.concat(chunks), mimeType: a.mimeType };
-        } catch {
-          return null;
-        }
-      },
-    } satisfies InvoicesBridge,
-  });
+  // Feature 072 (T113) — `invoices` owns its services and routes now, and
+  // **`invoicesBridge` is gone** (`specs/110-instance-repository/` T118c). Six
+  // members, none of which was this composition's answer to give: the acting
+  // admin and the calling customer were `adminContextResolver` and
+  // `customerContextResolver` under a second pair of names, the sender is
+  // `transactional_emails`' own accessor, and the recipient address, the
+  // channel's language and the logo bytes are `customer_accounts`',
+  // the platform's and `assets_library`' — the last of them behind a new
+  // `assetReadPort.openAssetBytes`, which is where the `legacy`-has-no-`open`
+  // probe, the locator fallback and the stream drain went.
 
   // Feature 059 — KSeF (Krajowy System e-Faktur). Consumes the invoices
   // domain events, submits FA(3) documents through a durable queue, and feeds

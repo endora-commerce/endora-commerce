@@ -2,13 +2,16 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { EventBus } from '@endora-commerce/platform/events';
 import type {
+  AssetReadPort,
   CorrectiveInvoicePort,
+  CustomerAccountReadPort,
   EmailDefaultsRegistryPort,
   InvoicePdfPort,
   InvoiceReadPort,
   OrderReadPort,
   SettingWriteValidatorRegistryPort,
   SettingsAdminPort,
+  TransactionalEmailSender,
 } from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { lazyPort } from '@endora-commerce/platform/kernel';
@@ -22,6 +25,11 @@ import { InvoiceReadService, createInvoicePdfPort } from './services/invoice-rea
 import type { InvoiceNumberGenerator } from './services/invoice-number-generator.js';
 import { NumberingConfigurationService } from './services/numbering-configuration.js';
 import { createNumberingPatternValidator } from './services/numbering-write-validator.js';
+import {
+  createAssetImageLoader,
+  createChannelLanguageResolver,
+  createRecipientEmailResolver,
+} from './services/cross-module-context.js';
 import { INVOICE_ISSUED_DEFAULT } from './email-templates/invoice-issued.default.js';
 import { InvoiceLine } from './entities/invoice-line.entity.js';
 import { InvoiceNumberCounter } from './entities/invoice-number-counter.entity.js';
@@ -32,12 +40,30 @@ import { Invoice } from './entities/invoice.entity.js';
  * `invoices` — a document module with a late-bound verifier (feature 072,
  * wave 2, T113).
  *
- * Six of the options are how this composition reaches outside itself: naming
- * the acting admin, resolving the calling customer, finding the transactional
- * email sender and a recipient address, picking a channel's language, and
- * loading logo bytes from `assets_library`. They are one contributed
- * {@link InvoicesBridge}, for the reason `pwa`'s and `mfa`'s are — always
- * supplied together, by the same caller.
+ * **`InvoicesBridge` is gone** (`specs/110-instance-repository/` T118c). Six
+ * options used to be one contributed object — naming the acting admin,
+ * resolving the calling customer, finding the transactional e-mail sender and a
+ * recipient address, picking a channel's language, and loading logo bytes from
+ * `assets_library` — written as closures in `backend/src/composition.ts` and
+ * again in `backend/test/helpers/test-server.ts`. Re-derived member by member,
+ * none was a composition's answer to give:
+ *
+ *  - the acting admin and the calling customer are the platform's own
+ *    `adminContextResolver` and `customerContextResolver`, read from the
+ *    cradle, which is what every other module that takes a request actor does;
+ *  - the transactional sender is `transactional_emails`' published
+ *    `transactionalEmailSenderAccessor`, an accessor because that module
+ *    announces its sender later than this one composes;
+ *  - the recipient address is `customer_accounts`' published record, the
+ *    channel's language a read of the platform's own entity, and the logo bytes
+ *    `assets_library`' `assetReadPort` — all three in
+ *    `services/cross-module-context.ts`, so the mappings are testable with
+ *    nothing composed.
+ *
+ * Five of the six were **optional** options, and the harness omitted one of
+ * them entirely (D-223). They are required now: an option no composition may
+ * decline to supply is not an option, and typing one as omittable leaves a
+ * branch no test can drive.
  *
  * **The KSeF verification resolver is separate and stays separate.** A root
  * called `pdfRenderer.setKsefVerificationResolver(...)` after building both
@@ -53,25 +79,6 @@ import { Invoice } from './entities/invoice.entity.js';
  * "issued but unrecorded" is the wrong failure to leave reachable by omission.
  */
 
-/** How this composition reaches outside the invoices module. */
-export interface InvoicesBridge {
-  readonly resolveAdminUserId: NonNullable<InvoicesModuleOptions['resolveAdminUserId']>;
-  readonly resolveCustomerContext: NonNullable<
-    InvoicesModuleOptions['resolveCustomerContext']
-  >;
-  readonly getTransactionalEmailSender: NonNullable<
-    InvoicesModuleOptions['getTransactionalEmailSender']
-  >;
-  readonly resolveRecipientEmail: NonNullable<InvoicesModuleOptions['resolveRecipientEmail']>;
-  readonly resolveLanguage: NonNullable<InvoicesModuleOptions['resolveLanguage']>;
-  /**
-   * Logo bytes for the PDF. Absent in a composition with no assets to load —
-   * the harness omits it — and the invoice then renders without a logo image.
-   * Absence removes a decoration, not a check.
-   */
-  readonly loadAssetImage?: InvoicesModuleOptions['loadAssetImage'];
-}
-
 export interface InvoicesCradle {
   readonly emFactory: () => EntityManager;
   readonly eventBus: EventBus;
@@ -79,7 +86,18 @@ export interface InvoicesCradle {
   readonly requireAdmin: RequireAdminFactory;
   readonly requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   readonly settingsReadPort: InvoicesModuleOptions['settingsService'];
-  readonly invoicesBridge: InvoicesBridge;
+  /** Platform-owned name — how this composition names the acting admin. */
+  readonly adminContextResolver: (req: FastifyRequest) => { adminUserId: string };
+  /** Platform-owned name — how this composition names the calling customer. */
+  readonly customerContextResolver: (
+    req: FastifyRequest,
+  ) => { customerAccountId: string; organizationId: string };
+  /**
+   * `transactional_emails`' late-bound sender, read per send. It answers
+   * `undefined` until that module announces it, which is later than this module
+   * composes — the reason it is an accessor rather than the sender itself.
+   */
+  readonly transactionalEmailSenderAccessor: () => TransactionalEmailSender | undefined;
   /** Absent on a deployment without KSeF; the PDF then carries no verification block. */
   readonly ksefVerificationResolver:
     | Parameters<InvoicesModuleHandle['pdfRenderer']['setKsefVerificationResolver']>[0]
@@ -115,7 +133,7 @@ export function registerModule(ctx: ModuleContext): void {
 
     invoices: ctx
       .asFunction(({ emFactory, eventBus, auditLogService }: InvoicesCradle) => {
-        const bridge = (): InvoicesBridge => ctx.cradle<InvoicesCradle>().invoicesBridge;
+        const cradle = (): InvoicesCradle => ctx.cradle<InvoicesCradle>();
         const result = invoicesModule({
           emFactory,
           // Feature 075, Phase C — `orders`' published read model, resolved per
@@ -136,21 +154,24 @@ export function registerModule(ctx: ModuleContext): void {
             ctx.cradle<InvoicesCradle>().requireAdmin(permission)(req, reply),
           requireCustomer: (req, reply) =>
             ctx.cradle<InvoicesCradle>().requireCustomer(req, reply),
-          resolveAdminUserId: (req) => bridge().resolveAdminUserId(req),
-          resolveCustomerContext: (req) => bridge().resolveCustomerContext(req),
-          getTransactionalEmailSender: () => bridge().getTransactionalEmailSender(),
-          resolveRecipientEmail: (order) => bridge().resolveRecipientEmail(order),
-          resolveLanguage: (salesChannelId) => bridge().resolveLanguage(salesChannelId),
-          // Spread, because `exactOptionalPropertyTypes` distinguishes an
-          // omitted property from an explicit `undefined`, and the module's own
-          // fallback depends on the property being absent.
-          ...(ctx.cradle<InvoicesCradle>().invoicesBridge.loadAssetImage === undefined
-            ? {}
-            : {
-                loadAssetImage: (assetId: Parameters<
-                  NonNullable<InvoicesModuleOptions['loadAssetImage']>
-                >[0]) => bridge().loadAssetImage!(assetId),
-              }),
+          // T118c — the platform's own actor resolvers, read per request. Both
+          // were `invoicesBridge` members spelling the identical closure in two
+          // roots: `resolveAdminUserId` was `adminContextResolver(req).adminUserId`
+          // in `composition.ts` verbatim, and `resolveCustomerContext` was
+          // `customerContextResolver(req)` minus the impersonator field this
+          // module does not read. That is the shape `mfa` found in two of its
+          // six members and `pwa` in one of its eight.
+          resolveAdminUserId: (req) => cradle().adminContextResolver(req).adminUserId,
+          resolveCustomerContext: (req) => cradle().customerContextResolver(req),
+          // Read per send: `transactional_emails` announces its sender after
+          // this module composes, so the accessor is the value and the sender
+          // is whatever it answers at the moment the e-mail goes out.
+          getTransactionalEmailSender: () => cradle().transactionalEmailSenderAccessor(),
+          resolveRecipientEmail: createRecipientEmailResolver(
+            lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+          ),
+          resolveLanguage: createChannelLanguageResolver(emFactory),
+          loadAssetImage: createAssetImageLoader(lazyPort<AssetReadPort>(ctx, 'assetReadPort')),
         });
         // Installed once, reading the contribution per call, so a root may
         // contribute the verifier at any point in its own ordering.

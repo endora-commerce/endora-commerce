@@ -82,7 +82,7 @@ const DETAIL = {
   },
 } satisfies InvoiceDetail;
 
-function buildDeps(dispatcher?: InvoiceEmailDispatcher): InvoicesAdminDeps {
+function buildDeps(dispatcher: InvoiceEmailDispatcher): InvoicesAdminDeps {
   const deps: InvoicesAdminDeps = {
     emFactory: (() => {
       throw new Error('the issue route must not touch the database in this test');
@@ -96,8 +96,14 @@ function buildDeps(dispatcher?: InvoiceEmailDispatcher): InvoicesAdminDeps {
     invoiceService: { issue: vi.fn(async () => DETAIL) } as unknown as InvoiceService,
     pdfRenderer: {} as InvoicePdfRenderer,
     templateService: {} as InvoiceTemplateService,
+    emailDispatcher: dispatcher,
+    // `specs/110-instance-repository/` T118c — required, because the module
+    // resolves the platform's `adminContextResolver` itself and no composition
+    // can decline to supply it. `null` is the honest value here: this file
+    // drives the route with no actor, and `issuedBy` is not its subject.
+    resolveAdminUserId: () => null,
   };
-  return dispatcher ? { ...deps, emailDispatcher: dispatcher } : deps;
+  return deps;
 }
 
 async function issue(deps: InvoicesAdminDeps): Promise<{ statusCode: number; body: unknown }> {
@@ -183,7 +189,17 @@ describe('invoices — the issue route reports the send-on-issue outcome (#149)'
   });
 
   it('names the composition with no sender at all', async () => {
-    const { statusCode, body } = await issue(buildDeps());
+    // **T118c moved where this answer comes from, and the word is unchanged.**
+    // The route used to carry an `if (!deps.emailDispatcher)` arm for a
+    // composition that supplied no e-mail inputs, and that state no longer
+    // exists: `invoices` resolves the sender accessor itself, so the dispatcher
+    // is built unconditionally. `no_sender` is still reachable and is still what
+    // an operator sees — it is the dispatcher's own answer for a
+    // `transactional_emails` that has announced no sender yet, which is what
+    // this drives.
+    dispatch.mockResolvedValue({ sent: false, reason: 'no_sender' });
+
+    const { statusCode, body } = await issue(buildDeps(dispatcher));
 
     expect(statusCode).toBe(201);
     expect(issueInvoiceResponseSchema.parse(body).email).toEqual({

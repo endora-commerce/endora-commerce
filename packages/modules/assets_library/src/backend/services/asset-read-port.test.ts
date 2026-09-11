@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { EntityManager, FilterQuery } from '@mikro-orm/postgresql';
 
-import { AssetReadService } from './asset-read-port.js';
+import { AssetReadService, type AssetStorageRegistry } from './asset-read-port.js';
 import { AdapterRegistry } from './storage/adapter-registry.js';
 import { HmacSigner } from './hmac.js';
 import type { Asset } from '../entities/asset.entity.js';
@@ -120,5 +120,114 @@ describe('AssetReadService.resolvePublicUrls', () => {
 
     expect((await service.resolvePublicUrls([])).size).toBe(0);
     expect(filters).toEqual([]);
+  });
+});
+
+/**
+ * `assetReadPort.openAssetBytes` — the same shape of rule, one question over
+ * (`specs/110-instance-repository/` T118c).
+ *
+ * It came here from a closure each composition root wrote for `invoices`, and
+ * the three storage facts that closure knew came with it: that a `legacy` row
+ * has no object to open, that the locator falls back to `storageUrl` for a row
+ * written before that column existed, and that an adapter answers a stream the
+ * caller wanted whole. Each has a case below, and the fourth is the degrade — a
+ * store that will not stream is `null` and not a throw, because a caller
+ * holding an asset id cannot tell that state from an asset that is not there.
+ */
+function byteService(
+  row: Asset | null,
+  open: (input: { locator: string }) => Promise<AsyncIterable<string | Uint8Array>>,
+): { service: AssetReadService; filters: Array<FilterQuery<Asset>>; opened: string[] } {
+  const filters: Array<FilterQuery<Asset>> = [];
+  const opened: string[] = [];
+  const em = {
+    findOne: async (_entity: unknown, where: FilterQuery<Asset>) => {
+      filters.push(where);
+      return row;
+    },
+  } as unknown as EntityManager;
+
+  const adapters = {
+    getForBackend: async () => ({
+      resolveUrl: () => ({ url: '', expiresAt: null }),
+      open: async (input: { locator: string }) => {
+        opened.push(input.locator);
+        return open(input);
+      },
+    }),
+  } as unknown as AssetStorageRegistry;
+
+  return { service: new AssetReadService(() => em, () => adapters), filters, opened };
+}
+
+async function* chunks(...parts: Array<string | Uint8Array>): AsyncGenerator<string | Uint8Array> {
+  for (const part of parts) yield part;
+}
+
+const BYTES_ID = 'cccccccc-1111-2222-3333-444444444444';
+
+describe('AssetReadService.openAssetBytes', () => {
+  it('drains the store’s stream into one buffer and carries the stored MIME type', async () => {
+    const { service, opened } = byteService(
+      seededAsset(BYTES_ID, { mimeType: 'image/png' }),
+      async () => chunks(new Uint8Array([1, 2]), new Uint8Array([3])),
+    );
+
+    const loaded = await service.openAssetBytes(BYTES_ID);
+
+    expect(loaded).toEqual({ bytes: new Uint8Array([1, 2, 3]), mimeType: 'image/png' });
+    // The locator, not the URL — the column the bytes are addressed by.
+    expect(opened).toEqual([`aa/bb/${BYTES_ID}.jpg`]);
+  });
+
+  it('falls back to the storage URL for a row written before the locator column', async () => {
+    const { service, opened } = byteService(seededAsset(BYTES_ID, { storageLocator: '' }), async () =>
+      chunks(new Uint8Array([7])),
+    );
+
+    await service.openAssetBytes(BYTES_ID);
+
+    expect(opened).toEqual([`/assets/file/${BYTES_ID}`]);
+  });
+
+  it('narrows the read to a live row', async () => {
+    const { service, filters } = byteService(null, async () => chunks());
+
+    expect(await service.openAssetBytes(BYTES_ID)).toBeNull();
+    expect(filters[0]).toMatchObject({ id: BYTES_ID, deletedAt: null });
+  });
+
+  it('answers null for a legacy row instead of probing it for an open method', async () => {
+    // `legacy` resolves the URL of a pre-013 row this platform did not issue and
+    // opens nothing. Before the port, both byte consumers wrote
+    // `if (!('open' in adapter) || typeof adapter.open !== 'function')` at the
+    // call site to find that out, byte-identically and in two different modules.
+    const { service, opened } = byteService(
+      seededAsset(BYTES_ID, { storageBackend: 'legacy' }),
+      async () => chunks(new Uint8Array([9])),
+    );
+
+    expect(await service.openAssetBytes(BYTES_ID)).toBeNull();
+    expect(opened, 'a legacy row must not reach a store at all').toEqual([]);
+  });
+
+  it('answers null when the configured store will not stream', async () => {
+    const { service } = byteService(seededAsset(BYTES_ID), async () => {
+      throw new Error('bucket unreachable');
+    });
+
+    // The degrade, in the return type. A document renders without its
+    // decoration; it does not become an error page.
+    expect(await service.openAssetBytes(BYTES_ID)).toBeNull();
+  });
+
+  it('encodes a string chunk rather than dropping it', async () => {
+    const { service } = byteService(seededAsset(BYTES_ID), async () => chunks('hi'));
+
+    expect(await service.openAssetBytes(BYTES_ID)).toEqual({
+      bytes: new Uint8Array([0x68, 0x69]),
+      mimeType: 'image/jpeg',
+    });
   });
 });

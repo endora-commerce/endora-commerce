@@ -329,6 +329,59 @@ export interface AssetReadPort {
    * build per row, and the run walks the whole sellable catalogue.
    */
   resolvePublicUrls(assetIds: readonly string[]): Promise<Map<string, string>>;
+
+  /**
+   * The **bytes** of one asset, buffered, with the MIME type they were stored
+   * under — or nothing.
+   *
+   * Absence is the answer and not an exception, for the reason
+   * {@link resolvePublicUrls} gives: an id that names no row, a soft-deleted
+   * one, a row whose bytes this platform never issued (`storageBackend` is
+   * `legacy` — a URL this library can resolve and an object it cannot open) and
+   * a configured store that would not stream are all simply `null`. That is the
+   * degrade expressed in the return type rather than at a caller's `catch`,
+   * which is composition checklist item 7's rule and the only place it can be
+   * decided: the caller cannot tell "this asset is not there" from "the bucket
+   * did not answer", and neither should turn a document into an error page.
+   *
+   * `invoices` is the requirement. pdfmake resolves an `image:` by **fetching**
+   * it, so an `InvoiceLogo` pointing at `/assets/file/<id>` makes the process
+   * serving the preview request issue an HTTP request to itself — which
+   * deadlocks for a public asset and 403s for a private one. The document
+   * embeds an inline `data:` URI instead, and that needs the bytes. It came
+   * here from a composition root's closure in
+   * `specs/110-instance-repository/` T118c.
+   *
+   * **Here rather than on {@link AssetsLibraryPort}, and rather than left at
+   * the caller over {@link ObjectStoragePort}.** It is a read, and a consumer
+   * that wants a logo must not thereby acquire `upload`, `patchAsset` and
+   * `softDelete` — the argument `ObjectStoragePort`'s own doc block makes in
+   * the other direction. A caller that opened the store itself would carry
+   * three facts about this module's storage layout instead: that `legacy` has
+   * no `open`, that a locator falls back to `storageUrl` when the column is
+   * empty, and that the stream has to be drained. Those are what the root
+   * closure knew, and moving them here is what publishing a port is for.
+   *
+   * `Uint8Array` and not `Buffer`: this package is compiled by
+   * `@endora-commerce/admin-kit` with `types: ["vite/client"]`, so the `Buffer`
+   * global is not in scope — the reason {@link AssetByteStream} gives in full.
+   * Buffered and not a stream, because the one consumer base64-encodes the
+   * whole object and the objects this answers for are document decorations. A
+   * consumer that wants to *stream* bytes it owns takes
+   * {@link ObjectStoragePort}.
+   *
+   * **It does not filter by kind, and that is the caller's half.** Which MIME
+   * types a consumer can use is the consumer's rule — pdfmake embeds PNG and
+   * JPEG and nothing else — so ask {@link findById} first when the answer
+   * decides whether the bytes are worth moving.
+   */
+  openAssetBytes(assetId: string): Promise<AssetBytes | null>;
+}
+
+/** One asset's stored bytes, with the MIME type they were stored under. */
+export interface AssetBytes {
+  bytes: Uint8Array;
+  mimeType: string;
 }
 
 /**

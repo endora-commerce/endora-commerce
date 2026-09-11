@@ -48,14 +48,29 @@ export interface InvoicesModuleOptions {
   requireAdmin: RequireAdminFactory;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   settingsService: SettingsReader;
-  resolveAdminUserId?: (req: FastifyRequest) => string | null;
-  resolveCustomerContext?: (req: FastifyRequest) => { customerAccountId: string; organizationId: string };
+  /**
+   * The five that stopped being optional in
+   * `specs/110-instance-repository/` T118c.
+   *
+   * Each was a member of the contributed `invoicesBridge` and each was declared
+   * `?`, which was true of the *contribution* and never of the module: this
+   * module resolves all five itself now — the platform's two actor resolvers,
+   * `transactional_emails`' sender accessor, `customer_accounts`' record and a
+   * read of the channel — so no composition can decline to supply one. An
+   * option that is nonetheless typed as omittable is a branch no test can
+   * drive, which is what `loadAssetImage` was until D-223 and what the
+   * e-mail trio still is: `emailDispatcher` was built only when all three were
+   * present, so a composition that dropped one silently stopped sending
+   * invoices and answered `no_sender`.
+   */
+  resolveAdminUserId: (req: FastifyRequest) => string | null;
+  resolveCustomerContext: (req: FastifyRequest) => { customerAccountId: string; organizationId: string };
   /** US5 — transactional email sender (late-bound). */
-  getTransactionalEmailSender?: () => TransactionalEmailSender | undefined;
+  getTransactionalEmailSender: () => TransactionalEmailSender | undefined;
   /** US5 — recipient email for an order (customer account email). */
-  resolveRecipientEmail?: (order: OrderRecord) => Promise<string | null>;
+  resolveRecipientEmail: (order: OrderRecord) => Promise<string | null>;
   /** US5 — channel default language (BCP-47). */
-  resolveLanguage?: (salesChannelId: string | null) => Promise<string>;
+  resolveLanguage: (salesChannelId: string | null) => Promise<string>;
   /** Feature 059 — emits `invoice.issued.v1` / `invoice.corrected.v1`. */
   eventBus?: InvoicesEventBus;
   /** FR-035 — audit-log recorder for issuance / correction. */
@@ -66,7 +81,7 @@ export interface InvoicesModuleOptions {
    * Load image bytes for InvoiceLogo from the Assets Library (avoids pdfmake
    * self-fetching `/assets/file/:id` during Preview PDF).
    */
-  loadAssetImage?: LoadAssetImage;
+  loadAssetImage: LoadAssetImage;
 }
 
 export interface InvoicesModuleHandle {
@@ -76,7 +91,17 @@ export interface InvoicesModuleHandle {
   pdfRenderer: InvoicePdfRenderer;
   numberGenerator: InvoiceNumberGenerator;
   templateService: InvoiceTemplateService;
-  emailDispatcher?: InvoiceEmailDispatcher;
+  emailDispatcher: InvoiceEmailDispatcher;
+  /**
+   * The logo loader this module resolved for itself (T118c).
+   *
+   * On the handle because that is the only place the *composed* value is
+   * observable: the renderer holds it privately, and a test asserting it
+   * through a rendered PDF would be asserting pdfmake. D-223's survey found it
+   * supplied by one root and omitted by the other, so what this exposes is the
+   * exact thing that went unnoticed.
+   */
+  loadAssetImage: LoadAssetImage;
 }
 
 export function invoicesModule(options: InvoicesModuleOptions): {
@@ -100,23 +125,23 @@ export function invoicesModule(options: InvoicesModuleOptions): {
         }
       : undefined,
   );
-  const pdfRenderer = new InvoicePdfRenderer({
-    ...(options.loadAssetImage ? { loadAssetImage: options.loadAssetImage } : {}),
-  });
+  const pdfRenderer = new InvoicePdfRenderer({ loadAssetImage: options.loadAssetImage });
   const templateService = new InvoiceTemplateService(options.emFactory, options.auditLog);
 
-  let emailDispatcher: InvoiceEmailDispatcher | undefined;
-  if (options.getTransactionalEmailSender && options.resolveRecipientEmail && options.resolveLanguage) {
-    emailDispatcher = new InvoiceEmailDispatcher({
-      orderReadPort: options.orderReadPort,
-      invoiceService,
-      pdfRenderer,
-      settingsService: options.settingsService,
-      getSender: options.getTransactionalEmailSender,
-      resolveRecipientEmail: options.resolveRecipientEmail,
-      resolveLanguage: options.resolveLanguage,
-    });
-  }
+  // T118c — built unconditionally. The three inputs used to be optional bridge
+  // members, so a composition that supplied two of the three got no dispatcher
+  // at all and every issued invoice answered `not_sent` / `no_sender` — a
+  // plausible-looking outcome rather than a visible failure. The module
+  // resolves all three itself now and there is nothing left to be absent.
+  const emailDispatcher = new InvoiceEmailDispatcher({
+    orderReadPort: options.orderReadPort,
+    invoiceService,
+    pdfRenderer,
+    settingsService: options.settingsService,
+    getSender: options.getTransactionalEmailSender,
+    resolveRecipientEmail: options.resolveRecipientEmail,
+    resolveLanguage: options.resolveLanguage,
+  });
 
   // FR-002 — the auto-issue reactor. `backend.ts` registers it through
   // `ctx.subscribe`, so a switched-off module issues nothing.
@@ -133,7 +158,8 @@ export function invoicesModule(options: InvoicesModuleOptions): {
     pdfRenderer,
     numberGenerator,
     templateService,
-    ...(emailDispatcher ? { emailDispatcher } : {}),
+    emailDispatcher,
+    loadAssetImage: options.loadAssetImage,
   };
 
   const plugin: ModuleAttach = async (app: FastifyInstance) => {
@@ -146,20 +172,18 @@ export function invoicesModule(options: InvoicesModuleOptions): {
       invoiceService,
       pdfRenderer,
       templateService,
-      ...(emailDispatcher ? { emailDispatcher } : {}),
-      ...(options.resolveAdminUserId ? { resolveAdminUserId: options.resolveAdminUserId } : {}),
+      emailDispatcher,
+      resolveAdminUserId: options.resolveAdminUserId,
     });
-    if (options.resolveCustomerContext) {
-      await registerInvoicesCustomerRoutes(app, {
-        emFactory: options.emFactory,
-        orderReadPort: options.orderReadPort,
-        requireCustomer: options.requireCustomer,
-        resolveCustomerContext: options.resolveCustomerContext,
-        invoiceService,
-        pdfRenderer,
-        templateService,
-      });
-    }
+    await registerInvoicesCustomerRoutes(app, {
+      emFactory: options.emFactory,
+      orderReadPort: options.orderReadPort,
+      requireCustomer: options.requireCustomer,
+      resolveCustomerContext: options.resolveCustomerContext,
+      invoiceService,
+      pdfRenderer,
+      templateService,
+    });
   };
 
   return { handle, plugin };

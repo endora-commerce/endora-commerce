@@ -146,8 +146,21 @@ export const manifest = defineModuleManifest({
   // `ksef` is deliberately absent: it reads `invoiceService`, so declaring it
   // here would close a cycle. The KSeF verification block reaches this module
   // as a contribution a root fills, not as a port this module resolves.
+  //
+  // `assets_library` and `customer_accounts` joined in
+  // `specs/110-instance-repository/` T118c, when `invoicesBridge` was retired:
+  // the operator's logo is `assetReadPort` and the invoice e-mail's recipient
+  // is `customerAccountReadPort`, both resolved by this module now and both
+  // reached through a composition root's closure before. Binding edges, and
+  // **neither costs an operator a control** — derived and not waived: both
+  // owners declare `activation.nonDeactivatable`, so there is no switchable
+  // owner for a `refuses-without` sentence to describe. That is the same answer
+  // `mfa` and `product_feeds` came to and a different one from `returns`, and
+  // the difference is the owners', not the consumer's.
   dependencies: [
+    'assets_library',
     'auth',
+    'customer_accounts',
     'orders',
     'settings',
     'transactional_emails',
