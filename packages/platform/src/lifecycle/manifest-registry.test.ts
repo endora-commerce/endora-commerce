@@ -10,6 +10,7 @@ import {
   type OverlayModuleFound,
   type PackageModuleFound,
 } from './manifest-registry.js';
+import { platformResidentManifestEntries } from './resident.js';
 
 /**
  * The manifest registry's derivation, at the address the platform publishes it
@@ -115,7 +116,44 @@ describe('coreManifestEntries — the core registry, over a supplied index', () 
   });
 });
 
-describe('resolveManifestEntries — three suppliers, merged by the platform', () => {
+/**
+ * Every id the derivation adds on its own — the platform's own resident modules
+ * (`specs/110-instance-repository/` T141).
+ *
+ * Derived rather than written down: `_lifecycle` is the only one today and the
+ * second is caught by existing. Every case below subtracts it rather than
+ * naming it, so the cases keep asking about the three *suppliers* and a resident
+ * module's arrival is asserted once, where it belongs.
+ */
+const RESIDENT_IDS = platformResidentManifestEntries().map((entry) => entry.manifest.id);
+const supplied = <E extends { manifest: { id: string } }>(entries: readonly E[]): E[] =>
+  entries.filter((entry) => !RESIDENT_IDS.includes(entry.manifest.id));
+
+describe("resolveManifestEntries — three suppliers plus the platform's own residents", () => {
+  it("appends the platform's own resident modules, which no supplier can carry", async () => {
+    // `_lifecycle`'s sources are this package's, so the only tree that could
+    // supply it is one carrying a generated index. An instance carries none, and
+    // before T141 its boot refused with `not-shipped: _lifecycle` — needed by
+    // five modules of the set `endora new instance` itself writes.
+    const resolved = await resolveManifestEntries(sourcesOf({}));
+
+    expect(resolved.map((entry) => entry.manifest.id)).toEqual(RESIDENT_IDS);
+    expect(resolved.map((entry) => entry.origin)).toEqual(RESIDENT_IDS.map(() => 'core'));
+  });
+
+  it('lets a core supplier that names a resident keep its own entry and its position', async () => {
+    // This repository's generated index does name `_lifecycle`, through the
+    // host-internal subpath. Two names for one module is not a collision, and
+    // the host's entry is the one that answers.
+    const core = coreManifestEntries([
+      discovered('blog', '/repo/blog/manifest.ts'),
+      ...RESIDENT_IDS.map((id) => discovered(id, `/repo/${id}/manifest.ts`)),
+    ]);
+    const resolved = await resolveManifestEntries(sourcesOf({ core }));
+
+    expect(resolved).toEqual(core);
+  });
+
   it('returns the core set unchanged when both discoveries come back empty (FR-008)', async () => {
     // Every developer checkout and every test run is this case, and it is the
     // one that proves the derivation reads nothing of its own: the sources say
@@ -123,7 +161,7 @@ describe('resolveManifestEntries — three suppliers, merged by the platform', (
     // not this repository's 69 modules.
     const core = coreManifestEntries([discovered('blog', '/repo/blog/manifest.ts')]);
 
-    expect(await resolveManifestEntries(sourcesOf({ core }))).toEqual(core);
+    expect(supplied(await resolveManifestEntries(sourcesOf({ core })))).toEqual(core);
   });
 
   it('appends the deployment’s overlay modules, marked at their construction site', async () => {
@@ -132,8 +170,11 @@ describe('resolveManifestEntries — three suppliers, merged by the platform', (
       sourcesOf({ core, overlay: async () => [overlayFound('example_overlay')] }),
     );
 
-    expect(resolved.map((entry) => entry.manifest.id)).toEqual(['blog', 'example_overlay']);
-    expect(resolved.map((entry) => entry.origin)).toEqual(['core', 'overlay']);
+    expect(supplied(resolved).map((entry) => entry.manifest.id)).toEqual([
+      'blog',
+      'example_overlay',
+    ]);
+    expect(supplied(resolved).map((entry) => entry.origin)).toEqual(['core', 'overlay']);
   });
 
   it('appends the instance’s installed packages, marked at their construction site', async () => {
@@ -142,9 +183,10 @@ describe('resolveManifestEntries — three suppliers, merged by the platform', (
       sourcesOf({ core, packages: async () => [packageFound('crm', '@acme/mod-crm')] }),
     );
 
-    expect(resolved.map((entry) => entry.manifest.id)).toEqual(['blog', 'crm']);
-    expect(resolved.at(-1)?.origin).toBe('package');
-    expect(resolved.at(-1)?.filePath).toBe('/instance/node_modules/@acme/mod-crm/package.json');
+    const three = supplied(resolved);
+    expect(three.map((entry) => entry.manifest.id)).toEqual(['blog', 'crm']);
+    expect(three.at(-1)?.origin).toBe('package');
+    expect(three.at(-1)?.filePath).toBe('/instance/node_modules/@acme/mod-crm/package.json');
   });
 
   it('carries the lifecycle exports a discovery found, and omits the keys it did not', async () => {
@@ -162,9 +204,10 @@ describe('resolveManifestEntries — three suppliers, merged by the platform', (
       }),
     );
 
-    expect(resolved[0]?.installHook).toBe(noop);
-    expect(resolved[0] && 'uninstallHook' in resolved[0]).toBe(false);
-    expect(resolved[1] && 'installHook' in resolved[1]).toBe(false);
+    const overlays = supplied(resolved);
+    expect(overlays[0]?.installHook).toBe(noop);
+    expect(overlays[0] && 'uninstallHook' in overlays[0]).toBe(false);
+    expect(overlays[1] && 'installHook' in overlays[1]).toBe(false);
   });
 
   it('refuses a module id two sources claim, naming every claimant at once (FR-004)', async () => {
