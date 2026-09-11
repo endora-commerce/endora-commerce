@@ -48,8 +48,21 @@ branch: name the exported symbol, and for a `major` give the old call and the ne
 nothing else in this repository will tell an upgrader what to do. One file per meaning, not
 one per merge request. **The bump level is your judgement and cannot be delegated** — that is
 why D-107 chose this tool: a change to `@endora-commerce/contracts` can be breaking for
-`@endora-commerce/api-client` and inert for `@endora-commerce/cms-components`, and no commit
-prefix knows which.
+`@endora-commerce/admin-kit`, which depends on it, and inert for
+`@endora-commerce/cms-components`, which does not; no commit prefix knows which. (This sentence
+named `@endora-commerce/api-client` as the breaking side until 2026-09-11, a package D-202 had
+deleted.)
+
+**One level is not yours to choose: `major` is refused while the package is in `0.x`** (D-225,
+owner ruling of 2026-09-11 — no package leaves `0.x` before the move to public npmjs). Write
+`minor`, and nothing is lost by it: `^0.7.0` is `>=0.7.0 <0.8.0`, so in a `0.x` series a minor
+already takes every caret dependent out of range, which is the whole consumer-facing meaning of a
+break, and *leaving the series* is the only thing `major` says that `minor` does not. The
+instrument is `check:release-intent`'s `major-bump-in-a-zero-series`, which is derived per package
+from that package's own manifest and has no override and no ledger — its one escape is deletion,
+by the merge request that performs the npmjs move. Its row in `check-inventory.md` says why it
+had to be an instrument rather than a remembered rule: the failure is silent, because
+`changeset status` reports a `major` as ordinary intent, which it is.
 
 **Versioning is independent, with one `linked` group** (D-108), built around
 `@endora-commerce/page-builder-core`: its members take one version number whenever a release
@@ -71,15 +84,18 @@ version the group currently sits at and not about the group:
 | seeded at | patch on one member | minor on `page-builder-core` | major |
 | --- | --- | --- | --- |
 | `0.0.0` | the member **and its dependents** (`^0.0.0` is `>=0.0.0 <0.0.1`) | the whole group | the whole group |
-| `0.7.0` | the member alone | **the whole group** (`^0.7.0` is `>=0.7.0 <0.8.0`) | the whole group |
+| `0.<n>.0`, n > 0 | the member alone | **the whole group** (`^0.7.0` is `>=0.7.0 <0.8.0`) | the whole group |
 | `1.4.2` | the member alone | `page-builder-core` alone | the whole group |
 
 Measured, over the real manifests, in `backend/test/unit/release/changeset-flow.test.ts` — which
 seeds its own base rather than reading the tree's, because the tree's version is a release
-decision that moves and it falsified four of these measurements once already. **The `0.7.0` row is
-the one this repository is in**, and it is why D-225's `major` → `minor` translation costs nothing:
-in `0.x` a minor already takes every caret peer out of range, which is the whole consumer-facing
-meaning of a break.
+decision that moves and it falsified four of these measurements once already. **The middle row is
+the one this repository is in**, and its label is a shape rather than a number for the same
+reason: it read `0.7.0` and `release/version-0.8.0` moved 83 packages out from under it within
+the week. `node -p "require('./packages/contracts/package.json').version"` answers where the
+estate sits today; what the row asserts is the *series*, and while it holds, D-225's
+`major` → `minor` translation costs nothing — in `0.x` a minor already takes every caret peer
+out of range, which is the whole consumer-facing meaning of a break.
 
 The `1.4.2` divergence is correct, not a defect: the requirement is that the application resolve
 one copy, and `^1.4.2` satisfied by `1.5.0` resolves one copy. The shared number was the
@@ -110,7 +126,8 @@ states and, with nothing private left, requires it to be explicitly present and 
 that an absent one cannot be mistaken for a decision when it is the `@changesets/config@4`
 default.
 
-**Whether the repository carries a `0.7.0` git tag is a separate question and is the owner's.**
+**Whether the repository carries a git tag for a release is a separate question and is the
+owner's.**
 Nothing in this repository decides it, and nothing here should: a tag is how you assert that
 this exact tree is what a registry serves under that version, which git history alone cannot say
 about a registry, and that assertion is worth making only once something is actually published.

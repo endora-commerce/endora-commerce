@@ -64,8 +64,10 @@ never add a "module options" object for something the module can read itself.
    The same rule holds one layer down, inside a reply Fastify is **already serialising as an
    error**: a `ModuleDisabledError` raised there cannot be routed back through `setErrorHandler`,
    so the reply degrades to Fastify's fallback shape — no `error.code`, no `error.details`, no
-   `error.requestId` — and `@endora-commerce/api-client` reports `undefined: undefined`. Measured
-   in feature 080's T052, where converting one entity read to a gated port broke **every** error
+   `error.requestId` — and the admin's API client reports `undefined: undefined`. Measured
+   in feature 080's T052 (against `@endora-commerce/api-client`, the package D-202 has since
+   deleted; the envelope is unchanged and so is what a client reads off it), where converting one
+   entity read to a gated port broke **every** error
    answered to a signed-in admin while the owner was absent, whatever the error was. The remedy is
    the one every other exit from that hook already took: guard the decoration and answer the
    untranslated payload. That is **not** a `catch` hiding a capability's absence — the caller still
