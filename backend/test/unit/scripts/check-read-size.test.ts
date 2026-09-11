@@ -62,6 +62,17 @@ import { formatDriftReport } from '../../helpers/read-size-drift.js';
  * and is reported as one. It was not, and the disguise cost a CI investigation:
  * the two heaviest checks were OOM-killed on the 4 GB runner and reported as
  * `printed no read line`.
+ *
+ * **And the signal does not reach this process, which is the second half of the
+ * same repair.** {@link observe} spawns `pnpm exec tsx <check>`, so the process
+ * holding the TypeScript program — the one the OOM killer takes — is two layers
+ * in. Its ancestors survive and relay the death as an exit code of
+ * `128 + signum`, so the `close` event here carries `code: 137, signal: null`
+ * and the discrimination above cannot fire. Scheduled pipeline 13573 therefore
+ * printed *"exited 137 … it ran to a verdict of its own, so this is the check's
+ * behaviour"* over a `check-port-shape` the kernel had killed. The helper now
+ * classifies a relay as a kill and says which layer took the signal, with the
+ * container's own `memory.events` beside it — see its header.
  */
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
@@ -83,25 +94,40 @@ const SPAWN_TIMEOUT_MS = 900_000;
  * Peak resident cost of one spawned check, and the divisor the pool is sized
  * with.
  *
- * Measured on 2026-08-24, per process tree, sampled every 100 ms, summing PSS
- * so pages shared between the children are not counted twice — and measured one
- * check at a time, because several agents run on this machine and any
- * whole-machine sampling would have been somebody else's memory. The estate:
- *
- *   * the 26 `tsx` checks peak between 274 MB and **746 MB**, median 573 MB;
- *   * the 3 shell scans peak under 12 MB — they are `grep` and `perl`, not a
- *     TypeScript program;
- *   * `check-port-catches` (746 MB) and `check-port-shape` (627 MB) are the
- *     first and third heaviest, and they are exactly the two the runner killed.
+ * Measured per process tree, sampled every 100 ms, summing PSS so pages shared
+ * between the children are not counted twice — and measured one check at a
+ * time, because several agents run on this machine and any whole-machine
+ * sampling would have been somebody else's memory.
  *
  * `files=` is not a proxy for this and the numbers say so plainly:
- * `check-nul-bytes` opens 5470 files for 364 MB, `check-port-catches` opens
- * 1541 for 746 MB. What costs memory is the TypeScript program, not the walk.
+ * `check-nul-bytes` opens 5470 files for 318 MB, `check-port-shape` opens 2049
+ * for 825. What costs memory is the TypeScript program, not the walk.
  *
- * 800 MB is the worst observed (778 MB on a second run of the heaviest) rounded
- * up. Re-measure it when the tree grows; it is a measurement, not a budget.
+ * **Re-measured 2026-09-11, over every recorded check, and it had gone stale in
+ * the direction that matters.** The 41 `tsx` checks now peak between 232 MB and
+ * **836 MB**, median 593 MB; the 3 shell scans are still under 10 MB, being
+ * `grep` and `perl` rather than a TypeScript program. The two heaviest are the
+ * same two the runner killed:
+ *
+ *   * `check-port-shape` 825 / 836 / 835 MB over three runs — it was **627** on
+ *     2026-08-24, so it has grown by a third;
+ *   * `check-port-catches` 812 / 815 / 828 MB, against 746;
+ *   * third is `check-singleton-identity` at 693 MB, and nothing else reaches
+ *     700.
+ *
+ * So this divisor was an **under**-estimate of the heaviest child by 36 MB,
+ * which sizes the pool one notch more generously than the measurement supports:
+ * that is not what killed `check-port-shape` in scheduled pipeline 13573 — the
+ * container is 4096 MB and four sibling vitest forks are in it — but it is the
+ * one input of the derivation that was no longer true, and a pool sized from a
+ * stale number is the failure `test/helpers/spawn-pool.ts` exists to have ended.
+ *
+ * 900 MB is the worst observed rounded up. Re-measure it when the tree grows;
+ * it is a measurement, not a budget, and the growth above is the argument for
+ * doing so rather than for widening it again next time — 836 MB in one process
+ * is worth a merge request of its own.
  */
-const PEAK_BYTES_PER_CHECK = 800 * 1024 * 1024;
+const PEAK_BYTES_PER_CHECK = 900 * 1024 * 1024;
 
 /**
  * How many checks run at once — derived, never chosen.
