@@ -1331,6 +1331,17 @@ run afterwards reports drift against a value no clean tree can produce — a rat
 permanent false positive. So re-record from a fresh `git worktree`, never from the tree you have
 been working in.
 
+**And two of them read the *index*, not the disk, which makes a measurement taken mid-merge
+wrong in a way nothing reports.** `check-naming.sh` and `check-language.sh` take their population
+from `git ls-files --cached --others --exclude-standard`. During an **unresolved merge** git lists
+a conflicted path **once per stage**, so both over-count by two for every conflicted file — 8351
+and 6231 measured before `git add` of a one-file resolution, 8349 and 6229 after it. Stage the
+resolution, then measure. It also breaks the attribution method that works everywhere else: you
+cannot park a file and re-run these two, because parking changes the index entry rather than
+removing it from the walk. This is the same failure as the two above wearing a third costume —
+**a number measured in a tree whose shape is not the one CI will see** — and the three together
+are why a read size is re-measured rather than reasoned about.
+
 **How many checks that is is not written here**: this sentence read
 *"all twenty-seven"* while `RECORDED_READ_SIZES` — the list the test actually spawns — held
 **34**, a count of a derived fact going stale by seven inside the paragraph whose entire
