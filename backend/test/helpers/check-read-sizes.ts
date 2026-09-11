@@ -7003,7 +7003,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `specs/114-release-shape-gate/tasks.md`. This walk is the whole tree, JSON included.
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 8294,
+    // **Feature 114, Phase 1: 8294 -> 8295.** One file, and it is the whole move —
+    // `.changeset/release-shape-classification.md`, the empty changeset this branch
+    // carries. Its four subjects are a check, two tests and a CI job, all of which
+    // already existed; this walk is the whole repository and `.changeset/*.md` is in
+    // it. Attributed by parking the file and re-running: 8294 without it, 8295 with,
+    // in the same tree and in the quality job's shape.
+    files: 8295,
     sites: null,
     sources: [],
     //
@@ -10675,7 +10681,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The delta is all five files the master side adds, this walk being the whole tree.
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 8354,
+    // **Feature 114, Phase 1: 8354 -> 8355**, the same one file as the walk above —
+    // this branch's empty changeset. The park-and-re-measure caveat three lines up is
+    // why it is attributed differently: this population is the **index**, so the file
+    // stayed listed after it was taken off disk and the walk read 8355 both ways. It is
+    // attributed from the branch's own added-file list instead
+    // (`git diff --diff-filter=A origin/master...HEAD` names exactly that one path),
+    // which is the index's own answer to the same question.
+    files: 8355,
     sites: null,
     sources: ['manifest-index'],
     //
