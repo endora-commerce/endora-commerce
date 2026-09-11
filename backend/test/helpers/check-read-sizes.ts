@@ -7064,7 +7064,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // there is no arithmetic over the two that produces the union — the number below is a
     // fresh measurement on the merged tree, in a worktree created from the merge commit,
     // in the quality job's shape, reporting an empty `git status`.
-    files: 8171,
+    // **Feature 114 Phase 3 (D-225): +1 -> 8172.** This merge request adds exactly one
+    // tracked file — the empty changeset that records that neither half of it has any
+    // release meaning — and its other fifteen changeset edits are modifications. Measured
+    // on both sides in one worktree created from the branch, `quality`-job tree shape, with
+    // nothing rebuilt between the two runs: `origin/master` reads 8171, the recorded value
+    // exactly, and the branch reads 8172.
+    files: 8172,
     sites: null,
     sources: [],
     //
@@ -10800,7 +10806,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the merged tree **after the resolution was committed**, which this population makes
     // mandatory rather than tidy: it is `git ls-files --cached`, the index, where a
     // conflicted path is listed once per stage and a run taken mid-merge reads high.
-    files: 8231,
+    // **Feature 114 Phase 3 (D-225): +1 -> 8232.** This merge request adds exactly one
+    // tracked file — the empty changeset that records that neither half of it has any
+    // release meaning — and its other fifteen changeset edits are modifications. Measured
+    // on both sides in one worktree created from the branch, `quality`-job tree shape, with
+    // nothing rebuilt between the two runs: `origin/master` reads 8231, the recorded value
+    // exactly, and the branch reads 8232.
+    files: 8232,
     sites: null,
     sources: ['manifest-index'],
     //
