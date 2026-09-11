@@ -118,5 +118,27 @@ else
   done < <(workspaces)
 fi
 
+# The guard below resolves through `@endora-commerce/cli`'s **`dist`**
+# (`scripts/workspace-resolution.ts` -> `backend/scripts/lib/workspace-packages.ts` ->
+# `export * from '@endora-commerce/cli/lib/workspace-packages.js'`), and a fresh checkout has no
+# `dist` at all until something builds it. Without this line the script died with a bare
+# `ERR_MODULE_NOT_FOUND` stack trace **after a completely successful install** — exit 1 over a tree
+# it had just set up correctly, which is the inverse of the property its own header claims. It is
+# the documented one-command onboarding step, so every worktree in this project started with a
+# failure nobody could act on, and a caller chaining `setup-worktree.sh && …` silently skipped
+# whatever came next.
+#
+# Only the CLI's own dependency chain is built, not `build:packages`: 9 s against the better part
+# of ten minutes, measured, and the guard needs nothing else. **The worktree is still unbuilt** —
+# `pnpm run build:packages` remains the first thing to run before a test, `tsx`, `vite` or `next`,
+# exactly as AGENTS.md says.
+if ! (cd "$HERE" && pnpm --filter '@endora-commerce/cli...' run build); then
+  echo "setup-worktree: could not build @endora-commerce/cli, which the resolution guard below" >&2
+  echo "  imports. The install succeeded; this is a build failure, not a wiring one. Fix the" >&2
+  echo "  build, then re-run this script — the guard has not been asked yet, so nothing about" >&2
+  echo "  this worktree's links has been verified." >&2
+  exit 1
+fi
+
 # Not "it probably worked": the same analysis the test suite refuses on.
 "$HERE/backend/node_modules/.bin/tsx" "$HERE/scripts/workspace-resolution.ts"
