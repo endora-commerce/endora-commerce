@@ -16,6 +16,10 @@ import { refuseDuplicateInvoiceNumber } from './duplicate-number-refusal.js';
 import type { InvoiceNumberGenerator } from './invoice-number-generator.js';
 import type { SellerSettingsResolver } from './seller-settings.js';
 import { buildInvoiceLines, type RawOrderLine } from './invoice-line-builder.js';
+import {
+  shouldHoldForVendorNumber,
+  type LedgerNumberingLookup,
+} from './vendor-number-hold.js';
 
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
@@ -73,6 +77,8 @@ export class InvoiceService {
     private readonly sellerSettings: SellerSettingsResolver,
     private readonly audit?: InvoiceAuditRecorder,
     private readonly events?: InvoiceDomainEventEmitter,
+    private readonly emailOnReady?: (invoiceId: string) => Promise<void>,
+    private readonly ledgerRouting?: LedgerNumberingLookup,
   ) {}
 
   /** Issue an invoice/proforma for an order. Idempotent per (order, kind). */
@@ -149,6 +155,10 @@ export class InvoiceService {
     // Captured out of the transaction on purpose: the callback's result is lost
     // when the transaction aborts, and the duplicate-number refusal exists to
     // name the number that was drawn.
+    const holdForVendor = await shouldHoldForVendorNumber(
+      this.ledgerRouting,
+      order.salesChannelId,
+    );
     let drawnNumber: string | null = null;
     const invoice = await this.issueInTransaction(em, async (tx) => {
       const number = await this.numbers.next(tx, kind, order.salesChannelId, issuedAt);
@@ -170,7 +180,7 @@ export class InvoiceService {
         sellerSnapshot: seller,
         buyerSnapshot: buyer,
         issuedBy: opts.issuedBy ?? 'system',
-        status: 'ready',
+        status: holdForVendor ? 'pending' : 'ready',
       });
       await tx.persistAndFlush(inv);
       let ordinal = 0;
@@ -280,6 +290,55 @@ export class InvoiceService {
     // flow (`ksef.submission.accepted`); this is the sole-writer projection of it.
     inv.ksefReferenceNumber = assignment.ksefReferenceNumber;
     inv.ksefProcessedAt = assignment.ksefProcessedAt;
+    await em.persistAndFlush(inv);
+  }
+
+  /**
+   * Mode B: overwrite the Endora-drawn number with the vendor's, then ready.
+   * No-op when the invoice already carries that number and is ready.
+   */
+  async applyVendorAssignedNumber(invoiceId: string, number: string): Promise<void> {
+    const em = this.emFactory().fork();
+    const inv = await em.findOne(Invoice, { id: invoiceId });
+    if (!inv) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invoice not found.');
+    if (inv.status === 'cancelled') {
+      throw new HttpError(409, ERROR_CODES.VERSION_CONFLICT, 'The invoice is cancelled.');
+    }
+    if (inv.number === number && inv.status === 'ready') return;
+    if (inv.status !== 'pending' && inv.number !== number) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.VERSION_CONFLICT,
+        'The invoice is not waiting for a vendor number.',
+      );
+    }
+    const holder = await em.findOne(Invoice, { number });
+    if (holder && holder.id !== inv.id) {
+      throw new HttpError(
+        409,
+        ERROR_CODES.INVOICE_NUMBER_ALREADY_ISSUED,
+        `Invoice number ${number} is already issued.`,
+      );
+    }
+    // command-coverage-ignore: idempotent stamp of the vendor-assigned number
+    // the ledger webhook already claimed — same shape as `recordKsefAssignment`.
+    inv.number = number;
+    inv.status = 'ready';
+    await em.persistAndFlush(inv);
+    await this.emailOnReady?.(invoiceId);
+  }
+
+  /**
+   * Infakt `invoice_paid` → stamp paidTotal to the invoice gross. Never Payments.
+   */
+  async recordPaidFromLedger(invoiceId: string): Promise<void> {
+    const em = this.emFactory().fork();
+    const inv = await em.findOne(Invoice, { id: invoiceId });
+    if (!inv) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invoice not found.');
+    if (Number(inv.paidTotal) >= Number(inv.total)) return;
+    // command-coverage-ignore: idempotent paidTotal projection of Infakt
+    // `invoice_paid` — the webhook receipt is the claim; this is the sole-writer stamp.
+    inv.paidTotal = inv.total;
     await em.persistAndFlush(inv);
   }
 

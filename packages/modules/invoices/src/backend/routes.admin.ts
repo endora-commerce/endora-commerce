@@ -156,7 +156,7 @@ export async function registerInvoicesAdminRoutes(
         ...(body.paymentDueDate ? { paymentDueDate: body.paymentDueDate } : {}),
         ...(issuedBy ? { issuedBy } : {}),
       });
-      const email = await sendOnIssue(deps, detail.id, detail.salesChannelId);
+      const email = await sendOnIssue(deps, detail.id, detail.salesChannelId, detail.status);
       // Still a 201 whatever `email` says: the notification is best-effort
       // (FR-024) and a suppressed message must not undo an issued document.
       reply.status(201);
@@ -301,6 +301,7 @@ async function sendOnIssue(
   deps: InvoicesAdminDeps,
   invoiceId: string,
   salesChannelId: string | null,
+  invoiceStatus: string,
 ): Promise<IssueInvoiceEmailOutcome> {
   const dispatcher = deps.emailDispatcher;
   // The `if (!dispatcher)` arm that stood here is gone with T118c: the
@@ -308,6 +309,7 @@ async function sendOnIssue(
   // surface" is no longer a state. `no_sender` is still reachable and is still
   // the honest answer — it is the dispatcher's own, for a
   // `transactional_emails` that has not announced its sender.
+  if (invoiceStatus === 'pending') return { status: 'not_requested' };
   if (!(await dispatcher.sendOnIssueEnabled(salesChannelId))) return { status: 'not_requested' };
   const result = await dispatcher.dispatch(invoiceId);
   return result.sent ? { status: 'sent' } : { status: 'not_sent', reason: result.reason };

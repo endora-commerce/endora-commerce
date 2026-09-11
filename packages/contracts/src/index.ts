@@ -177,6 +177,8 @@ export * from './google-tag-manager.js';
 export * from './custom-fields.js';
 export * from './credentials.js';
 export * from './ksef.js';
+export * from './invoice-ledger.js';
+export * from './infakt.js';
 export * from './product-feeds.js';
 export * from './pim-ergonode.js';
 export * from './pim-akeneo.js';

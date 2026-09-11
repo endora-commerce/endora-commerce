@@ -42,11 +42,20 @@ describe('the committed platform’s transitive tenancy chains', () => {
     expect(() => assertTransitiveParentsResolve()).not.toThrow();
   });
 
-  it('walks the two chains the platform actually has', () => {
+  it('walks the chains the platform actually has', () => {
     const transitive = tenantClassifications().filter((meta) => meta.scope === 'transitive');
-    // Two, and the count is asserted so that a third arriving is read here
-    // rather than inherited silently by a `find`.
-    expect(transitive.map((meta) => meta.className).sort()).toEqual(['Invoice', 'KsefSubmission']);
+    // The membership is asserted as a set, so a class arriving is read here
+    // rather than inherited silently by a `find`. It is four rather than two
+    // since feature 119: `invoice_ledger` hangs its delivery rows and its
+    // vendor document maps off the invoice they copy, which is the same chain
+    // `KsefSubmission` takes — and has to be, because neither table carries an
+    // organization column of its own.
+    expect(transitive.map((meta) => meta.className).sort()).toEqual([
+      'Invoice',
+      'InvoiceLedgerDelivery',
+      'InvoiceLedgerDocumentMap',
+      'KsefSubmission',
+    ]);
 
     const invoice = transitive.find((meta) => meta.className === 'Invoice');
     const submission = transitive.find((meta) => meta.className === 'KsefSubmission');
@@ -58,5 +67,18 @@ describe('the committed platform’s transitive tenancy chains', () => {
     expect(middle.className).toBe('Invoice');
     const root = resolveTransitiveParent(middle);
     expect(root).toMatchObject({ className: 'Order', scope: 'org', key: 'organizationId' });
+
+    // The two ledger tables take the same two hops, and the walk is asserted
+    // rather than assumed: a parent name that resolves is not thereby a parent
+    // that reaches an organization column.
+    for (const className of ['InvoiceLedgerDelivery', 'InvoiceLedgerDocumentMap']) {
+      const ledgerRow = transitive.find((meta) => meta.className === className);
+      expect(ledgerRow, className).toMatchObject({ parentClassName: 'Invoice', fk: 'invoiceId' });
+      expect(resolveTransitiveParent(resolveTransitiveParent(ledgerRow!))).toMatchObject({
+        className: 'Order',
+        scope: 'org',
+        key: 'organizationId',
+      });
+    }
   });
 });

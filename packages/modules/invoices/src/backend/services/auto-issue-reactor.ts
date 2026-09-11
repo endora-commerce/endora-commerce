@@ -127,6 +127,7 @@ export function createAutoIssueReactor(deps: AutoIssueReactorDeps): {
         });
         return;
       }
+      if (detail.status === 'pending') return;
       if (!(await dispatcher.sendOnIssueEnabled(detail.salesChannelId))) return;
 
       // Nothing catches here: `dispatch` contains its own failures and names

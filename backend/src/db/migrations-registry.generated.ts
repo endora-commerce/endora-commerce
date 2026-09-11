@@ -171,6 +171,9 @@ import { Migration20260611T140348InventoryPerWarehouseLowStockThresholds } from 
 import { Migration20260818T081243InventoryStockAllocationOrderItemFk } from '@endora-commerce/mod-inventory/migrations';
 import { Migration20260830T182139InventoryOrganizationAttribution } from '@endora-commerce/mod-inventory/migrations';
 
+// ── invoice_ledger ──────────────────────────────────────────────────────────
+import { Migration20260908T125013InvoiceLedgerInit } from '@endora-commerce/mod-invoice-ledger/migrations';
+
 // ── invoices ────────────────────────────────────────────────────────────────
 import { Migration20260629T125121InvoicesModule } from '@endora-commerce/mod-invoices/migrations';
 import { Migration20260801T111000InvoicesGenericTemplateReseed } from '@endora-commerce/mod-invoices/migrations';
@@ -483,6 +486,9 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('inventory', Migration20260611T140348InventoryPerWarehouseLowStockThresholds),
   migration('inventory', Migration20260818T081243InventoryStockAllocationOrderItemFk),
   migration('inventory', Migration20260830T182139InventoryOrganizationAttribution),
+
+  // ── invoice_ledger ──────────────────────────────────────────────────────────
+  migration('invoice_ledger', Migration20260908T125013InvoiceLedgerInit),
 
   // ── invoices ────────────────────────────────────────────────────────────────
   migration('invoices', Migration20260629T125121InvoicesModule),

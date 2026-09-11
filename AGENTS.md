@@ -1,6 +1,6 @@
 # Endora Commerce (b2b-platform) — Agent Instructions
 
-Last updated: 2026-08-25
+Last updated: 2026-09-07
 
 **This file is the single source of truth for every AI coding agent working in this
 repository.** `CLAUDE.md` and `.cursor/rules/specify-rules.mdc` are thin pointers to it —
@@ -1316,6 +1316,32 @@ census (`3 drifted, 32 agree, 0 not measured, of 35 recorded`), printed even whe
 drifted, because a silent report cannot be told from one that did not run; an entry the run
 could not measure is named as *not measured* and never counted as agreeing.
 
+**Measure a read size in a tree with the shape CI has, and that means a *clean* one.** Two
+things make a working checkout read high, and only the first is widely known. `composer:generate`
+places ~62–80 copies under `docs/docs/modules/` that no `quality` job has placed when the check
+runs, so `git clean -fX docs/docs/modules && rm -f docs/.module-docs-copies.json` comes before
+any measurement — that trap has caught four agents here. The second is the same mistake without
+the landmark: **`check-nul-bytes` reads git-ignored files by design**, so a whole-tree walk counts
+whatever else your checkout happens to be carrying. Measured on 2026-09-11, one working checkout
+against a pristine worktree of the same commit: **8166 against 8158** — two
+`admin/vite.config.ts.timestamp-*.mjs`, four `.env` files, `storefront/tsconfig.tsbuildinfo` and a
+stale `packages/api-client/` directory left behind by the package D-202 deleted. Recording the
+first number would have put one developer's local residue into the shared record, where every CI
+run afterwards reports drift against a value no clean tree can produce — a ratchet inverted into a
+permanent false positive. So re-record from a fresh `git worktree`, never from the tree you have
+been working in.
+
+**And two of them read the *index*, not the disk, which makes a measurement taken mid-merge
+wrong in a way nothing reports.** `check-naming.sh` and `check-language.sh` take their population
+from `git ls-files --cached --others --exclude-standard`. During an **unresolved merge** git lists
+a conflicted path **once per stage**, so both over-count by two for every conflicted file — 8351
+and 6231 measured before `git add` of a one-file resolution, 8349 and 6229 after it. Stage the
+resolution, then measure. It also breaks the attribution method that works everywhere else: you
+cannot park a file and re-run these two, because parking changes the index entry rather than
+removing it from the walk. This is the same failure as the two above wearing a third costume —
+**a number measured in a tree whose shape is not the one CI will see** — and the three together
+are why a read size is re-measured rather than reasoned about.
+
 **How many checks that is is not written here**: this sentence read
 *"all twenty-seven"* while `RECORDED_READ_SIZES` — the list the test actually spawns — held
 **34**, a count of a derived fact going stale by seven inside the paragraph whose entire
@@ -1612,33 +1638,39 @@ why D-107 chose this tool: a change to `@endora-commerce/contracts` can be break
 `@endora-commerce/api-client` and inert for `@endora-commerce/cms-components`, and no commit
 prefix knows which.
 
-**Versioning is independent, with one `linked` group** (D-108):
-`@endora-commerce/page-builder-core`, `@endora-commerce/cms-components` and
-`@endora-commerce/email-components` take one version number whenever a release includes more
-than one of them. `page-builder-core` is a **peer**
-dependency of the other two and ships React contexts and hooks, so the consuming application
-resolves exactly one copy; ranges that disagree resolve two, and a provider in one copy against
-a consumer in the other is a `null` context at runtime, not a type error.
-`@endora-commerce/contracts` and `@endora-commerce/api-client` version independently — Changesets patch-bumps a
-dependent on its own (`updateInternalDependencies: "patch"`).
+**Versioning is independent, with one `linked` group** (D-108), built around
+`@endora-commerce/page-builder-core`: its members take one version number whenever a release
+includes more than one of them. **Who the members are is not written here** — `.changeset/config.json`'s
+`linked` answers it, and this sentence named three of them while the file declared four
+(`page-builder-admin` joined and nothing said so), which is D-100 met in the paragraph that
+exists to explain the group. `page-builder-core` is a **peer** dependency of the rest and ships
+React contexts and hooks, so the consuming application resolves exactly one copy; ranges that
+disagree resolve two, and a provider in one copy against a consumer in the other is a `null`
+context at runtime, not a type error. Everything outside the group versions on its own —
+Changesets patch-bumps a dependent by itself (`updateInternalDependencies: "patch"`).
 
-**Read `linked` precisely, because the sentence that used to stand here was measured wrong**
-(feature 080, T043). It said *"a release of `page-builder-core` therefore always carries all
-three"*, and that is true today for a reason nobody wrote down: `linked` **raises a package
-that is already in a release** to the group's highest number, and it never *adds* one. What
-puts `cms-components` and `email-components` into a `page-builder-core` release is their
-`peerDependencies` range going **out of range** — and every package sits at `0.0.0`, where
-`workspace:^` resolves to `^0.0.0` and any bump at all breaks it. Measured over the real
-manifests: at `0.0.0` a minor on `page-builder-core` moves all three to `0.1.0`; seeded at
-`1.4.2`, the same minor moves `page-builder-core` to `1.5.0` and leaves the other two where
-they are, while a **major** takes them out of range and moves all three to `2.0.0`.
+**Read `linked` precisely, because it does less than its name suggests and the regime decides
+the rest.** `linked` **raises a package that is already in a release** to the group's highest
+number; it never *adds* one. What puts the other members into a `page-builder-core` release is
+their `peerDependencies` range going **out of range**, so the behaviour is a fact about the
+version the group currently sits at and not about the group:
 
-That divergence is correct, not a defect: the requirement is that the application resolve one
-copy, and `^1.4.2` satisfied by `1.5.0` resolves one copy. The shared number was the
-mechanism, never the requirement. It is asserted in both regimes by
-`backend/test/unit/release/changeset-flow.test.ts`, so the first real release does not
-discover it in a merge request. A patch on `cms-components` alone moves only itself, at every
-version — it carries no runtime the app resolves once.
+| seeded at | patch on one member | minor on `page-builder-core` | major |
+| --- | --- | --- | --- |
+| `0.0.0` | the member **and its dependents** (`^0.0.0` is `>=0.0.0 <0.0.1`) | the whole group | the whole group |
+| `0.7.0` | the member alone | **the whole group** (`^0.7.0` is `>=0.7.0 <0.8.0`) | the whole group |
+| `1.4.2` | the member alone | `page-builder-core` alone | the whole group |
+
+Measured, over the real manifests, in `backend/test/unit/release/changeset-flow.test.ts` — which
+seeds its own base rather than reading the tree's, because the tree's version is a release
+decision that moves and it falsified four of these measurements once already. **The `0.7.0` row is
+the one this repository is in**, and it is why D-225's `major` → `minor` translation costs nothing:
+in `0.x` a minor already takes every caret peer out of range, which is the whole consumer-facing
+meaning of a break.
+
+The `1.4.2` divergence is correct, not a defect: the requirement is that the application resolve
+one copy, and `^1.4.2` satisfied by `1.5.0` resolves one copy. The shared number was the
+mechanism, never the requirement.
 
 **The version step is `pnpm run version:packages`, and it runs locally.** It cuts a
 `release/version-<date>` branch, runs `changeset version`, and refuses two things a bare
@@ -1883,6 +1915,8 @@ pointing at whichever tree it was created from; the same property issue #255 dep
 - PostgreSQL — ~12 tables owned by `pim_unopim`, 0–2 small tables owned by `pim_connector` (089-unopim-pim-sync)
 - TypeScript 5.x strict on Node.js >= 22.17 for Endora; PHP 8.2+ package code in the sibling `pim-integrations` workspace + Existing Fastify, MikroORM, Zod, ioredis, BullMQ, React 19 and platform ports; PHP uses the existing Pimcore/Symfony/Composer stack; **no new runtime dependency** (089-pimcore-pim-sync)
 - PostgreSQL for connection, delivery, complete-record inbox, source/media links, protection, run and issue state; Redis/BullMQ for durable asynchronous apply and stale-run recovery (089-pimcore-pim-sync)
+- TypeScript 5.x `strict`, Node.js ≥ 22.17, ESM; React 19 admin + Fastify, MikroORM (PostgreSQL), Zod, ioredis, BullMQ, existing `CredentialsPort` — **no new runtime dependency** (feat/119-infakt-integration)
+- PostgreSQL tables owned by `invoice_ledger` (lock, client maps, document maps, deliveries, webhook receipts). Credentials rows in the existing credentials module. No Infakt id column on `invoices`. (feat/119-infakt-integration)
 
 - TypeScript 5.x strict on Node.js ≥ 22.17; Fastify + MikroORM (PostgreSQL) + Zod + ioredis + BullMQ + Meilisearch (backend)
 - React 19 + Vite + react-router-dom 7 + Tailwind 4 (admin); Next.js 15 App Router + React 19 + Tailwind v4 (storefront)
@@ -1893,9 +1927,7 @@ pointing at whichever tree it was created from; the same property issue #255 dep
 See "Repo map" above.
 
 ## Recent Changes
+- feat/119-infakt-integration: Added TypeScript 5.x `strict`, Node.js ≥ 22.17, ESM; React 19 admin + Fastify, MikroORM (PostgreSQL), Zod, ioredis, BullMQ, existing `CredentialsPort` — **no new runtime dependency**
 - 094-akeneo-pim-sync: Added TypeScript 5.x strict on Node.js ≥ 22.17 for Endora; PHP 8.2+ Symfony bundles for Akeneo PIM Community/Enterprise (self-hosted) + Existing Fastify, MikroORM, Zod, ioredis, BullMQ, React 19 and platform ports; Akeneo packages use the PIM’s Symfony/Composer stack and Storage events / Batch jobs; **no new runtime npm dependency**
 - 089-unopim-pim-sync: Added TypeScript 5.x `strict`, Node.js ≥ 22.17, ESM + Fastify, MikroORM (PostgreSQL), Zod, ioredis, BullMQ — **no new runtime
 - 089-pimcore-pim-sync: Added TypeScript 5.x strict on Node.js >= 22.17 for Endora; PHP 8.2+ package code in the sibling `pim-integrations` workspace + Existing Fastify, MikroORM, Zod, ioredis, BullMQ, React 19 and platform ports; PHP uses the existing Pimcore/Symfony/Composer stack; **no new runtime dependency**
-- 068-inpost-shipping: InPost ShipX PL module (`inpost`) — dual shipping adapters, Geowidget v5, BullMQ poll, PDF labels; orders `shipping_adapter_data`.
-- 072-module-kernel-di: Added TypeScript 5.x `strict`, Node.js ≥ 22.17, ESM + Fastify, MikroORM (PostgreSQL), Zod, ioredis, BullMQ. **One new runtime dependency: `awilix`** — see Complexity Tracking
-- 073-lifecycle-gating-completion: Added TypeScript 5.x `strict`, Node.js ≥ 22.17, ESM + Fastify, MikroORM (PostgreSQL), Zod, ioredis, BullMQ (backend); React 19 + Vite + react-router-dom 7 (admin); Next.js 15 App Router + React 19 (storefront). **No new runtime dependency** (Constitution IV, FR-062)

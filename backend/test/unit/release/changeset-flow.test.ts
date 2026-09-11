@@ -24,7 +24,7 @@ import { afterEach, describe, expect, it } from 'vitest';
  *   2. **`linked` links through the *dependent-bump* machinery and not
  *      otherwise.** It raises a package that is already in a release to the
  *      group's number; it never adds one. So the documented behaviour — a
- *      release of `@endora-commerce/page-builder-core` carries all three — holds
+ *      release of `@endora-commerce/page-builder-core` carries the group — holds
  *      while the group is at **`0.x`**, where `workspace:^` resolves to a caret
  *      range no minor bump satisfies. At `1.x` the same minor leaves the peers
  *      satisfied, so it carries neither. Both regimes are asserted, because the
@@ -54,15 +54,123 @@ const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url)).replac
 const CHANGESET_BIN = join(REPO_ROOT, 'node_modules/.bin/changeset');
 
 /**
- * The library packages this fixture carries, and the three the `linked` group
- * covers. `api-client` was the fifth until D-202 deleted it.
+ * The `linked` group, read from the repository's own `.changeset/config.json`.
+ *
+ * It is **derived rather than written down**, and that is the repair this
+ * constant exists in (D-100). It used to name three packages while the fixture
+ * below copied the real configuration, which links four — `page-builder-admin`
+ * joined and nothing said so, leaving the group's actual behaviour asserted
+ * nowhere at all. A list here and a list there is two answers to one question
+ * waiting to disagree, and they had.
+ *
+ * `linked` is an array of groups; this repository declares exactly one, and a
+ * second would be a D-108 decision rather than a fact this fixture may absorb
+ * silently, so anything else **refuses**.
  */
-const LIBRARIES = [
+function linkedGroupFromConfig(): readonly string[] {
+  const config = JSON.parse(
+    readFileSync(join(REPO_ROOT, '.changeset/config.json'), 'utf8'),
+  ) as { linked?: readonly (readonly string[])[] };
+  const groups = config.linked ?? [];
+  if (groups.length !== 1) {
+    throw new Error(
+      `changeset-flow: .changeset/config.json declares ${String(groups.length)} linked groups; ` +
+        'this fixture measures one. A second group is a D-108 decision — assert it here rather ' +
+        'than letting this file measure whichever sorted first.',
+    );
+  }
+  return groups[0] ?? [];
+}
+
+const PAGE_BUILDER_GROUP = linkedGroupFromConfig();
+
+/**
+ * The directory under `packages/` that holds each package this fixture carries.
+ *
+ * Derived from the package **name**, and **refused** when the derivation does
+ * not land on a manifest declaring that name — a module package lives a
+ * directory deeper, so a linked member this fixture silently failed to create
+ * would be a group member measured as absent rather than as unmoved, which is
+ * the direction that agrees with a defect.
+ */
+function directoryOf(packageName: string): string {
+  const directory = packageName.replace(/^@endora-commerce\//, '');
+  const manifest = join(REPO_ROOT, 'packages', directory, 'package.json');
+  if (!existsSync(manifest)) {
+    throw new Error(
+      `changeset-flow: ${packageName} does not resolve to packages/${directory}/package.json. ` +
+        'This fixture creates its workspace from that path; place the package or teach the ' +
+        'derivation where it lives.',
+    );
+  }
+  const declared = (JSON.parse(readFileSync(manifest, 'utf8')) as { name?: string }).name;
+  if (declared !== packageName) {
+    throw new Error(
+      `changeset-flow: packages/${directory}/package.json declares ${String(declared)}, not ` +
+        `${packageName}.`,
+    );
+  }
+  return directory;
+}
+
+/**
+ * The library packages this fixture carries: `contracts`, plus every member of
+ * the `linked` group. `api-client` was a member until D-202 deleted it.
+ *
+ * `contracts` is named because it is the subject of the private-package and
+ * `changeset status` measurements below; the rest are the group, so the set
+ * follows the configuration instead of a reader remembering to extend it.
+ */
+const LIBRARIES: readonly string[] = [
   'contracts',
-  'page-builder-core',
-  'cms-components',
-  'email-components',
-] as const;
+  ...PAGE_BUILDER_GROUP.map(directoryOf),
+];
+
+/**
+ * The library this fixture makes private for the `privatePackages.version`
+ * measurements — **derived as the one nothing else in the fixture depends on**.
+ *
+ * It has to be a leaf, and that is changesets' rule rather than a preference:
+ * with `privatePackages.version` false a private package is *skipped*, and the
+ * CLI refuses the whole run — *"Invalid tree: X depends on the skipped package
+ * Y, but X is not skipped"*, exit 1 — rather than versioning a public dependent
+ * against a version that will never exist. Measured, and it is how this
+ * derivation came to be written: the subject was `email-components`, which is a
+ * leaf only while `page-builder-admin` is missing from the fixture, and adding
+ * the fourth `linked` member turned both measurements from a silence that had
+ * not happened into a configuration error.
+ *
+ * So the subject is computed from the manifests the fixture actually carries.
+ * Naming one would be the same derived-fact-written-down this file is being
+ * repaired for (D-100), one layer down and with a worse failure: the run would
+ * exit 1 for a reason that has nothing to do with `privatePackages`.
+ */
+function leafLibrary(): string {
+  const manifests = LIBRARIES.map((directory) => {
+    const manifest = JSON.parse(
+      readFileSync(join(REPO_ROOT, 'packages', directory, 'package.json'), 'utf8'),
+    ) as { name: string } & Record<string, Record<string, string> | undefined>;
+    return { directory, manifest };
+  });
+  const dependedOn = new Set<string>();
+  for (const { manifest } of manifests) {
+    for (const field of ['dependencies', 'peerDependencies', 'devDependencies'] as const) {
+      for (const name of Object.keys(manifest[field] ?? {})) dependedOn.add(name);
+    }
+  }
+  const leaf = manifests.find(({ manifest }) => !dependedOn.has(manifest.name));
+  if (leaf === undefined) {
+    throw new Error(
+      'changeset-flow: every library this fixture carries is depended on by another, so there ' +
+        'is no package that can be made private without changesets refusing the tree. Add a ' +
+        'leaf, or measure `privatePackages.version` over a fixture that is not this one.',
+    );
+  }
+  return leaf.directory;
+}
+
+const PRIVATE_SUBJECT = leafLibrary();
+const PRIVATE_SUBJECT_NAME = `@endora-commerce/${PRIVATE_SUBJECT}`;
 const APPLICATIONS = ['backend', 'admin', 'storefront', 'docs'] as const;
 
 /**
@@ -78,12 +186,6 @@ const APPLICATIONS = ['backend', 'admin', 'storefront', 'docs'] as const;
  * ever disagreed about the digits.
  */
 const BASE = '0.0.0';
-
-const PAGE_BUILDER_GROUP = [
-  '@endora-commerce/page-builder-core',
-  '@endora-commerce/cms-components',
-  '@endora-commerce/email-components',
-] as const;
 
 let workspace: string | undefined;
 
@@ -178,13 +280,11 @@ function versionOf(dir: string, library: string): string {
   ).version;
 }
 
-/** `@endora-commerce/<x>` → its version, for the three the group covers. */
+/** `@endora-commerce/<x>` → its version, for every member the group covers. */
 function groupVersions(dir: string): Readonly<Record<string, string>> {
-  return {
-    '@endora-commerce/page-builder-core': versionOf(dir, 'page-builder-core'),
-    '@endora-commerce/cms-components': versionOf(dir, 'cms-components'),
-    '@endora-commerce/email-components': versionOf(dir, 'email-components'),
-  };
+  return Object.fromEntries(
+    PAGE_BUILDER_GROUP.map((name) => [name, versionOf(dir, directoryOf(name))]),
+  );
 }
 
 function runChangeset(dir: string, args: readonly string[]): { status: number; output: string } {
@@ -207,44 +307,48 @@ describe('privatePackages.version — the setting that silently disables everyth
    * nothing, leaving the changeset file on disk to be consumed by a release
    * that will never come.
    *
-   * The subject is `email-components`, and it is made private **by the
-   * fixture**. It was `contracts` until feature 104 published that, then
+   * The subject is **derived** (`leafLibrary`) and made private **by the
+   * fixture**, and both halves of that are corrections to how this pair used to
+   * be written. It was `contracts` until feature 104 published that, then
    * `email-components` until the publication ruling of 2026-09-05 published
    * every versionable package — at which point there was no private one left to
    * borrow and both cases went green for the wrong reason, reporting a `minor`
    * bump that had happened rather than a silence that had not. `privatePackages`
-   * governs **private** packages, so the precondition is now declared where the
-   * measurement is.
+   * governs **private** packages, so the precondition belongs where the
+   * measurement is. And the *name* is no longer written here either: a private
+   * package with a public dependent makes changesets refuse the whole tree, so
+   * the subject has to be a leaf of the fixture's own graph — a fact that
+   * changed the moment the fourth `linked` member joined the fixture.
    */
   it('bumps nothing, exits 0 and keeps the changeset when it is `false`', () => {
     const dir = fixture({
-      privateLibraries: ['email-components'],
+      privateLibraries: [PRIVATE_SUBJECT],
       mutateConfig: (config) => {
         config['privatePackages'] = { version: false, tag: false };
       },
-      files: { '.changeset/a.md': changeset('@endora-commerce/email-components', 'minor') },
+      files: { '.changeset/a.md': changeset(PRIVATE_SUBJECT_NAME, 'minor') },
     });
-    const before = versionOf(dir, 'email-components');
+    const before = versionOf(dir, PRIVATE_SUBJECT);
 
     const run = runChangeset(dir, ['version']);
 
     expect(run.status).toBe(0);
-    expect(versionOf(dir, 'email-components')).toBe(before);
+    expect(versionOf(dir, PRIVATE_SUBJECT)).toBe(before);
     expect(existsSync(join(dir, '.changeset/a.md'))).toBe(true);
   });
 
   it('does the same when the block is omitted, which is the literal default', () => {
     const dir = fixture({
-      privateLibraries: ['email-components'],
+      privateLibraries: [PRIVATE_SUBJECT],
       mutateConfig: (config) => {
         delete config['privatePackages'];
       },
-      files: { '.changeset/a.md': changeset('@endora-commerce/email-components', 'minor') },
+      files: { '.changeset/a.md': changeset(PRIVATE_SUBJECT_NAME, 'minor') },
     });
-    const before = versionOf(dir, 'email-components');
+    const before = versionOf(dir, PRIVATE_SUBJECT);
 
     expect(runChangeset(dir, ['version']).status).toBe(0);
-    expect(versionOf(dir, 'email-components')).toBe(before);
+    expect(versionOf(dir, PRIVATE_SUBJECT)).toBe(before);
   });
 
   /**
@@ -315,7 +419,7 @@ describe('the `linked` group — what it does, and what it does not', () => {
    * D-108's documented behaviour, in the regime the group is in — `0.x`, which
    * is where it has been since it was created and where `0.7.0` leaves it.
    */
-  it('carries all three on a minor to `@endora-commerce/page-builder-core`, at 0.x', () => {
+  it('carries the whole group on a minor to `@endora-commerce/page-builder-core`, at 0.x', () => {
     const dir = fixture({
       seedVersion: BASE,
       files: { '.changeset/a.md': changeset('@endora-commerce/page-builder-core', 'minor') },
@@ -327,10 +431,28 @@ describe('the `linked` group — what it does, and what it does not', () => {
       '@endora-commerce/page-builder-core': '0.1.0',
       '@endora-commerce/cms-components': '0.1.0',
       '@endora-commerce/email-components': '0.1.0',
+      '@endora-commerce/page-builder-admin': '0.1.0',
     });
   });
 
-  it('moves only `@endora-commerce/cms-components` on a patch to it alone', () => {
+  /**
+   * **A patch does not stay local in `0.x`, and this is what the three-member
+   * constant was hiding.** This case read *"moves only `cms-components`"* and
+   * was true of the group as it was written down; over the group the
+   * configuration actually declares, `page-builder-admin` moves with it.
+   *
+   * The mechanism is the same one the whole of D-225 turns on, one decimal
+   * place further left: `^0.0.0` is `>=0.0.0 <0.0.1`, so even a **patch** takes
+   * a caret peer out of range, and `page-builder-admin` peer-depends on
+   * `cms-components`. At `0.0.x` every bump propagates to every dependent;
+   * the seeding is what makes it visible here rather than a special case.
+   *
+   * `page-builder-core` and `email-components` stay put because nothing in the
+   * group depends on `cms-components` except the admin package — so this is
+   * still a measurement of `linked` *not* raising a package that is not already
+   * in the release, which is the property it was written for.
+   */
+  it('moves `@endora-commerce/cms-components` and its dependents on a patch to it alone', () => {
     const dir = fixture({
       seedVersion: BASE,
       files: { '.changeset/a.md': changeset('@endora-commerce/cms-components', 'patch') },
@@ -342,6 +464,7 @@ describe('the `linked` group — what it does, and what it does not', () => {
       '@endora-commerce/page-builder-core': '0.0.0',
       '@endora-commerce/cms-components': '0.0.1',
       '@endora-commerce/email-components': '0.0.0',
+      '@endora-commerce/page-builder-admin': '0.0.1',
     });
   });
 
@@ -349,11 +472,11 @@ describe('the `linked` group — what it does, and what it does not', () => {
    * The regime change nothing else in the repository would report.
    *
    * `linked` raises a package that is **already in a release** to the group's
-   * highest version; it never puts one there. What puts `cms-components` and
-   * `email-components` into a `page-builder-core` release is their
+   * highest version; it never puts one there. What puts the rest of the group
+   * into a `page-builder-core` release is their
    * `peerDependencies` range going out of range — and at `0.x`, `workspace:^`
    * resolves to a caret range a minor bump breaks. From `1.x` a minor no longer
-   * does, so the three numbers diverge. D-210's `0.7.0` is therefore *not* the
+   * does, so the group's numbers diverge. D-210's `0.7.0` is therefore *not* the
    * regime change: it moved the estate's digits and left this behaviour exactly
    * where it was.
    *
@@ -376,16 +499,17 @@ describe('the `linked` group — what it does, and what it does not', () => {
       '@endora-commerce/page-builder-core': '1.5.0',
       '@endora-commerce/cms-components': '1.4.2',
       '@endora-commerce/email-components': '1.4.2',
+      '@endora-commerce/page-builder-admin': '1.4.2',
     });
   });
 
   /**
    * …and the invariant that survives the regime change: a **major** takes the
-   * peers out of range, so all three move and agree. This is the property the
+   * peers out of range, so the whole group moves and agrees. This is the property the
    * singleton rule actually needs, and it is the one that costs one changeset
    * rather than 66 hand edits when the host package is majored (D-160.2).
    */
-  it('carries all three on a major once the group is at 1.x', () => {
+  it('carries the whole group on a major once the group is at 1.x', () => {
     const dir = fixture({
       seedVersion: '1.4.2',
       files: { '.changeset/a.md': changeset('@endora-commerce/page-builder-core', 'major') },
@@ -397,6 +521,7 @@ describe('the `linked` group — what it does, and what it does not', () => {
       '@endora-commerce/page-builder-core': '2.0.0',
       '@endora-commerce/cms-components': '2.0.0',
       '@endora-commerce/email-components': '2.0.0',
+      '@endora-commerce/page-builder-admin': '2.0.0',
     });
     for (const name of PAGE_BUILDER_GROUP) expect(name).toMatch(/^@endora-commerce\//);
   });

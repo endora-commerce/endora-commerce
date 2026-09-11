@@ -165,6 +165,16 @@ export const manifest = defineModuleManifest({
     'settings',
     'transactional_emails',
   ],
+  nonBindingDependencies: [
+    {
+      moduleId: 'invoice_ledger',
+      name: 'invoiceLedgerRoutingPort',
+      kind: 'degrades-without',
+      whenAbsent: 'Issuance stays Endora-numbered and ready; mode B wait is ignored.',
+      reason:
+        'InvoiceService.issue holds pending only when the ledger module is present and numbering is vendor.',
+    },
+  ],
   settings: invoicesSettingsManifest,
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },

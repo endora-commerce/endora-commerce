@@ -214,7 +214,7 @@ fail=0
 # to sort first and to mark "cross-cutting, not a domain" — see AGENTS.md.
 # ──────────────────────────────────────────────────────────────────────────
 allowed_singular="^(auth|catalog|email|example|import_export|inventory|quick_order|search|seo|assets_library|blog|megamenu|newsletter)$"
-allowed_proper_noun="^(autopay|dhl_parcel|google_tag_manager|inpost|ksef|mfa|paypal|payu|pim_akeneo|pim_connector|pim_ergonode|pim_pimcore|pim_unopim|pwa|stripe|tpay)$"
+allowed_proper_noun="^(autopay|dhl_parcel|google_tag_manager|infakt|inpost|invoice_ledger|ksef|mfa|paypal|payu|pim_akeneo|pim_connector|pim_ergonode|pim_pimcore|pim_unopim|pwa|stripe|tpay)$"
 
 for dir in "${module_folders[@]}"; do
   name="$(basename "$dir")"
