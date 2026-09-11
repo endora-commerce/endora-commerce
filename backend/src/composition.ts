@@ -26,7 +26,6 @@ import type {
   CustomerPasswordVerificationPort,
   CustomerRollupScopePort,
   EmailMailerPort,
-  OrderReadPort,
   OrganizationTaxProfilePort,
   TaxServicePort,
 } from '@endora-commerce/contracts';
@@ -99,8 +98,8 @@ import { effectiveState } from './kernel/lifecycle/effective-state.js';
 // Feature 046 — Returns & Complaints (Refunds, RMA).
 import type { InvoicesBridge } from '@endora-commerce/mod-invoices/backend';
 import { DefaultChannelReconciler } from '@endora-commerce/platform/composition';
-// Feature 046 — Progressive Web App.
-import type { PwaBridge } from '@endora-commerce/mod-pwa/backend';
+// Feature 046 — Progressive Web App. No type import: T118c retired `pwaBridge`
+// and this deployment contributes nothing for the module.
 // Feature 047 — Transactional Emails.
 // Feature 048 — Newsletter.
 import type { NewsletterBridge } from '@endora-commerce/mod-newsletter/backend';
@@ -500,8 +499,12 @@ async function contributeReferenceDeployment(
     customerPasswordVerificationPort: CustomerPasswordVerificationPort;
   } => container.cradle as never;
 
-  const orderReadPort = (): OrderReadPort =>
-    (container.cradle as never as { orderReadPort: OrderReadPort }).orderReadPort;
+  // `orderReadPort` had an accessor here until `specs/110-instance-repository/`
+  // T118c, and `pwaBridge`'s `resolveOrderTarget` was its **only** reader in
+  // either root. `pwa` resolves the port itself now and declares `orders` in its
+  // manifest, so the read is gone from both compositions rather than moved. That
+  // is the `mfa` target's `adminActorPromotion` shape again: a root accessor
+  // whose last consumer was the bridge it existed for.
 
   // Feature 080 (T040b) — the two ports that replaced this root's value
   // imports of a module's own sources. Same reason as the block above and the
@@ -1140,71 +1143,19 @@ async function contributeReferenceDeployment(
   // `assetsLibraryPort`, with the edge in its own manifest
   // (`specs/075-cross-module-decoupling-sweep/` Phase C).
 
-  // Feature 046 — PWA module. Owns the installable-app control plane (over the
-  // Settings module), the push-subscription registry, the provider-agnostic
-  // push fan-out (BullMQ; co-located unless BACKEND_ROLE=api), and the icon
-  // rendition pipeline (sharp + assets_library). Channel/asset/customer coupling
-  // is injected here so the module stays isolated (Principle I).
-  // Feature 072 (T116) — `pwa` owns its services, its queue and its routes
-  // now. What stays here is every way it reaches outside itself, contributed
-  // as one bridge: a composition knows how to reach `assets_library` and
-  // `sales_channels`, or it does not.
-  composedModules.contribute({
-    pwaBridge: {
-      assetUpload: {
-        upload: async (input) => {
-          const detail = await assetsLibrary.handle.service.upload(input);
-          return { id: detail.id };
-        },
-      },
-      // D-223 — the URL arrives absolute. This closure used to wrap it in
-      // `absolutizePublicUrl`, which read `BACKEND_PUBLIC_URL` first while the
-      // product-feed site three hundred lines below read `PUBLIC_API_BASE_URL`
-      // first, and which the harness did not apply at all — so a push payload's
-      // icon URL depended on which root composed the platform. Both roots now
-      // pass the module's answer through unchanged, which is why they are
-      // byte-identical here.
-      resolveAssetUrl: async (assetId: string) => {
-        try {
-          return (await assetsLibrary.handle.service.resolveUrl(assetId)).url;
-        } catch {
-          return null;
-        }
-      },
-      // An unknown code falls back to the system-default channel, which always
-      // exists (D-48). It used to be the `'default'` sentinel, which resolved
-      // nothing at all, and then `?? null`, which read `pwa`'s per-storefront
-      // configuration platform-wide on a branch that cannot be taken.
-      resolveChannelIdByCode: async (code: string | undefined) => {
-        if (code) {
-          const ch = await salesChannels.resolver.getByCode(code);
-          if (ch) return ch.id;
-        }
-        return (await salesChannels.resolver.getSystemDefault()).id;
-      },
-      defaultChannelId: async () => (await salesChannels.resolver.getSystemDefault()).id,
-      channelCodeForId: async (channelId: string) => {
-        const ch = await em().findOne(SalesChannel, { id: channelId });
-        return ch?.code ?? null;
-      },
-      resolveAuditContext: (request: FastifyRequest) => ({
-        actorAdminUserId: request.actor.kind === 'admin' ? request.actor.adminUserId : null,
-      }),
-      resolveCustomerAccountId: async (request: FastifyRequest) =>
-        request.actor.kind === 'customer' ? request.actor.customerAccountId : null,
-      resolveOrderTarget: async (payload) => {
-        const order = await orderReadPort().findById(payload.orderId);
-        if (!order || !order.placedByCustomerAccountId) return null;
-        return {
-          salesChannelId: payload.salesChannelId,
-          customerAccountId: order.placedByCustomerAccountId,
-          title: 'Order update',
-          body: `Order ${order.businessId} is now ${payload.to.replace(/_/g, ' ')}.`,
-          url: `/account/orders/${order.businessId}`,
-        };
-      },
-    } satisfies PwaBridge,
-  });
+  // Feature 046 — PWA module. **Nothing is contributed for it any more**
+  // (`specs/110-instance-repository/` T118c). `pwaBridge` was one name carrying
+  // eight members — an `assets_library` upload facade and URL resolver, three
+  // sales-channel closures, two actor resolvers and the FR-024 order-status
+  // copy — and re-deriving them member by member found that none was a
+  // composition's answer to give. Six became published ports the module resolves
+  // itself (`assetsLibraryPort`, the kernel's `salesChannelResolutionPort`,
+  // `orderReadPort`) or names the platform already contributes
+  // (`adminAuditActorResolver`, `request.actor`), and one — `resolveChannelIdByCode`
+  // — was called by nothing at either end. `pwaRunWorkers` is not this file's
+  // and never was: the platform contributes it in `compose-app.ts`, because
+  // whether a process runs queue consumers is a property of the composition
+  // rather than of this deployment.
 
   // Feature 015 — Megamenu module. **Nothing is contributed for it any more**
   // (`specs/110-instance-repository/` T118c). `megamenuValidatorDeps` and

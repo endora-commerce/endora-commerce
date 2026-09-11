@@ -53,16 +53,22 @@ export interface PwaModuleOptions {
   customerAccounts: CustomerAccountReadPort;
   organizationDetails: OrganizationDetailsPort;
   customerGroups: CustomerGroupReadPort;
-  /** assets_library upload facade. */
+  /**
+   * The upload half of `assets_library`' published `assetsLibraryPort`, narrowed
+   * to the one method the icon pipeline calls
+   * (`specs/110-instance-repository/` T118c). `backend/index.ts` resolves the
+   * whole port; this names the demand.
+   */
   assetUpload: AssetUploadPort;
   resolveAssetUrl: (assetId: string) => Promise<string | null>;
-  /** Channel helpers (composition owns the sales_channels coupling). */
   /**
    * `null` = this deployment has no channel to read for, so `pwa` resolves its
-   * configuration platform-wide (feature 072, D-41). Both used to fall back to
-   * the root's `'default'` sentinel — a channel *code* against a `uuid` column.
+   * configuration platform-wide (feature 072, D-41). It used to fall back to the
+   * root's `'default'` sentinel — a channel *code* against a `uuid` column.
+   *
+   * `resolveChannelIdByCode` stood beside these two until T118c and was called
+   * by nothing; see the note in `routes.storefront.ts`.
    */
-  resolveChannelIdByCode: (code: string | undefined) => Promise<string | null>;
   defaultChannelId: () => Promise<string | null>;
   channelCodeForId: (channelId: string) => Promise<string | null>;
   resolveAuditContext: (request: FastifyRequest) => AdminAuditContext;
@@ -76,13 +82,37 @@ export interface PwaModuleOptions {
    * here.
    */
   log: PushEventLogger;
-  resolveCustomerAccountId?: (request: FastifyRequest) => Promise<string | null>;
-  resolveOrderTarget?: (payload: {
+  /**
+   * The FR-024 order-status auto-trigger, and **required** since T118c.
+   *
+   * It was optional while a composition root had to supply it, on the reasoning
+   * that a deployment which pushes on no order event has nothing to give. This
+   * module resolves `orderReadPort` itself now and declares the edge, so the
+   * absent branch is one no composition can reach — and an option nothing can
+   * omit that is nonetheless typed as omittable is a branch no test can drive.
+   */
+  resolveOrderTarget: (payload: {
     orderId: string;
     salesChannelId: string;
     from: string;
     to: string;
   }) => Promise<PushEventTarget | null>;
+  /**
+   * The quote-request auto-trigger, and it stays optional because **nothing
+   * supplies it**.
+   *
+   * Measured on the tree T118c drained: `resolveQuoteTarget` appears in this
+   * file, in `push-event-subscriber.ts`, in the barrel's `PwaBridge` — and in
+   * neither composition root. So `onQuoteRequestUpdated` has returned at its
+   * first line on every deployment since the option was written, the handler is
+   * registered, the subscription is gated, and the push it exists to send has
+   * never been sent by anybody.
+   *
+   * It is left optional rather than deleted or implemented: implementing it is a
+   * design act (a `quote_requests` read port this module does not declare, and a
+   * second sentence to compose), and deleting it would erase the only record
+   * that the feature was specified. The gap is in T118c's own report.
+   */
   resolveQuoteTarget?: (payload: {
     quoteRequestId: string;
     sourceEventId: string;
@@ -149,7 +179,7 @@ export function pwaModule(options: PwaModuleOptions): PwaModuleResult {
   const pushEventHandlers = createPushEventHandlers({
     messageService,
     log: () => eventLogger,
-    ...(options.resolveOrderTarget ? { resolveOrderTarget: options.resolveOrderTarget } : {}),
+    resolveOrderTarget: options.resolveOrderTarget,
     ...(options.resolveQuoteTarget ? { resolveQuoteTarget: options.resolveQuoteTarget } : {}),
     isPushEnabled: async (salesChannelId) => {
       try {
@@ -201,11 +231,7 @@ export function pwaModule(options: PwaModuleOptions): PwaModuleResult {
       configResolver,
       iconService,
       subscriptionService,
-      resolveChannelId: options.resolveChannelIdByCode,
       resolveAssetUrl: options.resolveAssetUrl,
-      ...(options.resolveCustomerAccountId
-        ? { resolveCustomerAccountId: options.resolveCustomerAccountId }
-        : {}),
     });
     await registerPwaAdminRoutes(app, {
       requireAdmin: options.requireAdmin,

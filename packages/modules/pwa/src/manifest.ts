@@ -156,10 +156,22 @@ export const manifest = defineModuleManifest({
   // `customerGroupReadPort`; feature 076 (D-79) moved that port to
   // `customer_accounts`, which this module already declares, and the port check
   // confirms nothing else here resolves out of `price_lists`.
+  //
+  // `orders` arrived with `specs/110-instance-repository/` T118c: the FR-024
+  // order-status auto-trigger reads the order it is announcing over
+  // `orderReadPort`, which a composition root used to read on this module's
+  // behalf inside `pwaBridge`. It is **binding**, and it costs no operator a
+  // control, derived rather than waived: `orders` is `nonDeactivatable`.
+  // `assets_library` and `sales_channels` are `nonDeactivatable` as well, and
+  // both were already declared, so the two ports that drained beside it owe no
+  // `refuses-without` sentence either. The kernel's
+  // `salesChannelResolutionPort` is a platform name and puts nothing here at
+  // all.
   dependencies: [
     '_i18n',
     '_lifecycle',
     'assets_library',
+    'orders',
     'sales_channels',
     'settings',
     'auth',

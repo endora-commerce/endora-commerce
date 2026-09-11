@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import {
   PushSubscriptionInputSchema,
   PushSubscriptionDeleteSchema,
@@ -8,19 +8,32 @@ import type { PwaConfigResolver } from './services/pwa-config-resolver.js';
 import type { PwaIconService } from './services/pwa-icon-service.js';
 import type { PushSubscriptionService } from './services/push-subscription-service.js';
 import { getResolvedChannel } from '@endora-commerce/platform/kernel';
+import { callingCustomerAccountId } from './request-actor.js';
 
 export interface PwaStorefrontRoutesDeps {
   configResolver: PwaConfigResolver;
   iconService: PwaIconService;
   subscriptionService: PushSubscriptionService;
-  /** Resolve the request's channel code (header) to a channel id, with system-default fallback. */
-  /** `null` = no channel for this request; the config is read platform-wide. */
-  resolveChannelId: (code: string | undefined) => Promise<string | null>;
-  /** Resolve a stored asset id to a servable URL (assets_library). */
+  /**
+   * A stored asset id to a servable URL, over `assets_library`' published
+   * `assetsLibraryPort` (`specs/110-instance-repository/` T118c). Absolute:
+   * `assets_library` resolves the origin itself (D-223).
+   */
   resolveAssetUrl: (assetId: string) => Promise<string | null>;
-  /** Resolve the logged-in customer account id from the request, or null when anonymous. */
-  resolveCustomerAccountId?: (request: FastifyRequest) => Promise<string | null>;
 }
+
+/**
+ * **`resolveChannelId` is gone, and it was never called.**
+ *
+ * Both composition roots built a `resolveChannelIdByCode` closure — a
+ * `getByCode` with a system-default fallback — `plugin.ts` threaded it here as
+ * `resolveChannelId`, and the three routes below read `getResolvedChannel`
+ * instead, which is the platform's resolved request channel and the sanctioned
+ * accessor (Constitution XII). So the option was dead the whole way down: two
+ * closures, one option, one dependency field, and no call site. It was one of
+ * the eight members of `PwaBridge`, and the only one T118c deleted rather than
+ * drained.
+ */
 
 export async function registerPwaStorefrontRoutes(
   app: FastifyInstance,
@@ -62,9 +75,7 @@ export async function registerPwaStorefrontRoutes(
       return reply.code(503).send({ error: { code: 'PWA_PUSH_UNCONFIGURED', message: 'Push is not configured.' } });
     }
     const body = PushSubscriptionInputSchema.parse(request.body);
-    const customerAccountId = deps.resolveCustomerAccountId
-      ? await deps.resolveCustomerAccountId(request)
-      : null;
+    const customerAccountId = callingCustomerAccountId(request);
     const result = await deps.subscriptionService.register({
       ...body,
       salesChannelId: channelId,

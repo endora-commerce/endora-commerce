@@ -78,7 +78,6 @@ import type {
   CustomerAccountReadPort,
   CustomerPasswordVerificationPort,
   CustomerRollupScopePort,
-  OrderReadPort,
   // T118 — `organizations` declared this and no longer does: it is the type
   // argument of a `providePort` name, so it is a contract type. The production
   // root spells it the same way.
@@ -179,7 +178,7 @@ import { ScriptedUnopimMediaFetcher } from './scripted-unopim-media-fetcher.js';
 import { ScriptedAkeneoMediaFetcher } from './scripted-akeneo-media-fetcher.js';
 import type { PimPimcoreCradle } from '@endora-commerce/mod-pim-pimcore/backend';
 import type { KsefApiClientPort } from '../../../packages/modules/ksef/src/backend/integrations/ksef-client.interface.js';
-import type { PwaBridge, PwaCradle } from '../../../packages/modules/pwa/src/backend/index.js';
+import type { PwaCradle } from '../../../packages/modules/pwa/src/backend/index.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { composeErrorEnvelopeOptions } from '@endora-commerce/platform/composition';
 import type { ComparisonsCradle } from '../../../packages/modules/comparisons/src/backend/index.js';
@@ -929,8 +928,12 @@ export async function setupBackendServer(
     customerPasswordVerificationPort: CustomerPasswordVerificationPort;
   } => container.cradle as never;
 
-  const orderReadPort = (): OrderReadPort =>
-    (container.cradle as never as { orderReadPort: OrderReadPort }).orderReadPort;
+  // `orderReadPort` had an accessor here until `specs/110-instance-repository/`
+  // T118c, and `pwaBridge`'s `resolveOrderTarget` was its **only** reader in
+  // either root. `pwa` resolves the port itself now and declares `orders` in its
+  // manifest, so the read is gone from both compositions rather than moved. That
+  // is the `mfa` target's `adminActorPromotion` shape again: a root accessor
+  // whose last consumer was the bridge it existed for.
 
   const assetReadPort = (): AssetReadPort =>
     (container.cradle as never as { assetReadPort: AssetReadPort }).assetReadPort;
@@ -1747,72 +1750,25 @@ export async function setupBackendServer(
       // edges block an asset delete.
       assetsLibrary = (container.cradle as unknown as AssetsLibraryCradle).assetsLibrary;
 
-      // Feature 046 — PWA module (mirrors composition.ts). runWorkers:false so no
-      // BullMQ consumer starts in tests; the delivery processor is invoked directly
-      // by integration tests.
-      // Feature 072 (T116) — `pwa` owns its services, its queue and its routes
-      // now. What stays here is every way it reaches outside itself, contributed
-      // as one bridge: a composition knows how to reach `assets_library` and
-      // `sales_channels`, or it does not.
+      // Feature 046 — PWA module. **`pwaBridge` is gone**
+      // (`specs/110-instance-repository/` T118c). This root's copy was the
+      // divergent one in a place nothing could see: its `resolveAuditContext`
+      // answered `TEST_ADMIN_ID` for a non-admin caller where production
+      // answered `null`, so a push message created outside the admin gate was
+      // attributed to an administrator here and to nobody there. The module
+      // resolves the platform's own `adminAuditActorResolver` now, which this
+      // file contributes a few hundred lines above with production's fallback.
+      //
+      // What stays is the worker flag, and only that: whether a composition
+      // runs the push-delivery consumer is a deployment decision, and these two
+      // deployments genuinely differ. `composeApp` contributes it for
+      // production; this harness composes through `composeTestServer`, which
+      // does not, so the name is registered here.
       composedModules.contribute({
-        // The harness has a producer and no consumer: it enqueues so the routes can
-        // assert the queued ack, and starting a delivery worker per test file would
-        // be a BullMQ consumer nothing ever closes.
+        // The harness has a producer and no consumer: it enqueues so the routes
+        // can assert the queued ack, and starting a delivery worker per test
+        // file would be a BullMQ consumer nothing ever closes.
         pwaRunWorkers: false,
-        pwaBridge: {
-          assetUpload: {
-            upload: async (input) => {
-              const detail = await assetsLibrary.handle.service.upload(input);
-              return { id: detail.id };
-            },
-          },
-          // D-223 — identical to `composition.ts` now, and that is the point:
-          // production used to wrap this in `absolutizePublicUrl` and this root
-          // did not, so a push payload's icon URL was absolute in production and
-          // host-relative under the harness. Neither root rebases anything any
-          // more, because `assets_library` returns an absolute URL.
-          resolveAssetUrl: async (assetId: string) => {
-            try {
-              return (await assetsLibrary.handle.service.resolveUrl(assetId)).url;
-            } catch {
-              return null;
-            }
-          },
-          resolveChannelIdByCode: async (code: string | undefined) => {
-            if (code) {
-              const ch = await salesChannels.resolver.getByCode(code);
-              if (ch) return ch.id;
-            }
-            return (await salesChannels.resolver.getSystemDefault()).id;
-          },
-          defaultChannelId: async () => (await salesChannels.resolver.getSystemDefault()).id,
-          channelCodeForId: async (channelId: string) => {
-            const ch = await em().findOne(SalesChannel, { id: channelId });
-            return ch?.code ?? null;
-          },
-          resolveAuditContext: (request: FastifyRequest) => ({
-            actorAdminUserId:
-              request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
-          }),
-          resolveCustomerAccountId: async (request: FastifyRequest) =>
-            request.testActor?.kind === 'customer' ? request.testActor.customerAccountId : null,
-          resolveOrderTarget: async (payload: {
-            orderId: string;
-            salesChannelId: string;
-            from: string;
-            to: string;
-          }) => {
-            const order = await orderReadPort().findById(payload.orderId);
-            if (!order || !order.placedByCustomerAccountId) return null;
-            return {
-              salesChannelId: payload.salesChannelId,
-              customerAccountId: order.placedByCustomerAccountId,
-              title: 'Order update',
-              body: `Order ${order.businessId} is now ${payload.to.replace(/_/g, ' ')}.`,
-              url: `/account/orders/${order.businessId}`,
-            };
-          },
-        } satisfies PwaBridge,
       });
       pwaCradle = container.cradle as unknown as PwaCradle;
 
