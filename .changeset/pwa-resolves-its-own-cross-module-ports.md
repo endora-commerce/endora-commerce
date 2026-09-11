@@ -1,5 +1,5 @@
 ---
-'@endora-commerce/mod-pwa': major
+'@endora-commerce/mod-pwa': minor
 ---
 
 Removed the `PwaBridge` interface and the `pwaBridge` container name; `pwa` resolves its

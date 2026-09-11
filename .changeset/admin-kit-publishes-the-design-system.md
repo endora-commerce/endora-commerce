@@ -1,5 +1,5 @@
 ---
-'@endora-commerce/admin-kit': major
+'@endora-commerce/admin-kit': minor
 ---
 
 **`./theme.css` — the admin's design system now ships from this package**, and

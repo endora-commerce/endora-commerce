@@ -1,6 +1,6 @@
 ---
-'@endora-commerce/mod-auth': major
-'@endora-commerce/mod-i18n': major
+'@endora-commerce/mod-auth': minor
+'@endora-commerce/mod-i18n': minor
 '@endora-commerce/platform': minor
 ---
 

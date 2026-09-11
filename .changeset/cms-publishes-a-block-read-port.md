@@ -1,7 +1,7 @@
 ---
 '@endora-commerce/contracts': minor
 '@endora-commerce/mod-cms': minor
-'@endora-commerce/mod-megamenu': major
+'@endora-commerce/mod-megamenu': minor
 ---
 
 `cms` publishes `CmsBlockReadPort`, and `megamenu` resolves its own cross-module targets.

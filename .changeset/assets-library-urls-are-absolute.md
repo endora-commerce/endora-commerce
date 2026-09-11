@@ -1,5 +1,5 @@
 ---
-'@endora-commerce/mod-assets-library': major
+'@endora-commerce/mod-assets-library': minor
 '@endora-commerce/platform': minor
 ---
 

@@ -1,6 +1,6 @@
 ---
-'@endora-commerce/contracts': major
-'@endora-commerce/cli': major
+'@endora-commerce/contracts': minor
+'@endora-commerce/cli': minor
 '@endora-commerce/platform': patch
 ---
 
