@@ -1,5 +1,111 @@
 # @endora-commerce/mod-admin-roles
 
+## 0.8.0
+
+### Minor Changes
+
+- 6e037cd: The module declares its demo data: `manifest.demo` creates the `platform_admin` and
+  `sales_representative` roles the demo signs in with, and withdraws them again.
+
+  `endora demo seed` now reports `admin_roles` by name with what it created, and `endora demo
+reset` removes it. Both bodies are reached by a relative `await import()` from the manifest, so
+  nothing is loaded by the processes that merely compose the platform, and the module gained no
+  `exports` subpath, no `files` entry and no manifest `dependencies` entry.
+
+  **`SALES_REPRESENTATIVE_PERMISSIONS` is published on `./backend`.** It was
+  `backend/src/seeds/seeded-role-permissions.ts` in the application tree, and it is a constant
+  rather than four lines inside a seed because six `permission-authority` contract tests assert
+  what the seeded representative may reach and have to read the list the seed _writes_ — a copy
+  agrees with the seed on the day it is written and never again. Since the seed that writes it is
+  now this package's, so is the list.
+
+  **The withdrawal changed, and it is a repair.** The host's demo reset cleared this table with a
+  `truncate … cascade`, and this table is shared: `blog` and `cms` seed a role apiece from their
+  own boot hooks, an operator's own role is indistinguishable from a demo one by every other
+  column, and the cascade reached `admin_users`. The reset now deletes only the two codes `seed`
+  assigns.
+
+  **Which administrator holds which role is not this module's.** An `admin_users` row carrying an
+  `admin_roles` id is two modules' rows in one statement, so the assignment stays with the
+  instance composition.
+
+  Seeding twice creates nothing the second time and reports the same count.
+
+- e27bf6c: Every package that ships scannable UI now publishes its own Tailwind `@source`
+  declarations at a new `./tailwind.css` subpath.
+
+  A host compiling this package's utility classes no longer has to know where the
+  package's sources are. Import the subpath from the stylesheet that builds your
+  admin, and the package names its own layers:
+
+  ```css
+  @import 'tailwindcss';
+  @import '@endora-commerce/mod-blog/tailwind.css';
+  ```
+
+  `@source` resolves relative to the stylesheet that declares it, so the paths hold
+  wherever the package is installed. The file is generated from the package's layer
+  inventory, ships in the tarball beside `package.json`, and its `dist` line is the one
+  that matters to you — the `src` line beside it is inert in a published package and
+  exists so that a checkout of this repository keeps scanning source in `dev`.
+
+  **Nothing is removed or renamed**: every existing subpath resolves exactly as before.
+  What is new is the obligation on the _host_ side, and it is a build error rather than a
+  silent one. Before this, a host reached these packages with a glob over the monorepo
+  (`@source "../../packages/**"`), which named a directory no installed tree has —
+  and Tailwind reports nothing at all about a source that matches nothing, so such a host
+  built green and rendered every screen unstyled. A host that now names a package that is
+  not installed gets `Can't resolve`, and one whose tarball omits the file gets
+  `ERR_PACKAGE_PATH_NOT_EXPORTED`.
+
+  `@endora-commerce/cms-components` deliberately does **not** publish this subpath. It
+  ships a finished, prefixed stylesheet at `./styles.css` and must not also be scanned by
+  its host.
+
+### Patch Changes
+
+- Updated dependencies [16a9a6d]
+- Updated dependencies [5394b8f]
+- Updated dependencies [0c9a799]
+- Updated dependencies [e20276c]
+- Updated dependencies [9f7591b]
+- Updated dependencies [142fcdd]
+- Updated dependencies [eb01958]
+- Updated dependencies [4eeb5cd]
+- Updated dependencies [a6a9d30]
+- Updated dependencies [016524f]
+- Updated dependencies [fb2659a]
+- Updated dependencies [9eb0cb6]
+- Updated dependencies [7e80824]
+- Updated dependencies [e1748da]
+- Updated dependencies [ca43192]
+- Updated dependencies [fd7db00]
+- Updated dependencies [6521134]
+- Updated dependencies [089d2d4]
+- Updated dependencies [e83be80]
+- Updated dependencies [74a4797]
+- Updated dependencies [9a5d4d2]
+- Updated dependencies [a655909]
+- Updated dependencies [1beac89]
+- Updated dependencies [7fb0567]
+- Updated dependencies [304f6d8]
+- Updated dependencies [db1ec0b]
+- Updated dependencies [f7147b0]
+- Updated dependencies [72013ed]
+- Updated dependencies [e27bf6c]
+- Updated dependencies [ec09593]
+- Updated dependencies [dcface9]
+- Updated dependencies [40e6e96]
+- Updated dependencies [d321c67]
+- Updated dependencies [03dec57]
+- Updated dependencies [8249bb7]
+- Updated dependencies [5ba2e97]
+- Updated dependencies [0222f04]
+- Updated dependencies [0ab2044]
+  - @endora-commerce/admin-kit@0.8.0
+  - @endora-commerce/contracts@0.8.0
+  - @endora-commerce/platform@0.8.0
+
 ## 0.7.0
 
 ### Minor Changes

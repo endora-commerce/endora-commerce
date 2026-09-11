@@ -1,5 +1,727 @@
 # @endora-commerce/cli
 
+## 0.8.0
+
+### Minor Changes
+
+- 77772dc: New shared library `@endora-commerce/cli/lib/delegated-composer.js`: _"this
+  composition root does not compose, it hands its composition to somebody — where is
+  that somebody's source?"_
+
+  A composition root used to be one file. Since feature 109's Phase 1c
+  `backend/test/helpers/test-server.ts` supplies a `PlatformComposition` and
+  `@endora-commerce/test-kit/server` performs the composition — `registerValues`,
+  `composeModules`, the two Redis clients, the contribution window, the boot phase,
+  `buildServer`. Every instrument whose subject is _what a root supplies_ therefore has
+  to follow the delegation or start measuring half a composition, and the failure is
+  silent in the worst direction: it reports the delegating root as registering nothing.
+
+  Measured on the merge request that made the harness the kit's first caller,
+  `check:port-dependencies` reported **16 root issues** — `redis`, `eventBus`,
+  `commandBus`, `apiInterceptors`, `resolvedModuleRegistry` and eleven more "registered
+  by production only" — every one of them a name the harness composition does register.
+  Both remedies it printed were wrong: a `ROOT_DIVERGENCE_ALLOWED` entry states that the
+  two compositions genuinely differ on that name, and _"register it in both roots"_ asks
+  for something already done.
+
+  `delegatedComposerOf(rootSource, rootPath, repoRoot, binding)` follows the specifier a
+  root imports `binding` from back to that composer's **source** directory — through the
+  workspace member's own `exports` map and its `tsconfig.build.json` emit layout, so no
+  package name, no `dist` and no `src` is written down (D-100), and reading the artefact
+  cannot hold a run to the previous build (D-164). `delegatedSupplyFields` reads which
+  option field that composer spreads into its own `registerValues`, and
+  `delegatedSuppliedNames` collects the names a root hands over through it — because a
+  delegating root supplies its host values as _data_, which no call-shape reader sees.
+
+  Five refusals, each an exit-2 for its caller rather than an empty answer, with
+  `delegationRefusalMessage` writing the sentence: the binding is imported by nobody, no
+  workspace member owns the specifier, the package declares no such subpath, no source
+  under its `rootDir` emits the target, and the composer's directory holds no source.
+
+- 211060c: `platform-surface` gains a second consumer population: the application's own
+  relative reaches into the host package.
+
+  The rule was already _a reach into the host names a published subpath or a
+  declared host-internal one, never a file inside the package by relative path_.
+  It was asked of **modules** only, and the consumer that writes the most such
+  reaches — the application — was outside the population by construction:
+  `moduleIdOf` answers `null` for every one of its files, so a `violations=0` was
+  honest about a population that did not contain them. On this repository's tree
+  that hid 84 reaches, every one of which resolves in the checkout and in no
+  instance built from published packages.
+
+  New exports on `@endora-commerce/cli/rules/platform-surface.js`, all additive:
+  - `scanApplicationReaches(input)` and `checkApplicationReaches(input, ledger)` —
+    the pure analysis, over source text, file keys, barrel-derived surface and the
+    two platform roots, so a fixture enters where a run does;
+  - `canonicalPlatformFile(joined, input)` — the canonicalisation. It drops the
+    member-relative path's **first segment**, whatever it is, and re-roots the
+    remainder at the platform's source root, so `dist/x.js` and `src/x.ts` are one
+    key and the word `dist` appears nowhere in the analysis;
+  - `applicationReachRefusal({ canonicalTargets, applicationFiles })` — the two
+    exit-2 refusals this half owns, both of which fail in the direction that
+    produces a clean result;
+  - `hostReachCoverage(ledger, onDisk, opened)` — the `sources=host-reaches:<n>/<n>`
+    floor, derived from the ledger rather than from a count, and `null` rather than
+    `expected: 0` once that ledger empties;
+  - `LedgeredHostReach` — `{ reason, retiredBy }`, with no `permanent` member: this
+    ledger is expected to empty, and an entry saying "this reach is correct" would
+    mean the predicate has outgrown its population.
+
+  **Two changes to existing shapes, and both can break a consumer that writes the
+  type rather than reading it.** `PlatformSurfaceFindingKind` gains
+  `'relative-host-reach'`, so an exhaustive `switch` over it no longer covers every
+  member; and `PlatformSurface` gains a required `publishedBy` field —
+  `<target file>` to the barrels that publish it, the provenance the merge in
+  `publishedSurface` was dropping. It is what turns a target into an address, so a
+  remedy can name `@endora-commerce/platform/kernel` instead of saying only that
+  the reach is wrong. A consumer that builds a `PlatformSurface` literal by hand
+  adds the field; one that calls `publishedSurface` gets it for nothing.
+
+  `PlatformSurfaceFinding` also gains an optional `publishedAs`, carried by the new
+  finding and by nothing else.
+
+  The estate entry for `check:platform-surface` gains a second `partial`,
+  `application-host-reach`: an installed module package has no application tree, so
+  this half has no subject there and is declared vacuous rather than counted zero.
+
+  Normative: `specs/115-lifecycle-container-move/contracts/host-reach-check.md`.
+
+- a6a9d30: `composeApp` is the platform's, and it takes a deployment's contributions as a callback.
+
+  `@endora-commerce/platform/composition` gains `composeApp`, `ComposeAppOptions`,
+  `ComposeAppHandle` and `ComposedAppContext`. It performs the whole assembly a deployment used
+  to write out — refuse a boot with no `PUBLIC_API_BASE_URL`, open the ORM, build the container,
+  register the host values, load module presence, compose the settings and sales-channel kernels,
+  run `composeModules` once, open the contribution window once, install the request-scope hook,
+  reconcile the settings manifests, run the boot phase once, assemble the error envelope — and
+  returns a handle you pass straight to `buildServer`.
+
+  Everything a deployment cannot share reaches it through options, and every one of them is
+  optional:
+
+  ```ts
+  const composition = await composeApp({ deploymentRoot });
+  ```
+
+  is a complete composition of whatever module packages are installed. Supply
+  `composition.modules` / `composition.manifests` / `composition.orm` when your build has
+  compiled-in modules and committed registries, `contribute` for values only your deployment can
+  supply, `values` for host names no module defaults, `buildTenantContext` for the actor mapping,
+  `plugins` / `scopedPlugins` for route plugins on either side of the request scope, and
+  `decorationOrder` / `declaredOmissions` for what your deployment's `divergence.ts` declares.
+  Omitting `composition` entirely means "no compiled-in half", which is what an instance is: its
+  modules, entities and migrations are the packages it installed.
+
+  `contribute` runs **after** the twenty contributions the platform makes itself, so a deployment
+  can still overwrite one; it runs inside the single contribution window (D-45, issue #52), so a
+  contribution made after the boot phase has started still throws `ContributionWindowClosedError`.
+
+  `AppComposition` and `AppOrmLifecycle` are exported from the module but deliberately not from
+  the barrel: a caller builds those object literals without naming either type.
+
+  `endora new instance` renders `composeApp({ deploymentRoot })` in the backend member's
+  `index.ts` and `worker.ts`, with `deploymentRoot` derived from the entry point's own location —
+  and renders no contribute callback, because a client's tree holds no composition root.
+
+- ca43192: `EnvironmentInput` gains a required `addressOf`, and the CLI stops guessing which of a
+  storefront's variables names a backend from the shape of the value.
+
+  **Why.** Two programs ask _"which of these variables names the backend"_ — `endora new
+storefront`, whose next step tells an author to point them at theirs, and that command's
+  acceptance criterion, which does the pointing. Both answered it by reading
+  `storefront/.env.example` for a value that looked like an absolute `http(s)` URL. That is
+  right only while such a file declares no address but the backend's, and the reference
+  storefront now declares its **own** public origin (`NEXT_PUBLIC_SITE_URL`) there — so the
+  old predicate would have told a client, in a file they own outright and nobody revisits,
+  that the shop's canonical origin "names the backend this storefront talks to".
+
+  `addressOf` is a declaration of what a value **is**: which member of the instance it is
+  the address of, or `null` where it is the address of none.
+
+  **If you ship a declaration** — an application's `environment-inputs.mjs`, or the
+  platform's — every entry needs the field. It is required rather than optional on purpose:
+  an optional one is forgotten exactly once, by whoever adds the next address, in silence.
+  Zod refuses a declaration without it at `loadTreeDeclaration`, so the failure is a
+  sentence naming the entry rather than a variable that quietly stops being configured.
+
+  ```diff
+   {
+     name: 'NEXT_PUBLIC_API_BASE_URL',
+     requirement: { kind: 'required' },
+     secret: false,
+     generable: false,
+     owner: { kind: 'application', application: 'storefront' },
+     consumers: ['storefront'],
+  +  addressOf: 'backend',
+   },
+  ```
+
+  `null` is an answer and not an absence. A third party's address is `null` —
+  `DATABASE_URL` and `REDIS_URL` are addresses, of a database and a cache, and neither is a
+  member of the instance — and so is a value naming _several_ origins, `CORS_ALLOWED_ORIGINS`
+  being the worked example: "the address of" is singular.
+
+  **`@endora-commerce/contracts`** adds `addressVariablesFor(inputs, member)`, the one
+  derivation both consumers take.
+
+  **`@endora-commerce/cli`** replaces `backendAddressVariables(envExampleText)` with
+  `addressVariables(declared, member)`, over a loaded declaration rather than over
+  `.env.example` text. `backendAddressVariablesOf(dir)` keeps its name and its meaning and
+  is now **async**, because it loads that directory's own declaration; there is a
+  `storefrontAddressVariablesOf(dir)` beside it. `envExampleDeclarations` and
+  `envExampleDeclarationsOf` are unchanged — the file is still the storefront's worked
+  example of its _values_.
+
+  ```diff
+  -const names = backendAddressVariables(readFileSync('.env.example', 'utf8'));
+  -const names = backendAddressVariablesOf(storefrontDir);
+  +const names = await backendAddressVariablesOf(storefrontDir);
+  ```
+
+  `STOREFRONT_DOMAIN` also becomes a per-instance build input in
+  `@endora-commerce/cli/lib/instance-build-inputs.js`, supplying the storefront build's
+  `NEXT_PUBLIC_SITE_URL`. A pipeline rendered from that declaration gains one
+  `--build-arg`; one that does not pass it builds a storefront whose canonicals, sitemap and
+  `robots.txt` name `http://localhost:3000`.
+
+  **`@endora-commerce/platform`** only annotates its own twenty-one declared inputs; no
+  exported behaviour changes.
+
+- fd7db00: Added the environment-input declaration, and the four-tier input resolution every
+  scaffolding command now shares.
+
+  **`@endora-commerce/contracts`** publishes the shape:
+  `EnvironmentInput`, `EnvironmentInputSchema`, `EnvironmentInputsSchema`,
+  `EnvironmentConsumer` / `ENVIRONMENT_CONSUMERS`, `EnvironmentRequirement`,
+  `EnvironmentInputOwner`, `LocalizedSentence`, and three predicates —
+  `isReadByAnyOf`, `scopeToMembers` and `isRequiredGiven`. One entry per environment
+  variable a running platform reads: what it configures, in both shipped languages;
+  whether it is `required`, `requiredWhen` another input holds a value, or `optional`
+  with a sentence saying **what is lost**; whether it is a secret; whether a command
+  may generate it; who owns it; and which trees read it.
+
+  There is deliberately **no `default` field**. A declaration that could carry one
+  would become another home for an invented value, which is what the provenance line
+  below exists to make impossible.
+
+  **`@endora-commerce/platform`** declares the 21 inputs the host and the platform
+  read, on a new `./env` subpath:
+
+  ```ts
+  import { PLATFORM_ENVIRONMENT_INPUTS } from '@endora-commerce/platform/env';
+  ```
+
+  The subpath is host-internal — declared, resolvable by a CLI and by the host, and
+  nameable by no module. A module declares its **own** inputs in its manifest, and the
+  shape it does so in is `@endora-commerce/contracts`'.
+
+  **`@endora-commerce/cli`** resolves those inputs, in one fixed order that is not
+  configurable: an explicit `--<input>` flag, then a `.env` already placed in the
+  target directory, then an interactive prompt, then a refusal. `endora new
+storefront` takes it first, and writes the answers into the copy's own `.env`.
+
+  Three properties are contract rather than behaviour:
+  - **the tool invents no value.** Every run prints one provenance line —
+    `[inputs] resolved: total=5 flags=5 env-file=0 prompted=0 generated=0 defaulted=0`
+    — whose `defaulted` count is the _residue_ of the four tiers rather than a counter
+    nothing increments, so a value from outside them shows up in the arithmetic
+    instead of disappearing;
+  - **no command blocks on a question nobody can answer.** A prompt is issued only
+    when stdin and stdout are both TTYs, `--non-interactive` and `--dry-run` are
+    absent and no CI marker is set. Otherwise a missing required input is exit `1`
+    naming **every** missing input and the flag that supplies each, in one refusal;
+  - **the one class of value a command may generate is a cryptographic secret** whose
+    declaration marks it `generable` — written into the target's `.env` where the
+    operator can read it, named in the provenance line, and printed nowhere.
+
+  **If you call `runNewStorefront` directly**, it now resolves inputs and will refuse
+  a run that has none and cannot ask:
+
+  ```diff
+  -await runNewStorefront({ dir: target, cwd });
+  +await runNewStorefront({
+  +  dir: target,
+  +  cwd,
+  +  inputs: { NEXT_PUBLIC_API_BASE_URL: 'https://api.example.com', /* … */ },
+  +});
+  ```
+
+  `MissingInputsError` is the refusal; `DeclarationLoadError` is a tree whose
+  declaration could not be read, which is exit `2` rather than `1`. A target
+  directory holding nothing but a `.env` is now accepted, which is what makes the
+  second tier reachable for that command.
+
+- 51a5fae: Two derivations for an instance's build-time artefacts (`specs/110-instance-repository/`
+  Phase 1).
+
+  `installedModulePackages(instanceRoot)` and `scanInstalledModulePackages(instanceRoot)` answer
+  "which module packages did this instance install" over a `node_modules` tree, alongside the
+  existing `discoverModulePackages(repoRoot)`, which answers it over workspace members. Both
+  produce the same `ModulePackage` shape and share one `exports`-map derivation of how an
+  artefact names a file inside a package, so a generator can render the admin contribution
+  registry and the documentation navigation over either population without a second
+  implementation. A candidate whose real path leaves the `node_modules` it was reached through —
+  a `pnpm link`, a `link:` dependency, a workspace member — is excluded and **reported**, which
+  is the rule the running platform already applies.
+
+  `INSTANCE_BUILD_INPUTS` (`@endora-commerce/cli/lib/instance-build-inputs.js`) declares the four
+  per-instance build inputs — `DEPLOYMENT`, `API_DOMAIN`, `SALES_CHANNEL_CODE`, `DEFAULT_LOCALE` —
+  with each input's meaning, example, default and the build argument each image reads.
+  `buildArgFlags(target)` emits the `--build-arg` flags one image build takes.
+
+- 6521134: Make a scaffolded instance able to migrate, compose and install its own module set.
+
+  **`@endora-commerce/cli`.** `endora new instance` wrote every root script as
+  `pnpm --filter backend run <x>` while the member it delegates to is named
+  `<name>-backend`: pnpm matched no project, printed `No projects matched the
+filters` and exited **0**, so `migrate`, `build`, `start`, `dev` and the five
+  `module:*` scripts were silent no-ops. They are now `pnpm -C backend run <x>`,
+  which names the directory `pnpm-workspace.yaml` declares and exits 1 when the
+  directory or the script is missing. The five generated `module:*` entry points
+  now close the ORM and Redis handles they open and exit — they previously printed
+  their answer and hung forever — and run inside a system scope, as the host's own
+  scripts do. The next-steps block and the generated README now name
+  `pnpm run build` and `pnpm run module:install --all`, the two steps a client
+  needs and was not told about.
+
+  **`@endora-commerce/platform`.**
+  - `configuredEntitiesFrom` and `discoverConfiguredMigrations` now merge the
+    platform's **own** six entity classes and twelve migrations, published as
+    `PLATFORM_ENTITIES` and `PLATFORM_MIGRATION_ENTRIES` on `./db`. A host that
+    already names them — this repository's generated registries do — is unchanged:
+    the merge is an identity de-duplication over the same objects. An instance
+    supplies `coreEntities: []` and `coreEntries: []` and previously therefore ran
+    none of the platform's own schema.
+  - `resolveManifestEntries` and `composeApp`'s default composition now contribute
+    `_lifecycle`, whose sources are this package's. An instance ships no generated
+    manifest index, so it composed `_lifecycle` nowhere and its boot refused with
+    `not-shipped: _lifecycle`.
+  - `composeApp` now contributes a default `lifecycleManifestRegistry`. Both
+    composition roots in the Endora repository override it; an instance supplies
+    no contribute callback, so the name resolved to nothing and the boot died in
+    `_i18n`'s bundle reconcile.
+  - `module:install` accepts **`--all`**: every registered module that is not
+    already installed, in the dependency order `ModuleDepGraph` computes. An
+    instance's modules are installed packages, whose `module_registrations` rows no
+    boot writes, and the single-module command refuses on unmet dependencies —
+    so there was no performable way to install a scaffolded set.
+  - `PackageSchemaContribution` gains a required `dependencies` field, read from
+    the package's own manifest. `configuredMigrationsFrom` used to fall back to
+    `[]` for any module id the host's committed index did not carry; in an
+    instance that is every module, so the per-module migration order degenerated to
+    the tie-break. Construct one and you must now supply the field.
+  - `CORE_MODULE_ID` is declared in `./db`'s `platform-schema.ts` and re-exported
+    from its previous home unchanged.
+
+- 304f6d8: **`@endora-commerce/platform` gains a `./lifecycle` subpath, and it is not public API** (D115-4; `specs/115-lifecycle-container-move/contracts/operator-half.md` §5).
+
+  It carries `_lifecycle`'s operator surface — the orchestrator and its `LifecycleError`, the lifecycle lock, the dependency and gating graphs, the deactivation ledger, the manifest loader, the static registry, the presence loader, the module origin helpers, the module's own `registerModule`, `manifest` and admin routes. The set is derived rather than curated: it is exactly the fourteen platform-lifecycle files the application reaches today by relative path into `packages/platform/dist/`, so every one of those reaches has an address to be written as instead.
+
+  **Nothing became public API.** `./kernel`, `./http`, `./tenancy`, `./commands` and `./events` are unchanged, and `PUBLISHED_SUBPATHS` stays at five. `./lifecycle` joins `./composition` and `./migrations` as **host-internal**: declared by the `exports` map, so the host, its five `module:*` entry points and the test kit resolve it, and carried by no published barrel, so `check:platform-surface` reports a module naming it as `host-internal-subpath`. **No module may name it** — this surface drives the platform's presence axis, and a module that could name it could install, uninstall, enable or disable its siblings. A symbol graduates to a public barrel in the merge request that first gives it a module-package production consumer, and leaves this one in the same merge request.
+
+  `@endora-commerce/cli` publishes `HOST_INTERNAL_SUBPATHS` from `lib/platform-surface.js`: the host-internal class as a record of subpath → the reason it is not public API. It was a literal inside one assertion, then a bare set duplicated across two test files with the reasons in the prose of one of them. **If you enumerate the host's subpaths**, read `HostPackage.declaredSubpaths` for what the manifest declares and this record for which of them are host-internal; the published five stay `PUBLISHED_SUBPATHS`. Nothing is removed and no signature changes.
+
+- 39e17ce: `endora new instance <dir>` — the command that writes an instance repository.
+
+  New export `runNewInstance(options)` from `@endora-commerce/cli`, with
+  `InstanceHostError` / `InstanceInputError` (each carrying the refusal class its
+  exit code is read off), `resolveInstanceHost`, `loadModuleCandidates`,
+  `resolveModuleSet` and `planInstance`.
+
+  It writes a workspace whose root `package.json` **is** the module list, a
+  deployment directory and a backend member of entry points, and copies nothing —
+  so unlike `endora new storefront` there is no rewriting step and no outward
+  reference to repair. With no `--module` it writes the smallest set that composes
+  (the modules whose manifest declares `activation.nonDeactivatable`, closed over
+  the manifests' own `dependencies`); with `--module <id>` it writes that set
+  unioned with its closure. `--deployment <name>` names the deployment directory,
+  `--registry <url>` writes an `.npmrc` naming the scope with the token as an
+  environment reference, and `--dry-run` reports every file, the resolved set with
+  its closure and every omission while writing nothing.
+
+  Everything it needs is derived from what a client's machine can see: the scope
+  and `engines.node` from this package's own manifest, the ranges from the
+  `@endora-commerce/platform` installed beside the target, the module manifests
+  from the packages themselves. It refuses in eight classes — an occupied target,
+  an uncomposable set, an unknown module id and a bad deployment name at exit `1`;
+  an unreadable registry, an unresolvable platform version, an unreadable package
+  manifest and an undeterminable CLI version at exit `2`.
+
+  The admin member and the host CLI dispatcher are reported as omissions rather
+  than written: the first is `contracts/instance-tree.md` §2.4's, the second has no
+  published entry point until that feature's Phase 2 lands.
+
+- dcface9: Complete the host-internal `./composition` barrel, and give the demo-data layer
+  `./demo`.
+
+  Both are **host-internal** subpaths (D-160.14): they are declared by the
+  `exports` map, so `node` and `tsc` resolve them for a composition root, a host
+  CLI and a test kit — and they are not public API, so `check:platform-surface`
+  answers a _module_ that names either one with `host-internal-subpath`.
+  `PUBLISHED_SUBPATHS` is unchanged at five and no published barrel gains a name.
+
+  **`@endora-commerce/platform`**
+
+  `./composition` gains twelve names, every one of them a symbol
+  `kernel/index.ts`' own header already enumerated as excluded — _"the composition
+  machinery … and the errors they raise"_:
+
+  ```ts
+  import {
+    registerErrorEnvelope, // http/error-envelope.ts
+    parseTrustedProxy, // http/trusted-proxy.ts
+    type TrustedProxy,
+    ModuleCompositionError, // kernel/compose.ts
+    type ModuleEntry,
+    createModuleContext, // kernel/module-context.ts
+    createModuleRegistrationSink,
+    type ModuleRegistrationSink,
+    AmbiguousDecorationError,
+    ForeignDecorationError,
+    PackageDecorationNotOfferedError,
+    type AdminActorPromotion, // kernel/ports/require-admin.ts
+    absolutizePublicUrl, // kernel/public-api-base-url.ts
+  } from '@endora-commerce/platform/composition';
+  ```
+
+  `./http` carries `HttpError`, which is what a module _raises_, and not the
+  registration that attaches the envelope to an app — a module owns no app to
+  attach one to. `./kernel` carries `RequireAdminFactory` and
+  `PublicApiBaseUrlNotConfiguredError`, which are what a module reads; the
+  promotion hook and the absolutiser are what a root _supplies_.
+
+  `./demo` is new. It carries `runDemo`, `unwrapDemoFailure`, `formatDemoReport`,
+  `mustBeNonProduction`, `TEST_DATABASE_NAME_PATTERN`, `DEMO_SEED_SCOPE_REASON`,
+  `DEMO_RESET_SCOPE_REASON` and the four types those name. `packages/platform/src/demo/`
+  was the one platform directory with a barrel and **no subpath at all**, so its
+  consumers reached `packages/platform/dist/demo/index.js` by relative path — a
+  specifier that resolves in the monorepo and in no installed instance, which for
+  this directory means a demo an instance cannot run.
+
+  **The demo barrel exports eighteen fewer names than the directory declares**, and
+  under `exports` that is not a removal: none of them was reachable from outside
+  the package before, because there was no subpath. `planDemoRun`,
+  `classifySeedTarget`, `createDemoPackageResolver`, `DemoRunFailedError`,
+  `demoBodyFromPackage`, `DemoPackageShapeError` and the plan and run-result shapes
+  stay internal until something asks for one by name. Adding a name back is not a
+  breaking change.
+
+  **`@endora-commerce/cli`**
+
+  `HOST_INTERNAL_SUBPATHS` gains a `demo` member with its reason. The record is
+  what `check:platform-surface` and `test/unit/kernel/published-surface.test.ts`
+  both read, so a subpath cannot join the class without a written statement of who
+  may name it and why.
+
+- aa0a556: `declaredVariablesOf(storefrontDir)` — every variable a storefront's own process reads,
+  off its own declaration.
+
+  **Why a third derivation over the same file.** `backendAddressVariablesOf` and
+  `storefrontAddressVariablesOf` answer _which of these names a member_, a subset chosen by
+  `addressOf`. This one is the whole population, scoped with `scopeToMembers` to the member
+  that runs there, and it is for a caller that **spawns** a storefront's toolchain rather
+  than one that configures it.
+
+  That caller exists, and the reason it needed this is worth stating: Next loads a `.env`
+  and does **not** override a variable the process already carries. So any of these names
+  present in a parent's environment silently displaces the value written into the copy's own
+  `.env` — and a harness that passed its environment on wholesale measures its own
+  configuration while reporting on the command's.
+
+  ```ts
+  import { declaredVariablesOf } from '@endora-commerce/cli';
+
+  const declared = await declaredVariablesOf('/tmp/instance');
+  // -> the names this storefront's process reads, in declaration order
+  ```
+
+  The measured case was `NODE_ENV`. `endora new storefront`'s acceptance criterion inherited
+  its own environment into the instance's install, build and boot; a CI job set
+  `NODE_ENV=development` job-wide and correctly, for the **backend** it booted; and
+  `next build` inlines `process.env.NODE_ENV` as `"production"` into the server bundle it
+  emits while the render worker reads the real one — two copies of Next's vendored pages
+  runtime, two `React.createContext()` calls, and an `<Html>` looking for a provider
+  installed on the other one. The build failed with
+  _"`<Html>` should not be imported outside of pages/\_document"_, which names nothing true,
+  in every CI run that criterion has ever had. Nothing of this repository's is involved: a
+  four-file `app/` fails identically. What the repository _can_ do is stop handing a client's
+  build an environment that is not the client's, and this is the derivation that makes the
+  population the storefront's own declaration rather than a list of variable names somebody
+  maintains.
+
+  Additive. No existing export changes shape.
+
+- 9e00c89: Publish the two derivations a caller needs to supply `endora new storefront` with
+  the inputs it requires.
+
+  Since the storefront's invented defaults went, the command resolves five required
+  inputs in four tiers and refuses a non-interactive run that supplies none. A
+  caller that has to _supply_ them needs the same population the command will
+  _demand_, and deriving it a second time is two answers waiting to disagree —
+  which is how this repository's own acceptance criterion came to invoke the
+  command with no inputs at all.
+
+  Three additions, all additive:
+
+  ```ts
+  import {
+    storefrontDeclaredInputs, // the reference storefront's declaration,
+    // scoped to the one member the command writes
+    envExampleDeclarationsOf, // every declaration that copy's `.env.example` makes
+    flagFor, // SESSION_COOKIE_SECRET -> --session-cookie-secret
+  } from '@endora-commerce/cli';
+
+  const declared = await storefrontDeclaredInputs(repoRoot);
+  const example = envExampleDeclarationsOf(referenceDir);
+  const argv = [flagFor('BACKEND_BASE_URL'), example.get('BACKEND_BASE_URL')];
+  ```
+
+  `storefrontDeclaredInputs` deliberately does not filter by requirement:
+  `isRequiredGiven` reads a conditional requirement against the values a run has in
+  hand, so which inputs are required is a property of the invocation rather than of
+  the declaration.
+
+  `envExampleDeclarations` / `envExampleDeclarationsOf` are the parser
+  `backendAddressVariables` already ran, now named and exported —
+  `backendAddressVariables` is defined over it, so the two questions asked of that
+  file cannot come to disagree about what it says. One behaviour changes at the
+  edge: a key whose **last** assignment is blank is no longer a declaration, in
+  either answer. That matches `inputs/env-file.ts`, where a blank value does not
+  resolve an input.
+
+- d79a89f: `endora new storefront` now tells its author which variables the copy reads to find a
+  backend, and exports the derivation that answers it.
+
+  The step used to read _"set `PUBLIC_API_BASE_URL` (and the rest of `.env.example`) to the
+  backend this storefront talks to. Nothing in the copy points at a backend."_ Both
+  sentences were wrong. `PUBLIC_API_BASE_URL` is the **backend's** own variable — the public
+  origin its payment-gateway callbacks are built from — and no file in the storefront has
+  ever read it; and the copy does point at a backend, because every fetcher falls back to a
+  compiled-in `http://localhost:3001` when the environment names none. So an author who
+  followed the step had a storefront quietly talking to that address, with no error
+  anywhere to say so.
+
+  The step now names the variables the copy declares in its own `.env.example`, says that
+  the fetchers fall back rather than refuse, and says which of them Next inlines at build
+  time so they are set before `pnpm run build` rather than after.
+
+  **New exports**, for a consumer that needs the same answer — the acceptance criterion for
+  this command is the first:
+  - `backendAddressVariables(envExampleText: string): readonly string[]` — every
+    declaration whose value is an absolute `http(s)` URL, in declaration order. Pure over
+    text.
+  - `backendAddressVariablesOf(storefrontDir: string): readonly string[]` — the same answer
+    read off a directory; a storefront with no `.env.example` answers with nothing rather
+    than refusing.
+  - `ENV_EXAMPLE_FILE` — the file name both read.
+
+  Nothing is removed and no existing signature changes.
+
+### Patch Changes
+
+- 03dec57: `HOST_INTERNAL_SUBPATHS` gains `packages` and `overlay`, each with the sentence saying why it
+  is not public API (`specs/110-instance-repository/` T113 and T114). Every consumer of
+  `@endora-commerce/cli/lib/platform-surface.js` derives the two classes from this record, so
+  `check:platform-surface`, `published-surface.test.ts` and `host-package.test.ts` all follow
+  without a second list. `PUBLISHED_SUBPATHS` is unchanged: nothing became public API.
+- 9eb0cb6: The static-check estate manifest gains `check:demo-data-budget` —
+  `specs/113-module-owned-demo-data/` FR-016, a per-module budget on shipped non-`.ts` demo
+  assets.
+
+  `scope: 'package'`, tier `A`: a module's demo layer is located from that module's own
+  manifest artefact and measured in that module's own source tree, so nothing about the
+  answer needs a sibling, an owner map or an application.
+
+  Its `host` is `pending`, and the phase is named rather than numbered because what a
+  package-scope host waits for is neither of tier B's two halves. It is a **relocation**:
+  _"does this file ship"_ has exactly one owner since D-218 —
+  `scripts/lib/runtime-assets.mjs`' `classifyAssetFile`, the same function
+  `copy-package-assets.mjs` and the manifest generator ask — and that file sits at the
+  repository root, outside every package. A host here cannot reach it without a second copy
+  of the classification, which is precisely the defect D-218 closed.
+
+  Two `partial` signals are declared: the accepted per-module floors are this repository's
+  ledger, and `undeclared-demo-assets` probes layer paths derived from _other_ modules'
+  declarations, neither of which a lone package supplies.
+
+- f05592f: `endora new instance` writes a backend that compiles.
+
+  The template named three platform symbols that no barrel exports, three times each, so every
+  scaffolded tree failed `tsc` on two of its ten backend files — a tree a client is meant to own
+  and never to have written:
+
+  ```
+  src/mikro-orm.config.ts: TS2305 '@endora-commerce/platform/composition'
+      has no exported member 'configuredEntities'.
+  src/mikro-orm.config.ts: TS2305 '@endora-commerce/platform/composition'
+      has no exported member 'configuredMigrations'.
+  src/module-commands/runtime.ts: TS2724 '@endora-commerce/platform/lifecycle'
+      has no exported member named 'resolvedManifestEntries'.
+  ```
+
+  The ORM configuration is now `configuredEntitiesFrom`, `discoverConfiguredMigrations` and
+  **`mikroOrmConfigFrom`** on `@endora-commerce/platform/db` — the third name matters as much as
+  the two corrected ones, because the file it replaces built its own `defineConfig`, which
+  compiles and then creates tables under MikroORM's default naming with no `Migrator` extension
+  registered: a tree that would have type-checked and failed at the first `pnpm run migrate`.
+  The operator runtime assembles the `ManifestSources` that `resolveManifestEntries` takes, with
+  `core: []` — an instance ships no generated manifest index, so its modules are its deployment's
+  overlay modules plus the packages it installed — reaching `activeOverlayModulesRoot`,
+  `overlayModuleIdsUnder` and `overlayModuleManifestsUnder` on `./overlay` and
+  `discoverPackageModuleManifests`, `installedPackageModuleIdClaims` and `nodeModulesRootsFor` on
+  `./packages`. It is the same shape the platform's own `defaultComposition` assembles.
+
+  **If you scaffolded an instance with an earlier build**, re-scaffold into an empty directory and
+  copy across `apps/<deployment>/` and any edits of your own, or replace those two files with the
+  ones a current `endora new instance --dry-run` prints. Nothing else in the tree changed.
+
+  The guard is `packages/cli/test/new-instance/template-reconciliation.test.ts`, which reconciles
+  every platform name the template writes against the barrel carrying the subpath it writes it on.
+  It is at symbol granularity deliberately: `./composition` and `./lifecycle` are both declared
+  subpaths, so a reconciliation of the specifier alone passes over all three of the errors above.
+
+- ec09593: `./cli` — the host's side of a module-declared operator command.
+
+  Everything a `<module id> <command name>` invocation decides with no process and no
+  database is the platform's now (`specs/110-instance-repository/` T117, FR-013): the
+  enumeration of every command the resolved manifest set declares, the two refusals a
+  declaration can earn, the lookup, the `--list` and `--help` renderings, and the
+  find-gate-invoke that decides presence from the module that **declared** the command,
+  first and outside every `try`. A client's copy of that is a copy that diverges the first
+  time we correct ours.
+
+  **`./cli` is a new host-internal subpath.** Declared by the `exports` map and carried by
+  no published barrel (D-160.14), so `node` and `tsc` resolve it for a host and a
+  composition root while a module reaching it is answered `host-internal-subpath` by
+  `check:platform-surface`. The reason is `./composition`'s own, one surface over: this is
+  the code that decides which command runs and whether the module that declared it is
+  present at all, so a module that could name it could enumerate its siblings' operator
+  commands and invoke one. A module declares its commands in its own `manifest.ts` and
+  receives a `ModuleContext`; that is the whole of the surface it is entitled to.
+
+  ```ts
+  import {
+    collectModuleCommands,
+    findModuleCommand,
+    formatCommandList,
+    helpFor,
+    runModuleCommand,
+    InvalidCommandDeclarationError,
+    UnknownCommandError,
+    type CommandDeclaringEntry,
+    type DeclaredCommand,
+    type RunModuleCommandOptions,
+  } from '@endora-commerce/platform/cli';
+  ```
+
+  **Nothing is removed and no signature changes.** `runModuleCommand` still takes the
+  resolved manifest entries and the composition's own `contextFor`, so a host that already
+  holds a `ComposeAppHandle` passes exactly what it passed before. What a host still writes
+  itself is the **process**: reading `process.argv`, composing, opening one system scope over
+  the composed container, disposing it, and turning the answer into an exit code. That is
+  this repository's `backend/src/cli.ts` and an instance's own, because every one of those
+  is a fact about a deployment's entry point rather than about the platform.
+
+  **It is not the `module:*` path and must not become one.** Those five operate _on_ the
+  platform, compose nothing (D-157.2/.4), and keep their own entry points over
+  `@endora-commerce/platform/lifecycle`'s `commands/<verb>.ts`.
+
+  `@endora-commerce/cli` takes a patch: `HOST_INTERNAL_SUBPATHS` gains `cli` with the reason
+  it is not public API, which is what makes the estate's checks and
+  `published-surface.test.ts` answer for the new subpath in both directions.
+
+- 40e6e96: `./db` — the ORM configuration, the migration ordering and the bootstrap, plus the
+  platform's own twelve migrations on `./migrations`.
+
+  Everything between a committed registry and an open `MikroORM` is the platform's now
+  (`specs/110-instance-repository/` T116, FR-013): a client's schema is not a client's to
+  edit, and the code that decides which entity classes the ORM registers and which
+  migrations run at all was in the application it now composes.
+
+  **`./db` is a new host-internal subpath.** Declared by the `exports` map and carried by no
+  published barrel (D-160.14), so `node` and `tsc` resolve it for a host and
+  `check:platform-surface` answers a module's reach into it with `host-internal-subpath`. It
+  carries `PluralizingNamingStrategy` / `pluralize` / `toSnakeCase`; `orderMigrations`,
+  `historicalBaselineOrder`, `findModuleCycles`, `BASELINE_THROUGH`, `MigrationOrderError`
+  and the ordering types; `configuredEntitiesFrom`; `configuredMigrationsFrom`,
+  `migrationOwnershipOf`, `committedMigrationOwnership`, `committedModuleDependencies`,
+  `discoverConfiguredMigrations` and `CORE_MODULE_ID`; `mikroOrmConfigFrom`;
+  `createOrmBootstrap`; and `runMigrationCommand`.
+
+  **Nothing on it reads a generated artefact.** The committed migration registry, the
+  committed entity registry and the generated manifest index are facts about one
+  repository's tree, so they arrive as parameters. For a host that used to call the
+  application's own functions, the calls are:
+
+  ```ts
+  // before — the application's src/db/, which imported the registries itself
+  const migrations = await configuredMigrations();
+  const ownership = coreMigrationOwnership();
+  const graph = coreModuleDependencies();
+  const entities = await configuredEntities();
+  const config = await mikroOrmConfig();
+
+  // after — the same computations, over registries the host supplies
+  import {
+    committedMigrationOwnership,
+    committedModuleDependencies,
+    configuredEntitiesFrom,
+    createOrmBootstrap,
+    discoverConfiguredMigrations,
+    mikroOrmConfigFrom,
+  } from '@endora-commerce/platform/db';
+
+  const sources = { coreEntries: MIGRATION_REGISTRY, manifests: DISCOVERED_MANIFESTS };
+  const migrations = await discoverConfiguredMigrations(sources);
+  const ownership = committedMigrationOwnership(sources);
+  const graph = committedModuleDependencies(DISCOVERED_MANIFESTS);
+  const entities = await configuredEntitiesFrom({ coreEntities: ALL_ENTITIES });
+  const config = mikroOrmConfigFrom({ entities, migrations });
+  const { initOrm, getOrm, closeOrm } = createOrmBootstrap(async () => config);
+  ```
+
+  `configuredMigrationsFrom` and `migrationOwnershipOf` keep their names and signatures.
+
+  **`./migrations` now publishes the twelve core migration classes** beside
+  `BASELINE_MIGRATIONS`. They moved unchanged — no rename, no consolidation, no re-stamping
+  (R7.5) — because `mikro_orm_migrations` persists the class name, so a rename would make
+  every migrated database see the migration as pending. There is no `migrations` array on
+  that subpath, unlike a module package's: nothing discovers the platform, and an array here
+  would be a claim nothing reads.
+
+  **Two removals from `./lifecycle`.** `moduleDependencyCycles`,
+  `sortComponentsTopologically` and `stronglyConnectedComponents` left it, and so did the
+  `MigrationOwnership` type: their one consumer outside the platform was the ordering code,
+  which is inside it now. A consumer that named them there takes the graph walk from
+  `ModuleDepGraph` and `MigrationOwnership` from `./db`.
+
+  **`@mikro-orm/migrations` is a new peer dependency**, on the same reasoning as
+  `@mikro-orm/core`: the configuration registers the `Migrator` extension and the twelve
+  migrations extend `Migration`, and a second copy of the package is a second `Migration`
+  base class.
+
+  The `@endora-commerce/cli` bump is `lib/platform-surface`'s `HOST_INTERNAL_SUBPATHS`
+  gaining its `db` entry, with the reason that entry is required to carry.
+
+- Updated dependencies [5394b8f]
+- Updated dependencies [0c9a799]
+- Updated dependencies [e20276c]
+- Updated dependencies [9f7591b]
+- Updated dependencies [142fcdd]
+- Updated dependencies [4eeb5cd]
+- Updated dependencies [9eb0cb6]
+- Updated dependencies [ca43192]
+- Updated dependencies [fd7db00]
+- Updated dependencies [089d2d4]
+- Updated dependencies [e83be80]
+- Updated dependencies [db1ec0b]
+- Updated dependencies [f7147b0]
+- Updated dependencies [72013ed]
+- Updated dependencies [5ba2e97]
+- Updated dependencies [0ab2044]
+  - @endora-commerce/contracts@0.8.0
+
 ## 0.7.0
 
 ### Major Changes

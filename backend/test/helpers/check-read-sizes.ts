@@ -7070,7 +7070,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // on both sides in one worktree created from the branch, `quality`-job tree shape, with
     // nothing rebuilt between the two runs: `origin/master` reads 8171, the recorded value
     // exactly, and the branch reads 8172.
-    files: 8172,
+    files: 8087,
     sites: null,
     sources: [],
     //
@@ -8497,7 +8497,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sources` entry that could be declared optional would make an *absent*
     // reconciliation indistinguishable from one somebody stopped computing,
     // which is the whole thing this ledger is for.
-    sources: ['workspace-globs', 'changeset-subjects'],
+    //
+    // **The release of 2026-09-11 is that tree, and this is the re-record the
+    // paragraph above predicted.** `release/version-0.8.0` consumed all 85
+    // remaining changesets, so `.changeset/` holds `config.json` and
+    // `README.md`, no changeset names a subject, and the token is omitted
+    // rather than printed `0/0`. `files` and `sites` are untouched at 89 and
+    // 513 — measured on the release branch, the recorded values exactly,
+    // which is the point of !966 having taken the changesets out of both.
+    // The next branch to write a changeset restores the token and this line
+    // with it.
+    sources: ['workspace-globs'],
   },
   'backend/scripts/check-rsc-discipline.ts': {
     prefix: '[rsc-discipline]',
@@ -10812,7 +10822,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // on both sides in one worktree created from the branch, `quality`-job tree shape, with
     // nothing rebuilt between the two runs: `origin/master` reads 8231, the recorded value
     // exactly, and the branch reads 8232.
-    files: 8232,
+    files: 8147,
     sites: null,
     sources: ['manifest-index'],
     //

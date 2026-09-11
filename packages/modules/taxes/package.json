@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-taxes",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "type": "module",
   "sideEffects": false,
   "description": "Tax rate configuration and order tax computation.",
