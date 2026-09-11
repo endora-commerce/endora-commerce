@@ -5,6 +5,7 @@ import {
   type InvoiceLedgerDeliveryStatus,
 } from '@endora-commerce/contracts';
 import { Alert, AlertDescription, Button, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
+import { RouteTabsZone } from '@endora-commerce/admin-kit/zones';
 import { ResponsiveTable, type ResponsiveColumn } from '@endora-commerce/admin-kit/components';
 import { ApiError, formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -100,6 +101,7 @@ export function LedgerDeliveriesPage(): ReactNode {
   return (
     <div>
       <PageHeader title={t('deliveries.page.title')} description={t('deliveries.page.subtitle')} />
+      <RouteTabsZone name="ledger.section.tabs" props={{}} className="mb-4" />
       {error ? (
         <Alert variant="destructive" className="mb-4">
           <AlertDescription>{error}</AlertDescription>

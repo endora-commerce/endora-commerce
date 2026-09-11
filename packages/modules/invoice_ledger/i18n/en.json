@@ -2,6 +2,8 @@
   "actions.openDeliveries.label": "Invoice ledger deliveries",
   "actions.openDeliveries.description": "Vendor copy status, failures and retry",
   "nav.deliveries.label": "Invoice ledger",
+  "tabs.deliveries": "Deliveries",
+  "tabs.routing": "Routing",
   "deliveries.page.title": "Invoice ledger deliveries",
   "deliveries.page.subtitle": "Copy status for invoices sent to the active ledger vendor.",
   "routing.page.title": "Invoice ledger routing",

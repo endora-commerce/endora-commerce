@@ -11,9 +11,11 @@ Adapters such as Infakt own HTTP. This module does not call Infakt.
 
 ## Operators
 
-- Deliveries list is on **Invoice ledger** in Sales.
+- **Invoice ledger** in Sales opens deliveries. Routing is a tab on the same strip.
+- A vendor adapter (Infakt) adds its connection tab when that adapter is on.
 - Routing (Endora vs vendor numbering, native vs vendor KSeF) is a confirmed write.
-- Switching Infakt off hides Infakt screens. Delivery history on this module stays.
+- Switching Infakt off hides its tab. Delivery history on this module stays.
+- Switching Invoice ledger off on `/platform/modules` also switches off every active adapter (Infakt). Adapters cannot be switched on again until the ledger is on. Switching the ledger back on leaves adapters off.
 
 ## Engineers
 

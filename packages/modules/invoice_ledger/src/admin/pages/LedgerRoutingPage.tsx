@@ -19,6 +19,7 @@ import {
   PageHeader,
   Select,
 } from '@endora-commerce/admin-kit/ui';
+import { RouteTabsZone } from '@endora-commerce/admin-kit/zones';
 import { invoiceLedgerAdminClient } from '../api/ledger-client.js';
 
 export function LedgerRoutingPage(): ReactNode {
@@ -78,12 +79,18 @@ export function LedgerRoutingPage(): ReactNode {
   };
 
   if (loading && !routing) {
-    return <PageHeader title={t('routing.page.title')} description={t('routing.page.subtitle')} />;
+    return (
+      <>
+        <PageHeader title={t('routing.page.title')} description={t('routing.page.subtitle')} />
+        <RouteTabsZone name="ledger.section.tabs" props={{}} className="mb-4" />
+      </>
+    );
   }
 
   return (
     <>
       <PageHeader title={t('routing.page.title')} description={t('routing.page.subtitle')} />
+      <RouteTabsZone name="ledger.section.tabs" props={{}} className="mb-4" />
       {error ? (
         <Alert variant="destructive" className="mb-4">
           <AlertDescription>{error}</AlertDescription>
