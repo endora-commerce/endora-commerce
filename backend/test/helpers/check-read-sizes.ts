@@ -7057,7 +7057,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fresh worktree in the quality job's shape (`git clean -fX docs/docs/modules`, the
     // copies file removed, `build:packages` first) — never computed from the delta; the
     // arithmetic above is the attribution, not the number.
-    files: 8301,
+    // **Merged with `origin/master` at f93a38ed6 (!1592, the instance bring-up repairs),
+    // and re-measured rather than reconciled: 8171.** That branch added six files and so
+    // moved this walk +6 to 8301; this one deletes 214 changesets and adds 84 files and so
+    // moved it −130 to 8165. Each number describes a tree without the other's files and
+    // there is no arithmetic over the two that produces the union — the number below is a
+    // fresh measurement on the merged tree, in a worktree created from the merge commit,
+    // in the quality job's shape, reporting an empty `git status`.
+    files: 8171,
     sites: null,
     sources: [],
     //
@@ -10763,7 +10770,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `--diff-filter=D` the 214 deletions, which is the index's own answer to the same
     // question. **Measured** in a fresh worktree in the quality job's shape, with the
     // landing staged; never summed from a delta.
-    files: 8361,
+    // **Merged with `origin/master` at f93a38ed6 (!1592, the instance bring-up repairs),
+    // and re-measured rather than reconciled: 8231.** The same two sides as the walk above
+    // — +6 there, −130 here — and the same reason neither describes the union. Measured on
+    // the merged tree **after the resolution was committed**, which this population makes
+    // mandatory rather than tidy: it is `git ls-files --cached`, the index, where a
+    // conflicted path is listed once per stage and a run taken mid-merge reads high.
+    files: 8231,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -11275,7 +11288,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // wherever it sits — the earlier note's "does not reach `specs/`" is about `.md` under
     // `specs/`, not about the directory. **Measured** in a fresh worktree in the quality
     // job's shape, with the landing staged, this population being the index.
-    files: 6237,
+    // **Merged with `origin/master` at f93a38ed6 (!1592, the instance bring-up repairs),
+    // and re-measured rather than reconciled: 6238.** This walk moves by five from that
+    // side and by one from this, against the −130 the two above take from this branch, and
+    // both differences are its population: an extension list plus `docs/docs/**`, so
+    // !1592's five `.ts` files under `packages/platform/src` are in it and its changeset is
+    // not, exactly as this branch's 214 deleted changesets and 83 added changelogs are not
+    // and its `.mjs` verifier is. Measured on the merged tree after the resolution was
+    // committed, this population being the index.
+    files: 6238,
     sites: null,
     sources: ['manifest-index'],
     //
