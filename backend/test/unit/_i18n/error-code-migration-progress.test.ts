@@ -130,7 +130,17 @@ const MIGRATED_MODULES: readonly string[] = [
   'customer_accounts',
   'customers',
   'dictionaries',
+  // Minted with the modules (feature 119): neither `invoice_ledger` nor `infakt`
+  // existed when the prefix chain was deleted, so the frozen capture holds none
+  // of their five codes and `MINTED_ERROR_CODES` is what accounts for them. The
+  // split is `pim_connector` / `pim_unopim`'s — the shared layer owns the three
+  // whose noun is the ledger, including the one only the adapter raises, and the
+  // adapter owns the two whose noun is the vendor. The roster line is the other
+  // half: the ledger alone would say where each code belongs and leave the
+  // manifest's declaration unmeasured.
+  'infakt',
   'inventory',
+  'invoice_ledger',
   'invoices',
   // The first two receiving modules of D-129's remaining sweep (MR 2, Tier A).
   // The frozen capture routes none of their codes to them — it says `core` for

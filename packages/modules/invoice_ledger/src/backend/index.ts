@@ -3,6 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   INVOICE_LEDGER_DELIVERY_QUEUED_EVENT,
   INVOICE_LEDGER_MODULES,
+  INVOICE_LEDGER_VENDOR_KSEF_ABSENT_MESSAGE,
   invoiceCorrectedEventSchema,
   invoiceIssuedEventSchema,
   type InvoiceCopyHostPort,
@@ -29,10 +30,7 @@ import { InvoiceLedgerClientMap } from './entities/invoice-ledger-client-map.ent
 import { InvoiceLedgerDelivery } from './entities/invoice-ledger-delivery.entity.js';
 import { InvoiceLedgerDocumentMap } from './entities/invoice-ledger-document-map.entity.js';
 import { InvoiceLedgerWebhookReceipt } from './entities/invoice-ledger-webhook-receipt.entity.js';
-import {
-  INVOICE_LEDGER_VENDOR_KSEF_ABSENT_MESSAGE,
-  InvoiceLedgerDeliveryService,
-} from './services/invoice-ledger-delivery.service.js';
+import { InvoiceLedgerDeliveryService } from './services/invoice-ledger-delivery.service.js';
 import { InvoiceLedgerVendorFreezeRegistry } from './services/invoice-ledger-vendor-freeze-registry.js';
 import {
   defaultInvoiceLedgerPresence,
