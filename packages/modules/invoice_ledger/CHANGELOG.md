@@ -1,5 +1,56 @@
 # @endora-commerce/mod-invoice-ledger
 
+## 0.7.1
+
+### Patch Changes
+
+- 089d2d4: Expose `remoteDocumentId` on the invoice-ledger delivery list item so invoice admin can show a historical vendor document id from a ledger read after the vendor adapter is switched off.
+- e83be80: Added the `ledger.section.tabs` admin zone so invoice-ledger deliveries, routing, and vendor adapter connection screens share one Sales row.
+
+  `@endora-commerce/contracts` gains the enum member and empty `LedgerSectionTabsZoneProps`. `invoice_ledger` contributes Deliveries and Routing and keeps a single sidebar entry. `infakt` drops its sidebar row and contributes the Infakt tab, hidden when the adapter is off.
+
+- Updated dependencies [16a9a6d]
+- Updated dependencies [5394b8f]
+- Updated dependencies [0c9a799]
+- Updated dependencies [e20276c]
+- Updated dependencies [9f7591b]
+- Updated dependencies [142fcdd]
+- Updated dependencies [eb01958]
+- Updated dependencies [4eeb5cd]
+- Updated dependencies [a6a9d30]
+- Updated dependencies [016524f]
+- Updated dependencies [fb2659a]
+- Updated dependencies [9eb0cb6]
+- Updated dependencies [7e80824]
+- Updated dependencies [e1748da]
+- Updated dependencies [ca43192]
+- Updated dependencies [fd7db00]
+- Updated dependencies [6521134]
+- Updated dependencies [089d2d4]
+- Updated dependencies [e83be80]
+- Updated dependencies [74a4797]
+- Updated dependencies [9a5d4d2]
+- Updated dependencies [a655909]
+- Updated dependencies [1beac89]
+- Updated dependencies [7fb0567]
+- Updated dependencies [304f6d8]
+- Updated dependencies [db1ec0b]
+- Updated dependencies [f7147b0]
+- Updated dependencies [72013ed]
+- Updated dependencies [e27bf6c]
+- Updated dependencies [ec09593]
+- Updated dependencies [dcface9]
+- Updated dependencies [40e6e96]
+- Updated dependencies [d321c67]
+- Updated dependencies [03dec57]
+- Updated dependencies [8249bb7]
+- Updated dependencies [5ba2e97]
+- Updated dependencies [0222f04]
+- Updated dependencies [0ab2044]
+  - @endora-commerce/admin-kit@0.8.0
+  - @endora-commerce/contracts@0.8.0
+  - @endora-commerce/platform@0.8.0
+
 ## 0.7.0
 
 ### Patch Changes

@@ -1,5 +1,185 @@
 # @endora-commerce/mod-cms
 
+## 0.8.0
+
+### Minor Changes
+
+- 4eeb5cd: `cms` publishes `CmsBlockReadPort`, and `megamenu` resolves its own cross-module targets.
+
+  **New on `@endora-commerce/contracts`:** `CmsBlockReadPort`, `CmsBlockRecord` and
+  `CmsLocalizedBlockRecord`. Two methods, which is the whole of the demand.
+  `findById(id)` answers _does this block exist_ and carries `active` on the record
+  rather than filtering on it, because the two callers disagree about a deactivated
+  block on purpose. `findLocalizedById(id, language)` answers _what does it render as
+  here_ and is the reason the port exists: the per-language envelope —
+  `content.languages[<code>]`, a legacy `schema_version` riding along, an absent key
+  meaning "nothing authored" — is `cms`' storage layout, and a consumer that had to
+  know it would be reading the column with extra steps. `null` covers all three
+  absences, because a caller inlining a block has the same thing to do in each.
+
+  **New on `@endora-commerce/mod-cms`:** the port is registered as `cmsBlockReadPort`
+  with `ctx.di.providePort`, so it fails closed with 503 `MODULE_DISABLED` when an
+  operator switches the CMS off. Nothing else changed in this package.
+
+  **Removed from `@endora-commerce/mod-megamenu/backend`: `TargetValidatorDeps` and
+  `StorefrontDeps`.** Both existed so a composition root could write eight closures
+  against them — `select 1 from categories | cms_pages | cms_blocks | assets`, plus
+  the storefront URL shapes — and this module's own barrel argued they had to stay in
+  a root until one of the three owners grew an existence-check port. All three have:
+  `catalogCategoryReadPort`, `cmsPageReadPort` and `assetReadPort` came out of feature
+  075, and `cmsBlockReadPort` above is the one that was still missing. The module now
+  resolves those four plus `assetsLibraryPort` with `lazyPort` and declares the edges
+  in its manifest, where `catalog` joins `cms`, `assets_library`, `languages`,
+  `sales_channels`, `auth` and `dictionaries`.
+
+  **If you contributed `megamenuValidatorDeps` or `megamenuStorefrontDeps`**, delete
+  both contributions: the container names are read by nobody and registering them now
+  does nothing. There is no replacement to write, and the interfaces are deleted
+  rather than relocated — what replaces them is module-private and holds no closure.
+  Make sure the composition registers the five ports, which it does by composing
+  `catalog`, `cms` and `assets_library`.
+
+  Two behaviours were divergent between the reference deployment and the test harness
+  and are now single-valued, both settling on the deployment's answer: a category
+  target resolves to `/c/<slug>` (the harness built `/catalog/<slug>`, which the
+  reference storefront serves from nowhere), and a deactivated or soft-deleted
+  category drops its menu item and its children (the harness narrowed on neither).
+  A CMS page target is deliberately _not_ narrowed on status or `active`, which is
+  what both roots did.
+
+- fa9e7d3: `cms` resolves its own asset embeds, through `assets_library`' published port.
+
+  `cmsAssetResolver` was a **contribution point**: the module registered the name
+  defaulted to `undefined`, and a composition root was expected to build the closure
+  out of `assets_library`' service and contribute it. It is the module's own
+  registration now, over `lazyPort<AssetsLibraryPort>(ctx, 'assetsLibraryPort')`,
+  with the edge already declared in this module's manifest `dependencies`.
+
+  **If your composition contributed `cmsAssetResolver`, you no longer have to**, and
+  you no longer should. Contributing it still wins — `contribute` overwrites, and the
+  registration is read from the cradle per call — but the closure you were writing is
+  a raw hold on another module's service, which is what the port replaces:
+
+  ```diff
+  -composedModules.contribute({
+  -  cmsAssetResolver: async (assetId: string) => {
+  -    try {
+  -      const detail = await assetsLibrary.handle.service.getAsset(assetId);
+  -      return { url: detail.url, mimeType: detail.mimeType, filename: detail.filename,
+  -               label: detail.label, visibility: detail.visibility };
+  -    } catch {
+  -      return null;
+  -    }
+  -  },
+  -});
+  +// Nothing. `cms` registers it.
+  ```
+
+  **What changes for a running platform**: a composition that never contributed the
+  name resolved every CMS asset embed to `{}`. That was this repository's own test
+  harness — `composition.ts` contributed it and `test-server.ts` did not — so a CMS
+  storefront response under test carried no asset detail at all, quietly, an empty
+  map being a plausible answer rather than a wrong one. There is no composition in
+  which the name is unset any more, and `CmsCradle.cmsAssetResolver` is
+  `CmsAssetResolver` rather than `CmsAssetResolver | undefined`.
+
+  The `catch` that answers `null` for an asset the library no longer has is kept —
+  `getAsset` throws 404 for a row that is gone, and a page embedding a deleted asset
+  renders without it — with `rethrowIfModuleDisabled` as its first line, so it cannot
+  also absorb the owner's refusal.
+
+  The mapping is `createAssetEmbedResolver` in
+  `src/backend/services/asset-embed-resolver.ts`, exported from nothing: it is a
+  function of the port rather than of the `ModuleContext`, which is what lets its
+  test stub `AssetsLibraryPort` and compose no container.
+
+  Three packages are touched with no release meaning of their own, and all three are
+  comments: `@endora-commerce/mod-assets-library`, whose barrel recorded the drain
+  condition this change meets; `@endora-commerce/mod-pim-ergonode`, whose barrel
+  described `assetsLibraryService` as a live composition-root bridge; and
+  `@endora-commerce/contracts`, where `AssetsLibraryPort`'s doc block named
+  `pim_ergonode` as its only consumer. The interface itself is unchanged — `cms`
+  takes `getAsset` and nothing was added to admit it, which is what publishing one is
+  for.
+
+- e27bf6c: Every package that ships scannable UI now publishes its own Tailwind `@source`
+  declarations at a new `./tailwind.css` subpath.
+
+  A host compiling this package's utility classes no longer has to know where the
+  package's sources are. Import the subpath from the stylesheet that builds your
+  admin, and the package names its own layers:
+
+  ```css
+  @import 'tailwindcss';
+  @import '@endora-commerce/mod-blog/tailwind.css';
+  ```
+
+  `@source` resolves relative to the stylesheet that declares it, so the paths hold
+  wherever the package is installed. The file is generated from the package's layer
+  inventory, ships in the tarball beside `package.json`, and its `dist` line is the one
+  that matters to you — the `src` line beside it is inert in a published package and
+  exists so that a checkout of this repository keeps scanning source in `dev`.
+
+  **Nothing is removed or renamed**: every existing subpath resolves exactly as before.
+  What is new is the obligation on the _host_ side, and it is a build error rather than a
+  silent one. Before this, a host reached these packages with a glob over the monorepo
+  (`@source "../../packages/**"`), which named a directory no installed tree has —
+  and Tailwind reports nothing at all about a source that matches nothing, so such a host
+  built green and rendered every screen unstyled. A host that now names a package that is
+  not installed gets `Can't resolve`, and one whose tarball omits the file gets
+  `ERR_PACKAGE_PATH_NOT_EXPORTED`.
+
+  `@endora-commerce/cms-components` deliberately does **not** publish this subpath. It
+  ships a finished, prefixed stylesheet at `./styles.css` and must not also be scanned by
+  its host.
+
+### Patch Changes
+
+- Updated dependencies [16a9a6d]
+- Updated dependencies [5394b8f]
+- Updated dependencies [0c9a799]
+- Updated dependencies [e20276c]
+- Updated dependencies [9f7591b]
+- Updated dependencies [142fcdd]
+- Updated dependencies [eb01958]
+- Updated dependencies [4eeb5cd]
+- Updated dependencies [a6a9d30]
+- Updated dependencies [016524f]
+- Updated dependencies [fb2659a]
+- Updated dependencies [9eb0cb6]
+- Updated dependencies [7e80824]
+- Updated dependencies [e1748da]
+- Updated dependencies [ca43192]
+- Updated dependencies [fd7db00]
+- Updated dependencies [6521134]
+- Updated dependencies [089d2d4]
+- Updated dependencies [e83be80]
+- Updated dependencies [74a4797]
+- Updated dependencies [9a5d4d2]
+- Updated dependencies [a655909]
+- Updated dependencies [1beac89]
+- Updated dependencies [7fb0567]
+- Updated dependencies [304f6d8]
+- Updated dependencies [db1ec0b]
+- Updated dependencies [f7147b0]
+- Updated dependencies [72013ed]
+- Updated dependencies [e27bf6c]
+- Updated dependencies [ec09593]
+- Updated dependencies [dcface9]
+- Updated dependencies [40e6e96]
+- Updated dependencies [d321c67]
+- Updated dependencies [03dec57]
+- Updated dependencies [8249bb7]
+- Updated dependencies [5ba2e97]
+- Updated dependencies [0222f04]
+- Updated dependencies [0ab2044]
+  - @endora-commerce/admin-kit@0.8.0
+  - @endora-commerce/contracts@0.8.0
+  - @endora-commerce/platform@0.8.0
+  - @endora-commerce/page-builder-admin@0.8.0
+  - @endora-commerce/page-builder-core@0.8.0
+  - @endora-commerce/cms-components@0.8.0
+
 ## 0.7.0
 
 ### Major Changes

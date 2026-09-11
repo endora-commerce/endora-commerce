@@ -1,5 +1,123 @@
 # @endora-commerce/admin-kit
 
+## 0.8.0
+
+### Minor Changes
+
+- 16a9a6d: **`./theme.css` — the admin's design system now ships from this package**, and
+  it carries the class vocabulary as well as the tokens (owner ruling D-219,
+  `specs/110-instance-repository/contracts/admin-stylesheet-composition.md`
+  R3–R4).
+
+  **Old:**
+
+  ```css
+  @import '@endora-commerce/admin-shell/theme.css';
+  ```
+
+  **New:**
+
+  ```css
+  @import '@endora-commerce/admin-kit/theme.css';
+  ```
+
+  If your host also held `src/styles/design-tokens.css` and
+  `src/styles/components.css` and imported them from `main.tsx`, **delete both and
+  drop those two imports**: their content is in the file above. Keeping them
+  overrides the package, which is what the ruling removes.
+
+  The subpath moved here because this is the package every renderer already
+  declares — 55 module packages depend on it and none depends on the shell — so a
+  class name it publishes is one every renderer can put a version range on. It is
+  also the reason this is a `major` on both packages rather than a move nobody
+  notices.
+
+  **What is in the file.** 79 custom properties under one `:root`, the 22
+  `@theme inline` mappings that bind them to Tailwind utility names, `.dark`,
+  `[data-density="compact"]`, the `@layer base` rules, and the **200-token class
+  vocabulary** — `.b2b-*` and the page-builder classes — that host and module
+  admin surfaces render by name.
+
+  **The default palette changed**, and it is the one visible change in the
+  rendered output. The shell's `./theme.css` declared a shadcn slate palette that
+  this repository's own admin overwrote in full on every load; the merged file
+  declares one palette and it is the one that has actually rendered since the
+  rebrand. `--primary` is now `var(--accent-h) var(--accent-s) var(--accent-l)`
+  rather than a slate literal. To get the old palette, redeclare it after the
+  import.
+
+  **Overriding is unchanged and still needs no fork**: a redeclaration for a
+  value, a later rule for a class, both in your own stylesheet after the import.
+
+  ```css
+  @import '@endora-commerce/admin-kit/theme.css';
+
+  :root {
+    --accent-h: 262;
+  }
+  .b2b-btn {
+    border-radius: 2px;
+  }
+  ```
+
+  **23 classes were deleted rather than moved** — `.page-header`, `.card`,
+  `.field`, `.input`, `.btn`, `.alert`, `.badge`, `.table` and their modifiers,
+  the unprefixed `@layer components` shim. Measured over every class-attribute
+  position in this repository, no file that loaded them rendered one. If you
+  render any of them, define them yourself; the supported vocabulary is the
+  `.b2b-*` family and `@endora-commerce/admin-kit/ui`.
+
+- e27bf6c: Every package that ships scannable UI now publishes its own Tailwind `@source`
+  declarations at a new `./tailwind.css` subpath.
+
+  A host compiling this package's utility classes no longer has to know where the
+  package's sources are. Import the subpath from the stylesheet that builds your
+  admin, and the package names its own layers:
+
+  ```css
+  @import 'tailwindcss';
+  @import '@endora-commerce/mod-blog/tailwind.css';
+  ```
+
+  `@source` resolves relative to the stylesheet that declares it, so the paths hold
+  wherever the package is installed. The file is generated from the package's layer
+  inventory, ships in the tarball beside `package.json`, and its `dist` line is the one
+  that matters to you — the `src` line beside it is inert in a published package and
+  exists so that a checkout of this repository keeps scanning source in `dev`.
+
+  **Nothing is removed or renamed**: every existing subpath resolves exactly as before.
+  What is new is the obligation on the _host_ side, and it is a build error rather than a
+  silent one. Before this, a host reached these packages with a glob over the monorepo
+  (`@source "../../packages/**"`), which named a directory no installed tree has —
+  and Tailwind reports nothing at all about a source that matches nothing, so such a host
+  built green and rendered every screen unstyled. A host that now names a package that is
+  not installed gets `Can't resolve`, and one whose tarball omits the file gets
+  `ERR_PACKAGE_PATH_NOT_EXPORTED`.
+
+  `@endora-commerce/cms-components` deliberately does **not** publish this subpath. It
+  ships a finished, prefixed stylesheet at `./styles.css` and must not also be scanned by
+  its host.
+
+### Patch Changes
+
+- Updated dependencies [5394b8f]
+- Updated dependencies [0c9a799]
+- Updated dependencies [e20276c]
+- Updated dependencies [9f7591b]
+- Updated dependencies [142fcdd]
+- Updated dependencies [4eeb5cd]
+- Updated dependencies [9eb0cb6]
+- Updated dependencies [ca43192]
+- Updated dependencies [fd7db00]
+- Updated dependencies [089d2d4]
+- Updated dependencies [e83be80]
+- Updated dependencies [db1ec0b]
+- Updated dependencies [f7147b0]
+- Updated dependencies [72013ed]
+- Updated dependencies [5ba2e97]
+- Updated dependencies [0ab2044]
+  - @endora-commerce/contracts@0.8.0
+
 ## 0.7.0
 
 ### Major Changes

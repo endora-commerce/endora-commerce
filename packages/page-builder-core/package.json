@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/page-builder-core",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "type": "module",
   "description": "Shared Page Builder primitives — responsive props, context filtering, and component definition helpers for CMS, email, and invoice builders.",
   "license": "MIT",

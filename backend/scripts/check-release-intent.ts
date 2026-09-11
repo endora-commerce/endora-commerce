@@ -97,6 +97,10 @@
  *     changeset files are written by hand, the classification is derived from
  *     the workspace, and a disagreement between them means somebody's release
  *     intent will be dropped on the floor by `changeset version`.
+ *   * `major-bump-in-a-zero-series` — a changeset entry declaring `major` for a
+ *     package whose own `version` has major `0`. **D-225**: no package leaves
+ *     `0.x` before the move to public npmjs, which is that ruling's retiring
+ *     condition. See *The series* below.
  *
  * ## The ninth, and the one that needs a diff — `--since <ref>`
  *
@@ -184,6 +188,43 @@
  * {@link classifyReleaseShape} is the table, {@link readReleaseArtefacts} is
  * where the facts come from, and `contracts/release-shape-classification.md` in
  * `specs/114-release-shape-gate/` is normative for both.
+ *
+ * ## The series — `major-bump-in-a-zero-series` (D-225, FR-017)
+ *
+ * The owner, 2026-09-11: no package leaves `0.x` before the move to public
+ * npmjs, because what is on the registry is still not a production solution.
+ * That is a decision about one thing only — *leave the series* — and in a `0.x`
+ * series it is the **only** thing `major` says that `minor` does not: `^0.7.0`
+ * is `>=0.7.0 <0.8.0`, so `0.8.0` and `1.0.0` are both out of range for every
+ * caret dependent. Measured on the `linked` group, where a *minor* on
+ * `page-builder-core` moves all four packages precisely because the peers go
+ * out of range, which is the propagation a major causes.
+ *
+ * So the rule is refused rather than remembered, and the reason it is an
+ * instrument is that the failure is **silent**: a `major` changeset sits in
+ * `.changeset/` for weeks and is applied by a release nobody is watching.
+ * `changeset status` reports it as ordinary intent — it is ordinary intent —
+ * and nothing else in this repository reads a bump level at all.
+ *
+ * Three properties, each of them the requirement rather than an implementation
+ * note:
+ *
+ *   * **Derived per package**, from that package's own manifest — never a
+ *     global "the estate is in `0.x`" flag and never a list. A mixed estate is
+ *     judged correctly, and a package that has left `0.x` stops being judged in
+ *     the same run that moves it.
+ *   * **No override and no ledger.** The rule has one escape and it is
+ *     deletion: the merge request that performs the npmjs move removes this
+ *     finding in the same diff that performs the bump, which is the visibility
+ *     a one-way door deserves. A flag would be a switch somebody could flip
+ *     quietly, and a ledger entry could only license the thing D-225 forbids.
+ *   * **The empty changeset is untouched.** `---`, `---`, then a summary is
+ *     what AGENTS.md tells an author to write for a change with no release
+ *     meaning, and ten of the eighty-four files pending when this landed are
+ *     one. The discriminator between that and a file carrying no front matter
+ *     at all is the **presence of the delimiters**, never the entry count —
+ *     a predicate keyed on the count refuses every empty changeset in the tree.
+ *     {@link readChangesetDocument} is where the two are told apart.
  *
  * ## Family or application, derived
  *
@@ -338,6 +379,24 @@
  * classification reads — because a check that refused one and skipped the other
  * would be a check whose blindness depends on which file went wrong.
  *
+ * Feature 114's FR-017 adds four more, one per input whose absence would make
+ * the series rule vacuously clean, and all four live inside the analysis for
+ * the same reason: **no versionable package at all** — every member is an
+ * application or is ignored, so there is nothing a changeset could bump and no
+ * series to judge; a **changeset file carrying no `---` block**, since reading
+ * it as *"no `major` declared here"* agrees with the defect (issue #113); an
+ * **entry naming a versionable member whose `version` has no readable major**,
+ * since the predicate is *is this package in `0.x`* and an unreadable version
+ * must never be read as *not* `0.x`; and **front-matter text that parsed to no
+ * entry at all**, which is issue #237's shape over this population — the entry
+ * reader gone blind, printing a cheerful `changesets=0` beside a healthy
+ * `files=`.
+ *
+ * The first of those was recorded in FR-017 as one the check already made, and
+ * it was not: `checkBranchIntent` refuses a workspace with no versionable
+ * package because the `--since` mode has no published surface to attribute a
+ * diff to, and the default mode had no such refusal at all.
+ *
  * ## The empty diff is two facts, and only one of them is a refusal
  *
  * Pipeline 11491 failed a correct merge request. !916 changed three Dockerfiles,
@@ -437,6 +496,17 @@ export interface ClassifiedMember {
   readonly licenseFileFound: boolean | null;
   /** The path {@link licenseFileFound} answered about, for the message. */
   readonly licenseFile: string | null;
+  /**
+   * The `version` the manifest declares, trimmed, or `null` when it declares
+   * none or declares an empty one.
+   *
+   * It is here because `major-bump-in-a-zero-series` is derived **per package**
+   * from that package's own manifest (D-225, FR-017) — never from a global
+   * *"the estate is in `0.x`"* flag and never from a list. A mixed estate is
+   * therefore judged correctly, and a package that has left `0.x` stops being
+   * judged in the same run that moves it.
+   */
+  readonly version: string | null;
 }
 
 /** One `<name>: <bump>` line in the front matter of a `.changeset/*.md`. */
@@ -452,6 +522,12 @@ export interface ReleaseIntentInputs {
   readonly config: Readonly<Record<string, unknown>>;
   readonly members: readonly ClassifiedMember[];
   readonly changesets: readonly ChangesetRelease[];
+  /**
+   * The same changeset files, unflattened. {@link changesets} loses which file
+   * an *empty* one was, and the empty changeset is a state this check has to be
+   * able to tell from a file carrying no front matter at all (FR-017).
+   */
+  readonly documents: readonly ChangesetDocument[];
   /** Non-negated workspace entries, and how many members each produced. */
   readonly globCoverage: ReadonlyMap<string, number>;
   /** Files opened, for the read line. */
@@ -472,6 +548,7 @@ export type ReleaseIntentFindingKind =
   | 'stale-ignore-entry'
   | 'stale-group-member'
   | 'unversionable-changeset'
+  | 'major-bump-in-a-zero-series'
   | 'vacuous-release'
   | 'manifest-changed-beyond-version'
   | 'unattributed-package-change'
@@ -552,18 +629,48 @@ export function groupMembers(config: Readonly<Record<string, unknown>>): readonl
   return groups.flatMap((group) => stringList(group));
 }
 
+/** One `.changeset/*.md`, read as the front matter it opens with. */
+export interface ChangesetDocument {
+  readonly file: string;
+  /**
+   * Whether the file **opens with a `---` delimiter block** — an opening `---`
+   * line and a later line that is exactly `---`.
+   *
+   * This is the discriminator, and it is deliberately not the entry count
+   * (FR-017). A changeset whose block is empty — `---`, `---`, then a body — is
+   * the *empty changeset* AGENTS.md sanctions for a change with no release
+   * meaning, and ten of the eighty-four files pending when this landed are one.
+   * A predicate keyed on "the front matter yielded no entry" refuses every one
+   * of them; a predicate keyed on the delimiters tells them apart from a file
+   * that carries no front matter at all, which is the state this check must
+   * refuse rather than read as *"no `major` here"* (issue #113).
+   */
+  readonly hasFrontMatter: boolean;
+  /** The non-blank lines inside the block, parsed or not. */
+  readonly frontMatterLines: number;
+  readonly releases: readonly ChangesetRelease[];
+}
+
 /**
- * The `<name>: <bump>` lines of one changeset's YAML front matter.
+ * One changeset, read as its front-matter block and the entries inside it.
  *
  * Deliberately a reader of the front matter rather than of the whole document:
  * the summary below it is prose and may quote anything, including a package
- * name and a colon.
+ * name and a colon. The closing delimiter is the **first** line that is exactly
+ * `---` after the opening one, so a `---` inside the summary is body text.
  */
-export function parseChangeset(file: string, source: string): readonly ChangesetRelease[] {
-  const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(source);
-  if (match === null) return [];
+export function readChangesetDocument(file: string, source: string): ChangesetDocument {
+  const open = /^---[ \t]*\r?\n/.exec(source);
+  if (open === null) return { file, hasFrontMatter: false, frontMatterLines: 0, releases: [] };
+  const rest = source.slice(open[0].length);
+  const close = /^---[ \t]*\r?$/m.exec(rest);
+  if (close === null) return { file, hasFrontMatter: false, frontMatterLines: 0, releases: [] };
+
   const releases: ChangesetRelease[] = [];
-  for (const line of (match[1] ?? '').split('\n')) {
+  let frontMatterLines = 0;
+  for (const line of rest.slice(0, close.index).split('\n')) {
+    if (line.trim() === '') continue;
+    frontMatterLines += 1;
     const entry = /^\s*(?:"([^"]+)"|'([^']+)'|([^:\s]+))\s*:\s*(\S+)\s*$/.exec(line);
     if (entry === null) continue;
     const packageName = entry[1] ?? entry[2] ?? entry[3];
@@ -571,7 +678,12 @@ export function parseChangeset(file: string, source: string): readonly Changeset
     if (packageName === undefined || bump === undefined) continue;
     releases.push({ file, packageName, bump });
   }
-  return releases;
+  return { file, hasFrontMatter: true, frontMatterLines, releases };
+}
+
+/** {@link readChangesetDocument}'s entries, for a caller that wants only those. */
+export function parseChangeset(file: string, source: string): readonly ChangesetRelease[] {
+  return readChangesetDocument(file, source).releases;
 }
 
 /** Whether a manifest declares a `repository` — a string, or an object with a `url`. */
@@ -606,6 +718,33 @@ export function declaredLicense(
   if (typeof license !== 'string') return null;
   const trimmed = license.trim();
   return trimmed.length === 0 ? null : trimmed;
+}
+
+/** The `version` a manifest declares, trimmed, or `null` for an absent or empty one. */
+export function declaredVersion(manifest: Readonly<Record<string, unknown>>): string | null {
+  const version = manifest['version'];
+  if (typeof version !== 'string') return null;
+  const trimmed = version.trim();
+  return trimmed.length === 0 ? null : trimmed;
+}
+
+/**
+ * The major component of a declared version, or `null` when there is none to
+ * read.
+ *
+ * `null` is never read as *"not `0.x`"*: the question
+ * `major-bump-in-a-zero-series` asks is *is this package in `0.x`*, and an
+ * unreadable version is an answer this run did not obtain, which is exit 2 and
+ * not a clean verdict (FR-017, issue #113). The reader is deliberately shallow
+ * — the leading run of digits before the first `.` — rather than a semver
+ * parser: a prerelease or build suffix (`0.8.0-rc.1`, `1.0.0+build`) is in the
+ * series its major says it is, and carrying a semver grammar here would be a
+ * second implementation of something the release tool already owns.
+ */
+export function versionMajor(version: string | null): number | null {
+  if (version === null) return null;
+  const match = /^(\d+)\./.exec(version);
+  return match === null ? null : Number(match[1]);
 }
 
 /** The file a `SEE LICENSE IN <file>` licence names, or `null` for any other form. */
@@ -697,6 +836,7 @@ export function readReleaseIntent(
       license,
       licenseFileFound,
       licenseFile,
+      version: declaredVersion(member.manifest),
     };
   });
 
@@ -708,14 +848,16 @@ export function readReleaseIntent(
   const changesetFiles = entries.filter(
     (name) => name.endsWith('.md') && name.toLowerCase() !== 'readme.md',
   );
-  const changesets = changesetFiles.flatMap((name) =>
-    parseChangeset(name, fs.readText(join(changesetDir, name)) ?? ''),
+  const documents = changesetFiles.map((name) =>
+    readChangesetDocument(name, fs.readText(join(changesetDir, name)) ?? ''),
   );
+  const changesets = documents.flatMap((document) => document.releases);
 
   return {
     config: config as Record<string, unknown>,
     members: classified,
     changesets,
+    documents,
     globCoverage,
     // config.json + pnpm-workspace.yaml + one manifest per member. What the
     // walk *opened*, never what it found in.
@@ -1221,7 +1363,42 @@ export function analyzeReleaseIntent(inputs: ReleaseIntentInputs): readonly Rele
           'names a package that `ignore` matches, so the bump written here will never be ' +
           'applied. Either the package belongs in the release, or the changeset does not.',
       });
+      continue;
     }
+
+    // 9 — D-225: no package leaves `0.x` before the move to public npmjs.
+    //
+    // Per package, from that package's own `version`. The estate is not asked
+    // whether it is "in `0.x`" and no list of series-bound packages exists: a
+    // mixed estate is judged member by member, and the merge request that takes
+    // a package to `1.0.0` stops this rule applying to it in the same diff that
+    // moves it.
+    //
+    // It is an instrument rather than a note in a checklist because the failure
+    // is **silent**. A `major` changeset sits in `.changeset/` for weeks and is
+    // applied by a release nobody is watching; `changeset status` reports it as
+    // ordinary intent, and nothing else in the tree says a word.
+    if (release.bump !== 'major') continue;
+    const major = versionMajor(member.version);
+    // `null` is the refusal above, not a pass. Reaching it here would mean the
+    // refusal stopped firing, and reading an unknown series as "not `0.x`" is
+    // the direction that agrees with the defect.
+    if (major !== 0) continue;
+    findings.push({
+      kind: 'major-bump-in-a-zero-series',
+      subject: `${release.file}:${release.packageName}`,
+      message:
+        `declares \`major\` for a package at \`${member.version ?? '?'}\`, which the next ` +
+        '`changeset version` would take out of `0.x`. **D-225**: no package leaves `0.x` ' +
+        'before the move to public npmjs, which is that ruling\'s retiring condition. Write ' +
+        '`minor` — in a `0.x` series the two have the identical consumer-facing contract, ' +
+        'because `^0.7.0` is `>=0.7.0 <0.8.0` and `0.8.0` is out of range for every caret ' +
+        'dependent exactly as `1.0.0` is, so `minor` already forces the explicit opt-in that ' +
+        'is the whole consumer-facing meaning of "breaking". Keep the summary body as it is: ' +
+        'it is where the break is described, and preserving it is why D-225 calls this a ' +
+        'translation. There is deliberately no override and no ledger — the escape is ' +
+        'deletion, in the merge request that performs the npmjs move.',
+    });
   }
 
   return findings;
@@ -1254,6 +1431,9 @@ export function checkReleaseIntent(
   const publicVersionable = inputs.members.filter((member) => member.family && !member.isPrivate);
 
   const ignorePatterns = stringList(inputs.config['ignore']);
+  const isIgnored = (name: string): boolean =>
+    ignorePatterns.some((pattern) => matchesPattern(pattern, name));
+
   // One per decision taken inside the files read: each member classified, each
   // ignore pattern resolved, each group member looked up, plus the two
   // `privatePackages` settings. Feature 104 added four per public versionable
@@ -1288,12 +1468,38 @@ export function checkReleaseIntent(
   // should produce a member, and the manifests on disk say how many did. Move
   // `packages/` and the four application entries still answer every question
   // above — which is issue #215's short walk over exactly this population.
+  // The second author (FR-017): the distinct package names the changeset files
+  // name, which are written by hand, reconciled against the members the
+  // workspace globs produce. It puts the changeset population on the `read:`
+  // line in the estate's grammar **without** folding it into `files` or
+  // `sites`, which !966 took it out of on purpose — that count follows the
+  // release cycle rather than the tree, and a ±band cannot bound a quantity
+  // that oscillates in both directions.
+  //
+  // It is **omitted** rather than printed `0/0` when no changeset names a
+  // subject. After a release `.changeset/` holds `config.json` and `README.md`
+  // and nothing else, and `read-size.ts` refuses `expected=0` as
+  // `no-expectation` — so a token printed there would exit 2 on every
+  // post-release tree, which is a refusal about the calendar rather than about
+  // the tree. `check:action-route-permissions`' `emitted-manifests` is the
+  // precedent for both halves.
+  //
+  // Its expected and covered are the same number **on purpose**, which is
+  // `check:module-docs`' `sidebar-entries` precedent: a name resolving to no
+  // member is `unversionable-changeset`, a finding about the changeset, and not
+  // a blind run. Turning it into a shortfall would refuse before the analysis
+  // reported that finding, and the refusal would blame the walk for a typo the
+  // check had already read correctly.
+  const namedSubjects = new Set(inputs.changesets.map((release) => release.packageName));
   const coverage: readonly ReadCoverage[] = [
     {
       source: 'workspace-globs',
       expected: globs.length,
       covered: globs.filter((glob) => (inputs.globCoverage.get(glob) ?? 0) > 0).length,
     },
+    ...(namedSubjects.size > 0
+      ? [{ source: 'changeset-subjects', expected: namedSubjects.size, covered: namedSubjects.size }]
+      : []),
   ];
 
   // The read-size floor is part of the analysis and not of the printing. It sat
@@ -1302,6 +1508,93 @@ export function checkReleaseIntent(
   // one layer down from the checks it was found in.
   const short = readSizeRefusal({ prefix: PREFIX, files: inputs.files, sites, coverage });
   if (short !== null) return { reason: short.message };
+
+  // FR-017's four refusals, one per input whose absence would make
+  // `major-bump-in-a-zero-series` vacuously clean. They live here, inside the
+  // analysis, so that a red proof entering where a real run enters reaches each
+  // of them (issue #130), and **below** the read-size floor on purpose: a
+  // library tree that moved leaves no versionable package either, and issue
+  // #215's floor is the more specific diagnosis of that tree. Asked first, this
+  // block would answer *"no versionable package"* for a workspace whose only
+  // defect is that one glob stopped resolving.
+  //
+  // The first was **written down as already held and was not** (feature 114,
+  // T3-E). `checkBranchIntent` refuses a workspace with no versionable package,
+  // because the `--since` mode has no published surface to attribute a diff to;
+  // the default mode did not, and with no versionable member every question
+  // below — this one included — is vacuously true while `files` and the glob
+  // coverage stay perfectly healthy.
+  //
+  // It is keyed on the **family** and deliberately not on "family and not
+  // ignored". An `ignore` pattern swallowing a whole library family is
+  // `ignored-family-member` — the 67-package failure mode and this check's most
+  // valuable finding — so a refusal over that state would mask the finding
+  // whose whole subject it is. Measured: with the refusal keyed the other way,
+  // `ignore: ['host', '@fx/*']` refuses instead of reporting.
+  const library = inputs.members.filter((member) => member.family);
+  if (library.length === 0) {
+    return {
+      reason:
+        'no versionable package — every workspace member comes from a literal ' +
+        '`pnpm-workspace.yaml` entry, which names one deployable rather than a library family, ' +
+        'so there is nothing a changeset could bump and no package whose series could be judged',
+    };
+  }
+  const versionable = library.filter((member) => !isIgnored(member.name));
+
+  // A changeset file that does not open with a `---` block at all. Reading it
+  // as *"no `major` declared here"* agrees with the defect (issue #113), and it
+  // is emphatically **not** the empty changeset: that one has the delimiters
+  // and nothing between them, is what AGENTS.md tells an author to write for a
+  // change with no release meaning, and is left alone (FR-017, A15).
+  const withoutFrontMatter = inputs.documents.find((document) => !document.hasFrontMatter);
+  if (withoutFrontMatter !== undefined) {
+    return {
+      reason:
+        `\`.changeset/${withoutFrontMatter.file}\` carries no \`---\` front-matter block — an ` +
+        'opening `---` line and a later line that is exactly `---`. `changeset version` reads ' +
+        'no release intent out of it, and this check will not report it as declaring none. An ' +
+        '*empty* changeset (`---`, `---`, then the summary) is a different thing and is fine',
+    };
+  }
+
+  // An entry naming a versionable member whose own `version` has no readable
+  // major. The predicate is *is this package in `0.x`*, and an unreadable
+  // version must never be read as *not* `0.x`.
+  for (const release of inputs.changesets) {
+    const member = versionable.find((candidate) => candidate.name === release.packageName);
+    if (member === undefined) continue;
+    if (versionMajor(member.version) !== null) continue;
+    return {
+      reason:
+        `\`${member.name}\` (${member.dir}) declares ` +
+        `${member.version === null ? 'no `version`' : `the version \`${member.version}\``} and ` +
+        `\`.changeset/${release.file}\` names it, so this run cannot say which series that ` +
+        'package is in. D-225 is a rule about the series, and an unreadable version answered ' +
+        'as "not `0.x`" is the direction that agrees with the defect',
+    };
+  }
+
+  // Issue #237's shape, over this population: front matter was read and nothing
+  // came out of it. Keyed on the **lines**, not on the files, because a tree of
+  // nothing but empty changesets is a legitimate state that yields zero entries
+  // honestly — while front-matter text that parses to no entry at all is the
+  // entry reader having gone blind, which prints a cheerful `changesets=0`
+  // beside a healthy `files=`.
+  const frontMatterLines = inputs.documents.reduce(
+    (total, document) => total + document.frontMatterLines,
+    0,
+  );
+  if (frontMatterLines > 0 && inputs.changesets.length === 0) {
+    return {
+      reason:
+        `the changeset files carry ${String(frontMatterLines)} non-blank front-matter line(s) ` +
+        'and not one of them parsed as a `<package>: <bump>` entry — the entry reader has gone ' +
+        'blind, and every question this check asks of a release declaration would be vacuously ' +
+        'clean',
+    };
+  }
+
 
   return { findings: analyzeReleaseIntent(inputs), inputs, sites, coverage };
 }

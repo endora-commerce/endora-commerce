@@ -1,5 +1,159 @@
 # @endora-commerce/mod-organizations
 
+## 0.8.0
+
+### Minor Changes
+
+- 72013ed: Published `OrganizationTaxProfilePort`, and moved the error envelope's assembly into the
+  platform.
+
+  **`@endora-commerce/contracts` gains `OrganizationTaxProfilePort`.** It described the
+  `organizationTaxProfilePort` container name and was declared by
+  `@endora-commerce/mod-organizations/backend`, so a consumer resolving that port had to name
+  the provider's own package to spell the type — which is the reach a port exists to remove,
+  and which `@endora-commerce/platform` may not write at all. The declaration is unchanged
+  member for member.
+
+  ```diff
+  -import type { OrganizationTaxProfilePort } from '@endora-commerce/mod-organizations/backend';
+  +import type { OrganizationTaxProfilePort } from '@endora-commerce/contracts';
+
+   const taxProfile = lazyPort<OrganizationTaxProfilePort>(ctx, 'organizationTaxProfilePort');
+  ```
+
+  **`@endora-commerce/mod-organizations/backend` no longer exports it**, and that is the
+  breaking half. A re-export was written and withdrawn: a barrel re-exporting a name whose
+  source is another package makes _"does this barrel carry an entity class by name"_ unknown
+  rather than false, which D-168 may not be wrong about, and two spellings for one type is the
+  shape this repository removes rather than adds. Change the specifier; the type is
+  unchanged.
+
+  **`@endora-commerce/platform/composition` gains `composeErrorEnvelopeOptions` and loses
+  `createRequestLanguageResolver`.** The two callbacks a composition root passes to
+  `registerErrorEnvelope` — the language ladder and the translation lookup — were assembled
+  by each root itself, identically, in twenty lines apiece. They are one function now, and
+  what a root supplies is only what a root knows: its own resolved error-code routing table
+  and the two container names the callbacks read.
+
+  ```diff
+  -errorEnvelope: {
+  -  errorTranslationTargets: routing.targets,
+  -  resolvePreferredLanguage: createRequestLanguageResolver({
+  -    adminPreferredLanguage: async (id) =>
+  -      (await adminUserReadPort().findById(id))?.preferredLanguage ?? null,
+  -  }),
+  -  translateErrorMessage: async ({ moduleId, key, language, originalMessage, params }) => {
+  -    const t = await i18n().translate(moduleId, key, language, params);
+  -    return t === `${moduleId}.${key}` ? originalMessage : t;
+  -  },
+  -},
+  +errorEnvelope: composeErrorEnvelopeOptions({
+  +  errorTranslationTargets: routing.targets,
+  +  adminUserReadPort: () => identityPorts().adminUserReadPort,
+  +  translate: () => cradle().adminI18nService,
+  +}),
+  ```
+
+  `createRequestLanguageResolver` is off the barrel because no composition root constructs it
+  any more; the ladder it builds is unchanged and is now built inside the assembly. If you
+  called it directly, call `composeErrorEnvelopeOptions` instead. Both are on `./composition`,
+  which is host-internal — no module may name it — so this affects a host and never a module.
+
+- 6e037cd: The module declares its demo data: `manifest.demo` creates the buying organisation the demo shop
+  trades with, and withdraws it again.
+
+  `endora demo seed` now reports `organizations` by name with what it created, and `endora demo
+reset` removes it. Both bodies are reached by a relative `await import()` from the manifest, so
+  nothing is loaded by the processes that merely compose the platform, and the module gained no
+  `exports` subpath, no `files` entry and no manifest `dependencies` entry.
+
+  **The withdrawal changed, and on this table it is the sharpest repair in the batch.** The host's
+  demo reset cleared `organizations` with a `truncate … cascade`, and an organisation is the tenant
+  every buyer, address, cart, quote request and order hangs off — so one word took a developer's
+  entire test tenancy with it, silently, on every seed. The reset now deletes only the tax id
+  `seed` assigns.
+
+  **The demo buyer and the demo credit limit are not this module's demo data.** Each is another
+  module's row against this one's, so each stays with the instance composition.
+
+  Seeding twice creates nothing the second time and reports the same count.
+
+- e27bf6c: Every package that ships scannable UI now publishes its own Tailwind `@source`
+  declarations at a new `./tailwind.css` subpath.
+
+  A host compiling this package's utility classes no longer has to know where the
+  package's sources are. Import the subpath from the stylesheet that builds your
+  admin, and the package names its own layers:
+
+  ```css
+  @import 'tailwindcss';
+  @import '@endora-commerce/mod-blog/tailwind.css';
+  ```
+
+  `@source` resolves relative to the stylesheet that declares it, so the paths hold
+  wherever the package is installed. The file is generated from the package's layer
+  inventory, ships in the tarball beside `package.json`, and its `dist` line is the one
+  that matters to you — the `src` line beside it is inert in a published package and
+  exists so that a checkout of this repository keeps scanning source in `dev`.
+
+  **Nothing is removed or renamed**: every existing subpath resolves exactly as before.
+  What is new is the obligation on the _host_ side, and it is a build error rather than a
+  silent one. Before this, a host reached these packages with a glob over the monorepo
+  (`@source "../../packages/**"`), which named a directory no installed tree has —
+  and Tailwind reports nothing at all about a source that matches nothing, so such a host
+  built green and rendered every screen unstyled. A host that now names a package that is
+  not installed gets `Can't resolve`, and one whose tarball omits the file gets
+  `ERR_PACKAGE_PATH_NOT_EXPORTED`.
+
+  `@endora-commerce/cms-components` deliberately does **not** publish this subpath. It
+  ships a finished, prefixed stylesheet at `./styles.css` and must not also be scanned by
+  its host.
+
+### Patch Changes
+
+- Updated dependencies [16a9a6d]
+- Updated dependencies [5394b8f]
+- Updated dependencies [0c9a799]
+- Updated dependencies [e20276c]
+- Updated dependencies [9f7591b]
+- Updated dependencies [142fcdd]
+- Updated dependencies [eb01958]
+- Updated dependencies [4eeb5cd]
+- Updated dependencies [a6a9d30]
+- Updated dependencies [016524f]
+- Updated dependencies [fb2659a]
+- Updated dependencies [9eb0cb6]
+- Updated dependencies [7e80824]
+- Updated dependencies [e1748da]
+- Updated dependencies [ca43192]
+- Updated dependencies [fd7db00]
+- Updated dependencies [6521134]
+- Updated dependencies [089d2d4]
+- Updated dependencies [e83be80]
+- Updated dependencies [74a4797]
+- Updated dependencies [9a5d4d2]
+- Updated dependencies [a655909]
+- Updated dependencies [1beac89]
+- Updated dependencies [7fb0567]
+- Updated dependencies [304f6d8]
+- Updated dependencies [db1ec0b]
+- Updated dependencies [f7147b0]
+- Updated dependencies [72013ed]
+- Updated dependencies [e27bf6c]
+- Updated dependencies [ec09593]
+- Updated dependencies [dcface9]
+- Updated dependencies [40e6e96]
+- Updated dependencies [d321c67]
+- Updated dependencies [03dec57]
+- Updated dependencies [8249bb7]
+- Updated dependencies [5ba2e97]
+- Updated dependencies [0222f04]
+- Updated dependencies [0ab2044]
+  - @endora-commerce/admin-kit@0.8.0
+  - @endora-commerce/contracts@0.8.0
+  - @endora-commerce/platform@0.8.0
+  - @endora-commerce/email-components@0.8.0
+
 ## 0.7.0
 
 ### Minor Changes

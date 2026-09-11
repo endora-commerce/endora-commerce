@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-custom-fields",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "type": "module",
   "sideEffects": false,
   "description": "Entity-agnostic runtime custom fields for core entities.",
