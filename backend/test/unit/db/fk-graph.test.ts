@@ -371,8 +371,11 @@ describe('deriveFkGraph — module roots', () => {
     expect(graph.tableCreators.get('products')?.origin).toBe('core');
     expect(graph.tableCreators.get('loyalty_points')?.origin).toBe('external');
     // The stamp is inside the frozen window and the origin is not: the two
-    // together are what `isBaseline` tests, and only the pair can tell this
-    // file from a core one (D-154).
+    // together are the rule the published baseline list is generated from
+    // (`instance-migration-order.md` R1.3 — the committed sources at or below
+    // the watermark), and only the pair can tell this file from a core one
+    // (D-154). `migration-order.ts` itself no longer asks either question: it
+    // enters the prefix by identity, against that list.
     expect(graph.tableCreators.get('loyalty_points')?.timestamp).toBe('20260501T090000');
   });
 });

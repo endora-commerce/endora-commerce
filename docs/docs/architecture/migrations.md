@@ -400,11 +400,16 @@ regenerated — a baseline recomputed from the code it guards measures nothing �
 generated list is held against it, name for name and position for position. That is what
 makes the generated artefact trustworthy rather than merely deterministic.
 
-Membership takes **both** conditions. A stamp-only test lets a migration that arrived
-from outside the committed registry join a prefix whose order is historical fact:
-measured, a package migration stamped `20250101T000000` was emitted at index 0, ahead
-of the platform's own foundation migration. An entry's `origin` says where it came
-from, and only `'core'` may join.
+Membership is by **identity** and by nothing else, which is the strongest form of the
+rule this block has had. A stamp-only test lets a migration that arrived from outside the
+committed registry join a prefix whose order is historical fact: measured, a package
+migration stamped `20250101T000000` was emitted at index 0, ahead of the platform's own
+foundation migration. That was closed for a time by also requiring `origin === 'core'`,
+and the conjunction answered *"came out of this repository's build"* while being used to
+mean *"is one of the migrations whose order is history"* — two questions that coincide
+only while every module is compiled in. A **name** cannot be claimed by an arriving
+package at all, whatever it declares about its origin, so nothing about where an entry
+came from is asked any more.
 
 **2. The open block — everything else, module by module.** The modules are sorted
 topologically over the ordering graph, ties broken by module id ascending, and each
