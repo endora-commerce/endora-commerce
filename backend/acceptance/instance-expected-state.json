@@ -6,12 +6,17 @@
     "direction: a newly-red assertion fails, and so does a newly-green one nobody recorded.",
     "An unrecorded pass is a criterion whose meaning moved without anybody reading it.",
     "",
-    "IT LANDED WITH TWO REDS AND EIGHT UNMEASURED, AND THAT IS THE FINDING RATHER THAN A",
+    "IT LANDED WITH TWO REDS AND EIGHT UNMEASURED, AND THAT WAS THE FINDING RATHER THAN A",
     "SHORTFALL OF THE INSTRUMENT. Before this file existed nothing had ever run a scaffolded",
     "instance: `packages/cli/test/new-instance.test.ts` asserts the plan, and the merge",
-    "request before this one (!1580) took the created backend to `tsc` exit 0 and said in as",
+    "request before it (!1580) took the created backend to `tsc` exit 0 and said in as",
     "many words that a type-check was the whole of the evidence. The first run of this",
-    "criterion found that the tree compiles, installs, and then does nothing at all — see A3.",
+    "criterion found that the tree compiles, installs, and then does nothing at all.",
+    "",
+    "T141 REPAIRED FOUR OF THE FIVE DEFECTS THAT RUN FOUND, and A3's reason below is now a",
+    "different and much narrower sentence than the one it landed with. What is left is one",
+    "of the five — reported to the orchestrator rather than repaired, because it is a schema",
+    "decision: the platform's own migration corpus is not self-contained.",
     "",
     "EVERY NON-PASS ENTRY BELOW NAMES THE CONTRACT OR TASK IT WAITS ON, AND THAT RULE IS",
     "ENFORCED RATHER THAN INTENDED. `expectationRefusals` in",
@@ -25,12 +30,12 @@
     "file exists to refuse. The first run with ENDORA_NPM_REGISTRY set drifts — naming every",
     "assertion it measured — which is what makes that record arrive from a measurement.",
     "",
-    "THERE ARE FOURTEEN ASSERTIONS AND THE CONTRACTS SPELL THIRTEEN. `instance-repository.md`",
+    "THERE ARE FOURTEEN ASSERTIONS AND THE NUMBERING IS SETTLED. `instance-repository.md`",
     "R6.3 numbers A1…A13, its A13 being FR-023/SC-011's built-admin-stylesheet assertion;",
-    "`instance-tree.md` §6 adds one more and numbers that A13 as well — R1.4's wiring bound.",
-    "Two contracts, one id, two subjects. Dropping either would be the criterion answering one",
-    "contract and not the other, so A13 is R6.3's and `instance-tree.md` §6's is A14. Which of",
-    "the two contracts should be renumbered is the owner's, and is reported rather than done."
+    "`instance-tree.md` §6 opens by declaring the criterion to be §6's UNCHANGED plus one",
+    "assertion it adds, so the two share one namespace and an extension is not entitled to",
+    "renumber its base. A13 stays R6.3's and the wiring bound is A14. `instance-repository.md`",
+    "R6.3a is where the list is now declared to live, and it names its one extension."
   ],
   "modes": {
     "tarball": {
@@ -46,11 +51,11 @@
         },
         "A3": {
           "status": "fail",
-          "reason": "NOT A CONTRACT GAP — A DEFECT IN THE CREATED TREE, and the one that makes `contracts/instance-tree.md` §2.5 false today. The root manifest's `migrate` script is `pnpm --filter backend run migrate` and the member it delegates to is named `<workspace>-backend`, so pnpm matches no project, prints `No projects matched the filters`, AND EXITS 0. Every root script is affected — `migrate`, `build`, `start`, `dev` and the five `module:*` — so a client who follows the command's own next steps runs a sequence of successful no-ops. Reported to the orchestrator for the register; repairing it is not this criterion's merge request. The assertion is red rather than unmeasured because the database this run created a moment earlier holds no `mikro_orm_migrations` table at all: an exit code is not evidence that a step ran."
+          "reason": "THE DEFECT IT LANDED ON IS REPAIRED AND A NARROWER ONE IS UNDERNEATH IT. `pnpm run migrate` really runs now — T141 gave every root script `pnpm -C backend` instead of a `--filter <name>` that matched no project and exited 0, and gave an instance the platform's own twelve migrations and six entities, which `coreEntries: []` and `coreEntities: []` meant it ran none of. What it fails on is the schema itself: `Migration20260430T170044CoreSalesChannelsPromote` creates `sales_channel_cms_pages` with a foreign key to `cms_pages`, which `cms` owns and which the default module set does not include. THE PLATFORM'S OWN MIGRATION CORPUS IS NOT SELF-CONTAINED: two of its twelve migrations reach into seven modules' tables (that one into `cms_pages`, `customer_accounts`, `organizations`, `promotions`, `quote_requests` and `taxes`; `Migration20260717T134752CoreTenantScopeIndexes` into `analytics_events` and `newsletter_subscribers`), and a fourth edge is module-to-module — `webhooks`' migration creates the `api_keys` table that `api_keys`' and `orders`' own migrations then alter. Measured by hand on a set with `cms`, `analytics`, `newsletter` and `webhooks` added: 119 migrations apply, exit 0. Reported to the orchestrator rather than repaired in T141 — moving schema out of an applied migration in the frozen baseline prefix is a decision `contracts/instance-migration-order.md` and `specs/097-migration-sql-boundary/contracts/migration-cross-module-sql.md` both bear on, and widening the default set would hide it rather than answer it."
         },
         "A4": {
-          "status": "fail",
-          "reason": "Follows A3's defect at the same seam and at the same contract clause (`contracts/instance-tree.md` §2.5, reconciled by T137): `pnpm run start` matches no project, so nothing listens and the health route never answers. THREE MORE DEFECTS STAND BEHIND IT, each measured by hand on a tree with the script names repaired, and each is reported to the orchestrator rather than fixed here. (1) `backend/src/mikro-orm.config.ts` passes `coreEntries: []` and `coreEntities: []`, so an instance runs NONE of the platform's own twelve migrations and registers none of its six entities; the first migration to reference a platform-owned table dies. (2) `defaultComposition` in `@endora-commerce/platform/composition` passes `core: []`, so `_lifecycle` — which arrives with the platform and is in every module set the command writes — is composed by no instance, and the boot refuses with `not-shipped: _lifecycle`. (3) With those supplied by hand the boot then refuses with `RequiredModuleAbsentError` over every module, because an installed package's `module_registrations` row is written by `module:install` and by no boot (D-157.6(b)), and nothing tells a client to run it."
+          "status": "unmeasured",
+          "reason": "There is no migrated schema to boot against: A3 fails, so `bootOnce` is not attempted. IT WAS `fail` BEFORE T141 AND THE CHANGE IS HONESTY, NOT A REGRESSION — the migrate step used to exit 0 having done nothing, so the criterion went on to a boot that could not work; now the migration genuinely fails and the criterion says so once. Three of the four defects recorded here at T140 are repaired and each was measured end to end on a module set that does migrate: `_lifecycle` is composed by the platform itself, so the boot no longer refuses with `not-shipped: _lifecycle`; `pnpm run module:install --all` exists, is named by the command's own next steps and by the generated README, and is run by this criterion between `migrate` and `start` (39 modules in 5.6 s, measured); and the `[i18n] reconcile complete` line this assertion requires now appears (`installed=36 skipped=4 failed=0`). TWO BLOCKERS REMAIN BEHIND A3 AND BOTH ARE REPORTED TO THE ORCHESTRATOR. (1) `catalog`'s boot hook resolves `promptActionToolRegistry`, a plain registration `prompt_actions` owns, and the default set does not ship `prompt_actions` — a `contributes-to` edge is classified for an owner that is switched off, not for one that was never composed, so the boot dies with an `AwilixResolutionError`. (2) Of the 23 container names `backend/src/composition.ts` contributes, 22 are not contributed by `composeApp`, and roughly ten of those are not defaulted by the module that resolves them — `newsletterBridge` is the one this run reaches. That is `specs/117-instance-bring-up/` FR-030/FR-031 and T118's remaining drain: an instance supplies no contribute callback (R2.4), so every one of those names is absent in a client's tree."
         },
         "A5": {
           "status": "unmeasured",
@@ -78,7 +83,7 @@
         },
         "A11": {
           "status": "unmeasured",
-          "reason": "Half of a two-part claim. `@endora-commerce/platform` resolves and none of the files the command wrote is byte-identical to any of the 601 it ships — measured. `@endora-commerce/admin-shell` does not resolve in the created instance, because there is no admin member to depend on it (A5, T138), so the other half is vacuously true and a green would be claiming it."
+          "reason": "Half of a two-part claim. `@endora-commerce/platform` resolves and none of the files the command wrote is byte-identical to any of the files it ships — measured, and the counts are printed by the run rather than recorded here. `@endora-commerce/admin-shell` does not resolve in the created instance, because there is no admin member to depend on it (A5, T138), so the other half is vacuously true and a green would be claiming it."
         },
         "A12": {
           "status": "unmeasured",
@@ -90,7 +95,7 @@
         },
         "A14": {
           "status": "pass",
-          "reason": "204 lines of wiring across the 11 files the command classified as wiring, counted on disk in the created tree rather than on the plan, against R1.4's bound of 250. `instance-tree.md` §6's own words: a scaffold that expanded a file after rendering is caught."
+          "reason": "230 lines of wiring across the 11 files the command classified as wiring, counted on disk in the created tree rather than on the plan, against R1.4's bound of 250. `instance-tree.md` §6's own words: a scaffold that expanded a file after rendering is caught. IT WAS 204 BEFORE T141: the five `module:*` entry points now close the ORM and the Redis connection they opened and exit — without that they printed their answer and hung forever — and `runOperatorCommand` opens the system scope the host's own scripts open. 21 lines of headroom is less than there was; spend it knowingly."
         }
       }
     },
@@ -108,6 +113,18 @@
     "and exits 0, so `migrate`, `build` and `start` are successful no-ops. Three further",
     "defects behind it are recorded in A4's reason, each measured by hand on a repaired tree.",
     "Nothing here is fixed by this merge request: the instrument's own merge request is not",
-    "the place to also repair what it finds."
+    "the place to also repair what it finds.",
+    "",
+    "2026-09-11 — T141. Four of the five defects the first run found are repaired, in",
+    "`@endora-commerce/platform` and `@endora-commerce/cli`. Measured on `master` at d49e6d1f5:",
+    "mode `tarball`, 4 pass, 1 fail, 9 unmeasured. A3 stays red and A4 moves from `fail` to",
+    "`unmeasured`, and neither is a regression: the migrate step used to exit 0 having matched",
+    "no project, and now it runs and fails on the one defect T141 did not take — the platform's",
+    "own migration corpus is not self-contained. A14 moves from 204 lines to 230, inside the",
+    "same bound, because the five operator commands now dispose what they opened. The repairs,",
+    "each verified end to end on a module set that does migrate: root scripts reach the member;",
+    "an instance runs the platform's own twelve migrations and registers its six entities;",
+    "`_lifecycle` is composed by the platform rather than by a generated index no instance has;",
+    "`module:install --all` exists and is documented; and the operator commands no longer hang."
   ]
 }
