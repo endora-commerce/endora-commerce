@@ -3,16 +3,17 @@ import { serializerCompiler, validatorCompiler } from '@fastify/type-provider-zo
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { InvoiceDetail, OrderItemRecord, OrderReadPort, OrderRecord } from '@endora-commerce/contracts';
-import { Invoice } from '../../../../packages/modules/invoices/src/backend/entities/invoice.entity.js';
-import { InvoiceLine } from '../../../../packages/modules/invoices/src/backend/entities/invoice-line.entity.js';
-import { registerInvoicesAdminRoutes } from '../../../../packages/modules/invoices/src/backend/routes.admin.js';
+import { withSystemScope } from '@endora-commerce/platform/tenancy';
+import { Invoice } from './entities/invoice.entity.js';
+import { InvoiceLine } from './entities/invoice-line.entity.js';
+import { registerInvoicesAdminRoutes } from './routes.admin.js';
 import type {
   InvoiceEmailDispatcher,
   InvoicesAdminDeps,
-} from '../../../../packages/modules/invoices/src/backend/routes.admin.js';
-import { InvoiceService } from '../../../../packages/modules/invoices/src/backend/services/invoice-service.js';
-import type { InvoicePdfRenderer } from '../../../../packages/modules/invoices/src/backend/services/invoice-pdf-renderer.js';
-import type { InvoiceTemplateService } from '../../../../packages/modules/invoices/src/backend/services/invoice-template-service.js';
+} from './routes.admin.js';
+import { InvoiceService } from './services/invoice-service.js';
+import type { InvoicePdfRenderer } from './services/invoice-pdf-renderer.js';
+import type { InvoiceTemplateService } from './services/invoice-template-service.js';
 
 const OWN_ENTITIES: readonly unknown[] = [Invoice, InvoiceLine];
 
@@ -223,7 +224,15 @@ describe('invoices — vendor number hold (mode B)', () => {
       },
     );
 
-    const detail = await service.issue('ord-1', 'invoice');
+    // `InvoiceService.issue` asks `isOrgInScope`, which refuses outside a tenant
+    // context. The route supplies one in production and `backend`'s harness
+    // supplied one to every test in the run (`backend/test/tenancy-setup.ts`);
+    // this package's own vitest configuration installs no such default, so the
+    // scope is declared here — which is the honest spelling either way, since a
+    // direct service call has no request to inherit one from.
+    const detail = await withSystemScope('invoices vendor-hold unit test', () =>
+      service.issue('ord-1', 'invoice'),
+    );
 
     expect(detail.status).toBe('pending');
     expect(detail.number).toBe('FV 1/2026');
@@ -236,7 +245,9 @@ describe('invoices — vendor number hold (mode B)', () => {
       activeVendorModuleId: async () => 'infakt',
     });
 
-    const detail = await service.issue('ord-1', 'invoice');
+    const detail = await withSystemScope('invoices vendor-hold unit test', () =>
+      service.issue('ord-1', 'invoice'),
+    );
 
     expect(detail.status).toBe('ready');
   });
@@ -247,7 +258,9 @@ describe('invoices — vendor number hold (mode B)', () => {
       activeVendorModuleId: async () => null,
     });
 
-    const detail = await service.issue('ord-1', 'invoice');
+    const detail = await withSystemScope('invoices vendor-hold unit test', () =>
+      service.issue('ord-1', 'invoice'),
+    );
 
     expect(detail.status).toBe('ready');
   });
