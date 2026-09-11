@@ -436,8 +436,8 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // Whether this composition runs the push-delivery consumer. A deployment
   // decision: production follows `BACKEND_ROLE`, the harness runs none.
   pwaRunWorkers: 'pwa',
-  // How this composition reaches outside the invoices module.
-  invoicesBridge: 'invoices',
+  // `invoicesBridge` was here and is gone, drained by T118c in the same shape
+  // and deleted here for the same reason the next comment gives.
   // `returnsBridge` was here and is gone, drained by T118c. It survived that
   // drain by a week because this table's `unsupplied` finding asks whether a
   // module still *resolves* an unregistered name (issue #49) — an entry nothing

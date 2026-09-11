@@ -13,7 +13,15 @@
  * still renders.
  */
 
-export type LoadedAssetImage = { bytes: Buffer; mimeType: string };
+/**
+ * `Uint8Array` rather than `Buffer` since `specs/110-instance-repository/`
+ * T118c: the bytes arrive from `assetReadPort.openAssetBytes`, and
+ * `@endora-commerce/contracts` cannot name the `Buffer` global (it is compiled
+ * by `@endora-commerce/admin-kit` with `types: ["vite/client"]`). A `Buffer`
+ * still satisfies it, which is why the external-fetch path below and this
+ * file's own tests are unchanged.
+ */
+export type LoadedAssetImage = { bytes: Uint8Array; mimeType: string };
 
 export type LoadAssetImage = (assetId: string) => Promise<LoadedAssetImage | null>;
 
@@ -27,10 +35,10 @@ function normalizeMime(mime: string): string {
   return m === 'image/jpg' ? 'image/jpeg' : m;
 }
 
-export function toImageDataUri(bytes: Buffer, mimeType: string): string | null {
+export function toImageDataUri(bytes: Uint8Array, mimeType: string): string | null {
   const mime = normalizeMime(mimeType);
   if (!PDFMAKE_IMAGE_MIME.has(mime)) return null;
-  return `data:${mime};base64,${bytes.toString('base64')}`;
+  return `data:${mime};base64,${Buffer.from(bytes).toString('base64')}`;
 }
 
 export function extractAssetIdFromUrl(url: string): string | null {

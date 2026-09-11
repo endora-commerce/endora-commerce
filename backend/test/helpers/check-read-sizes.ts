@@ -1079,7 +1079,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 2002 -> 2003. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    files: 2003,
+    // **T118c, `invoicesBridge`: +1 file** — `invoices`' new module source
+    // (`services/cross-module-context.ts`). It declares no action, so nothing else
+    // moves.
+    files: 2004,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1376,7 +1379,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 2129 -> 2130. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    files: 2130,
+    // **T118c, `invoicesBridge`: +1 file** — `invoices`' new module source
+    // (`services/cross-module-context.ts`).
+    files: 2131,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1479,7 +1484,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 1705 -> 1706. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    files: 1706,
+    // **T118c, `invoicesBridge`: +1 file** — `invoices`' new module source
+    // (`services/cross-module-context.ts`). It writes nothing.
+    files: 1707,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -1592,7 +1599,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 2207 -> 2211. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    files: 2211,
+    // **T118c, `invoicesBridge`: +2 files** — `invoices`' new module source
+    // (`services/cross-module-context.ts`) and its co-located test.
+    files: 2213,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -2033,7 +2042,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/test/unit/harness/vitest-reporters.test.ts` (the reporter union) and
     // `backend/test/unit/ci/junit-artifact.test.ts` (the `test:backend` junit artefact).
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first.
-    files: 5489,
+    // **T118c, `invoicesBridge`: +3 files** — the two new `invoices` module files and
+    // the backend integration test.
+    // **Re-measured on the union after rebasing onto the nightly-diagnostic change.** That
+    // merge request added two test files under `backend/test/`, which these walks read and
+    // which were not in the 5490 recorded against the tree before it: 5492. This branch's
+    // own additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 5492,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2337,7 +2353,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // landed the same day and each added its own module sources, co-located tests and wiring
     // test, so the recorded value describes neither tree alone: 2386 -> 2390. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first.
-    files: 2390,
+    // **T118c, `invoicesBridge`: +2 files** — `invoices`' new module source
+    // (`services/cross-module-context.ts`) and its co-located test.
+    files: 2392,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -2757,7 +2775,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // landed the same day and each added its own module sources, co-located tests and wiring
     // test, so the recorded value describes neither tree alone: 2129 -> 2130. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first.
-    files: 2130,
+    // **T118c, `invoicesBridge`: +1 file** — `invoices`' new module source
+    // (`services/cross-module-context.ts`). It declares no entity.
+    files: 2131,
     sites: 260,
     sources: ['manifest-index'],
   },
@@ -3033,7 +3053,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 2129 -> 2130. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    files: 2130,
+    // **T118c, `invoicesBridge`: +1 file** — `invoices`' new module source
+    // (`services/cross-module-context.ts`). It starts no timer and registers no boot
+    // hook.
+    files: 2131,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3309,7 +3332,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 2129 -> 2130. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    files: 2130,
+    // **T118c, `invoicesBridge`: +1 file** — `invoices`' new module source
+    // (`services/cross-module-context.ts`). It is no entry point: every function in it
+    // is called from a registration.
+    files: 2131,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -3741,7 +3767,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/test/unit/harness/vitest-reporters.test.ts` (the reporter union) and
     // `backend/test/unit/ci/junit-artifact.test.ts` (the `test:backend` junit artefact).
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first.
-    files: 1589,
+    // **T118c, `invoicesBridge`: +1 file** — `backend/test/integration/invoices/cross-
+    // module-wiring.test.ts`.
+    // **Re-measured on the union after rebasing onto the nightly-diagnostic change.** That
+    // merge request added two test files under `backend/test/`, which these walks read and
+    // which were not in the 1588 recorded against the tree before it: 1590. This branch's
+    // own additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 1590,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -3917,7 +3950,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/test/unit/harness/vitest-reporters.test.ts` (the reporter union) and
     // `backend/test/unit/ci/junit-artifact.test.ts` (the `test:backend` junit artefact).
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first.
-    files: 1589,
+    // **T118c, `invoicesBridge`: +1 file** — `backend/test/integration/invoices/cross-
+    // module-wiring.test.ts`.
+    // **Re-measured on the union after rebasing onto the nightly-diagnostic change.** That
+    // merge request added two test files under `backend/test/`, which these walks read and
+    // which were not in the 1588 recorded against the tree before it: 1590. This branch's
+    // own additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 1590,
     sites: null,
     sources: [],
   },
@@ -4209,7 +4249,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 2129 -> 2130. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    files: 2130,
+    // **T118c, `invoicesBridge`: +1 file** — `invoices`' new module source
+    // (`services/cross-module-context.ts`).
+    files: 2131,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -4553,7 +4595,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 2737 -> 2741. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    files: 2741,
+    // **T118c, `invoicesBridge`: +2 files** — `invoices`' new module source
+    // (`services/cross-module-context.ts`) and its co-located test.
+    files: 2743,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
     sites: 56,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
@@ -4670,7 +4714,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 2098 -> 2099. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    files: 2099,
+    // **T118c, `invoicesBridge`: +1 file** — `invoices`' new module source
+    // (`services/cross-module-context.ts`). It declares no block.
+    files: 2100,
     // The finer population, and it is the one that moves when nothing else does
     // (issues #235/#237): tree sites, unreadable sites, renderer-map sites, the
     // block declarations and the declared `(key, context)` sections. A block
@@ -4755,7 +4801,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 2835 -> 2839. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    files: 2839,
+    // **T118c, `invoicesBridge`: +2 files** — `invoices`' new module source
+    // (`services/cross-module-context.ts`) and its co-located test.
+    files: 2841,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -5013,7 +5061,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // landed the same day and each added its own module sources, co-located tests and wiring
     // test, so the recorded value describes neither tree alone: 1717 -> 1718. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first.
-    files: 1718,
+    // **T118c, `invoicesBridge`: +1 file** — `invoices`' new module source
+    // (`services/cross-module-context.ts`). The five `sites` are the literals the new
+    // file writes; all of them are English, which is what this check has nothing to say
+    // about.
+    files: 1719,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -5098,7 +5150,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // landed the same day and each added its own module sources, co-located tests and wiring
     // test, so the recorded value describes neither tree alone: 34504 -> 34510. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first.
-    sites: 34510,
+    sites: 34515,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -5634,7 +5686,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 5022 -> 5030. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    files: 5030,
+    // **T118c, `invoicesBridge`: +4 files** — two module files, and this walk reaches a
+    // module package's sources under more than one root, which is the reason the `mfa`
+    // census gives. The nine `sites` are the import specifiers and table references
+    // those two files write; the backend integration test is outside this population.
+    files: 5034,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -5714,7 +5770,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 12620 -> 12642. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    sites: 12642,
+    sites: 12651,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -6464,7 +6520,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // number is the one to record: it is what the `quality` job reads, and the artefact is
     // a run's output rather than a file of this tree (it is in `.gitignore` as of this
     // merge request).
-    files: 8148,
+    // **T118c, `invoicesBridge`: +5 files** — the three new `.ts` files and this merge
+    // request's two changesets, which this walk opens like any other file.
+    // **Re-measured on the union after rebasing onto the nightly-diagnostic change.** That
+    // merge request added two test files under `backend/test/`, which these walks read and
+    // which were not in the 8151 recorded against the tree before it: 8153. This branch's
+    // own additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 8153,
     sites: null,
     sources: [],
     //
@@ -6930,7 +6993,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 216 -> 224. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    sites: 224,
+    // **T118c, `invoicesBridge`: +1 file** — `invoices`' new module source
+    // (`services/cross-module-context.ts`).
+    // **And `sites` 224 -> 227, which is the number worth reading here.** One is the
+    // owner's: `assets_library`' `openAssetBytes` keeps a narrow `catch` around the
+    // store open and the drain — the degrade the two roots' closures used to carry —
+    // with `rethrowIfModuleDisabled` as its first line. The other **two** are pre-
+    // existing `catch`es inside `invoices` that this drain makes *visible*: the module
+    // now has `getTransactionalEmailSender`, `resolveRecipientEmail` and
+    // `loadAssetImage` as port-bearing aliases, so `catch`es the analysis could not see
+    // as port-adjacent are in the population. Both were already compliant — `ledgered`
+    // and `owner-locked` are unchanged at 5 and 11 and `violations` is 0, so the two
+    // new sites re-throw. **Measured rather than reasoned about**: with the module
+    // files at their new state and the two roots at their old one this walk reads 227
+    // all the same, and with the owner's file alone reverted it reads 226 — the roots'
+    // two deleted `catch`es were never in this population, because a root reaches
+    // `assetReadPort` through a local accessor rather than an alias.
+    sites: 227,
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 2138 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
@@ -6988,7 +7067,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 2129 -> 2130. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    files: 2130,
+    files: 2131,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -7106,7 +7185,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 1949 -> 1950. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    files: 1950,
+    // **T118c, `invoicesBridge`: +1 file** — `invoices`' new module source
+    // (`services/cross-module-context.ts`). The three `sites` are **net**: five
+    // resolutions arrive in `invoices`' registration — two `lazyPort` reads and three
+    // contributed-name reads — against the two `invoicesBridge` cradle reads that go.
+    files: 1951,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 1471 -> 1535.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
@@ -7130,7 +7213,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 1571 -> 1576. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    sites: 1576,
+    sites: 1579,
     sources: ['manifest-index'],
   },
   // Two derivations, deliberately, because the check has two inputs that can be
@@ -7386,7 +7469,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 2427 -> 2428. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    files: 2428,
+    // **T118c, `invoicesBridge`: +1 file** — `invoices`' new module source
+    // (`services/cross-module-context.ts`). The two `sites` are its two reaches into
+    // the platform: `SalesChannel` off `@endora-commerce/platform/kernel`, for the
+    // channel-language read that came out of a root.
+    files: 2429,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -7484,7 +7571,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fewer files than the 1853 recorded against the tree before it: 1847. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    sites: 1851,
+    sites: 1853,
     // count moves with the file count here because the reaches that went are exactly
     // the files that went.
     // **T119a: sites 1870 -> 1861.** The same nine files, each the single relative
@@ -7641,7 +7728,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 2048 -> 2049. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    files: 2049,
+    // **T118c, `invoicesBridge`: +1 file** — `invoices`' new module source
+    // (`services/cross-module-context.ts`). The two `sites` are the two `lazyPort<T>`
+    // calls and not the three cradle reads, which are contributed names rather than
+    // ports.
+    files: 2050,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 692 -> 721.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -7663,7 +7754,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 739 -> 745. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    sites: 745,
+    sites: 747,
     sources: ['manifest-index', 'ports-subpaths'],
   },
   // Small on purpose: this population is the *workspace*, not a source tree —
@@ -7957,7 +8048,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/test/unit/harness/vitest-reporters.test.ts` (the reporter union) and
     // `backend/test/unit/ci/junit-artifact.test.ts` (the `test:backend` junit artefact).
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first.
-    files: 1589,
+    // **T118c, `invoicesBridge`: +1 file** — `backend/test/integration/invoices/cross-
+    // module-wiring.test.ts`.
+    // **Re-measured on the union after rebasing onto the nightly-diagnostic change.** That
+    // merge request added two test files under `backend/test/`, which these walks read and
+    // which were not in the 1588 recorded against the tree before it: 1590. This branch's
+    // own additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 1590,
     sites: 163,
     sources: [],
   },
@@ -8285,7 +8383,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 2129 -> 2130. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    files: 2130,
+    // **T118c, `invoicesBridge`: +1 file** — `invoices`' new module source
+    // (`services/cross-module-context.ts`). It subscribes to nothing and constructs no
+    // worker.
+    files: 2131,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -8447,7 +8548,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/test/unit/harness/vitest-reporters.test.ts` (the reporter union) and
     // `backend/test/unit/ci/junit-artifact.test.ts` (the `test:backend` junit artefact).
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first.
-    files: 1709,
+    // **T118c, `invoicesBridge`: +2 files** — the co-located test and the backend
+    // integration test, which is what this check exists to tell apart.
+    // **Re-measured on the union after rebasing onto the nightly-diagnostic change.** That
+    // merge request added two test files under `backend/test/`, which these walks read and
+    // which were not in the 1709 recorded against the tree before it: 1711. This branch's
+    // own additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 1711,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -8475,7 +8583,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `test/integration/megamenu/cross-module-targets.test.ts` becomes a site. It is
     // server-bound and multi-owner, so it stays under `backend/test` and needs no ledger
     // entry.
-    sites: 1111,
+    sites: 1112,
     // Two independent authors. `manifest-index` is issue #215's shared floor
     // over the module walk, whose unit is the module's own directory rather than
     // a test file — 14 of the 70 packages ship no test and a floor over test
@@ -8766,7 +8874,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test, so the recorded value describes neither tree alone: 2129 -> 2130. Quality-job
     // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
     // combined tree, never summed from the two sides' deltas.
-    files: 2130,
+    // **T118c, `invoicesBridge`: +1 file** — `invoices`' new module source
+    // (`services/cross-module-context.ts`). It opens no transaction and writes no SQL.
+    files: 2131,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -9124,7 +9234,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/test/unit/harness/vitest-reporters.test.ts` (the reporter union) and
     // `backend/test/unit/ci/junit-artifact.test.ts` (the `test:backend` junit artefact).
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first.
-    files: 4514,
+    // **T118c, `invoicesBridge`: +3 files** — the two new `invoices` module files and
+    // the backend integration test. The one `site` is the backend test's value reach
+    // into a module package's sources, which is what this check classifies.
+    // **Re-measured on the union after rebasing onto the nightly-diagnostic change.** That
+    // merge request added two test files under `backend/test/`, which these walks read and
+    // which were not in the 4515 recorded against the tree before it: 4517. This branch's
+    // own additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 4517,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -9182,7 +9300,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which resolves it out of the composed `entities` array. A helper import is no
     // reach, so 81 sites go and none arrives.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The value reaches into a package's source that the module's tests make.
-    sites: 868,
+    sites: 869,
     sources: ['manifest-index', 'entities-registry', 'tenant-chains'],
     //
     // **852 -> 851 sites, 4336 -> 4337 files, and the two have different causes.**
@@ -9875,7 +9993,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/test/unit/harness/vitest-reporters.test.ts` (the reporter union) and
     // `backend/test/unit/ci/junit-artifact.test.ts` (the `test:backend` junit artefact).
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first.
-    files: 8208,
+    // **T118c, `invoicesBridge`: +5 files** — the three new `.ts` files and this merge
+    // request's two changesets, which this walk opens like any other file. Read on the
+    // **staged** tree, for the reason the block above gives.
+    // **Re-measured on the union after rebasing onto the nightly-diagnostic change.** That
+    // merge request added two test files under `backend/test/`, which these walks read and
+    // which were not in the 8211 recorded against the tree before it: 8213. This branch's
+    // own additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 8213,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -10326,7 +10452,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/test/unit/harness/vitest-reporters.test.ts` (the reporter union) and
     // `backend/test/unit/ci/junit-artifact.test.ts` (the `test:backend` junit artefact).
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first.
-    files: 6120,
+    // **T118c, `invoicesBridge`: +3 files** — the two new `invoices` module files and
+    // the backend integration test. The markdown half does not move: `docs/docs/module-
+    // reference/invoices.md` is regenerated rather than new.
+    // **Re-measured on the union after rebasing onto the nightly-diagnostic change.** That
+    // merge request added two test files under `backend/test/`, which these walks read and
+    // which were not in the 6121 recorded against the tree before it: 6123. This branch's
+    // own additions were already in that figure. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    files: 6123,
     sites: null,
     sources: ['manifest-index'],
     //

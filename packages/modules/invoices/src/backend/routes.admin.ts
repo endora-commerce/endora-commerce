@@ -40,8 +40,15 @@ export interface InvoicesAdminDeps {
   invoiceService: InvoiceService;
   pdfRenderer: InvoicePdfRenderer;
   templateService: InvoiceTemplateService;
-  emailDispatcher?: InvoiceEmailDispatcher;
-  resolveAdminUserId?: (req: FastifyRequest) => string | null;
+  /**
+   * T118c — required, both of them. Each was optional because the *bridge*
+   * member behind it was, and a composition that omitted one got a route that
+   * silently did less: no dispatcher meant every issue answered
+   * `not_sent` / `no_sender`, and no resolver meant every invoice was recorded
+   * as issued by nobody. The module resolves both itself now.
+   */
+  emailDispatcher: InvoiceEmailDispatcher;
+  resolveAdminUserId: (req: FastifyRequest) => string | null;
 }
 
 const RENDER_LANGUAGE = 'pl-PL';
@@ -143,7 +150,7 @@ export async function registerInvoicesAdminRoutes(
     { preHandler: requireAdmin('invoices:write'), schema: { body: issueInvoiceRequestSchema } },
     async (request, reply) => {
       const body = issueInvoiceRequestSchema.parse(request.body ?? {});
-      const issuedBy = deps.resolveAdminUserId?.(request) ?? undefined;
+      const issuedBy = deps.resolveAdminUserId(request) ?? undefined;
       const detail = await invoiceService.issue(request.params.orderId, body.kind, {
         ...(body.saleDate ? { saleDate: body.saleDate } : {}),
         ...(body.paymentDueDate ? { paymentDueDate: body.paymentDueDate } : {}),
@@ -178,12 +185,12 @@ export async function registerInvoicesAdminRoutes(
     { preHandler: requireAdmin('invoices:write'), schema: { body: sendInvoiceEmailRequestSchema } },
     async (request) => {
       const body = sendInvoiceEmailRequestSchema.parse(request.body ?? {});
-      if (!deps.emailDispatcher) {
-        // `no_sender`, the name the dispatcher and the issue route both use for
-        // this composition. It was `email_not_configured` — an eighth word for
-        // one of the seven reasons, which no caller could translate (#149).
-        return { data: { ok: false, reason: 'no_sender' } };
-      }
+      // The `if (!deps.emailDispatcher)` arm that stood here is gone with T118c
+      // and `no_sender` is not: a dispatcher always exists now, and it answers
+      // that name itself when `transactional_emails` has announced no sender.
+      // The reason word is unchanged — it was `email_not_configured` until
+      // issue #149, an eighth word for one of the seven reasons a caller can
+      // translate.
       const messageId = `invoice_issued:${request.params.id}:resend:${Date.now()}`;
       // Issue #103 — the operator asked for this send explicitly, so the reason
       // it did not happen belongs in the answer rather than only in the log.
@@ -296,10 +303,11 @@ async function sendOnIssue(
   salesChannelId: string | null,
 ): Promise<IssueInvoiceEmailOutcome> {
   const dispatcher = deps.emailDispatcher;
-  // The situation the dispatcher names `no_sender`, one layer earlier: there is
-  // no dispatcher to name it, so the route does — the same answer the auto-issue
-  // reactor gives for the same composition.
-  if (!dispatcher) return { status: 'not_sent', reason: 'no_sender' };
+  // The `if (!dispatcher)` arm that stood here is gone with T118c: the
+  // dispatcher is built unconditionally, so "this composition has no e-mail
+  // surface" is no longer a state. `no_sender` is still reachable and is still
+  // the honest answer — it is the dispatcher's own, for a
+  // `transactional_emails` that has not announced its sender.
   if (!(await dispatcher.sendOnIssueEnabled(salesChannelId))) return { status: 'not_requested' };
   const result = await dispatcher.dispatch(invoiceId);
   return result.sent ? { status: 'sent' } : { status: 'not_sent', reason: result.reason };

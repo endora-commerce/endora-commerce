@@ -1,17 +1,38 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AssetReadPort, AssetRecord, StorageBackendCode } from '@endora-commerce/contracts';
+import type {
+  AssetBytes,
+  AssetByteStream,
+  AssetReadPort,
+  AssetRecord,
+  ObjectStorageBackendCode,
+  StorageBackendCode,
+} from '@endora-commerce/contracts';
+import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import { Asset } from '../entities/asset.entity.js';
 import type { StorageResolveUrlInput, StorageResolveUrlOutput } from './storage/storage-adapter.js';
 
 /**
  * The narrow slice of the adapter registry {@link AssetReadService} needs — the
- * URL builder of whichever backend owns an object's bytes, and nothing else.
+ * URL builder of whichever backend owns an object's bytes, and, for a backend
+ * that is a real object store, the reader that opens them.
  *
  * Declared here rather than taking `AdapterRegistry` so that the read model can
- * be unit-tested over a stub, and so that the one capability it has over the
- * `assets` table is visible in its constructor.
+ * be unit-tested over a stub, and so that the two capabilities it has over the
+ * `assets` table are visible in its constructor.
+ *
+ * **Two overloads, narrowest first**, because `AdapterRegistry` has exactly
+ * this shape and for the reason it has it: `legacy` is not a store — it
+ * resolves the URL of a pre-013 row this platform did not issue and can open
+ * nothing — so `open` exists only on the arm a `legacy` code cannot reach
+ * (`ObjectStoragePort`'s doc block, point 3). Widest-first would hand every
+ * call the arm without `open` and put the probe back at the call site, which is
+ * the thing the port removes.
  */
-export interface AssetUrlResolverRegistry {
+export interface AssetStorageRegistry {
+  getForBackend(backend: ObjectStorageBackendCode): Promise<{
+    resolveUrl(input: StorageResolveUrlInput): StorageResolveUrlOutput | Promise<StorageResolveUrlOutput>;
+    open(input: { locator: string }): Promise<AssetByteStream>;
+  }>;
   getForBackend(
     backend: StorageBackendCode,
   ): Promise<{ resolveUrl(input: StorageResolveUrlInput): StorageResolveUrlOutput | Promise<StorageResolveUrlOutput> }>;
@@ -38,7 +59,7 @@ export class AssetReadService implements AssetReadPort {
      * argument whose omission is silent is how this module once shipped a
      * permission gate that defaulted to permissive.
      */
-    private readonly adapters: () => AssetUrlResolverRegistry,
+    private readonly adapters: () => AssetStorageRegistry,
   ) {}
 
   async findById(id: string, options?: { liveOnly?: boolean }): Promise<AssetRecord | null> {
@@ -102,6 +123,62 @@ export class AssetReadService implements AssetReadPort {
       out.set(asset.id, resolved.url);
     }
     return out;
+  }
+
+  /**
+   * The bytes of one live asset — the port's rule, answered where the storage
+   * layout is (`specs/110-instance-repository/` T118c).
+   *
+   * Three facts left a composition root to arrive here, and each of them is one
+   * line below. `legacy` is not a store, so a row on it has no bytes to open
+   * and answers `null` rather than being probed for an `open` method at the
+   * call site. The locator falls back to `storageUrl` for rows written before
+   * the column existed. And an adapter answers a stream, which the caller
+   * wanted whole.
+   *
+   * **The `catch` is the degrade, and it belongs here** (composition checklist
+   * item 7): a configured backend that will not stream is a document rendered
+   * without its decoration, and the caller — holding an asset id and nothing
+   * else — cannot tell that state from an asset that is not there. It is
+   * narrow on purpose: it covers the open and the drain, never the row read,
+   * which is this module's own `EntityManager` and whose failure is a real one.
+   */
+  async openAssetBytes(assetId: string): Promise<AssetBytes | null> {
+    const asset = await this.emFactory().findOne(Asset, { id: assetId, deletedAt: null });
+    if (!asset) return null;
+    // Narrowed here rather than probed at the caller: the overload's `open` arm
+    // is unreachable for `legacy` by construction.
+    if (asset.storageBackend === 'legacy') return null;
+
+    try {
+      const store = await this.adapters().getForBackend(asset.storageBackend);
+      const stream = await store.open({ locator: asset.storageLocator || asset.storageUrl });
+      const chunks: Uint8Array[] = [];
+      let length = 0;
+      for await (const chunk of stream) {
+        const bytes = typeof chunk === 'string' ? new TextEncoder().encode(chunk) : chunk;
+        chunks.push(bytes);
+        length += bytes.byteLength;
+      }
+      const bytes = new Uint8Array(length);
+      let offset = 0;
+      for (const chunk of chunks) {
+        bytes.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      return { bytes, mimeType: asset.mimeType };
+    } catch (error) {
+      // Narrow tolerance, and `rethrowIfModuleDisabled` is its first line by
+      // decision rather than by habit. The registry this reaches is this
+      // module's own and crosses no gate today, so the re-throw is unreachable;
+      // what it buys is that it stays unreachable *by construction* — a future
+      // adapter that resolved a port would otherwise have its "this capability
+      // is off" answer absorbed into "this asset has no bytes", which is the
+      // fail-open composition checklist item 7 refuses. A status-code test
+      // would not do: `ModuleDisabledError` is an `HttpError`.
+      rethrowIfModuleDisabled(error);
+      return null;
+    }
   }
 }
 
