@@ -6562,7 +6562,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own guard and harness constant, so the recorded value describes neither tree: 8148 -> 8155.
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 8155,
+    // **`fix/110-instance-template-symbols` (the scaffolded backend compiles): files 8155 -> 8157.**
+    // The two files this branch adds —
+    // `packages/cli/test/new-instance/template-reconciliation.test.ts` and its changeset — which
+    // this walk opens like any other file. Attributed by measurement rather than by subtraction:
+    // both were moved aside and the three drifting checks re-run, and the tree underneath read
+    // 8155 exactly, so the whole delta is this branch's.
+    files: 8157,
     sites: null,
     sources: [],
     //
@@ -10064,7 +10070,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own guard and harness constant, so the recorded value describes neither tree: 8208 -> 8215.
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 8215,
+    // **`fix/110-instance-template-symbols` (the scaffolded backend compiles): files 8215 -> 8217.**
+    // The two files this branch adds —
+    // `packages/cli/test/new-instance/template-reconciliation.test.ts` and its changeset. Rule 1
+    // judges names, so both sit in its population; measured on a tree with both moved aside,
+    // which read 8215 exactly.
+    files: 8217,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -10530,7 +10541,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // own guard and harness constant, so the recorded value describes neither tree: 6120 -> 6125.
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    files: 6125,
+    // **`fix/110-instance-template-symbols` (the scaffolded backend compiles): files 6125 -> 6126.**
+    // **+1, not +2**, and the difference is the whole of this walk's population: it scans
+    // source-code comments, so it takes `packages/cli/test/new-instance/template-reconciliation.test.ts`
+    // and not the branch's changeset markdown, which `.changeset/` holds and no `/docs/` page
+    // reaches. Measured on a tree with both moved aside, which read 6125 exactly.
+    files: 6126,
     sites: null,
     sources: ['manifest-index'],
     //
