@@ -48,6 +48,7 @@ import {
   type ModuleIdClaim,
   type ModuleIdClaimOrigin,
 } from './services/module-id-claims.js';
+import { platformResidentManifestEntries } from './resident.js';
 
 /**
  * One entry of the host's generated manifest index, as this derivation reads it.
@@ -318,6 +319,23 @@ export async function resolveManifestEntries(
   const byId = new Map<string, RegisteredManifestEntry>(
     sources.core.map((entry) => [entry.manifest.id, entry]),
   );
+  // The platform's own resident modules (`specs/110-instance-repository/` T141).
+  // `_lifecycle`'s sources are this package's, so the only tree that could name
+  // it is one carrying a generated index — and an instance carries none, which
+  // is what left every instance refusing its own boot with
+  // `not-shipped: _lifecycle`, needed by five modules of the set the scaffolder
+  // itself writes.
+  //
+  // **Only where the host did not name it**, and appended rather than seeded, so
+  // a host that does — this repository's generated index, through the
+  // host-internal subpath — keeps its own entry *and* its own order. A `set`
+  // over an existing key would keep the position and replace the value, which is
+  // a difference nothing here needs to make. It is deliberately absent from the
+  // claim set below for the same reason: two names for one module is not a
+  // collision and must not be reported as one.
+  for (const resident of platformResidentManifestEntries()) {
+    if (!byId.has(resident.manifest.id)) byId.set(resident.manifest.id, resident);
+  }
   for (const found of overlay) {
     byId.set(found.id, {
       manifest: found.manifest,

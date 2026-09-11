@@ -1004,6 +1004,27 @@ async function main(): Promise<void> {
       }
 
       if (migrated?.code === 0) {
+        // The step between `migrate` and `start` that the command's own next
+        // steps and the README both name (`specs/110-instance-repository/`
+        // T141). An instance's modules are installed packages, and a package's
+        // `module_registrations` row is written by `module:install` and by no
+        // boot (D-157.6(b)) — so without this the boot refuses with
+        // `RequiredModuleAbsentError` over every locked module the instance
+        // ships. It is run here for this file's own stated reason: reaching
+        // past the instance's scripts into a sequence nobody is told about
+        // would be measuring something else, and the sequence a client is told
+        // about has five steps rather than four.
+        const installed = run('pnpm', ['run', 'module:install', '--all'], {
+          cwd: target,
+          env: environment,
+        });
+        if (installed.code !== 0) {
+          notes.push(
+            `the instance's own \`module:install --all\` exited ${String(installed.code)}, so ` +
+              `A4 reports whatever the boot then does rather than a clean start: ` +
+              `${installed.output.trim().split('\n').slice(-3).join(' / ')}`,
+          );
+        }
         // The boot is attempted whenever the migrate step claimed to succeed,
         // including when A3 then reported that nothing was migrated: what the
         // start script does is a separate question from what the migrate script

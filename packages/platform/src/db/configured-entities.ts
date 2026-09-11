@@ -1,6 +1,7 @@
 import { discoverPackageSchema, type EntityClassLike } from '../packages/package-runtime.js';
 import { assertTransitiveParentsResolve } from '../tenancy/org-scoped.decorator.js';
 import { platformLogger } from '../kernel/logging.js';
+import { PLATFORM_ENTITIES, mergeByIdentity } from './platform-schema.js';
 
 /**
  * The entity classes this platform registers: the committed core registry the
@@ -80,7 +81,13 @@ export async function configuredEntitiesFrom(
 ): Promise<readonly ConfiguredEntity[]> {
   const packages = await discoverPackageSchema(inputs.env ?? process.env);
   const entities = [
-    ...inputs.coreEntities,
+    // The platform's own six first (`specs/110-instance-repository/` T141).
+    // They are this package's, and an instance supplies `coreEntities: []` —
+    // which used to mean it registered none of them, so nothing mapped the
+    // tables its own migrations create. Where a host names them, as this
+    // repository's generated registry does by bare specifier, the merge is an
+    // identity de-duplication over the same class objects.
+    ...mergeByIdentity(PLATFORM_ENTITIES, inputs.coreEntities),
     ...packages.flatMap((contribution) => contribution.entities),
   ];
   assertTransitiveParentsResolve(platformLogger());

@@ -1784,9 +1784,9 @@ async function contributeReferenceDeployment(
   // Feature 019 — Admin UI i18n. Built BEFORE the lifecycle so its
   // reconciler can be plugged into the orchestrator at construction
   // time. The boot-time bundle reconciler runs at plugin-attach via a
-  // lazy registry accessor (the lifecycle's registry is populated by
-  // the time the plugin chain is registered).
-  let lifecycleRef: typeof lifecycle | undefined;
+  // lazy registry accessor, which `composeApp` supplies since
+  // `specs/110-instance-repository/` T141 — the forward reference this root kept
+  // for it went with the contribution.
   // Feature 072 (T089) — `_i18n` owns its service, its reconciler and its
   // routes now. The root only reads the two the platform consumes.
 
@@ -1835,7 +1835,6 @@ async function contributeReferenceDeployment(
     // `RegisteredManifestEntry` later gets silently dropped, and one just was.
     resolvedRegistry,
   );
-  lifecycleRef = lifecycle;
   // Feature 072 (T125) — `_lifecycle` registers its own routes now, through
   // `ctx.ungatedRoutes`. One name stays a composition's and it genuinely
   // differs: this deployment boots an orchestrator, and the harness does not,
@@ -1848,15 +1847,18 @@ async function contributeReferenceDeployment(
   composedModules.contribute({
     lifecycleOrchestrator: lifecycle.handle.orchestrator,
   });
-  // Feature 072 (T089) — the accessor `_i18n` walks to reconcile every module's
-  // translation bundles. It stays an accessor rather than the registry itself
-  // because of the order this file is written in: `_i18n` composes ~1900 lines
-  // above, and the registry it needs does not exist until the line above this
-  // one. `_i18n` resolves it at plugin-attach time, which
-  // is after this function returns. Goes when `_lifecycle` converts.
-  composedModules.contribute({
-    lifecycleManifestRegistry: () => lifecycleRef?.handle.registry,
-  });
+  // `lifecycleManifestRegistry` — the accessor `_i18n` walks to reconcile every
+  // module's translation bundles — was contributed here and is `composeApp`'s
+  // since `specs/110-instance-repository/` T141. The value is the same
+  // expression: this root passed `resolvedRegistry` to
+  // `lifecycleModuleFromStaticEntries`, which is `buildStaticRegistry` of it,
+  // and the platform builds it from the resolved set it already holds. What
+  // moved is who authors it, and it had to move: a name contributed on both
+  // sides of the package boundary is a silent overwrite (the assertion in
+  // `test/unit/kernel/compose-app-contributions.test.ts`), and an instance
+  // contributes nothing at all — R2.4 — so the name resolved to nothing there
+  // and the boot died inside `_i18n`'s reconcile. The harness's own
+  // contribution stands: it composes by hand and never calls `composeApp`.
 
   // The boot half only: reconciling first-boot registrations, warming the
   // registry cache and resuming workers. Its routes are the module's own now.

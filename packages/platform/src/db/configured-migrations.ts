@@ -11,6 +11,11 @@ import {
   type MigrationOrigin,
   type MigrationRegistryEntry,
 } from './migration-order.js';
+import {
+  CORE_MODULE_ID,
+  PLATFORM_MIGRATION_ENTRIES,
+  mergeByIdentity,
+} from './platform-schema.js';
 
 /**
  * The migration order this platform runs, as a value — with no database in it.
@@ -92,11 +97,15 @@ export interface ConfiguredMigrations {
 /**
  * The cross-cutting pseudo-module owning the platform's own migrations.
  *
- * Exported because three programs outside this file need the same literal — the
- * scaffolder, the registry round-trip and the instance-order guard — and a
- * second spelling of a module id is a second answer waiting to disagree.
+ * Declared in `./platform-schema.ts`, beside the twelve migrations it owns, and
+ * re-exported here because five programs outside that file need the same
+ * literal — the scaffolder, the registry round-trip, the instance-order guard
+ * and the two merges below — and a second spelling of a module id is a second
+ * answer waiting to disagree. It moved when this file learned to read that one:
+ * a constant declared here and read back from there is an import cycle
+ * evaluated in whichever order a consumer happened to enter it.
  */
-export const CORE_MODULE_ID = 'core';
+export { CORE_MODULE_ID } from './platform-schema.js';
 
 /**
  * The committed core artefacts, **received** rather than imported
@@ -206,8 +215,16 @@ export function configuredMigrationsFrom(inputs: {
   // lands at its topological position. Its `dependencies` are read from the
   // manifest the package published; an id already in the map is a collision
   // `assertNoPackageModuleIdCollisions` refused before anything got here.
+  //
+  // Until `specs/110-instance-repository/` T141 that first clause was a comment
+  // and not a fact: the fallback was `[]`, and it was unreachable in this
+  // repository because the committed index carries every module package. An
+  // instance has no index, so every module was a graph root and feature 081's
+  // per-module order became whichever order the tie-break produced.
   for (const contribution of inputs.packages) {
-    if (!moduleDependencies.has(contribution.id)) moduleDependencies.set(contribution.id, []);
+    if (!moduleDependencies.has(contribution.id)) {
+      moduleDependencies.set(contribution.id, contribution.dependencies);
+    }
   }
 
   const ordered = orderMigrations({
@@ -294,7 +311,21 @@ export async function discoverConfiguredMigrations(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<ConfiguredMigrations> {
   return configuredMigrationsFrom({
-    coreEntries: sources.coreEntries,
+    // The platform's own twelve are merged in here rather than asked of the
+    // host (`specs/110-instance-repository/` T141). They are this package's
+    // schema, a client receives them by installing it, and an instance supplies
+    // `coreEntries: []` — which used to mean it ran none of them and died on
+    // the first module migration to touch a table `core_foundation_init`
+    // creates. Where a host does name them, as this repository's generated
+    // registry does by bare specifier, the merge is an identity de-duplication
+    // over the same objects and changes nothing; two objects of one name mean
+    // two copies of this package in one process (D-160.6), which survives as a
+    // duplicate name and is refused by `orderMigrations`' own rule.
+    coreEntries: mergeByIdentity(
+      sources.coreEntries,
+      PLATFORM_MIGRATION_ENTRIES,
+      (entry) => entry.cls,
+    ),
     coreModuleDependencies: committedModuleDependencies(sources.manifests),
     packages: await discoverPackageSchema(env),
   });

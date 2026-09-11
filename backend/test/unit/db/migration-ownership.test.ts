@@ -95,7 +95,8 @@ describe('the merged order', () => {
           packageName: '@vendor/mod-loyalty',
           version: '1.0.0',
           migrationsDirectory: '/instance/node_modules/@vendor/mod-loyalty/dist/migrations',
-          migrations: [
+          dependencies: [],
+        migrations: [
             { ...entry('loyalty', 'Migration20260821T120000LoyaltyInit'), origin: 'external' },
           ],
           entities: [],
@@ -137,7 +138,8 @@ describe('the merged order', () => {
           packageName: '@vendor/mod-loyalty',
           version: '1.0.0',
           migrationsDirectory: null,
-          migrations: [
+          dependencies: [],
+        migrations: [
             { ...entry('loyalty', 'Migration20250101T000000LoyaltyInit'), origin: 'external' },
           ],
           entities: [],

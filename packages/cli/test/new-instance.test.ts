@@ -33,6 +33,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   InstanceHostError,
   InstanceInputError,
+  nextSteps,
   runNewInstance,
 } from '../src/new-instance/index.js';
 import { resolveModuleSet, type ModuleCandidate } from '../src/new-instance/modules.js';
@@ -490,6 +491,56 @@ describe('the tree (§1, §2)', () => {
       // naming it in a tree the client owns is what the ruling forbids.
       expect(file.content).not.toMatch(/demo:seed|demo seed|seedDemo/);
     }
+  });
+
+  /**
+   * `specs/110-instance-repository/` T141 — every root script reaches the member.
+   *
+   * The red proof is the acceptance criterion's first end-to-end run: these read
+   * `pnpm --filter backend run …` while the member is named `<name>-backend`, so
+   * pnpm matched no project, printed `No projects matched the filters` and
+   * **exited 0**. `migrate`, `build`, `start`, `dev` and the five `module:*`
+   * commands were all silent no-ops, and so was every step of the next-steps
+   * block the command prints to a client.
+   */
+  it('T141 — no root script filters on a project name that is not the member\'s', () => {
+    const plan = planInstance(planInput({ name: 'acme-shop' }));
+    const root = JSON.parse(
+      plan.files.find((file) => file.path === 'package.json')!.content,
+    ) as { scripts: Record<string, string> };
+    const member = JSON.parse(
+      plan.files.find((file) => file.path === 'backend/package.json')!.content,
+    ) as { name: string; scripts: Record<string, string> };
+
+    expect(Object.keys(root.scripts).length).toBeGreaterThan(0);
+    for (const [name, command] of Object.entries(root.scripts)) {
+      expect(command).not.toContain('--filter backend');
+      // Whatever the spelling, it must reach the member's own script of the
+      // same name — the two lists are held together here rather than one of
+      // them being read off the other.
+      expect(member.scripts[name.replace(/^module:/, 'module:')]).toBeDefined();
+      expect(command).toContain(`run ${name}`);
+    }
+    expect(member.name).toBe('acme-shop-backend');
+  });
+
+  it('T141 — the next steps name the build and the module install, in order', () => {
+    // A client who follows this block gets a running instance; before T141 it
+    // named neither, so `start` ran a `dist` nothing had built and the boot
+    // refused over every module whose registry row `module:install` writes.
+    const steps = nextSteps('/tmp/acme', 'default');
+    const text = steps.join('\n');
+    expect(text).toContain('pnpm run build');
+    expect(text).toContain('pnpm run module:install --all');
+    expect(steps.findIndex((s) => s.startsWith('pnpm run build'))).toBeLessThan(
+      steps.findIndex((s) => s.startsWith('pnpm run migrate')),
+    );
+    expect(steps.findIndex((s) => s.startsWith('pnpm run migrate'))).toBeLessThan(
+      steps.findIndex((s) => s.startsWith('pnpm run module:install')),
+    );
+    expect(steps.findIndex((s) => s.startsWith('pnpm run module:install'))).toBeLessThan(
+      steps.findIndex((s) => s.startsWith('pnpm run start')),
+    );
   });
 
   it('R1.4 — the wiring is under the bound, measured on the plan', () => {

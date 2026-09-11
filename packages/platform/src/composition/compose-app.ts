@@ -110,8 +110,11 @@ import { enterSystemScope } from '../kernel/scope.js';
 import { composeSettingsKernel, type SettingsKernel } from '../kernel/settings/compose.js';
 import { ManifestReconciler } from '../kernel/settings/manifest-reconciler.js';
 import {
+  buildStaticRegistry,
   deploymentShippedEntries,
   loadModulePresence,
+  manifest as lifecycleManifest,
+  registerModule as registerLifecycleModule,
   resolveManifestEntries,
   type RegisteredManifestEntry,
 } from '../lifecycle/index.js';
@@ -412,7 +415,24 @@ async function defaultComposition(
     return mikroOrmConfigFrom({ entities, migrations });
   });
   return {
-    modules: [...overlay, ...packages],
+    // `_lifecycle` first, and it is the platform's own rather than the
+    // instance's (`specs/110-instance-repository/` T141). Its sources are in
+    // this package, so the only tree that could compose it is one carrying a
+    // generated composition — and an instance carries none, which is what left
+    // every instance refusing its own boot with `not-shipped: _lifecycle`,
+    // needed by five modules of the default set. `resolveManifestEntries`
+    // supplies the manifest half from the same declaration; this is the
+    // registration half, which cannot go there because `ModuleEntry` is this
+    // directory's and `lifecycle/` may not name it.
+    //
+    // Nothing is contributed here when the caller supplied its own
+    // `composition.modules`: this whole function is the fallback, so a host with
+    // a generated composition of its own is untouched.
+    modules: [
+      { id: lifecycleManifest.id, version: lifecycleManifest.version, registerModule: registerLifecycleModule },
+      ...overlay,
+      ...packages,
+    ],
     manifests,
     orm: { open: bootstrap.initOrm, close: bootstrap.closeOrm },
   };
@@ -770,6 +790,8 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     credentialsSettingsPort: settings.settingsService,
   });
 
+  // The lazily built manifest registry the contribution below hands `_i18n`.
+  let manifestRegistry: ReturnType<typeof buildStaticRegistry> | undefined;
   composedModules.contribute({
     // Principle X — whether this process runs each module's queue consumers.
     // Only the *flag* was ever a deployment decision; the workers themselves
@@ -802,6 +824,18 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
         effectiveState.presence(moduleId)?.operatorActivated ?? true,
       version: (): number => effectiveState.presenceVersion(),
     },
+    // The accessor `_i18n` walks to reconcile every module's translation
+    // bundles (`specs/110-instance-repository/` T141). It is a **default**:
+    // both roots in this repository contribute their own below, through
+    // `options.contribute`, and an instance contributes nothing at all — R2.4 —
+    // so before this it resolved to nothing and the boot died inside `_i18n`'s
+    // reconcile with `Could not resolve 'lifecycleManifestRegistry'`.
+    //
+    // Built lazily and once: a composition that never reads the name pays for
+    // no registry, and `buildStaticRegistry` refuses a duplicate module id,
+    // which the resolved set cannot hold.
+    lifecycleManifestRegistry: (): ReturnType<typeof buildStaticRegistry> =>
+      (manifestRegistry ??= buildStaticRegistry(resolvedRegistry)),
     // Feature 072 (T125) — how a committed activation flip propagates: the
     // writing process refreshes itself rather than waiting on its own pub/sub
     // round trip, so the very next request it serves sees the new state.

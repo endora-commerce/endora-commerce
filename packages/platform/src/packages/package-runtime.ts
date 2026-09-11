@@ -425,6 +425,21 @@ export interface PackageSchemaContribution {
   readonly migrations: readonly MigrationRegistryEntry[];
   /** The entity classes its `./backend` export declares. */
   readonly entities: readonly EntityClassLike[];
+  /**
+   * The module ids this package's manifest declares it depends on — the edges
+   * its migrations are ordered by (`specs/110-instance-repository/` T141).
+   *
+   * It is read here, beside the migrations, because `configuredMigrationsFrom`
+   * is the one reader and it had no other source: it fell back to `[]` for any
+   * id the **host's** committed manifest index did not carry, and the comment
+   * beside that fallback claimed these were "read from the manifest the package
+   * published" when nothing read them. In this repository the index carries
+   * every module package, so the fallback was unreachable and the claim was
+   * never tested; in an instance the index does not exist, so **every** module
+   * was a graph root and the per-module order (feature 081) degenerated to the
+   * order `orderMigrations` breaks ties in.
+   */
+  readonly dependencies: readonly string[];
 }
 
 function isConstructor(value: unknown): value is EntityClassLike {
@@ -541,6 +556,9 @@ export async function packageSchemaContributionsUnder(
             (await import(pathToFileURL(migrationsEntry).href)) as Record<string, unknown>,
           );
     const backend = await importSubpath(installed, 'backend');
+    // The root export again — the same dynamic import the composer path makes,
+    // so the ESM cache answers it and this costs no second read.
+    const manifestEntry = await manifestEntryFor(installed);
     out.push({
       id: installed.id,
       packageName: installed.name,
@@ -548,6 +566,7 @@ export async function packageSchemaContributionsUnder(
       migrationsDirectory: migrationsEntry === null ? null : dirname(migrationsEntry),
       migrations,
       entities: backend === null ? [] : entityClassesFrom(installed, backend),
+      dependencies: manifestEntry?.manifest.dependencies ?? [],
     });
   }
   return out;
