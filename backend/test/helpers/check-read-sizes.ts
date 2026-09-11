@@ -8467,7 +8467,31 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
     sites: 513,
-    sources: ['workspace-globs'],
+    // **Feature 114 Phase 3 (FR-017, D-225): a second author, and neither count
+    // moves.** `changeset-subjects` is the distinct package names the changeset
+    // files name, reconciled against the members the workspace globs produce.
+    // `files` and `sites` stay at 89 and 513 — measured before and after, the
+    // recorded values exactly — because the changeset population is exactly
+    // what !966 took out of both, and a token is not a walk.
+    //
+    // It is **conditional**, which is the only thing about it that is not
+    // ordinary: it is omitted when no changeset names a subject. After a
+    // release `.changeset/` holds `config.json` and `README.md`, and
+    // `read-size.ts` refuses `expected=0` as `no-expectation` — so a token
+    // printed `0/0` would exit 2 on every post-release tree, which is a refusal
+    // about the calendar rather than about the tree. This record therefore
+    // describes a tree with pending changesets, which is every tree except the
+    // one immediately after a release.
+    //
+    // That exception is stated here rather than discovered: `sources` is
+    // matched exactly, so the branch that consumes every changeset — the
+    // release, and nothing else — drops this token and re-records this one line
+    // with it. Written down because the alternative is worse in both
+    // directions: a token printed `0/0` exits 2 on that same tree, and a
+    // `sources` entry that could be declared optional would make an *absent*
+    // reconciliation indistinguishable from one somebody stopped computing,
+    // which is the whole thing this ledger is for.
+    sources: ['workspace-globs', 'changeset-subjects'],
   },
   'backend/scripts/check-rsc-discipline.ts': {
     prefix: '[rsc-discipline]',
