@@ -693,19 +693,32 @@ interface PositionFinding {
  *   comment is where to start.
  *
  * Baseline membership takes **both** conditions, `origin === 'core'` and the
- * stamp, exactly as `isBaseline` in `migration-order.ts` does (D-154). It used
- * to test the stamp alone, justified here by D-105 — *"out-of-core code
- * contributes no schema"* — and **D-106 overruled that premise**: a package may
- * ship migrations. A package migration stamped inside the baseline window is
- * placed by `orderMigrations` in the open block, where nothing but a declared
- * dependency orders it, and was skipped outright by the predicate below. That
- * is a false negative on precisely the input this check exists for, and it was
- * unreachable until T013 gave the scan roots it could tag (feature 080).
+ * stamp (D-154). It used to test the stamp alone, justified here by D-105 —
+ * *"out-of-core code contributes no schema"* — and **D-106 overruled that
+ * premise**: a package may ship migrations. A migration stamped inside the
+ * baseline window that came from outside the committed registry is placed by
+ * `orderMigrations` in the open block, where nothing but a declared dependency
+ * orders it, and was skipped outright by the predicate below. That is a false
+ * negative on precisely the input this check exists for, and it was unreachable
+ * until T013 gave the scan roots it could tag (feature 080).
+ *
+ * This used to read *"exactly as `isBaseline` in `migration-order.ts` does"*,
+ * and that function is gone (2026-09-06): the ordering enters the frozen prefix
+ * by **identity**, against the published `BASELINE_MIGRATIONS`
+ * (`specs/110-instance-repository/contracts/instance-migration-order.md` R1.1).
+ * The predicate below is unchanged and is not a second copy of that one, which
+ * is why the citation was worth correcting rather than the code: it answers the
+ * **generation** rule R1.3 — *the committed sources at or below the watermark* —
+ * which is the population the published list is rendered from, and it has to,
+ * because its subject is a migration **file** and the list names registered
+ * **classes**. A file on disk that no registry entry supplies has no place on
+ * that list and does have a position in this graph.
  */
 /**
- * `isBaseline` from `migration-order.ts`, over a scanned file rather than a
- * registry entry: **both** conditions, in one place, so the two readers below
- * cannot drift apart from each other or from the algorithm.
+ * The frozen prefix's **generation** rule (R1.3), over a scanned file rather
+ * than a registry entry: **both** conditions, in one place, so the two readers
+ * below cannot drift apart from each other or from the list the generator
+ * renders from the same population.
  *
  * An unparsable stamp is not baseline — the callers report it as
  * `unclassifiable-position` rather than letting it fall either way.

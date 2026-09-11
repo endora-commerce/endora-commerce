@@ -13,13 +13,26 @@
  * cross-tenant integration tests therefore still exercise the real scoped
  * context. Genuine fail-closed behavior is covered by the tenancy unit tests via
  * `runWithoutTenantContext`.
+ *
+ * **This file may not import `@endora-commerce/platform/composition`, and the
+ * scope it enters is a literal for that reason alone.** A setup file is
+ * evaluated before every test file's own module graph, so a module it imports
+ * has its own imports bound before that file's `vi.mock` registrations exist —
+ * and the composition barrel eagerly evaluates `compose-app.ts`, which binds
+ * `loadModulePresence` out of the real lifecycle module. Naming it here makes
+ * `composeApp` unmockable for the whole suite. It was named here, from
+ * `specs/110-instance-repository/` T119b until this repair, and the presence
+ * override two kernel integration files depend on stopped applying in silence:
+ * a composition missing a module its own manifest declares required started
+ * instead of refusing (issue #258). See `harness-tenant-scope.ts` for the value
+ * and `test/unit/harness/setup-file-imports.test.ts` for the guard.
  */
 import { beforeAll, beforeEach } from 'vitest';
 import { enterTenantContext } from '../src/tenancy/tenant-context.js';
-import { systemTenantContext } from '@endora-commerce/platform/composition';
+import { HARNESS_DEFAULT_SCOPE } from './harness-tenant-scope.js';
 
 const applyDefault = (): void => {
-  enterTenantContext(systemTenantContext('test-harness default scope'));
+  enterTenantContext(HARNESS_DEFAULT_SCOPE);
 };
 
 beforeAll(applyDefault);

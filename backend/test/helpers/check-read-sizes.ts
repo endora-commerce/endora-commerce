@@ -2148,10 +2148,30 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which were not in the 5490 recorded against the tree before it: 5492. This branch's
     // own additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    // **`fix/required-module-refusal-stopped` (the issue #258 refusal, restored): files 5487 -> 5489.**
+    // The two files this branch adds under `backend/test/`: `harness-tenant-scope.ts`, which holds the tenant context the setup file enters so that `test/tenancy-setup.ts` need not name `@endora-commerce/platform/composition`, and `unit/harness/setup-file-imports.test.ts`, the guard that refuses a setup file which does. Measured rather than reasoned about: both were moved aside and every check re-run, and the base tree drifted on nothing — 0 of 44.
+    // **Re-measured on the union after rebasing onto T161's sweep.** That merge request made
+    // seven documents honest about the retired `isBaseline` predicate and this branch adds its
+    // own guard and harness constant, so the recorded value describes neither tree: 5489 -> 5494.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 5492 -> 5589.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    files: 5589,
+    // **Re-measured on the union after merging `origin/master` into
+    // `feat/119-infakt-integration` (14 commits): files 5589 -> 5591.** Neither side's
+    // recorded value describes this tree: this branch's 5589 was measured before
+    // `fix/required-module-refusal-stopped`, T161's sweep and
+    // `fix/110-instance-template-symbols` landed on `master`, and `master`'s 5494 was measured
+    // without feature 119's two module packages. The +2 is attributed by measurement and not
+    // by subtraction: with the four files the master side adds parked, this walk reads 5589
+    // exactly, so the whole delta is `backend/test/harness-tenant-scope.ts` and
+    // `backend/test/unit/harness/setup-file-imports.test.ts`. The other two are outside this
+    // population — `packages/cli/test` is one of this check's excluded subtrees, and a
+    // changeset is not a `.ts`. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed from the
+    // two sides' deltas.
+    files: 5591,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2266,10 +2286,28 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `vitest.config.base.ts` declares. The slug predicate reads the pattern and clears
     // it; this field counts cleared sites too, which is what keeps it from moving with
     // the findings.
+    // **`fix/required-module-refusal-stopped` (the issue #258 refusal, restored): files 543 -> 544.**
+    // **+1 site**: the guard's single `.replace()`, which rewrites a `.js` specifier to its `.ts` source while walking the setup path's imports. It collapses no run of non-ASCII-alphanumerics and builds no slug, so it is a site this check walked and not a finding it withheld.
+    // **Re-measured on the union after rebasing onto T161's sweep.** That merge request made
+    // seven documents honest about the retired `isBaseline` predicate and this branch adds its
+    // own guard and harness constant, so the recorded value describes neither tree: 544 -> 545.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 544 -> 546.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 546,
+    // **Re-measured on the union after merging `origin/master` into
+    // `feat/119-infakt-integration` (14 commits): sites 546 -> 547.** Neither side's recorded
+    // value describes this tree: this branch's 546 was measured before
+    // `fix/required-module-refusal-stopped`, T161's sweep and
+    // `fix/110-instance-template-symbols` landed on `master`, and `master`'s 545 was measured
+    // without feature 119's two module packages. The +1 is the guard's single `.replace()`,
+    // the one master's block above names: it rewrites a `.js` specifier to its `.ts` source
+    // while walking the setup path's imports. Measured — with the master side's four files
+    // parked this walk reads 546 exactly. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first. Measured on the combined tree, never summed from the
+    // two sides' deltas.
+    sites: 547,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -3906,10 +3944,27 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which were not in the 1588 recorded against the tree before it: 1590. This branch's
     // own additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    // **`fix/required-module-refusal-stopped` (the issue #258 refusal, restored): files 1587 -> 1589.**
+    // The two files this branch adds under `backend/test/`: `harness-tenant-scope.ts`, which holds the tenant context the setup file enters so that `test/tenancy-setup.ts` need not name `@endora-commerce/platform/composition`, and `unit/harness/setup-file-imports.test.ts`, the guard that refuses a setup file which does. Measured rather than reasoned about: both were moved aside and every check re-run, and the base tree drifted on nothing — 0 of 44.
+    // **Re-measured on the union after rebasing onto T161's sweep.** That merge request made
+    // seven documents honest about the retired `isBaseline` predicate and this branch adds its
+    // own guard and harness constant, so the recorded value describes neither tree: 1589 -> 1592.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 1590 -> 1620.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    files: 1620,
+    // **Re-measured on the union after merging `origin/master` into
+    // `feat/119-infakt-integration` (14 commits): files 1620 -> 1622.** Neither side's
+    // recorded value describes this tree: this branch's 1620 was measured before
+    // `fix/required-module-refusal-stopped`, T161's sweep and
+    // `fix/110-instance-template-symbols` landed on `master`, and `master`'s 1592 was measured
+    // without feature 119's two module packages. The +2 is the two files the master side adds
+    // under `backend/test/`, which is this walk's whole population; measured by parking all
+    // four of that side's additions, which reads 1620 exactly. Quality-job shape — the ignored
+    // copies under `docs/docs/modules/` swept first. Measured on the combined tree, never
+    // summed from the two sides' deltas.
+    files: 1622,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -4095,10 +4150,27 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which were not in the 1588 recorded against the tree before it: 1590. This branch's
     // own additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    // **`fix/required-module-refusal-stopped` (the issue #258 refusal, restored): files 1587 -> 1589.**
+    // The two files this branch adds under `backend/test/`: `harness-tenant-scope.ts`, which holds the tenant context the setup file enters so that `test/tenancy-setup.ts` need not name `@endora-commerce/platform/composition`, and `unit/harness/setup-file-imports.test.ts`, the guard that refuses a setup file which does. Measured rather than reasoned about: both were moved aside and every check re-run, and the base tree drifted on nothing — 0 of 44.
+    // **Re-measured on the union after rebasing onto T161's sweep.** That merge request made
+    // seven documents honest about the retired `isBaseline` predicate and this branch adds its
+    // own guard and harness constant, so the recorded value describes neither tree: 1589 -> 1592.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 1590 -> 1620.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    files: 1620,
+    // **Re-measured on the union after merging `origin/master` into
+    // `feat/119-infakt-integration` (14 commits): files 1620 -> 1622.** Neither side's
+    // recorded value describes this tree: this branch's 1620 was measured before
+    // `fix/required-module-refusal-stopped`, T161's sweep and
+    // `fix/110-instance-template-symbols` landed on `master`, and `master`'s 1592 was measured
+    // without feature 119's two module packages. The +2 is the two files the master side adds
+    // under `backend/test/`, which is this walk's whole population; measured by parking all
+    // four of that side's additions, which reads 1620 exactly. Quality-job shape — the ignored
+    // copies under `docs/docs/modules/` swept first. Measured on the combined tree, never
+    // summed from the two sides' deltas.
+    files: 1622,
     sites: null,
     sources: [],
   },
@@ -6719,10 +6791,35 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which were not in the 8151 recorded against the tree before it: 8153. This branch's
     // own additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    // **`fix/required-module-refusal-stopped` (the issue #258 refusal, restored): files 8146 -> 8148.**
+    // The two files this branch adds under `backend/test/`: `harness-tenant-scope.ts`, which holds the tenant context the setup file enters so that `test/tenancy-setup.ts` need not name `@endora-commerce/platform/composition`, and `unit/harness/setup-file-imports.test.ts`, the guard that refuses a setup file which does. Measured rather than reasoned about: both were moved aside and every check re-run, and the base tree drifted on nothing — 0 of 44.
+    // **Re-measured on the union after rebasing onto T161's sweep.** That merge request made
+    // seven documents honest about the retired `isBaseline` predicate and this branch adds its
+    // own guard and harness constant, so the recorded value describes neither tree: 8148 -> 8155.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    // **`fix/110-instance-template-symbols` (the scaffolded backend compiles): files 8155 -> 8157.**
+    // The two files this branch adds —
+    // `packages/cli/test/new-instance/template-reconciliation.test.ts` and its changeset — which
+    // this walk opens like any other file. Attributed by measurement rather than by subtraction:
+    // both were moved aside and the three drifting checks re-run, and the tree underneath read
+    // 8155 exactly, so the whole delta is this branch's.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 8153 -> 8285.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    files: 8285,
+    // **Re-measured on the union after merging `origin/master` into
+    // `feat/119-infakt-integration` (14 commits): files 8285 -> 8289.** Neither side's
+    // recorded value describes this tree: this branch's 8285 was measured before
+    // `fix/required-module-refusal-stopped`, T161's sweep and
+    // `fix/110-instance-template-symbols` landed on `master`, and `master`'s 8157 was measured
+    // without feature 119's two module packages. The +4 is every file the master side adds —
+    // the two under `backend/test/`,
+    // `packages/cli/test/new-instance/template-reconciliation.test.ts` and this side's
+    // changeset — because this walk reads the whole repository and every extension. Measured
+    // twice: parking all four reads 8285, and parking the `packages/cli` test alone reads
+    // 8288. Quality-job shape — the ignored copies under `docs/docs/modules/` swept first.
+    // Measured on the combined tree, never summed from the two sides' deltas.
+    files: 8289,
     sites: null,
     sources: [],
     //
@@ -8289,10 +8386,27 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which were not in the 1588 recorded against the tree before it: 1590. This branch's
     // own additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    // **`fix/required-module-refusal-stopped` (the issue #258 refusal, restored): files 1587 -> 1589.**
+    // The two files this branch adds under `backend/test/`: `harness-tenant-scope.ts`, which holds the tenant context the setup file enters so that `test/tenancy-setup.ts` need not name `@endora-commerce/platform/composition`, and `unit/harness/setup-file-imports.test.ts`, the guard that refuses a setup file which does. Measured rather than reasoned about: both were moved aside and every check re-run, and the base tree drifted on nothing — 0 of 44.
+    // **Re-measured on the union after rebasing onto T161's sweep.** That merge request made
+    // seven documents honest about the retired `isBaseline` predicate and this branch adds its
+    // own guard and harness constant, so the recorded value describes neither tree: 1589 -> 1592.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 1590 -> 1620.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    files: 1620,
+    // **Re-measured on the union after merging `origin/master` into
+    // `feat/119-infakt-integration` (14 commits): files 1620 -> 1622.** Neither side's
+    // recorded value describes this tree: this branch's 1620 was measured before
+    // `fix/required-module-refusal-stopped`, T161's sweep and
+    // `fix/110-instance-template-symbols` landed on `master`, and `master`'s 1592 was measured
+    // without feature 119's two module packages. The +2 is the two files the master side adds
+    // under `backend/test/`, which is this walk's whole population; measured by parking all
+    // four of that side's additions, which reads 1620 exactly. Quality-job shape — the ignored
+    // copies under `docs/docs/modules/` swept first. Measured on the combined tree, never
+    // summed from the two sides' deltas.
+    files: 1622,
     sites: 163,
     sources: [],
   },
@@ -8795,10 +8909,30 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which were not in the 1709 recorded against the tree before it: 1711. This branch's
     // own additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    // **`fix/required-module-refusal-stopped` (the issue #258 refusal, restored): files 1707 -> 1708.**
+    // **+1 and not +2**: this check's population is test files, so only `unit/harness/setup-file-imports.test.ts` is in it — `harness-tenant-scope.ts` is a harness module, not a test, and is judged by the ownership rule nowhere.
+    // **Re-measured on the union after rebasing onto T161's sweep.** That merge request made
+    // seven documents honest about the retired `isBaseline` predicate and this branch adds its
+    // own guard and harness constant, so the recorded value describes neither tree: 1708 -> 1712.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 1711 -> 1750.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    files: 1750,
+    // **Re-measured on the union after merging `origin/master` into
+    // `feat/119-infakt-integration` (14 commits): files 1750 -> 1751.** Neither side's
+    // recorded value describes this tree: this branch's 1750 was measured before
+    // `fix/required-module-refusal-stopped`, T161's sweep and
+    // `fix/110-instance-template-symbols` landed on `master`, and `master`'s 1712 was measured
+    // without feature 119's two module packages. **+1 and not +3**, for the reason master's
+    // block above gives and which holds for the third file as well: this check's population is
+    // test files, so only `backend/test/unit/harness/setup-file-imports.test.ts` is in it.
+    // `harness-tenant-scope.ts` is a harness module rather than a test, and parking
+    // `packages/cli/test/new-instance/template-reconciliation.test.ts` on its own leaves 1751
+    // — it is outside this walk. `sites` does not move and is not re-recorded. Quality-job
+    // shape — the ignored copies under `docs/docs/modules/` swept first. Measured on the
+    // combined tree, never summed from the two sides' deltas.
+    files: 1751,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -9488,10 +9622,29 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which were not in the 4515 recorded against the tree before it: 4517. This branch's
     // own additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    // **`fix/required-module-refusal-stopped` (the issue #258 refusal, restored): files 4512 -> 4514.**
+    // The two files this branch adds under `backend/test/`: `harness-tenant-scope.ts`, which holds the tenant context the setup file enters so that `test/tenancy-setup.ts` need not name `@endora-commerce/platform/composition`, and `unit/harness/setup-file-imports.test.ts`, the guard that refuses a setup file which does. Measured rather than reasoned about: both were moved aside and every check re-run, and the base tree drifted on nothing — 0 of 44.
+    // **Re-measured on the union after rebasing onto T161's sweep.** That merge request made
+    // seven documents honest about the retired `isBaseline` predicate and this branch adds its
+    // own guard and harness constant, so the recorded value describes neither tree: 4514 -> 4519.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 4517 -> 4611.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    files: 4611,
+    // **Re-measured on the union after merging `origin/master` into
+    // `feat/119-infakt-integration` (14 commits): files 4611 -> 4613.** Neither side's
+    // recorded value describes this tree: this branch's 4611 was measured before
+    // `fix/required-module-refusal-stopped`, T161's sweep and
+    // `fix/110-instance-template-symbols` landed on `master`, and `master`'s 4519 was measured
+    // without feature 119's two module packages. The +2 is the two files the master side adds
+    // under `backend/test/`; parking all four reads 4611, and parking the `packages/cli` test
+    // on its own leaves 4613, so that file is outside this walk. `sites` stays at 869 and is
+    // not re-recorded: none of the three arriving TypeScript files reaches a module package's
+    // source by filesystem path, which is what this check counts sites over. Quality-job shape
+    // — the ignored copies under `docs/docs/modules/` swept first. Measured on the combined
+    // tree, never summed from the two sides' deltas.
+    files: 4613,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -10253,10 +10406,35 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which were not in the 8211 recorded against the tree before it: 8213. This branch's
     // own additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    // **`fix/required-module-refusal-stopped` (the issue #258 refusal, restored): files 8206 -> 8208.**
+    // The two files this branch adds under `backend/test/`: `harness-tenant-scope.ts`, which holds the tenant context the setup file enters so that `test/tenancy-setup.ts` need not name `@endora-commerce/platform/composition`, and `unit/harness/setup-file-imports.test.ts`, the guard that refuses a setup file which does. Measured rather than reasoned about: both were moved aside and every check re-run, and the base tree drifted on nothing — 0 of 44.
+    // **Re-measured on the union after rebasing onto T161's sweep.** That merge request made
+    // seven documents honest about the retired `isBaseline` predicate and this branch adds its
+    // own guard and harness constant, so the recorded value describes neither tree: 8208 -> 8215.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    // **`fix/110-instance-template-symbols` (the scaffolded backend compiles): files 8215 -> 8217.**
+    // The two files this branch adds —
+    // `packages/cli/test/new-instance/template-reconciliation.test.ts` and its changeset. Rule 1
+    // judges names, so both sit in its population; measured on a tree with both moved aside,
+    // which read 8215 exactly.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 8213 -> 8345.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    files: 8345,
+    // **Re-measured on the union after merging `origin/master` into
+    // `feat/119-infakt-integration` (14 commits): files 8345 -> 8349.** Neither side's
+    // recorded value describes this tree: this branch's 8345 was measured before
+    // `fix/required-module-refusal-stopped`, T161's sweep and
+    // `fix/110-instance-template-symbols` landed on `master`, and `master`'s 8217 was measured
+    // without feature 119's two module packages. The +4 is the four files the master side
+    // adds, every one of them tracked; Rule 1 judges names, so the changeset sits in this
+    // population beside the three sources. Quality-job shape — the ignored copies under
+    // `docs/docs/modules/` swept first, and the resolution of this file **staged** before the
+    // run: this walk takes its population from `git ls-files --cached --others
+    // --exclude-standard`, so it reads the index rather than the disk, and an unmerged path is
+    // listed once per conflict stage. Measured on the combined tree, never summed from the two
+    // sides' deltas.
+    files: 8349,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -10715,10 +10893,36 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which were not in the 6121 recorded against the tree before it: 6123. This branch's
     // own additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
+    // **`fix/required-module-refusal-stopped` (the issue #258 refusal, restored): files 6118 -> 6120.**
+    // The two files this branch adds under `backend/test/`: `harness-tenant-scope.ts`, which holds the tenant context the setup file enters so that `test/tenancy-setup.ts` need not name `@endora-commerce/platform/composition`, and `unit/harness/setup-file-imports.test.ts`, the guard that refuses a setup file which does. Measured rather than reasoned about: both were moved aside and every check re-run, and the base tree drifted on nothing — 0 of 44.
+    // **Re-measured on the union after rebasing onto T161's sweep.** That merge request made
+    // seven documents honest about the retired `isBaseline` predicate and this branch adds its
+    // own guard and harness constant, so the recorded value describes neither tree: 6120 -> 6125.
+    // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
+    // the combined tree, never summed from the two sides' deltas.
+    // **`fix/110-instance-template-symbols` (the scaffolded backend compiles): files 6125 -> 6126.**
+    // **+1, not +2**, and the difference is the whole of this walk's population: it scans
+    // source-code comments, so it takes `packages/cli/test/new-instance/template-reconciliation.test.ts`
+    // and not the branch's changeset markdown, which `.changeset/` holds and no `/docs/` page
+    // reaches. Measured on a tree with both moved aside, which read 6125 exactly.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 6123 -> 6226.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    files: 6226,
+    // **Re-measured on the union after merging `origin/master` into
+    // `feat/119-infakt-integration` (14 commits): files 6226 -> 6229.** Neither side's
+    // recorded value describes this tree: this branch's 6226 was measured before
+    // `fix/required-module-refusal-stopped`, T161's sweep and
+    // `fix/110-instance-template-symbols` landed on `master`, and `master`'s 6126 was measured
+    // without feature 119's two module packages. The +3 is the three TypeScript files the
+    // master side adds. **+3 and not +4**, and the difference is this walk's population: it
+    // scans source-code comments and `docs/docs/**`, so the master side's changeset markdown,
+    // which `.changeset/` holds and no `/docs/` page reaches, is not in it. Quality-job shape
+    // — the ignored copies under `docs/docs/modules/` swept first, and the resolution of this
+    // file **staged** before the run: this walk takes its population from `git ls-files
+    // --cached --others --exclude-standard`, so it reads the index rather than the disk, and
+    // an unmerged path is listed once per conflict stage. Measured on the combined tree, never
+    // summed from the two sides' deltas.
+    files: 6229,
     sites: null,
     sources: ['manifest-index'],
     //

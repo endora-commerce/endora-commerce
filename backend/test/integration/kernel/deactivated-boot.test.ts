@@ -164,7 +164,21 @@ let simulatingAbsence = false;
  * nineteen cases went red on `master` (measured on this branch by restoring the shim
  * and the old key). Phase 7's rewrite is
  * the repair. If the root's specifier changes again, this key changes with it.
+ *
+ * **The key being right is not sufficient, which is how this broke a second
+ * time.** A `vi.mock` reaches `composeApp` only if `composition/compose-app.ts`
+ * is evaluated *after* the registration, and a `setupFiles` entry is evaluated
+ * before every test file — so one that names
+ * `@endora-commerce/platform/composition` binds the real `loadModulePresence`
+ * into `composeApp` before this factory can exist.
+ * `specs/110-instance-repository/` T119b put exactly that import in
+ * `test/tenancy-setup.ts`, and three cases went red again with every module
+ * present: the seeded absences never reached the composition.
+ * `test/unit/harness/setup-file-imports.test.ts` is the guard, and
+ * `applied the presence override` below is this file saying it in its own words.
  */
+let overrideApplied = false;
+
 vi.mock('@endora-commerce/platform/lifecycle', async (importOriginal) => {
   const actual =
     await importOriginal<
@@ -183,6 +197,7 @@ vi.mock('@endora-commerce/platform/lifecycle', async (importOriginal) => {
         ALL_MODULE_IDS.filter((id) => !(PLATFORM_UNAVAILABLE as readonly string[]).includes(id)),
         { deactivated: [...DEACTIVATED] },
       );
+      overrideApplied = true;
     },
   };
 });
@@ -264,6 +279,21 @@ describe('the production composition root boots with modules switched off', () =
     registryCache.__setEnabledForTesting(ALL_MODULE_IDS);
     if (originalRole === undefined) delete process.env['BACKEND_ROLE'];
     else process.env['BACKEND_ROLE'] = originalRole;
+  });
+
+  // First, because every case below is about a boot that was *told* the two
+  // lists above are absent. If the override did not reach `composeApp`, the
+  // presence cases report a platform that switches nothing off while the
+  // platform is fine and the fixture is what is broken — which happened twice.
+  it('applied the presence override the rest of this file rests on', () => {
+    expect(
+      overrideApplied,
+      'the `loadModulePresence` override never ran, so nothing was switched off and the ' +
+        'presence cases below are not statements about gating. Something evaluated ' +
+        '`composition/compose-app.ts` before this file\'s `vi.mock` — a `setupFiles` entry ' +
+        'naming `@endora-commerce/platform/composition` is the way that happens; see ' +
+        'test/unit/harness/setup-file-imports.test.ts',
+    ).toBe(true);
   });
 
   it('has every deactivated module genuinely absent, each for its own reason', () => {

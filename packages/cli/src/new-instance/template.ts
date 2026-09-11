@@ -41,8 +41,12 @@
  *
  * ## What this build cannot yet write, said here rather than discovered
  *
- * The backend member's wiring names four symbols the platform publishes on
- * `./composition` and `./db`. `composeApp` is one of them since T118 — the
+ * The backend member's wiring names symbols on the platform's declared
+ * subpaths — `./composition`, `./db`, `./lifecycle`, `./overlay` and
+ * `./packages` today. **How many symbols that is is not written here** (D-100): the
+ * reconciliation test derives it from the barrels on every run and prints it,
+ * and the count in this sentence was already wrong when the three names below
+ * were wrong. `composeApp` is one of them since T118 — the
  * position §2.3 stated (*"`composeApp` is imported, never written (R1.2)"*) is
  * met, and the file below supplies the one argument that composition takes:
  * `deploymentRoot`, the directory holding `apps/`, which no package can derive
@@ -51,11 +55,22 @@
  * supplied and there is nowhere in this tree to write one** — R2.4 — so a
  * client's instance contributes over no name a module defaults.
  *
- * `configuredMigrations`, `configuredEntities` and `resolvedManifestEntries`
- * are `./db`'s and `./lifecycle`'s under other names; the ORM configuration
- * below is the one place an instance restates its own artefacts, and it has
- * none, so the platform's `*From` factories answer over the packages it
- * installed.
+ * The ORM configuration below is the one place an instance restates its own
+ * artefacts, and it has none, so the platform's `*From` factories answer over
+ * the packages it installed: `configuredEntitiesFrom`,
+ * `discoverConfiguredMigrations` and `mikroOrmConfigFrom` on `./db`, and
+ * `resolveManifestEntries` on `./lifecycle` with its three suppliers.
+ *
+ * **That sentence used to name three other symbols, and nothing held this file
+ * to it.** It read *"`configuredMigrations`, `configuredEntities` and
+ * `resolvedManifestEntries` are `./db`'s and `./lifecycle`'s **under other
+ * names**"* — a doc block describing the repair, beside rendered text that had
+ * never taken it, so a scaffolded backend did not compile and the knowledge was
+ * present the whole time. The guard is
+ * `test/new-instance/template-reconciliation.test.ts`' T1, at **symbol**
+ * granularity rather than subpath: `./composition` and `./lifecycle` are both
+ * declared subpaths, so a reconciliation of the specifier alone passes over all
+ * three errors.
  *
  * §2.3's sixth wiring file, `backend/src/cli.ts`, is a different case and is
  * **not written**. T117 has since landed and the *dispatcher* now has an
@@ -603,17 +618,29 @@ app.log.info('worker started');
     kind: 'wiring',
     member: 'backend',
     content: `// The ORM configuration. It exists because a bin has none and cannot get one.
-import { defineConfig } from '@mikro-orm/postgresql';
-import { configuredEntities, configuredMigrations } from '${scope}platform/composition';
+//
+// The configuration itself is the platform's: the naming strategy Principle VI
+// is enforced by, the Migrator extension \`getMigrator()\` needs, and the
+// migration options an \`allOrNothing\` run takes. A hand-written
+// \`defineConfig\` here would compile and then create tables the installed
+// migrations do not name.
+import {
+  configuredEntitiesFrom,
+  discoverConfiguredMigrations,
+  mikroOrmConfigFrom,
+} from '${scope}platform/db';
 
 export default async function config() {
   const url = process.env['DATABASE_URL'];
   if (url === undefined || url === '') throw new Error('DATABASE_URL must be set.');
-  return defineConfig({
-    clientUrl: url,
-    entities: await configuredEntities(),
-    migrations: { migrationsList: (await configuredMigrations()).migrations },
-  });
+  // The committed half is empty, which is what an instance is: it ships no
+  // generated manifest index and no committed registry, so its entities and
+  // its migrations are the packages it installed and nothing else.
+  const [entities, migrations] = await Promise.all([
+    configuredEntitiesFrom({ coreEntities: [] }),
+    discoverConfiguredMigrations({ coreEntries: [], manifests: [] }),
+  ]);
+  return mikroOrmConfigFrom({ entities, migrations });
 }
 `,
   });
@@ -641,14 +668,51 @@ try {
     kind: 'wiring',
     member: 'backend',
     content: `// The one OperatorRuntime the five commands beside this file share.
+import { fileURLToPath } from 'node:url';
+
+import type { EntityManager } from '@mikro-orm/postgresql';
 import { MikroORM } from '@mikro-orm/postgresql';
 import { Redis } from 'ioredis';
-import { resolvedManifestEntries } from '${scope}platform/lifecycle';
+import { resolveManifestEntries } from '${scope}platform/lifecycle';
 import type { OperatorResources, OperatorRuntime } from '${scope}platform/lifecycle';
+import {
+  activeOverlayModulesRoot,
+  overlayModuleIdsUnder,
+  overlayModuleManifestsUnder,
+} from '${scope}platform/overlay';
+import {
+  discoverPackageModuleManifests,
+  installedPackageModuleIdClaims,
+  nodeModulesRootsFor,
+} from '${scope}platform/packages';
 import config from '../mikro-orm.config.js';
+
+// The directory that holds \`apps/\` — the same value \`index.ts\` hands
+// \`composeApp\`, two levels up from the compiled command rather than one.
+const deploymentRoot = fileURLToPath(new URL('../../..', import.meta.url));
 
 export async function operatorRuntime(): Promise<OperatorRuntime> {
   let opened: OperatorResources | undefined;
+  // The manifest set is resolved first, before anything is opened: the
+  // resolution reads \`node_modules\` and may refuse a module id claimed twice,
+  // and an operator reads that refusal without a database being up.
+  //
+  // \`core\` is empty, which is what an instance is (see the ORM configuration):
+  // its modules are this deployment's overlay modules plus every Endora module
+  // package installed here.
+  const overlayRoot = activeOverlayModulesRoot(deploymentRoot, process.env);
+  // Who already claims a module id here. With no generated index the core half
+  // is empty, so it is the installed packages and nothing else — and it is
+  // computed per call rather than captured, because it reads \`node_modules\`.
+  const claims = () => installedPackageModuleIdClaims(nodeModulesRootsFor(process.env));
+  const entries = await resolveManifestEntries({
+    core: [],
+    overlay: async () =>
+      overlayRoot === null
+        ? []
+        : overlayModuleManifestsUnder(overlayRoot, overlayModuleIdsUnder(overlayRoot, claims())),
+    packages: () => discoverPackageModuleManifests(process.env),
+  });
   return {
     // Opened on first use: an invocation that answers out of argv or the
     // registry alone opens no connection at all.
@@ -658,10 +722,10 @@ export async function operatorRuntime(): Promise<OperatorRuntime> {
       const redis = new Redis(process.env['REDIS_URL'] ?? 'redis://localhost:6379', {
         maxRetriesPerRequest: null,
       });
-      opened = { orm, em: () => orm.em.fork(), redis };
+      opened = { orm, em: (): EntityManager => orm.em.fork(), redis };
       return opened;
     },
-    entries: await resolvedManifestEntries(),
+    entries,
     out: (line) => void process.stdout.write(line),
     err: (line) => void process.stderr.write(line),
   };
