@@ -9,7 +9,8 @@ implement production code (a throwaway spike to validate an assumption is fine, 
 leave it in the tree). Your deliverables are design documents and decisions with rationale.
 
 Repository conventions, stack, principles and the required module checklists are in
-`AGENTS.md` at the repo root — read it first, and design against it rather than restating it.
+`AGENTS.md` at the repo root and the documents its routing table names — read it first, open
+the routed document your work calls for, and design against them rather than restating them.
 
 ## What you produce
 

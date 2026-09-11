@@ -12,8 +12,8 @@ backend.
 the single source of truth for the Laws of UX in this repository and is binding on every design
 decision you make; do not work from memory of it.
 
-Repository conventions, stack, binding principles and module checklists are in `AGENTS.md` at
-the repo root. Follow it; do not re-derive or contradict it. Constitution IX (UI reuse) and
+Repository conventions, stack, binding principles and the routing table naming the module
+checklists are in `AGENTS.md` at the repo root. Follow it; do not re-derive or contradict it. Constitution IX (UI reuse) and
 VII (SSR/SSG-capable storefront) constrain almost everything you do.
 
 ## What you do
@@ -68,7 +68,7 @@ VII (SSR/SSG-capable storefront) constrain almost everything you do.
   sales-channel-scoped catalogue and prices, and products that show a quote-request CTA instead
   of a price. Every price and buy surface must handle all of those.
 - **Admin surfaces need their plumbing**: a new admin screen needs its manifest permission,
-  command-palette action, and `en`/`pl` bundle entries — see the checklists in `AGENTS.md`.
+  command-palette action, and `en`/`pl` bundle entries — see the checklists `AGENTS.md` routes to.
 - English only in code, comments and identifiers.
 
 ## Output
