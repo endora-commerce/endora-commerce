@@ -108,7 +108,7 @@ export function instanceOrder(inputs: OrderingInputs): readonly string[] {
   return configuredMigrationsFrom({
     coreEntries: inputs.entries.filter((entry) => entry.moduleId === CORE_MODULE_ID),
     coreModuleDependencies: inputs.moduleDependencies,
-    packages: instanceContributions(inputs.entries),
+    packages: instanceContributions(inputs.entries, inputs.moduleDependencies),
     baseline: inputs.baseline,
   }).names;
 }
@@ -116,6 +116,17 @@ export function instanceOrder(inputs: OrderingInputs): readonly string[] {
 /** One installed package per module owning a migration, as discovery would report it. */
 export function instanceContributions(
   entries: readonly MigrationRegistryEntry[],
+  /**
+   * The manifest graph, so each contribution carries the `dependencies` its own
+   * published manifest declares (`specs/110-instance-repository/` T141).
+   *
+   * Optional, and the default is the state this helper modelled before that
+   * field existed: `configuredMigrationsFrom` fell back to `[]` for any id the
+   * host's committed index did not carry, which in an instance is every module.
+   * Passing the graph is what makes a contribution here look like one discovery
+   * really produces.
+   */
+  moduleDependencies?: ReadonlyMap<string, readonly string[]>,
 ): readonly PackageSchemaContribution[] {
   const byModule = new Map<string, MigrationRegistryEntry[]>();
   for (const entry of entries) {
@@ -138,6 +149,7 @@ export function instanceContributions(
       migrationsDirectory: null,
       migrations,
       entities: [],
+      dependencies: moduleDependencies?.get(id) ?? [],
     }))
     .sort((left, right) => left.id.localeCompare(right.id));
 }
