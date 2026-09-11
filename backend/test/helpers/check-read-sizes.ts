@@ -7046,7 +7046,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
     // **Merged with `origin/master` at f788f9af5, and re-measured rather than reconciled.** Feature 114's Phase 1 moved this walk by one — its own empty changeset — and this branch moved it by six, so each side's number describes a tree without the other's files and no arithmetic over the two produces the union. The number below is a fresh measurement on the merged tree, taken in a worktree created from the merge commit and reporting an empty `git status`.
-    files: 8295,
+    files: 8301,
     sites: null,
     sources: [],
     //
@@ -10744,7 +10744,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
     // **Merged with `origin/master` at f788f9af5, and re-measured rather than reconciled.** Feature 114's Phase 1 moved this walk by one — its own empty changeset — and this branch moved it by six, so each side's number describes a tree without the other's files and no arithmetic over the two produces the union. The number below is a fresh measurement on the merged tree, taken in a worktree created from the merge commit and reporting an empty `git status`.
-    files: 8355,
+    files: 8361,
     sites: null,
     sources: ['manifest-index'],
     //
