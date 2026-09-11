@@ -18,6 +18,12 @@ coverage/
 .nyc_output/
 *.lcov
 
+# The junit report every workspace's vitest config writes under CI
+# (`vitest.config.base.ts`, `outputFile`). `test:backend` uploads it as a GitLab
+# junit report so a failing test survives the 4 MB log limit; it is a run's
+# output, never a checked-in file, and `CI=1` produces it locally too.
+test-results.junit.xml
+
 # `perf:storefront`'s raw Lighthouse reports. `lhci` writes them to the
 # directory it was invoked in; `scripts/perf-storefront.sh` deletes the
 # directory before every run and copies what it produced under

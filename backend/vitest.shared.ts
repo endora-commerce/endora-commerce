@@ -4,11 +4,82 @@
 // nothing). One source, so a timeout or a pool setting cannot drift between the
 // run a developer does and the run CI does.
 
-import type { UserConfig } from 'vitest/config';
+import { mergeConfig, type UserConfig } from 'vitest/config';
 
 import { RunCompletenessReporter } from './test/run-completeness.js';
 
 const isCi = process.env['CI'] === 'true' || process.env['CI'] === '1';
+
+/** Whatever a vitest config may put under `test.reporters`. */
+type Reporters = NonNullable<NonNullable<UserConfig['test']>['reporters']>;
+
+/**
+ * A reporter list with each **name** appearing once, in the order it first did.
+ *
+ * The union is over names and over nothing else. A reporter *instance* is a
+ * distinct listener by construction — two of them are two objects — so they are
+ * all kept, which is what makes {@link RunCompletenessReporter} survive
+ * {@link mergeBackendConfig} rather than depend on where it sits in the list.
+ */
+export function unionReporters(reporters: Reporters): Reporters {
+  if (!Array.isArray(reporters)) return reporters;
+
+  const seen = new Set<string>();
+  const union: unknown[] = [];
+  for (const entry of reporters as readonly unknown[]) {
+    if (typeof entry === 'string') {
+      if (seen.has(entry)) continue;
+      seen.add(entry);
+    }
+    union.push(entry);
+  }
+  return union as Reporters;
+}
+
+/**
+ * The backend's merge of the repository-wide base config. It differs from
+ * `mergeConfig` in exactly one place: **reporters compose as a union, not as a
+ * concatenation.**
+ *
+ * Vite's `mergeConfig` concatenates arrays. For `include`, `exclude` and
+ * `setupFiles` that is the right algebra — each contributor adds to a list. For
+ * `reporters` it is the wrong one: the list is a set of listeners, and a name
+ * appearing twice is a second listener printing every line a second time.
+ * `vitest.config.base.ts` contributes `['default', 'junit']` under CI and
+ * {@link backendTestOptions} contributes `['default', <completeness>]`, so what
+ * a CI shard actually ran was `['default', 'junit', 'default', <completeness>]`
+ * and every line of its log appeared twice.
+ *
+ * The cost is not cosmetic. GitLab stops collecting a job's output at 4 MB and
+ * vitest prints its failure summary **last**, so a doubled log that crosses the
+ * limit takes the summary with it. Shard 2 of pipeline 11478 and shard 3 of
+ * 13573 both ended in `Job's log exceeded limit of 4194304 bytes` and named no
+ * failing test; under D-198 no merge-request pipeline creates `test:backend` at
+ * all, so the nightly is the only place the complete suite runs and that log is
+ * the only record it leaves. Halving the reporter's output is half the repair.
+ * The other half is the junit report `test:backend` now uploads as an artifact,
+ * which survives the log entirely.
+ *
+ * Two things this does not do. It does not make a shard's log *small* — on a
+ * measured 293-file shard the reporter is a minority of it, and the largest
+ * single contributor is the `tenant.escape_hatch` audit line each booting file
+ * emits once per module, which is a separate judgement with a different owner.
+ * And it does not decide the reporter set: the base's entries keep their places
+ * and the backend's additions follow, so a reporter added to either file still
+ * arrives.
+ *
+ * `backend/test/unit/harness/vitest-reporters.test.ts` holds both halves.
+ */
+export function mergeBackendConfig(base: UserConfig, override: UserConfig): UserConfig {
+  const merged = mergeConfig(base, override) as UserConfig;
+  const test = merged.test;
+  if (test === undefined) return merged;
+
+  const { reporters } = test;
+  if (reporters === undefined) return merged;
+
+  return { ...merged, test: { ...test, reporters: unionReporters(reporters) } };
+}
 
 /**
  * The contracts package's **built** output is loaded by node, once, and not by
@@ -94,14 +165,14 @@ export function backendTestOptions(): NonNullable<UserConfig['test']> {
     // by name. See test/run-completeness.ts. Registered as an instance rather
     // than a module path so nothing has to resolve it.
     //
-    // **This list is appended to the base one, not substituted for it.** Vite's
-    // `mergeConfig` concatenates arrays, so what a CI shard actually runs is
-    // `['default', 'junit', 'default', <this>]` — `vitest.config.base.ts`
-    // contributes the first two. The pair of `default`s is why every line of a
-    // shard's log appears twice, which is in turn why shard 2 of pipeline 11478
-    // hit GitLab's 4 MB log limit and stopped being readable at all. It is left
-    // alone here deliberately: this branch is about a run that ended early, and
-    // changing what a green run prints belongs in its own change.
+    // **This list is united with the base one, not appended to it** — see
+    // `mergeBackendConfig` above, which is how the three backend configs
+    // compose. Naming `default` here is therefore a statement of what the
+    // backend runs and not a second copy of what the base already said: it does
+    // not drop the base's `junit` and it does not print the run twice. It did
+    // until this was repaired, and the pair of `default`s is why every line of a
+    // shard's log appeared twice — which is why shard 2 of pipeline 11478 and
+    // shard 3 of 13573 hit GitLab's 4 MB log limit and stopped being readable.
     //
     // The CI branch below used to set `reporters: ['default']` and
     // `outputFile: undefined` under a comment saying junit is off on a shard.
