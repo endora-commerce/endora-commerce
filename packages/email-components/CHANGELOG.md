@@ -1,5 +1,45 @@
 # @endora-commerce/email-components
 
+## 0.8.0
+
+### Minor Changes
+
+- e27bf6c: Every package that ships scannable UI now publishes its own Tailwind `@source`
+  declarations at a new `./tailwind.css` subpath.
+
+  A host compiling this package's utility classes no longer has to know where the
+  package's sources are. Import the subpath from the stylesheet that builds your
+  admin, and the package names its own layers:
+
+  ```css
+  @import 'tailwindcss';
+  @import '@endora-commerce/mod-blog/tailwind.css';
+  ```
+
+  `@source` resolves relative to the stylesheet that declares it, so the paths hold
+  wherever the package is installed. The file is generated from the package's layer
+  inventory, ships in the tarball beside `package.json`, and its `dist` line is the one
+  that matters to you — the `src` line beside it is inert in a published package and
+  exists so that a checkout of this repository keeps scanning source in `dev`.
+
+  **Nothing is removed or renamed**: every existing subpath resolves exactly as before.
+  What is new is the obligation on the _host_ side, and it is a build error rather than a
+  silent one. Before this, a host reached these packages with a glob over the monorepo
+  (`@source "../../packages/**"`), which named a directory no installed tree has —
+  and Tailwind reports nothing at all about a source that matches nothing, so such a host
+  built green and rendered every screen unstyled. A host that now names a package that is
+  not installed gets `Can't resolve`, and one whose tarball omits the file gets
+  `ERR_PACKAGE_PATH_NOT_EXPORTED`.
+
+  `@endora-commerce/cms-components` deliberately does **not** publish this subpath. It
+  ships a finished, prefixed stylesheet at `./styles.css` and must not also be scanned by
+  its host.
+
+### Patch Changes
+
+- Updated dependencies [e27bf6c]
+  - @endora-commerce/page-builder-core@0.8.0
+
 ## 0.7.0
 
 ### Major Changes

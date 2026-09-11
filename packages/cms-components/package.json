@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/cms-components",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "type": "module",
   "description": "Shared CMS Page Builder components — runtime contract between admin (editor) and storefront (renderer). Per Principle I, this is the canonical workspace home for the React components that Puck composes; backend modules contribute additional component types via the registry SPI in backend/src/modules/cms/services/page-builder-registry.ts.",
   "license": "MIT",

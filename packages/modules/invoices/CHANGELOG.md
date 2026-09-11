@@ -1,5 +1,124 @@
 # @endora-commerce/mod-invoices
 
+## 0.8.0
+
+### Minor Changes
+
+- 142fcdd: Removed the `InvoicesBridge` interface and the `invoicesBridge` container name; `invoices`
+  resolves its cross-module dependencies itself.
+
+  **If you composed this module**, delete your `invoicesBridge` contribution. There is no
+  replacement name and nothing to supply: `registerModule` now reads the platform's own
+  `adminContextResolver` and `customerContextResolver` from the cradle, reads
+  `transactional_emails`' `transactionalEmailSenderAccessor`, and resolves
+  `customerAccountReadPort` and `assetReadPort` through `lazyPort`. The channel's language is a
+  read of the platform's `SalesChannel`, which is what both composition roots did.
+  `ksefVerificationResolver` is unchanged and is still the one thing a composition supplies for
+  this module.
+
+  Six option changes come with it, all on `InvoicesModuleOptions` (internal to the package and
+  reachable only through `./backend`):
+  - `resolveAdminUserId`, `resolveCustomerContext`, `getTransactionalEmailSender`,
+    `resolveRecipientEmail`, `resolveLanguage` and `loadAssetImage` are now **required**. Each
+    was optional because the _contribution_ was, which was never true of the module — and an
+    option no composition may decline to supply is a branch no test can drive. It was not
+    hypothetical: `emailDispatcher` was built only when three of them were present, so a
+    composition missing one silently stopped sending invoices and answered `no_sender`, and
+    `loadAssetImage` was omitted by one of the two roots outright.
+  - `InvoicesModuleHandle.emailDispatcher` is therefore **no longer optional**, and the handle
+    gains `loadAssetImage` — the composed loader, which is otherwise held privately by the PDF
+    renderer.
+  - `LoadedAssetImage.bytes` is `Uint8Array` rather than `Buffer`, following
+    `assetReadPort.openAssetBytes`. A `Buffer` still satisfies it, so a caller that passes one
+    needs no change; a caller that _reads_ one and called a `Buffer` method does.
+
+  New export on `./backend`: `services/cross-module-context.js`'s
+  `createRecipientEmailResolver`, `createChannelLanguageResolver` and `createAssetImageLoader` —
+  the three mappings the bridge held, as functions of what they read, so they are testable with
+  nothing composed.
+
+  `assets_library` and `customer_accounts` join the manifest `dependencies`. Both are binding
+  and neither costs an operator a control: both declare `activation.nonDeactivatable`, so there
+  is no switchable owner for a `refuses-without` sentence to describe.
+
+- e27bf6c: Every package that ships scannable UI now publishes its own Tailwind `@source`
+  declarations at a new `./tailwind.css` subpath.
+
+  A host compiling this package's utility classes no longer has to know where the
+  package's sources are. Import the subpath from the stylesheet that builds your
+  admin, and the package names its own layers:
+
+  ```css
+  @import 'tailwindcss';
+  @import '@endora-commerce/mod-blog/tailwind.css';
+  ```
+
+  `@source` resolves relative to the stylesheet that declares it, so the paths hold
+  wherever the package is installed. The file is generated from the package's layer
+  inventory, ships in the tarball beside `package.json`, and its `dist` line is the one
+  that matters to you — the `src` line beside it is inert in a published package and
+  exists so that a checkout of this repository keeps scanning source in `dev`.
+
+  **Nothing is removed or renamed**: every existing subpath resolves exactly as before.
+  What is new is the obligation on the _host_ side, and it is a build error rather than a
+  silent one. Before this, a host reached these packages with a glob over the monorepo
+  (`@source "../../packages/**"`), which named a directory no installed tree has —
+  and Tailwind reports nothing at all about a source that matches nothing, so such a host
+  built green and rendered every screen unstyled. A host that now names a package that is
+  not installed gets `Can't resolve`, and one whose tarball omits the file gets
+  `ERR_PACKAGE_PATH_NOT_EXPORTED`.
+
+  `@endora-commerce/cms-components` deliberately does **not** publish this subpath. It
+  ships a finished, prefixed stylesheet at `./styles.css` and must not also be scanned by
+  its host.
+
+### Patch Changes
+
+- Updated dependencies [16a9a6d]
+- Updated dependencies [5394b8f]
+- Updated dependencies [0c9a799]
+- Updated dependencies [e20276c]
+- Updated dependencies [9f7591b]
+- Updated dependencies [142fcdd]
+- Updated dependencies [eb01958]
+- Updated dependencies [4eeb5cd]
+- Updated dependencies [a6a9d30]
+- Updated dependencies [016524f]
+- Updated dependencies [fb2659a]
+- Updated dependencies [9eb0cb6]
+- Updated dependencies [7e80824]
+- Updated dependencies [e1748da]
+- Updated dependencies [ca43192]
+- Updated dependencies [fd7db00]
+- Updated dependencies [6521134]
+- Updated dependencies [089d2d4]
+- Updated dependencies [e83be80]
+- Updated dependencies [74a4797]
+- Updated dependencies [9a5d4d2]
+- Updated dependencies [a655909]
+- Updated dependencies [1beac89]
+- Updated dependencies [7fb0567]
+- Updated dependencies [304f6d8]
+- Updated dependencies [db1ec0b]
+- Updated dependencies [f7147b0]
+- Updated dependencies [72013ed]
+- Updated dependencies [e27bf6c]
+- Updated dependencies [ec09593]
+- Updated dependencies [dcface9]
+- Updated dependencies [40e6e96]
+- Updated dependencies [d321c67]
+- Updated dependencies [03dec57]
+- Updated dependencies [8249bb7]
+- Updated dependencies [5ba2e97]
+- Updated dependencies [0222f04]
+- Updated dependencies [0ab2044]
+  - @endora-commerce/admin-kit@0.8.0
+  - @endora-commerce/contracts@0.8.0
+  - @endora-commerce/platform@0.8.0
+  - @endora-commerce/email-components@0.8.0
+  - @endora-commerce/page-builder-admin@0.8.0
+  - @endora-commerce/page-builder-core@0.8.0
+
 ## 0.7.0
 
 ### Minor Changes

@@ -1,5 +1,497 @@
 # @endora-commerce/contracts
 
+## 0.8.0
+
+### Minor Changes
+
+- 5394b8f: Add Akeneo PIM transport error codes and `PimErgonodeConnectorActivityPort`.
+
+  `ERROR_CODES` gains `PIM_AKENEO_NOT_CONFIGURED`, `PIM_AKENEO_CONNECTION_DISABLED`,
+  `PIM_AKENEO_BOOTSTRAP_INCOMPLETE`, `PIM_AKENEO_DELIVERY_ID_CONFLICT`,
+  `PIM_AKENEO_CHANNEL_REQUIRED`, `PIM_AKENEO_SECRET_REQUIRED`, and the shared
+  `PIM_CONNECTOR_ALREADY_ACTIVE` used when enabling Akeneo while another PIM
+  connector is already on.
+
+  `PimErgonodeConnectorActivityPort` is the gated read Akeneo uses for that
+  check (`pimErgonodeConnectorActivityPort`). Additive; existing Ergonode codes
+  are unchanged.
+
+- 0c9a799: Add Akeneo HMAC lookup item schemas for every collection in `lookups.md`.
+
+  `akeneoLookupPageSchema` plus attribute-set, category, sales-channel, language
+  and price-list item shapes join the existing attribute and product-link-kind
+  schemas. Additive.
+
+- e20276c: Add Akeneo field-protection DTOs and `PIM_AKENEO_FIELD_KEY_INVALID`.
+
+  `akeneoFieldProtectionSchema`, the declarative replace request, and
+  `akeneoProductProtectionsSchema` (connection flag, identity, protected set)
+  are the catalogue editor surface. Additive.
+
+- 9f7591b: Add Akeneo admin run list and detail envelopes.
+
+  `akeneoImportRunListQuerySchema`, `akeneoImportRunListResponseSchema` and
+  the expanded `akeneoImportRunDetailSchema` (counters plus `issuesTruncated`)
+  are the source of truth for `GET /api/v1/admin/pim-akeneo/runs`. Additive.
+
+- 142fcdd: `AssetReadPort` gains `openAssetBytes(assetId)`, and `assets_library` answers it.
+
+  ```ts
+  // new, on the existing `assetReadPort` container name
+  openAssetBytes(assetId: string): Promise<AssetBytes | null>;
+
+  // new exported type
+  interface AssetBytes { bytes: Uint8Array; mimeType: string }
+  ```
+
+  The bytes of one live asset, buffered, with the MIME type they were stored under. It is the
+  question a composition root was answering for `invoices` — embedding the operator's logo in
+  an invoice PDF, which needs an inline `data:` URI because pdfmake resolves an `image:` by
+  fetching it, and fetching `/assets/file/<id>` from the process that is serving the request
+  deadlocks for a public asset and 403s for a private one.
+
+  **Absence is the answer, not an exception**, exactly as `resolvePublicUrls` states it. An id
+  that names no row, a soft-deleted one, a row on the `legacy` backend (a URL this library can
+  resolve and an object it cannot open) and a configured store that would not stream are all
+  `null`. The caller cannot tell "this asset is not there" from "the bucket did not answer",
+  so it is not the caller's decision to make.
+
+  **Here rather than on `AssetsLibraryPort`, and rather than left at the caller over
+  `ObjectStoragePort`.** It is a read, and a consumer that wants a logo must not thereby
+  acquire `upload`, `patchAsset` and `softDelete` — which is the argument `ObjectStoragePort`'s
+  own doc block makes in the other direction. A caller that opened the store itself would carry
+  three facts about this module's storage layout instead: that `legacy` has no `open`, that the
+  locator falls back to `storageUrl` when the column is empty, and that the stream has to be
+  drained.
+
+  `Uint8Array` and not `Buffer`, for the reason `AssetByteStream` gives: this package is
+  compiled by `@endora-commerce/admin-kit` with `types: ["vite/client"]`, so the `Buffer` global
+  is not in scope. `Buffer` satisfies the shape, so a Node caller passes one through unchanged.
+
+  **`minor` rather than `major`**, on this interface's own precedent: `resolvePublicUrls` was
+  added to it three days ago as a minor, and the reasoning holds here — the port's consumers are
+  callers, and its one implementer is the package that ships it, in the same release.
+
+- 4eeb5cd: `cms` publishes `CmsBlockReadPort`, and `megamenu` resolves its own cross-module targets.
+
+  **New on `@endora-commerce/contracts`:** `CmsBlockReadPort`, `CmsBlockRecord` and
+  `CmsLocalizedBlockRecord`. Two methods, which is the whole of the demand.
+  `findById(id)` answers _does this block exist_ and carries `active` on the record
+  rather than filtering on it, because the two callers disagree about a deactivated
+  block on purpose. `findLocalizedById(id, language)` answers _what does it render as
+  here_ and is the reason the port exists: the per-language envelope —
+  `content.languages[<code>]`, a legacy `schema_version` riding along, an absent key
+  meaning "nothing authored" — is `cms`' storage layout, and a consumer that had to
+  know it would be reading the column with extra steps. `null` covers all three
+  absences, because a caller inlining a block has the same thing to do in each.
+
+  **New on `@endora-commerce/mod-cms`:** the port is registered as `cmsBlockReadPort`
+  with `ctx.di.providePort`, so it fails closed with 503 `MODULE_DISABLED` when an
+  operator switches the CMS off. Nothing else changed in this package.
+
+  **Removed from `@endora-commerce/mod-megamenu/backend`: `TargetValidatorDeps` and
+  `StorefrontDeps`.** Both existed so a composition root could write eight closures
+  against them — `select 1 from categories | cms_pages | cms_blocks | assets`, plus
+  the storefront URL shapes — and this module's own barrel argued they had to stay in
+  a root until one of the three owners grew an existence-check port. All three have:
+  `catalogCategoryReadPort`, `cmsPageReadPort` and `assetReadPort` came out of feature
+  075, and `cmsBlockReadPort` above is the one that was still missing. The module now
+  resolves those four plus `assetsLibraryPort` with `lazyPort` and declares the edges
+  in its manifest, where `catalog` joins `cms`, `assets_library`, `languages`,
+  `sales_channels`, `auth` and `dictionaries`.
+
+  **If you contributed `megamenuValidatorDeps` or `megamenuStorefrontDeps`**, delete
+  both contributions: the container names are read by nobody and registering them now
+  does nothing. There is no replacement to write, and the interfaces are deleted
+  rather than relocated — what replaces them is module-private and holds no closure.
+  Make sure the composition registers the five ports, which it does by composing
+  `catalog`, `cms` and `assets_library`.
+
+  Two behaviours were divergent between the reference deployment and the test harness
+  and are now single-valued, both settling on the deployment's answer: a category
+  target resolves to `/c/<slug>` (the harness built `/catalog/<slug>`, which the
+  reference storefront serves from nowhere), and a deactivated or soft-deleted
+  category drops its menu item and its children (the harness narrowed on neither).
+  A CMS page target is deliberately _not_ narrowed on status or `active`, which is
+  what both roots did.
+
+- 9eb0cb6: `ModuleDemoManifest` gains an optional `package` field — the demo-data escape hatch of
+  `specs/113-module-owned-demo-data/contracts/module-demo-data-layer.md` §6.
+
+  It is a package **name as a string** and must never be written as an `import` specifier
+  anywhere in the module's sources. That is measured rather than stylistic: a module
+  package's `package.json` is generated, and `peerNamesOf` records every specifier
+  `namedSpecifiers` yields with **no filter on kind** — a walk that recognises
+  `dynamic-import` — so a literal `await import('@endora-commerce/mod-<id>-demo')` becomes a
+  _required_ peer and pnpm installs the demo package for every client, which is the opposite
+  of what the field is for.
+
+  ```diff
+   const demo: ModuleDemoManifest<ModuleContext> = {
+     summary: 'A demo catalogue of 200 products.',
+  +  package: '@endora-commerce/mod-catalog-demo',
+     seed: async (context) => (await import('./backend/demo/seed.js')).seedDemo(context),
+     reset: async (context) => (await import('./backend/demo/reset.js')).resetDemo(context),
+   };
+  ```
+
+  **The runner half is not built yet.** `@endora-commerce/platform`'s demo runner does not
+  resolve the name — §6.3's three answers (loads / not installed / fails to load) and §6.4's
+  probe-before-import are a separate change — so declaring it today records an intent and
+  changes no behaviour. Do not take the hatch until the runner answers all three ways.
+
+- ca43192: `EnvironmentInput` gains a required `addressOf`, and the CLI stops guessing which of a
+  storefront's variables names a backend from the shape of the value.
+
+  **Why.** Two programs ask _"which of these variables names the backend"_ — `endora new
+storefront`, whose next step tells an author to point them at theirs, and that command's
+  acceptance criterion, which does the pointing. Both answered it by reading
+  `storefront/.env.example` for a value that looked like an absolute `http(s)` URL. That is
+  right only while such a file declares no address but the backend's, and the reference
+  storefront now declares its **own** public origin (`NEXT_PUBLIC_SITE_URL`) there — so the
+  old predicate would have told a client, in a file they own outright and nobody revisits,
+  that the shop's canonical origin "names the backend this storefront talks to".
+
+  `addressOf` is a declaration of what a value **is**: which member of the instance it is
+  the address of, or `null` where it is the address of none.
+
+  **If you ship a declaration** — an application's `environment-inputs.mjs`, or the
+  platform's — every entry needs the field. It is required rather than optional on purpose:
+  an optional one is forgotten exactly once, by whoever adds the next address, in silence.
+  Zod refuses a declaration without it at `loadTreeDeclaration`, so the failure is a
+  sentence naming the entry rather than a variable that quietly stops being configured.
+
+  ```diff
+   {
+     name: 'NEXT_PUBLIC_API_BASE_URL',
+     requirement: { kind: 'required' },
+     secret: false,
+     generable: false,
+     owner: { kind: 'application', application: 'storefront' },
+     consumers: ['storefront'],
+  +  addressOf: 'backend',
+   },
+  ```
+
+  `null` is an answer and not an absence. A third party's address is `null` —
+  `DATABASE_URL` and `REDIS_URL` are addresses, of a database and a cache, and neither is a
+  member of the instance — and so is a value naming _several_ origins, `CORS_ALLOWED_ORIGINS`
+  being the worked example: "the address of" is singular.
+
+  **`@endora-commerce/contracts`** adds `addressVariablesFor(inputs, member)`, the one
+  derivation both consumers take.
+
+  **`@endora-commerce/cli`** replaces `backendAddressVariables(envExampleText)` with
+  `addressVariables(declared, member)`, over a loaded declaration rather than over
+  `.env.example` text. `backendAddressVariablesOf(dir)` keeps its name and its meaning and
+  is now **async**, because it loads that directory's own declaration; there is a
+  `storefrontAddressVariablesOf(dir)` beside it. `envExampleDeclarations` and
+  `envExampleDeclarationsOf` are unchanged — the file is still the storefront's worked
+  example of its _values_.
+
+  ```diff
+  -const names = backendAddressVariables(readFileSync('.env.example', 'utf8'));
+  -const names = backendAddressVariablesOf(storefrontDir);
+  +const names = await backendAddressVariablesOf(storefrontDir);
+  ```
+
+  `STOREFRONT_DOMAIN` also becomes a per-instance build input in
+  `@endora-commerce/cli/lib/instance-build-inputs.js`, supplying the storefront build's
+  `NEXT_PUBLIC_SITE_URL`. A pipeline rendered from that declaration gains one
+  `--build-arg`; one that does not pass it builds a storefront whose canonicals, sitemap and
+  `robots.txt` name `http://localhost:3000`.
+
+  **`@endora-commerce/platform`** only annotates its own twenty-one declared inputs; no
+  exported behaviour changes.
+
+- fd7db00: Added the environment-input declaration, and the four-tier input resolution every
+  scaffolding command now shares.
+
+  **`@endora-commerce/contracts`** publishes the shape:
+  `EnvironmentInput`, `EnvironmentInputSchema`, `EnvironmentInputsSchema`,
+  `EnvironmentConsumer` / `ENVIRONMENT_CONSUMERS`, `EnvironmentRequirement`,
+  `EnvironmentInputOwner`, `LocalizedSentence`, and three predicates —
+  `isReadByAnyOf`, `scopeToMembers` and `isRequiredGiven`. One entry per environment
+  variable a running platform reads: what it configures, in both shipped languages;
+  whether it is `required`, `requiredWhen` another input holds a value, or `optional`
+  with a sentence saying **what is lost**; whether it is a secret; whether a command
+  may generate it; who owns it; and which trees read it.
+
+  There is deliberately **no `default` field**. A declaration that could carry one
+  would become another home for an invented value, which is what the provenance line
+  below exists to make impossible.
+
+  **`@endora-commerce/platform`** declares the 21 inputs the host and the platform
+  read, on a new `./env` subpath:
+
+  ```ts
+  import { PLATFORM_ENVIRONMENT_INPUTS } from '@endora-commerce/platform/env';
+  ```
+
+  The subpath is host-internal — declared, resolvable by a CLI and by the host, and
+  nameable by no module. A module declares its **own** inputs in its manifest, and the
+  shape it does so in is `@endora-commerce/contracts`'.
+
+  **`@endora-commerce/cli`** resolves those inputs, in one fixed order that is not
+  configurable: an explicit `--<input>` flag, then a `.env` already placed in the
+  target directory, then an interactive prompt, then a refusal. `endora new
+storefront` takes it first, and writes the answers into the copy's own `.env`.
+
+  Three properties are contract rather than behaviour:
+  - **the tool invents no value.** Every run prints one provenance line —
+    `[inputs] resolved: total=5 flags=5 env-file=0 prompted=0 generated=0 defaulted=0`
+    — whose `defaulted` count is the _residue_ of the four tiers rather than a counter
+    nothing increments, so a value from outside them shows up in the arithmetic
+    instead of disappearing;
+  - **no command blocks on a question nobody can answer.** A prompt is issued only
+    when stdin and stdout are both TTYs, `--non-interactive` and `--dry-run` are
+    absent and no CI marker is set. Otherwise a missing required input is exit `1`
+    naming **every** missing input and the flag that supplies each, in one refusal;
+  - **the one class of value a command may generate is a cryptographic secret** whose
+    declaration marks it `generable` — written into the target's `.env` where the
+    operator can read it, named in the provenance line, and printed nowhere.
+
+  **If you call `runNewStorefront` directly**, it now resolves inputs and will refuse
+  a run that has none and cannot ask:
+
+  ```diff
+  -await runNewStorefront({ dir: target, cwd });
+  +await runNewStorefront({
+  +  dir: target,
+  +  cwd,
+  +  inputs: { NEXT_PUBLIC_API_BASE_URL: 'https://api.example.com', /* … */ },
+  +});
+  ```
+
+  `MissingInputsError` is the refusal; `DeclarationLoadError` is a tree whose
+  declaration could not be read, which is exit `2` rather than `1`. A target
+  directory holding nothing but a `.env` is now accepted, which is what makes the
+  second tier reachable for that command.
+
+- e83be80: Added the `ledger.section.tabs` admin zone so invoice-ledger deliveries, routing, and vendor adapter connection screens share one Sales row.
+
+  `@endora-commerce/contracts` gains the enum member and empty `LedgerSectionTabsZoneProps`. `invoice_ledger` contributes Deliveries and Routing and keeps a single sidebar entry. `infakt` drops its sidebar row and contributes the Infakt tab, hidden when the adapter is off.
+
+- db1ec0b: A module can declare its demo data in `manifest.ts`, and the platform can run it.
+
+  **`@endora-commerce/contracts`** gains one optional field on `ModuleManifest`,
+  `demo`, plus `ModuleDemoManifest`, `ModuleDemoContext`, `DemoSeedResult`,
+  `DemoResetResult`, `DemoEntityCount`, `DemoCredential`,
+  `ModuleDemoManifestSchema` and `ModuleDemoDeclarationSchema`. Three states, and
+  they are `docs`': an object — this module ships demo rows for its own tables;
+  `false` — it has nothing to demonstrate, deliberately; **absent** — nobody has
+  decided. Write the body behind a relative `await import()`, in `cliCommands`'
+  shape, so a manifest every composing process loads does not pull a service graph
+  with it:
+
+  ```ts
+  const demo: ModuleDemoManifest<ModuleContext> = {
+    summary: 'A demo warehouse and stock for the seeded products.',
+    seed: async (context) => (await import('./backend/demo/seed.js')).seedDemo(context),
+    reset: async (context) => (await import('./backend/demo/reset.js')).resetDemo(context),
+  };
+  ```
+
+  `defineModuleManifest` refuses a malformed one, and the two `demo.after` entries
+  that cannot mean anything: the declaring module itself, and the same id twice.
+  `after` is **advisory** — `permissions[].requires`' shape under D-175. It puts no
+  module in `dependencies`, creates no lifecycle edge and changes no migration
+  order, which is what lets `megamenu`'s demo order itself after `catalog`'s
+  without declaring a dependency it does not have.
+
+  **`@endora-commerce/platform`** gains `src/demo/` — the production guard
+  (relocated from `backend/src/seeds/dev-seed-guard.ts`, which is now a re-export
+  shim), the scope reasons, the plan, the runner and the report. It is reached by
+  the host CLI and by nothing else; it is deliberately **not** on the
+  `./composition` subpath, whose 27 symbols are D-160.14's ruled set.
+  `sortComponentsTopologically` and `orderModulesByDependencies` join
+  `stronglyConnectedComponents` on `lifecycle/services/dep-graph.ts`, so the demo
+  order and the migration order are one walk rather than two that can disagree.
+
+  Nothing else changes: no module declares demo data yet, `seed:dev` still runs,
+  and no package gains a dependency.
+
+- f7147b0: Removed the module licence tier: `ModuleLicenseTierSchema`, the `ModuleLicenseTier` type, the
+  optional `license` field on a module manifest, and the required `license` field on
+  `ModuleListItem`.
+
+  It was reserved for edition-gating and was read by nothing. D-194 removed the tier
+  meta-packages it existed for, and the field survived them: no gate consulted it, no route
+  branched on it, the `/platform/modules` screen never rendered it, and `module:status` never
+  printed a column for it. The only two references outside its own declaration were the
+  orchestrator lines copying it from the manifest onto the list item — a value carried the
+  length of the system so that nobody could look at it.
+
+  **If you declared it in a manifest**, delete the line. A Zod object is non-strict, so a
+  manifest that still declares one is not refused; the key is dropped on parse. There is no
+  replacement, and there is no entitlement axis to move it to — the manifest's one presence
+  declaration is `activation`, which is the operator's runtime control and was always a
+  different question (Constitution XVII).
+
+  ```diff
+   export const manifest = defineModuleManifest({
+     id: 'my_module',
+     name: 'My Module',
+     version: '1.0.0',
+     dependencies: [],
+  -  license: 'pro',
+     activation: { settingCode: 'my_module.enabled', default: true },
+   });
+  ```
+
+  **If you read `ModuleListItem.license`**, the field is gone from
+  `GET /api/v1/admin/modules` and from `ModuleLifecycleOrchestrator.status()`. Nothing
+  replaces it. A consumer that rendered it was rendering `null` for every module in this
+  repository, no manifest having ever declared a tier.
+
+  ```diff
+  -import type { ModuleLicenseTier } from '@endora-commerce/contracts';
+  -const tier: ModuleLicenseTier | null = item.license;
+  ```
+
+- 72013ed: Published `OrganizationTaxProfilePort`, and moved the error envelope's assembly into the
+  platform.
+
+  **`@endora-commerce/contracts` gains `OrganizationTaxProfilePort`.** It described the
+  `organizationTaxProfilePort` container name and was declared by
+  `@endora-commerce/mod-organizations/backend`, so a consumer resolving that port had to name
+  the provider's own package to spell the type — which is the reach a port exists to remove,
+  and which `@endora-commerce/platform` may not write at all. The declaration is unchanged
+  member for member.
+
+  ```diff
+  -import type { OrganizationTaxProfilePort } from '@endora-commerce/mod-organizations/backend';
+  +import type { OrganizationTaxProfilePort } from '@endora-commerce/contracts';
+
+   const taxProfile = lazyPort<OrganizationTaxProfilePort>(ctx, 'organizationTaxProfilePort');
+  ```
+
+  **`@endora-commerce/mod-organizations/backend` no longer exports it**, and that is the
+  breaking half. A re-export was written and withdrawn: a barrel re-exporting a name whose
+  source is another package makes _"does this barrel carry an entity class by name"_ unknown
+  rather than false, which D-168 may not be wrong about, and two spellings for one type is the
+  shape this repository removes rather than adds. Change the specifier; the type is
+  unchanged.
+
+  **`@endora-commerce/platform/composition` gains `composeErrorEnvelopeOptions` and loses
+  `createRequestLanguageResolver`.** The two callbacks a composition root passes to
+  `registerErrorEnvelope` — the language ladder and the translation lookup — were assembled
+  by each root itself, identically, in twenty lines apiece. They are one function now, and
+  what a root supplies is only what a root knows: its own resolved error-code routing table
+  and the two container names the callbacks read.
+
+  ```diff
+  -errorEnvelope: {
+  -  errorTranslationTargets: routing.targets,
+  -  resolvePreferredLanguage: createRequestLanguageResolver({
+  -    adminPreferredLanguage: async (id) =>
+  -      (await adminUserReadPort().findById(id))?.preferredLanguage ?? null,
+  -  }),
+  -  translateErrorMessage: async ({ moduleId, key, language, originalMessage, params }) => {
+  -    const t = await i18n().translate(moduleId, key, language, params);
+  -    return t === `${moduleId}.${key}` ? originalMessage : t;
+  -  },
+  -},
+  +errorEnvelope: composeErrorEnvelopeOptions({
+  +  errorTranslationTargets: routing.targets,
+  +  adminUserReadPort: () => identityPorts().adminUserReadPort,
+  +  translate: () => cradle().adminI18nService,
+  +}),
+  ```
+
+  `createRequestLanguageResolver` is off the barrel because no composition root constructs it
+  any more; the ladder it builds is unchanged and is now built inside the assembly. If you
+  called it directly, call `composeErrorEnvelopeOptions` instead. Both are on `./composition`,
+  which is host-internal — no module may name it — so this affects a host and never a module.
+
+- 5ba2e97: `request.actor` is declared by the platform, and `Actor` no longer carries the session.
+
+  **`@endora-commerce/mod-auth` — breaking, two ways.**
+
+  `Actor`, `ActorAnonymous`, `ActorCustomer`, `ActorAdmin` and `ActorApiKey` are no
+  longer exported from `@endora-commerce/mod-auth/backend`. Import them from
+  `@endora-commerce/contracts` instead:
+
+  ```ts
+  // before
+  import type { Actor, ActorAdmin } from '@endora-commerce/mod-auth/backend';
+
+  // after
+  import type { Actor, ActorAdmin } from '@endora-commerce/contracts';
+  ```
+
+  And the `declare module 'fastify'` block that adds `actor` and `adminActor` to
+  `FastifyRequest` is no longer in this package. If you imported from
+  `@endora-commerce/mod-auth/backend` only to make `request.actor` compile — a
+  type-only import whose real job was to put the ambient declaration in your
+  program — the import to write now is a normal one you probably already have:
+
+  ```ts
+  // before — erased at build time, and load-bearing anyway
+  import type { Actor } from '@endora-commerce/mod-auth/backend';
+
+  // after — any import from this subpath carries the declaration
+  import { HttpError } from '@endora-commerce/platform/http';
+  ```
+
+  **`ActorCustomer.session` and `ActorAdmin.session` are gone.** They were the
+  `Session` ORM entity, written onto every authenticated request. If you read one,
+  resolve `authSessionPort` or `authSessionReadPort` from the container: both are
+  declared in `@endora-commerce/contracts` and both answer with `AuthSessionRecord`,
+  a plain shape rather than an entity. Nothing else about the actor changed — the
+  same four kinds, the same fields, resolved by the same `onRequest` hook.
+
+  **`@endora-commerce/contracts`** gains `Actor` and its four members, at
+  `./actor.js` and on the root barrel. It imports neither Fastify nor the ORM.
+
+  **`@endora-commerce/platform`** gains the Fastify augmentation on its existing
+  `./http` subpath — no new subpath and no new export, because the file declares
+  the two request properties and exports no symbol. Any import from
+  `@endora-commerce/platform/http` brings it.
+
+- 0ab2044: Publish the object store, the availability port and the batched category and
+  asset reads `product_feeds` reached through a composition root.
+
+  `@endora-commerce/contracts` gains four exports and one method, all additive:
+  - `ObjectStoragePort` (container name `objectStoragePort`, owner
+    `assets_library`) with `ObjectStore`, `ObjectStoragePutInput`,
+    `ObjectStorageBackendCode` and `AssetByteStream`. A byte store for a module
+    that keeps its own objects under its own locator prefix and creates no `Asset`
+    row. `getForBackend` is **total** — `legacy` is a URL resolver for pre-013
+    rows, not a store, so it is not in the code union and a consumer has no arm to
+    probe for.
+  - `InventoryAvailabilityPort`, the shape `inventoryAvailabilityPort` has always
+    answered. The registration carried no type argument, so there was no name to
+    import.
+  - `CatalogCategoryReadPort.expandCategoryProductIds(categoryIds)` — the batched,
+    live-narrowed, cycle-tolerant subtree walk. It is **not** a batched
+    `listProductIdsInSubtree`: that one is structural by contract and is a
+    recursive CTE with no cycle guard.
+  - `AssetReadPort.resolvePublicUrls(assetIds)` — the stable public URL of each
+    live, public asset, and nothing for the rest. Absence is the answer rather
+    than an exception, because only the owner can tell a stable URL from an
+    expiring signed one.
+
+  Breaking, `@endora-commerce/mod-product-feeds`:
+  - `ProductFeedsBridge` is **removed**. The module resolves the four ports above
+    itself; a composition contributes nothing to it beyond deployment values.
+  - `ProductFeedsModuleOptions.storageAdapters: ArtefactStorageAdapterProvider`
+    becomes `objectStorage: ObjectStoragePort`. Pass the container's
+    `objectStoragePort` instead of an adapter registry.
+  - `ArtefactStorageAdapter` and `ArtefactStorageAdapterProvider` are removed from
+    `services/artefact-store.js`; `ArtefactStorageBackend` is now
+    `ObjectStorageBackendCode` and `ArtefactStorePort.open` returns a
+    `node:stream` `Readable` rather than a `NodeJS.ReadableStream`.
+
+  Breaking, `@endora-commerce/mod-catalog`:
+  - `CatalogQueryService.expandCategoryProductIds` is **removed**. The same walk,
+    unchanged, is `CatalogCategoryReadService.expandCategoryProductIds`, published
+    on `catalogCategoryReadPort`. It is a category read and it now has one home.
+
+### Patch Changes
+
+- 089d2d4: Expose `remoteDocumentId` on the invoice-ledger delivery list item so invoice admin can show a historical vendor document id from a ledger read after the vendor adapter is switched off.
+
 ## 0.7.0
 
 ### Major Changes

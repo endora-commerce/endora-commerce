@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-payments",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "type": "module",
   "sideEffects": false,
   "description": "The platform payment capability: the built-in payment adapters (bank transfer, in-person pickup, credit limit, gateway), the payment record every order carries, and the settlement lifecycle that PSP integrations plug into. Switched off, checkout offers no payment method and the shop takes no orders.",

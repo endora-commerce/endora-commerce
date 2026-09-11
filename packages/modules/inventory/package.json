@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-inventory",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "type": "module",
   "sideEffects": false,
   "description": "Multi-warehouse stock levels, fulfilment strategy, and storefront display modes.",

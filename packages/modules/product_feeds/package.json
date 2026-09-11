@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-product-feeds",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "type": "module",
   "sideEffects": false,
   "description": "Publishes the catalogue of a sales channel as a provider-shaped feed file (Google Merchant Center, Meta, Amazon, eBay, Allegro) at a stable tokenised URL, on a per-feed schedule.",

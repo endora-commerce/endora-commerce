@@ -1,5 +1,185 @@
 # @endora-commerce/mod-catalog
 
+## 0.8.0
+
+### Minor Changes
+
+- 83ffe79: The product create form is a declared admin route on `catalog:write`, and the two
+  _New product_ affordances on the product list are gated on the same code (D-221).
+
+  `contributions.routes` gains `/catalog/products/new` before the existing
+  `/catalog/products/:id`, which keeps `catalog:read`. Both entries resolve the same
+  `ProductEditor` component — the id `new` is what its own `params.id === 'new'` reads — so
+  this splits one screen's two entry points rather than adding a screen.
+
+  **What changes for an operator.** A role holding `catalog:read` and not `catalog:write`
+  can no longer open the product create form, and no longer sees a button offering it. That
+  role could not create a product before either: the save refused. What it had was a form it
+  could fill in and not submit, and since feature 091 the admin router enforces a route's
+  declared code, so once this route exists an ungated button would send that role to the
+  admin's not-found page — which says nothing about permissions. The affordance therefore
+  moves with the route.
+
+  **The manifest declares `{ code: 'catalog:write', requires: ['catalog:read'] }`.**
+  `ProductEditor`'s loader fetches `/api/v1/admin/catalog/categories` and
+  `/api/v1/admin/catalog/attribute-sets` unconditionally — before any `isNew` branch, with
+  the create path using the second to select the new product's default attribute set — and
+  both are `requireAdmin('catalog:read')`. So the write code alone opens the route and
+  cannot render the form. `requires` is advisory (D-175): nothing is refused at the gate, and
+  the role editor renders the shortfall with a one-click add. The requirement is attached to
+  the code rather than to the screen, so every holder of `catalog:write` is advised to add
+  `catalog:read`, including holders of gates other modules enforce with it.
+
+  **If you consume this package's `./admin` contributions**, the `routes` array is one entry
+  longer and its order changed; nothing was removed and no `requiredPermission` on an
+  existing entry moved. `i18n/{en,pl}.json` gain `productsList.empty.readOnly`, the
+  empty-state sentence a role without the write code sees in place of the one that carried
+  the create link.
+
+- 034f190: The module declares its demo data: `manifest.demo` creates the demo's three-level category tree,
+  200 generated products, three composites and the composites' own structure, and withdraws them
+  again.
+
+  `endora demo seed` now reports `catalog` by name with what it created, and `endora demo reset`
+  removes it. Both bodies are reached by a relative `await import()` from the manifest, so nothing
+  is loaded by the processes that merely compose the platform, and the module gained no `exports`
+  subpath, no `files` entry and no manifest `dependencies` entry.
+
+  **The catalogue is generated, not shipped.** The products, their descriptions and their images
+  are built in process, so this package ships no non-`.ts` demo asset at all: 200 products cost
+  the same bytes as 10 000.
+
+  **Three things the block used to hold are not this module's demo data.** A product attribute is a
+  `custom_fields` definition paired to one of this module's extension rows; a placeholder image and
+  a sample attachment each mint an `assets_library` asset and hand its id to one of this module's
+  tables. Each writes two modules' rows in one statement, so each belongs to whoever owns the
+  instance. A consumer that seeds through this body alone gets a catalogue with no attributes, no
+  images and no attachments — a coherent shop, and a plainer one.
+
+  **The withdrawal changed, and it is the largest repair in the series.** The host's demo reset
+  cleared `products`, `categories`, the composites' three structure tables and eleven more with a
+  `truncate … cascade`. It now deletes only the slugs and the slug prefix `seed` assigns, deepest
+  first, so a catalogue an operator has been building survives a demo reset — as do their uploaded
+  assets and their own product-host attributes, which the same cascade had been taking.
+
+  Seeding twice creates nothing the second time and reports the same counts.
+
+- e27bf6c: Every package that ships scannable UI now publishes its own Tailwind `@source`
+  declarations at a new `./tailwind.css` subpath.
+
+  A host compiling this package's utility classes no longer has to know where the
+  package's sources are. Import the subpath from the stylesheet that builds your
+  admin, and the package names its own layers:
+
+  ```css
+  @import 'tailwindcss';
+  @import '@endora-commerce/mod-blog/tailwind.css';
+  ```
+
+  `@source` resolves relative to the stylesheet that declares it, so the paths hold
+  wherever the package is installed. The file is generated from the package's layer
+  inventory, ships in the tarball beside `package.json`, and its `dist` line is the one
+  that matters to you — the `src` line beside it is inert in a published package and
+  exists so that a checkout of this repository keeps scanning source in `dev`.
+
+  **Nothing is removed or renamed**: every existing subpath resolves exactly as before.
+  What is new is the obligation on the _host_ side, and it is a build error rather than a
+  silent one. Before this, a host reached these packages with a glob over the monorepo
+  (`@source "../../packages/**"`), which named a directory no installed tree has —
+  and Tailwind reports nothing at all about a source that matches nothing, so such a host
+  built green and rendered every screen unstyled. A host that now names a package that is
+  not installed gets `Can't resolve`, and one whose tarball omits the file gets
+  `ERR_PACKAGE_PATH_NOT_EXPORTED`.
+
+  `@endora-commerce/cms-components` deliberately does **not** publish this subpath. It
+  ships a finished, prefixed stylesheet at `./styles.css` and must not also be scanned by
+  its host.
+
+- 0ab2044: Publish the object store, the availability port and the batched category and
+  asset reads `product_feeds` reached through a composition root.
+
+  `@endora-commerce/contracts` gains four exports and one method, all additive:
+  - `ObjectStoragePort` (container name `objectStoragePort`, owner
+    `assets_library`) with `ObjectStore`, `ObjectStoragePutInput`,
+    `ObjectStorageBackendCode` and `AssetByteStream`. A byte store for a module
+    that keeps its own objects under its own locator prefix and creates no `Asset`
+    row. `getForBackend` is **total** — `legacy` is a URL resolver for pre-013
+    rows, not a store, so it is not in the code union and a consumer has no arm to
+    probe for.
+  - `InventoryAvailabilityPort`, the shape `inventoryAvailabilityPort` has always
+    answered. The registration carried no type argument, so there was no name to
+    import.
+  - `CatalogCategoryReadPort.expandCategoryProductIds(categoryIds)` — the batched,
+    live-narrowed, cycle-tolerant subtree walk. It is **not** a batched
+    `listProductIdsInSubtree`: that one is structural by contract and is a
+    recursive CTE with no cycle guard.
+  - `AssetReadPort.resolvePublicUrls(assetIds)` — the stable public URL of each
+    live, public asset, and nothing for the rest. Absence is the answer rather
+    than an exception, because only the owner can tell a stable URL from an
+    expiring signed one.
+
+  Breaking, `@endora-commerce/mod-product-feeds`:
+  - `ProductFeedsBridge` is **removed**. The module resolves the four ports above
+    itself; a composition contributes nothing to it beyond deployment values.
+  - `ProductFeedsModuleOptions.storageAdapters: ArtefactStorageAdapterProvider`
+    becomes `objectStorage: ObjectStoragePort`. Pass the container's
+    `objectStoragePort` instead of an adapter registry.
+  - `ArtefactStorageAdapter` and `ArtefactStorageAdapterProvider` are removed from
+    `services/artefact-store.js`; `ArtefactStorageBackend` is now
+    `ObjectStorageBackendCode` and `ArtefactStorePort.open` returns a
+    `node:stream` `Readable` rather than a `NodeJS.ReadableStream`.
+
+  Breaking, `@endora-commerce/mod-catalog`:
+  - `CatalogQueryService.expandCategoryProductIds` is **removed**. The same walk,
+    unchanged, is `CatalogCategoryReadService.expandCategoryProductIds`, published
+    on `catalogCategoryReadPort`. It is a category read and it now has one home.
+
+### Patch Changes
+
+- Updated dependencies [16a9a6d]
+- Updated dependencies [5394b8f]
+- Updated dependencies [0c9a799]
+- Updated dependencies [e20276c]
+- Updated dependencies [9f7591b]
+- Updated dependencies [142fcdd]
+- Updated dependencies [eb01958]
+- Updated dependencies [4eeb5cd]
+- Updated dependencies [a6a9d30]
+- Updated dependencies [016524f]
+- Updated dependencies [034f190]
+- Updated dependencies [fb2659a]
+- Updated dependencies [9eb0cb6]
+- Updated dependencies [7e80824]
+- Updated dependencies [e1748da]
+- Updated dependencies [ca43192]
+- Updated dependencies [fd7db00]
+- Updated dependencies [6521134]
+- Updated dependencies [089d2d4]
+- Updated dependencies [e83be80]
+- Updated dependencies [74a4797]
+- Updated dependencies [9a5d4d2]
+- Updated dependencies [a655909]
+- Updated dependencies [1beac89]
+- Updated dependencies [7fb0567]
+- Updated dependencies [304f6d8]
+- Updated dependencies [db1ec0b]
+- Updated dependencies [f7147b0]
+- Updated dependencies [72013ed]
+- Updated dependencies [e27bf6c]
+- Updated dependencies [ec09593]
+- Updated dependencies [dcface9]
+- Updated dependencies [40e6e96]
+- Updated dependencies [d321c67]
+- Updated dependencies [03dec57]
+- Updated dependencies [8249bb7]
+- Updated dependencies [5ba2e97]
+- Updated dependencies [0222f04]
+- Updated dependencies [0ab2044]
+  - @endora-commerce/admin-kit@0.8.0
+  - @endora-commerce/contracts@0.8.0
+  - @endora-commerce/platform@0.8.0
+  - @endora-commerce/mod-custom-fields@0.8.0
+
 ## 0.7.0
 
 ### Minor Changes
