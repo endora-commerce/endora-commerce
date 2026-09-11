@@ -142,6 +142,16 @@ const PLATFORM_CONTRIBUTIONS: readonly string[] = [
   'catalogRunBulkOperationWorker',
   'credentialsSettingsPort',
   'lifecycleActivationPropagation',
+  // T141's one addition, and it arrives by moving rather than by appearing.
+  // `backend/src/composition.ts` contributed it as
+  // `() => lifecycleRef?.handle.registry`, which is `buildStaticRegistry` of the
+  // resolved set — the same expression the platform now evaluates over the set
+  // it already holds, so the value crossing the boundary names no module. It had
+  // to move because an instance contributes nothing (R2.4): the name resolved to
+  // nothing there and the boot died in `_i18n`'s bundle reconcile, and a default
+  // contributed on both sides would be the silent overwrite the disjointness
+  // assertion below refuses.
+  'lifecycleManifestRegistry',
   'mfaDefaultChannelIdResolver',
   'moduleQueueRedis',
   'modulePresenceProbe',
