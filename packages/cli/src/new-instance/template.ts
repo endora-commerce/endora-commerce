@@ -271,16 +271,33 @@ export function planInstance(input: PlanInput): InstancePlan {
       type: 'module',
       ...(input.packageManager === undefined ? {} : { packageManager: input.packageManager }),
       engines: { node: input.enginesNode },
+      // `pnpm -C backend`, never `pnpm --filter <name>`
+      // (`specs/110-instance-repository/` T141). These read
+      // `pnpm --filter backend run …` while the member below is named
+      // `<name>-backend`, so pnpm matched no project, printed `No projects
+      // matched the filters` and **exited 0** — every root script of a
+      // scaffolded instance was a silent no-op, and every step of the next-steps
+      // block the command prints was a successful nothing. Measured by the
+      // acceptance criterion's first end-to-end run (T140), which found an empty
+      // database behind a `migrate` that had exited 0.
+      //
+      // `-C` is the repair rather than a corrected filter for two reasons. It
+      // names the **directory** `pnpm-workspace.yaml` declares, so it cannot
+      // drift from a member's name again; and it fails loudly in both directions
+      // — a missing directory and a missing script are each exit 1 — where a
+      // name filter's whole failure mode is a green nothing. `--fail-if-no-match`
+      // would restore the refusal for a filter, and it is pnpm 9.5 and later
+      // only; `-C` needs no version this command cannot see.
       scripts: {
-        migrate: 'pnpm --filter backend run migrate',
-        dev: 'pnpm --filter backend run dev',
-        build: 'pnpm --filter backend run build',
-        start: 'pnpm --filter backend run start',
-        'module:install': 'pnpm --filter backend run module:install',
-        'module:uninstall': 'pnpm --filter backend run module:uninstall',
-        'module:enable': 'pnpm --filter backend run module:enable',
-        'module:disable': 'pnpm --filter backend run module:disable',
-        'module:status': 'pnpm --filter backend run module:status',
+        migrate: 'pnpm -C backend run migrate',
+        dev: 'pnpm -C backend run dev',
+        build: 'pnpm -C backend run build',
+        start: 'pnpm -C backend run start',
+        'module:install': 'pnpm -C backend run module:install',
+        'module:uninstall': 'pnpm -C backend run module:uninstall',
+        'module:enable': 'pnpm -C backend run module:enable',
+        'module:disable': 'pnpm -C backend run module:disable',
+        'module:status': 'pnpm -C backend run module:status',
       },
       dependencies: Object.fromEntries([...dependencies].sort(([a], [b]) => a.localeCompare(b))),
       devDependencies: Object.fromEntries(devDependenciesFor(input)),
@@ -673,6 +690,7 @@ import { fileURLToPath } from 'node:url';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { MikroORM } from '@mikro-orm/postgresql';
 import { Redis } from 'ioredis';
+import { enterSystemScope } from '${scope}platform/kernel';
 import { resolveManifestEntries } from '${scope}platform/lifecycle';
 import type { OperatorResources, OperatorRuntime } from '${scope}platform/lifecycle';
 import {
@@ -691,7 +709,10 @@ import config from '../mikro-orm.config.js';
 // \`composeApp\`, two levels up from the compiled command rather than one.
 const deploymentRoot = fileURLToPath(new URL('../../..', import.meta.url));
 
-export async function operatorRuntime(): Promise<OperatorRuntime> {
+export async function operatorRuntime(): Promise<{
+  runtime: OperatorRuntime;
+  dispose: () => Promise<void>;
+}> {
   let opened: OperatorResources | undefined;
   // The manifest set is resolved first, before anything is opened: the
   // resolution reads \`node_modules\` and may refuse a module id claimed twice,
@@ -714,21 +735,43 @@ export async function operatorRuntime(): Promise<OperatorRuntime> {
     packages: () => discoverPackageModuleManifests(process.env),
   });
   return {
-    // Opened on first use: an invocation that answers out of argv or the
-    // registry alone opens no connection at all.
-    resources: async () => {
-      if (opened) return opened;
-      const orm = await MikroORM.init(await config());
-      const redis = new Redis(process.env['REDIS_URL'] ?? 'redis://localhost:6379', {
-        maxRetriesPerRequest: null,
-      });
-      opened = { orm, em: (): EntityManager => orm.em.fork(), redis };
-      return opened;
+    runtime: {
+      // Opened on first use: an invocation that answers out of argv or the
+      // registry alone opens no connection at all.
+      resources: async () => {
+        if (opened) return opened;
+        const orm = await MikroORM.init(await config());
+        const redis = new Redis(process.env['REDIS_URL'] ?? 'redis://localhost:6379', {
+          maxRetriesPerRequest: null,
+        });
+        opened = { orm, em: (): EntityManager => orm.em.fork(), redis };
+        return opened;
+      },
+      entries,
+      out: (line) => void process.stdout.write(line),
+      err: (line) => void process.stderr.write(line),
     },
-    entries,
-    out: (line) => void process.stdout.write(line),
-    err: (line) => void process.stderr.write(line),
+    // Close only what was opened. Without this the five commands beside this
+    // file print their answer and then hang forever on a live Redis handle.
+    dispose: async () => {
+      if (!opened) return;
+      opened.redis.disconnect();
+      await opened.orm.close(true);
+    },
   };
+}
+
+/** Build the runtime, run one command inside a system scope, close, exit. */
+export async function runOperatorCommand(
+  run: (argv: readonly string[], rt: OperatorRuntime) => Promise<number>,
+): Promise<never> {
+  const { runtime, dispose } = await operatorRuntime();
+  const argv = process.argv.slice(2);
+  const code = await enterSystemScope('cli: operator command', () => run(argv, runtime), {
+    entryPoint: 'cli',
+  });
+  await dispose();
+  process.exit(code);
 }
 `,
   });
@@ -740,9 +783,9 @@ export async function operatorRuntime(): Promise<OperatorRuntime> {
       kind: 'wiring',
       member: 'backend',
       content: `import { ${runner} } from '${scope}platform/lifecycle';
-import { operatorRuntime } from './runtime.js';
+import { runOperatorCommand } from './runtime.js';
 
-process.exitCode = await ${runner}(process.argv.slice(2), await operatorRuntime());
+await runOperatorCommand(${runner});
 `,
     });
   }
@@ -771,9 +814,18 @@ fix in any of them reaches you through \`pnpm update\` with no file in this tree
 ## Two commands maintain it
 
 \`\`\`
-pnpm install && pnpm run migrate    # the schema, in the order the manifests compute
+pnpm install
+pnpm run build                      # the entry points, compiled
+pnpm run migrate                    # the schema, in the order the manifests compute
+pnpm run module:install --all       # every module you declared, in dependency order
 pnpm run start                      # the API
 \`\`\`
+
+Your modules arrive as installed packages, and a package is installed by \`module:install\` and
+by **no boot**: that command applies its migrations, reconciles its settings and runs its
+install hook. Until it has run, \`start\` refuses and names the modules the platform requires.
+Adding a module later is \`pnpm add\`, then \`pnpm run migrate\` and \`module:install\` again —
+both are idempotent, so running them over a set that is already installed changes nothing.
 
 ## Changing what the platform does
 

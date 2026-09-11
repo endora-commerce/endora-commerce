@@ -279,7 +279,15 @@ function typescriptRangeOf(host: InstanceHost): string | undefined {
  * through this block, because *"a capability announced as a deficiency is not
  * optional"*.
  */
-function nextSteps(targetDir: string, deployment: string): readonly string[] {
+/**
+ * What a client is told to run, in order (R3.4).
+ *
+ * Exported so a proof can read the sequence rather than a process's stdout: it
+ * is the only statement anywhere of the order the steps go in, and the order is
+ * the part that was wrong — `start` before `build`, and no module install at
+ * all (`specs/110-instance-repository/` T141).
+ */
+export function nextSteps(targetDir: string, deployment: string): readonly string[] {
   return [
     `cd ${targetDir} && pnpm install — every range in the manifest is published semver. ` +
       `Nothing in this tree is a copy of ours, so \`pnpm update\` is how a platform fix ` +
@@ -287,7 +295,13 @@ function nextSteps(targetDir: string, deployment: string): readonly string[] {
     `cp .env.example .env and fill it in. Every entry names what it decides and gives an ` +
       `example; an entry with no value on the right of the \`=\` is one the platform has no ` +
       `honest default for.`,
+    `pnpm run build — the entry points, compiled. \`migrate\`, \`start\` and the five ` +
+      `\`module:*\` commands all run compiled JavaScript, so this comes before any of them.`,
     `pnpm run migrate — the schema, in the order the installed manifests compute.`,
+    `pnpm run module:install --all — every module you declared, in dependency order. Your ` +
+      `modules arrive as installed packages, and a package is installed by this command and ` +
+      `by no boot: it applies the migrations, reconciles the settings and runs the install ` +
+      `hook. Until it has run, the platform refuses to start, naming the modules it requires.`,
     `pnpm run start — the API. \`apps/${deployment}/modules/\` is where your own overlay ` +
       `module goes when you want to change something; \`divergence.ts\` beside it is where ` +
       `you declare what you changed.`,
