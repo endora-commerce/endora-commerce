@@ -1154,10 +1154,7 @@ function docsSiteObservation(
  * at all. Writing a probe against an admin member the command does not write
  * would be code that has never executed reporting a colour.
  */
-function declaredUnmeasured(adminOmission: string | null): readonly AssertionResult[] {
-  const noAdminMember =
-    adminOmission ??
-    'the created tree holds no `admin/` member and the command printed no omission for it';
+function declaredUnmeasured(): readonly AssertionResult[] {
   return [
     {
       id: 'A7' as const,
@@ -1528,7 +1525,7 @@ async function main(): Promise<void> {
             },
       ),
     );
-    results.push(...declaredUnmeasured(adminOmission));
+    results.push(...declaredUnmeasured());
   } finally {
     await dropDatabase(database.adminUrl, database.databaseName);
     if (process.env['KEEP_INSTANCE_ACCEPTANCE'] !== '1') {
