@@ -5643,7 +5643,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 266 -> 270.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 270,
+    // **`fix/module-docs-site-tree-links`: sites 270 -> 261 (-9), measured on the merged
+    // tree, `files` unmoved at 108.** `site-tree-link` is `check:module-docs`' eighth
+    // finding and it added no population — it classifies links the walk already produced,
+    // which is the #235/#237 shape read the other way round: a widening over an existing
+    // population moves neither number. What moved this one is the **repair**. Nine links
+    // became prose: the eight into this repository's own site tree, in six module packages,
+    // which no instance can resolve whatever its module set, and the one
+    // `foreign-module-link` a default instance's documentation build actually refused
+    // (`catalog/attributes.md` -> `../search.md`), drained with its shard entry so that A6
+    // of the instance acceptance criterion could go green. 45 links -> 36; the navigation
+    // entries and the map rows are untouched. Phase 3 added five migrations and touched the
+    // module walk and moved this entry by nothing, which is the right answer — a migration
+    // is not a documentation page.
+    sites: 261,
     // Three authors, each seeing something the others cannot. `manifest-index`
     // is issue #215's shared floor over the module walk, whose unit is the
     // module's own directory. `sidebar-entries` is the **committed artefact's**
@@ -7454,7 +7467,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // measured on the merged tree.** The nine far-side bridge migrations plus this merge
     // request's own changeset: this walk reads `.changeset/`, which is the whole of the
     // difference from the +9 the source-only walks recorded over the same commit.
-    files: 8138,
+    // **`fix/module-docs-site-tree-links`: files 8138 -> 8140 (+2), measured on the merged
+    // tree.** This merge request's own two changesets, and nothing else — every other file it
+    // touches already existed. The +7 between Phase 2's recorded 8121 -> 8131 above and the
+    // 8138 this starts from is Phase 3's (!1613), which moved the number and did not append a
+    // line for it; the arithmetic is continuous, the prose skips a step.
+    //
+    // Confirmed by comparing the walk's **two trees** rather than by moving the files aside,
+    // and the difference matters: this walk is `git ls-files --cached --others`, so a
+    // *committed* file stays listed whatever the working tree holds, and an aside-and-back
+    // probe reports no change and looks like a refutation. `check-nul-bytes` reads the
+    // filesystem and is not fooled by it, which is exactly how the two disagreed.
+    files: 8140,
     sites: null,
     sources: [],
     //
@@ -11383,7 +11407,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // measured on the merged tree.** The nine far-side bridge migrations plus this merge
     // request's own changeset: this walk reads `.changeset/`, which is the whole of the
     // difference from the +9 the source-only walks recorded over the same commit.
-    files: 8198,
+    // **`fix/module-docs-site-tree-links`: files 8198 -> 8200 (+2), measured on the merged
+    // tree.** This merge request's own two changesets, and nothing else — every other file it
+    // touches already existed. The +7 between Phase 2's recorded 8121 -> 8191 above and the
+    // 8198 this starts from is Phase 3's (!1613), which moved the number and did not append a
+    // line for it; the arithmetic is continuous, the prose skips a step.
+    //
+    // Confirmed by comparing the walk's **two trees** rather than by moving the files aside,
+    // and the difference matters: this walk is `git ls-files --cached --others`, so a
+    // *committed* file stays listed whatever the working tree holds, and an aside-and-back
+    // probe reports no change and looks like a refutation. `check-nul-bytes` reads the
+    // filesystem and is not fooled by it, which is exactly how the two disagreed.
+    files: 8200,
     sites: null,
     sources: ['manifest-index'],
     //

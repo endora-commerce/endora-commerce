@@ -78,6 +78,25 @@
  *     it. `FOREIGN_MODULE_LINKS` is sharded per consumer module in
  *     `check:module-boundary`'s shape, two-way, and carries a `sites` count
  *     where one page reaches one target more than once.
+ *   * **`site-tree-link`** — a module page linking **this repository's own site
+ *     tree**: `../architecture/custom-fields.md`, `../integrations/api-access.md`.
+ *     The same walk with the target position widened, and a finding of its own
+ *     rather than a shade of the one above, because the two differ in fate.
+ *     `foreign-module-link` is **set-dependent**: it breaks the instance that
+ *     did not install the sibling, and its ledger drains as each module's author
+ *     rewrites a sentence. This one breaks **every** instance whatever the
+ *     module set — a page above the modules category is the site's own content
+ *     and travels with no package, so there is no configuration in which the
+ *     target is there. Measured on 2026-09-12, by the first run of the
+ *     `endora new instance` acceptance criterion: `pnpm --filter docs run build`
+ *     refused the created instance's site, the navigation half clean in both
+ *     directions and 72 pages served, over links that resolve nowhere in a
+ *     client's tree. **No ledger, deliberately** — `unlocated-page`'s and
+ *     `misowned-page`'s reasoning, one target position over: an entry could only
+ *     license a link that is broken everywhere. It landed at **zero**, the eight
+ *     links then standing in six packages repaired in the merge request that
+ *     added it, which is the cheapest moment to lock an invariant and the only
+ *     moment at which its ledger is empty.
  *
  *   * **`derived-fact-in-prose`** — a page stating **where a module's code
  *     lives** (FR-023). D-100's rule: the manifest index answers it on every run,
@@ -118,11 +137,13 @@
  * Usage: `tsx scripts/check-module-docs.ts [--list]`
  * Exit 0 = the navigation describes the platform; exit 1 = at least one finding;
  * exit 2 = the run could not see the population it judges — no registered
- * module, a module walk that came back short, no page read at all, a sidebar
- * artefact that contributed no entry, a module map that is unreadable or holds no
- * row, a manifest artefact its own source has outrun, no page of prose read at
- * all, or no module directory placed — the last two being the two inputs whose
- * absence makes `derived-fact-in-prose` vacuously clean over the whole site.
+ * module, a module walk that came back short, no page read at all, no relative
+ * link classified at all, a sidebar artefact that contributed no entry, a module
+ * map that is unreadable or holds no row, a manifest artefact its own source has
+ * outrun, no page of prose read at all, or no module directory placed — the last
+ * two being the two inputs whose absence makes `derived-fact-in-prose` vacuously
+ * clean over the whole site, and the link one being `site-tree-link`'s, which
+ * carries no ledger to go loudly stale when the walk stops seeing links.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { createHash } from 'node:crypto';
@@ -166,6 +187,7 @@ export type ModuleDocsFindingKind =
   | 'misowned-page'
   | 'unroutable-page'
   | 'foreign-module-link'
+  | 'site-tree-link'
   | 'derived-fact-in-prose';
 
 /**
@@ -525,6 +547,81 @@ export interface PageLink {
   readonly toDocId: string | null;
   /** The target exactly as the page spells it, for the message. */
   readonly target: string;
+  /**
+   * The target climbs above the modules category — `site-tree-link`'s whole
+   * predicate, and the reason it is not `toModule === null`.
+   *
+   * A null `toModule` is three states at once: a link that left the category, a
+   * link to the category root, and a link inside the category naming a page no
+   * module ships. Only the first is this finding, and only the resolver can
+   * tell them apart.
+   */
+  readonly leavesCategory: boolean;
+}
+
+/**
+ * Why a link walk that came back empty cannot be reported as a clean tree.
+ *
+ * The two link findings differ exactly here. `foreign-module-link` carries a
+ * two-way ledger, so a walk that stopped resolving links reports every recorded
+ * one as retired: loud, and about the walk. `site-tree-link` carries none — by
+ * design, because there is no instance in which such a link resolves — so the
+ * same walk reports a clean tree over nothing, which is #237's shape, `files`
+ * holding steady while the syntax walk goes blind. A green must not be able to
+ * mean "I found no links".
+ *
+ * A function rather than an inline `refuse` so that a proof can drive it: the
+ * refusal is a predicate over the walk's output, and one nobody has seen fire is
+ * one nobody knows fires.
+ */
+export function vacuousLinkWalkReason(
+  links: readonly PageLink[],
+  modulesRoot: string,
+): string | null {
+  if (links.length > 0) return null;
+  return (
+    `no module-owned page under ${modulesRoot} writes a relative link this run could resolve ` +
+    '— `site-tree-link` carries no ledger, so it would be vacuously clean over every page in ' +
+    'every package; refusing to report on a walk instead of on the tree'
+  );
+}
+
+/**
+ * Every relative link the module-owned pages of one attribution write.
+ *
+ * One derivation with two callers — the run below and the red proofs — because
+ * the proofs assert what the walk produces and a second copy of the walk in the
+ * fixture would be a second answer to what a link resolves to. The source text
+ * is read through a parameter for the same reason a ledger is: a proof enters at
+ * the top of the analysis, and the top of *this* analysis is the page's bytes.
+ */
+export function pageLinksOf(
+  attribution: DocsAttribution,
+  readSource: (path: string) => string,
+): PageLink[] {
+  const ownerOfDocId = new Map<string, string>();
+  for (const module of attribution.documented) {
+    for (const page of [module.entry, ...module.children]) {
+      ownerOfDocId.set(page.docId, module.moduleId);
+    }
+  }
+  const links: PageLink[] = [];
+  for (const module of attribution.documented) {
+    for (const page of [module.entry, ...module.children]) {
+      if (page.origin.kind !== 'module' || page.origin.moduleId === null) continue;
+      for (const link of relativeLinksIn(page, readSource(page.path))) {
+        links.push({
+          fromModule: page.origin.moduleId,
+          fromDocId: page.docId,
+          toModule: link.docId === null ? null : ownerOfDocId.get(link.docId) ?? null,
+          toDocId: link.docId,
+          target: link.target,
+          leavesCategory: link.leavesCategory,
+        });
+      }
+    }
+  }
+  return links;
 }
 
 /**
@@ -1067,6 +1164,28 @@ export function checkModuleDocs(input: ModuleDocsInput): ModuleDocsResult {
     }
   }
 
+  // — `site-tree-link`. The same walk with the target position widened, and
+  //   **no ledger, deliberately**: `foreign-module-link` is set-dependent and
+  //   drains, this one is not. There is no module set in which
+  //   `../architecture/custom-fields.md` resolves in the reader's tree, so an
+  //   entry could only license a link that is broken in every instance —
+  //   `unlocated-page`'s and `misowned-page`'s reasoning, one target position
+  //   over. One finding per site rather than per `(consumer, target)` pair: with
+  //   no ledger there is nothing to key, and the page and the link as written
+  //   are what an author needs in order to rewrite the sentence.
+  for (const link of input.links ?? []) {
+    if (!link.leavesCategory) continue;
+    findings.push({
+      kind: 'site-tree-link',
+      moduleId: link.fromModule,
+      key: `${link.fromDocId} -> ${link.target}`,
+      detail:
+        "the link climbs above the modules category, into a page only this repository's own " +
+        "site tree has — a reader's instance holds the modules it installed and nothing else, " +
+        'so the target is a page that is not there whatever their module set',
+    });
+  }
+
   // — `derived-fact-in-prose`, both directions of its ledger.
   //
   // Keyed on the page and a digest of the sentence (R4.2), with a `sites` count
@@ -1159,6 +1278,14 @@ const REMEDIES: Readonly<Record<ModuleDocsFindingKind, string>> = {
     'the link. The ledger is per consumer module in ' +
     'scripts/ledgers/foreign-module-links/<module>.ts, two-way, with a `sites` count where one ' +
     'consumer reaches one target more than once.',
+  'site-tree-link':
+    "Name the guide in prose, or link the module map — a page above the modules category is " +
+    "this repository's own site content and travels with no package, so a reader's instance " +
+    'has it under no module set and the build fails under `onBrokenLinks: \'throw\'`. Where the ' +
+    'content genuinely belongs to the module, move it into the module\'s own `docs/` layer, ' +
+    'where it becomes a page the module ships and a relative link can reach. There is no ' +
+    'ledger: unlike `foreign-module-link` this is not set-dependent, so there is no instance in ' +
+    'which the link resolves and an entry could only license it.',
 };
 
 interface LoadedModules {
@@ -1329,27 +1456,9 @@ async function main(): Promise<void> {
   // Every relative link a **module-owned** page writes, resolved to the module
   // that owns the page it names. A page in the site's own tree has no shipper,
   // so there is no consumer to attribute a link to and no shard to file it in.
-  const ownerOfDocId = new Map<string, string>();
-  for (const module of attribution.documented) {
-    for (const page of [module.entry, ...module.children]) {
-      ownerOfDocId.set(page.docId, module.moduleId);
-    }
-  }
-  const links: PageLink[] = [];
-  for (const module of attribution.documented) {
-    for (const page of [module.entry, ...module.children]) {
-      if (page.origin.kind !== 'module' || page.origin.moduleId === null) continue;
-      for (const link of relativeLinksIn(page, readFileSync(page.path, 'utf8'))) {
-        links.push({
-          fromModule: page.origin.moduleId,
-          fromDocId: page.docId,
-          toModule: link.docId === null ? null : ownerOfDocId.get(link.docId) ?? null,
-          toDocId: link.docId,
-          target: link.target,
-        });
-      }
-    }
-  }
+  const links = pageLinksOf(attribution, (path) => readFileSync(path, 'utf8'));
+  const vacuousLinks = vacuousLinkWalkReason(links, docs.modulesRoot);
+  if (vacuousLinks !== null) refuse(vacuousLinks);
 
   // § 4.4 — the committed sidebar artefact. `orphan-page` compares pages to
   // entries, so zero entries reports every page as an orphan: a finding about

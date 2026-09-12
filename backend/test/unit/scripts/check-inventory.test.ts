@@ -158,13 +158,14 @@ import {
   mapRowsIn,
   moduleTreePrefixes,
   navigationEntriesIn,
+  pageLinksOf,
   proseKey,
   type DerivedFactSite,
   type ForeignLinkLedger,
   type ModuleDocsFindingKind,
   type PageLink,
 } from '../../../scripts/check-module-docs.js';
-import { attributeDocs, relativeLinksIn } from '../../../scripts/lib/module-docs.js';
+import { attributeDocs, type DocsAttribution } from '../../../scripts/lib/module-docs.js';
 import {
   createModuleDocsFixture,
   mapArtefactNaming,
@@ -3205,30 +3206,73 @@ const MODULE_DOCS_SIBLING_LINK = {
 } as const;
 
 /**
+ * A tree in which one module's page links **above** the modules category.
+ *
+ * The page is module-owned and the target is the site's own — the state that
+ * breaks every instance whatever its module set, because a page above the
+ * category travels with no package.
+ */
+const MODULE_DOCS_SITE_LINK = {
+  modules: [
+    {
+      id: 'catalog',
+      docs: [
+        {
+          path: 'catalog.md',
+          frontMatter: { title: 'Catalog' },
+          body: 'See [custom fields](../architecture/custom-fields.md).',
+        },
+      ],
+    },
+    { id: 'blog', docs: [{ path: 'blog/index.md', frontMatter: { title: 'Blog' } }] },
+  ],
+  pages: [],
+  rows: [
+    { moduleId: 'catalog', slug: 'catalog' },
+    { moduleId: 'blog', slug: 'blog' },
+  ],
+} as const;
+
+/**
+ * The same defect from a **sub-page**, where the first `..` is a sibling hop
+ * inside the category and only the second leaves it.
+ *
+ * The page also links back into its own module, so a predicate keyed on the
+ * literal `../` prefix rather than on where the path resolves fails this proof
+ * in both directions at once.
+ */
+const MODULE_DOCS_SITE_LINK_FROM_SUB_PAGE = {
+  modules: [
+    {
+      id: 'catalog',
+      docs: [
+        { path: 'catalog.md', frontMatter: { title: 'Catalog' } },
+        {
+          path: 'catalog/attributes.md',
+          frontMatter: { title: 'Attributes' },
+          body: 'Up to [catalog](../catalog.md), out to [fields](../../architecture/x.md).',
+        },
+      ],
+    },
+    { id: 'blog', docs: [{ path: 'blog/index.md', frontMatter: { title: 'Blog' } }] },
+  ],
+  pages: [],
+  rows: [
+    { moduleId: 'catalog', slug: 'catalog' },
+    { moduleId: 'blog', slug: 'blog' },
+  ],
+} as const;
+
+/**
  * The links a fixture's module-owned pages write, resolved as a real run
  * resolves them — the reader under test producing the proof's population.
+ *
+ * `pageLinksOf` is the run's own derivation, handed the fixture's bytes, so a
+ * proof asserts what the walk produces rather than what a copy of it beside the
+ * proof produces.
  */
-function moduleDocsLinks(fixture: ReturnType<typeof createModuleDocsFixture>): PageLink[] {
-  const owner = new Map<string, string>();
-  for (const page of fixture.pages) {
-    if (page.origin.kind === 'module' && page.origin.moduleId !== null) {
-      owner.set(page.docId, page.origin.moduleId);
-    }
-  }
-  const links: PageLink[] = [];
-  for (const page of fixture.pages) {
-    if (page.origin.kind !== 'module' || page.origin.moduleId === null) continue;
-    for (const link of relativeLinksIn(page, readFileSync(page.path, 'utf8'))) {
-      links.push({
-        fromModule: page.origin.moduleId,
-        fromDocId: page.docId,
-        toModule: link.docId === null ? null : owner.get(link.docId) ?? null,
-        toDocId: link.docId,
-        target: link.target,
-      });
-    }
-  }
-  return links;
+function moduleDocsLinks(attribution: DocsAttribution): PageLink[] {
+  return pageLinksOf(attribution, (path) => readFileSync(path, 'utf8'));
 }
 
 /**
@@ -3289,7 +3333,7 @@ function moduleDocsFindings(
         mapArtefactNaming(rows),
         modules.map((module) => module.id),
       ),
-      links: options.links ?? moduleDocsLinks(fixture),
+      links: options.links ?? moduleDocsLinks(attribution),
       proseSites: options.proseSites ?? [],
       ledgers: {
         undocumented: {},
@@ -4139,6 +4183,24 @@ const CHECKS: readonly CheckEntry[] = [
           },
           'foreign-module-link',
         ),
+      ),
+      // A module page linking **this repository's own site tree**. The same
+      // walk with the target position widened, and a kind of its own rather
+      // than a shade of the one above because the two differ in fate: the
+      // sibling link breaks the instance that did not install the sibling and
+      // drains through a ledger, this one breaks **every** instance whatever
+      // the module set and has no ledger at all. It landed at zero, the eight
+      // links then standing repaired in the same merge request.
+      'site-tree-link': top(() => moduleDocsFindings(MODULE_DOCS_SITE_LINK, 'site-tree-link')),
+      // The same defect written from a sub-page, where it takes **two** `..` to
+      // leave the category and the first one is an ordinary sibling hop. A
+      // depth-blind predicate — one keyed on the literal `../` prefix rather
+      // than on where the path resolves — misses this one and reports the
+      // sub-page's link into its own module instead. The discrimination beside
+      // it, a link to the category **root**, is the companion test's: it asserts
+      // an empty finding set, which this map cannot express.
+      'site-tree-link:from-a-sub-page': top(() =>
+        moduleDocsFindings(MODULE_DOCS_SITE_LINK_FROM_SUB_PAGE, 'site-tree-link'),
       ),
       // FR-023 — a sentence stating where a module's code lives. Both
       // directions of the ledger: an unledgered sentence, and an entry for one
@@ -10887,7 +10949,14 @@ describe('every red proof enters at the top of the analysis', () => {
       // platform derives, restated*, and a predicate that widened to every path
       // in the documentation would arrive with a ledger that is mostly
       // exceptions, which the three red proofs above would not notice.
-      'backend/scripts/check-module-docs.ts': 15,
+      //
+      // **15 -> 17**: `site-tree-link`, a module page linking this repository's
+      // own site tree, in both spellings — from a page at the category root and
+      // from a sub-page, where the first `..` is an ordinary sibling hop and
+      // only the second leaves the category. Two shapes rather than one because
+      // a predicate keyed on the literal `../` prefix passes the first and fails
+      // the second, in both directions at once.
+      'backend/scripts/check-module-docs.ts': 17,
       // Six shapes it must see — including a NUL past git's own 8000-byte
       // window, which is what an implementation copying git's heuristic would
       // stop seeing — and two exclusions proven as discriminations. Plus issue

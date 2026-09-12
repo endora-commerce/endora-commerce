@@ -21,14 +21,20 @@ import type { ForeignLinkEntry } from '../../check-module-docs.js';
  * Every entry stands for the same reason: this batch **moved** the pages and
  * changed no prose, so rewriting a sentence is a documentation decision its
  * module's author takes, not one a packaging move takes for them.
+ *
+ * **`search` drained on 2026-09-12.** It was the one link in this shard that a
+ * default instance's documentation build actually refused — `search` is not in
+ * the module set `endora new instance` writes, so `onBrokenLinks: 'throw'` took
+ * the whole site down over it and A6 of the instance acceptance criterion was
+ * red on that one line. The repair is the entry's own: the "See also" item names
+ * the module and what it consumes instead of linking its page, and it says the
+ * same thing whether or not the reader installed `search`. `promotions` stays —
+ * it is installed in that set, so nothing forced the decision, and forcing it
+ * here would be taking a documentation decision on that sentence's behalf.
  */
 export const entries: Readonly<Record<string, ForeignLinkEntry>> = {
   promotions:
     "FR-020 — 1 link(s) into `promotions`'s pages: `catalog/attributes.md` -> " +
     '`../promotions.md`. Refer to the sibling by name or link the module map; the ' +
     'reference survives the sibling being absent either way.',
-  search:
-    "FR-020 — 1 link(s) into `search`'s pages: `catalog/attributes.md` -> `../search.md`. " +
-    'Refer to the sibling by name or link the module map; the reference survives the ' +
-    'sibling being absent either way.',
 };

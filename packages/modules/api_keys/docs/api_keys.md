@@ -9,8 +9,8 @@ Scoped bearer-token credentials for machine-to-machine integrations. The
 plaintext token is shown once at creation; only its SHA-256 hash is stored.
 Since feature 062 a key may additionally carry a **distributor binding**
 (Organization + Sales Channel + service Customer Account) and an optional
-expiry, turning it into a partner credential for the
-[`/api/v1/external/*` namespace](../integrations/api-access.md).
+expiry, turning it into a partner credential for the `/api/v1/external/*`
+namespace, which the *Partner API access* integration guide documents in full.
 
 ## Public surface
 

@@ -784,6 +784,20 @@ export interface RelativeLink {
   readonly target: string;
   /** The doc id the target resolves to, or `null` when it leaves the category. */
   readonly docId: string | null;
+  /**
+   * The target climbs **above** the modules category — `../architecture/…`
+   * written on a page sitting at the category root.
+   *
+   * `docId === null` alone does not say this, and the difference is a finding.
+   * Two states arrive at a null doc id: a link that **leaves** the category,
+   * which names a page only the host repository's own site tree has and which
+   * no reader's instance can resolve whatever module set they installed; and a
+   * link that resolves to the category **root** itself, which every instance
+   * has because the generator writes it. Collapsing the two would let a
+   * consumer report the second as the first, so the resolution says what it saw
+   * rather than leaving a reader to infer it from an absence.
+   */
+  readonly leavesCategory: boolean;
 }
 
 /**
@@ -798,7 +812,9 @@ export interface RelativeLink {
  *
  * An anchor or a query is stripped, and a target that resolves outside the
  * modules category resolves to `null` — a link into `../operations/runbooks/…`
- * is a link to the site, not to a sibling module.
+ * is a link to the site, not to a sibling module. Such a link carries
+ * `leavesCategory: true`, which is what lets a consumer tell it apart from a
+ * link to the category root; see {@link RelativeLink}.
  */
 export function relativeLinksIn(page: DocPage, source: string): RelativeLink[] {
   const fromDir = page.relativePath.includes('/')
@@ -825,12 +841,16 @@ export function relativeLinksIn(page: DocPage, source: string): RelativeLink[] {
       resolved.push(segment);
     }
     if (escaped || resolved.length === 0) {
-      links.push({ target: raw, docId: null });
+      links.push({ target: raw, docId: null, leavesCategory: escaped });
       continue;
     }
     const last = resolved[resolved.length - 1]!.replace(/\.mdx?$/, '');
     resolved[resolved.length - 1] = last;
-    links.push({ target: raw, docId: `${MODULES_CATEGORY}/${resolved.join('/')}` });
+    links.push({
+      target: raw,
+      docId: `${MODULES_CATEGORY}/${resolved.join('/')}`,
+      leavesCategory: false,
+    });
   }
   return links;
 }
