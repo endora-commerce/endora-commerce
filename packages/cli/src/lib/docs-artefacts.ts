@@ -1,0 +1,1040 @@
+/**
+ * The documentation artefacts a tree is built from — this repository's site and
+ * a client instance's alike (`contracts/instance-repository.md` R3.2, R3.5;
+ * `contracts/instance-tree.md` §2.6; feature 100 / roadmap F12).
+ *
+ * ## Why these renderers live in the package
+ *
+ * They were `backend/scripts/generate-composer.ts`', which no client can reach.
+ * `instance-tree.md` §2.6 lists the documentation registry among the three
+ * artefacts an instance generates, and until this move there was no
+ * implementation on the other side of that sentence: a scaffolded instance could
+ * install thirty module packages, each shipping its own `docs/` layer, and had
+ * no way to render a navigation over them. That is `admin-artefacts.ts`' story
+ * one artefact family over, and R3.5's answer is the same one — *"one generator,
+ * one derivation … never a second implementation"*, with the **population** as
+ * the parameter.
+ *
+ * ## The population enters as {@link DocsModule}, never as a walk
+ *
+ * `composer:generate` builds it from the manifest index walk (workspace members
+ * plus the modules the host itself owns); `endora generate` builds it from the
+ * packages an instance installed. Neither walk is in here, because the two
+ * populations are genuinely different questions and only the *rendering* is one
+ * program. What a module owes this file is four facts — its id, where its pages
+ * are, whether it has decided it has none, and which file its manifest is — and
+ * `DiscoveredManifest` is structurally one of these, so the workspace host hands
+ * its own record over unchanged.
+ *
+ * ## What it cannot see, stated here rather than discovered later
+ *
+ * Everything `lib/module-docs.ts`' header already records — front matter is a
+ * leading `---` block, a doc id is a file path, and nothing here says whether a
+ * page is good, current or complete. This file adds one of its own: the
+ * reference page is rendered from the manifest it is handed and from nothing
+ * else, so a module whose manifest is a compiled artefact is described by that
+ * artefact, which is the previous build if nobody rebuilt it (D-164).
+ */
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join, relative } from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+import {
+  attributeDocs,
+  collectDocPages,
+  collectModuleDocPages,
+  comparePages,
+  copyTargetOf,
+  categoryPositionOf,
+  docsDeclarationIn,
+  duplicateDocIds,
+  isDirectory,
+  labelOf,
+  slugForModule,
+  DOCS_SIDEBAR_ARTEFACT,
+  MODULE_MAP_ARTEFACT,
+  MODULE_REFERENCE_CATEGORY,
+  MODULES_CATEGORY,
+  PAGE_EXTENSIONS,
+  type DocPage,
+  type DocsAttribution,
+  type DocsLayout,
+  type ModuleDocs,
+  type ModuleDocsSource,
+} from './module-docs.js';
+import {
+  ModulePackageError,
+  publishedManifestEntryOf,
+  type ModulePackage,
+} from './module-packages.js';
+
+/**
+ * What one module owes the documentation artefacts.
+ *
+ * The four fields are `DiscoveredManifest`'s documentation subset exactly, so
+ * `composer:generate` passes its own record with no adapter — which is what
+ * keeps this repository's seven committed artefacts byte-identical across the
+ * move, and is why the field is `id` rather than `moduleId`.
+ */
+export interface DocsModule {
+  readonly id: string;
+  /**
+   * The module's own documentation layer — the directory its manifest declares,
+   * joined to the module's root — or `null` when it declares none.
+   */
+  readonly docsRoot: string | null;
+  /**
+   * `true` only for a manifest that declares `docs: false`, never for one that
+   * declares nothing: a module that has *decided* it documents nothing is owed
+   * no generated page either.
+   */
+  readonly declaresNoDocs: boolean;
+  /** The manifest file itself, absolute — what the reference renderer imports. */
+  readonly manifestPath: string;
+}
+
+/** What a render produced, and how a caller judges the entries in it. */
+export interface RenderedDocsArtefact {
+  readonly outputPath: string;
+  readonly content: string;
+  /** The root a bare doc-id entry resolves against. */
+  readonly entryRoot: string;
+  /** Copy target -> the module-owned source it is copied from. */
+  readonly entrySources: ReadonlyMap<string, string>;
+}
+
+
+/** The label the module map's first column uses when a page carries none. */
+/**
+ * The "do not edit" headers this repository's own generator writes.
+ *
+ * Parameters rather than literals, on `admin-artefacts.ts`' precedent: the two
+ * hosts tell a reader different things to run — `composer:generate` here,
+ * `endora generate` in an instance — and an artefact that named the wrong one
+ * would send a client to a script their tree does not have. The default is this
+ * repository's, so the committed artefacts are byte-identical across the move
+ * and a host that means the other one says so.
+ */
+export const COMPOSER_DOCS_HEADER =
+  `// AUTO-GENERATED by scripts/generate-composer.ts — DO NOT EDIT.\n` +
+  `// Run \`pnpm --filter backend run composer:generate\` (or rebuild the backend)\n` +
+  `// to refresh. Editing this file by hand is undone by the next build, and\n` +
+  `// \`pnpm --filter backend run overlay:check\` fails on the drift.\n`;
+
+/** The same, for a markdown page, whose comment syntax is HTML's. */
+export const COMPOSER_DOCS_PAGE_HEADER =
+  `<!-- AUTO-GENERATED by scripts/generate-composer.ts — DO NOT EDIT.\n` +
+  `     Run \`pnpm --filter backend run composer:generate\` to refresh. Editing this\n` +
+  `     file by hand is undone by the next run, and\n` +
+  `     \`pnpm --filter backend run overlay:check\` fails on the drift. -->`;
+
+const MAP_FALLBACK_LABEL = (moduleId: string): string => moduleId;
+
+/** One module's row and navigation entry, as the two artefacts need it. */
+export interface DocsRegistryEntry {
+  readonly moduleId: string;
+  readonly docs: ModuleDocs | null;
+  /** `@endora-commerce/mod-<id>` for a packaged module, `core` for a host-owned one. */
+  readonly shipsFrom: string;
+  /**
+   * The doc id of the module's generated reference page, or `null` when the
+   * module declares `docs: false` and therefore owes none (Phase 3).
+   *
+   * It is carried here because the **navigation** is where a reference page is
+   * reached from: the pages sit in their own category, and a reader should
+   * never have to know that. A module with prose gets it as a child of its own
+   * entry; a module with none gets it as an entry, which is what keeps a
+   * generated page from being reachable by guessing a URL — the defect this
+   * whole feature exists to end, arriving through its own new artefact.
+   */
+  readonly referenceDocId: string | null;
+}
+
+/**
+ * Every registered module, with the documentation the site holds for it.
+ *
+ * The population is the **index's**, so a module with no page is an entry with
+ * no documentation rather than an absence — the module map is a census of the
+ * platform, not a census of what somebody happened to write.
+ */
+export function collectDocsRegistry(
+  registered: readonly string[],
+  attribution: DocsAttribution,
+  packages: readonly ModulePackage[],
+  /** Modules that declare `docs: false` — they owe no page, generated or written. */
+  declinedDocs: ReadonlySet<string> = new Set(),
+): readonly DocsRegistryEntry[] {
+  const byModule = new Map(attribution.documented.map((entry) => [entry.moduleId, entry]));
+  const packageName = new Map(packages.map((pkg) => [pkg.moduleId, pkg.name]));
+  return [...registered]
+    .sort((a, b) => a.localeCompare(b))
+    .map((moduleId) => ({
+      moduleId,
+      docs: byModule.get(moduleId) ?? null,
+      shipsFrom: packageName.get(moduleId) ?? 'core',
+      referenceDocId: declinedDocs.has(moduleId)
+        ? null
+        : `${MODULE_REFERENCE_CATEGORY}/${slugForModule(moduleId)}`,
+    }));
+}
+
+/** A JS string literal for the emitted CommonJS fragment. */
+function jsString(value: string): string {
+  return `'${value.split('\\').join('\\\\').split("'").join("\\'")}'`;
+}
+
+/**
+ * The sidebar's Modules category, as the array Docusaurus already accepts.
+ *
+ * `.js` rather than `.ts` because `sidebars.js` is `.js`, `sidebarPath` is
+ * `require`d by Docusaurus, and `docs/tsconfig.json` extends
+ * `@docusaurus/tsconfig`, which sets no `allowJs` — so a `.ts` fragment would be
+ * read by the site and by no type-checker, which is worse than either.
+ *
+ * Ordering is **flat and alphabetical by label**, with a page's own
+ * `sidebar_position` overriding (research D-5). Today's hand-written list
+ * clusters the payment and delivery vendors out of alphabetical order, and that
+ * clustering is not derivable — `tpay` does not declare `payments` in its
+ * manifest dependencies at all — so the flat list is taken and the loss is
+ * stated rather than papered over with a front-matter field this repository
+ * would have invented. `spec.md` Q1 is the owner's question about it.
+ */
+export function emitDocsSidebar(
+  entries: readonly DocsRegistryEntry[],
+  header: string = COMPOSER_DOCS_HEADER,
+): string {
+  const items = entries
+    // A module with neither prose nor a reference page contributes nothing: it
+    // declared `docs: false`, and an entry for it would be a navigation line
+    // naming a page that is deliberately not there.
+    .filter((entry) => entry.docs !== null || entry.referenceDocId !== null)
+    .map((entry) => ({
+      label:
+        entry.docs === null
+          ? MAP_FALLBACK_LABEL(entry.moduleId)
+          : labelOf(entry.docs.entry, MAP_FALLBACK_LABEL(entry.moduleId)),
+      position: entry.docs === null ? null : categoryPositionOf(entry.docs.entry),
+      entry,
+    }))
+    .sort(comparePages)
+    .map(({ label, entry }) => {
+      const { docs, referenceDocId } = entry;
+      // A module nobody has written about yet still has a reference page, and
+      // this is where a reader reaches it. Without the entry the page would be
+      // findable only by guessing a URL — `spec.md` § 0.2's defect, arriving
+      // through the artefact meant to answer it.
+      if (docs === null) {
+        return `  { type: 'doc', id: ${jsString(referenceDocId ?? '')}, label: ${jsString(
+          label,
+        )} },`;
+      }
+      const items = [
+        ...docs.children.map((child) => child.docId),
+        ...(referenceDocId === null ? [] : [referenceDocId]),
+      ];
+      if (items.length === 0) {
+        return `  { type: 'doc', id: ${jsString(docs.entry.docId)}, label: ${jsString(label)} },`;
+      }
+      // The reference page goes **last**, after whatever sub-pages a module
+      // wrote: a generated table is what a reader falls back to, not what they
+      // are shown first.
+      const children = items.map((docId) => `      ${jsString(docId)},`).join('\n');
+      return (
+        `  {\n` +
+        `    type: 'category',\n` +
+        `    label: ${jsString(label)},\n` +
+        `    link: { type: 'doc', id: ${jsString(docs.entry.docId)} },\n` +
+        `    items: [\n${children}\n    ],\n` +
+        `  },`
+      );
+    })
+    .join('\n');
+
+  // The generated map is navigation for a generated page, so it belongs in the
+  // generated fragment: putting it in `sidebars.js` would make the category's
+  // item list a hand-edited file again, one entry short of the thing this
+  // artefact exists to remove.
+  const map = `  { type: 'doc', id: ${jsString(
+    `${MODULES_CATEGORY}/${MODULE_MAP_ARTEFACT.replace(/\.mdx?$/, '')}`,
+  )}, label: 'Module map' },`;
+
+  return `${header}//
+// The Modules category of the documentation sidebar (feature 100 / roadmap F12,
+// \`contracts/docs-registry.md\` §1). \`sidebars.js\` requires it:
+//
+//     items: require('./sidebars.modules.generated.js'),
+//
+// Every entry is derived — the module set from the generated manifest index, the
+// page from the site's own tree, the label from the page's own Docusaurus front
+// matter (\`sidebar_label\`, else \`title\`), the order from \`sidebar_position\` and
+// then alphabetically by label. No field this repository invented appears here or
+// in any page, so a third-party module author writes ordinary Docusaurus
+// markdown and learns nothing from us.
+//
+// It exists because the hand-written list this replaces was edited by 12 of the
+// 12 most recently added modules and forgotten by seven of them: \`ksef\`,
+// \`newsletter\`, \`pwa\`, \`returns\`, \`shipments\`, \`transactional_emails\` and
+// \`google_analytics\` each had a written page a reader could only reach by
+// guessing a URL, and nothing in the repository could see it.
+
+/** @type {import('@docusaurus/plugin-content-docs').SidebarItemConfig[]} */
+const modules = [
+${map}
+${items}
+];
+
+module.exports = modules;
+`;
+}
+
+/** Escape a cell so a capability sentence carrying a pipe cannot break the table. */
+function markdownCell(value: string): string {
+  return value.split('|').join('\\|').split('\n').join(' ').trim();
+}
+
+/**
+ * The module map — one row per **registered** module, never per page.
+ *
+ * A module the index registers and no page documents gets a row saying so,
+ * rather than being silently absent: the map is a census of the platform, and an
+ * absence is the defect this feature exists to end. 23 registered modules had no
+ * row when this landed.
+ *
+ * The old table's third column, `Owns HTTP surface?`, is **dropped**. It was
+ * hand-written, wrong in several rows, and is not cheaply derivable — a module's
+ * routes are registered through `ctx.routes` at composition and declared in no
+ * manifest. A column that cannot be derived is a column that goes stale, which
+ * is the defect this artefact replaces.
+ */
+export function emitModuleMap(
+  entries: readonly DocsRegistryEntry[],
+  header: string = COMPOSER_DOCS_PAGE_HEADER,
+): string {
+  const rows = entries
+    .map((entry) => {
+      if (entry.docs === null) {
+        return (
+          `| \`${entry.moduleId}\` | _no page yet_ | ${markdownCell(entry.shipsFrom)} |`
+        );
+      }
+      const label = labelOf(entry.docs.entry, MAP_FALLBACK_LABEL(entry.moduleId));
+      const href = `./${entry.docs.entry.relativePath}`;
+      const capability = entry.docs.entry.frontMatter.description ?? '_no description yet_';
+      return `| [${markdownCell(label)}](${href}) | ${markdownCell(capability)} | ${markdownCell(entry.shipsFrom)} |`;
+    })
+    .join('\n');
+
+  return `${header}
+---
+title: Module map
+sidebar_label: Module map
+description: Every module this platform composes, with the capability it owns and the package that ships it.
+---
+
+# Module map
+
+One row per module the platform registers — derived from the generated manifest
+index, the pages on disk and each page's own \`description\` front matter. A
+module with no page is listed with none rather than left out: this is a census
+of the platform, not of what happens to be written.
+
+| Module | Capability | Ships from |
+| --- | --- | --- |
+${rows}
+`;
+}
+
+
+// ── the generated reference page, one per module ────────────────────────────
+//
+// Artefacts eight and onward (feature 100 Phase 3, `contracts/docs-registry.md`;
+// FR-022 and FR-024). Everything on one of these pages is in the module's own
+// manifest already — its permissions and their labels, its palette actions, the
+// settings it owns, whether an operator may switch it off and what the control
+// defaults to, what it depends on and what ships it — and none of it was
+// documented anywhere a reader could find. What each module author did instead
+// was write the same table by hand, or not write it at all: `spec.md` § 0.3's
+// fifty stale sentences are what that produces.
+//
+// Two properties decide whether this is worth having, and they are the two the
+// feature is about. It is rendered **from the manifest and nothing else**, so
+// there is no second source to keep in step; and it is a committed artefact of
+// this generator, so a manifest that changes and a page that does not is
+// `overlay:check`'s `stale` rather than a divergence nobody sees.
+//
+// FR-024 is why it is a page of its own rather than a block spliced into the
+// module's prose: `overlay:check` renders a whole artefact twice and compares,
+// which a half-generated file cannot be held to.
+
+/** One module's reference page, as the manifest answers for it. */
+export interface ModuleReference {
+  readonly moduleId: string;
+  /** The page's slug and doc id tail — {@link slugForModule}. */
+  readonly slug: string;
+  readonly name: string;
+  readonly version: string;
+  /** `@endora-commerce/mod-<id>` for a packaged module, `core` for a host-owned one. */
+  readonly shipsFrom: string;
+  readonly license: string | null;
+  readonly activation:
+    | { readonly kind: 'control'; readonly settingCode: string; readonly default: boolean }
+    | { readonly kind: 'locked'; readonly reason: string }
+    | null;
+  readonly dependencies: readonly string[];
+  readonly acknowledgedDependencies: readonly {
+    readonly moduleId: string;
+    readonly port: string;
+    readonly reason: string;
+  }[];
+  readonly nonBindingDependencies: readonly {
+    readonly moduleId: string;
+    readonly name: string;
+    readonly kind: string;
+    readonly whenAbsent: string | null;
+  }[];
+  readonly permissions: readonly {
+    readonly code: string;
+    readonly label: string;
+    readonly requires: readonly string[];
+  }[];
+  readonly actions: readonly {
+    readonly id: string;
+    readonly targetRoute: string;
+    readonly requiredPermission: string | null;
+  }[];
+  readonly settings: readonly {
+    readonly code: string;
+    readonly name: string;
+    readonly valueType: string;
+  }[];
+  readonly bundlesDir: string | null;
+  readonly cliCommands: readonly { readonly name: string; readonly summary: string }[];
+  /**
+   * The module's own prose page, relative to this one, or `null` when nobody
+   * has written it yet.
+   *
+   * A **link and not a doc id**: Docusaurus resolves a link naming the `.md`
+   * file to that file's permalink, whatever the permalink turns out to be,
+   * which is the spelling that cannot go wrong under `onBrokenLinks: 'throw'`
+   * (`DocPage.relativePath`'s note, one artefact over).
+   */
+  readonly prosePage: string | null;
+}
+
+/** Raised when a page in the reference category belongs to no module. */
+export class StrayReferencePageError extends ModulePackageError {}
+
+/** What one manifest module exports, as much of it as a reference page reads. */
+interface LoadedManifestModule {
+  readonly manifest?: Record<string, unknown>;
+  readonly cliCommands?: readonly { name?: unknown; summary?: unknown }[];
+}
+
+/** A manifest field, read defensively — the generator must not trust a shape. */
+function arrayOf(value: unknown): readonly Record<string, unknown>[] {
+  return Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
+}
+
+function stringOr(value: unknown, fallback: string): string {
+  return typeof value === 'string' && value.length > 0 ? value : fallback;
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+/**
+ * One module's reference record, from its manifest and the package that ships it.
+ *
+ * The manifest is **imported**, not parsed out of its source text, for the
+ * reason `renderComposer` already imports one: a manifest is TypeScript with
+ * arrays, spreads and helper calls in it, and a text scan of that is a second
+ * reader of a declaration whose first reader is the platform. What is imported
+ * is the module's own `manifest.ts` — never the generated index, which is this
+ * generator's own previous answer.
+ */
+export function referenceOf(
+  moduleId: string,
+  loaded: LoadedManifestModule,
+  shipsFrom: string,
+  prosePage: string | null,
+): ModuleReference {
+  const manifest = loaded.manifest ?? {};
+  const activationRaw = manifest.activation as Record<string, unknown> | undefined;
+  const activation: ModuleReference['activation'] =
+    activationRaw === undefined
+      ? null
+      : activationRaw.nonDeactivatable === true
+        ? { kind: 'locked', reason: stringOr(activationRaw.reason, 'not stated') }
+        : {
+            kind: 'control',
+            settingCode: stringOr(activationRaw.settingCode, '(unnamed)'),
+            default: activationRaw.default === true,
+          };
+  const settings = manifest.settings as Record<string, unknown> | undefined;
+  const i18n = manifest.i18n as Record<string, unknown> | undefined;
+  return {
+    moduleId,
+    slug: slugForModule(moduleId),
+    name: stringOr(manifest.name, moduleId),
+    version: stringOr(manifest.version, '0.0.0'),
+    shipsFrom,
+    license: stringOrNull(manifest.license),
+    activation,
+    dependencies: [...arrayOf(manifest.dependencies).map(String)].sort(),
+    acknowledgedDependencies: arrayOf(manifest.acknowledgedDependencies)
+      .map((entry) => ({
+        moduleId: stringOr(entry.moduleId, '?'),
+        port: stringOr(entry.port, '?'),
+        reason: stringOr(entry.reason, ''),
+      }))
+      .sort((a, b) => `${a.moduleId}${a.port}`.localeCompare(`${b.moduleId}${b.port}`)),
+    nonBindingDependencies: arrayOf(manifest.nonBindingDependencies)
+      .map((entry) => ({
+        moduleId: stringOr(entry.moduleId, '?'),
+        name: stringOr(entry.name, '?'),
+        kind: stringOr(entry.kind, '?'),
+        whenAbsent: stringOrNull(entry.whenAbsent),
+      }))
+      .sort((a, b) => `${a.moduleId}${a.name}`.localeCompare(`${b.moduleId}${b.name}`)),
+    permissions: arrayOf(manifest.permissions)
+      .map((entry) => ({
+        code: stringOr(entry.code, '?'),
+        label: stringOr(entry.label, ''),
+        requires: Array.isArray(entry.requires) ? entry.requires.map(String) : [],
+      }))
+      .sort((a, b) => a.code.localeCompare(b.code)),
+    actions: arrayOf(manifest.actions)
+      .map((entry) => ({
+        id: stringOr(entry.id, '?'),
+        targetRoute: stringOr(entry.targetRoute, '?'),
+        requiredPermission: stringOrNull(entry.requiredPermission),
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
+    settings: arrayOf(settings?.settings)
+      .map((entry) => ({
+        code: stringOr(entry.code, '?'),
+        name: stringOr(entry.name, ''),
+        valueType: stringOr(entry.valueType, '?'),
+      }))
+      .sort((a, b) => a.code.localeCompare(b.code)),
+    bundlesDir: i18n === undefined ? null : stringOr(i18n.bundlesDir, 'i18n'),
+    cliCommands: (loaded.cliCommands ?? [])
+      .map((entry) => ({
+        name: stringOr(entry.name, '?'),
+        summary: stringOr(entry.summary, ''),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    prosePage,
+  };
+}
+
+/** A markdown table, or the sentence that says there is nothing in it. */
+function table(headings: readonly string[], rows: readonly (readonly string[])[]): string {
+  if (rows.length === 0) return '_None._\n';
+  return (
+    `| ${headings.join(' | ')} |\n` +
+    `| ${headings.map(() => '---').join(' | ')} |\n` +
+    rows.map((row) => `| ${row.map(markdownCell).join(' | ')} |`).join('\n') +
+    '\n'
+  );
+}
+
+/** A value the reader is meant to copy, or an em dash where there is none. */
+function code(value: string | null): string {
+  return value === null || value === '' ? '—' : `\`${value}\``;
+}
+
+/**
+ * One module's reference page.
+ *
+ * Pure over the record, so a test drives every section on input this repository
+ * does not contain. Every list is sorted by the collector rather than by the
+ * walk that produced it, because `overlay:check` renders twice and compares:
+ * an ordering that came off a filesystem read would make the artefact
+ * non-deterministic in a way that only shows up on somebody else's machine.
+ */
+export function emitModuleReference(
+  reference: ModuleReference,
+  header: string = COMPOSER_DOCS_PAGE_HEADER,
+): string {
+  const activation =
+    reference.activation === null
+      ? 'This module declares no activation control, so an operator cannot switch it off ' +
+        'from the Admin UI. Its presence is the platform-availability axis alone — the ' +
+        'lifecycle registry, changed by deployment tooling.\n'
+      : reference.activation.kind === 'locked'
+        ? `**This module cannot be switched off.** ${reference.activation.reason}\n`
+        : `An operator switches this module on and off on **/platform/modules**. The choice ` +
+          `is the setting ${code(reference.activation.settingCode)}, and it defaults to ` +
+          `**${reference.activation.default ? 'on' : 'off'}**.\n`;
+
+  const dependencies = table(
+    ['Module', 'Binding', 'What it means'],
+    [
+      ...reference.dependencies.map((id) => [
+        `\`${id}\``,
+        'yes',
+        'installs and migrates after it, and an operator cannot switch it off underneath ' +
+          'this module',
+      ]),
+      ...reference.acknowledgedDependencies.map((entry) => [
+        `\`${entry.moduleId}\``,
+        'gating only',
+        `resolves \`${entry.port}\`; withheld from \`dependencies\` because the install ` +
+          'order cannot carry the edge',
+      ]),
+      ...reference.nonBindingDependencies.map((entry) => [
+        `\`${entry.moduleId}\``,
+        'no',
+        `${entry.kind} \`${entry.name}\`` +
+          (entry.whenAbsent === null ? '' : ` — ${entry.whenAbsent}`),
+      ]),
+    ],
+  );
+
+  const summary =
+    `Everything the \`${reference.moduleId}\` module's manifest declares: permissions, ` +
+    'palette actions, settings, activation and dependencies.';
+
+  return (
+    `${header}\n` +
+    `---\n` +
+    `title: ${reference.moduleId} — module reference\n` +
+    `sidebar_label: Reference\n` +
+    `description: ${summary}\n` +
+    `---\n\n` +
+    `# \`${reference.moduleId}\` — module reference\n\n` +
+    `Rendered from the module's own manifest, and from nothing written by hand. ` +
+    (reference.prosePage === null
+      ? `Nobody has written a page about what this module *does* yet; the ` +
+        `[module map](../${MODULES_CATEGORY}/${MODULE_MAP_ARTEFACT}) lists every module ` +
+        `the platform composes.\n\n`
+      : `What the module *does* is [its own page](${reference.prosePage}).\n\n`) +
+    `| | |\n| --- | --- |\n` +
+    `| Module id | ${code(reference.moduleId)} |\n` +
+    `| Name | ${markdownCell(reference.name)} |\n` +
+    `| Version | ${code(reference.version)} |\n` +
+    `| Ships from | ${code(reference.shipsFrom)} |\n` +
+    `| Licence tier | ${code(reference.license)} |\n\n` +
+    `## Activation\n\n${activation}\n` +
+    `## Dependencies\n\n${dependencies}\n` +
+    `## Permissions\n\n` +
+    table(
+      ['Code', 'Label', 'Also needs'],
+      reference.permissions.map((entry) => [
+        `\`${entry.code}\``,
+        entry.label,
+        entry.requires.length === 0 ? '—' : entry.requires.map((c) => `\`${c}\``).join(', '),
+      ]),
+    ) +
+    `\n## Command palette\n\n` +
+    table(
+      ['Action', 'Opens', 'Permission'],
+      reference.actions.map((entry) => [
+        `\`${entry.id}\``,
+        `\`${entry.targetRoute}\``,
+        code(entry.requiredPermission),
+      ]),
+    ) +
+    `\n## Settings\n\n` +
+    table(
+      ['Code', 'Name', 'Type'],
+      reference.settings.map((entry) => [`\`${entry.code}\``, entry.name, `\`${entry.valueType}\``]),
+    ) +
+    `\n## Translations\n\n` +
+    (reference.bundlesDir === null
+      ? 'This module declares no translation bundles.\n'
+      : `Bundles at ${code(reference.bundlesDir)} inside the module, one file per shipped ` +
+        'language.\n') +
+    `\n## Operator commands\n\n` +
+    table(
+      ['Command', 'What it does'],
+      reference.cliCommands.map((entry) => [
+        `\`pnpm --filter backend run cli -- ${reference.moduleId} ${entry.name}\``,
+        entry.summary,
+      ]),
+    )
+  );
+}
+
+/**
+ * A module's documentation layer, from its manifest's own source text.
+ *
+ * A **computed** `dir` throws rather than reading as "declares nothing" (issue
+ * #113): a directory this walk cannot place is a module whose pages would
+ * simply not be collected, with no error anywhere.
+ */
+export function docsRootOf(id: string, source: string, moduleRoot: string): string | null {
+  const declaration = docsDeclarationIn(source);
+  if (declaration === undefined || declaration === false) return null;
+  if (declaration === 'unreadable') {
+    throw new ModulePackageError(
+      `[composer] ${id}'s manifest declares \`docs\` with no literal \`dir\`. The directory is ` +
+        'the anchor the platform joins to the module\'s own root, so a value this generator ' +
+        'cannot read is a documentation layer nothing collects and nothing reports.',
+    );
+  }
+  return join(moduleRoot, declaration.dir);
+}
+
+/**
+ * Every page the platform can see, the site's own tree and the modules' alike.
+ *
+ * A **mixed** tree is the supported state and not a transitional accident: a
+ * page in the site tree and a page in a module package are attributed by the
+ * same derivation, which is what lets Phase 2 land one batch at a time
+ * (`plan.md` § Phasing). `_lifecycle` is the standing resident of the site half
+ * — its manifest resolves inside the platform package's **build output**, and
+ * documentation is not a compiled asset, so it has no package root to ship
+ * from.
+ *
+ * A declared directory that is **not on disk** is a refusal naming the module
+ * (FR-017), and two sources claiming one doc id is a refusal too: the copy
+ * would write one over the other and whichever ran second would win, making the
+ * site's content depend on a directory read order.
+ */
+function collectAllDocPages(layout: DocsLayout, manifests: readonly DocsModule[]): DocPage[] {
+  const sources: ModuleDocsSource[] = [];
+  const missing: string[] = [];
+  for (const manifest of manifests) {
+    if (manifest.docsRoot === null) continue;
+    if (!isDirectory(manifest.docsRoot)) {
+      missing.push(`${manifest.id} -> ${manifest.docsRoot}`);
+      continue;
+    }
+    sources.push({ moduleId: manifest.id, root: manifest.docsRoot });
+  }
+  if (missing.length > 0) {
+    throw new ModulePackageError(
+      `[composer] ${missing.length} module(s) declare a documentation directory that is not ` +
+        `on disk:\n${missing.map((entry) => `  - ${entry}`).join('\n')}\n` +
+        'A declared directory that is absent is a refusal and never "this module ships no ' +
+        'documentation" — declare `docs: false` if that is the decision, or ship the directory.',
+    );
+  }
+  const modulePages = collectModuleDocPages(sources);
+  const copies = new Set(modulePages.map((page) => copyTargetOf(page, layout.modulesRoot)));
+  const pages = [...collectDocPages(layout.modulesRoot, copies), ...modulePages];
+  const duplicates = duplicateDocIds(pages);
+  if (duplicates.length > 0) {
+    throw new ModulePackageError(
+      `[composer] ${duplicates.length} documentation page(s) are claimed twice:\n` +
+        duplicates
+          .map((entry) => `  - ${entry.docId}\n      ${entry.paths.join('\n      ')}`)
+          .join('\n'),
+    );
+  }
+  return pages.sort((a, b) => a.docId.localeCompare(b.docId));
+}
+
+/**
+ * Where each module's generated reference page lands, by module id.
+ *
+ * Synchronous: *which* pages exist is a question about the manifests' `docs`
+ * declarations, which the caller's walk has already read, and only their
+ * **content** needs the import.
+ *
+ * Two modules folding onto one slug is a refusal rather than a page written
+ * twice — `slugForModule` strips a leading underscore, so a hypothetical
+ * `i18n` beside `_i18n` would have one of the two silently overwrite the other,
+ * and which one would depend on the order the manifest walk happened to
+ * produce.
+ */
+export function referencePagePaths(
+  layout: DocsLayout,
+  manifests: readonly DocsModule[],
+): ReadonlyMap<string, string> {
+  const paths = new Map<string, string>();
+  const bySlug = new Map<string, string>();
+  for (const manifest of manifests) {
+    if (manifest.declaresNoDocs) continue;
+    const slug = slugForModule(manifest.id);
+    const clash = bySlug.get(slug);
+    if (clash !== undefined) {
+      throw new ModulePackageError(
+        `[composer] '${clash}' and '${manifest.id}' both document at the reference slug ` +
+          `'${slug}'. One page would be written over the other and which one survived would ` +
+          'depend on the order the manifest walk produced.',
+      );
+    }
+    bySlug.set(slug, manifest.id);
+    paths.set(manifest.id, join(layout.contentRoot, MODULE_REFERENCE_CATEGORY, `${slug}.md`));
+  }
+  return paths;
+}
+
+/** Pages on disk in the reference category that this run does not write. */
+export function strayReferencePages(
+  layout: DocsLayout,
+  expected: ReadonlySet<string>,
+): readonly string[] {
+  const directory = join(layout.contentRoot, MODULE_REFERENCE_CATEGORY);
+  if (!isDirectory(directory)) return [];
+  return readdirSync(directory)
+    .filter((name) => PAGE_EXTENSIONS.some((extension) => name.endsWith(extension)))
+    .map((name) => join(directory, name))
+    .filter((path) => !expected.has(path))
+    .sort();
+}
+
+/**
+ * The documentation population of a **client's instance** — the module packages
+ * it installed, and nothing else.
+ *
+ * The workspace host's population comes off the generated manifest index, which
+ * an instance does not have and does not want: what an instance composes is what
+ * `node_modules` holds (D-119/D-155), and the packages have already been scanned
+ * by the caller. Each module's manifest is located by its own `exports` map's
+ * `.` subpath, so the docs declaration is read out of the file
+ * `import '<name>'` loads — never out of a `manifest.ts`, which a published
+ * package does not ship.
+ */
+export function installedDocsModules(packages: readonly ModulePackage[]): readonly DocsModule[] {
+  return packages
+    .map((pkg) => {
+      const { manifestPath } = publishedManifestEntryOf(pkg);
+      const source = readFileSync(manifestPath, 'utf8');
+      return {
+        id: pkg.moduleId,
+        // The **package** directory, not the manifest file's: a module
+        // package's `docs/` sits at the package root beside `i18n/`, outside
+        // `src/`, and travels in the `files` list.
+        docsRoot: docsRootOf(pkg.moduleId, source, pkg.dir),
+        declaresNoDocs: docsDeclarationIn(source) === false,
+        manifestPath,
+      } satisfies DocsModule;
+    })
+    .sort((a, b) => a.id.localeCompare(b.id));
+}
+
+/** One read of the site's tree and the modules' documentation layers. */
+export interface DocsRegistry {
+  readonly layout: DocsLayout;
+  readonly modules: readonly DocsModule[];
+  readonly pages: readonly DocPage[];
+  readonly entries: readonly DocsRegistryEntry[];
+  readonly attribution: DocsAttribution;
+  /** Copy target -> module source, for `overlay:check`'s containment verdict. */
+  readonly entrySources: ReadonlyMap<string, string>;
+}
+
+/**
+ * The one read every documentation artefact is rendered from.
+ *
+ * The site is a **parameter** and so is the module set: a host that walked for
+ * itself in here would be a second derivation of a population its caller has
+ * already decided, which is the state feature 100 ended for three hand-written
+ * lists and the state R3.5 forbids one artefact family over.
+ */
+export function docsRegistryOf(
+  layout: DocsLayout,
+  modules: readonly DocsModule[],
+  packages: readonly ModulePackage[],
+): DocsRegistry {
+  const ids = modules.map((module) => module.id);
+  const pages = collectAllDocPages(layout, modules);
+  const attribution = attributeDocs(pages, ids);
+  const declinedDocs = new Set(
+    modules.filter((module) => module.declaresNoDocs).map((module) => module.id),
+  );
+  return {
+    layout,
+    modules,
+    pages,
+    attribution,
+    entries: collectDocsRegistry(ids, attribution, packages, declinedDocs),
+    entrySources: new Map(
+      pages
+        .filter((page) => page.origin.kind === 'module')
+        .map((page) => [copyTargetOf(page, layout.modulesRoot), page.path] as const),
+    ),
+  };
+}
+
+/**
+ * Pure render — the target path + expected content of the sidebar fragment.
+ *
+ * The path is derived from the workspace member holding the Docusaurus
+ * configuration, never written down (D-100), exactly as the admin registry's is
+ * derived from the member declaring the `"@/*"` alias.
+ */
+export function renderDocsSidebarFrom(
+  registry: DocsRegistry,
+  header: string = COMPOSER_DOCS_HEADER,
+): RenderedDocsArtefact {
+  return {
+    outputPath: join(registry.layout.member.dir, DOCS_SIDEBAR_ARTEFACT),
+    content: emitDocsSidebar(registry.entries, header),
+    entryRoot: registry.layout.contentRoot,
+    entrySources: registry.entrySources,
+  };
+}
+
+/** Pure render — the target path + expected content of the module map. */
+export function renderModuleMapFrom(
+  registry: DocsRegistry,
+  header: string = COMPOSER_DOCS_PAGE_HEADER,
+): RenderedDocsArtefact {
+  return {
+    outputPath: join(registry.layout.modulesRoot, MODULE_MAP_ARTEFACT),
+    content: emitModuleMap(registry.entries, header),
+    entryRoot: registry.layout.contentRoot,
+    entrySources: registry.entrySources,
+  };
+}
+
+/**
+ * Every module's reference page — one artefact each (FR-022/FR-024).
+ *
+ * The manifests are **imported** here and read as source text everywhere else,
+ * which is the estate's independent-author pattern rather than an
+ * inconsistency: what a page renders is the manifest's *values* — permission
+ * labels, an activation default, a palette route — and a text scan of a
+ * TypeScript object literal is a second reader of a declaration whose first
+ * reader is the platform.
+ *
+ * A page in the category that no module claims is a **refusal**. It is the
+ * `orphan-page` state one category over: a module that was removed leaves a
+ * page in no navigation, reachable by URL, describing a module the platform no
+ * longer composes — and unlike a page under the modules category, nothing else
+ * in the estate walks this one. The remedy is `git rm`, which is why this
+ * refuses rather than sweeping: a generator that deletes files is a generator
+ * whose output a reviewer has to reconstruct.
+ */
+export interface ModuleReferenceOptions {
+  readonly header?: string;
+  /**
+   * What a page in the reference category that this run does not write is.
+   *
+   * **`'refuse'`** is this repository's, and the default: the pages are
+   * *committed* artefacts, so one nothing renders is a module that has gone and
+   * the remedy is `git rm` — swept, it would be a generator deleting a tracked
+   * file no reviewer asked about.
+   *
+   * **`'sweep'`** is a client instance's, and it is not a weakening of the rule
+   * but the same rule over a different tree: there the category is generated and
+   * git-ignored, so `git rm` names a tool the file is not under, and a module
+   * the client uninstalled would leave a page that refuses every subsequent
+   * `endora generate` for ever. It is the copies' stamp one category over, and
+   * the sweep is reported rather than silent.
+   *
+   * **`'report'`** is a dry run's: it names the pages and touches none, because
+   * a dry run that deleted a file would be the one thing `--dry-run` promises
+   * it is not.
+   */
+  readonly stray?: 'refuse' | 'sweep' | 'report';
+}
+
+export async function renderModuleReferencesFrom(
+  registry: DocsRegistry,
+  options: ModuleReferenceOptions = {},
+): Promise<{
+  readonly pages: ReadonlyArray<RenderedDocsArtefact & { label: string }>;
+  /** Pages this run removed, when the caller owns the category. */
+  readonly swept: readonly string[];
+}> {
+  const header = options.header ?? COMPOSER_DOCS_PAGE_HEADER;
+  const { layout, modules, entries, entrySources } = registry;
+  const paths = referencePagePaths(layout, modules);
+  const byModule = new Map(entries.map((entry) => [entry.moduleId, entry]));
+
+  const rendered: Array<RenderedDocsArtefact & { label: string }> = [];
+  for (const module of modules) {
+    const outputPath = paths.get(module.id);
+    if (outputPath === undefined) continue;
+    const entry = byModule.get(module.id);
+    const loaded = (await import(pathToFileURL(module.manifestPath).href)) as LoadedManifestModule;
+    const reference = referenceOf(
+      module.id,
+      loaded,
+      entry?.shipsFrom ?? 'core',
+      entry?.docs == null ? null : `../${MODULES_CATEGORY}/${entry.docs.entry.relativePath}`,
+    );
+    rendered.push({
+      label: `module-reference (${module.id})`,
+      outputPath,
+      content: emitModuleReference(reference, header),
+      entryRoot: layout.contentRoot,
+      entrySources,
+    });
+  }
+
+  const expected = new Set(rendered.map((artefact) => artefact.outputPath));
+  const stray = strayReferencePages(layout, expected);
+  if (stray.length > 0 && (options.stray ?? 'refuse') === 'refuse') {
+    throw new StrayReferencePageError(
+      `[composer] ${stray.length} page(s) under ${MODULE_REFERENCE_CATEGORY}/ belong to no ` +
+        `registered module:\n${stray.map((path) => `  - ${path}`).join('\n')}\n` +
+        'Every page in that category is generated from a manifest, so one nothing renders is ' +
+        'a module that has gone: `git rm` it. It is refused rather than swept because a ' +
+        'committed file this generator deleted is a change no reviewer asked for.',
+    );
+  }
+  if (options.stray === 'sweep') for (const page of stray) rmSync(page);
+  return { pages: rendered, swept: stray };
+}
+
+/**
+ * The record of what the last collection wrote, so the next one can undo it.
+ *
+ * The copies are **not committed** (`.gitignore`), which is what keeps 10,311
+ * lines of prose from existing twice in this repository — one editable copy and
+ * one that looks editable and is not. The consequence is that nothing else
+ * knows which files under the modules category are copies, and a page a module
+ * deletes would otherwise be served for ever. The stamp answers exactly that
+ * and nothing else: a run removes the files the previous run wrote and no
+ * longer writes, and a fresh checkout with no stamp removes nothing, which is
+ * correct because it has copied nothing.
+ */
+const COPY_STAMP = '.module-docs-copies.json';
+
+/** What one collection did, for the caller to report. */
+export interface DocsCollection {
+  readonly modulesRoot: string;
+  readonly copied: readonly string[];
+  readonly removed: readonly string[];
+}
+
+/**
+ * Copy every module-owned page into the site's tree, preserving its address.
+ *
+ * **Copy, never symlink** (research D-8): Docusaurus resolves `docs.path` and
+ * its `include` globs against the site directory, and a symlinked subtree makes
+ * the file watcher, webpack's module graph and the markdown link resolver
+ * disagree about where a page is — issue #255's finding, one tool reading one
+ * tree while another reads a second.
+ *
+ * The target is the page's own relative path inside the category, so the copy
+ * preserves the doc id, the permalink and every relative link written against
+ * it (`module-documentation-layer.md` R5.2). That is what makes the move
+ * invisible to a reader and to an inbound link alike.
+ */
+export function collectDocsIntoSiteFrom(registry: DocsRegistry): DocsCollection {
+  const { layout, pages } = registry;
+  const stampPath = join(layout.member.dir, COPY_STAMP);
+  const previous: string[] = existsSync(stampPath)
+    ? (JSON.parse(readFileSync(stampPath, 'utf8')) as string[])
+    : [];
+
+  const copied: string[] = [];
+  for (const page of pages) {
+    if (page.origin.kind !== 'module') continue;
+    const target = copyTargetOf(page, layout.modulesRoot);
+    mkdirSync(dirname(target), { recursive: true });
+    copyFileSync(page.path, target);
+    copied.push(relative(layout.member.dir, target));
+  }
+
+  const current = new Set(copied);
+  const removed: string[] = [];
+  for (const stale of previous) {
+    if (current.has(stale)) continue;
+    const target = join(layout.member.dir, stale);
+    if (!existsSync(target)) continue;
+    rmSync(target);
+    removed.push(stale);
+  }
+  writeFileSync(stampPath, `${JSON.stringify([...copied].sort(), null, 2)}\n`, 'utf8');
+  return { modulesRoot: layout.modulesRoot, copied: copied.sort(), removed: removed.sort() };
+}

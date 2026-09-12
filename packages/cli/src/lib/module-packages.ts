@@ -78,7 +78,7 @@
  * emit specifiers naming `.ts` files inside a package that publishes `.js`, and
  * every one of them would fail at the artefact's first import.
  */
-import { realpathSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { basename, isAbsolute, join, relative, sep } from 'node:path';
 
 import {
@@ -381,6 +381,48 @@ export function packageSpecifierFor(pkg: ModulePackage, packageRelativePath: str
     );
   }
   return best.subpath === '.' ? pkg.name : `${pkg.name}/${best.subpath.replace(/^\.\//, '')}`;
+}
+
+/**
+ * A **published** package's own entry point — the file `import '<name>'` loads.
+ *
+ * The source-tree locators search text for a marker, because a source tree
+ * declares nowhere which of its files is the manifest. A published package does
+ * declare it: the `.` subpath of its `exports` map is the package's statement
+ * about its own entry point, so the marker search is not merely unavailable
+ * here (there is no `.ts` to search), it is the wrong question. A third-party
+ * author's published manifest is a plain object literal and names
+ * `defineModuleManifest` nowhere.
+ *
+ * A package declaring no `.` subpath, or one whose target is not on disk, is a
+ * **refusal**: an artefact would name a specifier the package refuses with
+ * `ERR_PACKAGE_PATH_NOT_EXPORTED`, and skipping it is how a module drops out of
+ * a client's admin bundle or documentation with no error anywhere.
+ */
+export function publishedManifestEntryOf(pkg: ModulePackage): {
+  manifestPath: string;
+  manifestSpecifier: string;
+} {
+  const target = pkg.exports.get('.');
+  if (target === undefined) {
+    const declared = [...pkg.exports.keys()].sort().join(', ') || '(none)';
+    throw new ModulePackageError(
+      `[composer] ${pkg.name} declares module '${pkg.moduleId}', ships no sources, and its ` +
+        `exports map declares no '.' subpath (declared: ${declared}). That subpath is where a ` +
+        `published package states its own entry point, and it is the only thing an artefact ` +
+        `can name it by.`,
+    );
+  }
+  const relativePath = target.replace(/^\.\//, '');
+  const manifestPath = absolutePathInPackage(pkg, relativePath);
+  if (!existsSync(manifestPath)) {
+    throw new ModulePackageError(
+      `[composer] ${pkg.name} exports '.' as ${target}, and that file is not in the package. ` +
+        `An artefact naming it would fail at its first import; a package whose own entry ` +
+        `point is missing is not one this run can register.`,
+    );
+  }
+  return { manifestPath, manifestSpecifier: packageSpecifierFor(pkg, relativePath) };
 }
 
 /**
