@@ -159,9 +159,9 @@
         "A2": "pass",
         "A3": "pass",
         "A4": "pass",
-        "A5": "fail",
-        "A6": "unmeasured",
-        "A7": "unmeasured"
+        "A5": "pass",
+        "A6": "pass",
+        "A7": "pass"
       }
     }
   },
@@ -205,6 +205,11 @@
       "on": "2026-09-09",
       "what": "A5 goes `fail` in the registry mode, A6 and A7 `unmeasured` behind it — the repository moved ahead of the registry",
       "detail": "Pipeline 13361, the first scheduled run, measured `next build` failing on `./app/globals.css` in the registry mode: it imports `@endora-commerce/page-builder-core/tailwind.css`, a subpath e27bf6cf9 added on 2026-09-07, and the published 0.7.0 predates it while the version number did not move. The tarball mode is untouched and still records seven passes, because a tarball packs the checkout. Retires at the next publication."
+    },
+    {
+      "on": "2026-09-12",
+      "what": "the registry route is green on all seven again, and the entry above it retires exactly as it said it would",
+      "detail": "Pipeline 13682, on `master`, the first run of this criterion after the publication of 2026-09-11: `mode=registry pass=7 fail=0 unmeasured=0`. The job is red, and that is the record working rather than the route failing — three of its states were recorded worse than they measured (`recorded fail, measured pass` once and `recorded unmeasured, measured pass` twice), and an unrecorded pass is drift in the direction nobody watches. This entry is that measurement; the states above move with it. The entry dated 2026-09-09 named its own retiring condition — *\"Retires at the next publication\"* — and the defect it described was precise: `./app/globals.css` imports `@endora-commerce/page-builder-core/tailwind.css`, a subpath `e27bf6cf9` added on 2026-09-07, and the published `0.7.0` predated it while the version number did not move. `release/version-0.8.0` moved 83 packages — 68 to `0.8.0`, 15 to `0.7.1`, none leaving `0.x` under D-225 — so `page-builder-core@0.8.0` carries the subpath and the divergence between what the registry serves and what this repository holds is closed. That divergence is also why the version had to move at all: `changeset publish` publishes the current version of each package or nothing, and the registry's `0.7.0` is immutable, so no amount of republishing could have fixed it in place. What the seven now establish, against a real registry rather than a packed checkout: a storefront scaffolded by `endora new storefront` installs outside this checkout resolving published semver ranges, resolves three `@endora-commerce/*` packages there, builds under `next build`, serves `/` with 200 from `next start`, and carries the canonical origin it was built with. `acceptance:instance` is the other half of the milestone and is **not** measured here: it exited 2 in the same pipeline because the host install received no authorization header, so the instance's registry route has still never produced a verdict."
     }
   ]
 }
