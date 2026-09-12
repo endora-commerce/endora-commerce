@@ -101,6 +101,10 @@
  *   * **A `.env.example`.** It is prose, it is stale, and reconciling against
  *     it would make a stale file authoritative.
  */
+import { existsSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+
 import ts from 'typescript';
 
 import {
@@ -115,11 +119,15 @@ export const PREFIX = '[env-inputs]';
 
 export type EnvInputFindingKind =
   | 'undeclared-input'
+  | 'undeclared-module-input'
   | 'unread-input'
   | 'foreign-input'
+  | 'module-declares-a-platform-input'
   | 'unresolvable-input-name'
   | 'generable-without-secret'
-  | 'requirement-without-a-consequence';
+  | 'requirement-without-a-consequence'
+  | 'module-input-without-a-settings-verdict'
+  | 'stale-settings-verdict';
 
 /** What to do about each kind, printed above the findings of that kind. */
 export const REMEDIES: Readonly<Record<EnvInputFindingKind, string>> = {
@@ -129,14 +137,51 @@ export const REMEDIES: Readonly<Record<EnvInputFindingKind, string>> = {
     'cannot tell an operator it is missing. Declare it where the code that reads it lives: ' +
     'the platform in `packages/platform/src/env/index.ts`, an application in its own ' +
     '`environment-inputs.mjs`, a module in its `manifest.ts`.',
+  'undeclared-module-input':
+    'A module reads an environment variable that neither the platform, nor the application ' +
+    'tree it runs in, nor this module’s own `manifest.ts` declares — so no `.env` a ' +
+    'client writes will carry it and `endora doctor` cannot tell them it is missing. That ' +
+    'matters more for a module than for anything else here: a module package ships `dist`, ' +
+    '`i18n` and `docs`, and `.env.example` is a file in the platform’s own repository. ' +
+    'Declare it in the module’s `env` array, with `owner` naming this module. **Another ' +
+    'module’s declaration does not satisfy this read**, deliberately: a client may install ' +
+    'this module and not that one, and an input that arrives only with a sibling is an input ' +
+    'that is missing exactly when the sibling is.',
   'unread-input':
     'This input is declared and nothing reads it, so an operator is asked for a value that ' +
-    'changes nothing. Delete the declaration, or restore the read it was written for.',
+    'changes nothing. Delete the declaration, or restore the read it was written for. For a ' +
+    'module the question is asked over that module’s own sources: a sibling reading the ' +
+    'name does not make this declaration earned.',
+  'module-declares-a-platform-input':
+    'The platform already declares this variable, in `packages/platform/src/env/index.ts`, ' +
+    'and a module’s read of it is satisfied by that declaration. Delete the entry. Seven ' +
+    'names — `NODE_ENV`, `BACKEND_ROLE`, `STOREFRONT_BASE_URL`, `PUBLIC_API_BASE_URL`, ' +
+    '`BACKEND_PUBLIC_URL`, `REVALIDATE_SECRET`, `SETTINGS_SECRET_ENCRYPTION_KEY` — are read ' +
+    'by thirty modules between them, and a module that declares what it *reads* rather than ' +
+    'what it *owns* puts one fact in thirty manifests with thirty descriptions. Whichever a ' +
+    'reader reaches first wins and the rest drift (D-100).',
   'foreign-input':
     'This declaration is not the shipping author’s to make — either its `owner` names ' +
     'somebody else, or the same author declares the name twice. Delete it and let the owner ' +
     'declare it. A name declared by two *different* authors is not this finding: two trees ' +
     'that ship independently each state what they need, and `consumers` is what joins them.',
+  'module-input-without-a-settings-verdict':
+    'A module-owned environment input is debt against the Settings module until somebody has ' +
+    'said why it is not one (`contracts/environment-inputs.md` §4). Add an entry to the ' +
+    'module’s shard under `backend/scripts/ledgers/module-environment-inputs/`, ' +
+    'classified `bootstrap` or `configuration`, with the reason. The legitimate answer is ' +
+    'that the value is needed **before the settings store can be read** — ' +
+    '`SETTINGS_SECRET_ENCRYPTION_KEY` and `MFA_SECRET_ENCRYPTION_KEY` are the standing ' +
+    'examples, being the keys the store’s own secrets are decrypted with. "Convenience" ' +
+    'and "historical" are `configuration`, which is a finding waiting to be repaired rather ' +
+    'than an exemption — and an entry whose reason says nothing is not a verdict, so it is ' +
+    'reported here rather than counted as one.',
+  'stale-settings-verdict':
+    'A ledger entry describes an environment input this module no longer declares. The ' +
+    'ledger is two-way: it drains as a module moves its configuration into Settings, and an ' +
+    'entry left behind is a claim about a variable that is gone. Delete it — and delete the ' +
+    'shard when its last entry goes, because an empty file is a done signal that says ' +
+    'nothing.',
   'unresolvable-input-name':
     'The variable is named by an expression this analysis cannot resolve to a literal, so it ' +
     'can be reconciled against no declaration. Write the name as a string literal, or as a ' +
@@ -165,6 +210,19 @@ export interface EnvironmentRead {
   readonly consumer: EnvironmentConsumer;
   /** How the name was written, for the message. */
   readonly shape: 'literal' | 'const' | 'imported-const' | 'computed';
+  /**
+   * The module whose sources the file is, or `undefined` for an application's
+   * own file.
+   *
+   * It is what makes the resolution rule — *the platform's declaration, the
+   * application's, and the reading module's own, never another module's* —
+   * expressible at all (`specs/117-instance-bring-up/` T3-B). Without it a read
+   * is only ever a `(name, consumer)` pair, and one module's declaration
+   * silently covers every other module's read of the same name: a client
+   * installing the reader and not the declarer would then be short a variable
+   * this check had reported green.
+   */
+  readonly module?: string | undefined;
 }
 
 /** One author's declaration, as the host loaded it. */
@@ -185,9 +243,46 @@ export interface EnvInputFinding {
   readonly detail: string;
 }
 
+/**
+ * What a module's environment input is, once somebody has judged it
+ * (`contracts/environment-inputs.md` §4.2).
+ *
+ * `bootstrap` is a value the platform needs **before the settings store can be
+ * read**; `configuration` is a knob that belongs to the Settings module and is
+ * wearing an environment variable. The second is not an exemption — it is debt
+ * with an owner, and the ledger exists to make the population drainable rather
+ * than to bless it (§4.3, §4.4).
+ */
+export interface ModuleEnvironmentVerdict {
+  readonly classification: 'bootstrap' | 'configuration';
+  /** Why it is not a Setting. One question, answered in a sentence. */
+  readonly reason: string;
+}
+
+/** One module's shard of the Settings-debt ledger, as the host loaded it. */
+export interface ModuleVerdictShard {
+  readonly moduleId: string;
+  /** Keyed by the variable's name. */
+  readonly entries: Readonly<Record<string, ModuleEnvironmentVerdict>>;
+}
+
 export interface EnvInputsInput {
   readonly declarations: readonly DeclarationSource[];
   readonly reads: readonly EnvironmentRead[];
+  /**
+   * The Settings-debt ledger, or `undefined` where the caller is not asking.
+   *
+   * The two states are deliberately distinct. `[]` is *"the ledger was read and
+   * holds nothing"*, under which every module-owned declaration lacks a verdict;
+   * `undefined` is *"this caller is not reconciling the ledger"*, which is what
+   * a red proof about some other finding wants. Collapsing them would make a
+   * fixture that says nothing about the ledger report on it anyway.
+   *
+   * The host always passes it, and refuses a ledger directory that is not there
+   * rather than passing `undefined` — a missing ledger must never be the quiet
+   * path.
+   */
+  readonly settingsVerdicts?: readonly ModuleVerdictShard[] | undefined;
 }
 
 export interface EnvInputsResult {
@@ -196,6 +291,10 @@ export interface EnvInputsResult {
   readonly declared: number;
   /** Consumers that contributed both a declaration and at least one read site. */
   readonly consumersCovered: readonly EnvironmentConsumer[];
+  /** Inputs declared by a module author, of {@link EnvInputsResult.declared}. */
+  readonly declaredByModules: number;
+  /** Module ids that declare at least one input. */
+  readonly modulesDeclaring: readonly string[];
 }
 
 const authorKey = (owner: EnvironmentInputOwner): string =>
@@ -220,6 +319,22 @@ const consumerKey = (name: string, consumer: EnvironmentConsumer): string =>
   `${name}\0${consumer}`;
 
 /**
+ * The same key, narrowed to one module — what `unread-input` is asked against
+ * for a module author.
+ *
+ * A module declaring an input its **own** sources do not read is the finding;
+ * a sibling reading the name does not earn the declaration, and asking the
+ * question over the whole backend tree would say it did. That is not
+ * hypothetical here: `MEILISEARCH_URL` is legitimately declared by two modules,
+ * so the tree-wide question answers "read" for both the moment either one reads
+ * it, and the direction this check exists to protect — an operator asked for
+ * a value that changes nothing — would stop working for the module half on
+ * the day it landed.
+ */
+const moduleKey = (module: string, name: string, consumer: EnvironmentConsumer): string =>
+  `${module}\0${name}\0${consumer}`;
+
+/**
  * A sentence, rather than a string.
  *
  * `''` is refused by the schema; this is the next failure along — a `without`
@@ -238,13 +353,28 @@ export function checkEnvironmentInputs(input: EnvInputsInput): EnvInputsResult {
   const declaredNames = new Set<string>();
   // (name, consumer) → the declarations that claim it, for the read reconciliation.
   const byNameAndConsumer = new Map<string, DeclarationSource[]>();
+  // Every name the **platform** declares — what `module-declares-a-platform-input`
+  // is asked against, and deliberately not "every name a non-module author
+  // declares". The applications' names are excluded on purpose: the backend
+  // genuinely reading a name the storefront also declares is `REVALIDATE_SECRET`'s
+  // shape, two trees that ship independently each stating what they need, and
+  // widening the predicate to cover it would turn a correct declaration into a
+  // finding.
+  const platformNames = new Set<string>();
+  const modulesDeclaring = new Set<string>();
   let declared = 0;
+  let declaredByModules = 0;
 
   for (const source of input.declarations) {
     const seen = new Set<string>();
     for (const entry of source.inputs) {
       declared += 1;
       declaredNames.add(entry.name);
+      if (source.author.kind === 'platform') platformNames.add(entry.name);
+      if (source.author.kind === 'module') {
+        declaredByModules += 1;
+        modulesDeclaring.add(source.author.moduleId);
+      }
 
       // — `foreign-input`, shape one: the owner is not the shipping author.
       if (authorKey(entry.owner) !== authorKey(source.author)) {
@@ -304,6 +434,33 @@ export function checkEnvironmentInputs(input: EnvInputsInput): EnvInputsResult {
     }
   }
 
+  // — `module-declares-a-platform-input`. A **second pass**, for the same reason
+  //   the `requiredWhen` one below is: the question is asked against another
+  //   author's declaration, so asking it inside the first loop would make the
+  //   verdict depend on the order the host happened to hand the declarations in
+  //   — green when the platform's came first, red when it came second, over one
+  //   tree.
+  //
+  //   Not a shape of `foreign-input`: there the `owner` field is wrong and the
+  //   remedy is "let the owner declare it"; here the `owner` is honest — the
+  //   author really did mean this module — and the remedy is "delete it, the
+  //   platform already said this". `defineModuleManifest` cannot see it, having
+  //   no sight of the platform's declaration, so this is the only layer that can.
+  for (const source of input.declarations) {
+    if (source.author.kind !== 'module') continue;
+    for (const entry of source.inputs) {
+      if (!platformNames.has(entry.name)) continue;
+      findings.push({
+        kind: 'module-declares-a-platform-input',
+        name: entry.name,
+        where: source.file,
+        detail:
+          `declared by the module \`${source.author.moduleId}\`, and the platform declares it ` +
+          'too — one variable, two descriptions, and whichever a reader reaches first wins',
+      });
+    }
+  }
+
   // — `requirement-without-a-consequence`, the `requiredWhen` half. Second
   //   pass, because the vocabulary a predicate is answered against is every
   //   author's and not the declaring author's alone: a condition may
@@ -323,8 +480,10 @@ export function checkEnvironmentInputs(input: EnvInputsInput): EnvInputsResult {
     }
   }
 
-  // — `unresolvable-input-name` and `undeclared-input`, over the reads.
+  // — `unresolvable-input-name`, `undeclared-input` and
+  //   `undeclared-module-input`, over the reads.
   const readNamesByConsumer = new Map<EnvironmentConsumer, Set<string>>();
+  const readNamesByModule = new Set<string>();
   for (const read of input.reads) {
     if (read.name === null) {
       findings.push({
@@ -340,15 +499,55 @@ export function checkEnvironmentInputs(input: EnvInputsInput): EnvInputsResult {
     const names = readNamesByConsumer.get(read.consumer) ?? new Set<string>();
     names.add(read.name);
     readNamesByConsumer.set(read.consumer, names);
+    if (read.module !== undefined) {
+      readNamesByModule.add(moduleKey(read.module, read.name, read.consumer));
+    }
 
-    if (!byNameAndConsumer.has(consumerKey(read.name, read.consumer))) {
+    // **The resolution rule, and it is one predicate for both populations**
+    // (T3-B): a read resolves against the platform's declaration, the
+    // application tree's, and — where the file is a module's — that module's
+    // own. Never another module's.
+    //
+    // A module's declaration must not cover an *application's* read either, and
+    // the same line says so: `read.module` is `undefined` there, so the
+    // `moduleId` comparison fails for every module author. One rule, two
+    // populations, no second predicate to keep in step.
+    const claims = byNameAndConsumer.get(consumerKey(read.name, read.consumer)) ?? [];
+    const satisfied = claims.some(
+      (claim) => claim.author.kind !== 'module' || claim.author.moduleId === read.module,
+    );
+    if (satisfied) continue;
+
+    if (read.module === undefined) {
       findings.push({
         kind: 'undeclared-input',
         name: read.name,
         where: `${read.file}:${read.line}`,
         detail: `read in the ${read.consumer} tree, which declares no input of that name`,
       });
+      continue;
     }
+    // A sibling declaring it is worth saying, because it is the shape an author
+    // is most likely to think already correct — and the answer is that a client
+    // may install this module and not that one.
+    const bySibling = claims.filter((claim) => claim.author.kind === 'module');
+    const siblings =
+      bySibling.length === 0
+        ? ''
+        : ` — ${bySibling
+            .map((claim) =>
+              claim.author.kind === 'module' ? `\`${claim.author.moduleId}\`` : '',
+            )
+            .join(', ')} declares it, and a sibling's declaration does not travel with this module`;
+    findings.push({
+      kind: 'undeclared-module-input',
+      name: read.name,
+      where: `${read.file}:${read.line}`,
+      detail:
+        `read by the module \`${read.module}\` in the ${read.consumer} tree, and neither the ` +
+        `platform, the ${read.consumer} application nor \`${read.module}\`'s own manifest ` +
+        `declares it${siblings}`,
+    });
   }
 
   // — `unread-input`. Asked per (name, consumer): an input declared as read by
@@ -356,19 +555,82 @@ export function checkEnvironmentInputs(input: EnvInputsInput): EnvInputsResult {
   //   wrong about which tree needs it, which is exactly the fact `consumers`
   //   exists to carry and the fact member scoping runs on.
   for (const source of input.declarations) {
+    const author = source.author;
+    // For a module the question is asked over **that module's own** sources.
+    // See {@link moduleKey}: `MEILISEARCH_URL` is legitimately declared by two
+    // modules, so a tree-wide question answers "read" for both the moment
+    // either reads it.
+    const isRead = (name: string, consumer: EnvironmentConsumer): boolean =>
+      author.kind === 'module'
+        ? readNamesByModule.has(moduleKey(author.moduleId, name, consumer))
+        : (readNamesByConsumer.get(consumer)?.has(name) ?? false);
     for (const entry of source.inputs) {
-      const unread = entry.consumers.filter(
-        (consumer) => !(readNamesByConsumer.get(consumer)?.has(entry.name) ?? false),
-      );
+      const unread = entry.consumers.filter((consumer) => !isRead(entry.name, consumer));
       if (unread.length === 0) continue;
       findings.push({
         kind: 'unread-input',
         name: entry.name,
         where: source.file,
         detail:
-          `declared as read by ${unread.join(', ')}, and no source in ` +
-          `${unread.length === 1 ? 'that tree' : 'those trees'} reads it`,
+          author.kind === 'module'
+            ? `declared as read by ${unread.join(', ')}, and no source of the module ` +
+              `\`${author.moduleId}\` reads it there`
+            : `declared as read by ${unread.join(', ')}, and no source in ` +
+              `${unread.length === 1 ? 'that tree' : 'those trees'} reads it`,
       });
+    }
+  }
+
+  // — The Settings-debt ledger, both ways (`environment-inputs.md` §4).
+  //
+  //   `undefined` is a caller that is not asking; `[]` is a ledger that was read
+  //   and holds nothing, under which every module-owned declaration is
+  //   unjudged. The second is the state a deleted ledger directory would
+  //   produce, which is why the host refuses that rather than reaching here.
+  if (input.settingsVerdicts !== undefined) {
+    const verdictsOf = new Map<string, Readonly<Record<string, ModuleEnvironmentVerdict>>>(
+      input.settingsVerdicts.map((shard) => [shard.moduleId, shard.entries]),
+    );
+    const declaredByModule = new Map<string, Set<string>>();
+    for (const source of input.declarations) {
+      if (source.author.kind !== 'module') continue;
+      const names = declaredByModule.get(source.author.moduleId) ?? new Set<string>();
+      for (const entry of source.inputs) names.add(entry.name);
+      declaredByModule.set(source.author.moduleId, names);
+
+      for (const entry of source.inputs) {
+        const verdict = verdictsOf.get(source.author.moduleId)?.[entry.name];
+        // A reason that says nothing is not a verdict. Held to a length rather
+        // than to a blocklist, in the idiom the `optional` sentence is held to
+        // twenty lines up — "historical" and "convenience" are the sentences an
+        // entry written to make this pass would carry, and §4.3 calls them debt
+        // rather than exemptions.
+        if (verdict !== undefined && verdict.reason.trim().length >= SAYS_SOMETHING) continue;
+        findings.push({
+          kind: 'module-input-without-a-settings-verdict',
+          name: entry.name,
+          where: source.file,
+          detail:
+            verdict === undefined
+              ? `declared by the module \`${source.author.moduleId}\` and judged by nobody — ` +
+                'no entry in its shard of the Settings-debt ledger'
+              : `its ledger entry does not say why it is ${verdict.classification} rather ` +
+                'than a Setting',
+        });
+      }
+    }
+
+    for (const shard of input.settingsVerdicts) {
+      const declared = declaredByModule.get(shard.moduleId) ?? new Set<string>();
+      for (const name of Object.keys(shard.entries)) {
+        if (declared.has(name)) continue;
+        findings.push({
+          kind: 'stale-settings-verdict',
+          name,
+          where: `backend/scripts/ledgers/module-environment-inputs/${shard.moduleId}.ts`,
+          detail: `the module \`${shard.moduleId}\` declares no environment input of that name`,
+        });
+      }
     }
   }
 
@@ -382,7 +644,13 @@ export function checkEnvironmentInputs(input: EnvInputsInput): EnvInputsResult {
     (consumer) => declaringConsumers.has(consumer) && readNamesByConsumer.has(consumer),
   );
 
-  return { findings, declared, consumersCovered };
+  return {
+    findings,
+    declared,
+    consumersCovered,
+    declaredByModules,
+    modulesDeclaring: [...modulesDeclaring].sort(),
+  };
 }
 
 /** A file the walk opened, with the tree it belongs to. */
@@ -391,6 +659,8 @@ export interface EnvSourceFile {
   readonly path: string;
   readonly text: string;
   readonly consumer: EnvironmentConsumer;
+  /** The module this file belongs to, where the host could attribute it. */
+  readonly module?: string | undefined;
 }
 
 const isProcessEnv = (node: ts.Expression): boolean =>
@@ -572,6 +842,7 @@ export function collectEnvironmentReads(
                 file: file.path,
                 line,
                 consumer: file.consumer,
+                module: file.module,
                 shape: 'literal',
               });
             }
@@ -584,6 +855,7 @@ export function collectEnvironmentReads(
                   file: file.path,
                   line,
                   consumer: file.consumer,
+                  module: file.module,
                   shape: 'literal',
                 });
               }
@@ -596,6 +868,7 @@ export function collectEnvironmentReads(
                   file: file.path,
                   line,
                   consumer: file.consumer,
+                  module: file.module,
                   shape:
                     local !== undefined
                       ? 'const'
@@ -610,6 +883,7 @@ export function collectEnvironmentReads(
                 file: file.path,
                 line,
                 consumer: file.consumer,
+                module: file.module,
                 shape: 'computed',
               });
             }
@@ -666,7 +940,38 @@ export function evaluateDeclarationArray(
     true,
     scriptKindOf(fileName),
   );
+  const literal = literalReader(source, fileName);
 
+  for (const statement of source.statements) {
+    if (!ts.isVariableStatement(statement)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name)) continue;
+      if (declaration.name.text !== exportName) continue;
+      if (declaration.initializer === undefined) {
+        throw new DeclarationUnreadableError(`${fileName}: \`${exportName}\` has no value`);
+      }
+      const value = literal(declaration.initializer);
+      if (!Array.isArray(value)) {
+        throw new DeclarationUnreadableError(`${fileName}: \`${exportName}\` is not an array`);
+      }
+      return value;
+    }
+  }
+  throw new DeclarationUnreadableError(
+    `${fileName}: no \`${exportName}\` declaration — the file is not a declaration this ` +
+      'run can read, and a run that could not read its input has said nothing about the tree',
+  );
+}
+
+/**
+ * The literal evaluator, shared by the two declaration readers above and below.
+ *
+ * One function rather than two copies: a module's `env` entries and the
+ * platform's are the same data in two files, and two evaluators that drifted
+ * would accept a declaration in one place and refuse it in the other for
+ * reasons neither author could see.
+ */
+function literalReader(source: ts.SourceFile, fileName: string): (node: ts.Node) => unknown {
   const literal = (node: ts.Node): unknown => {
     const unwrapped =
       ts.isAsExpression(node) || ts.isSatisfiesExpression(node) || ts.isParenthesizedExpression(node)
@@ -708,24 +1013,153 @@ export function evaluateDeclarationArray(
         'declaration may hold only strings, booleans, numbers, arrays and objects',
     );
   };
+  return literal;
+}
 
-  for (const statement of source.statements) {
-    if (!ts.isVariableStatement(statement)) continue;
-    for (const declaration of statement.declarationList.declarations) {
-      if (!ts.isIdentifier(declaration.name)) continue;
-      if (declaration.name.text !== exportName) continue;
-      if (declaration.initializer === undefined) {
-        throw new DeclarationUnreadableError(`${fileName}: \`${exportName}\` has no value`);
-      }
-      const value = literal(declaration.initializer);
-      if (!Array.isArray(value)) {
-        throw new DeclarationUnreadableError(`${fileName}: \`${exportName}\` is not an array`);
-      }
-      return value;
-    }
-  }
-  throw new DeclarationUnreadableError(
-    `${fileName}: no \`${exportName}\` declaration — the file is not a declaration this ` +
-      'run can read, and a run that could not read its input has said nothing about the tree',
+/** The helper every module's manifest is defined through. */
+const MANIFEST_FACTORY = 'defineModuleManifest';
+
+/**
+ * A module's `env` declaration, read out of its `manifest.ts` **source text**.
+ *
+ * ## Why text and not the built manifest
+ *
+ * The same reason {@link evaluateDeclarationArray} gives, with more force: a
+ * module package resolves through its own `exports` map at its build output
+ * (D-164), so a reader that imported one would answer about the previous build.
+ * That is the `stale-artefact` class `check:action-route-permissions` had to
+ * grow a refusal for after three measured false greens — an `env` entry edited
+ * and not rebuilt would be judged as though it were not there, which for *this*
+ * check is a false green in the direction that matters: a declaration the author
+ * just wrote, reported as missing, or one they just deleted, reported as
+ * present. Reading the text removes the question instead of guarding it, and the
+ * run needs no build at all.
+ *
+ * ## What it reads, and what it refuses
+ *
+ * Only the `env` property of the object literal handed to `defineModuleManifest`,
+ * and only as data. Everything else in the file is ignored, which is not a
+ * convenience: `cms`' manifest reads `process.env['CMS_PB_BREAKPOINT_TABLET_MIN']`
+ * in its own settings defaults, so a manifest is **not** a literal file and a
+ * reader that demanded one would refuse the very module whose declaration this
+ * feature exists to collect.
+ *
+ * `null` is "this module declares no environment input", which is true of most
+ * modules and is not a finding. A manifest with **no** `defineModuleManifest`
+ * call is a {@link DeclarationUnreadableError}: a module whose manifest this run
+ * cannot find is one it cannot report on, and reading that as "declares nothing"
+ * is the silent skip the estate is against (issue #113).
+ */
+export function evaluateManifestEnvDeclaration(
+  text: string,
+  fileName: string,
+): readonly unknown[] | null {
+  const source = ts.createSourceFile(
+    fileName,
+    text,
+    ts.ScriptTarget.Latest,
+    true,
+    scriptKindOf(fileName),
   );
+  const literal = literalReader(source, fileName);
+
+  let argument: ts.ObjectLiteralExpression | null = null;
+  let sawFactory = false;
+  const visit = (node: ts.Node): void => {
+    if (
+      argument === null &&
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === MANIFEST_FACTORY
+    ) {
+      sawFactory = true;
+      const first = node.arguments[0];
+      if (first !== undefined && ts.isObjectLiteralExpression(first)) argument = first;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+
+  if (argument === null) {
+    throw new DeclarationUnreadableError(
+      sawFactory
+        ? `${fileName}: \`${MANIFEST_FACTORY}\` is called with something other than an object ` +
+          'literal, so this run cannot see what the module declares'
+        : `${fileName}: no \`${MANIFEST_FACTORY}\` call — a module manifest this run cannot ` +
+          'read is one it cannot report on, and "declares nothing" is not the same answer',
+    );
+  }
+
+  for (const property of (argument as ts.ObjectLiteralExpression).properties) {
+    if (!ts.isPropertyAssignment(property)) continue;
+    const key = ts.isIdentifier(property.name)
+      ? property.name.text
+      : ts.isStringLiteral(property.name)
+        ? property.name.text
+        : null;
+    if (key !== 'env') continue;
+    const value = literal(property.initializer);
+    if (!Array.isArray(value)) {
+      throw new DeclarationUnreadableError(`${fileName}: \`env\` is not an array`);
+    }
+    return value;
+  }
+  return null;
+}
+
+/**
+ * The Settings-debt ledger, read off disk one shard per module
+ * (`contracts/environment-inputs.md` §4.2).
+ *
+ * Sharded because the debt is the module's: a repair that moves
+ * `INVENTORY_LOW_STOCK_RECIPIENT` into Settings touches `inventory`'s manifest
+ * and `inventory`'s shard, and nothing else. It is `check:module-boundary`'s
+ * shape, one population over.
+ *
+ * Throws rather than returning a partial answer, and every throw is a caller's
+ * exit 2: a ledger this run could not read in full is one it must not report
+ * on, because the missing half reads as *"nobody has judged this"* for one
+ * direction and as *"this entry describes nothing"* for the other — two
+ * confident findings out of one silence.
+ */
+export async function loadModuleVerdictShards(directory: string): Promise<ModuleVerdictShard[]> {
+  if (!existsSync(directory)) {
+    throw new DeclarationUnreadableError(
+      `${directory} is not there — the Settings-debt ledger is what says why a module-owned ` +
+        'environment input is not a Setting, and a run that could not read it would report ' +
+        'every module declaration as unjudged',
+    );
+  }
+  const shards: ModuleVerdictShard[] = [];
+  for (const name of readdirSync(directory).sort()) {
+    if (!name.endsWith('.ts')) continue;
+    const moduleId = name.replace(/\.ts$/, '');
+    let loaded: unknown;
+    try {
+      loaded = (await import(pathToFileURL(join(directory, name)).href)) as unknown;
+    } catch (error: unknown) {
+      throw new DeclarationUnreadableError(
+        `ledger shard '${moduleId}' failed to load: ${String(error)}`,
+      );
+    }
+    const entries = (loaded as { entries?: unknown }).entries;
+    if (typeof entries !== 'object' || entries === null) {
+      throw new DeclarationUnreadableError(
+        `ledger shard '${moduleId}' exports no \`entries\` record`,
+      );
+    }
+    if (Object.keys(entries as object).length === 0) {
+      // An empty shard is a done signal that says nothing: it satisfies every
+      // presence test while judging no input, and it is the file left behind
+      // when a module's last entry drains. Delete the file instead.
+      throw new DeclarationUnreadableError(
+        `ledger shard '${moduleId}' declares no entry — delete the file instead`,
+      );
+    }
+    shards.push({
+      moduleId,
+      entries: entries as Readonly<Record<string, ModuleEnvironmentVerdict>>,
+    });
+  }
+  return shards;
 }

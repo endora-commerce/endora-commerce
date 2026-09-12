@@ -2449,7 +2449,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 5622,
+    // **`specs/117-instance-bring-up/` Phase 3 (T3-B/T3-C).** One file: `test/unit/contracts/module-env-manifest.test.ts`. Its population excludes `backend/scripts`, so the ledger shards do not reach it.
+    files: 5623,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2984,7 +2985,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // because the census reads the tree and not the diff, and an entry left stale is one the
     // next author meets with nothing wrong in their own change.
 
-    files: 1318,
+    // **`specs/117-instance-bring-up/` Phase 3 (T3-B/T3-C).** **Not this branch's**: `origin/master` already measured 1319 in a pristine worktree in the `quality` shape, so the recorded 1318 described no tree of this week. Re-recorded here because the census named it and a number nobody re-derives is the thing the census exists to surface.
+    files: 1319,
     sites: 13,
     sources: [],
     //
@@ -4125,14 +4127,29 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
 
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 649 -> 650 (+1).**
     // The one platform source the feature adds. It reads no environment value.
-    files: 650,
-    sites: 68,
+    // **`specs/117-instance-bring-up/` Phase 3 (T3-B): files 650 -> 2860, sites 68 -> 139.**
+    // Not drift and not a widened band — a **population change**, stated as one.
+    // The check's subject was the three trees a running Endora is made of; it is
+    // now those three **and the module tree**, because a module declares its own
+    // environment inputs in its `manifest.ts` and a module package ships no
+    // `.env.example`. The module walk adds 2210 files (2237 module sources minus
+    // the 27 of `_lifecycle`, whose sources are the platform's and which the
+    // backend tree's walk already opened — one file is opened once, or `files=`
+    // describes no tree) and 71 read sites, which is the whole of what this
+    // phase makes visible: 28 distinct variables in 30 of the 74 packages.
+    files: 2860,
+    sites: 139,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
     // anything a declaration does. A consumer counts as covered only when it
     // both declares an input and contributed a read, so losing either half is
     // a short walk rather than a quiet one.
-    sources: ['declared-consumers'],
+    //
+    // `manifest-index` is the module half's author, and it cannot be folded
+    // into the first: the backend tree alone satisfies `declared-consumers`,
+    // and satisfies it just as well on a run where the module tree contributed
+    // nothing at all.
+    sources: ['declared-consumers', 'manifest-index'],
   },
   'backend/scripts/check-error-translations.ts': {
     prefix: '[error-translations]',
@@ -4380,7 +4397,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 1625 -> 1626, sites 587 -> 588.**
     // `backend/test/helpers/channel-bridges.ts`, and the one read it performs. It defaults nothing:
     // the descriptors come from the owning modules and an absent one is a resolution failure.
-    files: 1626,
+    files: 1627,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -4439,7 +4456,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // violation.moduleId === 'transactional_emails')`, matched by the read recogniser on any
     // receiver. Measured, that spelling's count in the file goes 1 -> 0 and `files` does not
     // move.
-    sites: 587,
+    // **`specs/117-instance-bring-up/` Phase 3 (T3-B/T3-C).** One file and one site: `test/unit/contracts/module-env-manifest.test.ts`.
+    sites: 588,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -4617,7 +4635,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // sides' deltas.
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 1625 -> 1626.**
     // `backend/test/helpers/channel-bridges.ts`. It releases no harness resource.
-    files: 1626,
+    // **`specs/117-instance-bring-up/` Phase 3 (T3-B/T3-C).** One file: `test/unit/contracts/module-env-manifest.test.ts`, which its `backend/test/**` walk opens.
+    files: 1627,
     sites: null,
     sources: [],
   },
@@ -5039,7 +5058,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `migration-foreign-writes/`), which FR-020 removes with the statements they recorded. A
     // ledger shard is exactly this check's population — one of the artefacts whose job is to
     // carry a reason — so both count and the changeset does not.
-    files: 310,
+    // **`specs/117-instance-bring-up/` Phase 3 (T3-B/T3-C).** The ten shards of the Settings-debt ledger, at `backend/scripts/ledgers/module-environment-inputs/`. This check's population is the artefacts whose job is to carry a reason, ledger shards among them, so a new ledger raises it by exactly its shard count and by nothing else.
+    files: 320,
     // **2026-09-04: 14 -> 15.** One further named-subject lock claim.
     // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge` retired):**
     // sites 15 -> 17, files unchanged. `pwa`'s manifest gains `orders` in its
@@ -5939,7 +5959,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    sites: 35207,
+    // **`specs/117-instance-bring-up/` Phase 3 (T3-B/T3-C).** The 22 module-owned environment declarations. Each carries an English and a Polish sentence, and several carry a second pair under `optional.without`; every one of those literals is classified and every one is **exempt**, because the enclosing property key is a shipped language. `files` does not move: the declarations went into manifests the walk already opened, which is the #235/#237 shape and the reason both numbers are recorded.
+    sites: 35402,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -7504,7 +7525,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // adds `.changeset/tidy-seals-refresh.md`, and this walk is the whole repository minus
     // `SKIPPED_DIRECTORIES` and the binary deny-list — `.changeset` is in neither, and `.md` is
     // not a binary extension, so the file counts.
-    files: 8139,
+    // **`specs/117-instance-bring-up/` Phase 3 (T3-B/T3-C).** **+16, of which 15 are this branch's and 1 was already standing on `origin/master`** — measured in a pristine worktree in the same `quality` shape, which reported 8140 against the 8139 recorded. This branch adds the ten ledger shards, the ledger's `README.md`, one test file and three changesets; this check walks the whole repository, so it is the one entry that sees every one of them.
+    files: 8155,
     sites: null,
     sources: [],
     //
@@ -8559,7 +8581,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/120-migration-closure-bridge-ownership/` Phase 5.** **-2:** the two deleted
     // `transactional_emails` DML ledger shards (`migration-undeclared-references/` and
     // `migration-foreign-writes/`), which FR-020 removes with the statements they recorded.
-    files: 2496,
+    // **`specs/117-instance-bring-up/` Phase 3 (T3-B/T3-C).** The ten ledger shards, which its application-half walk opens like any other source under `backend/`.
+    files: 2506,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -9245,7 +9268,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // sides' deltas.
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 1625 -> 1626.**
     // `backend/test/helpers/channel-bridges.ts`. It touches no table.
-    files: 1626,
+    // **`specs/117-instance-bring-up/` Phase 3 (T3-B/T3-C).** One file: `test/unit/contracts/module-env-manifest.test.ts`.
+    files: 1627,
     sites: 163,
     sources: [],
   },
@@ -9797,7 +9821,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the combined tree, never summed from the two sides' deltas.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 1755,
+    files: 1756,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -10569,7 +10593,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/120-migration-closure-bridge-ownership/` Phase 5.** **-2:** the two deleted
     // `transactional_emails` DML ledger shards (`migration-undeclared-references/` and
     // `migration-foreign-writes/`), which FR-020 removes with the statements they recorded.
-    files: 4640,
+    // **`specs/117-instance-bring-up/` Phase 3 (T3-B/T3-C).** Eleven files: the ten ledger shards and the one test file.
+    files: 4651,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -11456,7 +11481,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // removes with the statements they recorded. Against them this merge request adds
     // `.changeset/tidy-seals-refresh.md`, and this walk is `git ls-files --cached`, which lists
     // it once committed — measured, tracked files 8201 -> 8200 across the same commits.
-    files: 8199,
+    // **`specs/117-instance-bring-up/` Phase 3 (T3-B/T3-C).** **+16, of which 15 are this branch's and 1 was already standing on `origin/master`** (8200 measured on a pristine worktree in the same shape). It reads the git **index**, so a staged addition counts and a modified file does not.
+    files: 8215,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -12011,7 +12037,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `migration-foreign-writes/`), which FR-020 removes with the statements they recorded. The
     // changeset this merge request adds does not offset them here: this walk is source files by
     // extension plus `docs/docs/**`, and `.changeset/*.md` is neither.
-    files: 6266,
+    // **`specs/117-instance-bring-up/` Phase 3 (T3-B/T3-C).** Eleven files: the ten ledger shards and the one test file. Its population is source-code comments, so the ledger's `README.md` is not among them — that walk is `docs/docs/**`.
+    files: 6277,
     sites: null,
     sources: ['manifest-index'],
     //

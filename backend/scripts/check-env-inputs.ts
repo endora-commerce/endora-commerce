@@ -24,11 +24,29 @@
  * on. The boundary is *what a served instance reads*, so a file that only a
  * test process ever loads is not in it.
  *
- * **Module packages are out too, and this run says so on its own line** rather
- * than passing over them. Their inputs are declared in `manifest.ts` and that
- * lands with this feature's Phase 3; until then, 28 module-owned variables are
- * judged by nothing, and a check that knew that and printed nothing would be
- * the silent skip the whole estate is against.
+ * **Module packages are in, since Phase 3** (T3-B). Each one contributes its own
+ * sources to the tree it runs in — a module's `src/admin/` and `src/admin-ui/`
+ * are browser code and belong to the admin tree, everything else to the
+ * backend's — and its own `env` declaration out of its `manifest.ts`. Until then
+ * this run printed a `not judged: 74 module packages` line rather than passing
+ * over them in silence; that line is gone because the walk answers for them.
+ *
+ * ## A module declares only what it owns, and a sibling's declaration is not its
+ *
+ * A read resolves against the platform's declaration, the application tree's,
+ * and the **reading module's own** — never another module's
+ * (`contracts/environment-inputs.md` §R2.2). That last clause is the one worth
+ * stating: `MEILISEARCH_URL` is read by `search` and, independently, by
+ * `health_checks`' liveness probe, which declares no dependency on `search` and
+ * should not. If one module's declaration covered the other's read, a client who
+ * installed `health_checks` alone would be short a variable this check had
+ * reported green — and would meet it as a probe that says the platform is
+ * degraded.
+ *
+ * The mirror of that rule is `module-declares-a-platform-input`: 7 of the 28
+ * variables the module tree reads are the platform's, read by thirty modules
+ * between them, and a module that declares what it *reads* rather than what it
+ * *owns* puts one fact in thirty manifests (D-100).
  *
  * ## Why the declarations are read as text
  *
@@ -40,7 +58,7 @@
  * instead, so nothing about it is unproven.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
-import { readdirSync, readFileSync, type Dirent } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, type Dirent } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -55,6 +73,8 @@ import {
   collectEnvironmentReads,
   DeclarationUnreadableError,
   evaluateDeclarationArray,
+  evaluateManifestEnvDeclaration,
+  loadModuleVerdictShards,
   PREFIX,
   REMEDIES,
   type DeclarationSource,
@@ -65,8 +85,10 @@ import {
   nodeWorkspaceFs,
   workspaceMembers,
 } from '@endora-commerce/cli/lib/workspace-packages.js';
+import { UI_LAYER_DIRECTORIES } from '@endora-commerce/cli/lib/ui-layer.js';
 
-import { adminHostRootsOf } from './lib/admin-surfaces.js';
+import { adminHostRootsOf, AdminLayoutUnresolvableError } from './lib/admin-surfaces.js';
+import { refuseVacuousModulePopulation } from './lib/module-population.js';
 import { requireModuleLayout } from './lib/module-roots.js';
 import { reportReadSize } from './lib/read-size.js';
 
@@ -144,6 +166,17 @@ const SKIPPED_DIRECTORIES = new Set([
 const SOURCE_FILE = /\.(tsx?|mtsx?|mjs|js)$/;
 
 /**
+ * The Settings-debt ledger's shards, one per module (FR-004).
+ *
+ * Exported so the companion test names the same directory this run reads; a
+ * second spelling is a second answer to where the ledger is.
+ */
+export const SETTINGS_LEDGER_ROOT = new URL(
+  './ledgers/module-environment-inputs/',
+  import.meta.url,
+).pathname;
+
+/**
  * A file only a test or a build tool ever loads.
  *
  * Deliberately narrow, and it was measured wrong in the other direction first:
@@ -179,6 +212,30 @@ function walkFiles(directory: string, recurse: boolean, out: string[]): string[]
 const keyOf = (repoRoot: string, path: string): string =>
   relative(repoRoot, path).split(sep).join('/');
 
+/**
+ * Which tree a module's own file belongs to.
+ *
+ * A module package's `src/admin/` and `src/admin-ui/` are browser code —
+ * `UI_LAYER_DIRECTORIES` is the one declaration of those names, already read by
+ * the manifest generator and by `check:action-route-permissions` — and browser
+ * code runs in the admin. Everything else a module ships runs in the backend.
+ *
+ * It is derived from that declaration rather than from the read's **dialect**,
+ * which was the other candidate and is a heuristic: `import.meta.env` happens to
+ * appear only in a module's UI layer today, and a rule keyed on it would be
+ * answering "which bundler" when the question is "which tree an operator
+ * configures". Zero module reads are the admin's on this tree, so the two agree
+ * today and only one of them would keep agreeing.
+ */
+function moduleFileConsumer(moduleDirectory: string, path: string): EnvironmentConsumer {
+  const relativePath = relative(moduleDirectory, path).split(sep).join('/');
+  return UI_LAYER_DIRECTORIES.some(
+    (layer) => relativePath === `src/${layer}` || relativePath.startsWith(`src/${layer}/`),
+  )
+    ? 'admin'
+    : 'backend';
+}
+
 /** Exit 2 — the run could not see what it judges, which is not a verdict. */
 function refuse(message: string): never {
   console.error(`${PREFIX} ${message}; refusing to report a vacuous pass`);
@@ -197,9 +254,24 @@ async function main(): Promise<void> {
   // so the three cannot come to disagree about which directories are the
   // admin's; its own refusals (no shell, two) reach this check as a throw and
   // are the honest verdict here too.
-  const adminHostRoots = [...adminHostRootsOf(workspace)];
+  let adminHostRoots: string[];
+  try {
+    adminHostRoots = [...adminHostRootsOf(workspace)];
+  } catch (error: unknown) {
+    // Refusal nine. The derivation's own refusals — no shell, or two — are the
+    // honest verdict here as well, but only if they arrive as **exit 2**. Left
+    // uncaught the throw exits **1** with a stack trace, which is this check
+    // saying "the tree is in violation" about a population it could not locate:
+    // issue #113's shape with the sign flipped, and the one state in which a
+    // reader would go looking at the tree rather than at the run. Measured over
+    // `moved-module-tree.test.ts`' fixture, which holds no admin shell.
+    if (error instanceof AdminLayoutUnresolvableError) refuse(error.message);
+    throw error;
+  }
 
   const files: EnvSourceFile[] = [];
+  /** Repository-relative key → the absolute path it was read from. */
+  const absoluteOf = new Map<string, string>();
   const declarations: DeclarationSource[] = [];
 
   for (const tree of TREES) {
@@ -248,8 +320,14 @@ async function main(): Promise<void> {
       // pull in the trees the other entries name explicitly.
       const recurse = root !== memberDir;
       for (const path of walkFiles(root, recurse, [])) {
+        const key = keyOf(repoRoot, path);
+        // `_lifecycle`'s sources are the platform's, so the backend tree's walk
+        // and the module walk below both reach them. One file is opened once, or
+        // its reads are counted twice and `files=` describes no tree.
+        if (absoluteOf.has(key)) continue;
+        absoluteOf.set(key, path);
         files.push({
-          path: keyOf(repoRoot, path),
+          path: key,
           text: readFileSync(path, 'utf8'),
           consumer: tree.consumer,
         });
@@ -323,6 +401,110 @@ async function main(): Promise<void> {
     });
   }
 
+  // --- The module tree (Phase 3, T3-B). Every registered module contributes its
+  // own sources and its own `env` declaration, on the same terms a core module,
+  // an overlay module and an installed package all declare on.
+  const moduleFileAbsolutePaths: string[] = [];
+  const moduleOfKey = new Map<string, string>();
+  for (const [moduleId, directory] of layout.moduleDirectories) {
+    for (const path of walkFiles(directory, true, [])) {
+      const key = keyOf(repoRoot, path);
+      moduleFileAbsolutePaths.push(path);
+      moduleOfKey.set(key, moduleId);
+      if (absoluteOf.has(key)) continue;
+      absoluteOf.set(key, path);
+      files.push({
+        path: key,
+        text: readFileSync(path, 'utf8'),
+        consumer: moduleFileConsumer(directory, path),
+        module: moduleId,
+      });
+    }
+  }
+  // A file both walks reached — `_lifecycle`'s, whose sources are the platform's
+  // — is the tree's for its consumer and the module's for its attribution. It is
+  // rewritten rather than re-pushed, so it is opened once and judged once.
+  for (const [index, file] of files.entries()) {
+    if (file.module !== undefined) continue;
+    const moduleId = moduleOfKey.get(file.path);
+    if (moduleId === undefined) continue;
+    files[index] = { ...file, module: moduleId };
+  }
+
+  // Refusal six — issue #215's shared floor over this population, and it matters
+  // more here than in most checks: the three trees keep `files=` looking healthy
+  // while the module half goes to zero, and with no module read at all every
+  // module declaration reads as `unread-input` and no module read is undeclared.
+  // A report entirely about the walk, wearing a report about the tree.
+  const modulePopulation = await refuseVacuousModulePopulation({
+    prefix: PREFIX,
+    manifestIndexPath: layout.manifestIndexPath,
+    files: moduleFileAbsolutePaths,
+    moduleIdOf: layout.moduleIdOfPath,
+  });
+
+  for (const [moduleId, directory] of layout.moduleDirectories) {
+    // A module package keeps its manifest at `src/manifest.ts`; a module whose
+    // sources the host owns keeps it beside them. Both are probed, and neither
+    // is written down as a convention a module has to follow: a module with no
+    // manifest at either is refusal seven rather than a module that declares
+    // nothing.
+    const candidates = [join(directory, 'src', 'manifest.ts'), join(directory, 'manifest.ts')];
+    const manifestPath = candidates.find((candidate) => existsSync(candidate));
+    if (manifestPath === undefined) {
+      refuse(
+        `the registered module \`${moduleId}\` has no \`manifest.ts\` under ` +
+          `${keyOf(repoRoot, directory)} — a module whose declaration this run cannot find is ` +
+          'one it cannot report on, and "declares nothing" is not the same answer',
+      );
+    }
+
+    let raw: readonly unknown[] | null;
+    try {
+      raw = evaluateManifestEnvDeclaration(
+        readFileSync(manifestPath, 'utf8'),
+        keyOf(repoRoot, manifestPath),
+      );
+    } catch (error: unknown) {
+      if (error instanceof DeclarationUnreadableError) refuse(error.message);
+      throw error;
+    }
+    if (raw === null || raw.length === 0) continue;
+
+    const inputs: EnvironmentInput[] = [];
+    for (const entry of raw) {
+      const parsed = EnvironmentInputSchema.safeParse(entry);
+      if (!parsed.success) {
+        // Refusal eight, and the same reasoning as refusal four: a declaration
+        // this run cannot read in full is one it must not report on.
+        refuse(
+          `${keyOf(repoRoot, manifestPath)} holds an \`env\` entry this run cannot read as an ` +
+            `environment input — ${parsed.error.issues
+              .map((issue) => `${issue.path.join('.')}: ${issue.message}`)
+              .join('; ')}`,
+        );
+      }
+      inputs.push(parsed.data);
+    }
+    declarations.push({
+      author: { kind: 'module', moduleId },
+      file: keyOf(repoRoot, manifestPath),
+      inputs,
+    });
+  }
+
+  // The Settings-debt ledger (FR-004, `contracts/environment-inputs.md` §4).
+  // Refusal ten: a directory that is not there would make every module-owned
+  // declaration read as unjudged and every entry as describing nothing — two
+  // confident findings out of one silence.
+  let settingsVerdicts;
+  try {
+    settingsVerdicts = await loadModuleVerdictShards(SETTINGS_LEDGER_ROOT);
+  } catch (error: unknown) {
+    if (error instanceof DeclarationUnreadableError) refuse(error.message);
+    throw error;
+  }
+
   const reads = collectEnvironmentReads(files);
   if (reads.length === 0) {
     // Refusal five, and the one a careless implementation omits: #237's shape,
@@ -332,29 +514,26 @@ async function main(): Promise<void> {
     refuse('the walk classified no environment read at all across the three trees');
   }
 
-  const result = checkEnvironmentInputs({ declarations, reads });
+  const result = checkEnvironmentInputs({ declarations, reads, settingsVerdicts });
 
   if (listMode) {
     for (const declaration of declarations) {
+      const author =
+        declaration.author.kind === 'module'
+          ? declaration.author.moduleId
+          : declaration.author.kind === 'application'
+            ? declaration.author.application
+            : 'platform';
       for (const entry of declaration.inputs) {
         console.log(
           `${entry.requirement.kind.padEnd(13)} ${entry.secret ? 'secret ' : '       '}` +
             `${entry.generable ? 'generable ' : '          '}${entry.name.padEnd(32)} ` +
-            `[${entry.consumers.join(',')}]`,
+            `[${entry.consumers.join(',')}] ${author}`,
         );
       }
     }
     console.log('');
   }
-
-  // What this run did **not** judge, printed rather than waived. The count is
-  // the generated manifest index's, so it moves with the tree and is written
-  // down nowhere (D-100).
-  console.log(
-    `${PREFIX} not judged: ${layout.registeredIds.length} module packages — a module's ` +
-      'environment inputs are declared in its `manifest.ts`, which lands with ' +
-      '`specs/117-instance-bring-up/` Phase 3',
-  );
 
   reportReadSize({
     prefix: PREFIX,
@@ -372,11 +551,18 @@ async function main(): Promise<void> {
         expected: ENVIRONMENT_CONSUMERS.length,
         covered: result.consumersCovered.length,
       },
+      // The module half's independent author is the generated manifest index,
+      // which neither this walk nor any declaration moves. It cannot be replaced
+      // by the consumer token above: the backend tree alone satisfies that one,
+      // and it is satisfied just as well by a run in which the module tree
+      // contributed nothing at all.
+      modulePopulation,
     ],
   });
   console.log(
-    `${PREFIX} declared=${result.declared} reads=${reads.length} ` +
-      `findings=${result.findings.length}`,
+    `${PREFIX} declared=${result.declared} (modules=${result.declaredByModules} in ` +
+      `${result.modulesDeclaring.length} of ${layout.registeredIds.length} packages) ` +
+      `reads=${reads.length} findings=${result.findings.length}`,
   );
 
   if (result.findings.length === 0) process.exit(0);
