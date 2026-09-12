@@ -597,12 +597,23 @@ describe('the settings → credentials seam, which is the batch’s one repair',
     // reach into the owner's `src/` would evaluate a second copy of the module
     // beside the one the platform composed; a reach at `./admin` would be into
     // a contribution *descriptor* the owner publishes for the registry alone.
+    //
+    // **The subpath is the claim and the import's shape is not**, which this
+    // case used to conflate: it asserted the static spelling, and
+    // `specs/110-instance-repository/` T138 made the reach a dynamic import for
+    // a reason that has nothing to do with D-191. `credentials` is an optional
+    // peer, so a client's instance that did not install it has no such package,
+    // and Vite binds an unresolved optional peer to a stub whose every named
+    // export is missing — measured, a static named import there failed the
+    // whole admin bundle. What must not change is where the symbol comes from,
+    // so that is what is asserted, in both halves.
     const source = codeOf(
       '../packages/modules/settings/src/admin/components/ConfigurationReferenceInput.tsx',
     );
-    expect(source).toContain(
-      "import { ConfigurationPreviewModal } from '@endora-commerce/mod-credentials/admin-ui';",
-    );
+    expect(source).toContain("'@endora-commerce/mod-credentials/admin-ui'");
+    expect(source).toContain('ConfigurationPreviewModal');
+    expect(source).not.toContain('mod-credentials/src');
+    expect(source).not.toContain("'@endora-commerce/mod-credentials/admin'");
   });
 
   it('is a real npm peer of the consuming package, not a devDependency alone', () => {
