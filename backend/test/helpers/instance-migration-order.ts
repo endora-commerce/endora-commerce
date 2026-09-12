@@ -43,6 +43,7 @@ import { configuredMigrationsFrom } from '../../src/db/configured-migrations.js'
 import { BASELINE_THROUGH, type MigrationRegistryEntry } from '@endora-commerce/platform/db';
 import type { PackageSchemaContribution } from '../../src/packages/package-runtime.js';
 import { resolveModuleLayout } from '../../scripts/lib/module-roots.js';
+import { closureOf, type DeclaredDependencies } from '../../scripts/lib/manifest-dependencies.js';
 import { coreMigrationDirs } from './fk-graph.js';
 import { sqlTableAccesses } from '../../scripts/lib/sql-tables.js';
 
@@ -200,26 +201,113 @@ export function compareOrders(
   };
 }
 
-/** One migration's source, as G3 reads it. */
+/** One migration's source, as G3 and G4 read it. */
 export interface MigrationSource {
   readonly name: string;
   readonly moduleId: string;
   readonly file: string;
   /** Tables it creates — `create table "<t>"`. */
   readonly creates: readonly string[];
-  /** Tables it names — `sqlTableAccesses` plus the `on "<t>"` sweep. */
+  /**
+   * Tables it names — `sqlTableAccesses` plus the `on "<t>"` sweep. **G3's**,
+   * and deliberately narrower than {@link MigrationSource.namedTables}: G3's
+   * bound is declared in {@link forwardReferences}' own header and widening it
+   * would change an assertion this feature does not own (T1-B).
+   */
   readonly references: readonly string[];
+  /**
+   * Every table the migration names, in the four shapes the union recogniser
+   * reads — **G4's** (FR-003).
+   *
+   * The `create table` arm is deliberately not one of them: see
+   * {@link migrationSourceOf}. A table this migration *only* creates is
+   * therefore absent here; one it creates and then indexes is present, through
+   * the `on "<t>"` arm. Neither case can be a finding, the creator set holding
+   * the migration's own module either way.
+   *
+   * `references` above sees six of G4's fourteen sites, and that shortfall is
+   * the reason D-226 undercounted itself: neither `sqlTableAccesses`, which
+   * reads DML and knex builders, nor {@link ON_TABLE} matches `references "<t>"`
+   * or `alter table "<t>"`. So `orders → api_keys` and
+   * `organizations → warehouses`, both named in the ruling's own list, were
+   * invisible to the derivation the ruling prescribed.
+   */
+  readonly namedTables: readonly string[];
 }
 
 const CLASS_DECLARATION = /export class (Migration\w+)/;
 const CREATE_TABLE = /create table (?:if not exists )?"([a-z0-9_]+)"/gi;
 /**
- * `create index … on "<t>"`, `alter table … ` — the second recogniser, and the
- * one that finds the reference this feature was opened by. `sqlTableAccesses`
- * reads statements and knex builders; a DDL statement is neither, so an index
- * created on another module's table names no table it can see.
+ * `create index … on "<t>"` — the second recogniser, and the one that finds the
+ * reference this feature was opened by. `sqlTableAccesses` reads statements and
+ * knex builders; a DDL statement is neither, so an index created on another
+ * module's table names no table it can see.
+ *
+ * **It finds `on "<t>"` and nothing else.** This comment named `alter table …`
+ * among the shapes it matches until feature 120, and the regex has never matched
+ * one: a recogniser whose comment overstates its own coverage, in the file
+ * D-226 sent its implementer to. {@link ALTER_TABLE} is where that shape is
+ * read, and only G4 reads it.
  */
 const ON_TABLE = /\bon "([a-z0-9_]+)"/gi;
+/** `alter table "<t>"`, `alter table if exists "<t>"` — G4's, never G3's. */
+const ALTER_TABLE = /\balter table (?:if exists )?"([a-z0-9_]+)"/gi;
+/**
+ * `references "<t>"` — a foreign key's target, which is a reference in the
+ * strongest sense: the statement does not apply unless the table is there.
+ *
+ * Five of the nine sales-channel bridges name their far side only this way,
+ * inside the `create table` that declares the constraint.
+ */
+const REFERENCES = /\breferences "([a-z0-9_]+)"/gi;
+
+/**
+ * One migration file's text, classified — the **top** of both source analyses.
+ *
+ * It is a function over text rather than a step inside the walk so that a red
+ * proof enters where the real run enters (issue #130). A fixture that hands this
+ * function `references "pages_documents"` and asserts that G4 sees the table
+ * while G3 does not is a proof about the recognisers; a fixture that hands a
+ * hand-written {@link MigrationSource} asserts nothing about them at all.
+ *
+ * Answers `null` for a file that declares no migration class: a migrations
+ * directory also holds its barrel and, in one module, a shared mapping table.
+ * Neither is registered, and a file that declares none is not one.
+ */
+export function migrationSourceOf(input: {
+  readonly moduleId: string;
+  readonly file: string;
+  readonly text: string;
+}): MigrationSource | null {
+  const declaration = CLASS_DECLARATION.exec(input.text);
+  if (declaration === null) return null;
+  const creates = [...input.text.matchAll(CREATE_TABLE)].map((match) => match[1]!);
+  const references = new Set<string>(
+    [...input.text.matchAll(ON_TABLE)].map((match) => match[1]!),
+  );
+  for (const access of sqlTableAccesses(input.text, input.file)) references.add(access.table);
+  // The union (FR-003): G3's two arms — `on "<t>"` and `sqlTableAccesses` —
+  // plus the two DDL shapes neither of them matches.
+  //
+  // A migration's **own** `create table` is deliberately not folded in. It can
+  // never produce a finding, because the creator set then holds the migration's
+  // own module, and folding it in would make `creates` a subset of this set —
+  // whereupon "the recogniser classified no reference at all" could never be
+  // true while "no creator resolved anywhere" was false, and one of the two
+  // refusals below would be unreachable. Two refusals that cannot be told apart
+  // are one refusal with a second sentence.
+  const namedTables = new Set<string>(references);
+  for (const match of input.text.matchAll(ALTER_TABLE)) namedTables.add(match[1]!);
+  for (const match of input.text.matchAll(REFERENCES)) namedTables.add(match[1]!);
+  return {
+    name: declaration[1]!,
+    moduleId: input.moduleId,
+    file: input.file,
+    creates,
+    references: [...references].sort(),
+    namedTables: [...namedTables].sort(),
+  };
+}
 
 /**
  * Every migration source in the checkout, keyed by the class name the registry
@@ -249,22 +337,12 @@ export async function readMigrationSources(): Promise<readonly MigrationSource[]
     for (const name of readdirSync(directory)) {
       if (!name.endsWith('.ts')) continue;
       const file = join(directory, name);
-      const source = readFileSync(file, 'utf8');
-      const declaration = CLASS_DECLARATION.exec(source);
-      // A migrations directory also holds its barrel and, in one module, a
-      // shared mapping table. Neither declares a migration class, and neither
-      // is registered; a file that declares none is not one.
-      if (declaration === null) continue;
-      const creates = [...source.matchAll(CREATE_TABLE)].map((match) => match[1]!);
-      const references = new Set<string>([...source.matchAll(ON_TABLE)].map((match) => match[1]!));
-      for (const access of sqlTableAccesses(source, file)) references.add(access.table);
-      found.push({
-        name: declaration[1]!,
+      const source = migrationSourceOf({
         moduleId,
         file,
-        creates,
-        references: [...references].sort(),
+        text: readFileSync(file, 'utf8'),
       });
+      if (source !== null) found.push(source);
     }
   }
   return found;
@@ -335,6 +413,218 @@ export function forwardReferences(
         creatorAt,
       });
     }
+  }
+  return found;
+}
+
+/** One table a migration names that its own module's closure does not guarantee. */
+export interface ClosureViolation {
+  readonly migration: string;
+  /** The module whose migration names the table. */
+  readonly moduleId: string;
+  readonly table: string;
+  /** Every module whose migrations create it, sorted. */
+  readonly creatorModuleIds: readonly string[];
+  /**
+   * `closure(moduleId)` — the transitive manifest `dependencies` of the
+   * referencing module, which is what would have to hold one of the creators.
+   * `{self}` and `{core}` are the other two members of the permitted set and
+   * are not repeated here.
+   */
+  readonly closure: readonly string[];
+}
+
+/** {@link ClosureViolation}, as one line a reader can act on. */
+export function describeClosureViolation(violation: ClosureViolation): string {
+  return (
+    `${violation.moduleId}:${violation.migration} names ` +
+    `${violation.creatorModuleIds.join('|')}.${violation.table}`
+  );
+}
+
+/**
+ * **G4** — every table reference whose creator set is disjoint from
+ * `{self} ∪ closure(self) ∪ {core}` (D-226, FR-001).
+ *
+ * The rule is G3's question asked over a *subset*: G3 asks whether the order
+ * this repository composes creates a table before the migration that names it,
+ * and the answer is yes for every subset **only** when each reference is
+ * guaranteed by the referencing module's own manifest. An instance installs a
+ * subset, so a reference outside the closure is a migration run that stops with
+ * `relation "…" does not exist` on whichever client omitted the creator.
+ *
+ * Three deliberate silences.
+ *
+ * - A table **nobody** creates is not a finding. The corpus does not create
+ *   every table it names — a migration may drop or probe one an earlier regime
+ *   left behind — and calling that a closure violation would report the
+ *   absence of a creator as a dependency defect.
+ * - A table the referencing module itself creates is not a finding, and needs
+ *   no special case: the creator set holds `self`.
+ * - The **platform** is always permitted. It is not in any manifest and cannot
+ *   be (D-52/D-53), and every instance receives its migrations.
+ *
+ * The closure is {@link closureOf}'s — `scripts/lib/manifest-dependencies.ts`,
+ * the same traversal the DDL half (`fk-dependency-drift`) and the DML half
+ * (`check:module-boundary`) already share. A third derivation here would be two
+ * answers waiting to disagree about one edge, which is the reason that helper
+ * was extracted in the first place.
+ */
+export function closureViolations(
+  sources: readonly MigrationSource[],
+  moduleDependencies: DeclaredDependencies,
+): readonly ClosureViolation[] {
+  const creatorsOf = new Map<string, Set<string>>();
+  for (const source of sources) {
+    for (const table of source.creates) {
+      const held = creatorsOf.get(table);
+      if (held) held.add(source.moduleId);
+      else creatorsOf.set(table, new Set([source.moduleId]));
+    }
+  }
+
+  const closures = new Map<string, readonly string[]>();
+  const closureFor = (moduleId: string): readonly string[] => {
+    const held = closures.get(moduleId);
+    if (held) return held;
+    const computed = [...closureOf(moduleId, moduleDependencies)].sort();
+    closures.set(moduleId, computed);
+    return computed;
+  };
+
+  const found: ClosureViolation[] = [];
+  for (const source of sources) {
+    const closure = closureFor(source.moduleId);
+    const permitted = new Set([source.moduleId, ...closure, CORE_MODULE_ID]);
+    for (const table of source.namedTables) {
+      const creators = creatorsOf.get(table);
+      if (creators === undefined || creators.size === 0) continue;
+      if ([...creators].some((creator) => permitted.has(creator))) continue;
+      found.push({
+        migration: source.name,
+        moduleId: source.moduleId,
+        table,
+        creatorModuleIds: [...creators].sort(),
+        closure,
+      });
+    }
+  }
+  return found.sort((left, right) =>
+    describeClosureViolation(left).localeCompare(describeClosureViolation(right)),
+  );
+}
+
+/** One sales-channel bridge: the member vocabulary's entry, and its table. */
+export interface ChannelBridge {
+  readonly entityType: string;
+  readonly table: string;
+}
+
+/** The platform file that holds the total bridge map FR-015 replaces. */
+const BRIDGE_MAP_FILE = join(
+  'kernel',
+  'sales-channels',
+  'sales-channel-membership.service.ts',
+);
+
+/**
+ * The platform's own `BRIDGE_TABLES`, parsed out of the text that declares it.
+ *
+ * It is read as **source text** because the map is module-private and stays so:
+ * publishing it on a barrel to let a test see it would enlarge the platform's
+ * surface for a map FR-015 exists to delete. The read is the same kind the
+ * migration walk above performs, and its refusal is the same shape — a map this
+ * function cannot parse is an error, never an empty list, because an empty list
+ * makes G5 vacuously green over every member.
+ *
+ * Pure, so that a fixture proving the refusal enters where the real run enters
+ * (issue #130).
+ */
+export function parseChannelBridges(text: string, file: string): readonly ChannelBridge[] {
+  const map = /const BRIDGE_TABLES[^=]*=\s*\{([\s\S]*?)\n\};/.exec(text);
+  if (map === null) {
+    throw new Error(
+      `${file} declares no \`BRIDGE_TABLES\` object literal this walk can read. G5 over an ` +
+        'unread map is a clean sweep of nothing.',
+    );
+  }
+  const found: ChannelBridge[] = [];
+  const entry = /'?([a-z-]+)'?:\s*\{[^}]*?table:\s*'([a-z0-9_]+)'/g;
+  for (const match of map[1]!.matchAll(entry)) {
+    found.push({ entityType: match[1]!, table: match[2]! });
+  }
+  if (found.length === 0) {
+    throw new Error(
+      `${file} declares a \`BRIDGE_TABLES\` literal holding no entry this walk could read`,
+    );
+  }
+  return found;
+}
+
+/** {@link parseChannelBridges} over the platform this checkout holds. */
+export async function readChannelBridges(): Promise<readonly ChannelBridge[]> {
+  const layout = await resolveModuleLayout();
+  if (layout.platformRoot === null) {
+    throw new Error(
+      'no workspace member declares `endora.type: "platform"`, so the bridge map cannot be ' +
+        'located and G5 would report over nothing',
+    );
+  }
+  const file = join(layout.platformRoot, BRIDGE_MAP_FILE);
+  if (!existsSync(file)) {
+    throw new Error(`${file} is not there — the channel bridge map is read from it`);
+  }
+  return parseChannelBridges(readFileSync(file, 'utf8'), file);
+}
+
+/**
+ * **G5** (FR-018) — each bridge table is created by the platform, **or**
+ * contributed by the module that creates it.
+ *
+ * The guard exists to make FR-015 non-droppable rather than to describe today's
+ * tree. Today every bridge passes on the first disjunct: the platform's frozen
+ * promote migration creates all nine. Moving a bridge's DDL to its far side
+ * (FR-007) falsifies that disjunct for that member, and only a registration
+ * contributed by the creating module supplies the second — so a feature that
+ * moves the schema and stops before the registry lands red here.
+ *
+ * `contributions` is `entityType → the module that registered the bridge`. It is
+ * empty until FR-015 exists, and that is the state this returns green for,
+ * because the first disjunct still holds for every member.
+ */
+export function bridgeOwnershipViolations(input: {
+  readonly bridges: readonly ChannelBridge[];
+  readonly sources: readonly MigrationSource[];
+  readonly contributions: ReadonlyMap<string, string>;
+}): readonly string[] {
+  const creatorsOf = new Map<string, Set<string>>();
+  for (const source of input.sources) {
+    for (const table of source.creates) {
+      const held = creatorsOf.get(table);
+      if (held) held.add(source.moduleId);
+      else creatorsOf.set(table, new Set([source.moduleId]));
+    }
+  }
+
+  const found: string[] = [];
+  for (const bridge of input.bridges) {
+    const creators = creatorsOf.get(bridge.table);
+    if (creators === undefined || creators.size === 0) {
+      found.push(
+        `${bridge.entityType}: no migration in the corpus creates "${bridge.table}", so the ` +
+          'platform can serve a member whose table nothing builds',
+      );
+      continue;
+    }
+    if (creators.has(CORE_MODULE_ID)) continue;
+    const contributor = input.contributions.get(bridge.entityType);
+    if (contributor !== undefined && creators.has(contributor)) continue;
+    found.push(
+      `${bridge.entityType}: "${bridge.table}" is created by ` +
+        `${[...creators].sort().join('|')} and contributed by ` +
+        `${contributor ?? 'nobody'} — a member the platform can serve whose table neither ` +
+        'the platform creates nor its creating module registers',
+    );
   }
   return found;
 }
@@ -432,6 +722,24 @@ export function refusals(input: {
         `${unread.length} registered migration(s)` +
         (unread.length === 0 ? '' : ` (${unread.slice(0, 3).join(', ')}…)`) +
         ' — a forward-reference sweep over a corpus it cannot read is a clean sweep of nothing',
+    );
+  }
+  // FR-004's two, and they are G4's rather than G3's. Both are states in which
+  // `closureViolations` returns an empty array honestly: with no creator, every
+  // reference resolves to nobody and is skipped by the rule's first silence;
+  // with no reference classified, there is nothing for the rule to run on. Each
+  // reports *zero findings* over a corpus the recogniser stopped reading, which
+  // is the one answer a guard must never be able to give.
+  if (!input.sources.some((source) => source.creates.length > 0)) {
+    found.push(
+      'no migration in the corpus creates a table, so every reference resolves to no ' +
+        'creator and the closure rule answers nothing over all of them',
+    );
+  }
+  if (!input.sources.some((source) => source.namedTables.length > 0)) {
+    found.push(
+      'the union recogniser classified no table reference at all — a closure sweep with ' +
+        'nothing to classify reports clean for a reason that says nothing about the corpus',
     );
   }
   return found;
