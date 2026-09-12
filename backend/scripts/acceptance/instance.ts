@@ -114,7 +114,9 @@ import {
   evaluateA11,
   evaluateA13,
   evaluateA5,
+  evaluateA6,
   type AdminStylesheetObservation,
+  type DocsSiteObservation,
   evaluateA14,
   evaluateProcess,
   exitCodeFor,
@@ -1024,6 +1026,126 @@ function stylesheetWitnesses(
 }
 
 /**
+ * What the build said, with Docusaurus's own broken-link block preferred.
+ *
+ * A stack trace's last five lines name a file inside `node_modules` and tell a
+ * reader nothing; the block above it names the page and the link. It is
+ * extracted rather than the whole output reported because this ends up on one
+ * line of a report.
+ */
+function brokenLinkEvidence(output: string): string {
+  const lines = output.split('\n');
+  const start = lines.findIndex((line) => line.includes('found broken links'));
+  if (start === -1) return lines.slice(-5).map((line) => line.trim()).join(' / ');
+  const block = lines
+    .slice(start)
+    .filter((line) => /Broken link on source page|-> linking to/.test(line))
+    .map((line) => line.trim());
+  return `Docusaurus found broken links: ${block.join(' ')}`;
+}
+
+/**
+ * A6, over the site the instance's own `build` script produced.
+ *
+ * Every list is **derived from the tree**, never written here:
+ *
+ *   * the **expectation** is each installed module package's own `docs/` layer
+ *     at the package root — the directory feature 100 has a module ship in its
+ *     tarball — folded onto the slug the navigation would name it by. A module
+ *     that documents nothing is not expected and is not a finding;
+ *   * the **navigation** is read out of the generated fragment the instance
+ *     wrote, so it is what Docusaurus was handed and not what we would have
+ *     rendered;
+ *   * the **routes** are the HTML the build emitted, which is the only evidence
+ *     that a named page is a page a reader can reach.
+ *
+ * The slug derivation is `slugForModule`'s and is applied here rather than
+ * imported for one reason: this file reads a **client's** tree, and the
+ * navigation entries it compares against were rendered by the CLI the instance
+ * installed — so taking the ids out of the fragment and folding the package ids
+ * the same way is the comparison. A third spelling would be a third answer.
+ */
+function docsSiteObservation(
+  target: string,
+  build: { code: number; output: string } | null,
+): DocsSiteObservation {
+  const member = join(target, 'docs');
+  const site = join(member, 'build');
+  const fragment = join(member, 'sidebars.modules.generated.js');
+  const navigation = existsSync(fragment) ? readFileSync(fragment, 'utf8') : '';
+  // `{ type: 'doc', id: 'modules/<slug>' }` and the category form's `link`,
+  // which is the shape a module with sub-pages gets. Both name the module's
+  // own entry page; the reference category is a different population and is
+  // not what "the installed modules' pages" means.
+  // **The subject is the module, never the slug.** A module's page is named by
+  // the module rather than named *after* it: `admin_roles` ships
+  // `admin_roles.md` and `assets_library` ships `assets-library/`, and D-200's
+  // rule is that a slug names a module when it *folds* onto the id — so a
+  // comparison of slugs reports every module whose page uses the other spelling
+  // as both missing and extra, which is what the first run of this assertion
+  // did. The fold is applied to the **navigation's** slugs, and the expectation
+  // stays the installed module's own id.
+  const documented = installedModules(target).filter((module) =>
+    existsSync(join(module.dir, 'docs')),
+  );
+  const expected = documented.map((module) => module.id).sort();
+  const folds = (slug: string, moduleId: string): boolean =>
+    slug === moduleId || slug === moduleId.replace(/^_/, '').split('_').join('-');
+  const entries = [...navigation.matchAll(/id: 'modules\/([^'/]+)(\/[^']*)?'/g)]
+    .map((match) => ({ slug: match[1]!, tail: match[2] ?? '' }))
+    .filter((entry) => !entry.slug.startsWith('module-map'));
+  const named = [
+    ...new Set(
+      entries.flatMap((entry) =>
+        expected.filter((moduleId) => folds(entry.slug, moduleId)),
+      ),
+    ),
+  ].sort();
+  // A navigation entry naming a slug no installed module folds onto: the other
+  // direction, and it has to be counted as a module id or the assertion cannot
+  // report it beside the first.
+  const unclaimed = entries
+    .filter((entry) => !expected.some((moduleId) => folds(entry.slug, moduleId)))
+    .map((entry) => `${entry.slug}${entry.tail}`);
+  const html = existsSync(site) ? filesWithSuffix(site, ['.html']) : [];
+  const routeOf = (entry: { slug: string; tail: string }): string =>
+    `${entry.slug}${entry.tail}`.replace(/\/index$/, '');
+  const served = (predicate: (entry: { slug: string; tail: string }) => boolean): boolean =>
+    entries.some(
+      (entry) =>
+        predicate(entry) &&
+        html.some((file) => file.endsWith(join('modules', routeOf(entry), 'index.html'))),
+    );
+  // An unclaimed entry is already reported as `extra`; it is measured for a
+  // route as well so that it is not reported a second time as unrouted.
+  const routed = [
+    ...named.filter((moduleId) => served((entry) => folds(entry.slug, moduleId))),
+    ...unclaimed.filter((route) => served((entry) => routeOf(entry) === route.replace(/\/index$/, ''))),
+  ];
+  return {
+    present: true,
+    omission: null,
+    // **Emitting is not building.** Docusaurus writes the whole site and *then*
+    // runs its broken-link check, so `docs/build/` is full on a run that
+    // exited 1 — measured, 72 pages beside a failure. A predicate that only
+    // looked for HTML would report a site nobody can publish as built, which is
+    // the silent green `onBrokenLinks: 'throw'` exists to prevent.
+    //
+    // The exit code is the **root** `build` script's, which reaches every
+    // member (§2.5), so an admin failure lands here too. That is the
+    // conservative direction — this assertion says "the documentation site
+    // builds", and it does not, whichever member broke the run — and the
+    // evidence below names which.
+    built: build?.code === 0 && html.length > 0,
+    buildOutput: brokenLinkEvidence(build?.output ?? ''),
+    expected,
+    named: [...named, ...unclaimed].sort(),
+    routed,
+    pages: html.length,
+  };
+}
+
+/**
  * The assertions this criterion cannot measure today, each with the contract or
  * task that retires it.
  *
@@ -1032,19 +1154,8 @@ function stylesheetWitnesses(
  * at all. Writing a probe against an admin member the command does not write
  * would be code that has never executed reporting a colour.
  */
-function declaredUnmeasured(adminOmission: string | null): readonly AssertionResult[] {
-  const noAdminMember =
-    adminOmission ??
-    'the created tree holds no `admin/` member and the command printed no omission for it';
+function declaredUnmeasured(): readonly AssertionResult[] {
   return [
-    {
-      id: 'A6' as const,
-      state: 'unmeasured' as const,
-      detail:
-        'the created tree holds no documentation member: `instance-tree.md` §2.6 lists the ' +
-        'documentation registry among the three generated artefacts and §2 lists no member ' +
-        'that would hold it, and §2.5\'s `generate` script is unwritten (T137)',
-    },
     {
       id: 'A7' as const,
       state: 'unmeasured' as const,
@@ -1059,9 +1170,15 @@ function declaredUnmeasured(adminOmission: string | null): readonly AssertionRes
       id: 'A8' as const,
       state: 'unmeasured' as const,
       detail:
-        'it needs a booted instance (A4) and a divergence report; `instance-tree.md` §2.6 ' +
-        'lists three generated artefacts and the divergence report is not among them, so an ' +
-        'instance generates none — T137 and `specs/107-override-report-and-ladder/`',
+        'it needs a booted instance (A4) and a divergence report, and it has neither. T137 ' +
+        'reconciled the file manifest and wrote the documentation member, which is the half ' +
+        'A6 was waiting on; the divergence report is **not** in `instance-tree.md` §2.6 and ' +
+        'no instance generates one, because its renderer is `backend/scripts/` ' +
+        '(`generate-divergence.ts` over `scripts/lib/divergence.ts`) and reads this ' +
+        'repository\'s own overlay resolver, its module layout and a port→owner map built ' +
+        'from module *sources* — none of which an instance has. Moving it is the shape T137 ' +
+        'and T138 gave the other two artefact families and is a task of its own; the boot ' +
+        'half is A4\'s, behind D-226',
     },
     {
       id: 'A9' as const,
@@ -1163,11 +1280,13 @@ async function main(): Promise<void> {
     if (scaffold.code !== 0) {
       refuse(`\`endora new instance\` exited ${String(scaffold.code)}:\n${scaffold.output}`);
     }
-    const adminOmission =
+    const omissionFor = (member: string): string | null =>
       scaffold.output
         .split('\n')
         .map((line) => line.trim())
-        .find((line) => line.startsWith('omitted admin/')) ?? null;
+        .find((line) => line.startsWith(`omitted ${member}`)) ?? null;
+    const adminOmission = omissionFor('admin/');
+    const docsOmission = omissionFor('docs/');
 
     // A1 and A14 read the tree as the command wrote it — **before** the
     // pinning below, whose `file:` specifiers name a directory outside the
@@ -1240,6 +1359,10 @@ async function main(): Promise<void> {
     // instead, which is where R6.2a puts it.
     appendFileSync(join(target, '.npmrc'), 'strict-peer-dependencies=false\n');
 
+    // Declared out here because A6 reads it: `build` reaches every member
+    // (§2.5), so what the documentation site's build said is in this output and
+    // the assertion that reports it sits outside the install block.
+    let built: { code: number; output: string } | null = null;
     const instanceVariables = declaredVariables(target);
     const installed = run('pnpm', ['install', '--no-frozen-lockfile'], {
       cwd: target,
@@ -1282,16 +1405,26 @@ async function main(): Promise<void> {
       }
       const environment = insideInstance(instanceVariables, runtime);
 
-      const built = run('pnpm', ['run', 'build'], { cwd: target, env: environment });
-      const migrated =
-        built.code === 0 ? run('pnpm', ['run', 'migrate'], { cwd: target, env: environment }) : null;
+      built = run('pnpm', ['run', 'build'], { cwd: target, env: environment });
+      // **The gate is the backend member's own artefact, not the root script's
+      // exit code**, and the difference arrived with the documentation member.
+      // `build` reaches every member (§2.5), so one member failing used to take
+      // A3 and A4 with it — a false signal about the migrator, which may be
+      // sitting right there compiled. It is not a weakening: a root script that
+      // is a silent no-op produces no `dist/migrate.js` either, which is the
+      // defect T141 found and this gate still catches, with the build's own
+      // output beside it.
+      const backendBuilt = existsSync(join(target, 'backend', 'dist', 'migrate.js'));
+      const migrated = backendBuilt
+        ? run('pnpm', ['run', 'migrate'], { cwd: target, env: environment })
+        : null;
       results.push(
         evaluateA3({
           migrateCode: migrated === null ? null : migrated.code,
           migrateOutput:
             migrated === null
-              ? `the instance's own \`build\` script exited ${String(built.code)}, so no ` +
-                `migrator was produced: ${built.output}`
+              ? `the instance's own \`build\` script exited ${String(built?.code ?? -1)} and left no ` +
+                `\`backend/dist/migrate.js\`, so there is no migrator to run: ${built?.output ?? ''}`
               : migrated.output,
           computedOrder:
             migrated?.code === 0
@@ -1304,9 +1437,16 @@ async function main(): Promise<void> {
         }),
       );
       if (built.code !== 0) {
+        // `build` reaches every member (§2.5), so **which** member failed is
+        // the question this note answers. It said "so A3 reports it rather than
+        // a migration" while A3's gate was this exit code; the gate is now the
+        // backend member's own `dist/migrate.js`, so a documentation or admin
+        // failure no longer takes A3 with it — and a reader of the report has
+        // to be told that the run they are looking at had a broken member.
         notes.push(
-          `the instance's own \`build\` script failed, so A3 reports it rather than a ` +
-            `migration: ${built.output.trim().split('\n').slice(-3).join(' / ')}`,
+          `the instance's own \`build\` script exited ${String(built.code)}; it reaches every ` +
+            `member, and the assertion for each member reports its own half: ` +
+            `${built.output.trim().split('\n').slice(-3).join(' / ')}`,
         );
       }
 
@@ -1369,7 +1509,23 @@ async function main(): Promise<void> {
     }
 
     results.push(...adminBundleAssertions(target, adminOmission));
-    results.push(...declaredUnmeasured(adminOmission));
+    results.push(
+      evaluateA6(
+        existsSync(join(target, 'docs'))
+          ? docsSiteObservation(target, built)
+          : {
+              present: false,
+              omission: docsOmission,
+              built: false,
+              buildOutput: '',
+              expected: [],
+              named: [],
+              routed: [],
+              pages: 0,
+            },
+      ),
+    );
+    results.push(...declaredUnmeasured());
   } finally {
     await dropDatabase(database.adminUrl, database.databaseName);
     if (process.env['KEEP_INSTANCE_ACCEPTANCE'] !== '1') {

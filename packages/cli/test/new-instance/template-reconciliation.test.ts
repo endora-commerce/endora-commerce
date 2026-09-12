@@ -378,6 +378,12 @@ function planInput(overrides: Partial<PlanInput> = {}): PlanInput {
     ]),
     adminPeers: new Map([['lucide-react', '^1']]),
     cliVersion: '1.2.3',
+    // §2.4a's member, written: the ranges are the CLI's own optional peers,
+    // which is where `docsRangesOf` reads them from.
+    docsRanges: new Map([
+      ['@docusaurus/core', '^3.10.0'],
+      ['@docusaurus/preset-classic', '^3.10.0'],
+    ]),
     declaredRanges: new Map([
       ['@mikro-orm/core', '^6'],
       ['@mikro-orm/postgresql', '^6'],

@@ -62,8 +62,8 @@
           "reason": "The built admin bundle names exactly the installed module packages that publish an admin layer — 23 of 30 installed, over 3.6 MiB of JavaScript, measured on the bundle and not on the registry that produced it. The expectation is read off each installed package's own `exports` map and the evidence off the bundle, which is two authors on purpose, as `evaluateA3` already recomputes the migration order rather than reading the one the platform logged. T138 wrote the member; what it also needed was `endora generate`, because the renderer of `contracts/instance-tree.md` §2.6's two artefacts lived in `backend/scripts` and no client can reach it."
         },
         "A6": {
-          "status": "unmeasured",
-          "reason": "The created tree holds no documentation member. `contracts/instance-tree.md` §2.6 lists the documentation registry among the three artefacts an instance generates and §2's file manifest lists no member that would hold it, and §2.5's `generate` script is not written either — T137."
+          "status": "fail",
+          "reason": "MEASURED FOR THE FIRST TIME, AND RED ON SOMETHING UPSTREAM OF THIS FEATURE. T137 wrote the documentation member (`contracts/instance-tree.md` §2.4a) and moved the documentation renderers into `@endora-commerce/cli`, so `endora generate` renders the navigation, the module map, one reference page per module and the copies — 27 of the 30 installed module packages ship a `docs/` layer and the navigation names a page for every one of them; measured on the site Docusaurus **emitted before refusing it** — it writes the whole site and then runs its link check — 72 pages are served and A6's own two-way comparison is clean. What it fails on is the **build**: Docusaurus refuses four broken links, three of them from a module's page into this repository's own site tree (`../architecture/custom-fields.md`, `../integrations/api-access.md`) and one into a sibling module the default set does not install (`catalog` -> `../search.md`). The last kind is `check:module-docs`' `foreign-module-link`, ledgered under `backend/scripts/ledgers/foreign-module-links/` and expected to empty. The first kind is refused by nothing in the estate and breaks **every** instance whatever its module set: 8 such links stand in 6 module packages, measured 2026-09-12. Repairing them is `specs/100-module-owned-documentation/`'s, not this command's — a scaffold cannot write a page a module ships."
         },
         "A7": {
           "status": "unmeasured",
@@ -71,7 +71,7 @@
         },
         "A8": {
           "status": "unmeasured",
-          "reason": "It needs a booted instance (A4) and a divergence report. `contracts/instance-tree.md` §2.6 lists three generated artefacts and the divergence report of `specs/107-override-report-and-ladder/` is not among them, so an instance generates none — T137 is where the file manifest is reconciled."
+          "reason": "It needs a booted instance (A4) and a divergence report, and it has neither. T137 wrote the documentation member, which is the half A6 was waiting on, and reconciled the file manifest (`packages/cli/test/new-instance/manifest-reconciliation.test.ts`). THE DIVERGENCE REPORT IS STILL NOBODY'S: `contracts/instance-tree.md` §2.6 lists three generated artefacts and it is not among them, and its renderer is `backend/scripts/generate-divergence.ts` over `backend/scripts/lib/divergence.ts` — 511 + 1200 lines reading this repository's own overlay resolver, its module layout and a port->owner map built from module *sources*, none of which an instance has. Moving it is the shape T137 and T138 gave the other two artefact families and is a task of its own. The boot half is A4's, behind D-226."
         },
         "A9": {
           "status": "unmeasured",
@@ -95,7 +95,7 @@
         },
         "A14": {
           "status": "pass",
-          "reason": "241 lines of wiring across the 12 files the command classified as wiring, counted on disk in the created tree rather than on the plan, against R1.4's bound of 250. IT WAS 230 BEFORE T138 and the 12th file is the admin member's `src/main.tsx`, at 11 lines including the workspace member line that went with it. It is one line rather than the twenty-odd an entry point of this shape costs because `AdminRoot` moved the four wrappers `App` has to be mounted inside into the shell — three of them are the shell's own requirements, the router flag most of all, whose absence is an admin that navigates nowhere with no error anywhere. **9 lines of headroom.** Spend it knowingly."
+          "reason": "242 lines of wiring across the 12 files the command classified as wiring, counted on disk in the created tree rather than on the plan, against R1.4's bound of 250. IT WAS 241 BEFORE T137 and the one line is `pnpm-workspace.yaml`'s third member: §2.4a's four files are all `client` or `derived` — the Docusaurus configuration and the sidebar are the client's in `admin/vite.config.ts`' and `admin/src/index.css`' sense, and the manifest is derived — so the documentation member adds no wiring of its own. 8 lines of headroom."
         }
       }
     },

@@ -432,15 +432,20 @@ async function runNewStorefrontCommand(
  * not read is 2 (`instance-tree.md` §4).
  */
 /**
- * `endora generate` — the two artefacts an instance's admin project is built
- * from (`contracts/instance-tree.md` §2.6).
+ * `endora generate` — the artefacts an instance is built from and commits none
+ * of (`contracts/instance-tree.md` §2.6): its admin project's two, and its
+ * documentation site's navigation, module map and per-module reference pages.
  *
  * It takes no positional: the instance is the workspace above the working
  * directory, so `pnpm -C admin run generate` and a client standing in the root
  * both answer the same. A positional would be a second way to name a tree the
  * run is already standing in.
  */
-function runGenerateCommand(parsed: Parsed, rest: readonly string[], cwd: string): number {
+async function runGenerateCommand(
+  parsed: Parsed,
+  rest: readonly string[],
+  cwd: string,
+): Promise<number> {
   if (rest.length > 0) {
     process.stderr.write(
       `endora: \`generate\` takes no argument; got ${rest.join(', ')}. It renders the ` +
@@ -449,7 +454,7 @@ function runGenerateCommand(parsed: Parsed, rest: readonly string[], cwd: string
     return 1;
   }
   try {
-    const result = runGenerate({ cwd, dryRun: asFlag(parsed.values['dry-run']) });
+    const result = await runGenerate({ cwd, dryRun: asFlag(parsed.values['dry-run']) });
     process.stdout.write(
       `endora generate ${result.root}${result.dryRun ? ' — dry run, nothing written' : ''}\n`,
     );

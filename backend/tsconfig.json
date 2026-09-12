@@ -17,5 +17,19 @@
     // silence.
     "types": ["node", "@fastify/rate-limit", "@fastify/cookie"]
   },
-  "include": ["src/**/*", "test/**/*"]
+  // **`scripts/**/*` is in the program, and it was not until 2026-09-12.**
+  // A script entered this type-check only when a test happened to import it, so
+  // `scripts/acceptance/instance.ts` — which no test imports — was compiled by
+  // nothing at all: a `ReferenceError: built is not defined` reached a real
+  // acceptance run past a green `pnpm -r run typecheck`, a block-scoped `const`
+  // read from outside its block, which is the first thing `tsc` refuses. That is
+  // a hole in a gate rather than a bug in a file, and the shape this estate
+  // spends its review effort on — a green that means "not looking".
+  //
+  // It is the type-check's population only. `tsconfig.build.json` overrides
+  // `include` with `["src/**/*"]`, so the production image emits exactly what it
+  // emitted before, and `lint` names its files on the command line. Measured
+  // when it landed: adding the directory surfaced **one** error, in that same
+  // unchecked file.
+  "include": ["src/**/*", "test/**/*", "scripts/**/*"]
 }

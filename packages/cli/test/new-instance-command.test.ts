@@ -31,7 +31,15 @@
  * moves every time a module package is added asserts nothing stable.
  */
 import { spawn } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -192,14 +200,25 @@ describe('endora new instance, as a process', () => {
     );
 
     // R5.4 — one workspace, and the members it declares are the ones on disk.
+    //
+    // Derived in both directions rather than compared to a list: which members
+    // this run writes depends on what resolved (§2.4, §2.4a), so a literal here
+    // would be a second declaration of the member set — the one thing R5.4 is
+    // about. The **files** at the root are named, because those are §2.1's and
+    // do not move.
     const workspace = readFileSync(join(target, 'pnpm-workspace.yaml'), 'utf8');
     expect(workspace).toContain('- backend');
-    expect(readdirSync(target).sort()).toEqual([
+    const declared = [...workspace.matchAll(/^\s+-\s+(\S+)$/gm)].map((match) => match[1]!);
+    expect(declared).toContain('backend');
+    for (const member of declared) {
+      expect(existsSync(join(target, member, 'package.json')), `${member} is declared`).toBe(true);
+    }
+    const entries = readdirSync(target).sort();
+    expect(entries.filter((entry) => !declared.includes(entry))).toEqual([
       '.env.example',
       '.gitignore',
       'README.md',
       'apps',
-      'backend',
       'package.json',
       'pnpm-workspace.yaml',
       'tsconfig.json',

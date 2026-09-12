@@ -185,6 +185,12 @@ function planInput(overrides: Partial<PlanInput> = {}): PlanInput {
     adminRanges: new Map(),
     adminPeers: new Map(),
     cliVersion: '1.2.3',
+    // §2.4a's member, written: the ranges are the CLI's own optional peers,
+    // which is where `docsRangesOf` reads them from.
+    docsRanges: new Map([
+      ['@docusaurus/core', '^3.10.0'],
+      ['@docusaurus/preset-classic', '^3.10.0'],
+    ]),
     declaredRanges: new Map([
       ['@mikro-orm/core', '^6'],
       ['@mikro-orm/postgresql', '^6'],
@@ -538,14 +544,33 @@ describe('the tree (§1, §2)', () => {
     ) as { name: string; scripts: Record<string, string> };
 
     expect(Object.keys(root.scripts).length).toBeGreaterThan(0);
+    let delegations = 0;
     for (const [name, command] of Object.entries(root.scripts)) {
-      expect(command).not.toContain('--filter backend');
-      // Whatever the spelling, it must reach the member's own script of the
-      // same name — the two lists are held together here rather than one of
-      // them being read off the other.
-      expect(member.scripts[name.replace(/^module:/, 'module:')]).toBeDefined();
-      expect(command).toContain(`run ${name}`);
+      expect(command).not.toContain('--filter');
+      // A script that delegates must reach a member that is **in the plan**,
+      // and that member's own script of the same name. The member is read out
+      // of the `-C <dir>` token rather than assumed to be the backend, so the
+      // admin and documentation members are covered by the same assertion and
+      // a third member would be too.
+      for (const [, directory] of command.matchAll(/pnpm -C (\S+) run (\S+)/g)) {
+        delegations += 1;
+        const manifest = plan.files.find((file) => file.path === `${directory}/package.json`);
+        expect(manifest, `${name} delegates to ${directory}, which the plan does not write`)
+          .toBeDefined();
+        const scripts = (JSON.parse(manifest!.content) as { scripts: Record<string, string> })
+          .scripts;
+        expect(scripts[name]).toBeDefined();
+      }
     }
+    expect(delegations).toBeGreaterThan(0);
+    // `generate` is the one root script that is not a delegation: one
+    // `endora generate` renders every member's artefacts, so there is no member
+    // to forward to. The binary has to be on the root's own path.
+    expect(root.scripts['generate']).toBe('endora generate');
+    const rootManifest = JSON.parse(
+      plan.files.find((file) => file.path === 'package.json')!.content,
+    ) as { devDependencies: Record<string, string> };
+    expect(rootManifest.devDependencies[`${SCOPE}cli`]).toBeDefined();
     expect(member.name).toBe('acme-shop-backend');
   });
 
@@ -724,11 +749,20 @@ describe('the admin member (instance-tree.md §2.4)', () => {
         scripts: Record<string, string>;
       }).scripts;
     const withMember = scripts(planInstance(withAdmin()));
-    expect(withMember['generate']).toBe('pnpm -C admin run generate');
+    // One `endora generate` renders every member's artefacts — T137 gave the
+    // documentation site a second pair, and two root scripts forwarding to two
+    // members would be two spellings of one run.
+    expect(withMember['generate']).toBe('endora generate');
     expect(withMember['build']).toContain('pnpm -C admin run build');
-    const without = scripts(planInstance(planInput()));
+    // A tree with **neither** generated member: no `generate` at all, rather
+    // than a script that fails on a directory nobody wrote. One member absent
+    // is not that state — the documentation site generates its own pair.
+    const without = scripts(planInstance(planInput({ docsRanges: new Map() })));
     expect(without['generate']).toBeUndefined();
     expect(without['build']).toBe('pnpm -C backend run build');
+    const docsOnly = scripts(planInstance(planInput()));
+    expect(docsOnly['generate']).toBe('endora generate');
+    expect(docsOnly['build']).toBe('pnpm -C backend run build && pnpm -C docs run build');
   });
 
   it('the entry point mounts the shell over the generated registry, and nothing else', () => {
