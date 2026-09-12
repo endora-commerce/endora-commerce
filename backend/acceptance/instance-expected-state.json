@@ -13,10 +13,12 @@
     "many words that a type-check was the whole of the evidence. The first run of this",
     "criterion found that the tree compiles, installs, and then does nothing at all.",
     "",
-    "T141 REPAIRED FOUR OF THE FIVE DEFECTS THAT RUN FOUND, and A3's reason below is now a",
-    "different and much narrower sentence than the one it landed with. What is left is one",
-    "of the five — reported to the orchestrator rather than repaired, because it is a schema",
-    "decision: the platform's own migration corpus is not self-contained.",
+    "T141 REPAIRED FOUR OF THE FIVE DEFECTS THAT RUN FOUND, AND THE FIFTH IS NOW DISCHARGED",
+    "TOO. The fifth was a schema decision rather than a wiring one — the platform's own",
+    "migration corpus was not self-contained, so an instance omitting a module could not",
+    "migrate at all — and `specs/120-migration-closure-bridge-ownership/` answered it across",
+    "five merge requests. A3 passes: 118 migrations, exit 0. A4 is therefore measured for the",
+    "first time and is the one red: a scaffolded instance migrates and does not yet boot.",
     "",
     "EVERY NON-PASS ENTRY BELOW NAMES THE CONTRACT OR TASK IT WAITS ON, AND THAT RULE IS",
     "ENFORCED RATHER THAN INTENDED. `expectationRefusals` in",
@@ -50,12 +52,12 @@
           "reason": "`pnpm install` succeeds outside the checkout, from packed tarballs, with no symlink back. The pinning is the closure of what the instance declares rather than the declaration itself — measured, a `pnpm install` fetches four module packages the manifest never names, as non-optional peers of packages it does, and an override does not reach an auto-installed peer."
         },
         "A3": {
-          "status": "fail",
-          "reason": "THE DEFECT IT LANDED ON IS REPAIRED AND A NARROWER ONE IS UNDERNEATH IT. `pnpm run migrate` really runs now — T141 gave every root script `pnpm -C backend` instead of a `--filter <name>` that matched no project and exited 0, and gave an instance the platform's own twelve migrations and six entities, which `coreEntries: []` and `coreEntities: []` meant it ran none of. What it fails on is the schema itself: `Migration20260430T170044CoreSalesChannelsPromote` creates `sales_channel_cms_pages` with a foreign key to `cms_pages`, which `cms` owns and which the default module set does not include. THE PLATFORM'S OWN MIGRATION CORPUS IS NOT SELF-CONTAINED: two of its twelve migrations reach into seven modules' tables (that one into `cms_pages`, `customer_accounts`, `organizations`, `promotions`, `quote_requests` and `taxes`; `Migration20260717T134752CoreTenantScopeIndexes` into `analytics_events` and `newsletter_subscribers`), and a fourth edge is module-to-module — `webhooks`' migration creates the `api_keys` table that `api_keys`' and `orders`' own migrations then alter. Measured by hand on a set with `cms`, `analytics`, `newsletter` and `webhooks` added: 119 migrations apply, exit 0. Reported to the orchestrator rather than repaired in T141 — moving schema out of an applied migration in the frozen baseline prefix is a decision `contracts/instance-migration-order.md` and `specs/097-migration-sql-boundary/contracts/migration-cross-module-sql.md` both bear on, and widening the default set would hide it rather than answer it."
+          "status": "pass",
+          "reason": "118 MIGRATIONS APPLIED, EXIT 0 — the first time a scaffolded instance has migrated a fresh database, and the milestone `specs/120-migration-closure-bridge-ownership/` was written to reach. The reason recorded here through T141 named the platform's own `Migration20260430T170044CoreSalesChannelsPromote` creating `sales_channel_cms_pages` with a foreign key to a table `cms` owns and the default module set does not ship, and counted seven more such reaches: that feature's Phase 2 moved all nine sales-channel bridges to the module owning each far side and Phase 3 moved the eight non-bridge references, two of them creations relocated between frozen bodies. THE LAST OPEN SITE WAS THIS FILE'S OWN SUBJECT AND PHASE 5 (FR-019) REMOVED IT: `Migration20260801T111001TransactionalEmailsEmailDefaultsReseed` `UPDATE`d `newsletter_email_blocks`, and the default module set is the `nonDeactivatable` closure, which does not include `newsletter` — so the two statements are gone from `up()` in place, with no rename and no replacement migration. The standing instrument is G4 in `backend/test/unit/db/instance-migration-order.test.ts`, which now reads zero: the next migration to name a table an instance cannot have fails there, in a unit run, rather than here after a twelve-minute scaffold."
         },
         "A4": {
-          "status": "unmeasured",
-          "reason": "There is no migrated schema to boot against: A3 fails, so `bootOnce` is not attempted. IT WAS `fail` BEFORE T141 AND THE CHANGE IS HONESTY, NOT A REGRESSION — the migrate step used to exit 0 having done nothing, so the criterion went on to a boot that could not work; now the migration genuinely fails and the criterion says so once. Three of the four defects recorded here at T140 are repaired and each was measured end to end on a module set that does migrate: `_lifecycle` is composed by the platform itself, so the boot no longer refuses with `not-shipped: _lifecycle`; `pnpm run module:install --all` exists, is named by the command's own next steps and by the generated README, and is run by this criterion between `migrate` and `start` (39 modules in 5.6 s, measured); and the `[i18n] reconcile complete` line this assertion requires now appears (`installed=36 skipped=4 failed=0`). TWO BLOCKERS REMAIN BEHIND A3 AND BOTH ARE REPORTED TO THE ORCHESTRATOR. (1) `catalog`'s boot hook resolves `promptActionToolRegistry`, a plain registration `prompt_actions` owns, and the default set does not ship `prompt_actions` — a `contributes-to` edge is classified for an owner that is switched off, not for one that was never composed, so the boot dies with an `AwilixResolutionError`. (2) Of the 23 container names `backend/src/composition.ts` contributes, 22 are not contributed by `composeApp`, and roughly ten of those are not defaulted by the module that resolves them — `newsletterBridge` is the one this run reaches. That is `specs/117-instance-bring-up/` FR-030/FR-031 and T118's remaining drain: an instance supplies no contribute callback (R2.4), so every one of those names is absent in a client's tree."
+          "status": "fail",
+          "reason": "A3 PASSES, SO THIS WAS MEASURED FOR THE FIRST TIME — and it found exactly the defect the previous `unmeasured` reason predicted, in the same words. The recorded sequence runs through: `pnpm run build` exits 0, `pnpm run migrate` applies 118 migrations, and `pnpm run module:install --all` exits 0 reporting 30 installed and 1 already installed. `pnpm run start` then exits 1 before the health route exists, with `ModuleCompositionError: [kernel] module 'catalog' failed in its boot hook: Could not resolve 'promptActionToolRegistry'`. THE OWNER IS NEVER COMPOSED, NOT SWITCHED OFF, AND THAT IS THE WHOLE OF IT: `promptActionToolRegistry` is a plain `ctx.di.register` name `prompt_actions` owns, `catalog` reads it eagerly in a boot hook rather than through a gated port, and the default module set — the `nonDeactivatable` closure — does not ship `prompt_actions`. A `contributes-to` edge is classified for an owner an operator switched off; there is no classification for an owner an instance never installed, so the read is an `AwilixResolutionError` and `runBootHooks` re-throws it as a composition failure, which `index.ts` turns into exit 1. `specs/conventions/module-composition.md` item 4a is the rule the seam is outside of. THE SECOND BLOCKER IS STILL BEHIND THIS ONE AND WAS NOT REACHED: of the 23 container names `backend/src/composition.ts` contributes, 22 are not contributed by `composeApp` and roughly ten of those are not defaulted by the module that resolves them, `newsletterBridge` being the one this run would meet next. That is `specs/117-instance-bring-up/` FR-030/FR-031 and T118's remaining drain: an instance supplies no contribute callback (R2.4), so every one of those names is absent in a client's tree."
         },
         "A5": {
           "status": "pass",
@@ -71,11 +73,11 @@
         },
         "A8": {
           "status": "unmeasured",
-          "reason": "It needs a booted instance (A4) and a divergence report, and it has neither. T137 wrote the documentation member, which is the half A6 was waiting on, and reconciled the file manifest (`packages/cli/test/new-instance/manifest-reconciliation.test.ts`). THE DIVERGENCE REPORT IS STILL NOBODY'S: `contracts/instance-tree.md` §2.6 lists three generated artefacts and it is not among them, and its renderer is `backend/scripts/generate-divergence.ts` over `backend/scripts/lib/divergence.ts` — 511 + 1200 lines reading this repository's own overlay resolver, its module layout and a port->owner map built from module *sources*, none of which an instance has. Moving it is the shape T137 and T138 gave the other two artefact families and is a task of its own. The boot half is A4's, behind D-226."
+          "reason": "It needs a booted instance (A4) and a divergence report, and it has neither. T137 wrote the documentation member, which is the half A6 was waiting on, and reconciled the file manifest (`packages/cli/test/new-instance/manifest-reconciliation.test.ts`). THE DIVERGENCE REPORT IS STILL NOBODY'S: `contracts/instance-tree.md` §2.6 lists three generated artefacts and it is not among them, and its renderer is `backend/scripts/generate-divergence.ts` over `backend/scripts/lib/divergence.ts` — 511 + 1200 lines reading this repository's own overlay resolver, its module layout and a port->owner map built from module *sources*, none of which an instance has. Moving it is the shape T137 and T138 gave the other two artefact families and is a task of its own. The boot half is A4's, which is now measured: D-226 is discharged and A3 passes, so what stands between this assertion and a verdict is A4's own `promptActionToolRegistry` finding rather than the migration corpus."
         },
         "A9": {
           "status": "unmeasured",
-          "reason": "It needs a booted instance with a migrated schema to read across tenants in — A4, and A3 below it. `contracts/instance-repository.md` R6.3 is the assertion; T141 is the task that turns it green."
+          "reason": "It needs a booted instance with a migrated schema to read across tenants in. A3 passes, so the schema is there; what is left is A4. `contracts/instance-repository.md` R6.3 is the assertion; T141 is the task that turns it green."
         },
         "A10": {
           "status": "pass",
@@ -136,6 +138,19 @@
     "source-tree check: a module package's optional peers were declared by nobody in a scaffolded",
     "instance, so Vite bound them to `__vite-optional-peer-dep:` stubs and the whole admin bundle",
     "failed on a named import; and `mod-settings` statically imported `mod-credentials`' preview modal,",
-    "which takes out every module's screens in any instance that did not install `credentials`."
+    "which takes out every module's screens in any instance that did not install `credentials`.",
+    "",
+    "2026-09-12 — `specs/120-migration-closure-bridge-ownership/` Phase 5, the last of its five.",
+    "Measured on the feature branch: mode `tarball`, 9 pass, 1 fail, 4 unmeasured. A3 MOVES FROM",
+    "`fail` TO `pass` — 118 migrations applied, exit 0, the first time a scaffolded instance has",
+    "migrated a fresh database — and A4 from `unmeasured` to `fail`, which is not a regression but",
+    "the first measurement of it. Its finding is the one the previous reason predicted in the same",
+    "words: `catalog`'s boot hook resolves `promptActionToolRegistry`, a plain registration",
+    "`prompt_actions` owns and the default `nonDeactivatable` closure does not ship, so",
+    "`runBootHooks` re-throws an `AwilixResolutionError` as a composition failure. `module:install",
+    "--all` exits 0 first (30 installed, 1 already installed), so the failure is the boot's and not",
+    "the install's. A3's recorded reason had been describing the previous failure point since",
+    "Phase 3 moved it, and is rewritten here from this run. A8's and A9's reasons drop the clauses",
+    "that waited on A3. Nothing else moved."
   ]
 }
