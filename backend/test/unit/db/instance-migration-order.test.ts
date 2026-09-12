@@ -396,18 +396,21 @@ describe('G4 — a migration names only what its own module closure guarantees (
    * between moved. `api_keys` closed **two** lines, `orders` having been a
    * consequence of the misfiling rather than a site of its own.
    *
-   * **The one line left is Phase 5's, not a deferral.**
-   * `transactional_emails`' reseed migration `UPDATE`s `newsletter`'s
-   * `newsletter_email_blocks`; it is the single DML member of the fourteen,
-   * it is repaired by removing the two statements in place (FR-019, T5-A),
-   * and Phase 5 merges after this one. `tasks.md` T3-J reads "G4's list is
-   * empty, or holds exactly the one site T3-H defers", which is what it would
-   * have said had T3-H stayed blocked; T3-H is repaired here and this line is
-   * the other one.
+   * **Phase 5 drained the last one and the list is empty.**
+   * `transactional_emails`' reseed migration `UPDATE`d `newsletter`'s
+   * `newsletter_email_blocks` — the single DML member of the fourteen, and the
+   * one whose repair was already written down as feature 097 Phase 4's retiring
+   * condition: the two statements are removed from `up()` in place, with no
+   * rename and no replacement migration (FR-019, T5-A). Both
+   * `transactional_emails` ledger shards went with them (FR-020).
+   *
+   * **The empty array is now the assertion, and it is a stronger one than any
+   * value it ever held.** An added line is a migration naming a table an
+   * instance omitting the creating module cannot have — the state that made
+   * `endora new instance`'s A3 red for as long as this feature ran. Repair the
+   * site; never record it here.
    */
-  const OPEN_SITES = [
-    'transactional_emails:Migration20260801T111001TransactionalEmailsEmailDefaultsReseed names newsletter.newsletter_email_blocks',
-  ];
+  const OPEN_SITES: readonly string[] = [];
 
   it('reports exactly the sites this feature repairs, and no new one', () => {
     const found = closureViolations(SOURCES, MODULE_DEPENDENCIES);
@@ -421,23 +424,21 @@ describe('G4 — a migration names only what its own module closure guarantees (
     ).toEqual(OPEN_SITES);
   });
 
-  it('names the closure that would have to hold the creator', () => {
-    // T1-C's record, over the real corpus: a line is what a reviewer counts,
-    // and the finding carries what a repairer needs.
-    //
-    // It was `assets_library -> cms.cms_pages` until Phase 3 repaired that
-    // site. The subject moves with the corpus on purpose: this case exists to
-    // prove the *shape* a finding carries against the real registry rather than
-    // against a fixture, so it has to name a site that is actually open, and
-    // the last one open is Phase 5's.
-    const found = closureViolations(SOURCES, MODULE_DEPENDENCIES);
-    const reseed = found.find((violation) => violation.moduleId === 'transactional_emails');
-    expect(reseed).toBeDefined();
-    expect(reseed!.table).toBe('newsletter_email_blocks');
-    expect(reseed!.creatorModuleIds).toEqual(['newsletter']);
-    expect(reseed!.closure).not.toContain('newsletter');
-  });
-
+  /**
+   * T1-C's record — *a line is what a reviewer counts, and the finding carries
+   * what a repairer needs* — used to be asserted twice: once over a fixture,
+   * here, and once over the real corpus, against whichever site was still open.
+   * That second case named `assets_library -> cms.cms_pages` until Phase 3, then
+   * `transactional_emails -> newsletter.newsletter_email_blocks` until Phase 5,
+   * and its own comment said the subject moves with the corpus on purpose —
+   * *"it has to name a site that is actually open"*. There is no longer one, and
+   * writing a real-corpus assertion that no honest run can satisfy, or leaving a
+   * site open to keep one alive, are the only two ways to keep it. So it is
+   * deleted rather than adapted, and this case is where the record now lives: it
+   * asserts the **whole** finding record — the migration, the module, the table,
+   * every creator and the closure that does not hold one — which is the half
+   * the real-corpus case was carrying.
+   */
   it('reports a reference to a table only a module outside the closure creates', () => {
     const sources = [
       fixture('library', 'Migration20260101T000000LibraryInit', 'alter table "pages_documents" add column "asset_id" uuid;'),

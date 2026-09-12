@@ -6,23 +6,30 @@ import {
 } from '@endora-commerce/email-components/defaults/default-footer';
 
 /**
- * Reseed shared system header/footer block trees (TE + newsletter) from the
- * current `@endora-commerce/email-components` defaults, and clear admin transactional email
+ * Reseed this module's own system header/footer block trees from the current
+ * `@endora-commerce/email-components` defaults, and clear admin transactional email
  * content overrides so boot reconcile + Reset land on the new simple layouts.
- *
- * Newsletter campaign bodies are left untouched — only the system default
- * header/footer blocks are refreshed (same trees as TE).
  *
  * Timestamped after FROZEN_THROUGH (feature 065) so it sorts after 100–106. The mis-numbered
  * `Migration099EmailDefaultsReseed` broke `migrator.down()` loops that parse
  * the latest migration ordinal (catalog attributes-migration-parity tests).
+ *
+ * It reseeded `newsletter`'s two system blocks as well, with two `UPDATE`s
+ * against `newsletter_email_blocks`, until
+ * `specs/120-migration-closure-bridge-ownership/` FR-019 removed them in place.
+ * Nothing replaced them here and nothing should: `newsletter` owns that table,
+ * and this module declares `activation: { nonDeactivatable: true }`, so naming
+ * `newsletter` in its `dependencies` to make the write legal would turn
+ * `newsletter`'s activation control into a dead switch. An instance that omits
+ * `newsletter` altogether — which the default module set does, it being the
+ * `nonDeactivatable` closure — could not migrate at all while they stood. The
+ * refresh of an existing database, if anyone wants one, is `newsletter`'s to
+ * ship in a `newsletter`-owned migration that needs no cross-module edge.
  */
 const DEFAULT_LANGUAGES = ['en-US', 'pl-PL'] as const;
 
 const TE_HEADER = 'default_email_header';
 const TE_FOOTER = 'default_email_footer';
-const NL_HEADER = 'newsletter_default_header';
-const NL_FOOTER = 'newsletter_default_footer';
 
 function jsonbLiteral(value: unknown): string {
   return JSON.stringify(value).replace(/'/g, "''");
@@ -45,13 +52,6 @@ export class Migration20260801T111001TransactionalEmailsEmailDefaultsReseed exte
     );
     this.addSql(
       `update "email_blocks" set "content" = '${footerJson}'::jsonb, "version" = "version" + 1, "updated_at" = now() where "code" = '${TE_FOOTER}' and "is_system" = true;`,
-    );
-
-    this.addSql(
-      `update "newsletter_email_blocks" set "content" = '${headerJson}'::jsonb, "version" = "version" + 1, "updated_at" = now() where "code" = '${NL_HEADER}' and "is_system" = true;`,
-    );
-    this.addSql(
-      `update "newsletter_email_blocks" set "content" = '${footerJson}'::jsonb, "version" = "version" + 1, "updated_at" = now() where "code" = '${NL_FOOTER}' and "is_system" = true;`,
     );
 
     // Drop admin overrides so editors see the refreshed module defaults.
