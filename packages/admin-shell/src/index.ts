@@ -27,15 +27,25 @@
  *
  * `admin-kit-surface.md` §1's rule, applied one package up: an explicit barrel,
  * no `export *`, and a member is here because a project that mounts this shell
- * has to name it. There are three, and they are the three lines of the entry
- * point — the tree, the session provider it is mounted inside, and the service
- * worker registration. Everything else in this package is reached by the shell
+ * has to name it. Everything else in this package is reached by the shell
  * itself.
+ *
+ * {@link AdminRoot} is the default door and the only one an instance needs: it
+ * is the four wrappers `App` has to be mounted inside, three of which are the
+ * shell's own requirements rather than the project's — the router flag most of
+ * all, whose absence is an admin that navigates nowhere with no error anywhere
+ * (`specs/110-instance-repository/contracts/instance-tree.md` §2.4). `App` and
+ * `AuthProvider` stay exported for a project that composes its own tree, and
+ * `registerAdminServiceWorker` is a side effect a project opts into by calling
+ * it: it registers `/admin-service-worker.js`, which is an asset the project
+ * serves and this package does not ship.
  *
  * `AuthProvider` is re-exported rather than re-implemented: it is the kit's
  * binding, forwarded, so an instance's `main.tsx` names **one** package and the
  * provider `useAuth` reads is the same one in every process.
  */
+export { AdminRoot } from './AdminRoot.js';
+export type { AdminRootProps } from './AdminRoot.js';
 export { App } from './App.js';
 export type { AppProps } from './App.js';
 export { registerAdminServiceWorker } from './registerSw.js';

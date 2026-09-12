@@ -36,10 +36,28 @@
     "@endora-commerce/admin-kit": "workspace:*",
     "@endora-commerce/contracts": "workspace:*",
     "@radix-ui/react-collapsible": "^1.1.12",
+    "@tailwindcss/vite": "^4.2.4",
+    "@vitejs/plugin-react": "^5.2.0",
     "lucide-react": "^1.11.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^7.14.2"
+    "react-router-dom": "^7.14.2",
+    "tailwindcss": "^4.2.4",
+    "vite": "^7.3.2"
+  },
+  "peerDependenciesMeta": {
+    "@tailwindcss/vite": {
+      "optional": true
+    },
+    "@vitejs/plugin-react": {
+      "optional": true
+    },
+    "tailwindcss": {
+      "optional": true
+    },
+    "vite": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",
