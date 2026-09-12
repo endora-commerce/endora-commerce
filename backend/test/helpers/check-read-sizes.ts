@@ -1358,7 +1358,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 2046 -> 2047.**
     // The one platform source the feature adds. No action, no route and no permission moves.
-    files: 2047,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 2: files 2047 -> 2056 (+9).**
+    // The nine far-side bridge migrations, one per `sales_channel_*` table. This walk
+    // does not read `.changeset/`, so the merge request's own changeset is not in it —
+    // which is the cross-check: `check:naming` and `check-nul-bytes`, which do, moved
+    // by ten over the same commit.
+    files: 2056,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1667,7 +1672,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 2178 -> 2179.**
     // The one platform source the feature adds. It resolves no channel and names none.
-    files: 2179,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 2: files 2179 -> 2188 (+9).**
+    // The nine far-side bridge migrations, one per `sales_channel_*` table. This walk
+    // does not read `.changeset/`, so the merge request's own changeset is not in it —
+    // which is the cross-check: `check:naming` and `check-nul-bytes`, which do, moved
+    // by ten over the same commit.
+    files: 2188,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1897,7 +1907,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 2273,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 2: files 2273 -> 2282 (+9).**
+    // The nine far-side bridge migrations, one per `sales_channel_*` table. This walk
+    // does not read `.changeset/`, so the merge request's own changeset is not in it —
+    // which is the cross-check: `check:naming` and `check-nul-bytes`, which do, moved
+    // by ten over the same commit.
+    files: 2282,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -2398,7 +2413,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 5603 -> 5606 (+3).**
     // The whole-tree population takes all three of the feature's new sources: the registry, its
     // co-located platform test and `backend/test/helpers/channel-bridges.ts`.
-    files: 5606,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 2: files 5606 -> 5615 (+9).**
+    // The nine far-side bridge migrations, one per `sales_channel_*` table. This walk
+    // does not read `.changeset/`, so the merge request's own changeset is not in it —
+    // which is the cross-check: `check:naming` and `check-nul-bytes`, which do, moved
+    // by ten over the same commit.
+    files: 5615,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2751,7 +2771,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 2454 -> 2456 (+2).**
     // Two of the feature's three new sources land under the roots this walk opens; no deployment
     // decoration and no owner attribution moves.
-    files: 2456,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 2: files 2456 -> 2465 (+9).**
+    // The nine far-side bridge migrations, one per `sales_channel_*` table. This walk
+    // does not read `.changeset/`, so the merge request's own changeset is not in it —
+    // which is the cross-check: `check:naming` and `check-nul-bytes`, which do, moved
+    // by ten over the same commit.
+    files: 2465,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -3212,7 +3237,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 2178 -> 2179.**
     // The one platform source the feature adds. It declares no entity.
-    files: 2179,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 2: files 2179 -> 2188 (+9).**
+    // The nine far-side bridge migrations, one per `sales_channel_*` table. This walk
+    // does not read `.changeset/`, so the merge request's own changeset is not in it —
+    // which is the cross-check: `check:naming` and `check-nul-bytes`, which do, moved
+    // by ten over the same commit.
+    files: 2188,
     sites: 265,
     sources: ['manifest-index'],
   },
@@ -3500,7 +3530,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The one platform source the feature adds. The eight boot hooks it introduces are
     // **contributions** — a `register` call, no `await`, no work receiver — so they are classified
     // and pass, and no ledger entry follows.
-    files: 2179,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 2: files 2179 -> 2188 (+9).**
+    // The nine far-side bridge migrations, one per `sales_channel_*` table. This walk
+    // does not read `.changeset/`, so the merge request's own changeset is not in it —
+    // which is the cross-check: `check:naming` and `check-nul-bytes`, which do, moved
+    // by ten over the same commit.
+    files: 2188,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3786,7 +3821,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 2178 -> 2179.**
     // The one platform source the feature adds. It is no entry point of any of the six classes.
-    files: 2179,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 2: files 2179 -> 2188 (+9).**
+    // The nine far-side bridge migrations, one per `sales_channel_*` table. This walk
+    // does not read `.changeset/`, so the merge request's own changeset is not in it —
+    // which is the cross-check: `check:naming` and `check-nul-bytes`, which do, moved
+    // by ten over the same commit.
+    files: 2188,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -4812,7 +4852,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // One platform source, `packages/platform/src/kernel/sales-channels/channel-bridge-registry.ts`,
     // and the one outward import it adds — `@endora-commerce/contracts` — to rule B's population.
     // The eight module registrations move neither: they name no platform file by path.
-    files: 2179,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 2: files 2179 -> 2188 (+9).**
+    // The nine far-side bridge migrations, one per `sales_channel_*` table. This walk
+    // does not read `.changeset/`, so the merge request's own changeset is not in it —
+    // which is the cross-check: `check:naming` and `check-nul-bytes`, which do, moved
+    // by ten over the same commit.
+    files: 2188,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -5173,7 +5218,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `quality` job's shape, against `origin/master` at 15b866da3 measured the same way,
     // so nothing below folds in a number that was already stale.
 
-    files: 2811,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 2: files 2811 -> 2820 (+9).**
+
+    // The nine far-side bridge migrations, one per `sales_channel_*` table. This walk
+
+    // does not read `.changeset/`, so the merge request's own changeset is not in it —
+
+    // which is the cross-check: `check:naming` and `check-nul-bytes`, which do, moved
+
+    // by ten over the same commit.
+
+    files: 2820,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 56 -> 66.**
     // The header block above this table has the arithmetic; nothing here
@@ -5399,7 +5454,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `quality` job's shape, against `origin/master` at 15b866da3 measured the same way,
     // so nothing below folds in a number that was already stale.
 
-    files: 2909,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 2: files 2909 -> 2918 (+9).**
+
+    // The nine far-side bridge migrations, one per `sales_channel_*` table. This walk
+
+    // does not read `.changeset/`, so the merge request's own changeset is not in it —
+
+    // which is the cross-check: `check:naming` and `check-nul-bytes`, which do, moved
+
+    // by ten over the same commit.
+
+    files: 2918,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -6339,7 +6404,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // specifiers the module registrations add — each module names `@endora-commerce/contracts` for
     // `ChannelMemberEntityType` and nothing else. No cross-module reach and no ledger entry: the
     // registry is reached by container name, not by import.
-    files: 5166,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 2: files 5166 -> 5184 (+18).**
+    // Nine files, counted twice: the nine far-side bridge migrations are opened by the
+    // module walk and again by the schema walk that builds the owner map, and this
+    // number is their sum. `module files` alone moved 2567 -> 2576.
+    files: 5184,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -6427,7 +6496,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walk; the five sites are its own import specifiers and the `mod-settings` reach that
     // became a dynamic import, which this check counts exactly as it counted the static one.
 
-    sites: 12928,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 2: sites 12928 -> 12946 (+18).**
+
+    // Nine files, counted twice: the nine far-side bridge migrations are opened by the
+
+    // module walk and again by the schema walk that builds the owner map, and this
+
+    // number is their sum. `module files` alone moved 2567 -> 2576.
+
+    sites: 12946,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -7271,7 +7348,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 8111 -> 8115 (+4).**
     // The whole-repository walk takes all four files the merge request adds: the registry, its test,
     // the test helper and the changeset.
-    files: 8115,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 2: files 8115 -> 8125 (+10).**
+    // The nine far-side bridge migrations plus this merge request's own changeset: this
+    // walk reads `.changeset/`, which is the whole of the difference from the +9 the
+    // source-only walks recorded over the same commit.
+    files: 8125,
     sites: null,
     sources: [],
     //
@@ -7448,7 +7529,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 885 -> 905.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 905,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 2: sites 905 -> 914 (+9).**
+    // The nine far-side bridge migrations, one per `sales_channel_*` table. This walk
+    // does not read `.changeset/`, so the merge request's own changeset is not in it —
+    // which is the cross-check: `check:naming` and `check-nul-bytes`, which do, moved
+    // by ten over the same commit.
+    sites: 914,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 86 -> 87.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -7830,7 +7916,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 2179,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 2: files 2179 -> 2188 (+9).**
+    // The nine far-side bridge migrations, one per `sales_channel_*` table. This walk
+    // does not read `.changeset/`, so the merge request's own changeset is not in it —
+    // which is the cross-check: `check:naming` and `check-nul-bytes`, which do, moved
+    // by ten over the same commit.
+    files: 2188,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -7962,7 +8053,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // contribution boot hook to declare the bridge they own, and `sales_channels`' `lazyPort` for the
     // channel-delete sweep. `files` does not move — this walk reads `.ts` under the module roots and
     // the one file the feature adds is the platform's.
-    files: 1997,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 2: files 1997 -> 2006 (+9).**
+    // The nine far-side bridge migrations, one per `sales_channel_*` table. This walk
+    // does not read `.changeset/`, so the merge request's own changeset is not in it —
+    // which is the cross-check: `check:naming` and `check-nul-bytes`, which do, moved
+    // by ten over the same commit.
+    files: 2006,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 1471 -> 1535.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
@@ -8273,7 +8369,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `quality` job's shape, against `origin/master` at 15b866da3 measured the same way,
     // so nothing below folds in a number that was already stale.
 
-    files: 2483,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 2: files 2483 -> 2492 (+9).**
+
+    // The nine far-side bridge migrations, one per `sales_channel_*` table. This walk
+
+    // does not read `.changeset/`, so the merge request's own changeset is not in it —
+
+    // which is the cross-check: `check:naming` and `check-nul-bytes`, which do, moved
+
+    // by ten over the same commit.
+
+    files: 2492,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -8543,7 +8649,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: sites 788 -> 789 (+1).**
     // `sales_channels`' `lazyPort(ctx, 'salesChannelBridgeRegistry')`. The name is the platform's, so
     // it publishes no port shape and no finding follows.
-    files: 2098,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 2: files 2098 -> 2107 (+9).**
+    // The nine far-side bridge migrations, one per `sales_channel_*` table. This walk
+    // does not read `.changeset/`, so the merge request's own changeset is not in it —
+    // which is the cross-check: `check:naming` and `check-nul-bytes`, which do, moved
+    // by ten over the same commit.
+    files: 2107,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 692 -> 721.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -9287,7 +9398,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 2178 -> 2179.**
     // The one platform source the feature adds. It subscribes to nothing and builds no worker.
-    files: 2179,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 2: files 2179 -> 2188 (+9).**
+    // The nine far-side bridge migrations, one per `sales_channel_*` table. This walk
+    // does not read `.changeset/`, so the merge request's own changeset is not in it —
+    // which is the cross-check: `check:naming` and `check-nul-bytes`, which do, moved
+    // by ten over the same commit.
+    files: 2188,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -9819,7 +9935,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 2178 -> 2179.**
     // The one platform source the feature adds. It issues no SQL.
-    files: 2179,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 2: files 2179 -> 2188 (+9).**
+    // The nine far-side bridge migrations, one per `sales_channel_*` table. This walk
+    // does not read `.changeset/`, so the merge request's own changeset is not in it —
+    // which is the cross-check: `check:naming` and `check-nul-bytes`, which do, moved
+    // by ten over the same commit.
+    files: 2188,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -10231,7 +10352,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 4624 -> 4627 (+3).**
     // The feature's three new sources. The registry is the platform's, reached by container name
     // rather than by a source path, so no reach is classified.
-    files: 4627,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 2: files 4627 -> 4636 (+9).**
+    // The nine far-side bridge migrations, one per `sales_channel_*` table. This walk
+    // does not read `.changeset/`, so the merge request's own changeset is not in it —
+    // which is the cross-check: `check:naming` and `check-nul-bytes`, which do, moved
+    // by ten over the same commit.
+    files: 4636,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -11082,7 +11208,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 8171 -> 8175 (+4).**
     // The four files the merge request adds, over the same index-derived population
     // `check-nul-bytes` walks.
-    files: 8175,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 2: files 8175 -> 8185 (+10).**
+    // The nine far-side bridge migrations plus this merge request's own changeset: this
+    // walk reads `.changeset/`, which is the whole of the difference from the +9 the
+    // source-only walks recorded over the same commit.
+    files: 8185,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -11612,7 +11742,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
 
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 6246 -> 6249 (+3).**
     // The three source files the merge request adds; the changeset is markdown outside `docs/docs/`.
-    files: 6249,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 2: files 6249 -> 6258 (+9).**
+    // The nine far-side bridge migrations, one per `sales_channel_*` table. This walk
+    // does not read `.changeset/`, so the merge request's own changeset is not in it —
+    // which is the cross-check: `check:naming` and `check-nul-bytes`, which do, moved
+    // by ten over the same commit.
+    files: 6258,
     sites: null,
     sources: ['manifest-index'],
     //
