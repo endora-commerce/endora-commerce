@@ -13,11 +13,21 @@ import { Migration } from '@mikro-orm/migrations';
  * `status='blocked'` with an explanatory `blocked_reason` so the audit trail
  * carries the breadcrumb.
  *
- * Introduces four new tables:
+ * Introduces three new tables:
  *   - organization_tax_id_validations — one row per validation attempt.
  *   - organization_payment_methods    — per-org allow-list bridge.
  *   - organization_delivery_methods   — per-org allow-list bridge.
- *   - organization_warehouses         — per-org assignment bridge.
+ *
+ * It introduced a fourth, `organization_warehouses`, until
+ * `specs/120-migration-closure-bridge-ownership/` Phase 3. Its second foreign
+ * key names `warehouses`, which is `inventory`'s table and is in neither this
+ * module's ownership nor its `dependencies` closure — and could not be, since
+ * `inventory` declares `organizations`. That is D-226's bridge rule one
+ * namespace over: a bridge between an always-present near side and a
+ * switchable far side belongs to the far side, so the table is
+ * `Migration20260912T125716InventoryOrganizationWarehouses`' now, verbatim and
+ * `if not exists`. A hard uninstall of `inventory` takes it with it, which is
+ * the behaviour an operator would expect.
  */
 export class Migration20260611T140349OrganizationsConsolidation extends Migration {
   override async up(): Promise<void> {
@@ -119,20 +129,6 @@ export class Migration20260611T140349OrganizationsConsolidation extends Migratio
       );
     `);
 
-    this.addSql(`
-      create table "organization_warehouses" (
-        "organization_id" uuid not null,
-        "warehouse_id" uuid not null,
-        "created_at" timestamptz not null default now(),
-        constraint "organization_warehouses_pkey"
-          primary key ("organization_id", "warehouse_id"),
-        constraint "organization_warehouses_organization_fk"
-          foreign key ("organization_id") references "organizations" ("id") on delete cascade,
-        constraint "organization_warehouses_warehouse_fk"
-          foreign key ("warehouse_id") references "warehouses" ("id") on delete cascade
-      );
-    `);
-
     // 7) Tax-id validation history.
     this.addSql(`
       create table "organization_tax_id_validations" (
@@ -167,7 +163,6 @@ export class Migration20260611T140349OrganizationsConsolidation extends Migratio
   override async down(): Promise<void> {
     this.addSql(`drop index if exists "organization_tax_id_validations_org_idx";`);
     this.addSql(`drop table if exists "organization_tax_id_validations" cascade;`);
-    this.addSql(`drop table if exists "organization_warehouses" cascade;`);
     this.addSql(`drop table if exists "organization_delivery_methods" cascade;`);
     this.addSql(`drop table if exists "organization_payment_methods" cascade;`);
 

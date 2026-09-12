@@ -27,6 +27,7 @@ import { Migration20260611T140347InventoryWarehouseDefaultLowStockThreshold } fr
 import { Migration20260611T140348InventoryPerWarehouseLowStockThresholds } from './20260611T140348_inventory_per_warehouse_low_stock_thresholds.js';
 import { Migration20260818T081243InventoryStockAllocationOrderItemFk } from './20260818T081243_inventory_stock_allocation_order_item_fk.js';
 import { Migration20260830T182139InventoryOrganizationAttribution } from './20260830T182139_inventory_organization_attribution.js';
+import { Migration20260912T125716InventoryOrganizationWarehouses } from './20260912T125716_inventory_organization_warehouses.js';
 
 export const migrations = [
   Migration20260503T182812InventoryWorkflow,
@@ -34,6 +35,7 @@ export const migrations = [
   Migration20260611T140348InventoryPerWarehouseLowStockThresholds,
   Migration20260818T081243InventoryStockAllocationOrderItemFk,
   Migration20260830T182139InventoryOrganizationAttribution,
+  Migration20260912T125716InventoryOrganizationWarehouses,
 ];
 
 export {
@@ -42,4 +44,5 @@ export {
   Migration20260611T140348InventoryPerWarehouseLowStockThresholds,
   Migration20260818T081243InventoryStockAllocationOrderItemFk,
   Migration20260830T182139InventoryOrganizationAttribution,
+  Migration20260912T125716InventoryOrganizationWarehouses,
 };

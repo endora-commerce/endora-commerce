@@ -379,16 +379,33 @@ describe('G4 — a migration names only what its own module closure guarantees (
    * `promotions` declares `taxes`, which creates the `promotions` table. That
    * the count fell by exactly five is the reviewable fact; the list below is
    * what the run printed, not a transcription.
+   *
+   * **Phase 3 drained the remaining eight and added none**, in six shapes
+   * rather than one act: five references moved to new above-watermark
+   * migrations owned by the module whose closure holds the table
+   * (`quote_requests`, `analytics`, `newsletter`, `cms`, and
+   * `organization_warehouses` to `inventory` — the bridge rule one namespace
+   * over), and **two creations moved between frozen bodies**, which is the one
+   * shape D-226's own prescribed repair does not reach. `api_keys` went from
+   * `webhooks`' frozen `up()` to `api_keys`' own (FR-014) and `customer_groups`
+   * from `price_lists`' to `customer_accounts`' (the owner's ruling of
+   * 2026-09-12): an above-watermark creation runs after the entire frozen
+   * prefix, and both tables are referenced by frozen migrations, so the
+   * prescribed repair would have broken a fresh database. Each creation's
+   * receiving body is the one carrying the earliest reference, so nothing in
+   * between moved. `api_keys` closed **two** lines, `orders` having been a
+   * consequence of the misfiling rather than a site of its own.
+   *
+   * **The one line left is Phase 5's, not a deferral.**
+   * `transactional_emails`' reseed migration `UPDATE`s `newsletter`'s
+   * `newsletter_email_blocks`; it is the single DML member of the fourteen,
+   * it is repaired by removing the two statements in place (FR-019, T5-A),
+   * and Phase 5 merges after this one. `tasks.md` T3-J reads "G4's list is
+   * empty, or holds exactly the one site T3-H defers", which is what it would
+   * have said had T3-H stayed blocked; T3-H is repaired here and this line is
+   * the other one.
    */
   const OPEN_SITES = [
-    'api_keys:Migration20260724T173916ApiKeysDistributorBinding names webhooks.api_keys',
-    'assets_library:Migration20260505T102206AssetsLibraryInit names cms.cms_pages',
-    'core:Migration20260430T170044CoreSalesChannelsPromote names quote_requests.quote_requests',
-    'core:Migration20260717T134752CoreTenantScopeIndexes names analytics.analytics_events',
-    'core:Migration20260717T134752CoreTenantScopeIndexes names newsletter.newsletter_subscribers',
-    'customer_accounts:Migration20260611T140403CustomerAccountsLifecycle names price_lists.customer_groups',
-    'orders:Migration20260724T193611OrdersOrderPlacementIntents names webhooks.api_keys',
-    'organizations:Migration20260611T140349OrganizationsConsolidation names inventory.warehouses',
     'transactional_emails:Migration20260801T111001TransactionalEmailsEmailDefaultsReseed names newsletter.newsletter_email_blocks',
   ];
 
@@ -407,12 +424,18 @@ describe('G4 — a migration names only what its own module closure guarantees (
   it('names the closure that would have to hold the creator', () => {
     // T1-C's record, over the real corpus: a line is what a reviewer counts,
     // and the finding carries what a repairer needs.
+    //
+    // It was `assets_library -> cms.cms_pages` until Phase 3 repaired that
+    // site. The subject moves with the corpus on purpose: this case exists to
+    // prove the *shape* a finding carries against the real registry rather than
+    // against a fixture, so it has to name a site that is actually open, and
+    // the last one open is Phase 5's.
     const found = closureViolations(SOURCES, MODULE_DEPENDENCIES);
-    const assets = found.find((violation) => violation.moduleId === 'assets_library');
-    expect(assets).toBeDefined();
-    expect(assets!.table).toBe('cms_pages');
-    expect(assets!.creatorModuleIds).toEqual(['cms']);
-    expect(assets!.closure).not.toContain('cms');
+    const reseed = found.find((violation) => violation.moduleId === 'transactional_emails');
+    expect(reseed).toBeDefined();
+    expect(reseed!.table).toBe('newsletter_email_blocks');
+    expect(reseed!.creatorModuleIds).toEqual(['newsletter']);
+    expect(reseed!.closure).not.toContain('newsletter');
   });
 
   it('reports a reference to a table only a module outside the closure creates', () => {

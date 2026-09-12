@@ -8,6 +8,14 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
  * Verifies the new asset_folders table, the eight new columns on `assets`,
  * the `categories.main_image_asset_id` FK, the GIN index on cms_pages.body,
  * and the two backfill UPDATE rules described in `data-model.md`.
+ *
+ * The GIN index is asserted here and is no longer created here: since
+ * `specs/120-migration-closure-bridge-ownership/` Phase 3 it is
+ * `Migration20260912T125709CmsPageBodyAssetRefIndex`'s, `cms_pages` being
+ * `cms`' table. The assertion stands unchanged and is still this feature's to
+ * make — the index exists for reference protection's scan — but an instance
+ * without `cms` has neither the table nor the index, and this suite migrates
+ * the whole corpus.
  */
 describe('assets_library migration (T008 — 034_assets_library_init)', () => {
   let db: TestDb;
