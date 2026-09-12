@@ -5,7 +5,13 @@
  * specs/065-manifest-aware-migrations/contracts/fk-dependency-check.md §2.1:
  * ownership resolves by entity `tableName` first, then by this map, then it
  * fails. There is deliberately **no** "whichever migration created it" fallback
- * — that produced provably wrong owners (`sales_channel_products` → `core`).
+ * — that produced provably wrong owners: `product_assets` and
+ * `product_categories` are `catalog`'s and are created by the platform's
+ * foundation migration, so a fallback files both under `core`. The example that
+ * stood here was `sales_channel_products` → `core`, and
+ * `specs/120-migration-closure-bridge-ownership/` Phase 2 retired it by moving
+ * that table's creation to `catalog`; the argument is unchanged and the two
+ * above are what still demonstrate it.
  *
  * Every key is asserted to be a really-created table that no entity claims, so
  * a stale entry fails the build (fk-dependency-drift.test.ts, case V2).
@@ -53,16 +59,28 @@ export const TABLE_OWNER_OVERRIDES: Readonly<Record<string, string>> = {
   pimcore_product_links: 'pim_pimcore',
 
   // Sales-channel membership bridges (Principle XII — read only through
-  // SalesChannelMembershipService).
-  sales_channel_categories: 'sales_channels',
-  sales_channel_cms_pages: 'sales_channels',
-  sales_channel_customer_accounts: 'sales_channels',
-  sales_channel_delivery_methods: 'sales_channels',
-  sales_channel_organizations: 'sales_channels',
-  sales_channel_payment_methods: 'sales_channels',
-  sales_channel_products: 'sales_channels',
-  sales_channel_promotions: 'sales_channels',
-  sales_channel_taxes: 'sales_channels',
+  // SalesChannelMembershipService). Each belongs to the module that owns its
+  // **far side**, not to `sales_channels`, since
+  // `specs/120-migration-closure-bridge-ownership/` Phase 2 moved the DDL there
+  // under D-226: the near side is a kernel table every instance has, and the far
+  // side is what an instance can decline to install.
+  //
+  // Re-pointed by hand, and that is not a chore this map will outgrow. This
+  // derivation has no creating-migration fallback by design — see the header —
+  // so moving a `create table` moves `check:module-boundary`'s owner map and
+  // leaves this one exactly where it was. G6, in
+  // `test/unit/db/instance-migration-order.test.ts`, is what stops the next
+  // relocation from leaving this map behind: it reconciles the two, and the nine
+  // entries below were the only nine they disagreed on.
+  sales_channel_categories: 'catalog',
+  sales_channel_cms_pages: 'cms',
+  sales_channel_customer_accounts: 'customer_accounts',
+  sales_channel_delivery_methods: 'delivery_methods',
+  sales_channel_organizations: 'organizations',
+  sales_channel_payment_methods: 'payment_methods',
+  sales_channel_products: 'catalog',
+  sales_channel_promotions: 'promotions',
+  sales_channel_taxes: 'taxes',
 
   // Settings scoping bridges. Kernel-owned since feature 072 T018: they are the
   // pivot tables of `Setting.salesChannels` / `SettingGroup.salesChannels`, and
