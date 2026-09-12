@@ -5596,7 +5596,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // halves are the #235/#237 shape read the other way round: a widening that
     // classifies an existing population moves neither number, and the edit that
     // follows it moves `sites` alone.
-    sites: 262,
+    // **sites 262 -> 261**: the ninth link, and it is the **other** kind —
+    // `catalog/attributes.md` -> `../search.md`, a `foreign-module-link` whose
+    // shard entry drained with it. It is the one link in that ledger a default
+    // instance's documentation build actually refused, so A6 of the instance
+    // acceptance criterion was red on it alone; the shard keeps `promotions`,
+    // which that module set installs.
+    sites: 261,
     // Three authors, each seeing something the others cannot. `manifest-index`
     // is issue #215's shared floor over the module walk, whose unit is the
     // module's own directory. `sidebar-entries` is the **committed artefact's**

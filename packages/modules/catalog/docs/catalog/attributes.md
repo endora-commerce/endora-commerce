@@ -238,7 +238,7 @@ ports per Constitution I:
 - [Catalog](../catalog.md) — the parent module, including the
   storefront `GET /api/v1/catalog/filters` endpoint that consumes
   `filterPosition`.
-- [Search](../search.md) — the Meilisearch indexer that consumes the
+- The `search` module's Meilisearch indexer, which consumes the
   `isSearchable` flag.
 - [Promotions](../promotions.md) — the Promotion Rule editor that
   consumes the `isPromoRule` flag.

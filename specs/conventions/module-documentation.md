@@ -40,8 +40,11 @@ module.
    installed in the reader's instance, so the link names a page that is not there and
    `onBrokenLinks: 'throw'` is what that client's own build says about it. Refer to the
    module by name, or link the module map. `foreign-module-link` is the finding, and its
-   per-consumer shards under `backend/scripts/ledgers/foreign-module-links/` are the 24
-   links standing, expected to empty.
+   per-consumer shards under `backend/scripts/ledgers/foreign-module-links/` are the links
+   standing, expected to empty. **How many that is is not written here** — this sentence
+   read *"the 24 links standing"* against a ledger holding **19**, stale by four before
+   anything on this branch touched it, in the item whose whole subject is a drain (D-100).
+   `check:module-docs` prints it, and the printed figure is the only one that is current.
 1b. **And do not link the site's own tree either** — `../architecture/…`,
    `../integrations/…`, anything above the modules category. A sibling module is
    at least *sometimes* there; a page above the category travels with no package
