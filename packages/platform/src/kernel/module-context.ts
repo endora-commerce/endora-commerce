@@ -23,6 +23,10 @@ import {
 import type { KernelContainer, KernelCradle } from './container.js';
 import { moduleLogger, type PlatformLogger } from './logging.js';
 import { registerPort } from './ports/provide.js';
+import {
+  DROPPED_CONTRIBUTION_SINK,
+  isDeclaredContribution,
+} from './contribution-sinks.js';
 
 /**
  * `ModuleContext` — the only kernel surface a module sees (feature 072).
@@ -859,6 +863,25 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
       // `then` on an accidental await); no registration can carry that name.
       if (typeof property === 'symbol') return undefined;
       if (isRegistering()) throw new EagerResolutionError(module.id, property);
+      // **A contribution to a registry that was never registered is dropped**
+      // (owner ruling, 2026-09-12; feature 117, A4). Asked here, at the
+      // container resolution, because this is where the throw comes from and
+      // because it is the only layer that needs no cooperation from the module:
+      // a contributor pushes without knowing whether the registry exists in
+      // this composition, which is the whole of the ruling.
+      //
+      // The conjunction is what keeps it from being "an unregistered name
+      // resolves to something": this module's **own** manifest must declare
+      // this exact name as `contributes-to`, and nothing in this composition
+      // may register it. A name nobody registers anywhere is still
+      // `check:port-dependencies`' `unowned-name` and still fails the build.
+      // See `contribution-sinks.ts` for the full reasoning and its bound.
+      if (
+        isDeclaredContribution(module.id, property) &&
+        !container.hasRegistration(property)
+      ) {
+        return DROPPED_CONTRIBUTION_SINK;
+      }
       return container.cradle[property];
     },
     has(_target, property): boolean {

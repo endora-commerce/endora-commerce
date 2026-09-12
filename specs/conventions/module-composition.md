@@ -52,6 +52,25 @@ never add a "module options" object for something the module can read itself.
    edge is currently answering the question that dialog cannot yet ask — write the entry for
    the operator who will read it, not for the check. See
    `docs/docs/architecture/kernel.md` § *The deactivation-consequence ledger*.
+4b. **All four of those answers are about an owner an operator *switched off*. An owner an
+   instance *never installed* is a different question, and you do not answer it** (owner
+   ruling, 2026-09-12). `endora new instance` writes the modules declaring
+   `activation.nonDeactivatable` closed over `dependencies` and over **nothing else**, so a
+   `contributes-to` edge — whose whole purpose is to withhold that claim — is precisely a
+   promise that the owner may be missing from a client's tree. In this repository every
+   module is always composed, so the difference could not arise until an instance executed
+   it: a scaffolded instance migrated its 118 migrations and then exited 1 with
+   `module 'catalog' failed in its boot hook: Could not resolve 'promptActionToolRegistry'`.
+   The platform now **drops** a contribution whose registry is not in the composition, so a
+   contributor pushes without knowing whether the registry exists and writes nothing for
+   this. Do not add a guard at the call site, do not probe presence (item 4a's first bullet
+   and `module-activation.md`'s boot-hook rule both still hold), and do not reach for
+   `dependencies` to make the owner appear — that decides Principle XVII's availability axis
+   by accident of one hook. The mechanism is narrow by construction and covers
+   `contributes-to` **only**: a push can be dropped because nothing observes the result,
+   while a `degrades-without` read is a pull whose declaration promises a *degrade* rather
+   than a silent no-op. See `packages/platform/src/kernel/contribution-sinks.ts`, which
+   carries the reasoning and the bound.
 5. **Routes, workers, subscribers** — `ctx.routes` / `ctx.worker` / `ctx.subscribe`. These
    already apply the gating wrappers; do not call `defineModuleRoutes` and friends by hand.
 6. **Settings your module owns** — read them through `settingsReadPort` inside the module.
