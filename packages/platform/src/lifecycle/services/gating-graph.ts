@@ -104,7 +104,13 @@ export interface NonBindingPortEdge {
  * for the reason that function exists: one declaration set, read by the check
  * and by the runtime, so the two cannot disagree about which edges exist. What
  * differs is who else reads it — an acknowledged edge reaches the graph below,
- * a non-binding one reaches nothing.
+ * and a non-binding one reaches the graph not at all.
+ *
+ * It used to reach **nothing**, which was true of all three kinds until the
+ * owner ruling of 2026-09-12. The `contributes-to` subset now reaches the
+ * container resolution through {@link declaredContributionsFrom}, so that a
+ * push into a registry this composition does not hold is dropped rather than
+ * throwing; `degrades-without` and `refuses-without` still reach nothing.
  */
 export function nonBindingPortEdgesFrom(
   manifests: readonly ModuleManifest[],
