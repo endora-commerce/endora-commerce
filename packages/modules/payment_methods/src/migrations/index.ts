@@ -6,11 +6,12 @@
  * `src/packages/package-runtime.ts` takes `exported['migrations']` and refuses
  * the package outright when it is absent (D-168).
  *
- * **Two classes, listed in ascending timestamp.** The second is stamped after
- * `BASELINE_THROUGH`, so this block is one of the two in the first batch that
- * leaves the frozen historical prefix and is ordered by the manifest
- * `dependencies` graph. A timestamp orders this module's own migrations and
- * nothing else (feature 081).
+ * **Listed in ascending timestamp.** The entries stamped after
+ * `BASELINE_THROUGH` leave the frozen historical prefix and are ordered by the
+ * manifest `dependencies` graph instead. A timestamp orders this module's own
+ * migrations and nothing else (feature 081). How many of each there are is not
+ * written here: the stamps answer it, and a count in a comment goes stale in the
+ * merge request that adds a migration (D-100).
  *
  * The **named** exports stay beside the array, and the asymmetry with
  * `./backend` — which publishes an array and no named class (D-168) — is
@@ -26,13 +27,16 @@
 
 import { Migration20260611T140353PaymentMethodsAdapter } from './20260611T140353_payment_methods_adapter.js';
 import { Migration20260821T084920PaymentMethodsFailureStatusOnHold } from './20260821T084920_payment_methods_failure_status_on_hold.js';
+import { Migration20260912T094631PaymentMethodsSalesChannelPaymentMethods } from './20260912T094631_payment_methods_sales_channel_payment_methods.js';
 
 export const migrations = [
   Migration20260611T140353PaymentMethodsAdapter,
   Migration20260821T084920PaymentMethodsFailureStatusOnHold,
+  Migration20260912T094631PaymentMethodsSalesChannelPaymentMethods,
 ];
 
 export {
   Migration20260611T140353PaymentMethodsAdapter,
   Migration20260821T084920PaymentMethodsFailureStatusOnHold,
+  Migration20260912T094631PaymentMethodsSalesChannelPaymentMethods,
 };

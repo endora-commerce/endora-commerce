@@ -7,8 +7,8 @@
  * the package outright when it is absent — *"the `./migrations` export of
  * @endora-commerce/mod-promotions exports no 'migrations' array"* (D-168).
  *
- * **Three classes, listed in ascending timestamp, which orders this module's own
- * migrations and nothing else** (feature 081). Where this block sits relative to
+ * **Listed in ascending timestamp, which orders this module's own migrations and
+ * nothing else** (feature 081). Where this block sits relative to
  * every other module's is decided by the manifest `dependencies` graph:
  * `promotions` declares `orders`, and
  * `…T081251_…_promotion_usage_order_fk` is why — it adds
@@ -34,15 +34,18 @@
 import { Migration20260505T074605PromotionsCriteria } from './20260505T074605_promotions_criteria.js';
 import { Migration20260618T100727PromotionsEngine } from './20260618T100727_promotions_engine.js';
 import { Migration20260818T081251PromotionsPromotionUsageOrderFk } from './20260818T081251_promotions_promotion_usage_order_fk.js';
+import { Migration20260912T094715PromotionsSalesChannelPromotions } from './20260912T094715_promotions_sales_channel_promotions.js';
 
 export const migrations = [
   Migration20260505T074605PromotionsCriteria,
   Migration20260618T100727PromotionsEngine,
   Migration20260818T081251PromotionsPromotionUsageOrderFk,
+  Migration20260912T094715PromotionsSalesChannelPromotions,
 ];
 
 export {
   Migration20260505T074605PromotionsCriteria,
   Migration20260618T100727PromotionsEngine,
   Migration20260818T081251PromotionsPromotionUsageOrderFk,
+  Migration20260912T094715PromotionsSalesChannelPromotions,
 };

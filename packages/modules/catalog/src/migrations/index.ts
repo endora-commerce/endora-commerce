@@ -7,11 +7,13 @@
  * the package outright when it is absent (D-168).
  *
  * Listed in ascending timestamp, which orders **this module's own** migrations
- * and nothing else (feature 081). Where this block of twenty-one sits relative
- * to every other module's is decided by the manifest `dependencies` graph.
- * Nineteen of them are stamped before `BASELINE_THROUGH` and therefore sit in
- * the frozen historical prefix, where the order is history; the two
- * `20260804T…` entries are placed by the graph like any other.
+ * and nothing else (feature 081). Where this block sits relative to every other
+ * module's is decided by the manifest `dependencies` graph. The entries stamped
+ * at or below `BASELINE_THROUGH` sit in the frozen historical prefix, where the
+ * order is history; the ones above it are placed by the graph like any other.
+ * **How many of each is not written here** — the stamps answer it, and the
+ * counts that stood in this sentence were stale the first time a migration was
+ * added under them (D-100).
  *
  * The **named** exports stay, and the asymmetry with `./backend` — which
  * publishes an array and no entity class by name (D-168) — is deliberate.
@@ -46,6 +48,8 @@ import { Migration20260718T200343CatalogCategoryCustomFieldValues } from './2026
 import { Migration20260723T230401CatalogAttributesOnCustomFields } from './20260723T230401_catalog_attributes_on_custom_fields.js';
 import { Migration20260804T152604CatalogWidenProductSku } from './20260804T152604_catalog_widen_product_sku.js';
 import { Migration20260804T160244CatalogCategoryActivation } from './20260804T160244_catalog_category_activation.js';
+import { Migration20260912T094557CatalogSalesChannelProducts } from './20260912T094557_catalog_sales_channel_products.js';
+import { Migration20260912T094623CatalogSalesChannelCategories } from './20260912T094623_catalog_sales_channel_categories.js';
 
 export const migrations = [
   Migration20260429T064146CatalogAttributeSetsInit,
@@ -69,6 +73,8 @@ export const migrations = [
   Migration20260723T230401CatalogAttributesOnCustomFields,
   Migration20260804T152604CatalogWidenProductSku,
   Migration20260804T160244CatalogCategoryActivation,
+  Migration20260912T094557CatalogSalesChannelProducts,
+  Migration20260912T094623CatalogSalesChannelCategories,
 ];
 
 export {
@@ -93,4 +99,6 @@ export {
   Migration20260723T230401CatalogAttributesOnCustomFields,
   Migration20260804T152604CatalogWidenProductSku,
   Migration20260804T160244CatalogCategoryActivation,
+  Migration20260912T094557CatalogSalesChannelProducts,
+  Migration20260912T094623CatalogSalesChannelCategories,
 };

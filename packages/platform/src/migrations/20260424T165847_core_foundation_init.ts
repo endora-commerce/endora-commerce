@@ -3,8 +3,11 @@ import { Migration } from '@mikro-orm/migrations';
 /**
  * Initial foundation migration — consolidates Phase 2 (sessions, audit_log_entries)
  * and Phase 3.4 catalog / assets / inventory tables, plus the M:N bridge tables the
- * Catalog module needs for category membership, asset attachment, and Sales Channel
- * visibility.
+ * Catalog module needs for category membership and asset attachment.
+ *
+ * It created `sales_channel_products` too until
+ * `specs/120-migration-closure-bridge-ownership/` Phase 2 moved it to `catalog`,
+ * which is the module that owns its far side (D-226).
  *
  * Naming follows Principle VI:
  *   - Plural snake_case table names.
@@ -226,21 +229,14 @@ export class Migration20260424T165847CoreFoundationInit extends Migration {
     this.addSql('create index "product_assets_asset_id_index" on "product_assets" ("asset_id");');
     this.addSql('create index "product_assets_product_id_position_index" on "product_assets" ("product_id", "position");');
 
-    // SalesChannel ↔ Product — the subset of the catalog visible in a channel.
-    this.addSql(`
-      create table "sales_channel_products" (
-        "sales_channel_id" uuid not null,
-        "product_id" uuid not null,
-        constraint "sales_channel_products_pkey" primary key ("sales_channel_id", "product_id"),
-        constraint "sales_channel_products_sales_channel_fk" foreign key ("sales_channel_id") references "sales_channels" ("id") on delete cascade,
-        constraint "sales_channel_products_product_fk" foreign key ("product_id") references "products" ("id") on delete cascade
-      );
-    `);
-    this.addSql('create index "sales_channel_products_product_id_index" on "sales_channel_products" ("product_id");');
+    // SalesChannel ↔ Product used to be created here. It moved to `catalog` in
+    // `specs/120-migration-closure-bridge-ownership/` Phase 2 — a bridge between
+    // an always-present near side and a switchable far side is the far side's
+    // (D-226). The class name is unchanged, so nothing is re-offered to a
+    // database that has applied this migration.
   }
 
   override async down(): Promise<void> {
-    this.addSql('drop table if exists "sales_channel_products" cascade;');
     this.addSql('drop table if exists "product_assets" cascade;');
     this.addSql('drop table if exists "product_categories" cascade;');
     this.addSql('drop table if exists "availability_notifications" cascade;');

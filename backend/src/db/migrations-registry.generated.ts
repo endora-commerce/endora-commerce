@@ -93,11 +93,14 @@ import { Migration20260718T200343CatalogCategoryCustomFieldValues } from '@endor
 import { Migration20260723T230401CatalogAttributesOnCustomFields } from '@endora-commerce/mod-catalog/migrations';
 import { Migration20260804T152604CatalogWidenProductSku } from '@endora-commerce/mod-catalog/migrations';
 import { Migration20260804T160244CatalogCategoryActivation } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20260912T094557CatalogSalesChannelProducts } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20260912T094623CatalogSalesChannelCategories } from '@endora-commerce/mod-catalog/migrations';
 
 // ── cms ─────────────────────────────────────────────────────────────────────
 import { Migration20260425T162418CmsPagesInit } from '@endora-commerce/mod-cms/migrations';
 import { Migration20260505T130214CmsInit } from '@endora-commerce/mod-cms/migrations';
 import { Migration20260903T101741CmsNamespaceBlockNames } from '@endora-commerce/mod-cms/migrations';
+import { Migration20260912T094733CmsSalesChannelCmsPages } from '@endora-commerce/mod-cms/migrations';
 
 // ── comparisons ─────────────────────────────────────────────────────────────
 import { Migration20260501T185834ComparisonsInit } from '@endora-commerce/mod-comparisons/migrations';
@@ -139,6 +142,7 @@ import { Migration20260819T074816CustomerAccountsPasswordSetAt } from '@endora-c
 import { Migration20260819T142837CustomerAccountsFoldEmailCase } from '@endora-commerce/mod-customer-accounts/migrations';
 import { Migration20260825T124759CustomerAccountsDropLegacyTwoFactorSecret } from '@endora-commerce/mod-customer-accounts/migrations';
 import { Migration20260825T141659CustomerAccountsOrganizationRequired } from '@endora-commerce/mod-customer-accounts/migrations';
+import { Migration20260912T094701CustomerAccountsSalesChannelCustomerAccounts } from '@endora-commerce/mod-customer-accounts/migrations';
 
 // ── customers ───────────────────────────────────────────────────────────────
 import { Migration20260611T140404CustomersCustomerAddressesInit } from '@endora-commerce/mod-customers/migrations';
@@ -146,6 +150,7 @@ import { Migration20260611T140404CustomersCustomerAddressesInit } from '@endora-
 // ── delivery_methods ────────────────────────────────────────────────────────
 import { Migration20260611T140354DeliveryMethodsShippingMethodsAdapterAndShipments } from '@endora-commerce/mod-delivery-methods/migrations';
 import { Migration20260611T140416DeliveryMethodsFixInPersonPickupAdapter } from '@endora-commerce/mod-delivery-methods/migrations';
+import { Migration20260912T094638DeliveryMethodsSalesChannelDeliveryMethods } from '@endora-commerce/mod-delivery-methods/migrations';
 
 // ── dhl_parcel ──────────────────────────────────────────────────────────────
 import { Migration20260824T083000DhlParcelInit } from '@endora-commerce/mod-dhl-parcel/migrations';
@@ -228,10 +233,12 @@ import { Migration20260611T140402OrganizationsOrgFulfilmentStrategy } from '@end
 import { Migration20260717T151403OrganizationsPersonalOrganizations } from '@endora-commerce/mod-organizations/migrations';
 import { Migration20260718T200340OrganizationsOrganizationCustomFieldValues } from '@endora-commerce/mod-organizations/migrations';
 import { Migration20260720T044254OrganizationsOrgHierarchy } from '@endora-commerce/mod-organizations/migrations';
+import { Migration20260912T094646OrganizationsSalesChannelOrganizations } from '@endora-commerce/mod-organizations/migrations';
 
 // ── payment_methods ─────────────────────────────────────────────────────────
 import { Migration20260611T140353PaymentMethodsAdapter } from '@endora-commerce/mod-payment-methods/migrations';
 import { Migration20260821T084920PaymentMethodsFailureStatusOnHold } from '@endora-commerce/mod-payment-methods/migrations';
+import { Migration20260912T094631PaymentMethodsSalesChannelPaymentMethods } from '@endora-commerce/mod-payment-methods/migrations';
 
 // ── paypal ──────────────────────────────────────────────────────────────────
 import { Migration20260821T110651PaypalInit } from '@endora-commerce/mod-paypal/migrations';
@@ -280,6 +287,7 @@ import { Migration20260806T125806ProductFeedsDelivery } from '@endora-commerce/m
 import { Migration20260505T074605PromotionsCriteria } from '@endora-commerce/mod-promotions/migrations';
 import { Migration20260618T100727PromotionsEngine } from '@endora-commerce/mod-promotions/migrations';
 import { Migration20260818T081251PromotionsPromotionUsageOrderFk } from '@endora-commerce/mod-promotions/migrations';
+import { Migration20260912T094715PromotionsSalesChannelPromotions } from '@endora-commerce/mod-promotions/migrations';
 
 // ── prompt_actions ──────────────────────────────────────────────────────────
 import { Migration20260611T140410PromptActionsInit } from '@endora-commerce/mod-prompt-actions/migrations';
@@ -325,6 +333,7 @@ import { Migration20260821T084922StripeFailureStatusOnHold } from '@endora-comme
 
 // ── taxes ───────────────────────────────────────────────────────────────────
 import { Migration20260426T081516TaxesPromotionsInit } from '@endora-commerce/mod-taxes/migrations';
+import { Migration20260912T094654TaxesSalesChannelTaxes } from '@endora-commerce/mod-taxes/migrations';
 
 // ── tpay ────────────────────────────────────────────────────────────────────
 import { Migration20260729T132507TpayInit } from '@endora-commerce/mod-tpay/migrations';
@@ -409,11 +418,14 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('catalog', Migration20260723T230401CatalogAttributesOnCustomFields),
   migration('catalog', Migration20260804T152604CatalogWidenProductSku),
   migration('catalog', Migration20260804T160244CatalogCategoryActivation),
+  migration('catalog', Migration20260912T094557CatalogSalesChannelProducts),
+  migration('catalog', Migration20260912T094623CatalogSalesChannelCategories),
 
   // ── cms ─────────────────────────────────────────────────────────────────────
   migration('cms', Migration20260425T162418CmsPagesInit),
   migration('cms', Migration20260505T130214CmsInit),
   migration('cms', Migration20260903T101741CmsNamespaceBlockNames),
+  migration('cms', Migration20260912T094733CmsSalesChannelCmsPages),
 
   // ── comparisons ─────────────────────────────────────────────────────────────
   migration('comparisons', Migration20260501T185834ComparisonsInit),
@@ -455,6 +467,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('customer_accounts', Migration20260819T142837CustomerAccountsFoldEmailCase),
   migration('customer_accounts', Migration20260825T124759CustomerAccountsDropLegacyTwoFactorSecret),
   migration('customer_accounts', Migration20260825T141659CustomerAccountsOrganizationRequired),
+  migration('customer_accounts', Migration20260912T094701CustomerAccountsSalesChannelCustomerAccounts),
 
   // ── customers ───────────────────────────────────────────────────────────────
   migration('customers', Migration20260611T140404CustomersCustomerAddressesInit),
@@ -462,6 +475,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── delivery_methods ────────────────────────────────────────────────────────
   migration('delivery_methods', Migration20260611T140354DeliveryMethodsShippingMethodsAdapterAndShipments),
   migration('delivery_methods', Migration20260611T140416DeliveryMethodsFixInPersonPickupAdapter),
+  migration('delivery_methods', Migration20260912T094638DeliveryMethodsSalesChannelDeliveryMethods),
 
   // ── dhl_parcel ──────────────────────────────────────────────────────────────
   migration('dhl_parcel', Migration20260824T083000DhlParcelInit),
@@ -544,10 +558,12 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('organizations', Migration20260717T151403OrganizationsPersonalOrganizations),
   migration('organizations', Migration20260718T200340OrganizationsOrganizationCustomFieldValues),
   migration('organizations', Migration20260720T044254OrganizationsOrgHierarchy),
+  migration('organizations', Migration20260912T094646OrganizationsSalesChannelOrganizations),
 
   // ── payment_methods ─────────────────────────────────────────────────────────
   migration('payment_methods', Migration20260611T140353PaymentMethodsAdapter),
   migration('payment_methods', Migration20260821T084920PaymentMethodsFailureStatusOnHold),
+  migration('payment_methods', Migration20260912T094631PaymentMethodsSalesChannelPaymentMethods),
 
   // ── paypal ──────────────────────────────────────────────────────────────────
   migration('paypal', Migration20260821T110651PaypalInit),
@@ -596,6 +612,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('promotions', Migration20260505T074605PromotionsCriteria),
   migration('promotions', Migration20260618T100727PromotionsEngine),
   migration('promotions', Migration20260818T081251PromotionsPromotionUsageOrderFk),
+  migration('promotions', Migration20260912T094715PromotionsSalesChannelPromotions),
 
   // ── prompt_actions ──────────────────────────────────────────────────────────
   migration('prompt_actions', Migration20260611T140410PromptActionsInit),
@@ -641,6 +658,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── taxes ───────────────────────────────────────────────────────────────────
   migration('taxes', Migration20260426T081516TaxesPromotionsInit),
+  migration('taxes', Migration20260912T094654TaxesSalesChannelTaxes),
 
   // ── tpay ────────────────────────────────────────────────────────────────────
   migration('tpay', Migration20260729T132507TpayInit),
