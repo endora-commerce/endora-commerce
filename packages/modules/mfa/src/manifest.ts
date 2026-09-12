@@ -114,6 +114,54 @@ export const manifest = defineModuleManifest({
   description:
     'Two-factor authentication (TOTP + recovery codes) and Google/Microsoft sign-in, with per-scope enablement/enforcement and admin reset.',
   version: '1.0.0',
+  /**
+   * What this module needs from the environment (`specs/117-instance-bring-up/`
+   * FR-002). Only what it **owns**: its reads of platform-owned names are
+   * satisfied by `packages/platform/src/env/index.ts`.
+   *
+   * Why each of these is not a Setting is its entry in
+   * `backend/scripts/ledgers/module-environment-inputs/mfa.ts`.
+   */
+  env: [
+    {
+      name: 'ADMIN_BASE_URL',
+      describes: {
+        en: 'Where the admin panel is, so that a link this instance mails an administrator opens their own installation.',
+        pl: 'Gdzie znajduje się panel administracyjny, aby link wysłany administratorowi otwierał jego własną instalację.',
+      },
+      requirement: {
+        kind: 'optional',
+        without: {
+          en: 'A sign-in or recovery link mailed to an administrator points nowhere they can open — which matters most when the panel is on a host of its own.',
+          pl: 'Link logowania lub odzyskiwania wysłany administratorowi prowadzi donikąd — co ma największe znaczenie, gdy panel stoi na osobnym hoście.',
+        },
+      },
+      secret: false,
+      generable: false,
+      owner: { kind: 'module', moduleId: 'mfa' },
+      consumers: ['backend'],
+      addressOf: 'admin',
+    },
+    {
+      name: 'MFA_SECRET_ENCRYPTION_KEY',
+      describes: {
+        en: 'The key that encrypts every stored second-factor secret, so a copy of the database is not a copy of everybody’s authenticator.',
+        pl: 'Klucz szyfrujący każdy zapisany sekret drugiego składnika, aby kopia bazy danych nie była kopią czyjegoś uwierzytelniacza.',
+      },
+      requirement: {
+        kind: 'optional',
+        without: {
+          en: 'No second factor can be enrolled: the module serves its screens and refuses every enrolment, because it will not store a secret it cannot encrypt.',
+          pl: 'Nie da się zarejestrować drugiego składnika: moduł udostępnia swoje ekrany i odmawia każdej rejestracji, bo nie zapisze sekretu, którego nie potrafi zaszyfrować.',
+        },
+      },
+      secret: true,
+      generable: true,
+      owner: { kind: 'module', moduleId: 'mfa' },
+      consumers: ['backend'],
+      addressOf: null,
+    },
+  ],
   // `auth` owns `authSessionPort`, `requireAdmin` and the customer guard this
   // module resolves; feature 072 made those container resolutions rather than
   // constructor arguments, so the edge is real now and has to be declared.

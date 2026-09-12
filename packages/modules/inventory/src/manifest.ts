@@ -140,6 +140,35 @@ export const manifest = defineModuleManifest({
   description:
     'Multi-warehouse stock levels, fulfilment strategy, and storefront display modes.',
   version: '1.0.0',
+  /**
+   * What this module needs from the environment (`specs/117-instance-bring-up/`
+   * FR-002). Only what it **owns**: its reads of platform-owned names are
+   * satisfied by `packages/platform/src/env/index.ts`.
+   *
+   * Why each of these is not a Setting is its entry in
+   * `backend/scripts/ledgers/module-environment-inputs/inventory.ts`.
+   */
+  env: [
+    {
+      name: 'INVENTORY_LOW_STOCK_RECIPIENT',
+      describes: {
+        en: 'Who is e-mailed when a product falls below its low-stock threshold, where the Setting of the same name has not been filled in.',
+        pl: 'Kto dostaje wiadomość, gdy produkt spadnie poniżej progu niskiego stanu, o ile ustawienie o tej samej nazwie nie zostało wypełnione.',
+      },
+      requirement: {
+        kind: 'optional',
+        without: {
+          en: 'A product crossing its low-stock threshold alerts nobody, unless the Setting carries an address.',
+          pl: 'Produkt przekraczający próg niskiego stanu nikogo nie powiadomi, o ile adres nie znajdzie się w ustawieniu.',
+        },
+      },
+      secret: false,
+      generable: false,
+      owner: { kind: 'module', moduleId: 'inventory' },
+      consumers: ['backend'],
+      addressOf: null,
+    },
+  ],
   // Feature 075, Phase C adds `customer_accounts` and `email`. Both were
   // reached by importing a file rather than resolving a port, so neither
   // appeared here: the availability queue turns a subscription into an e-mail
