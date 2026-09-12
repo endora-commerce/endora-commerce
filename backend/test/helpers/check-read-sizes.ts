@@ -1368,7 +1368,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2061,
+    // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 2061 -> 2062.**
+    // One platform source file (`kernel/contribution-sinks.ts`). It declares no action,
+    // so nothing else moves.
+    files: 2062,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1687,7 +1690,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2193,
+    // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 2193 -> 2194.**
+    // One platform source file (`kernel/contribution-sinks.ts`).
+    files: 2194,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2449,7 +2454,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 5622,
+    // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 5622 -> 5625.**
+    // Three: the two new platform files (source and its co-located test) and the new
+    // backend unit test. Its population is the whole tree, tests included.
+    files: 5625,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2822,7 +2830,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2470,
+    // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 2470 -> 2472.**
+    // Two: the new platform source file and its co-located test, both under a source
+    // root this walk reads for the owner map.
+    files: 2472,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -2984,7 +2995,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // because the census reads the tree and not the diff, and an entry left stale is one the
     // next author meets with nothing wrong in their own change.
 
-    files: 1318,
+    // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 1318 -> 1319.**
+    // NOT THIS BRANCH'S. `origin/master` already reads 1319 — the `design/117-tasks`
+    // merge added a document and did not re-record. This branch adds no markdown a
+    // citing document names.
+    files: 1319,
     sites: 13,
     sources: [],
     //
@@ -3293,7 +3308,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2193,
+    // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 2193 -> 2194.**
+    // One platform source file (`kernel/contribution-sinks.ts`). It declares no entity.
+    files: 2194,
     sites: 265,
     sources: ['manifest-index'],
   },
@@ -3591,7 +3608,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2193,
+    // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 2193 -> 2194.**
+    // One platform source file. It starts no timer and registers no boot hook, so the
+    // ledger stays at two entries and neither of them is new.
+    files: 2194,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3887,7 +3907,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2193,
+    // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 2193 -> 2194.**
+    // One platform source file. It is no entry point, so no site is added.
+    files: 2194,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -4125,7 +4147,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
 
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 649 -> 650 (+1).**
     // The one platform source the feature adds. It reads no environment value.
-    files: 650,
+    // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 650 -> 651.**
+    // One platform source file. It reads no environment variable.
+    files: 651,
     sites: 68,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
@@ -4380,7 +4404,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 1625 -> 1626, sites 587 -> 588.**
     // `backend/test/helpers/channel-bridges.ts`, and the one read it performs. It defaults nothing:
     // the descriptors come from the owning modules and an absent one is a resolution failure.
-    files: 1626,
+    // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 1626 -> 1627.**
+    // The new backend unit test. Its population is `backend/test/**`, so the two
+    // platform files are outside it.
+    files: 1627,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -4617,7 +4644,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // sides' deltas.
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 1625 -> 1626.**
     // `backend/test/helpers/channel-bridges.ts`. It releases no harness resource.
-    files: 1626,
+    // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 1626 -> 1627.**
+    // The new backend unit test; same `backend/test/**` population as above.
+    files: 1627,
     sites: null,
     sources: [],
   },
@@ -4930,7 +4959,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2193,
+    // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 2193 -> 2194, sites 149 -> 150.**
+    // One platform source file (`kernel/contribution-sinks.ts`) and the one outward
+    // import it adds — `lifecycle/services/gating-graph.ts` naming it, which is the
+    // supply direction rule B allows. Its `.test.ts` sibling is outside this walk.
+    files: 2194,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -4968,7 +5001,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fewer files than the 139 recorded against the tree before it: 140. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    sites: 149,
+    sites: 150,
     // `platform-subpaths` is T118a's second author over rule B's population: the
     // platform's `exports` map is a different program's answer to "which directories
     // does this package have", and a published subpath naming no walked directory is a
@@ -5939,7 +5972,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    sites: 35207,
+    // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): sites 35207 -> 35208.**
+    // One literal, in the new platform source file. Every other string this branch adds
+    // is a comment or a test, neither of which is in this population.
+    sites: 35208,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -6517,7 +6553,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // measured on the merged tree.** Nine files, counted twice: the nine far-side bridge
     // migrations are opened by the module walk and again by the schema walk that builds
     // the owner map, and this number is their sum. `module files` alone moved 2567 -> 2576.
-    files: 5194,
+    // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 5194 -> 5196.**
+    // Two platform files. No module source moves at all, which is the shape of this
+    // repair: the mechanism is the platform's and no contributor is edited.
+    files: 5196,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -7504,7 +7543,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // adds `.changeset/tidy-seals-refresh.md`, and this walk is the whole repository minus
     // `SKIPPED_DIRECTORIES` and the binary deny-list — `.changeset` is in neither, and `.md` is
     // not a binary extension, so the file counts.
-    files: 8139,
+    // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 8139 -> 8144.**
+    // Five, and ONE OF THEM IS NOT THIS BRANCH'S: `origin/master` already reads 8140.
+    // The four this branch adds are the two platform files, the backend unit test and
+    // the changeset. Its population is the whole repository, so a `.md` counts.
+    files: 8144,
     sites: null,
     sources: [],
     //
@@ -8082,7 +8125,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2193,
+    // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 2193 -> 2194.**
+    // One platform source file. It writes no `catch`.
+    files: 2194,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -9245,7 +9290,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // sides' deltas.
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 1625 -> 1626.**
     // `backend/test/helpers/channel-bridges.ts`. It touches no table.
-    files: 1626,
+    // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 1626 -> 1627.**
+    // The new backend unit test; `backend/test/**` again.
+    files: 1627,
     sites: 163,
     sources: [],
   },
@@ -9593,7 +9640,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2193,
+    // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 2193 -> 2194.**
+    // One platform source file. It subscribes to nothing and builds no worker.
+    files: 2194,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -9797,7 +9846,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the combined tree, never summed from the two sides' deltas.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 1755,
+    // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 1755 -> 1756, sites 1112 -> 1115.**
+    // `test/unit/kernel/contribution-absent-owner.test.ts`, plus the three route sites
+    // its three composed contributors contribute.
+    files: 1756,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -9825,7 +9877,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `test/integration/megamenu/cross-module-targets.test.ts` becomes a site. It is
     // server-bound and multi-owner, so it stays under `backend/test` and needs no ledger
     // entry.
-    sites: 1112,
+    sites: 1115,
     // Two independent authors. `manifest-index` is issue #215's shared floor
     // over the module walk, whose unit is the module's own directory rather than
     // a test file — 14 of the 70 packages ship no test and a floor over test
@@ -10135,7 +10187,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2193,
+    // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 2193 -> 2194.**
+    // One platform source file. It writes no SQL.
+    files: 2194,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -10569,7 +10623,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/120-migration-closure-bridge-ownership/` Phase 5.** **-2:** the two deleted
     // `transactional_emails` DML ledger shards (`migration-undeclared-references/` and
     // `migration-foreign-writes/`), which FR-020 removes with the statements they recorded.
-    files: 4640,
+    // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 4640 -> 4643, sites 869 -> 871.**
+    // Three files — the two platform ones and the backend unit test — and the two
+    // value reaches that test makes into module package sources. `orders` is named by
+    // its published specifier rather than by a path, because `Order` is a
+    // `@TransitivelyScoped` parent and a second class of that name is the
+    // `chain-parent-reach` this check refuses.
+    files: 4643,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -10627,7 +10687,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which resolves it out of the composed `entities` array. A helper import is no
     // reach, so 81 sites go and none arrives.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The value reaches into a package's source that the module's tests make.
-    sites: 869,
+    sites: 871,
     sources: ['manifest-index', 'entities-registry', 'tenant-chains'],
     //
     // **852 -> 851 sites, 4336 -> 4337 files, and the two have different causes.**
@@ -11456,7 +11516,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // removes with the statements they recorded. Against them this merge request adds
     // `.changeset/tidy-seals-refresh.md`, and this walk is `git ls-files --cached`, which lists
     // it once committed — measured, tracked files 8201 -> 8200 across the same commits.
-    files: 8199,
+    // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 8199 -> 8204.**
+    // Five, and ONE OF THEM IS NOT THIS BRANCH'S: `origin/master` already reads 8200,
+    // from the `design/117-tasks` merge. The four this branch adds are the two platform
+    // files, the backend unit test and the changeset; it reads `git ls-files --cached`,
+    // so a committed file counts whatever its extension.
+    files: 8204,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -12011,7 +12076,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `migration-foreign-writes/`), which FR-020 removes with the statements they recorded. The
     // changeset this merge request adds does not offset them here: this walk is source files by
     // extension plus `docs/docs/**`, and `.changeset/*.md` is neither.
-    files: 6266,
+    // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 6266 -> 6269.**
+    // Three: the two platform files and the backend unit test. Comments only, all
+    // English.
+    files: 6269,
     sites: null,
     sources: ['manifest-index'],
     //
