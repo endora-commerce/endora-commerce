@@ -130,7 +130,17 @@ export type CheckTermination =
 export interface SpawnedCheck {
   /** stdout and stderr interleaved, truncated at {@link OUTPUT_CAP}. */
   readonly output: string;
-  /** Everything the child wrote, whether or not it survived the cap. */
+  /**
+   * Everything the **direct child's** pipe carried, whether or not it survived
+   * the cap.
+   *
+   * Under a relay that is more than the check: a surviving wrapper's own
+   * diagnostic about the kill is written to the same two descriptors, so
+   * Debian's `sh` adds `Killed` and its `bash` a job-status line. Counted
+   * rather than filtered — nothing here can tell the two authors apart on one
+   * pipe, and a wrapper's sentence is evidence of the kill rather than noise —
+   * and {@link terminationReport} says so where it prints the number.
+   */
   readonly bytes: number;
   readonly termination: CheckTermination;
   /**
@@ -331,7 +341,11 @@ export function terminationReport(script: string, seen: SpawnedCheck | undefined
       return (
         `${script} exited ${String(seen.termination.code)}, which is how a surviving wrapper ` +
         `reports that its own child was killed by ${seen.termination.signal} ` +
-        `(128 + ${String(seen.termination.code - SIGNAL_EXIT_OFFSET)}), ${printed}. It is ` +
+        `(128 + ${String(seen.termination.code - SIGNAL_EXIT_OFFSET)}), ${printed} — but ` +
+        "that count is the whole pipe's, so it is the check's output plus whatever the " +
+        'surviving wrapper said about the kill, which differs per shell (Debian\'s `sh` ' +
+        'writes `Killed`, its `bash` a job-status line, and some shells nothing at all). It ' +
+        'is ' +
         'spawned through `pnpm exec tsx`, so the process holding the TypeScript program is ' +
         'two layers in: that one was killed, its two ancestors survived and relayed the ' +
         'code, and this parent therefore sees an exit code where the kernel would have given ' +

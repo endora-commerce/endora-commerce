@@ -56,6 +56,24 @@ async function child(script: string): Promise<SpawnedCheck> {
  * The same child, behind a surviving wrapper — the shape `pnpm exec tsx`
  * produces, reduced to the one property that matters: a process that outlives
  * the one the kernel took and reports it as an exit code of its own.
+ *
+ * **A surviving wrapper also talks, and what it says differs per shell.** The
+ * direct child here is the *shell*, so its own diagnostic about the kill lands
+ * on the same pipe as the grandchild's output and is counted with it. Measured,
+ * over `process.stdout.write('<43 bytes>'); process.kill(process.pid, 9)`:
+ *
+ * ```
+ * dash        (Debian's /bin/sh, so CI's)        43 + 7  = 50   "Killed\n"
+ * bash 5.2    (Debian's /bin/bash)               43 + 71 = 114  a job-status line
+ * bash 5.3    (a developer box's /bin/sh)        43           silent
+ * ```
+ *
+ * So there is no wrapper for which *"the count is the check's own output"*
+ * holds, and asserting it pinned the shell of whoever wrote the assertion —
+ * `node:22.17-slim` reported `expected 50 to be 43` on `master` from the merge
+ * that added it. The assertion below states what is true of every wrapper
+ * instead; {@link child} keeps the exact one, where it belongs, because a
+ * direct child is the whole pipe.
  */
 async function wrapped(script: string): Promise<SpawnedCheck> {
   return spawnCheck('sh', ['-c', `"$0" -e "$1"; exit $?`, process.execPath, script], {
@@ -142,10 +160,21 @@ describe('a child killed behind a surviving wrapper', () => {
     );
 
     expect(seen.termination.kind).toBe('relayed-signal');
-    expect(seen.bytes).toBe(READ_LINE.length);
-    expect(terminationReport('a-check.ts', seen)).toContain(
-      `having printed ${READ_LINE.length} byte(s)`,
-    );
+    // Everything the child's pipe carried is counted and nothing is dropped:
+    // `bytes` is the length of what was captured, whoever wrote it. That is the
+    // property the diagnosis rests on — a byte the count forgot is a byte the
+    // report cannot show — and it is the one that holds for every wrapper.
+    expect(seen.bytes).toBe(Buffer.byteLength(seen.output));
+    // The check's own line is in there, at the head of it. Under a relay the
+    // count is the **pipe's** and not the check's: see {@link wrapped} for the
+    // three shells and what each of them adds.
+    expect(seen.output.startsWith(READ_LINE)).toBe(true);
+    expect(seen.bytes).toBeGreaterThanOrEqual(READ_LINE.length);
+    const report = terminationReport('a-check.ts', seen);
+    expect(report).toContain(`having printed ${String(seen.bytes)} byte(s)`);
+    // And it says whose bytes those are, rather than letting a reader take a
+    // number the wrapper contributed to for the check's own output.
+    expect(report).toContain("that count is the whole pipe's");
   });
 
   it('is not a reading about SIGKILL alone', async () => {
