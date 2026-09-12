@@ -1010,6 +1010,88 @@ export interface RecordedReadSize {
  * unresolved merge a conflicted path is listed once per stage, which reads two
  * high. Measured staged: 8354 and 6232.
  */
+/**
+ * **2026-09-11 — `AGENTS.md` becomes a router: fourteen files, ten entries, no
+ * new work.**
+ *
+ * The branch moves prose. It adds **fourteen** tracked files and deletes none:
+ * twelve markdown documents under `specs/conventions/`, which is where the
+ * bodies `AGENTS.md` used to inline now live, plus
+ * `backend/test/helpers/agents-router.ts` and
+ * `backend/test/unit/docs/agents-router.test.ts`, the ratchet that holds the
+ * shape. Every number below falls out of which of those fourteen a walk can
+ * see, and each was **measured** on the tree rather than summed from a delta.
+ *
+ *   - **The two whole-tree walks take all fourteen** — `check-nul-bytes`
+ *     8087 -> **8101** and `check-naming.sh` 8147 -> **8161**. Those two are the
+ *     **only** numbers in this block that moved when the branch caught up with
+ *     `origin/master` at `86fea9052`, and what moved them was not this branch:
+ *     it recorded 8171 -> 8185 and 8231 -> 8245 against its own branch point,
+ *     and then `release/version-0.8.0` consumed all 85 remaining changesets,
+ *     taking 85 files out of both whole-tree populations. The delta is the same
+ *     fourteen on either side of that; the base is not. Re-measured on the
+ *     merged tree after the resolution was committed and with `git status`
+ *     empty, which for `check-naming.sh` is mandatory rather than tidy — it
+ *     reads `git ls-files --cached`, the index, where a conflicted path is
+ *     listed once per stage.
+ *   - **`check-doc-snippets` takes the twelve documents**, 1303 -> **1315**: its
+ *     roots are `docs/docs` and `specs`, and `specs/conventions/` is under the
+ *     second. Its `sites` also moves, 12 -> **13**, and that one is worth a
+ *     sentence because it is not a file count. `sites` is the documents that
+ *     *enrol* by carrying the `verbatim-from:` hint anywhere in their text, and
+ *     `check-inventory.md` — the routed home of this estate's own inventory
+ *     table — carries the marker inside its `check:doc-snippets` row, as a
+ *     backticked example of the syntax. The row said the same words in
+ *     `AGENTS.md` and enrolled nothing, because `AGENTS.md` is under neither
+ *     root. The enrolment is harmless and stable: `MARKER` is anchored to a
+ *     whole trimmed line, the example sits mid-row inside a table cell, so the
+ *     document is scanned and yields no marker, which is the green it prints.
+ *     It is recorded here rather than engineered away, because breaking the
+ *     literal would corrupt the row that documents the syntax.
+ *   - **`check-language.sh` takes the two TypeScript files**, 6238 -> **6240**:
+ *     markdown is in neither of its two populations — its source scan is keyed on
+ *     source-code extensions and its prose scan on `docs/docs/**` — so the twelve
+ *     documents are invisible to it. That asymmetry with `check-naming.sh`, which
+ *     walks the same `git ls-files` listing and takes all fourteen, is the whole
+ *     difference between the two and is why neither number can be inferred from
+ *     the other.
+ *   - **The `backend/test/**` walks take the two**, one file each of helper and
+ *     test — `check-fixture-substitution`, `check-harness-teardown` and
+ *     `check-shared-table-wipes`, all 1623 -> **1625** — except
+ *     `check-test-ownership`, 1754 -> **1755**, whose population is the test
+ *     files rather than everything under that root, so the helper is not in it.
+ *   - **`check-singleton-identity`** 4621 -> **4623**, the two new files being
+ *     under a walked root.
+ *   - **`check-diacritic-folds`** moves on both axes and neither is the twelve
+ *     documents: its walk is the whole tree minus `backend/scripts` and
+ *     `backend/test/unit/scripts`, and it reads source rather than markdown, so
+ *     `files` 5597 -> **5599** is the two TypeScript files alone. `sites`
+ *     548 -> **554** is the six `.replace()` calls the two of them contain —
+ *     heading normalisation strips backticks and emphasis, collapses whitespace
+ *     and drops the leading hashes, and the test does the same to build its
+ *     fixtures. None is a slug construction and none is a violation; they are
+ *     six more expressions in the population the check examines, which is the
+ *     ordinary re-record.
+ *
+ * **Measured twice in a worktree stood up for this branch and worked in nowhere
+ * else** — once against its branch point and once against `86fea9052` after the
+ * catch-up merge — with `git clean -fX docs/docs/modules` and
+ * `rm -f docs/.module-docs-copies.json` first and `pnpm run build:packages`
+ * before anything. The census agreed on all 44 entries at the branch point, which
+ * is what makes the deltas above attributable: every one of them is exactly the
+ * count of this branch's own files that the walk in question can see, and
+ * `check-nul-bytes` — the one walk that reads git-ignored files, and therefore
+ * the one that would have absorbed any local residue — moved by precisely the
+ * fourteen tracked files and nothing else.
+ *
+ * **The census was established on the new base before anything was attributed to
+ * it**, in a second pristine worktree detached at `86fea9052`: 0 drifted, 44
+ * agree, 0 not measured, of 44 recorded. That is what makes the catch-up honest.
+ * Of the ten entries this block records, `master` had moved the base of exactly
+ * two, and the census over the merged tree then reported exactly those two as
+ * drifted and nothing else — a prediction and its measurement, in that order.
+ * Neither number is a sum of the two sides' deltas; both were read off the run.
+ */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
     prefix: '[action-route-permissions]',
@@ -2297,7 +2379,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // two sides' deltas.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 5597,
+    files: 5599,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2444,7 +2526,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `changeset-flow.test.ts` now reads out of `.changeset/config.json`. Quality-job shape — the
     // ignored copies under `docs/docs/modules/` swept first. Measured on the combined tree, never
     // summed from the two sides' deltas.
-    sites: 548,
+    sites: 554,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -2789,8 +2871,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // sides' deltas.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 1303,
-    sites: 12,
+    files: 1315,
+    sites: 13,
     sources: [],
     //
     // **1267 -> 1268, and none of it is this branch.** Measured by withdrawing
@@ -4135,7 +4217,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/test/**` and the criterion's own sources are not tests. Quality-job shape — the
     // ignored copies under `docs/docs/modules/` swept first. Measured on the combined tree, never
     // summed from the two sides' deltas.
-    files: 1623,
+    files: 1625,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -4363,7 +4445,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // same `backend/test/**` population. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed from the two
     // sides' deltas.
-    files: 1623,
+    files: 1625,
     sites: null,
     sources: [],
   },
@@ -7070,7 +7152,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // on both sides in one worktree created from the branch, `quality`-job tree shape, with
     // nothing rebuilt between the two runs: `origin/master` reads 8171, the recorded value
     // exactly, and the branch reads 8172.
-    files: 8087,
+    files: 8101,
     sites: null,
     sources: [],
     //
@@ -8722,7 +8804,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // same `backend/test/**` population. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed from the two
     // sides' deltas.
-    files: 1623,
+    files: 1625,
     sites: 163,
     sources: [],
   },
@@ -9262,7 +9344,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the combined tree, never summed from the two sides' deltas.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 1754,
+    files: 1755,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -9990,7 +10072,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // sides' deltas.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 4621,
+    files: 4623,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -10822,7 +10904,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // on both sides in one worktree created from the branch, `quality`-job tree shape, with
     // nothing rebuilt between the two runs: `origin/master` reads 8231, the recorded value
     // exactly, and the branch reads 8232.
-    files: 8147,
+    files: 8161,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -11342,7 +11424,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // not, exactly as this branch's 214 deleted changesets and 83 added changelogs are not
     // and its `.mjs` verifier is. Measured on the merged tree after the resolution was
     // committed, this population being the index.
-    files: 6238,
+    files: 6240,
     sites: null,
     sources: ['manifest-index'],
     //

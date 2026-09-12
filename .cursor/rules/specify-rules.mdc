@@ -8,8 +8,11 @@ alwaysApply: true
 
 The project instructions live in `AGENTS.md` at the repository root, which Cursor loads
 natively. Read it before changing anything: stack, repo map, commands, binding principles
-from `.specify/memory/constitution.md`, and the required checklists for a new backend module
-(admin permissions, command palette, migrations, i18n, overlay modules).
+from `.specify/memory/constitution.md`, and the traps that make a green result meaningless.
+Since 2026-09-11 it is a **router**: the module checklists, the check inventory, migrations,
+release intent and the overlay pattern live one file away each, under `specs/conventions/`, and
+`AGENTS.md`'s own routing table says which to open for the thing you are about to do. Cursor has
+no import mechanism, so open that document yourself rather than working from memory of it.
 
 Do not copy content from `AGENTS.md` into this rule — a duplicated copy is how these two
 files drifted apart before 2026-07-31. Repository-wide rules belong in `AGENTS.md`; only
