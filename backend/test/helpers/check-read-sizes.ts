@@ -4432,7 +4432,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **not** a violation because its fallback is a `throw` rather than a fabricated value.
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    sites: 588,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 5.** **-1, and it is not a
+    // deleted file.** `sites` here is the subset of the walk that reads the database at all,
+    // and `test/unit/db/instance-migration-order.test.ts` leaves it: the G4 case deleted with
+    // the corpus it had no subject in was the file's only `.find(` — `found.find((violation) =>
+    // violation.moduleId === 'transactional_emails')`, matched by the read recogniser on any
+    // receiver. Measured, that spelling's count in the file goes 1 -> 0 and `files` does not
+    // move.
+    sites: 587,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -5027,7 +5034,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 308 -> 312.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    files: 312,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 5.** **-2:** the two deleted
+    // `transactional_emails` DML ledger shards (`migration-undeclared-references/` and
+    // `migration-foreign-writes/`), which FR-020 removes with the statements they recorded. A
+    // ledger shard is exactly this check's population — one of the artefacts whose job is to
+    // carry a reason — so both count and the changeset does not.
+    files: 310,
     // **2026-09-04: 14 -> 15.** One further named-subject lock claim.
     // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge` retired):**
     // sites 15 -> 17, files unchanged. `pwa`'s manifest gains `orders` in its
@@ -6601,7 +6613,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
 
     // the owner map, and this number is their sum. `module files` alone moved 2567 -> 2576.
 
-    sites: 12956,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 5.** **-2, and `files` does not
+    // move at all.** The two `UPDATE`s against `newsletter_email_blocks` removed in place from
+    // `Migration20260801T111001TransactionalEmailsEmailDefaultsReseed` (FR-019). They were two
+    // SQL table-access sites; the migration is still on disk and the deleted ledger shards are
+    // under `backend/scripts/`, which this check does not walk as module source, so
+    // `files=5194` is unchanged. `cross-module DML` moves 47 -> 43 and the two DML ledgers 1 ->
+    // 0 and 27 -> 26.
+    sites: 12954,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -7478,7 +7497,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // *committed* file stays listed whatever the working tree holds, and an aside-and-back
     // probe reports no change and looks like a refutation. `check-nul-bytes` reads the
     // filesystem and is not fooled by it, which is exactly how the two disagreed.
-    files: 8140,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 5.** **-1, for
+    // `check-naming.sh`'s reason one population over.** the two deleted `transactional_emails`
+    // DML ledger shards (`migration-undeclared-references/` and `migration-foreign-writes/`),
+    // which FR-020 removes with the statements they recorded. Against them this merge request
+    // adds `.changeset/tidy-seals-refresh.md`, and this walk is the whole repository minus
+    // `SKIPPED_DIRECTORIES` and the binary deny-list — `.changeset` is in neither, and `.md` is
+    // not a binary extension, so the file counts.
+    files: 8139,
     sites: null,
     sources: [],
     //
@@ -8530,7 +8556,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2498,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 5.** **-2:** the two deleted
+    // `transactional_emails` DML ledger shards (`migration-undeclared-references/` and
+    // `migration-foreign-writes/`), which FR-020 removes with the statements they recorded.
+    files: 2496,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -10537,7 +10566,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 4642,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 5.** **-2:** the two deleted
+    // `transactional_emails` DML ledger shards (`migration-undeclared-references/` and
+    // `migration-foreign-writes/`), which FR-020 removes with the statements they recorded.
+    files: 4640,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -11418,7 +11450,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // *committed* file stays listed whatever the working tree holds, and an aside-and-back
     // probe reports no change and looks like a refutation. `check-nul-bytes` reads the
     // filesystem and is not fooled by it, which is exactly how the two disagreed.
-    files: 8200,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 5.** **-1, and the -1 rather than
+    // -2 is the whole of the note.** the two deleted `transactional_emails` DML ledger shards
+    // (`migration-undeclared-references/` and `migration-foreign-writes/`), which FR-020
+    // removes with the statements they recorded. Against them this merge request adds
+    // `.changeset/tidy-seals-refresh.md`, and this walk is `git ls-files --cached`, which lists
+    // it once committed — measured, tracked files 8201 -> 8200 across the same commits.
+    files: 8199,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -11968,7 +12006,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 6268,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 5.** **-2:** the two deleted
+    // `transactional_emails` DML ledger shards (`migration-undeclared-references/` and
+    // `migration-foreign-writes/`), which FR-020 removes with the statements they recorded. The
+    // changeset this merge request adds does not offset them here: this walk is source files by
+    // extension plus `docs/docs/**`, and `.changeset/*.md` is neither.
+    files: 6266,
     sites: null,
     sources: ['manifest-index'],
     //
