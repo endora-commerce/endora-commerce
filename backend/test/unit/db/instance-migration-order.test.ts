@@ -1,10 +1,18 @@
-import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { ChannelMemberEntityTypeSchema } from '@endora-commerce/contracts';
 import { BASELINE_MIGRATIONS } from '@endora-commerce/platform/migrations';
 import { coreModuleDependencies } from '../../../src/db/configured-migrations.js';
 import { BASELINE_THROUGH, type MigrationRegistryEntry } from '@endora-commerce/platform/db';
 import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
+import {
+  buildTableOwners,
+  collectSchemaFiles,
+  schemaKeyOf,
+  sourcesOf,
+} from '../../../scripts/check-module-boundary.js';
+import { loadPackageDeclarations } from '../../../scripts/lib/package-declarations.js';
+import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
+import { TABLE_OWNER_OVERRIDES } from './table-owner-overrides.js';
 import {
   bridgeOwnershipViolations,
   closureViolations,
@@ -20,6 +28,9 @@ import {
   readChannelBridgeDeclarations,
   readMigrationSources,
   totalBridgeMaps,
+  describeOwnerMapDisagreement,
+  ownerMapDisagreements,
+  ownerMapRefusals,
   reconcileBaseline,
   refusals,
   repositoryOrder,
@@ -354,20 +365,25 @@ describe('G4 — a migration names only what its own module closure guarantees (
    * over these would license the fifteenth site, and every one of them is
    * repaired by this feature.
    *
-   * The eight `core:` entries are the platform's own corpus. Five of them are
-   * the sales-channel bridges' far sides, named inside a `create table` as
-   * `references "<t>"`, which is the shape that made this rule's own ruling
-   * count six where there are fourteen.
+   * The `core:` entries are the platform's own corpus.
+   *
+   * **Phase 2 drained the five bridge sites.** The promote migration named
+   * `cms_pages`, `customer_accounts`, `organizations`, `promotions` and `taxes`
+   * inside the `create table` statements of the sales-channel bridges, as
+   * `references "<t>"` — the shape that made this rule's own ruling count six
+   * where there were fourteen. Moving each bridge to the module that owns its
+   * far side (D-226) took all five out at once and **added none**: each new
+   * far-side migration names its own module's table, or one the platform
+   * creates, or one its closure holds — `customer_accounts` declares
+   * `organizations`, which creates the `customer_accounts` table, and
+   * `promotions` declares `taxes`, which creates the `promotions` table. That
+   * the count fell by exactly five is the reviewable fact; the list below is
+   * what the run printed, not a transcription.
    */
   const OPEN_SITES = [
     'api_keys:Migration20260724T173916ApiKeysDistributorBinding names webhooks.api_keys',
     'assets_library:Migration20260505T102206AssetsLibraryInit names cms.cms_pages',
-    'core:Migration20260430T170044CoreSalesChannelsPromote names cms.cms_pages',
-    'core:Migration20260430T170044CoreSalesChannelsPromote names organizations.customer_accounts',
-    'core:Migration20260430T170044CoreSalesChannelsPromote names organizations.organizations',
     'core:Migration20260430T170044CoreSalesChannelsPromote names quote_requests.quote_requests',
-    'core:Migration20260430T170044CoreSalesChannelsPromote names taxes.promotions',
-    'core:Migration20260430T170044CoreSalesChannelsPromote names taxes.taxes',
     'core:Migration20260717T134752CoreTenantScopeIndexes names analytics.analytics_events',
     'core:Migration20260717T134752CoreTenantScopeIndexes names newsletter.newsletter_subscribers',
     'customer_accounts:Migration20260611T140403CustomerAccountsLifecycle names price_lists.customer_groups',
@@ -554,18 +570,18 @@ describe('G5 — a bridge table is the platform’s or its creator contributes i
   /**
    * The guard that makes the contribution registry (FR-015) non-droppable.
    *
-   * It passes today on the **first** disjunct: the platform's frozen promote
-   * migration creates all nine bridges. `specs/120-…`' Phase 2 moves each
-   * `create table` to the module that owns the far side, which falsifies that
-   * disjunct for every member at once, and only a registration contributed by
-   * the creating module supplies the second. That is why Phase 4 merges before
-   * Phase 2 — and why this assertion has to be able to go red, which the
-   * fixture below is the proof of.
+   * **The disjuncts are inverted, and that is the whole of SC-004.** Until
+   * `specs/120-migration-closure-bridge-ownership/` Phase 2 it passed on the
+   * **first**: the platform's two frozen migrations created all nine bridges,
+   * and no contribution was load-bearing. Phase 2 moved every `create table` to
+   * the module that owns the far side (D-226), which falsified that disjunct for
+   * every member at once, and Phase 4's registry is the only thing supplying the
+   * second. It now passes for nine members on the second disjunct and none on
+   * the first — so deleting the registry is no longer a change nothing notices,
+   * which is what the guard exists to make true.
    *
-   * **Phase 4 has landed, so the contributions are now real** and the guard is
-   * green for nine members on the first disjunct and zero on the second. That
-   * is the state Phase 2 inverts, one member at a time, without this file
-   * changing.
+   * That is also why Phase 4 merged **before** Phase 2: between them this
+   * assertion is red, and the merge order is what kept `master` from being.
    */
   const NO_CONTRIBUTIONS: ReadonlyMap<string, string> = new Map();
 
@@ -581,20 +597,30 @@ describe('G5 — a bridge table is the platform’s or its creator contributes i
     ).toEqual([]);
   });
 
-  it('holds today on the platform creating each bridge, and not yet on a contribution', () => {
-    // Said out loud because it is the invariant Phase 2 moves: nine members pass
-    // because `core` creates the table, and none of them needs its contribution
-    // yet. Removing the contributions therefore changes nothing **today** —
-    // and, after Phase 2 moves the first `create table`, changes everything,
-    // which is what makes the registry non-droppable.
-    expect(
-      bridgeOwnershipViolations({
-        bridges: CHANNEL_BRIDGES.bridges,
-        sources: SOURCES,
-        contributions: NO_CONTRIBUTIONS,
-      }),
-    ).toEqual([]);
+  it('holds on the contributions now, and on the platform creating nothing', () => {
+    // The inversion, asserted rather than described. Take the contributions away
+    // and **every** member fails, because the platform creates none of the nine
+    // tables any more — where before Phase 2 this same call returned `[]` and
+    // the registry was a thing the guard could not see the loss of.
+    const withoutContributions = bridgeOwnershipViolations({
+      bridges: CHANNEL_BRIDGES.bridges,
+      sources: SOURCES,
+      contributions: NO_CONTRIBUTIONS,
+    });
+    expect(withoutContributions).toHaveLength(CHANNEL_VOCABULARY.length);
+    for (const finding of withoutContributions) {
+      expect(finding).toContain('contributed by nobody');
+    }
     expect(CHANNEL_BRIDGES.contributions.size).toBe(CHANNEL_VOCABULARY.length);
+
+    // …and the first disjunct is the one that is now false everywhere: no
+    // migration the platform owns creates a sales-channel bridge. Said over the
+    // real corpus rather than over the two file names Phase 2 edited, so a
+    // tenth bridge re-appearing in a third platform migration is caught here.
+    const platformCreated = SOURCES.filter((source) => source.moduleId === 'core').flatMap(
+      (source) => source.creates.filter((table) => table.startsWith('sales_channel_')),
+    );
+    expect(platformCreated).toEqual([]);
   });
 
   it('covers every member of the published vocabulary', () => {
@@ -732,47 +758,56 @@ describe('G5 — a bridge table is the platform’s or its creator contributes i
     expect(conflicting.conflicts[0]).toContain('two authors claim one member');
   });
 
-  it('reds when one bridge is created by its far side and contributed by nobody', () => {
-    // Phase 2's first move, over the **real** corpus and entering where the real
-    // walk enters: the promote migration's own text with the `cms` bridge's
-    // creation taken out of it, re-read by the recogniser, plus the far-side
-    // migration Phase 2 will scaffold. Both disjuncts are then false.
+  it('reds when one module withdraws its contribution, over the real corpus', () => {
+    // The red proof, re-pointed by Phase 2 and sharper for it. It used to excise
+    // the `cms` bridge from the **platform's** promote migration and add a
+    // fixture far-side one, because that was the move the phase had not made
+    // yet. The move is made, so the fixture is the real thing: real sources,
+    // real bridges, and the real contributions with exactly one taken away.
     //
-    // It cannot pass vacuously. If the excision matched nothing the platform
-    // still creates the table, the first disjunct still holds, and this reports
-    // zero findings against an expectation of one.
-    const promote = SOURCES.find(
-      (source) => source.name === 'Migration20260430T170044CoreSalesChannelsPromote',
-    );
-    expect(promote, 'the platform migration this fixture edits is not in the corpus').toBeDefined();
-    expect(promote!.creates).toContain('sales_channel_cms_pages');
-    const excised = migrationSourceOf({
-      moduleId: 'core',
-      file: promote!.file,
-      text: readFileSync(promote!.file, 'utf8').replaceAll(
-        'create table "sales_channel_cms_pages"',
-        'create table "sales_channel_cms_pages_left_behind"',
-      ),
-    });
-    expect(excised!.creates).not.toContain('sales_channel_cms_pages');
+    // It cannot pass vacuously in either direction. The first assertion is that
+    // `cms` — and not `core` — creates the table in the corpus this run read, so
+    // a Phase 2 that was reverted, or a stale `dist`, fails here rather than
+    // further down. And the withdrawal must red **that** member and no other, so
+    // a guard that had been widened into reporting everything is not mistaken
+    // for one that is working.
+    const cms = SOURCES.filter((source) => source.creates.includes('sales_channel_cms_pages'));
+    expect(
+      cms.map((source) => source.moduleId),
+      'the cms bridge is created by its far side, which is what Phase 2 moved',
+    ).toEqual(['cms']);
 
-    const moved = SOURCES.filter((source) => source.name !== promote!.name)
-      .concat(excised!)
-      .concat(
-        fixture(
-          'cms',
-          'Migration20260902T090000CmsSalesChannelCmsPages',
-          'create table if not exists "sales_channel_cms_pages" ("sales_channel_id" uuid not null);',
-        ),
-      );
+    const withdrawn = new Map(CHANNEL_BRIDGES.contributions);
+    expect(withdrawn.delete('cms-page')).toBe(true);
     const found = bridgeOwnershipViolations({
       bridges: CHANNEL_BRIDGES.bridges,
-      sources: moved,
-      contributions: NO_CONTRIBUTIONS,
+      sources: SOURCES,
+      contributions: withdrawn,
     });
     expect(found).toHaveLength(1);
     expect(found[0]).toContain('cms-page');
+    expect(found[0]).toContain('created by cms');
     expect(found[0]).toContain('contributed by nobody');
+  });
+
+  it('reds a bridge whose creation is left in the platform with no owner at all', () => {
+    // The other direction of the same move, and the one a reverted Phase 2 looks
+    // like: the platform creating the table again. That is **green** — it is the
+    // first disjunct — so the guard cannot be what catches a revert, and saying
+    // so here is the point. What it does catch is the half-move: the platform's
+    // statement gone and no far-side migration written, which is a member whose
+    // table nothing in the corpus builds.
+    const orphaned = SOURCES.filter(
+      (source) => !source.creates.includes('sales_channel_cms_pages'),
+    );
+    const found = bridgeOwnershipViolations({
+      bridges: CHANNEL_BRIDGES.bridges,
+      sources: orphaned,
+      contributions: CHANNEL_BRIDGES.contributions,
+    });
+    expect(found).toHaveLength(1);
+    expect(found[0]).toContain('no migration in the corpus creates');
+    expect(found[0]).toContain('sales_channel_cms_pages');
   });
 
   it('is green again once the module that creates it contributes it', () => {
@@ -816,4 +851,91 @@ describe('G5 — a bridge table is the platform’s or its creator contributes i
     ).toContain('no migration in the corpus creates');
   });
 
+});
+
+/**
+ * **G6** (FR-011b) — `TABLE_OWNER_OVERRIDES` and `check:module-boundary`'s
+ * derived owner map agree on every table they both answer for.
+ *
+ * Two derivations of one question — *which module owns this table* — and until
+ * `specs/120-migration-closure-bridge-ownership/` nothing in the repository
+ * reconciled them. The finding is not *"two entries are wrong"*; it is that a
+ * relocation moves one map and not the other, and which one it moves is not a
+ * thing anybody remembers. `deriveFkGraph`'s has **no creating-migration
+ * fallback by design**, so it is structurally the one left behind.
+ *
+ * It lands at **zero findings**, and that is the argument for landing it rather
+ * than against: measured over the tree Phase 2 arrived on, the two maps
+ * disagreed on exactly the nine `sales_channel_*` bridges and agreed on
+ * everything else — so the invariant became true with Phase 2's re-pointing and
+ * this is the cheapest moment at which to lock it. **No ledger** (FR-011b): an
+ * entry could only license a second map going stale.
+ *
+ * It asserts *agreement*, never *"the override map is derivable"*. See
+ * {@link ownerMapDisagreements} for why that distinction is load-bearing.
+ */
+const G6_LAYOUT = await requireModuleLayout('[G6]');
+const DERIVED_TABLE_OWNERS = buildTableOwners(
+  sourcesOf(collectSchemaFiles(G6_LAYOUT.sourceRoots), schemaKeyOf(G6_LAYOUT)),
+  (await loadPackageDeclarations()).tables,
+  G6_LAYOUT.hostResidentModules,
+).owners;
+
+describe('G6 — the two table→owner maps agree (FR-011b)', () => {
+  const DERIVED = DERIVED_TABLE_OWNERS;
+
+  it('has something to reconcile', () => {
+    expect(ownerMapRefusals({ overrides: TABLE_OWNER_OVERRIDES, derived: DERIVED })).toEqual([]);
+  });
+
+  it('agrees on every table the override map answers for', () => {
+    expect(
+      ownerMapDisagreements(TABLE_OWNER_OVERRIDES, DERIVED).map(describeOwnerMapDisagreement),
+      'a table whose owner the two derivations answer differently. `deriveFkGraph` resolves ' +
+        'by entity `tableName`, then by TABLE_OWNER_OVERRIDES, then fails — it has no ' +
+        'creating-migration fallback — so moving a `create table` moves the derived map and ' +
+        'leaves the override behind. Re-point the entry in the same merge request as the ' +
+        'move. There is no ledger, and an entry here would only license the next relocation ' +
+        'leaving a second map stale.',
+    ).toEqual([]);
+  });
+
+  it('reds an entry re-pointed back to where Phase 2 found it', () => {
+    // The red proof, entering at the top of the analysis (issue #130): a map, not
+    // a pre-computed finding. `sales_channels` is where all nine bridges were
+    // filed before Phase 2 moved their DDL, so this is the exact state the guard
+    // exists to refuse — and the assertion names the derived owner, which is
+    // what tells the next reader which of the two maps moved.
+    const reverted = { ...TABLE_OWNER_OVERRIDES, sales_channel_cms_pages: 'sales_channels' };
+    const found = ownerMapDisagreements(reverted, DERIVED);
+    expect(found.map(describeOwnerMapDisagreement)).toEqual([
+      'sales_channel_cms_pages: override says "sales_channels", derived says "cms"',
+    ]);
+  });
+
+  it('reds an override for a table the derived map has no owner for', () => {
+    const invented = { ...TABLE_OWNER_OVERRIDES, a_table_nobody_declares: 'cms' };
+    expect(ownerMapDisagreements(invented, DERIVED).map(describeOwnerMapDisagreement)).toEqual([
+      'a_table_nobody_declares: the override map says "cms" and the derived map has no owner ' +
+        'for it at all',
+    ]);
+  });
+
+  it('refuses an empty override map and a derived map that resolved nothing', () => {
+    expect(
+      ownerMapRefusals({ overrides: {}, derived: DERIVED }).join('\n'),
+    ).toContain('the override map is empty');
+    expect(
+      ownerMapRefusals({ overrides: TABLE_OWNER_OVERRIDES, derived: new Map() }).join('\n'),
+    ).toContain('resolved no table at all');
+  });
+
+  it('says nothing about a derived table the override map does not answer for', () => {
+    // The half that would turn this into "the override map is derivable". The
+    // derived map answers for every table in the tree; the override map answers
+    // for the ones no entity claims, by hand and deliberately. Requiring an
+    // entry per derived table would be a demand for a copy of the first map.
+    expect(DERIVED.size).toBeGreaterThan(Object.keys(TABLE_OWNER_OVERRIDES).length);
+    expect(ownerMapDisagreements({}, DERIVED)).toEqual([]);
+  });
 });

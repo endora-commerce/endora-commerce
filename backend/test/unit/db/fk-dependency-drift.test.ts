@@ -562,7 +562,16 @@ describe('fk drift — allow-list minimality M1-M5 (V5-V9)', () => {
     // `admin_users` transitively — so the `organizations → admin_users`
     // exception stopped being one. A conversion draining an acknowledged edge is
     // the direction this list is supposed to move in.
-    expect(byRule).toEqual({ 'tenancy-root': 4, 'bridge-owner': 8, 'platform-root': 1 });
+    //
+    // `specs/120-migration-closure-bridge-ownership/` Phase 2: `bridge-owner`
+    // fell from 8 to **none**, and the rule has no member left. Moving each
+    // bridge table to the module that owns its far side (D-226) made one of its
+    // foreign keys intra-module and the other module → kernel, and the kernel
+    // appears in no manifest. That the eight *retired* rather than were deleted
+    // is what M1 and M2 above assert: an entry describing a foreign key that is
+    // no longer cross-module, or one that is now declared, fails there. This
+    // assertion only records the mix that is left.
+    expect(byRule).toEqual({ 'tenancy-root': 4, 'platform-root': 1 });
   });
 });
 

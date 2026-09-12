@@ -23,11 +23,14 @@
  */
 
 import { Migration20260426T081516TaxesPromotionsInit } from './20260426T081516_taxes_promotions_init.js';
+import { Migration20260912T094654TaxesSalesChannelTaxes } from './20260912T094654_taxes_sales_channel_taxes.js';
 
 export const migrations = [
   Migration20260426T081516TaxesPromotionsInit,
+  Migration20260912T094654TaxesSalesChannelTaxes,
 ];
 
 export {
   Migration20260426T081516TaxesPromotionsInit,
+  Migration20260912T094654TaxesSalesChannelTaxes,
 };

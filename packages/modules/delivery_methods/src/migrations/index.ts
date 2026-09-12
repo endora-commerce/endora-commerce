@@ -24,13 +24,16 @@
 
 import { Migration20260611T140354DeliveryMethodsShippingMethodsAdapterAndShipments } from './20260611T140354_delivery_methods_shipping_methods_adapter_and_shipments.js';
 import { Migration20260611T140416DeliveryMethodsFixInPersonPickupAdapter } from './20260611T140416_delivery_methods_fix_in_person_pickup_adapter.js';
+import { Migration20260912T094638DeliveryMethodsSalesChannelDeliveryMethods } from './20260912T094638_delivery_methods_sales_channel_delivery_methods.js';
 
 export const migrations = [
   Migration20260611T140354DeliveryMethodsShippingMethodsAdapterAndShipments,
   Migration20260611T140416DeliveryMethodsFixInPersonPickupAdapter,
+  Migration20260912T094638DeliveryMethodsSalesChannelDeliveryMethods,
 ];
 
 export {
   Migration20260611T140354DeliveryMethodsShippingMethodsAdapterAndShipments,
   Migration20260611T140416DeliveryMethodsFixInPersonPickupAdapter,
+  Migration20260912T094638DeliveryMethodsSalesChannelDeliveryMethods,
 };

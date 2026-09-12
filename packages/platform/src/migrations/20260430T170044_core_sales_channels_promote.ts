@@ -14,9 +14,6 @@ import { Migration } from '@mikro-orm/migrations';
  *   - Backfills the new jsonb arrays from the existing scalar
  *     `default_language` / `default_currency` columns and copies
  *     `status='active'` into the new boolean `active` flag.
- *   - Creates eight new M:N bridge tables (FR-009): categories,
- *     payment_methods, delivery_methods, organizations, taxes,
- *     customer_accounts, promotions, cms_pages.
  *   - Adds a NULLABLE `sales_channel_id` column to `quote_requests`
  *     with `ON DELETE RESTRICT` (FR-006). The column stays NULLABLE
  *     in this migration; T060 (US3) ships a follow-up data-migration
@@ -26,6 +23,18 @@ import { Migration } from '@mikro-orm/migrations';
  *     reconciler (R-4) be the single source of truth for the existence
  *     of the system-default channel rather than baking that logic into
  *     two places.
+ *
+ * It created eight M:N sales-channel bridge tables (FR-009) until
+ * `specs/120-migration-closure-bridge-ownership/` Phase 2. Each one now belongs
+ * to the module that owns its far side, under D-226's ownership rule: a bridge
+ * between an always-present near side and a switchable far side is the far
+ * side's. The class name and every statement below it are unchanged, so a
+ * database that already applied this migration is offered nothing — the storage
+ * keys on the class name and holds no checksum — and the eight far-side
+ * migrations are `create table if not exists` no-ops on it. On a fresh database
+ * they create the same eight tables from the same statements, later in the
+ * order, which is where they have to be for an instance that omits one of those
+ * modules to migrate at all.
  *
  * Deferred (intentionally NOT in this migration):
  *
@@ -43,7 +52,8 @@ import { Migration } from '@mikro-orm/migrations';
  *     of truth (R-4).
  *
  * The down() reverses every up() step; the legacy columns are not
- * touched.
+ * touched. It no longer drops the eight bridge tables, because this migration
+ * no longer creates them — each far-side migration drops its own.
  *
  * Filed under `core` since feature 072 T020. The kernel owns the tables this
  * migration writes to, and a hard uninstall reverts by registry `moduleId`, so
@@ -100,151 +110,6 @@ export class Migration20260430T170044CoreSalesChannelsPromote extends Migration 
         'on "sales_channels" ("system_default") where "system_default" = true;',
     );
 
-    // -- 4. M:N bridge tables (FR-009) --------------------------------------
-    // categories
-    this.addSql(`
-      create table "sales_channel_categories" (
-        "sales_channel_id" uuid not null,
-        "category_id" uuid not null,
-        constraint "sales_channel_categories_pkey"
-          primary key ("sales_channel_id", "category_id"),
-        constraint "sales_channel_categories_channel_fk"
-          foreign key ("sales_channel_id") references "sales_channels" ("id") on delete cascade,
-        constraint "sales_channel_categories_category_fk"
-          foreign key ("category_id") references "categories" ("id") on delete cascade
-      );
-    `);
-    this.addSql(
-      'create index "sales_channel_categories_category_id_index" ' +
-        'on "sales_channel_categories" ("category_id");',
-    );
-
-    // payment_methods
-    this.addSql(`
-      create table "sales_channel_payment_methods" (
-        "sales_channel_id" uuid not null,
-        "payment_method_id" uuid not null,
-        constraint "sales_channel_payment_methods_pkey"
-          primary key ("sales_channel_id", "payment_method_id"),
-        constraint "sales_channel_payment_methods_channel_fk"
-          foreign key ("sales_channel_id") references "sales_channels" ("id") on delete cascade,
-        constraint "sales_channel_payment_methods_payment_method_fk"
-          foreign key ("payment_method_id") references "payment_methods" ("id") on delete cascade
-      );
-    `);
-    this.addSql(
-      'create index "sales_channel_payment_methods_payment_method_id_index" ' +
-        'on "sales_channel_payment_methods" ("payment_method_id");',
-    );
-
-    // delivery_methods
-    this.addSql(`
-      create table "sales_channel_delivery_methods" (
-        "sales_channel_id" uuid not null,
-        "delivery_method_id" uuid not null,
-        constraint "sales_channel_delivery_methods_pkey"
-          primary key ("sales_channel_id", "delivery_method_id"),
-        constraint "sales_channel_delivery_methods_channel_fk"
-          foreign key ("sales_channel_id") references "sales_channels" ("id") on delete cascade,
-        constraint "sales_channel_delivery_methods_delivery_method_fk"
-          foreign key ("delivery_method_id") references "delivery_methods" ("id") on delete cascade
-      );
-    `);
-    this.addSql(
-      'create index "sales_channel_delivery_methods_delivery_method_id_index" ' +
-        'on "sales_channel_delivery_methods" ("delivery_method_id");',
-    );
-
-    // organizations
-    this.addSql(`
-      create table "sales_channel_organizations" (
-        "sales_channel_id" uuid not null,
-        "organization_id" uuid not null,
-        constraint "sales_channel_organizations_pkey"
-          primary key ("sales_channel_id", "organization_id"),
-        constraint "sales_channel_organizations_channel_fk"
-          foreign key ("sales_channel_id") references "sales_channels" ("id") on delete cascade,
-        constraint "sales_channel_organizations_organization_fk"
-          foreign key ("organization_id") references "organizations" ("id") on delete cascade
-      );
-    `);
-    this.addSql(
-      'create index "sales_channel_organizations_organization_id_index" ' +
-        'on "sales_channel_organizations" ("organization_id");',
-    );
-
-    // taxes
-    this.addSql(`
-      create table "sales_channel_taxes" (
-        "sales_channel_id" uuid not null,
-        "tax_id" uuid not null,
-        constraint "sales_channel_taxes_pkey"
-          primary key ("sales_channel_id", "tax_id"),
-        constraint "sales_channel_taxes_channel_fk"
-          foreign key ("sales_channel_id") references "sales_channels" ("id") on delete cascade,
-        constraint "sales_channel_taxes_tax_fk"
-          foreign key ("tax_id") references "taxes" ("id") on delete cascade
-      );
-    `);
-    this.addSql(
-      'create index "sales_channel_taxes_tax_id_index" ' +
-        'on "sales_channel_taxes" ("tax_id");',
-    );
-
-    // customer_accounts
-    this.addSql(`
-      create table "sales_channel_customer_accounts" (
-        "sales_channel_id" uuid not null,
-        "customer_account_id" uuid not null,
-        constraint "sales_channel_customer_accounts_pkey"
-          primary key ("sales_channel_id", "customer_account_id"),
-        constraint "sales_channel_customer_accounts_channel_fk"
-          foreign key ("sales_channel_id") references "sales_channels" ("id") on delete cascade,
-        constraint "sales_channel_customer_accounts_customer_account_fk"
-          foreign key ("customer_account_id") references "customer_accounts" ("id") on delete cascade
-      );
-    `);
-    this.addSql(
-      'create index "sales_channel_customer_accounts_customer_account_id_index" ' +
-        'on "sales_channel_customer_accounts" ("customer_account_id");',
-    );
-
-    // promotions
-    this.addSql(`
-      create table "sales_channel_promotions" (
-        "sales_channel_id" uuid not null,
-        "promotion_id" uuid not null,
-        constraint "sales_channel_promotions_pkey"
-          primary key ("sales_channel_id", "promotion_id"),
-        constraint "sales_channel_promotions_channel_fk"
-          foreign key ("sales_channel_id") references "sales_channels" ("id") on delete cascade,
-        constraint "sales_channel_promotions_promotion_fk"
-          foreign key ("promotion_id") references "promotions" ("id") on delete cascade
-      );
-    `);
-    this.addSql(
-      'create index "sales_channel_promotions_promotion_id_index" ' +
-        'on "sales_channel_promotions" ("promotion_id");',
-    );
-
-    // cms_pages
-    this.addSql(`
-      create table "sales_channel_cms_pages" (
-        "sales_channel_id" uuid not null,
-        "cms_page_id" uuid not null,
-        constraint "sales_channel_cms_pages_pkey"
-          primary key ("sales_channel_id", "cms_page_id"),
-        constraint "sales_channel_cms_pages_channel_fk"
-          foreign key ("sales_channel_id") references "sales_channels" ("id") on delete cascade,
-        constraint "sales_channel_cms_pages_cms_page_fk"
-          foreign key ("cms_page_id") references "cms_pages" ("id") on delete cascade
-      );
-    `);
-    this.addSql(
-      'create index "sales_channel_cms_pages_cms_page_id_index" ' +
-        'on "sales_channel_cms_pages" ("cms_page_id");',
-    );
-
     // -- 5. Quote-request channel attribution (FR-012) ----------------------
     // NULLABLE in this migration; T060 backfills + flips NOT NULL.
     this.addSql(
@@ -268,16 +133,6 @@ export class Migration20260430T170044CoreSalesChannelsPromote extends Migration 
       'alter table "quote_requests" drop constraint if exists "quote_requests_sales_channel_fk";',
     );
     this.addSql('alter table "quote_requests" drop column if exists "sales_channel_id";');
-
-    // 4. Bridge tables (cascading reverse order)
-    this.addSql('drop table if exists "sales_channel_cms_pages" cascade;');
-    this.addSql('drop table if exists "sales_channel_promotions" cascade;');
-    this.addSql('drop table if exists "sales_channel_customer_accounts" cascade;');
-    this.addSql('drop table if exists "sales_channel_taxes" cascade;');
-    this.addSql('drop table if exists "sales_channel_organizations" cascade;');
-    this.addSql('drop table if exists "sales_channel_delivery_methods" cascade;');
-    this.addSql('drop table if exists "sales_channel_payment_methods" cascade;');
-    this.addSql('drop table if exists "sales_channel_categories" cascade;');
 
     // 3. Partial unique index
     this.addSql('drop index if exists "sales_channels_one_system_default";');

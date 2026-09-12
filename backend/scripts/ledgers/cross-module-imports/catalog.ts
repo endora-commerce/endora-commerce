@@ -7,7 +7,7 @@
  * moving code inside a file does not invalidate an entry and re-opening a hole does not
  * silently inherit one. The file is spelled as `layout.keyOf` spells it — a path under
  * `src/` for a module still in `backend/src`, and the repo-relative package path for one
- * that has become a package, which is what these three keys carry since `catalog` moved
+ * that has become a package, which is what these keys carry since `catalog` moved
  * (feature 080, T040b).
  *
  * Two-way: an unledgered reach fails the build, and an entry that no longer describes one
@@ -19,23 +19,32 @@
  * is a boundary the repository has decided to keep, and it needs a reason that
  * says so.
  *
- * **All three are SQL reaches, and none of the three is an open design question any
- * more — nor was any of them a blocker on packaging this module.** Batch six measured
- * that combination for the first time (`seo`, !1048): a shard is read as a packaging
- * blocker because it usually holds *import* reaches, which stop resolving once the owner
- * is a package, and a SQL reach does not. This shard is the first to carry the finding
- * for real rather than by injection — the check found, attributed and accepted all three
- * under keys re-spelled to the package form, and nothing else about them moved.
+ * **Every entry here is a SQL reach, none of them is an open design question any more,
+ * and none was a blocker on packaging this module.** Batch six measured that combination
+ * for the first time (`seo`, !1048): a shard is read as a packaging blocker because it
+ * usually holds *import* reaches, which stop resolving once the owner is a package, and a
+ * SQL reach does not. This shard was the first to carry the finding for real rather than
+ * by injection — the check found, attributed and accepted each one under a key re-spelled
+ * to the package form, and nothing else about them moved.
  *
- * **All three are SQL reaches, and none of the three is an open design question any
- * more.** Re-read for feature 080's SQL-reach sweep, which retired the fourth of the
- * family (`admin_actions`' `module_registrations` join). What each of these waits for is
- * named below and is a *fact about another module* rather than a shape nobody has
- * chosen: two wait on `orders` becoming a package, one waits on a kernel accessor. Each
- * entry states what it couples in **columns**, because that is the cost a reader can act
- * on — a SQL reach compiles and runs from a package exactly as it does from the tree, so
- * what it costs the boundary is never a build failure, only a column rename that breaks a
- * stranger in silence.
+ * Re-read for feature 080's SQL-reach sweep, which retired one of the family
+ * (`admin_actions`' `module_registrations` join). What each of these waits for is named
+ * below and is a *fact about another module* rather than a shape nobody has chosen: both
+ * wait on `orders` becoming a package. Each entry states what it couples in **columns**,
+ * because that is the cost a reader can act on — a SQL reach compiles and runs from a
+ * package exactly as it does from the tree, so what it costs the boundary is never a
+ * build failure, only a column rename that breaks a stranger in silence.
+ *
+ * **The `sales_channel_products` entry is gone**
+ * (`specs/120-migration-closure-bridge-ownership/` Phase 2). It recorded a reach into a
+ * *kernel* table, and it was the shard's only one; moving that bridge's `create table` to
+ * `catalog` under D-226 — a bridge belongs to the module that owns its far side — makes
+ * the join intra-module, so there is no boundary left for an entry to describe. The
+ * Constitution XII question it also raised is untouched by that and is not this ledger's:
+ * the type-ahead still joins the bridge by hand rather than through a sanctioned
+ * accessor, and what changed is only that the table it joins is now its own module's.
+ * **How many keys are left is not written here** — the array below answers it, and the
+ * count that stood in this paragraph was wrong the moment one key left (D-100).
  *
  * **The three admin surface reaches this shard held are gone** (feature 091, P7a).
  * `CategoriesTree.tsx` imported `price_lists`' `DisplayModeOverrideRow`, and `ProductEditor.tsx`
@@ -46,7 +55,7 @@
  * them, and neither module names the other. Nothing was moved and no specifier was rewritten,
  * which is what the condition refused.
  *
- * What is left is the three SQL reaches above. Do not read this shard as the admin's — a future
+ * What is left is the SQL reaches above. Do not read this shard as the admin's — a future
  * admin reach out of `catalog` belongs here on the same terms, keyed on a repository-relative
  * path under the admin's module root, and recorded before the directory moves.
  */
@@ -131,51 +140,4 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     NO_OPERATOR_HALF + '\n\n' +
     'Retired by: `orders` becoming a package, with the `carts` half above — the two are ' +
     'one decision and one method, and cutting either alone is refused for that reason.',
-  'packages/modules/catalog/src/backend/services/catalog-quick-search.service.ts:sql:kernel/sales_channel_products':
-    'D-87 seed, added at rebase — this site did not exist when the sweep ran. It arrived ' +
-    'with `cb5be278`, the #174 fix that moved the quick-order type-ahead out of ' +
-    '`quick_order` and into its owner and gave it the channel scoping it had never had: ' +
-    'before that commit the query filtered neither visibility, nor organization, nor ' +
-    'channel, so a buyer saw every active product. So this entry records a boundary that ' +
-    'is now crossed *correctly* rather than one that is new debt — the scoping is ' +
-    'applied, and what remains is that it is applied by hand against the bridge. **What ' +
-    'it couples is two columns of a kernel table**, ' +
-    '`sales_channel_products.sales_channel_id` and `.product_id`.\n\n' +
-    '**The owner is the platform, and since feature 080\'s sweep this is the ledger\'s ' +
-    'only platform-table reach** — which makes the comparison with the one that retired ' +
-    'the sharpest thing to say about it. `admin_actions` joined the kernel\'s ' +
-    '`module_registrations` to answer "is this module installed here", and it retired ' +
-    'with **nothing published**: the kernel already held that answer in memory, on the ' +
-    'very object that module was reading the *other* presence axis from, so the cut was ' +
-    'one field on an interface the consumer declares itself. That exit does not exist ' +
-    'here, and being precise about why matters because "ask the kernel in memory" is the ' +
-    'first thing a reader will reach for. Presence is one boolean pair per module, ' +
-    'changing when an operator flips a switch. Channel membership is one row per ' +
-    '(channel, product) across the whole catalogue, changing whenever anybody edits a ' +
-    'product. An in-memory projection of the second is a second copy of the bridge, not ' +
-    'a cache of it.\n\n' +
-    '**And it is the one member of the six-site family issue #185 did not retire**, for a ' +
-    'reason of shape rather than of appetite: the other five narrow a **bounded set of ' +
-    'ids** the caller already holds, which is exactly ' +
-    '`SalesChannelMembershipPort.filterEntityIdsInChannel`, while this one *joins* the ' +
-    'bridge inside a text-predicate query whose candidate set is unbounded until the join ' +
-    'and the `limit` have been applied together. Neither published method can express ' +
-    'that: `listEntityIdsForChannel` would pull every product in the channel per ' +
-    'keystroke, and filtering an already-limited page would silently return fewer hits ' +
-    'than the caller asked for — which is why the `limit` sits below the join in one ' +
-    'statement, in the call site\'s own words.\n\n' +
-    '**Nothing else in the estate can report this reach, which is why the entry has to ' +
-    'carry the whole argument.** `check:platform-surface` owns "what the host publishes" ' +
-    'and its population is import specifiers, so a SQL reach into a platform table is ' +
-    'invisible to it. Its header claimed such a reach was "currently nobody\'s", and that ' +
-    'was measured false in the same sweep: this check attributes the four kernel tables ' +
-    'to `kernel` off the declaring file\'s platform-relative path and reports reaches into ' +
-    'them, which is how this entry exists at all. Both that header and AGENTS.md\'s row ' +
-    'were corrected with this reading.\n\n' +
-    'Retired by: an accessor that can carry the membership predicate into another query — ' +
-    'a channel-scoped id stream the caller can page, or the port answering the type-ahead ' +
-    'itself — published on the host and classified in ' +
-    '`specs/080-f4-real-scope/contracts/host-package.md` §1. That is a kernel decision ' +
-    'about the sanctioned bridge accessors (Constitution XII) and it is the host owner\'s ' +
-    'to take, not a call-site rewrite.',
 };

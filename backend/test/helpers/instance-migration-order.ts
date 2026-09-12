@@ -904,3 +904,84 @@ export function refusals(input: {
   }
   return found;
 }
+
+/**
+ * **G6** (FR-011b) — the two table→owner maps agree.
+ *
+ * There are two derivations of one question in this repository, and until
+ * `specs/120-migration-closure-bridge-ownership/` nothing reconciled them.
+ * `check:module-boundary`'s `buildTableOwners` derives an owner from entity
+ * declarations, from creating migrations and from an installed package's own
+ * declarations. `deriveFkGraph`'s resolves by entity `tableName`, then by the
+ * hand-written {@link TABLE_OWNER_OVERRIDES}, and then **fails** — it has no
+ * creating-migration fallback, deliberately, because one was tried and produced
+ * provably wrong owners.
+ *
+ * That absence is what makes this guard necessary rather than tidy: moving a
+ * table's DDL moves the first map and leaves the second exactly where it was.
+ * Phase 2 moved nine, and those nine were — measured — the only nine the two
+ * maps disagreed on, which is why this lands at zero findings. A guard whose
+ * ledger would be empty on the day it arrives is the cheapest kind to lock, and
+ * it has none (FR-011b): an entry could only license a second map going stale,
+ * which is the defect.
+ *
+ * **What it must not become.** It asserts *agreement between two maps*, never
+ * *"the override map is derivable"*. The override map answers for tables no
+ * entity claims and stays hand-written; its agreeing entries agree because both
+ * derivations are right, not because one is computed from the other. Replacing
+ * the map with a derivation would reintroduce the fallback that was rejected.
+ */
+export interface OwnerMapDisagreement {
+  readonly table: string;
+  /** What `TABLE_OWNER_OVERRIDES` says. */
+  readonly declared: string;
+  /** What `buildTableOwners` derived, or `null` where it derived nothing. */
+  readonly derived: string | null;
+}
+
+export function describeOwnerMapDisagreement(disagreement: OwnerMapDisagreement): string {
+  return disagreement.derived === null
+    ? `${disagreement.table}: the override map says "${disagreement.declared}" and the derived ` +
+        'map has no owner for it at all'
+    : `${disagreement.table}: override says "${disagreement.declared}", derived says ` +
+        `"${disagreement.derived}"`;
+}
+
+export function ownerMapDisagreements(
+  overrides: Readonly<Record<string, string>>,
+  derived: ReadonlyMap<string, { readonly id: string }>,
+): readonly OwnerMapDisagreement[] {
+  return Object.entries(overrides)
+    .map(([table, declared]) => ({
+      table,
+      declared,
+      derived: derived.get(table)?.id ?? null,
+    }))
+    .filter((entry) => entry.derived !== entry.declared)
+    .sort((a, b) => a.table.localeCompare(b.table));
+}
+
+/**
+ * G6's refusals. Both are states in which the reconciliation above returns an
+ * empty array honestly, over inputs it could not read — the one answer a guard
+ * must never be able to give (issue #113).
+ */
+export function ownerMapRefusals(input: {
+  readonly overrides: Readonly<Record<string, string>>;
+  readonly derived: ReadonlyMap<string, { readonly id: string }>;
+}): readonly string[] {
+  const found: string[] = [];
+  if (Object.keys(input.overrides).length === 0) {
+    found.push(
+      'the override map is empty, so there is no shared table for the two derivations to ' +
+        'agree or disagree about',
+    );
+  }
+  if (input.derived.size === 0) {
+    found.push(
+      'the derived owner map resolved no table at all — every override would then read as ' +
+        'a disagreement, which is a finding about the walk dressed as one about the tree',
+    );
+  }
+  return found;
+}

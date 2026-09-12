@@ -14,30 +14,40 @@
  * a real foreign key (M1) *and* still undeclared (M2). Adding a 16th entry is a
  * visible, reviewable act.
  *
- * ## Why feature 081 left all 13 exactly as they were (T022, D-113)
+ * ## Why feature 081 left every one of them exactly as it was (T022, D-113)
  *
  * Feature 081 replaced the old migration order — timestamps corrected by the
  * module dependency graph — with a topological sort of that graph. Removing the
  * correction removes the accident that used to make an undeclared cross-module
- * foreign key work, so the obvious next thought is that these 13 undeclared
- * edges now need something. They do not, and this paragraph exists because an
+ * foreign key work, so the obvious next thought is that these undeclared edges
+ * now need something. They do not, and this paragraph exists because an
  * unchanged file invites the next reader to "finish" it.
  *
  * Three measured facts, in the order they matter (research.md §3):
  *
- * 1. **All 13 are baseline-block facts.** Every one is created by a migration
+ * 1. **Every one is a baseline-block fact.** Each is created by a migration
  *    stamped April or June 2026 — at or before `BASELINE_THROUGH`
  *    (`20260801T000000`). The baseline block is emitted first, in ascending
  *    timestamp order, and is never reordered by the dependency graph; it is
  *    closed, and the scaffolder clamps every new core stamp past the boundary.
  *    So no declaration could change where any of them runs.
- * 2. **Promoting them into `dependencies` would close cycles — 11 of the 13.**
- *    Added one at a time, 11 find the target already reaching the source; added
- *    together they collapse 14 modules into one strongly connected component.
- *    That is not a fixable oversight: `sales_channels`' junction tables must
- *    follow `catalog`'s `products`, and `catalog`'s channel-scoping columns must
- *    follow `sales_channels`' own table. Both are true, and no module-level edge
- *    can express both.
+ * 2. **Promoting them into `dependencies` would close cycles**, for all but a
+ *    couple: added one at a time, most find the target already reaching the
+ *    source, and added together they collapse a large component. That is not a
+ *    fixable oversight. It **was** the bridge tables' argument too — *"the
+ *    junction tables must follow `catalog`'s `products`, and `catalog`'s
+ *    channel-scoping columns must follow `sales_channels`' own table, and no
+ *    module-level edge can express both"* — and
+ *    `specs/120-migration-closure-bridge-ownership/` Phase 2 answered it by
+ *    changing which module owns the junction rather than by finding an edge to
+ *    declare: a bridge belongs to its far side (D-226), so both directions
+ *    became intra-module or module → kernel and the eight entries retired. The
+ *    rest are the shapes that argument does not reach.
+ *
+ * **The counts that stood in this block are gone deliberately** (D-100). They
+ * read "all 13" and "11 of the 13" and were stale the moment the bridge entries
+ * left; the array below is what answers how many there are, and
+ * `fk-dependency-drift.test.ts` is what holds each one to being real.
  * 3. **The field that could express it is ruled unspellable.** An ordering edge
  *    that the migration order reads and the lifecycle does not is D-44 §5's
  *    fourth quadrant — order without bind — kept deliberately unspellable in
@@ -164,102 +174,15 @@ export const ACKNOWLEDGED_FK_EDGES: readonly AcknowledgedFkEdge[] = [
       '`dependencies` array, so the edge is undeclarable rather than undeclared',
   },
 
-  // ── Rule 2 — sales_channels owns the membership bridges ─────────────────
-  {
-    from: 'sales_channels',
-    to: 'catalog',
-    via: ['sales_channel_categories → categories', 'sales_channel_products → products'],
-    reason:
-      'Channel membership bridges are owned by sales_channels but consumed by the ' +
-      'domain: catalog is the module that cannot function without channel scoping, ' +
-      'and it declares sales_channels.',
-    rule: 'bridge-owner',
-    cycle: 'sales_channels → catalog → sales_channels',
-  },
-  {
-    from: 'sales_channels',
-    to: 'cms',
-    via: ['sales_channel_cms_pages → cms_pages'],
-    reason:
-      'Same bridge-ownership inversion as catalog: cms declares sales_channels, ' +
-      'not the other way round.',
-    rule: 'bridge-owner',
-    cycle: 'sales_channels → cms → sales_channels',
-  },
-  {
-    from: 'sales_channels',
-    to: 'customer_accounts',
-    via: ['sales_channel_customer_accounts → customer_accounts'],
-    reason:
-      'Per-channel customer visibility is a membership bridge; the customer ' +
-      'domain is what needs channel scoping.',
-    rule: 'bridge-owner',
-    // Re-measured for feature 076 (D-79). The route through `price_lists` is
-    // gone — `customer_accounts` no longer declares it, because it owns
-    // `customer_groups` now — and the edge is still undeclarable, through a
-    // path that was there all along.
-    cycle:
-      'sales_channels → customer_accounts → organizations → transactional_emails → sales_channels',
-  },
-  {
-    from: 'sales_channels',
-    to: 'delivery_methods',
-    via: ['sales_channel_delivery_methods → delivery_methods'],
-    reason:
-      'Per-channel delivery-method availability is a membership bridge over a root ' +
-      'module that is complete without any channel.',
-    rule: 'bridge-owner',
-    cycle:
-      'no cycle on its own — dropped because declaring it inverts the ' +
-      'bridge-ownership direction',
-  },
-  {
-    from: 'sales_channels',
-    to: 'organizations',
-    via: ['sales_channel_organizations → organizations'],
-    reason:
-      'Per-channel organization visibility is a membership bridge. organizations ' +
-      'is the tenancy root and must install before any channel-scoped domain.',
-    rule: 'bridge-owner',
-    cycle:
-      'no cycle on its own — dropped because declaring it inverts the ' +
-      'bridge-ownership direction and would pull the tenancy root behind ' +
-      'sales_channels',
-  },
-  {
-    from: 'sales_channels',
-    to: 'payment_methods',
-    via: ['sales_channel_payment_methods → payment_methods'],
-    reason:
-      'Per-channel payment-method availability is a membership bridge over a root ' +
-      'module that is complete without any channel.',
-    rule: 'bridge-owner',
-    cycle:
-      'no cycle on its own — dropped because declaring it inverts the ' +
-      'bridge-ownership direction',
-  },
-  {
-    from: 'sales_channels',
-    to: 'promotions',
-    via: ['sales_channel_promotions → promotions'],
-    reason:
-      'Promotion-to-channel membership is a bridge; promotions declares ' +
-      'sales_channels because a promotion is resolved per channel.',
-    rule: 'bridge-owner',
-    cycle: 'sales_channels → promotions → sales_channels',
-  },
-  {
-    from: 'sales_channels',
-    to: 'taxes',
-    via: ['sales_channel_taxes → taxes'],
-    reason:
-      'Per-channel tax-class availability is a membership bridge over a root ' +
-      'module that is complete without any channel.',
-    rule: 'bridge-owner',
-    cycle:
-      'no cycle on its own — dropped because declaring it inverts the ' +
-      'bridge-ownership direction',
-  },
+  // Rule 2 — `sales_channels` owning the membership bridges — is **retired**.
+  // `specs/120-migration-closure-bridge-ownership/` Phase 2 moved all nine
+  // bridge tables to the modules that own their far sides (D-226), so each
+  // bridge's two foreign keys are now far side → far side, which is
+  // intra-module, and far side → `sales_channels`, which is module → kernel and
+  // needs no declaration at all. The eight entries that stood here were this
+  // defect's symptom register; they are gone because the inversion is, and
+  // `fk-dependency-drift.test.ts`' minimality assertion is what says so rather
+  // than this comment.
 
   // The `settings → sales_channels` entry that stood here until feature 072
   // T019 is gone: `sales_channels` is a kernel-owned table now, so the three
