@@ -715,6 +715,96 @@ export function evaluateA5(observed: AdminBundleObservation): AssertionResult {
   };
 }
 
+/** What A6 read: the built documentation site, and who is entitled to be in it. */
+export interface DocsSiteObservation {
+  /** The member is there at all. `false` is the omission the command printed. */
+  readonly present: boolean;
+  /** Why the member is not there, verbatim from the command's own output. */
+  readonly omission: string | null;
+  /** The site produced routed HTML. */
+  readonly built: boolean;
+  /** What the build said when it did not. */
+  readonly buildOutput: string;
+  /** Module slugs whose **installed package** ships a documentation layer. */
+  readonly expected: readonly string[];
+  /** Module slugs the generated navigation names a prose page for. */
+  readonly named: readonly string[];
+  /** Those of them the built site actually serves a route for. */
+  readonly routed: readonly string[];
+  /** Routed HTML pages in the built site, as evidence it is a site at all. */
+  readonly pages: number;
+}
+
+/**
+ * A6 — the documentation site builds, and its navigation names the installed
+ * modules' pages.
+ *
+ * **Three claims and not one**, which is why the observation carries three
+ * lists. The site *builds*, which under `onBrokenLinks: 'throw'` already means
+ * every link in it resolves. Its navigation *names* the pages of the modules
+ * this client installed — both directions, exactly as A5 asks of the bundle: a
+ * missing slug is a page the client paid for and cannot find, and an extra one
+ * is a module they did not install advertising itself. And each named page is
+ * *routed*, because a sidebar entry and a served page are not the same thing:
+ * Docusaurus excludes an underscore-prefixed file from routing by design
+ * (D-200), so a navigation naming one is a link to nothing that the build does
+ * not refuse.
+ *
+ * The expectation is read off each installed package's own `docs/` layer and
+ * never off a list, so a module set that changes changes it in the same run.
+ */
+export function evaluateA6(observed: DocsSiteObservation): AssertionResult {
+  if (!observed.present) {
+    return {
+      id: 'A6',
+      state: 'unmeasured',
+      detail:
+        observed.omission ??
+        'the created tree holds no `docs/` member and the command printed no omission for it',
+    };
+  }
+  if (!observed.built) {
+    return {
+      id: 'A6',
+      state: 'fail',
+      detail: `the instance's own documentation build produced no site: ${observed.buildOutput}`,
+    };
+  }
+  if (observed.expected.length === 0) {
+    return {
+      id: 'A6',
+      state: 'unmeasured',
+      detail:
+        'none of the installed module packages ships a documentation layer, so "names the ' +
+        'installed modules\' pages" is satisfied by an empty set and says nothing about ' +
+        'whether a page would have been reachable',
+    };
+  }
+  const missing = observed.expected.filter((slug) => !observed.named.includes(slug));
+  const extra = observed.named.filter((slug) => !observed.expected.includes(slug));
+  const unrouted = observed.named.filter((slug) => !observed.routed.includes(slug));
+  if (missing.length > 0 || extra.length > 0 || unrouted.length > 0) {
+    return {
+      id: 'A6',
+      state: 'fail',
+      detail:
+        `${String(observed.expected.length)} installed module packages ship a documentation ` +
+        `layer and the built site's navigation names ${String(observed.named.length)}` +
+        (missing.length > 0 ? `; missing: ${missing.join(', ')}` : '') +
+        (extra.length > 0 ? `; not installed and named anyway: ${extra.join(', ')}` : '') +
+        (unrouted.length > 0 ? `; named and served by no route: ${unrouted.join(', ')}` : ''),
+    };
+  }
+  return {
+    id: 'A6',
+    state: 'pass',
+    detail:
+      `the built site serves ${String(observed.pages)} pages and its navigation names a routed ` +
+      `page for exactly the ${String(observed.expected.length)} installed module packages that ` +
+      `ship a documentation layer`,
+  };
+}
+
 /** One package's contribution to the built stylesheet, and how it was found. */
 export interface StylesheetWitness {
   readonly packageName: string;

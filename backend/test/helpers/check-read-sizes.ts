@@ -2391,7 +2391,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `.replace()` shape the site counter opens. The four files are the seven minus the two
     // shims under `backend/scripts` and minus the changeset, which this walk does not read.
 
-    files: 5603,
+    // **`specs/110-instance-repository/` T137 (the documentation member and the moved
+    // documentation renderers): 5603 -> 5605 (+2).** The two new files under `packages/cli/src/`; this walk is `.ts`/`.tsx`/`.js` over the whole tree minus `backend/scripts` and `backend/test/unit/scripts`, so the shim and the two new tests are outside it and the changeset is not source. Quality-job shape: the ignored copies
+    // `composer:generate` places under `docs/docs/modules/` swept first, and `docs/build`
+    // removed — a working tree that has built the site reads far higher on `check-nul-bytes`.
+    files: 5605,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2545,7 +2549,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `.replace()` shape the site counter opens. The four files are the seven minus the two
     // shims under `backend/scripts` and minus the changeset, which this walk does not read.
 
-    sites: 556,
+    // **`specs/110-instance-repository/` T137 (the documentation member and the moved
+    // documentation renderers): 556 -> 558 (+2).** Two more classified expressions in those two files. No new fold and no new slug builder: both ledgers are untouched. Quality-job shape: the ignored copies
+    // `composer:generate` places under `docs/docs/modules/` swept first, and `docs/build`
+    // removed — a working tree that has built the site reads far higher on `check-nul-bytes`.
+    sites: 558,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -4308,7 +4316,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **not** a violation because its fallback is a `throw` rather than a fabricated value.
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    sites: 587,
+    // **`specs/110-instance-repository/` T137 (the documentation member and the moved
+    // documentation renderers): 587 -> 588 (+1).** One more classified read in the two new files under `packages/cli/test/new-instance/`. Quality-job shape: the ignored copies
+    // `composer:generate` places under `docs/docs/modules/` swept first, and `docs/build`
+    // removed — a working tree that has built the site reads far higher on `check-nul-bytes`.
+    sites: 588,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -7231,7 +7243,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // recorded 8101. This walk reads the whole repository, so it is the one that sees the
     // changeset and the two `backend/scripts` shims as well.
 
-    files: 8111,
+    // **`specs/110-instance-repository/` T137 (the documentation member and the moved
+    // documentation renderers): 8111 -> 8117 (+6).** The five new files — `packages/cli/src/lib/docs-artefacts.ts`, `packages/cli/src/new-instance/docs-toolchain.ts`, `backend/scripts/lib/docs-artefacts.ts` and the two new tests under `packages/cli/test/new-instance/` — plus this branch's changeset, which this whole-repository walk reads and the narrower ones do not. Quality-job shape: the ignored copies
+    // `composer:generate` places under `docs/docs/modules/` swept first, and `docs/build`
+    // removed — a working tree that has built the site reads far higher on `check-nul-bytes`.
+    files: 8117,
     sites: null,
     sources: [],
     //
@@ -8226,7 +8242,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `quality` job's shape, against `origin/master` at 15b866da3 measured the same way,
     // so nothing below folds in a number that was already stale.
 
-    files: 2483,
+    // **`specs/110-instance-repository/` T137 (the documentation member and the moved
+    // documentation renderers): 2483 -> 2484 (+1).** One file: this walk is the module roots plus the application, and the application gains `backend/scripts/lib/docs-artefacts.ts`. The two new `packages/cli/src/` files are in neither population — the CLI is not a module package. Quality-job shape: the ignored copies
+    // `composer:generate` places under `docs/docs/modules/` swept first, and `docs/build`
+    // removed — a working tree that has built the site reads far higher on `check-nul-bytes`.
+    files: 2484,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -10172,7 +10192,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `quality` job's shape, against `origin/master` at 15b866da3 measured the same way,
     // so nothing below folds in a number that was already stale.
 
-    files: 4624,
+    // **`specs/110-instance-repository/` T137 (the documentation member and the moved
+    // documentation renderers): 4624 -> 4625 (+1).** The same one file as `check-platform-surface` above, for the same reason. Quality-job shape: the ignored copies
+    // `composer:generate` places under `docs/docs/modules/` swept first, and `docs/build`
+    // removed — a working tree that has built the site reads far higher on `check-nul-bytes`.
+    files: 4625,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -11020,7 +11044,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Three of the ten are `specs/120-…`'s, on `master` at 15b866da3 and re-recorded here for
     // the reason `check-doc-snippets` states: the census reads the tree, not the diff.
 
-    files: 8171,
+    // **`specs/110-instance-repository/` T137 (the documentation member and the moved
+    // documentation renderers): 8171 -> 8177 (+6).** The same six files as `check-nul-bytes` above, this walk having the same whole-repository listing. Quality-job shape: the ignored copies
+    // `composer:generate` places under `docs/docs/modules/` swept first, and `docs/build`
+    // removed — a working tree that has built the site reads far higher on `check-nul-bytes`.
+    files: 8177,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -11548,7 +11576,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // so nothing below folds in a number that was already stale.
     // Six rather than seven: this walk reads source and the changeset is a `.md` outside it.
 
-    files: 6246,
+    // **`specs/110-instance-repository/` T137 (the documentation member and the moved
+    // documentation renderers): 6246 -> 6251 (+5).** The five TypeScript files `check-nul-bytes` names; the changeset is markdown under `.changeset/`, which is outside this walk's roots. Quality-job shape: the ignored copies
+    // `composer:generate` places under `docs/docs/modules/` swept first, and `docs/build`
+    // removed — a working tree that has built the site reads far higher on `check-nul-bytes`.
+    files: 6251,
     sites: null,
     sources: ['manifest-index'],
     //
