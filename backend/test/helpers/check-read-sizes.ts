@@ -1356,7 +1356,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 2046,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 2046 -> 2047.**
+    // The one platform source the feature adds. No action, no route and no permission moves.
+    files: 2047,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1663,7 +1665,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 2178,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 2178 -> 2179.**
+    // The one platform source the feature adds. It resolves no channel and names none.
+    files: 2179,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2391,7 +2395,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `.replace()` shape the site counter opens. The four files are the seven minus the two
     // shims under `backend/scripts` and minus the changeset, which this walk does not read.
 
-    files: 5603,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 5603 -> 5606 (+3).**
+    // The whole-tree population takes all three of the feature's new sources: the registry, its
+    // co-located platform test and `backend/test/helpers/channel-bridges.ts`.
+    files: 5606,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2741,7 +2748,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 2454,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 2454 -> 2456 (+2).**
+    // Two of the feature's three new sources land under the roots this walk opens; no deployment
+    // decoration and no owner attribution moves.
+    files: 2456,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -3200,7 +3210,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 2178,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 2178 -> 2179.**
+    // The one platform source the feature adds. It declares no entity.
+    files: 2179,
     sites: 265,
     sources: ['manifest-index'],
   },
@@ -3484,7 +3496,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 2178,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 2178 -> 2179.**
+    // The one platform source the feature adds. The eight boot hooks it introduces are
+    // **contributions** — a `register` call, no `await`, no work receiver — so they are classified
+    // and pass, and no ledger entry follows.
+    files: 2179,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3768,7 +3784,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 2178,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 2178 -> 2179.**
+    // The one platform source the feature adds. It is no entry point of any of the six classes.
+    files: 2179,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -4004,7 +4022,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `quality` job's shape, against `origin/master` at 15b866da3 measured the same way,
     // so nothing below folds in a number that was already stale.
 
-    files: 649,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 649 -> 650 (+1).**
+    // The one platform source the feature adds. It reads no environment value.
+    files: 650,
     sites: 68,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
@@ -4256,7 +4276,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/test/**` and the criterion's own sources are not tests. Quality-job shape — the
     // ignored copies under `docs/docs/modules/` swept first. Measured on the combined tree, never
     // summed from the two sides' deltas.
-    files: 1625,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 1625 -> 1626, sites 587 -> 588.**
+    // `backend/test/helpers/channel-bridges.ts`, and the one read it performs. It defaults nothing:
+    // the descriptors come from the owning modules and an absent one is a resolution failure.
+    files: 1626,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -4308,7 +4331,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **not** a violation because its fallback is a `throw` rather than a fabricated value.
     // Quality-job shape — the ignored copies under `docs/docs/modules/` swept first. Measured on
     // the combined tree, never summed from the two sides' deltas.
-    sites: 587,
+    sites: 588,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -4484,7 +4507,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // same `backend/test/**` population. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed from the two
     // sides' deltas.
-    files: 1625,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 1625 -> 1626.**
+    // `backend/test/helpers/channel-bridges.ts`. It releases no harness resource.
+    files: 1626,
     sites: null,
     sources: [],
   },
@@ -4783,7 +4808,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 2178,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 2178 -> 2179, sites 148 -> 149.**
+    // One platform source, `packages/platform/src/kernel/sales-channels/channel-bridge-registry.ts`,
+    // and the one outward import it adds — `@endora-commerce/contracts` — to rule B's population.
+    // The eight module registrations move neither: they name no platform file by path.
+    files: 2179,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -4821,7 +4850,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fewer files than the 139 recorded against the tree before it: 140. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    sites: 148,
+    sites: 149,
     // `platform-subpaths` is T118a's second author over rule B's population: the
     // platform's `exports` map is a different program's answer to "which directories
     // does this package have", and a published subpath naming no walked directory is a
@@ -5652,6 +5681,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 4: sites 35207 (+1).**
+    // One literal classified, from the registry's refusal message. `files` does not move: this walk's
+    // population is the module roots and the file the feature adds is the platform's.
     files: 1763,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
@@ -5741,7 +5773,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    sites: 35206,
+    sites: 35207,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -6302,7 +6334,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walk; the five sites are its own import specifiers and the `mod-settings` reach that
     // became a dynamic import, which this check counts exactly as it counted the static one.
 
-    files: 5164,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 5164 -> 5166 (+2), sites 12920 -> 12928 (+8).**
+    // Two of the feature's new sources land in this walk's population, and the eight sites are the
+    // specifiers the module registrations add — each module names `@endora-commerce/contracts` for
+    // `ChannelMemberEntityType` and nothing else. No cross-module reach and no ledger entry: the
+    // registry is reached by container name, not by import.
+    files: 5166,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -6390,7 +6427,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walk; the five sites are its own import specifiers and the `mod-settings` reach that
     // became a dynamic import, which this check counts exactly as it counted the static one.
 
-    sites: 12920,
+    sites: 12928,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -7231,7 +7268,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // recorded 8101. This walk reads the whole repository, so it is the one that sees the
     // changeset and the two `backend/scripts` shims as well.
 
-    files: 8111,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 8111 -> 8115 (+4).**
+    // The whole-repository walk takes all four files the merge request adds: the registry, its test,
+    // the test helper and the changeset.
+    files: 8115,
     sites: null,
     sources: [],
     //
@@ -7725,6 +7765,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // all the same, and with the owner's file alone reverted it reads 226 — the roots'
     // two deleted `catch`es were never in this population, because a root reaches
     // `assetReadPort` through a local accessor rather than an alias.
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 2178 -> 2179.**
+    // The one platform source the feature adds. It is reached through no `catch`.
     sites: 227,
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 2138 recorded against the tree before it. Measured on
@@ -7788,7 +7830,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 2178,
+    files: 2179,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -7915,6 +7957,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 4: sites 1645 -> 1654 (+9).**
+    // The nine container resolutions of `salesChannelBridgeRegistry`: eight modules reading it from a
+    // contribution boot hook to declare the bridge they own, and `sales_channels`' `lazyPort` for the
+    // channel-delete sweep. `files` does not move — this walk reads `.ts` under the module roots and
+    // the one file the feature adds is the platform's.
     files: 1997,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 1471 -> 1535.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
@@ -7942,7 +7989,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 1579 -> 1645.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 1645,
+    sites: 1654,
     sources: ['manifest-index'],
   },
   // Two derivations, deliberately, because the check has two inputs that can be
@@ -8493,6 +8540,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 4: sites 788 -> 789 (+1).**
+    // `sales_channels`' `lazyPort(ctx, 'salesChannelBridgeRegistry')`. The name is the platform's, so
+    // it publishes no port shape and no finding follows.
     files: 2098,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 692 -> 721.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
@@ -8518,7 +8568,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 747 -> 788.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 788,
+    sites: 789,
     sources: ['manifest-index', 'ports-subpaths'],
   },
   // Small on purpose: this population is the *workspace*, not a source tree —
@@ -8897,7 +8947,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // same `backend/test/**` population. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed from the two
     // sides' deltas.
-    files: 1625,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 1625 -> 1626.**
+    // `backend/test/helpers/channel-bridges.ts`. It touches no table.
+    files: 1626,
     sites: 163,
     sources: [],
   },
@@ -9233,7 +9285,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 2178,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 2178 -> 2179.**
+    // The one platform source the feature adds. It subscribes to nothing and builds no worker.
+    files: 2179,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -9763,7 +9817,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 2178,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 2178 -> 2179.**
+    // The one platform source the feature adds. It issues no SQL.
+    files: 2179,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -10172,7 +10228,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `quality` job's shape, against `origin/master` at 15b866da3 measured the same way,
     // so nothing below folds in a number that was already stale.
 
-    files: 4624,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 4624 -> 4627 (+3).**
+    // The feature's three new sources. The registry is the platform's, reached by container name
+    // rather than by a source path, so no reach is classified.
+    files: 4627,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -11020,7 +11079,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Three of the ten are `specs/120-…`'s, on `master` at 15b866da3 and re-recorded here for
     // the reason `check-doc-snippets` states: the census reads the tree, not the diff.
 
-    files: 8171,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 8171 -> 8175 (+4).**
+    // The four files the merge request adds, over the same index-derived population
+    // `check-nul-bytes` walks.
+    files: 8175,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -11548,7 +11610,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // so nothing below folds in a number that was already stale.
     // Six rather than seven: this walk reads source and the changeset is a `.md` outside it.
 
-    files: 6246,
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 6246 -> 6249 (+3).**
+    // The three source files the merge request adds; the changeset is markdown outside `docs/docs/`.
+    files: 6249,
     sites: null,
     sources: ['manifest-index'],
     //
