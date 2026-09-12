@@ -729,6 +729,13 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // here is the registration, in the one contribution slot.
   composedModules.contribute({
     salesChannelsCache: salesChannels.cache,
+    // Feature 120 (FR-015) — the channel-bridge contribution registry. Each
+    // module owning a channel-scoped entity type resolves this name from its
+    // own boot hook and declares the one bridge table its migrations create;
+    // the platform holds no map of the nine. A member nothing registered
+    // refuses at the membership call instead of reaching a relation an
+    // instance that omits that module does not have.
+    salesChannelBridgeRegistry: salesChannels.bridgeRegistry,
     // The kernel-reserved membership port. `payment_methods` and
     // `delivery_methods` resolve it to auto-bind a new method to the system
     // default channel; both read it when their routes register.

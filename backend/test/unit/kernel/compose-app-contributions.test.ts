@@ -157,6 +157,7 @@ const PLATFORM_CONTRIBUTIONS: readonly string[] = [
   'modulePresenceProbe',
   'priceListsEnableStatusSweeper',
   'pwaRunWorkers',
+  'salesChannelBridgeRegistry',
   'salesChannelCodeIdPort',
   'salesChannelMembershipPort',
   'salesChannelResolutionPort',
@@ -292,9 +293,13 @@ describe('T118 — the contribution wiring is the platform’s and the values ar
 
     expect(deployment.size, 'the reference deployment contributes nothing — the walk broke')
       .toBeGreaterThan(0);
-    // **52 since `invoicesBridge` went, and the number below is re-derived on
-    // this tree rather than decremented from the one above.** The paragraph that
-    // follows is kept because it is the reason this file is read at all.
+    // **53 since feature 120's `salesChannelBridgeRegistry` arrived, and the
+    // number below is re-derived on this tree rather than incremented from the
+    // one above.** It was 52 while `invoicesBridge` was the last movement; the
+    // registry is a platform contribution and not a deployment one, so the whole
+    // of the change falls on `PLATFORM_CONTRIBUTIONS`' side of the sum. The
+    // paragraph that follows is kept because it is the reason this file is read
+    // at all.
     //
     // **53 was re-measured on the union and not carried from either side.** Both
     // `product_feeds` and `pwa` drained from a tree contributing 55, so each
@@ -304,7 +309,7 @@ describe('T118 — the contribution wiring is the platform’s and the values ar
     // the other's — which is what a ledger derived *about* the contributions
     // costs when two targets land together, and why this one is measured on the
     // combined tree rather than decremented.
-    expect(deployment.size + PLATFORM_CONTRIBUTIONS.length).toBe(52);
+    expect(deployment.size + PLATFORM_CONTRIBUTIONS.length).toBe(53);
   });
 
   it('contributes before the caller’s callback, so a deployment can still override', () => {

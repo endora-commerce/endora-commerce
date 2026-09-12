@@ -14,15 +14,18 @@ import {
   instanceEntries,
   instanceOrder,
   legacyBaselineOf,
+  channelBridgesFrom,
   migrationSourceOf,
-  parseChannelBridges,
-  readChannelBridges,
+  parseChannelBridgeDeclarations,
+  readChannelBridgeDeclarations,
   readMigrationSources,
+  totalBridgeMaps,
   reconcileBaseline,
   refusals,
   repositoryOrder,
   stampOf,
   type ChannelBridge,
+  type ChannelBridgeDeclaration,
   type MigrationSource,
 } from '../../helpers/instance-migration-order.js';
 
@@ -75,7 +78,9 @@ import {
 
 const MODULE_DEPENDENCIES = coreModuleDependencies();
 const SOURCES = await readMigrationSources();
-const CHANNEL_BRIDGES = await readChannelBridges();
+const CHANNEL_VOCABULARY = [...ChannelMemberEntityTypeSchema.options];
+const BRIDGE_DECLARATIONS = await readChannelBridgeDeclarations();
+const CHANNEL_BRIDGES = channelBridgesFrom(BRIDGE_DECLARATIONS);
 
 const REAL = {
   entries: MIGRATION_REGISTRY,
@@ -556,28 +561,175 @@ describe('G5 — a bridge table is the platform’s or its creator contributes i
    * the creating module supplies the second. That is why Phase 4 merges before
    * Phase 2 — and why this assertion has to be able to go red, which the
    * fixture below is the proof of.
+   *
+   * **Phase 4 has landed, so the contributions are now real** and the guard is
+   * green for nine members on the first disjunct and zero on the second. That
+   * is the state Phase 2 inverts, one member at a time, without this file
+   * changing.
    */
   const NO_CONTRIBUTIONS: ReadonlyMap<string, string> = new Map();
 
   it('the platform serves no member whose table it neither creates nor is given', () => {
     expect(
       bridgeOwnershipViolations({
-        bridges: CHANNEL_BRIDGES,
+        bridges: CHANNEL_BRIDGES.bridges,
         sources: SOURCES,
-        contributions: NO_CONTRIBUTIONS,
+        contributions: CHANNEL_BRIDGES.contributions,
       }),
       'a channel-membership call for this member reaches a relation an instance that omits ' +
         'the owning module does not have',
     ).toEqual([]);
   });
 
+  it('holds today on the platform creating each bridge, and not yet on a contribution', () => {
+    // Said out loud because it is the invariant Phase 2 moves: nine members pass
+    // because `core` creates the table, and none of them needs its contribution
+    // yet. Removing the contributions therefore changes nothing **today** —
+    // and, after Phase 2 moves the first `create table`, changes everything,
+    // which is what makes the registry non-droppable.
+    expect(
+      bridgeOwnershipViolations({
+        bridges: CHANNEL_BRIDGES.bridges,
+        sources: SOURCES,
+        contributions: NO_CONTRIBUTIONS,
+      }),
+    ).toEqual([]);
+    expect(CHANNEL_BRIDGES.contributions.size).toBe(CHANNEL_VOCABULARY.length);
+  });
+
   it('covers every member of the published vocabulary', () => {
-    // The independent author: the enum is `@endora-commerce/contracts`', the map
-    // is the platform's, and a map short of the enum is a member the platform
-    // can be asked for and this guard never looked at.
-    expect([...CHANNEL_BRIDGES].map((bridge) => bridge.entityType).sort()).toEqual(
-      [...ChannelMemberEntityTypeSchema.options].sort(),
+    // The independent author: the enum is `@endora-commerce/contracts`', and the
+    // declarations are the owning modules'. A declaration set short of the enum
+    // is a member the platform can be asked for that no module claims — and one
+    // *over* it is a member the vocabulary does not publish.
+    expect([...CHANNEL_BRIDGES.bridges].map((bridge) => bridge.entityType).sort()).toEqual(
+      [...CHANNEL_VOCABULARY].sort(),
     );
+    expect(CHANNEL_BRIDGES.conflicts).toEqual([]);
+  });
+
+  it('no file anywhere in the tree declares a map total over the vocabulary (FR-015)', () => {
+    // The half that is about *this* phase rather than about Phase 2, and the
+    // one whose population is derived rather than listed (FR-018a). Two total
+    // maps stood when D-226 was written and only one of them was in the ruling;
+    // the second was found by a grep. A walk keyed on those two files would be
+    // issue #244's defect arriving through its own repair.
+    expect(
+      totalBridgeMaps(BRIDGE_DECLARATIONS, CHANNEL_VOCABULARY),
+      'the platform — or a module — knows where all nine bridges live, which is the map ' +
+        'FR-015 deletes',
+    ).toEqual([]);
+  });
+
+  it('finds a third total map in a file this feature has never heard of', () => {
+    // The proof that the population is a **shape**. The fixture is a file named
+    // in no list, in neither of the two spellings' original homes, and it enters
+    // at the top of the analysis (issue #130): source text, parsed by the same
+    // function the real walk calls.
+    const invented = CHANNEL_VOCABULARY.map(
+      (member) =>
+        `  '${member}': { table: 'sc_${member.replace('-', '_')}', entityIdColumn: 'x_id' },`,
+    ).join('\n');
+    const declarations = parseChannelBridgeDeclarations(
+      `const SOMEONES_LOOKUP = {\n${invented}\n};\n`,
+      'packages/modules/reporting/src/backend/services/channel-report.service.ts',
+      'reporting',
+    );
+    expect(declarations).toHaveLength(CHANNEL_VOCABULARY.length);
+    expect(totalBridgeMaps(declarations, CHANNEL_VOCABULARY)).toHaveLength(1);
+    expect(totalBridgeMaps(declarations, CHANNEL_VOCABULARY)[0]).toContain(
+      'channel-report.service.ts',
+    );
+  });
+
+  it('would have found either map this feature deleted (FR-015a)', () => {
+    // Both spellings, reconstructed over the **real** nine rather than over a
+    // list written here: the platform's keyed `BRIDGE_TABLES` and
+    // `sales_channels`' explicit array, which was the copy nothing in the
+    // repository could see and which a grep rather than a design found.
+    const keyed = `const BRIDGE_TABLES: Record<ChannelMemberEntityType, BridgeShape> = {\n${CHANNEL_BRIDGES.bridges
+      .map((bridge) => `  '${bridge.entityType}': { table: '${bridge.table}', entityIdColumn: 'x_id' },`)
+      .join('\n')}\n};\n`;
+    const explicit = `const BRIDGE_TABLES = [\n${CHANNEL_BRIDGES.bridges
+      .map(
+        (bridge) =>
+          `  { entityType: '${bridge.entityType}', table: '${bridge.table}', ` +
+          `entityIdColumn: 'x_id' },`,
+      )
+      .join('\n')}\n];\n`;
+    for (const [file, text] of [
+      ['packages/platform/src/kernel/sales-channels/sales-channel-membership.service.ts', keyed],
+      ['packages/modules/sales_channels/src/backend/services/sales-channels.service.ts', explicit],
+    ] as const) {
+      const declarations = parseChannelBridgeDeclarations(text, file, 'core');
+      expect(declarations, file).toHaveLength(CHANNEL_VOCABULARY.length);
+      expect(totalBridgeMaps(declarations, CHANNEL_VOCABULARY), file).toHaveLength(1);
+    }
+  });
+
+  it('reads both spellings, and calls neither of them a map on its own', () => {
+    // The explicit spelling is what a module writes about its own bridge; the
+    // keyed one is what a total map looks like. A recogniser blind to the first
+    // would report every module registration as nothing at all and let G5 go
+    // green over a tree where nobody contributed.
+    const explicit = parseChannelBridgeDeclarations(
+      "export const salesChannelBridges = [\n" +
+        "  { entityType: 'cms-page', table: 'sales_channel_cms_pages', " +
+        "entityIdColumn: 'cms_page_id' },\n];\n",
+      'packages/modules/cms/src/backend/index.ts',
+      'cms',
+    );
+    expect(explicit).toEqual([
+      {
+        entityType: 'cms-page',
+        table: 'sales_channel_cms_pages',
+        entityIdColumn: 'cms_page_id',
+        file: 'packages/modules/cms/src/backend/index.ts',
+        moduleId: 'cms',
+      } satisfies ChannelBridgeDeclaration,
+    ]);
+    expect(totalBridgeMaps(explicit, CHANNEL_VOCABULARY)).toEqual([]);
+
+    const keyed = parseChannelBridgeDeclarations(
+      "const BRIDGE_TABLES = {\n  'cms-page': { table: 'sales_channel_cms_pages', " +
+        "entityIdColumn: 'cms_page_id' },\n};\n",
+      'x.ts',
+      'core',
+    );
+    expect(keyed.map((entry) => entry.entityType)).toEqual(['cms-page']);
+  });
+
+  it('refuses a walk that classified no declaration rather than reporting over nothing', () => {
+    // The vacuity this guard is one step from: with no declaration read, no file
+    // is a total map, no member is uncovered and every disjunct holds. The real
+    // walk raises; the pure half is what a fixture can drive.
+    expect(totalBridgeMaps([], CHANNEL_VOCABULARY)).toEqual([]);
+    expect(channelBridgesFrom([]).bridges).toEqual([]);
+    // …which is exactly why the walk itself refuses — see
+    // `readChannelBridgeDeclarations`, whose throw is the reason the emptiness
+    // above can never be the state this file reports on.
+    expect(BRIDGE_DECLARATIONS.length).toBeGreaterThanOrEqual(CHANNEL_VOCABULARY.length);
+  });
+
+  it('reports two authors claiming one member', () => {
+    const conflicting = channelBridgesFrom([
+      {
+        entityType: 'tax',
+        table: 'sales_channel_taxes',
+        entityIdColumn: 'tax_id',
+        file: 'a.ts',
+        moduleId: 'taxes',
+      },
+      {
+        entityType: 'tax',
+        table: 'sales_channel_tax_rates',
+        entityIdColumn: 'tax_id',
+        file: 'b.ts',
+        moduleId: 'billing',
+      },
+    ]);
+    expect(conflicting.conflicts).toHaveLength(1);
+    expect(conflicting.conflicts[0]).toContain('two authors claim one member');
   });
 
   it('reds when one bridge is created by its far side and contributed by nobody', () => {
@@ -614,7 +766,7 @@ describe('G5 — a bridge table is the platform’s or its creator contributes i
         ),
       );
     const found = bridgeOwnershipViolations({
-      bridges: CHANNEL_BRIDGES,
+      bridges: CHANNEL_BRIDGES.bridges,
       sources: moved,
       contributions: NO_CONTRIBUTIONS,
     });
@@ -664,12 +816,4 @@ describe('G5 — a bridge table is the platform’s or its creator contributes i
     ).toContain('no migration in the corpus creates');
   });
 
-  it('refuses a bridge map it could not read rather than reporting over nothing', () => {
-    expect(() => parseChannelBridges('const SOMETHING_ELSE = {};\n', 'x.ts')).toThrow(
-      /declares no `BRIDGE_TABLES` object literal/,
-    );
-    expect(() =>
-      parseChannelBridges('const BRIDGE_TABLES: Record<string, Shape> = {\n};\n', 'x.ts'),
-    ).toThrow(/holding no entry/);
-  });
 });

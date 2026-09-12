@@ -29,7 +29,16 @@ Channel scoping has two layers:
 1. **Schema** — the entity gains a many-to-many relationship to `sales_channels` via a new bridge table `sales_channel_<entity>` (composite primary key on both ids, `ON DELETE CASCADE` on both sides). Add the table in your module's next migration.
 2. **Service** — every read path of the entity that should be filtered by channel takes a `salesChannelId` parameter and joins through the bridge table. Every create / update path that lands a new entity calls `SalesChannelMembershipService.bindToDefaultIfEmpty(entityType, entity.id)` after `persistAndFlush` so newly-created entities default to the system-default channel (FR-011).
 
-Then register the entity type in the membership service's `BRIDGE_TABLES` map and in the contract's `ChannelMemberEntityTypeSchema` enum, and the bidirectional admin routes pick it up automatically — no per-module routes needed.
+Then add the member to the contract's `ChannelMemberEntityTypeSchema` enum, and **declare the bridge from your own module** (feature 120, FR-015): export the `{ entityType, table, entityIdColumn }` triple from `src/backend/index.ts` and register it from a boot hook —
+
+```ts
+ctx.onBoot(() => {
+  const { salesChannelBridgeRegistry } = ctx.cradle<YourCradle>();
+  for (const bridge of salesChannelBridges) salesChannelBridgeRegistry.register(bridge);
+});
+```
+
+The bidirectional admin routes then pick it up automatically — no per-module routes needed. The platform deliberately holds no map of the bridges: it used to, total over the enum, which meant a membership call for a member whose module an instance never installed ran SQL against a relation that is not there (D-226). A member no module registered now refuses with `503 MODULE_DISABLED` before the database is reached, and the enum stays the published *vocabulary* while the registry decides which members are live.
 
 ## Mutating memberships
 

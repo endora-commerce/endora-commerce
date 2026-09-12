@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { SALES_CHANNEL_AUDIT_ACTIONS } from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
+import { testChannelBridges } from '../../helpers/channel-bridges.js';
 import { EventBus } from '@endora-commerce/platform/events';
 import { AuditLogService } from '@endora-commerce/platform/composition';
 import { AuditLogEntry } from '@endora-commerce/platform/kernel';
@@ -72,6 +73,10 @@ describe('audit trail coverage (T048)', () => {
         // `select` accepted — and refuses an inactive one, which it did not.
         dictionaryValidatorFor(() => db.em()),
         new SalesChannelAttributionRegistry(),
+        // Feature 120 (FR-015) — which table holds each entity type's
+        // memberships. This suite composes no platform, so the descriptors are
+        // the ones `setupTestDb` declared from their owning modules.
+        testChannelBridges(),
         auditLogService,
       );
 
@@ -120,6 +125,10 @@ describe('audit trail coverage (T048)', () => {
         // `select` accepted — and refuses an inactive one, which it did not.
         dictionaryValidatorFor(() => db.em()),
         new SalesChannelAttributionRegistry(),
+        // Feature 120 (FR-015) — which table holds each entity type's
+        // memberships. This suite composes no platform, so the descriptors are
+        // the ones `setupTestDb` declared from their owning modules.
+        testChannelBridges(),
         auditLogService,
       );
 

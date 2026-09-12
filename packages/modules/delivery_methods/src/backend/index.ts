@@ -1,5 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type { ChannelMemberEntityType } from '@endora-commerce/contracts';
 import type { DeliveryMethodReadPort, ShipmentUsagePort } from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { lazyPort } from '@endora-commerce/platform/kernel';
@@ -43,6 +44,19 @@ import { DeliveryMethod } from './entities/delivery-method.entity.js';
  */
 
 export interface DeliveryMethodsCradle {
+  /**
+   * Feature 120 (FR-015) — the platform's channel-bridge registry, resolved by
+   * **container name** rather than imported. The shape is the narrow one this
+   * module needs, which is what `ctx.cradle<C>()` asks an author to declare;
+   * the registry itself is the kernel's and is published on no barrel.
+   */
+  readonly salesChannelBridgeRegistry: {
+    register(bridge: {
+      entityType: ChannelMemberEntityType;
+      table: string;
+      entityIdColumn: string;
+    }): void;
+  };
   readonly emFactory: () => EntityManager;
   readonly requireAdmin: RequireAdminFactory;
   readonly commandBus: CommandBus;
@@ -61,6 +75,30 @@ export interface DeliveryMethodsCradle {
 }
 
 export function registerModule(ctx: ModuleContext): void {
+  /**
+   * Feature 120 (FR-015) — the sales-channel membership bridge this module owns.
+   *
+   * The platform used to hold a map **total** over
+   * `ChannelMemberEntityTypeSchema`, naming this module's bridge table from
+   * inside the kernel. That is D-52/D-53's prohibition expressed in a contract
+   * instead of an import, and it meant a membership call for 'delivery-method' on an
+   * instance that never installed this module executed SQL against a relation
+   * that is not there (D-226). The module whose migration creates the table is
+   * the one that says where it is; a member nothing registers now refuses at
+   * the call instead.
+   *
+   * A **contribution** hook and deliberately **unprobed** (D-62/D-68): a
+   * registration is an inert statement about the schema rather than a
+   * capability, the rows outlive an operator switching this module off, and
+   * probing would make a runtime activation flip require a restart. It is
+   * declared first in this module so any later hook of its own that binds a
+   * membership finds the bridge already there.
+   */
+  ctx.onBoot(() => {
+    const { salesChannelBridgeRegistry } = ctx.cradle<DeliveryMethodsCradle>();
+    for (const bridge of salesChannelBridges) salesChannelBridgeRegistry.register(bridge);
+  });
+
   ctx.di.register({
     shippingAdapterRegistry: ctx.asFunction(() => shippingAdapterRegistry).singleton(),
 
@@ -179,4 +217,21 @@ export function registerModule(ctx: ModuleContext): void {
  */
 export const entities = [
   DeliveryMethod,
+];
+
+/**
+ * The sales-channel membership bridge this module owns (feature 120, FR-015).
+ *
+ * Exported as well as registered because the owning module is the only honest
+ * source for it: a caller that composes no platform — the bare-database test
+ * harness, which constructs the kernel's membership service directly — declares
+ * these from here rather than from a list of nine it keeps itself, which is
+ * exactly the total map this feature deleted.
+ */
+export const salesChannelBridges: ReadonlyArray<{
+  readonly entityType: ChannelMemberEntityType;
+  readonly table: string;
+  readonly entityIdColumn: string;
+}> = [
+  { entityType: 'delivery-method', table: 'sales_channel_delivery_methods', entityIdColumn: 'delivery_method_id' },
 ];

@@ -520,61 +520,221 @@ export interface ChannelBridge {
   readonly table: string;
 }
 
-/** The platform file that holds the total bridge map FR-015 replaces. */
-const BRIDGE_MAP_FILE = join(
-  'kernel',
-  'sales-channels',
-  'sales-channel-membership.service.ts',
-);
+/**
+ * One `{ entityType, table, entityIdColumn }` triple, and the file that wrote
+ * it.
+ */
+export interface ChannelBridgeDeclaration extends ChannelBridge {
+  readonly entityIdColumn: string;
+  /** The declaring file, in the layout's own key shape. */
+  readonly file: string;
+  /** The module that owns that file — `core` for the platform's own sources. */
+  readonly moduleId: string | null;
+}
 
 /**
- * The platform's own `BRIDGE_TABLES`, parsed out of the text that declares it.
+ * Every channel-bridge triple a file declares, from its **source text**.
  *
- * It is read as **source text** because the map is module-private and stays so:
- * publishing it on a barrel to let a test see it would enlarge the platform's
- * surface for a map FR-015 exists to delete. The read is the same kind the
- * migration walk above performs, and its refusal is the same shape — a map this
- * function cannot parse is an error, never an empty list, because an empty list
- * makes G5 vacuously green over every member.
+ * ## Why the population is a shape and not a list of files (FR-018a)
  *
- * Pure, so that a fixture proving the refusal enters where the real run enters
+ * D-226 and this feature's first draft both spoke of *the* platform's bridge
+ * map as though there were one. There were two: the kernel's, and a second copy
+ * in `sales_channels`' own admin service, read by `findOrphansForChannel` on
+ * the channel-**delete** path. The second was found by a grep, not by a design,
+ * and a guard keyed on the two files this feature happens to know about would
+ * be issue #244's defect arriving through its own repair — a population defined
+ * by the presence of what somebody enumerated. So the subject is *a total
+ * literal map from `ChannelMemberEntityType` to a bridge table, anywhere in the
+ * tree*, and a third one, in a file named nowhere, is found by the same walk.
+ *
+ * ## The two spellings, because the two maps were not written alike
+ *
+ * **Keyed** — `'cms-page': { table: '…', entityIdColumn: '…' }`, which is what
+ * a map total over the enum looks like when `tsc` is keeping it honest — and
+ * **explicit** — `{ entityType: 'cms-page', table: '…', entityIdColumn: '…' }`,
+ * which is what one entry looks like when a module declares its own. A
+ * recogniser that saw only the first would report the module registrations as
+ * nothing at all, and G5 would go green over a tree in which no module
+ * contributed anything.
+ *
+ * ## What it cannot see, declared rather than discovered
+ *
+ * A computed table name, a triple assembled across two statements, and a map
+ * split across two files: totality is judged **per file**, because both maps
+ * this feature deleted were one declaration in one file and a split would have
+ * to be deliberate. Read is by regular expression rather than by the compiler
+ * for the reason the migration walk above is: the subject is a literal, and a
+ * type-aware read would need a program over three source roots to answer a
+ * question about nine string pairs.
+ *
+ * Pure, so that a fixture proving a finding enters where the real walk enters
  * (issue #130).
  */
-export function parseChannelBridges(text: string, file: string): readonly ChannelBridge[] {
-  const map = /const BRIDGE_TABLES[^=]*=\s*\{([\s\S]*?)\n\};/.exec(text);
-  if (map === null) {
+export function parseChannelBridgeDeclarations(
+  text: string,
+  file: string,
+  moduleId: string | null,
+): readonly ChannelBridgeDeclaration[] {
+  const found = new Map<string, ChannelBridgeDeclaration>();
+  const add = (entityType: string, table: string, entityIdColumn: string): void => {
+    found.set(`${entityType}:${table}:${entityIdColumn}`, {
+      entityType,
+      table,
+      entityIdColumn,
+      file,
+      moduleId,
+    });
+  };
+
+  // Explicit: an object literal naming the member in an `entityType` field. The
+  // window runs to the next `entityType:` so two adjacent entries cannot lend
+  // each other a column.
+  const explicit = /entityType:\s*'([a-z][a-z-]*)'/g;
+  for (const match of text.matchAll(explicit)) {
+    const from = match.index;
+    const nextIndex = text.indexOf("entityType:", from + match[0].length);
+    const window = text.slice(from, nextIndex === -1 ? from + 400 : nextIndex);
+    const table = /\btable:\s*'([a-z0-9_]+)'/.exec(window);
+    const column = /\bentityIdColumn:\s*'([a-z0-9_]+)'/.exec(window);
+    if (table && column) add(match[1]!, table[1]!, column[1]!);
+  }
+
+  // Keyed: the member is the property key and the bridge is the value object.
+  // `[^{}]*` keeps the window inside one entry without needing a brace matcher.
+  const keyed = /'?([a-z][a-z-]*)'?:\s*\{([^{}]*)\}/g;
+  for (const match of text.matchAll(keyed)) {
+    if (match[1] === "entityType") continue;
+    const body = match[2]!;
+    const table = /\btable:\s*'([a-z0-9_]+)'/.exec(body);
+    const column = /\bentityIdColumn:\s*'([a-z0-9_]+)'/.exec(body);
+    if (table && column) add(match[1]!, table[1]!, column[1]!);
+  }
+
+  return [...found.values()];
+}
+
+/** Source files a channel-bridge declaration could be written in. */
+function collectBridgeSources(dir: string, out: string[] = []): string[] {
+  if (!existsSync(dir)) return out;
+  for (const name of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, name.name);
+    if (name.isDirectory()) {
+      if (name.name === "node_modules" || name.name === "dist") continue;
+      collectBridgeSources(full, out);
+    } else if (
+      name.name.endsWith(".ts") &&
+      !name.name.endsWith(".test.ts") &&
+      !name.name.endsWith(".d.ts")
+    ) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+/**
+ * {@link parseChannelBridgeDeclarations} over everything this checkout ships.
+ *
+ * The roots are the layout's own — the application's source tree, the platform
+ * and every workspace package — so a map is found wherever it is written and
+ * nothing here spells `packages/modules` or a file name (D-100). Test sources
+ * are **out** of the population and that is a decision rather than an
+ * oversight: this file's own red proofs carry both spellings as fixture text,
+ * and a walk that read them would report the guard's proofs as the defect.
+ */
+export async function readChannelBridgeDeclarations(): Promise<
+  readonly ChannelBridgeDeclaration[]
+> {
+  const layout = await resolveModuleLayout();
+  if (layout.platformRoot === null) {
     throw new Error(
-      `${file} declares no \`BRIDGE_TABLES\` object literal this walk can read. G5 over an ` +
-        'unread map is a clean sweep of nothing.',
+      "no workspace member declares `endora.type: \"platform\"`, so the platform's own " +
+        "sources are outside the walk and G5 would report over a population it cannot see",
     );
   }
-  const found: ChannelBridge[] = [];
-  const entry = /'?([a-z-]+)'?:\s*\{[^}]*?table:\s*'([a-z0-9_]+)'/g;
-  for (const match of map[1]!.matchAll(entry)) {
-    found.push({ entityType: match[1]!, table: match[2]! });
+  const found: ChannelBridgeDeclaration[] = [];
+  for (const root of layout.sourceRoots) {
+    for (const file of collectBridgeSources(root)) {
+      const owner = file.startsWith(layout.platformRoot)
+        ? CORE_MODULE_ID
+        : layout.moduleIdOfPath(file);
+      found.push(
+        ...parseChannelBridgeDeclarations(readFileSync(file, "utf8"), layout.keyOf(file), owner),
+      );
+    }
   }
   if (found.length === 0) {
     throw new Error(
-      `${file} declares a \`BRIDGE_TABLES\` literal holding no entry this walk could read`,
+      "the channel-bridge walk classified no declaration at all. Every assertion below is " +
+        "then vacuously clean — no total map, no member uncovered — over a tree nothing read",
     );
   }
   return found;
 }
 
-/** {@link parseChannelBridges} over the platform this checkout holds. */
-export async function readChannelBridges(): Promise<readonly ChannelBridge[]> {
-  const layout = await resolveModuleLayout();
-  if (layout.platformRoot === null) {
-    throw new Error(
-      'no workspace member declares `endora.type: "platform"`, so the bridge map cannot be ' +
-        'located and G5 would report over nothing',
+/**
+ * **FR-015** — a file declaring a bridge for *every* member of the published
+ * vocabulary holds a total map, and no such map may survive anywhere.
+ *
+ * The finding is about **totality**, not about a declaration: one module saying
+ * where its own bridge lives is the mechanism FR-015 installs, and nine of them
+ * are expected. What is refused is one author knowing all nine — which is the
+ * platform naming nine module-owned tables, whichever file it happens to be
+ * written in.
+ */
+export function totalBridgeMaps(
+  declarations: readonly ChannelBridgeDeclaration[],
+  vocabulary: readonly string[],
+): readonly string[] {
+  const byFile = new Map<string, Set<string>>();
+  for (const declaration of declarations) {
+    const held = byFile.get(declaration.file);
+    if (held) held.add(declaration.entityType);
+    else byFile.set(declaration.file, new Set([declaration.entityType]));
+  }
+  const found: string[] = [];
+  for (const [file, members] of byFile) {
+    if (!vocabulary.every((member) => members.has(member))) continue;
+    found.push(
+      `${file} declares a bridge for every member of the channel vocabulary — a total map ` +
+        "over tables it does not own, which is the shape FR-015 deletes",
     );
   }
-  const file = join(layout.platformRoot, BRIDGE_MAP_FILE);
-  if (!existsSync(file)) {
-    throw new Error(`${file} is not there — the channel bridge map is read from it`);
+  return found.sort();
+}
+
+/**
+ * The two inputs G5 takes, derived from one set of declarations.
+ *
+ * `bridges` is what the platform can be asked for; `contributions` is who said
+ * so. A member two modules claim with **different** tables is a `conflict`:
+ * whichever composed last would decide where a membership write lands.
+ */
+export function channelBridgesFrom(declarations: readonly ChannelBridgeDeclaration[]): {
+  readonly bridges: readonly ChannelBridge[];
+  readonly contributions: ReadonlyMap<string, string>;
+  readonly conflicts: readonly string[];
+} {
+  const bridges = new Map<string, string>();
+  const contributions = new Map<string, string>();
+  const conflicts: string[] = [];
+  for (const declaration of declarations) {
+    const held = bridges.get(declaration.entityType);
+    if (held !== undefined && held !== declaration.table) {
+      conflicts.push(
+        `${declaration.entityType}: declared over "${held}" and over "${declaration.table}" — ` +
+          "two authors claim one member of the channel vocabulary",
+      );
+      continue;
+    }
+    bridges.set(declaration.entityType, declaration.table);
+    if (declaration.moduleId !== null) contributions.set(declaration.entityType, declaration.moduleId);
   }
-  return parseChannelBridges(readFileSync(file, 'utf8'), file);
+  return {
+    bridges: [...bridges].map(([entityType, table]) => ({ entityType, table })),
+    contributions,
+    conflicts: conflicts.sort(),
+  };
 }
 
 /**
