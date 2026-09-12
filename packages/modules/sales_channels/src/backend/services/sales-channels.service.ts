@@ -70,6 +70,23 @@ export interface DeleteOptions {
   fallbackToDefault?: boolean;
 }
 
+/**
+ * The channel-bridge registry, narrowed to the half this service reads
+ * (feature 120, FR-015).
+ *
+ * Declared structurally rather than imported from the platform: the registry
+ * class is published on no barrel — it is reached by container name — and the
+ * shape a consumer needs is the consumer's own declaration, which is what
+ * `ctx.cradle<C>()` asks an author for.
+ */
+export interface ChannelBridgeRead {
+  list(): ReadonlyArray<{
+    readonly entityType: string;
+    readonly table: string;
+    readonly entityIdColumn: string;
+  }>;
+}
+
 export class SalesChannelsService {
   constructor(
     private readonly emFactory: () => EntityManager,
@@ -91,6 +108,29 @@ export class SalesChannelsService {
      * form of a delete guard is an open one.
      */
     private readonly attributionRegistry: SalesChannelAttributionRegistryPort,
+    /**
+     * Which table holds each channel-scoped entity type's memberships, said by
+     * the module that owns that entity type (feature 120, FR-015).
+     *
+     * This class held its own copy of the platform's nine-entry map until
+     * D-226, justified in a comment as *"kept locally to avoid a circular
+     * import between the two services"*. That reason had been stale since
+     * feature 072's T019 moved `SalesChannelMembershipService` into the kernel:
+     * the platform names `packages/modules/sales_channels` in zero import
+     * specifiers and D-52/D-53 forbid it ever doing so. The copy was the worse
+     * of the two, because {@link findOrphansForChannel} runs a `select` against
+     * **all nine** tables on the channel-**delete** path, inside a module the
+     * platform refuses to switch off — so on an instance without `cms` deleting
+     * a channel failed on a relation that is not there.
+     *
+     * Resolved **through the container** rather than imported, by the name a
+     * composition root contributes off `composeSalesChannelsKernel`. A
+     * container resolution is not a module-graph edge, so there is nothing for
+     * a cycle to close; and the registry is a **kernel** registration rather
+     * than another module's port, so it puts nothing in this module's
+     * `dependencies` and makes no activation control a dead switch.
+     */
+    private readonly bridgeRegistry: ChannelBridgeRead,
     private readonly auditLogService?: AuditPort,
     /**
      * The invalidating half of the channel cache, narrowed to what a writer
@@ -614,7 +654,7 @@ export class SalesChannelsService {
       bridgeTable: string;
       entityIdColumn: string;
     }> = [];
-    for (const bridge of BRIDGE_TABLES) {
+    for (const bridge of this.bridgeRegistry.list()) {
       const rows = await em
         .getConnection()
         .execute<Array<{ entity_id: string }>>(
@@ -734,43 +774,6 @@ export class SalesChannelsService {
     } as never);
   }
 }
-
-/**
- * The set of M:N bridge tables this service can hard-delete-cascade through.
- * Mirrors the entity-type vocabulary used by `SalesChannelMembershipService`
- * but kept locally to avoid a circular import between the two services.
- */
-const BRIDGE_TABLES: ReadonlyArray<{
-  entityType: string;
-  table: string;
-  entityIdColumn: string;
-}> = [
-  { entityType: 'product', table: 'sales_channel_products', entityIdColumn: 'product_id' },
-  { entityType: 'category', table: 'sales_channel_categories', entityIdColumn: 'category_id' },
-  {
-    entityType: 'payment-method',
-    table: 'sales_channel_payment_methods',
-    entityIdColumn: 'payment_method_id',
-  },
-  {
-    entityType: 'delivery-method',
-    table: 'sales_channel_delivery_methods',
-    entityIdColumn: 'delivery_method_id',
-  },
-  {
-    entityType: 'organization',
-    table: 'sales_channel_organizations',
-    entityIdColumn: 'organization_id',
-  },
-  { entityType: 'tax', table: 'sales_channel_taxes', entityIdColumn: 'tax_id' },
-  {
-    entityType: 'customer',
-    table: 'sales_channel_customer_accounts',
-    entityIdColumn: 'customer_account_id',
-  },
-  { entityType: 'promotion', table: 'sales_channel_promotions', entityIdColumn: 'promotion_id' },
-  { entityType: 'cms-page', table: 'sales_channel_cms_pages', entityIdColumn: 'cms_page_id' },
-];
 
 function dictionaryReferenceHttpError(err: DictionaryReferenceError, field: string): HttpError {
   const noun = err.entryType === 'currency' ? 'Currency' : 'Language';

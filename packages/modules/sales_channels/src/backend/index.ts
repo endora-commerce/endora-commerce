@@ -17,7 +17,7 @@ import type {
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { SalesChannelAttributionRegistry } from './services/sales-channel-attribution-registry.js';
 import { SalesChannelsService } from './services/sales-channels.service.js';
-import type { AdminAuditContext } from './services/sales-channels.service.js';
+import type { AdminAuditContext, ChannelBridgeRead } from './services/sales-channels.service.js';
 import { registerSalesChannelsAdminRoutes } from './routes.admin.js';
 import { registerSalesChannelsStorefrontRoutes } from './routes.storefront.js';
 
@@ -106,6 +106,13 @@ export function registerModule(ctx: ModuleContext): void {
             lazyPort<DictionaryValidator>(ctx, 'dictionaryValidator'),
             // This module's own registration, so it is captured like `emFactory`.
             salesChannelAttributionRegistry,
+            // Feature 120 (FR-015) — which table holds each entity type's
+            // memberships, said by the module that owns the entity type. A
+            // kernel registration a root contributes, resolved per call rather
+            // than captured for the same reason `salesChannelsCache` is: the
+            // registry is filled by every owning module's boot hook, so a value
+            // captured while this module registers would be the empty one.
+            lazyPort<ChannelBridgeRead>(ctx, 'salesChannelBridgeRegistry'),
             auditLogService,
             // Resolved per call rather than captured: the cache is composed by a
             // root. Narrowed to the invalidating half (D-93): this service drops

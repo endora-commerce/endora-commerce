@@ -10,6 +10,7 @@ import {
 } from './sales-channels-cache.js';
 import { SalesChannelResolverService } from './sales-channel-resolver.service.js';
 import { SalesChannelMembershipService } from './sales-channel-membership.service.js';
+import { channelBridges, type ChannelBridgeRegistry } from './channel-bridge-registry.js';
 import { registerSalesChannelResolverMiddleware } from './sales-channel-resolver.middleware.js';
 
 /**
@@ -34,6 +35,13 @@ export interface SalesChannelsKernelOptions {
   readonly redis: Redis;
   readonly auditLogService?: AuditPort;
   /**
+   * The bridge registry the owning modules contribute into (feature 120,
+   * FR-015). Defaults to the process-level one, which is what every
+   * composition root in this repository uses; a caller supplies its own only
+   * to compose an isolated platform.
+   */
+  readonly bridgeRegistry?: ChannelBridgeRegistry;
+  /**
    * Forwarded to the resolver middleware. Defaults to `false` so admin routes
    * keep working without `X-Sales-Channel`.
    */
@@ -44,6 +52,16 @@ export interface SalesChannelsKernel {
   readonly cache: SalesChannelsCache;
   readonly resolver: SalesChannelResolverService;
   readonly membershipService: SalesChannelMembershipService;
+  /**
+   * The channel-bridge contribution registry (feature 120, FR-015).
+   *
+   * A composition root contributes it to the container as
+   * `salesChannelBridgeRegistry`, which is the name each owning module resolves
+   * from its boot hook to declare the one bridge it owns. The platform holds no
+   * map of its own: a member no module registered refuses rather than reaching
+   * a relation an instance that omits that module does not have.
+   */
+  readonly bridgeRegistry: ChannelBridgeRegistry;
   /**
    * Withdraws this process's cache from the operator-facing clear. Released
    * for tests; in production it lives until process exit.
@@ -58,10 +76,12 @@ export function composeSalesChannelsKernel(
 ): SalesChannelsKernel {
   const cache = new SalesChannelsCache(options.redis);
   const resolver = new SalesChannelResolverService(options.emFactory, cache);
+  const bridgeRegistry = options.bridgeRegistry ?? channelBridges;
   const membershipService = new SalesChannelMembershipService(
     options.emFactory,
     options.eventBus,
     options.auditLogService,
+    bridgeRegistry,
   );
   /**
    * The one thing composing the cache still has to *do*: announce it to the
@@ -81,6 +101,7 @@ export function composeSalesChannelsKernel(
     cache,
     resolver,
     membershipService,
+    bridgeRegistry,
     cacheRegistration: { dispose: unregister },
     plugin: async (app) => {
       await registerSalesChannelResolverMiddleware(app, {

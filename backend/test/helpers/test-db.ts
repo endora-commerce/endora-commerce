@@ -2,6 +2,7 @@ import { MikroORM, type EntityManager } from '@mikro-orm/postgresql';
 import mikroOrmConfig from '../../src/db/mikro-orm.config.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { assertServicesAvailable } from '../declared-services.js';
+import { declareChannelBridgesForTests } from './channel-bridges.js';
 import { BASE_DATABASE_URL_ENV, TEMPLATE_DATABASE_ENV } from '@endora-commerce/test-kit/database';
 import { cloneTemplateForCaller, dropRunDatabase } from '@endora-commerce/test-kit/database';
 
@@ -61,6 +62,12 @@ export interface TestDb {
 export async function setupTestDb(): Promise<TestDb> {
   // Issue #211 — see the note in `setupBackendServer`; same seam, same reason.
   assertServicesAvailable('setupTestDb');
+  // Feature 120 (FR-015) — this harness composes no platform, so no module's
+  // boot hook has said which table holds its channel memberships. The suites
+  // built on it construct the kernel's membership service by hand, and without
+  // this every call in them would meet FR-017's refusal. The descriptors come
+  // from the owning modules, never from a list kept here; see the helper.
+  await declareChannelBridgesForTests();
   return openTestDb(await mikroOrmConfig());
 }
 

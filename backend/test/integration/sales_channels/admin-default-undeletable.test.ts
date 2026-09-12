@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
+import { testChannelBridges } from '../../helpers/channel-bridges.js';
 import { EventBus } from '@endora-commerce/platform/events';
 import { SalesChannelAttributionRegistry } from '../../../../packages/modules/sales_channels/src/backend/services/sales-channel-attribution-registry.js';
 import { SalesChannelsService } from '../../../../packages/modules/sales_channels/src/backend/services/sales-channels.service.js';
@@ -44,6 +45,10 @@ describe('Default channel is undeletable / undeactivatable (T023)', () => {
       new EventBus(),
       dictionaryValidatorFor(() => db.em()),
       new SalesChannelAttributionRegistry(),
+      // Feature 120 (FR-015) — which table holds each entity type's
+      // memberships. This suite composes no platform, so the descriptors are
+      // the ones `setupTestDb` declared from their owning modules.
+      testChannelBridges(),
     );
   }
 

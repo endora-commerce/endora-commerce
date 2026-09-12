@@ -1517,6 +1517,11 @@ export async function setupBackendServer(
       // here is the registration, in the one contribution slot.
       composedModules.contribute({
         salesChannelsCache: salesChannels.cache,
+        // Feature 120 (FR-015) — mirrors `compose-app.ts`. Without it every
+        // module's bridge contribution hook would resolve an unregistered name
+        // and the harness would compose a platform that can serve no
+        // membership call at all.
+        salesChannelBridgeRegistry: salesChannels.bridgeRegistry,
         salesChannelMembershipPort: salesChannels.membershipService,
         // Mirrors `composition.ts`: the real resolver, so a test can reach the
         // channel-scoped stock read at all. Registering it only in production is

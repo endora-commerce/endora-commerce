@@ -6,7 +6,10 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '@endora-commerce/platform/events';
 import type { AuditLogService } from '@endora-commerce/platform/composition';
 import type { SalesChannelsCacheInvalidation } from '@endora-commerce/platform/kernel';
-import { SalesChannelsService } from '../../../packages/modules/sales_channels/src/backend/services/sales-channels.service.js';
+import {
+  SalesChannelsService,
+  type ChannelBridgeRead,
+} from '../../../packages/modules/sales_channels/src/backend/services/sales-channels.service.js';
 import type { BackendServerHandle } from './test-server.js';
 
 /**
@@ -40,12 +43,17 @@ export function salesChannelsServiceFor(
   const cradle = h.container.cradle as never as {
     dictionaryValidator: DictionaryValidator;
     salesChannelAttributionRegistry: SalesChannelAttributionRegistryPort;
+    salesChannelBridgeRegistry: ChannelBridgeRead;
   };
   return new SalesChannelsService(
     emFactory,
     extras.eventBus,
     cradle.dictionaryValidator,
     cradle.salesChannelAttributionRegistry,
+    // Feature 120 (FR-015) — resolved from the composed container for the same
+    // reason the two above are: a service built here is then the one
+    // `registerModule` builds, bridges included.
+    cradle.salesChannelBridgeRegistry,
     extras.auditLogService,
     extras.cache,
   );
