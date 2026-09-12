@@ -5,28 +5,29 @@ import { Migration } from '@mikro-orm/migrations';
  * index audit (research §R5) found a gap. Most org/customer-scoped tables were
  * already indexed on their tenant key; these three were not.
  *
- * NOTE for large tables: `analytics_events` can grow large in production. Prefer
- * building these indexes CONCURRENTLY out-of-band before a deploy (a plain
- * in-transaction `CREATE INDEX` locks writes while it builds). They are kept as
- * plain statements here for test/dev schema parity; ops may pre-create them
- * concurrently, and `IF NOT EXISTS` makes this migration a no-op in that case.
+ * **It is empty since `specs/120-migration-closure-bridge-ownership/` Phase 3,
+ * and the class stays.** All three indexes were on module-owned tables —
+ * `analytics_events` twice and `newsletter_subscribers` once — and under D-226
+ * the platform may name only what it creates itself: it declares no
+ * dependencies, so it can never be ordered after a module's table, and an
+ * instance omitting `analytics` or `newsletter` could not migrate a fresh
+ * database at all. The statements moved to
+ * `Migration20260912T125655AnalyticsEventsTenantScopeIndexes` and
+ * `Migration20260912T125702NewsletterSubscriberTenantScopeIndex`, verbatim.
+ *
+ * The class name is on `BASELINE_MIGRATIONS` and cannot go: `mikro_orm_migrations`
+ * persists the name and no checksum, so every database that has already applied
+ * this migration is offered nothing, and deleting the class would make it
+ * pending nowhere while moving 70-odd frozen positions. An empty `up()` is what
+ * a migration whose whole body moved elsewhere looks like.
  */
 export class Migration20260717T134752CoreTenantScopeIndexes extends Migration {
   override async up(): Promise<void> {
-    this.addSql(
-      'create index if not exists "analytics_events_organization_id_index" on "analytics_events" ("organization_id");',
-    );
-    this.addSql(
-      'create index if not exists "analytics_events_customer_account_id_index" on "analytics_events" ("customer_account_id");',
-    );
-    this.addSql(
-      'create index if not exists "newsletter_subscribers_customer_account_id_index" on "newsletter_subscribers" ("customer_account_id");',
-    );
+    // Moved to the two modules that own the tables — see the class comment.
   }
 
   override async down(): Promise<void> {
-    this.addSql('drop index if exists "analytics_events_organization_id_index";');
-    this.addSql('drop index if exists "analytics_events_customer_account_id_index";');
-    this.addSql('drop index if exists "newsletter_subscribers_customer_account_id_index";');
+    // Nothing to reverse: each moved statement is reversed by the migration
+    // that now carries it.
   }
 }

@@ -14,15 +14,15 @@ import { Migration } from '@mikro-orm/migrations';
  *   - Backfills the new jsonb arrays from the existing scalar
  *     `default_language` / `default_currency` columns and copies
  *     `status='active'` into the new boolean `active` flag.
- *   - Adds a NULLABLE `sales_channel_id` column to `quote_requests`
- *     with `ON DELETE RESTRICT` (FR-006). The column stays NULLABLE
- *     in this migration; T060 (US3) ships a follow-up data-migration
- *     script that backfills every NULL row with the system-default
- *     channel and then flips the column to NOT NULL. This two-step
- *     approach keeps migration 025 reversible and lets the boot-time
- *     reconciler (R-4) be the single source of truth for the existence
- *     of the system-default channel rather than baking that logic into
- *     two places.
+ *
+ * It also added a NULLABLE `sales_channel_id` column to `quote_requests`
+ * (FR-006) until `specs/120-migration-closure-bridge-ownership/` Phase 3. That
+ * column, its `ON DELETE RESTRICT` foreign key and its index are now
+ * `Migration20260912T125614QuoteRequestsQuoteRequestChannelAttribution`'s,
+ * under the same rule as the bridges below: the platform declares no
+ * dependencies, so it can never be ordered after a module's table, and
+ * `quote_requests` is not the platform's. The column is still NULLABLE and
+ * T060 (US3) still owns the backfill and the NOT NULL flip.
  *
  * It created eight M:N sales-channel bridge tables (FR-009) until
  * `specs/120-migration-closure-bridge-ownership/` Phase 2. Each one now belongs
@@ -52,8 +52,9 @@ import { Migration } from '@mikro-orm/migrations';
  *     of truth (R-4).
  *
  * The down() reverses every up() step; the legacy columns are not
- * touched. It no longer drops the eight bridge tables, because this migration
- * no longer creates them — each far-side migration drops its own.
+ * touched. It no longer drops the eight bridge tables, nor the
+ * `quote_requests` column, because this migration no longer creates either —
+ * each migration that took a statement drops its own.
  *
  * Filed under `core` since feature 072 T020. The kernel owns the tables this
  * migration writes to, and a hard uninstall reverts by registry `moduleId`, so
@@ -109,31 +110,9 @@ export class Migration20260430T170044CoreSalesChannelsPromote extends Migration 
       'create unique index "sales_channels_one_system_default" ' +
         'on "sales_channels" ("system_default") where "system_default" = true;',
     );
-
-    // -- 5. Quote-request channel attribution (FR-012) ----------------------
-    // NULLABLE in this migration; T060 backfills + flips NOT NULL.
-    this.addSql(
-      'alter table "quote_requests" add column "sales_channel_id" uuid null;',
-    );
-    this.addSql(
-      'alter table "quote_requests" add constraint "quote_requests_sales_channel_fk" ' +
-        'foreign key ("sales_channel_id") references "sales_channels" ("id") ' +
-        'on delete restrict;',
-    );
-    this.addSql(
-      'create index "quote_requests_sales_channel_id_index" ' +
-        'on "quote_requests" ("sales_channel_id");',
-    );
   }
 
   override async down(): Promise<void> {
-    // 5. Quote-request column
-    this.addSql('drop index if exists "quote_requests_sales_channel_id_index";');
-    this.addSql(
-      'alter table "quote_requests" drop constraint if exists "quote_requests_sales_channel_fk";',
-    );
-    this.addSql('alter table "quote_requests" drop column if exists "sales_channel_id";');
-
     // 3. Partial unique index
     this.addSql('drop index if exists "sales_channels_one_system_default";');
 

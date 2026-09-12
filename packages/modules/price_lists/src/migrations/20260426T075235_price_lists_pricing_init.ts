@@ -2,27 +2,24 @@ import { Migration } from '@mikro-orm/migrations';
 
 /**
  * Pricing init (T127). Adds:
- *   - customer_groups
  *   - price_lists
  *   - price_list_items
  *   - price_list_assignments
  *   - organizations.customer_group_id (nullable FK)
+ *
+ * It also created `customer_groups` until
+ * `specs/120-migration-closure-bridge-ownership/` Phase 3. That table is owned
+ * by `customer_accounts`, whose `CustomerGroup` entity declares the table name
+ * — tiered pricing simply needed customer groups first, so the table was
+ * created by whoever needed it rather than by whoever owns it. The owner's
+ * ruling of 2026-09-12 moved the creation to
+ * `Migration20260611T140403CustomerAccountsLifecycle`, which is where the only
+ * reference to the table in the whole corpus lives. Nothing here references it:
+ * `price_list_assignments.customer_group_id` is a nullable column with an index
+ * and no foreign key, and so is `organizations.customer_group_id`.
  */
 export class Migration20260426T075235PriceListsPricingInit extends Migration {
   override async up(): Promise<void> {
-    this.addSql(`
-      create table "customer_groups" (
-        "id" uuid not null,
-        "code" varchar(64) not null,
-        "name" varchar(160) not null,
-        "description" varchar(1000) null,
-        "created_at" timestamptz not null,
-        "updated_at" timestamptz not null,
-        constraint "customer_groups_pkey" primary key ("id"),
-        constraint "customer_groups_code_unique" unique ("code")
-      );
-    `);
-
     this.addSql(`
       create table "price_lists" (
         "id" uuid not null,
@@ -98,6 +95,5 @@ export class Migration20260426T075235PriceListsPricingInit extends Migration {
     this.addSql('drop table if exists "price_list_assignments" cascade;');
     this.addSql('drop table if exists "price_list_items" cascade;');
     this.addSql('drop table if exists "price_lists" cascade;');
-    this.addSql('drop table if exists "customer_groups" cascade;');
   }
 }

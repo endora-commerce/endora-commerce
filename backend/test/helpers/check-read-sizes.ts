@@ -1096,6 +1096,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
     prefix: '[action-route-permissions]',
     run: { kind: 'tsx', path: 'scripts/check-action-route-permissions.ts', args: [] },
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 3: +5 files.** The five
+    // new above-watermark migrations the non-bridge references moved into —
+    // `quote_requests`, `analytics`, `newsletter`, `cms` and `inventory`, one
+    // each. Nothing moved and nothing was deleted: the two creations this phase
+    // relocates go between two frozen bodies that both already existed.
     // **T118c, `mfaActorBridge`: +1 file** — `mfa`'s new module source
     // (`services/account-identity.ts`). It declares no action, so nothing else moves.
     // **Feature 103 (overlay file shadowing retired): 1884 -> 1883.** One file, net:
@@ -1363,7 +1368,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2056,
+    files: 2061,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1392,6 +1397,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-channel-resolution.ts': {
     prefix: '[channel-resolution]',
     run: { kind: 'tsx', path: 'scripts/check-channel-resolution.ts', args: ['--enforce'] },
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 3: +5 files.** The five
+    // new above-watermark migrations the non-bridge references moved into —
+    // `quote_requests`, `analytics`, `newsletter`, `cms` and `inventory`, one
+    // each. Nothing moved and nothing was deleted: the two creations this phase
+    // relocates go between two frozen bodies that both already existed.
     // **T118c, `mfaActorBridge`: +1 file** — `mfa`'s new module source. It resolves no
     // channel and reads no channel-scoped setting.
     // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
@@ -1677,7 +1687,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2188,
+    files: 2193,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1796,6 +1806,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-container-imports.ts': {
     prefix: '[container-imports]',
     run: { kind: 'tsx', path: 'scripts/check-container-imports.ts', args: [] },
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 3: +5 files.** The five
+    // new above-watermark migrations the non-bridge references moved into —
+    // `quote_requests`, `analytics`, `newsletter`, `cms` and `inventory`, one
+    // each. Nothing moved and nothing was deleted: the two creations this phase
+    // relocates go between two frozen bodies that both already existed.
     // **T118c, `mfaActorBridge`: +2 files** — `mfa`'s new module source and its co-located
     // test. Neither imports the container library.
     // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
@@ -1912,7 +1927,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2282,
+    files: 2287,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -1926,6 +1941,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-diacritic-folds.ts': {
     prefix: '[diacritic-folds]',
     run: { kind: 'tsx', path: 'scripts/check-diacritic-folds.ts', args: [] },
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 3: +5 files.** The five
+    // new above-watermark migrations the non-bridge references moved into —
+    // `quote_requests`, `analytics`, `newsletter`, `cms` and `inventory`, one
+    // each. Nothing moved and nothing was deleted: the two creations this phase
+    // relocates go between two frozen bodies that both already existed.
     // **T118c, `mfaActorBridge`: +3 files** — the three new files; all three are `.ts`, so
     // unlike the `assets_library` census above this whole-tree walk takes every one of them.
     // **Batch 13 (feature 091, Phase 4): +1.** Whole-tree arithmetic: twenty-four
@@ -2429,7 +2449,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 5617,
+    files: 5622,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2604,6 +2624,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-divergence.ts': {
     prefix: '[divergence]',
     run: { kind: 'tsx', path: 'scripts/check-divergence.ts', args: [] },
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 3: +5 files.** The five
+    // new above-watermark migrations the non-bridge references moved into —
+    // `quote_requests`, `analytics`, `newsletter`, `cms` and `inventory`, one
+    // each. Nothing moved and nothing was deleted: the two creations this phase
+    // relocates go between two frozen bodies that both already existed.
     // **T118c, `mfaActorBridge`: +2 files** — `mfa`'s new module source and its co-located
     // test, both read for the owner map.
     // Every module source the owner map and the route table are built from, plus
@@ -2797,7 +2822,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2465,
+    files: 2470,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -2973,6 +2998,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-entity-tenant-classification.ts': {
     prefix: '[tenant-classification]',
     run: { kind: 'tsx', path: 'scripts/check-entity-tenant-classification.ts', args: [] },
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 3: +5 files.** The five
+    // new above-watermark migrations the non-bridge references moved into —
+    // `quote_requests`, `analytics`, `newsletter`, `cms` and `inventory`, one
+    // each. Nothing moved and nothing was deleted: the two creations this phase
+    // relocates go between two frozen bodies that both already existed.
     // **T118c, `mfaActorBridge`: +1 file** — `mfa`'s new module source. It declares no
     // entity.
     // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
@@ -3263,13 +3293,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2188,
+    files: 2193,
     sites: 265,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-entry-presence.ts': {
     prefix: '[entry-presence]',
     run: { kind: 'tsx', path: 'scripts/check-entry-presence.ts', args: [] },
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 3: +5 files.** The five
+    // new above-watermark migrations the non-bridge references moved into —
+    // `quote_requests`, `analytics`, `newsletter`, `cms` and `inventory`, one
+    // each. Nothing moved and nothing was deleted: the two creations this phase
+    // relocates go between two frozen bodies that both already existed.
     // **T118c, `mfaActorBridge`: +1 file** — `mfa`'s new module source. It starts no
     // timer and registers no boot hook.
     // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
@@ -3556,13 +3591,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2188,
+    files: 2193,
     sites: null,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-entry-scope.ts': {
     prefix: '[entry-scope]',
     run: { kind: 'tsx', path: 'scripts/check-entry-scope.ts', args: [] },
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 3: +5 files.** The five
+    // new above-watermark migrations the non-bridge references moved into —
+    // `quote_requests`, `analytics`, `newsletter`, `cms` and `inventory`, one
+    // each. Nothing moved and nothing was deleted: the two creations this phase
+    // relocates go between two frozen bodies that both already existed.
     // **T118c, `mfaActorBridge`: +1 file** — `mfa`'s new module source. It is no entry
     // point: every function it exports is called from a request handler.
     // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
@@ -3847,7 +3887,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2188,
+    files: 2193,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -4577,6 +4617,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-kernel-boundary.ts': {
     prefix: '[kernel-boundary]',
     run: { kind: 'tsx', path: 'scripts/check-kernel-boundary.ts', args: [] },
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 3: +5 files.** The five
+    // new above-watermark migrations the non-bridge references moved into —
+    // `quote_requests`, `analytics`, `newsletter`, `cms` and `inventory`, one
+    // each. Nothing moved and nothing was deleted: the two creations this phase
+    // relocates go between two frozen bodies that both already existed.
     // **T118c, `mfaActorBridge`: +1 file** — `mfa`'s new module source. It relates into
     // nothing and names no module.
     // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
@@ -4878,7 +4923,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2188,
+    files: 2193,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -4997,6 +5042,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-admin-zones.ts': {
     prefix: '[admin-zones]',
     run: { kind: 'tsx', path: 'scripts/check-admin-zones.ts', args: [] },
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 3: +5 files.** The five
+    // new above-watermark migrations the non-bridge references moved into —
+    // `quote_requests`, `analytics`, `newsletter`, `cms` and `inventory`, one
+    // each. Nothing moved and nothing was deleted: the two creations this phase
+    // relocates go between two frozen bodies that both already existed.
     // **T118c, `mfaActorBridge`: +2 files** — `mfa`'s new module source and its co-located
     // test; this walk opens a package's tests as well.
     // Every module's sources, the admin application's own and the kit's — a
@@ -5249,7 +5299,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
 
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
 
-    files: 2820,
+    files: 2825,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 56 -> 66.**
     // The header block above this table has the arithmetic; nothing here
@@ -5400,6 +5450,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-class-vocabulary.ts': {
     prefix: '[class-vocabulary]',
     run: { kind: 'tsx', path: 'scripts/check-class-vocabulary.ts', args: [] },
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 3: +5 files.** The five
+    // new above-watermark migrations the non-bridge references moved into —
+    // `quote_requests`, `analytics`, `newsletter`, `cms` and `inventory`, one
+    // each. Nothing moved and nothing was deleted: the two creations this phase
+    // relocates go between two frozen bodies that both already existed.
     // **T118c, `mfaActorBridge`: +2 files** — `mfa`'s new module source and its co-located
     // test.
     // Source files opened plus the design system stylesheets read. It moves with
@@ -5485,7 +5540,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
 
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
 
-    files: 2918,
+    files: 2923,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -5588,21 +5643,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 266 -> 270.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    // **`site-tree-link`: sites 270 -> 262, and `files` did not move.** The
-    // finding is the same walk with the target position widened, so it added no
-    // population — what moved the number is the **repair**: the eight links into
-    // this repository's own site tree, in six module packages, are now prose.
-    // 45 links -> 37, the navigation entries and the map rows untouched. Both
-    // halves are the #235/#237 shape read the other way round: a widening that
-    // classifies an existing population moves neither number, and the edit that
-    // follows it moves `sites` alone.
-    // **sites 262 -> 261**: the ninth link, and it is the **other** kind —
-    // `catalog/attributes.md` -> `../search.md`, a `foreign-module-link` whose
-    // shard entry drained with it. It is the one link in that ledger a default
-    // instance's documentation build actually refused, so A6 of the instance
-    // acceptance criterion was red on it alone; the shard keeps `promotions`,
-    // which that module set installs.
-    sites: 261,
+    sites: 270,
     // Three authors, each seeing something the others cannot. `manifest-index`
     // is issue #215's shared floor over the module walk, whose unit is the
     // module's own directory. `sidebar-entries` is the **committed artefact's**
@@ -6124,6 +6165,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-module-boundary.ts': {
     prefix: '[module-boundary]',
     run: { kind: 'tsx', path: 'scripts/check-module-boundary.ts', args: [] },
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 3: files +10, sites +10.**
+    // Five new migrations against a `files` count that is the **sum of two
+    // populations** — the module walk and the migration walk — and a module's
+    // `src/migrations/*.ts` is in both, so each new file is opened twice and the
+    // five are worth ten. `migrations=` moves 243 -> 248 in the same line, which
+    // is where to read the split. `sites` moves by the same ten because its two
+    // addends are the import specifiers and the table references those same files
+    // contribute; the decomposition is the run's and is not asserted here.
     // **T118c, `mfaActorBridge`: +6 sites, +4 files.** Four for two files, as the
     // `assets_library` census records: this walk reaches a module package's sources under
     // more than one root, and the backend integration test is outside its population. The
@@ -6443,7 +6492,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // measured on the merged tree.** Nine files, counted twice: the nine far-side bridge
     // migrations are opened by the module walk and again by the schema walk that builds
     // the owner map, and this number is their sum. `module files` alone moved 2567 -> 2576.
-    files: 5184,
+    files: 5194,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -6539,7 +6588,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
 
     // the owner map, and this number is their sum. `module files` alone moved 2567 -> 2576.
 
-    sites: 12946,
+    sites: 12956,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -6592,6 +6641,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-nul-bytes.ts': {
     prefix: '[nul-bytes]',
     run: { kind: 'tsx', path: 'scripts/check-nul-bytes.ts', args: [] },
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 3: +7 files.** The five
+    // new above-watermark migrations, plus this merge request's two changesets —
+    // this walk is the whole repository and opens a `.md` like any other file.
+    // Measured after `git clean -fX docs/docs/modules` and with `docs/build` and
+    // the module-doc copy stamp removed, which is the tree shape `quality` runs in.
     // **T118c, `mfaActorBridge`: +4 files** — the three new source files and the merge
     // request's own changeset, this walk being the whole repository. The changeset is the
     // fourth file and the one a drain is apt to record before writing it, which is what
@@ -7400,11 +7454,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // measured on the merged tree.** The nine far-side bridge migrations plus this merge
     // request's own changeset: this walk reads `.changeset/`, which is the whole of the
     // difference from the +9 the source-only walks recorded over the same commit.
-    // **`fix/module-docs-site-tree-links`: files 8131 -> 8133 (+2).** This merge request's own two
-    // changesets, and nothing else — every other file it touches already existed. Measured
-    // with them moved aside and back, because a whole-repository walk cannot say on its own
-    // which of its 8000-odd files is the new one.
-    files: 8133,
+    files: 8138,
     sites: null,
     sources: [],
     //
@@ -7471,6 +7521,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-overlay-determinism.ts': {
     prefix: '[overlay:check]',
     run: { kind: 'tsx', path: 'scripts/check-overlay-determinism.ts', args: [] },
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 3: sites +5.** Five new
+    // entries in `db/migrations-registry.generated.ts`, one per new migration.
+    // `files` does not move: the artefact list is the generators', and this phase
+    // adds no artefact.
     // Every entry in the rendered artefacts, which is the
     // population the `foreign` verdict answers over (feature 080, T030a):
     // 133 + 67 + 225 + 159 in the four generated files, one in each override
@@ -7586,7 +7640,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    sites: 914,
+    sites: 919,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 86 -> 87.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -7599,6 +7653,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-port-catches.ts': {
     prefix: '[port-catches]',
     run: { kind: 'tsx', path: 'scripts/check-port-catches.ts', args: [] },
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 3: +5 files.** The five
+    // new above-watermark migrations the non-bridge references moved into —
+    // `quote_requests`, `analytics`, `newsletter`, `cms` and `inventory`, one
+    // each. Nothing moved and nothing was deleted: the two creations this phase
+    // relocates go between two frozen bodies that both already existed.
     // **T118c, `mfaActorBridge`: +1 file, and `sites` deliberately unmoved.** `mfa`'s new
     // module source reaches four ports and wraps none of them in a `catch` — which is the
     // point of the file rather than an omission: on an authentication path, reading a
@@ -7973,12 +8032,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2188,
+    files: 2193,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
     prefix: '[port-deps]',
     run: { kind: 'tsx', path: 'scripts/check-port-dependencies.ts', args: [] },
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 3: +5 files.** The five
+    // new above-watermark migrations the non-bridge references moved into —
+    // `quote_requests`, `analytics`, `newsletter`, `cms` and `inventory`, one
+    // each. Nothing moved and nothing was deleted: the two creations this phase
+    // relocates go between two frozen bodies that both already existed.
     // **T118c, `mfaActorBridge`: +6 sites, +1 file.** The file is `mfa`'s new module source.
     // The sites are net: **seven** new resolutions in `mfa`'s registration — the four
     // `lazyPort` reads of `customerAccountReadPort`, `adminUserReadPort`,
@@ -8110,7 +8174,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2006,
+    files: 2011,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 1471 -> 1535.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
@@ -8153,6 +8217,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-platform-surface.ts': {
     prefix: '[platform-surface]',
     run: { kind: 'tsx', path: 'scripts/check-platform-surface.ts', args: [] },
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 3: +5 files.** The five
+    // new above-watermark migrations the non-bridge references moved into —
+    // `quote_requests`, `analytics`, `newsletter`, `cms` and `inventory`, one
+    // each. Nothing moved and nothing was deleted: the two creations this phase
+    // relocates go between two frozen bodies that both already existed.
     // **T118c, `mfaActorBridge`: +1 file** — `mfa`'s new module source. It names
     // `@endora-commerce/platform/http` for `HttpError`, which is published, so the reach
     // count does not move.
@@ -8437,7 +8506,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2493,
+    files: 2498,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -8572,6 +8641,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-port-shape.ts': {
     prefix: '[port-shape]',
     run: { kind: 'tsx', path: 'scripts/check-port-shape.ts', args: [] },
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 3: +5 files.** The five
+    // new above-watermark migrations the non-bridge references moved into —
+    // `quote_requests`, `analytics`, `newsletter`, `cms` and `inventory`, one
+    // each. Nothing moved and nothing was deleted: the two creations this phase
+    // relocates go between two frozen bodies that both already existed.
     // **T118c, `mfaActorBridge`: +4 sites, +1 file.** The four `lazyPort<T>` resolutions
     // `mfa` now writes; the two cradle reads beside them are contributed names rather than
     // ports, so this walk does not count them.
@@ -8712,7 +8786,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2107,
+    files: 2112,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 692 -> 721.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -9177,6 +9251,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-subscribe-seam.ts': {
     prefix: '[subscribe-seam]',
     run: { kind: 'tsx', path: 'scripts/check-subscribe-seam.ts', args: [] },
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 3: +5 files.** The five
+    // new above-watermark migrations the non-bridge references moved into —
+    // `quote_requests`, `analytics`, `newsletter`, `cms` and `inventory`, one
+    // each. Nothing moved and nothing was deleted: the two creations this phase
+    // relocates go between two frozen bodies that both already existed.
     // **T118c, `mfaActorBridge`: +1 file** — `mfa`'s new module source. It subscribes to
     // nothing and constructs no worker.
     // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
@@ -9461,7 +9540,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2188,
+    files: 2193,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -9716,6 +9795,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-transaction-context.ts': {
     prefix: '[transaction-context]',
     run: { kind: 'tsx', path: 'scripts/check-transaction-context.ts', args: [] },
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 3: +5 files.** The five
+    // new above-watermark migrations the non-bridge references moved into —
+    // `quote_requests`, `analytics`, `newsletter`, `cms` and `inventory`, one
+    // each. Nothing moved and nothing was deleted: the two creations this phase
+    // relocates go between two frozen bodies that both already existed.
     // **T118c, `mfaActorBridge`: +1 file** — `mfa`'s new module source. It writes no SQL.
     // **Batch 13 (feature 091, Phase 4): +4.** The four `.ts` files the batch
     // moves under the module walk roots — `inventory`'s and `quick_order`'s
@@ -9998,13 +10082,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2188,
+    files: 2193,
     sites: null,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-singleton-identity.ts': {
     prefix: '[singleton-identity]',
     run: { kind: 'tsx', path: 'scripts/check-singleton-identity.ts', args: [] },
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 3: +5 files.** The five
+    // new above-watermark migrations the non-bridge references moved into —
+    // `quote_requests`, `analytics`, `newsletter`, `cms` and `inventory`, one
+    // each. Nothing moved and nothing was deleted: the two creations this phase
+    // relocates go between two frozen bodies that both already existed.
     // **T118c, `mfaActorBridge`: +3 files** — `mfa`'s new module source, its co-located test
     // and the new backend integration test. None reaches a package's sources by path.
     // The consumer population, not the module one: every file under the
@@ -10424,7 +10513,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 4637,
+    files: 4642,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -10574,6 +10663,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'scripts/check-naming.sh': {
     prefix: '[naming]',
     run: { kind: 'bash', path: 'scripts/check-naming.sh', args: [] },
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 3: +7 files.** The five
+    // new above-watermark migrations, plus this merge request's two changesets —
+    // this walk is the whole repository and opens a `.md` like any other file.
+    // Measured after `git clean -fX docs/docs/modules` and with `docs/build` and
+    // the module-doc copy stamp removed, which is the tree shape `quality` runs in.
     // **T118c, `mfaActorBridge`: +4 files** — the three new source files and the merge
     // request's own changeset, measured on the *staged* tree for the reason the header
     // gives. Recorded at 8195 first, which was this branch before it had written its
@@ -11289,11 +11383,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // measured on the merged tree.** The nine far-side bridge migrations plus this merge
     // request's own changeset: this walk reads `.changeset/`, which is the whole of the
     // difference from the +9 the source-only walks recorded over the same commit.
-    // **`fix/module-docs-site-tree-links`: files 8191 -> 8193 (+2).** This merge request's own two
-    // changesets, and nothing else — every other file it touches already existed. Measured
-    // with them moved aside and back, because a whole-repository walk cannot say on its own
-    // which of its 8000-odd files is the new one.
-    files: 8193,
+    files: 8198,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -11315,6 +11405,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'scripts/check-language.sh': {
     prefix: '[language]',
     run: { kind: 'bash', path: 'scripts/check-language.sh', args: [] },
+    // **`specs/120-migration-closure-bridge-ownership/` Phase 3: +5 files.** The five
+    // new above-watermark migrations the non-bridge references moved into —
+    // `quote_requests`, `analytics`, `newsletter`, `cms` and `inventory`, one
+    // each. Nothing moved and nothing was deleted: the two creations this phase
+    // relocates go between two frozen bodies that both already existed.
     // **T118c, `mfaActorBridge`: +3 files** — the three new files; all three are `.ts`, so the
     // source half of this walk takes each one. Measured on the *staged* tree.
     // **Batch 13 (feature 091, Phase 4): +1.** Whole-tree arithmetic: twenty-four
@@ -11838,7 +11933,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 6263,
+    files: 6268,
     sites: null,
     sources: ['manifest-index'],
     //

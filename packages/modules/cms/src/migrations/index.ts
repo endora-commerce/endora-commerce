@@ -26,12 +26,14 @@ import { Migration20260425T162418CmsPagesInit } from './20260425T162418_cms_page
 import { Migration20260505T130214CmsInit } from './20260505T130214_cms_init.js';
 import { Migration20260903T101741CmsNamespaceBlockNames } from './20260903T101741_cms_namespace_block_names.js';
 import { Migration20260912T094733CmsSalesChannelCmsPages } from './20260912T094733_cms_sales_channel_cms_pages.js';
+import { Migration20260912T125709CmsPageBodyAssetRefIndex } from './20260912T125709_cms_page_body_asset_ref_index.js';
 
 export const migrations = [
   Migration20260425T162418CmsPagesInit,
   Migration20260505T130214CmsInit,
   Migration20260903T101741CmsNamespaceBlockNames,
   Migration20260912T094733CmsSalesChannelCmsPages,
+  Migration20260912T125709CmsPageBodyAssetRefIndex,
 ];
 
 export {
@@ -39,4 +41,5 @@ export {
   Migration20260505T130214CmsInit,
   Migration20260903T101741CmsNamespaceBlockNames,
   Migration20260912T094733CmsSalesChannelCmsPages,
+  Migration20260912T125709CmsPageBodyAssetRefIndex,
 };

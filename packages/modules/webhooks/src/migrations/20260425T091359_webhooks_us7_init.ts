@@ -1,30 +1,23 @@
 import { Migration } from '@mikro-orm/migrations';
 
 /**
- * US7 surface — Phase 9 (T225). Lands api_keys + webhooks + webhook_deliveries
- * + external_integrations.
+ * US7 surface — Phase 9 (T225). Lands webhooks + webhook_deliveries +
+ * external_integrations.
+ *
+ * It also created `api_keys` until
+ * `specs/120-migration-closure-bridge-ownership/` Phase 3. The two modules were
+ * one surface when this was written and split afterwards, which left the
+ * creation stranded here: this module names `api_keys` in no statement of its
+ * own, and an instance that installs `api_keys` without `webhooks` had no
+ * migration that builds the table. Under D-226 the creation belongs to the
+ * module that owns the table, so it is
+ * `Migration20260724T173916ApiKeysDistributorBinding`'s now — its own frozen
+ * body, above its own `alter table`, and **not** a new migration above the
+ * watermark, which would have run after the two frozen migrations that
+ * reference `api_keys` and broken a fresh database (FR-014).
  */
 export class Migration20260425T091359WebhooksUs7Init extends Migration {
   override async up(): Promise<void> {
-    this.addSql(`
-      create table "api_keys" (
-        "id" uuid not null,
-        "name" varchar(160) not null,
-        "key_hash" varchar(128) not null,
-        "last_four" varchar(8) not null,
-        "scopes" jsonb not null default '[]'::jsonb,
-        "status" varchar(16) not null default 'active',
-        "last_used_at" timestamptz null,
-        "revoked_at" timestamptz null,
-        "created_by_admin_user_id" uuid null,
-        "created_at" timestamptz not null,
-        "updated_at" timestamptz not null,
-        constraint "api_keys_pkey" primary key ("id"),
-        constraint "api_keys_key_hash_unique" unique ("key_hash")
-      );
-    `);
-    this.addSql('create index "api_keys_key_hash_index" on "api_keys" ("key_hash");');
-
     this.addSql(`
       create table "webhooks" (
         "id" uuid not null,
@@ -92,6 +85,5 @@ export class Migration20260425T091359WebhooksUs7Init extends Migration {
     this.addSql('drop table if exists "external_integrations" cascade;');
     this.addSql('drop table if exists "webhook_deliveries" cascade;');
     this.addSql('drop table if exists "webhooks" cascade;');
-    this.addSql('drop table if exists "api_keys" cascade;');
   }
 }

@@ -11,9 +11,13 @@ import { Migration } from '@mikro-orm/migrations';
  * `webhooks` (outbound notifications), and the per-vendor integration modules.
  *
  * The table lives here rather than in an `integrations` migration directory
- * because `009_us7_init.ts` — which also creates `api_keys`, `webhooks`, and
+ * because `009_us7_init.ts` — which also creates `webhooks` and
  * `webhook_deliveries` — is what created it. That migration has already run in
- * production and must not be edited.
+ * production, and what follows from that is that its class name cannot move,
+ * not that its body cannot change: the storage persists the name and no
+ * checksum, so an edited body is never re-offered.
+ * `specs/120-migration-closure-bridge-ownership/` Phase 3 took the `api_keys`
+ * creation out of it on exactly that reasoning.
  *
  * `down()` recreates the table exactly as `009_us7_init.ts` left it, so a
  * rollback restores the schema. Row data is not recoverable.

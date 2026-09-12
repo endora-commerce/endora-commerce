@@ -48,6 +48,7 @@ import { Migration20260611T140415QuoteRequestsQrItemPackaging } from './20260611
 import { Migration20260611T140417QuoteRequestsBusinessId } from './20260611T140417_quote_requests_business_id.js';
 import { Migration20260617T095510QuoteRequestsBackfillAdminCreatedAwaiting } from './20260617T095510_quote_requests_backfill_admin_created_awaiting.js';
 import { Migration20260718T200342QuoteRequestsQuoteRequestCustomFieldValues } from './20260718T200342_quote_requests_quote_request_custom_field_values.js';
+import { Migration20260912T125614QuoteRequestsQuoteRequestChannelAttribution } from './20260912T125614_quote_requests_quote_request_channel_attribution.js';
 
 export const migrations = [
   Migration20260424T190112QuoteRequestsInit,
@@ -56,6 +57,7 @@ export const migrations = [
   Migration20260611T140417QuoteRequestsBusinessId,
   Migration20260617T095510QuoteRequestsBackfillAdminCreatedAwaiting,
   Migration20260718T200342QuoteRequestsQuoteRequestCustomFieldValues,
+  Migration20260912T125614QuoteRequestsQuoteRequestChannelAttribution,
 ];
 
 export {
@@ -65,4 +67,5 @@ export {
   Migration20260611T140417QuoteRequestsBusinessId,
   Migration20260617T095510QuoteRequestsBackfillAdminCreatedAwaiting,
   Migration20260718T200342QuoteRequestsQuoteRequestCustomFieldValues,
+  Migration20260912T125614QuoteRequestsQuoteRequestChannelAttribution,
 };
