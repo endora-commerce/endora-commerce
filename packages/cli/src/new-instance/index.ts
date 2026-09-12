@@ -49,6 +49,7 @@ import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 
 import { provenanceLine, type ResolvedInput } from '../inputs/resolve.js';
 import { npmrcContent, normalizeRegistry } from '../new-storefront/npmrc.js';
+import { DOCS_TOOLCHAIN } from './docs-toolchain.js';
 import {
   ADMIN_KIT_PACKAGE,
   ADMIN_SHELL_PACKAGE,
@@ -226,6 +227,7 @@ export async function runNewInstance(
         .filter((pkg): pkg is ResolvedPackage => pkg !== undefined),
     ]),
     cliVersion: host.cliVersion,
+    docsRanges: new Map(DOCS_TOOLCHAIN.map((entry) => [entry.name, entry.range] as const)),
     declaredRanges,
     registry,
     npmrc,
@@ -413,8 +415,13 @@ export function nextSteps(targetDir: string, deployment: string): readonly strin
     `cp .env.example .env and fill it in. Every entry names what it decides and gives an ` +
       `example; an entry with no value on the right of the \`=\` is one the platform has no ` +
       `honest default for.`,
-    `pnpm run build — the entry points, compiled. \`migrate\`, \`start\` and the five ` +
-      `\`module:*\` commands all run compiled JavaScript, so this comes before any of them.`,
+    `pnpm run generate — the files your admin project and documentation site are built ` +
+      `from, over the modules you actually installed. They are git-ignored and never ` +
+      `committed: a different module set is a different bundle and a different navigation. ` +
+      `\`build\` runs it for you; run it once by hand first so the first build has them.`,
+    `pnpm run build — the entry points, compiled, and every member built. \`migrate\`, ` +
+      `\`start\` and the five \`module:*\` commands all run compiled JavaScript, so this ` +
+      `comes before any of them.`,
     `pnpm run migrate — the schema, in the order the installed manifests compute.`,
     `pnpm run module:install --all — every module you declared, in dependency order. Your ` +
       `modules arrive as installed packages, and a package is installed by this command and ` +

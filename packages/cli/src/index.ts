@@ -79,6 +79,7 @@ export {
   devDependenciesFor,
   envExample,
   GENERATED_ARTEFACTS,
+  GENERATED_TREES,
   planInstance,
   wiringLineCount,
   type FileKind,

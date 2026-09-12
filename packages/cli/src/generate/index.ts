@@ -47,6 +47,16 @@ import {
 } from '../lib/admin-artefacts.js';
 import { AdminLayoutUnresolvableError } from '../lib/admin-surfaces.js';
 import {
+  collectDocsIntoSiteFrom,
+  docsRegistryOf,
+  installedDocsModules,
+  renderDocsSidebarFrom,
+  renderModuleMapFrom,
+  renderModuleReferencesFrom,
+  type DocsCollection,
+} from '../lib/docs-artefacts.js';
+import { DocsLayoutUnresolvableError, resolveDocsLayout } from '../lib/module-docs.js';
+import {
   scanInstalledModulePackages,
   type SkippedInstalledPackage,
 } from '../lib/module-packages.js';
@@ -85,6 +95,24 @@ export interface GenerateResult {
   readonly modules: number;
   /** R8.2 — every candidate the discovery excluded, with its reason. */
   readonly excluded: readonly SkippedInstalledPackage[];
+  /**
+   * A member this instance does not have, and therefore an artefact family this
+   * run did not render — named rather than silently skipped.
+   *
+   * `instance-tree.md` §2.4's own reasoning: *"a client who does not know they
+   * have no operator interface spends their first hour looking for one"*. The
+   * same holds for a documentation site, and the member is legitimately absent
+   * — `endora new instance` omits either one when the packages it is mounted on
+   * do not resolve.
+   */
+  readonly omitted: readonly string[];
+  /** What the documentation copy step did, or `null` when there is no site. */
+  readonly collected: DocsCollection | null;
+  /**
+   * Reference pages this run removed because no installed module renders them
+   * any more — the category's half of {@link GenerateResult.collected}.
+   */
+  readonly swept: readonly string[];
   readonly dryRun: boolean;
 }
 
@@ -116,14 +144,14 @@ export function findInstanceRoot(from: string): string | null {
  * stylesheet did not scan, which is the silent failure
  * `admin-stylesheet-composition.md` exists to remove.
  */
-export function runGenerate(options: GenerateOptions = {}): GenerateResult {
+export async function runGenerate(options: GenerateOptions = {}): Promise<GenerateResult> {
   const cwd = options.cwd ?? process.cwd();
   const root = findInstanceRoot(cwd);
   if (root === null) {
     throw new GenerateHostError(
       `no \`pnpm-workspace.yaml\` above ${cwd}, so there is no instance to render artefacts ` +
-        `for. This command renders the two files an instance's admin project is built from ` +
-        `and both land in that project; run it inside the tree \`endora new instance\` wrote.`,
+        `for. This command renders the files an instance's admin project and documentation ` +
+        `site are built from; run it inside the tree \`endora new instance\` wrote.`,
     );
   }
 
@@ -136,11 +164,21 @@ export function runGenerate(options: GenerateOptions = {}): GenerateResult {
     );
   }
 
-  let artefacts: readonly GeneratedArtefact[];
+  const artefacts: GeneratedArtefact[] = [];
+  const omitted: string[] = [];
+
+  // --- the admin project's two (§2.6) --------------------------------------
+  //
+  // The project is found through the `"@/*"` tsconfig alias, exactly as every
+  // other admin derivation in this estate finds it. A workspace with no such
+  // member is an instance with no admin project, which is an **omission** and
+  // not a refusal: `endora new instance` writes one only when the shell and the
+  // design system resolve, so a headless instance is a tree this command must
+  // still be able to serve.
   try {
     const contributions = collectAdminContributions(scan.packages);
     const sources = collectTailwindSources(root, scan.packages);
-    artefacts = [
+    artefacts.push(
       {
         path: adminRegistryOutputPathIn(root),
         content: emitAdminRegistry(contributions, GENERATED_REGISTRY_HEADER),
@@ -151,21 +189,74 @@ export function runGenerate(options: GenerateOptions = {}): GenerateResult {
         content: emitTailwindRegistry(sources, GENERATED_STYLESHEET_HEADER),
         label: `the admin stylesheet enumeration (${String(sources.length)} package(s))`,
       },
-    ];
+    );
   } catch (error: unknown) {
-    // The admin project is found through the `"@/*"` tsconfig alias, exactly as
-    // every other admin derivation in this estate finds it. A workspace with no
-    // such member is an instance with no admin project, which is a refusal the
-    // operator can act on rather than an input this run could not read.
-    if (error instanceof AdminLayoutUnresolvableError) {
-      throw new GenerateInputError(
-        `${error.message}\n\nBoth artefacts this command renders land in the admin project's ` +
-          `own source root, and the project is found by the \`"@/*"\` path its tsconfig ` +
-          `declares. An instance scaffolded without an admin member has nothing for this ` +
-          `command to write; scaffold one with \`endora new instance\` and keep that alias.`,
-      );
+    if (!(error instanceof AdminLayoutUnresolvableError)) throw error;
+    omitted.push(
+      `the admin project's two artefacts — ${error.message}. They land in the source root of ` +
+        `the workspace member declaring the \`"@/*"\` path its tsconfig carries, so an instance ` +
+        `scaffolded without an admin member has nothing here to write`,
+    );
+  }
+
+  // --- the documentation site's (§2.6, feature 100) -------------------------
+  //
+  // The site is found by the workspace member holding a Docusaurus
+  // configuration — the same derivation `check:module-docs` and
+  // `composer:generate` share — and the population is the packages above, so a
+  // navigation names exactly the modules this client installed. Same omission
+  // discipline as the admin half.
+  let collected: DocsCollection | null = null;
+  let swept: readonly string[] = [];
+  try {
+    const layout = resolveDocsLayout(root);
+    const registry = docsRegistryOf(layout, installedDocsModules(scan.packages), scan.packages);
+    artefacts.push(
+      {
+        path: renderDocsSidebarFrom(registry, INSTANCE_DOCS_HEADER).outputPath,
+        content: renderDocsSidebarFrom(registry, INSTANCE_DOCS_HEADER).content,
+        label: `the documentation navigation (${String(registry.entries.length)} module(s))`,
+      },
+      {
+        path: renderModuleMapFrom(registry, INSTANCE_DOCS_PAGE_HEADER).outputPath,
+        content: renderModuleMapFrom(registry, INSTANCE_DOCS_PAGE_HEADER).content,
+        label: 'the module map',
+      },
+    );
+    // `stray: 'sweep'` because in an instance this category is generated and
+    // git-ignored: a module the client uninstalled would otherwise leave a page
+    // that refuses every subsequent run, with a remedy (`git rm`) naming a tool
+    // the file is not under.
+    const references = await renderModuleReferencesFrom(registry, {
+      header: INSTANCE_DOCS_PAGE_HEADER,
+      stray: options.dryRun === true ? 'report' : 'sweep',
+    });
+    for (const page of references.pages) {
+      artefacts.push({ path: page.outputPath, content: page.content, label: page.label });
     }
-    throw error;
+    swept = references.swept;
+    // The copies are a filesystem operation rather than a rendered artefact —
+    // a module's page is copied verbatim, byte for byte — so it is not in the
+    // list above and is skipped on a dry run with everything else.
+    if (options.dryRun !== true) collected = collectDocsIntoSiteFrom(registry);
+  } catch (error: unknown) {
+    if (!(error instanceof DocsLayoutUnresolvableError)) throw error;
+    omitted.push(
+      `the documentation site's artefacts — ${error.message}. The site is the workspace member ` +
+        `holding a Docusaurus configuration; an instance scaffolded without one has nothing ` +
+        `here to write`,
+    );
+  }
+
+  // Neither member is a workspace this command has anything to do with, and a
+  // run that wrote nothing and said it succeeded is the silent green the whole
+  // estate refuses. It is a refusal the operator can act on — exit 1 — because
+  // the remedy is theirs: scaffold a member, or stop running this.
+  if (artefacts.length === 0) {
+    throw new GenerateInputError(
+      `${root} has neither an admin project nor a documentation site, so this command has ` +
+        `nothing to render:\n${omitted.map((reason) => `  - ${reason}`).join('\n')}`,
+    );
   }
 
   if (options.dryRun !== true) {
@@ -179,6 +270,9 @@ export function runGenerate(options: GenerateOptions = {}): GenerateResult {
     artefacts,
     modules: scan.packages.length,
     excluded: scan.skipped,
+    omitted,
+    collected,
+    swept,
     dryRun: options.dryRun === true,
   };
 }
@@ -190,6 +284,24 @@ export function generateReport(result: GenerateResult): readonly string[] {
       `${result.dryRun ? 'would write' : 'wrote'} ${relative(result.root, artefact.path)} — ` +
       `${artefact.label}`,
   );
+  if (result.swept.length > 0) {
+    lines.push(
+      `removed ${String(result.swept.length)} module reference page(s) no installed module ` +
+        `renders any more`,
+    );
+  }
+  if (result.collected !== null) {
+    lines.push(
+      `copied ${String(result.collected.copied.length)} module-owned page(s) into ` +
+        `${result.collected.modulesRoot}` +
+        (result.collected.removed.length === 0
+          ? ''
+          : `, removing ${String(result.collected.removed.length)} the previous run wrote`),
+    );
+  }
+  // A member this instance does not have is named, never silently skipped:
+  // a client who does not know a surface is missing goes looking for it.
+  for (const reason of result.omitted) lines.push(`omitted ${reason}`);
   // R8.2 — the exclusion is said out loud. A module that is simply not there is
   // indistinguishable from a module nobody installed.
   for (const skipped of result.excluded) {
@@ -211,6 +323,28 @@ export function artefactIsCurrent(artefact: GeneratedArtefact): boolean {
   if (!existsSync(artefact.path)) return false;
   return readFileSync(artefact.path, 'utf8') === artefact.content;
 }
+
+/**
+ * The "do not edit" header the documentation artefacts carry in an instance.
+ *
+ * A separate value from the registry's because the comment syntax differs — a
+ * `.js` sidebar fragment and a markdown page — and separate from
+ * `composer:generate`'s because the two hosts tell a reader different things to
+ * run. An artefact naming `composer:generate` would send a client to a script
+ * their tree does not have.
+ */
+const INSTANCE_DOCS_HEADER =
+  `// AUTO-GENERATED by \`endora generate\` — DO NOT EDIT, and do not commit.\n` +
+  `// It names the module packages THIS instance installed, so it is a fact about\n` +
+  `// the install and not about the tree. \`.gitignore\` covers it;\n` +
+  `// \`pnpm run generate\` rewrites it.\n`;
+
+/** The same, for a markdown page, whose comment syntax is HTML's. */
+const INSTANCE_DOCS_PAGE_HEADER =
+  `<!-- AUTO-GENERATED by \`endora generate\` — DO NOT EDIT, and do not commit.\n` +
+  `     It names the module packages THIS instance installed, so it is a fact\n` +
+  `     about the install and not about the tree. \`.gitignore\` covers it;\n` +
+  `     \`pnpm run generate\` rewrites it. -->`;
 
 /** The "do not edit" header an instance's artefacts carry. */
 const GENERATED_REGISTRY_HEADER =
