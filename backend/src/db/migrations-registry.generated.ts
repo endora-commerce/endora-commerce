@@ -49,6 +49,7 @@ import { Migration20260825T124801AdminUsersDropLegacyTwoFactorSecret } from '@en
 
 // ── analytics ───────────────────────────────────────────────────────────────
 import { Migration20260425T143139AnalyticsInit } from '@endora-commerce/mod-analytics/migrations';
+import { Migration20260912T125655AnalyticsEventsTenantScopeIndexes } from '@endora-commerce/mod-analytics/migrations';
 
 // ── api_keys ────────────────────────────────────────────────────────────────
 import { Migration20260724T173916ApiKeysDistributorBinding } from '@endora-commerce/mod-api-keys/migrations';
@@ -101,6 +102,7 @@ import { Migration20260425T162418CmsPagesInit } from '@endora-commerce/mod-cms/m
 import { Migration20260505T130214CmsInit } from '@endora-commerce/mod-cms/migrations';
 import { Migration20260903T101741CmsNamespaceBlockNames } from '@endora-commerce/mod-cms/migrations';
 import { Migration20260912T094733CmsSalesChannelCmsPages } from '@endora-commerce/mod-cms/migrations';
+import { Migration20260912T125709CmsPageBodyAssetRefIndex } from '@endora-commerce/mod-cms/migrations';
 
 // ── comparisons ─────────────────────────────────────────────────────────────
 import { Migration20260501T185834ComparisonsInit } from '@endora-commerce/mod-comparisons/migrations';
@@ -175,6 +177,7 @@ import { Migration20260611T140347InventoryWarehouseDefaultLowStockThreshold } fr
 import { Migration20260611T140348InventoryPerWarehouseLowStockThresholds } from '@endora-commerce/mod-inventory/migrations';
 import { Migration20260818T081243InventoryStockAllocationOrderItemFk } from '@endora-commerce/mod-inventory/migrations';
 import { Migration20260830T182139InventoryOrganizationAttribution } from '@endora-commerce/mod-inventory/migrations';
+import { Migration20260912T125716InventoryOrganizationWarehouses } from '@endora-commerce/mod-inventory/migrations';
 
 // ── invoice_ledger ──────────────────────────────────────────────────────────
 import { Migration20260908T125013InvoiceLedgerInit } from '@endora-commerce/mod-invoice-ledger/migrations';
@@ -207,6 +210,7 @@ import { Migration20260611T140409MfaInit } from '@endora-commerce/mod-mfa/migrat
 import { Migration20260629T200954NewsletterInit } from '@endora-commerce/mod-newsletter/migrations';
 import { Migration20260830T212736NewsletterOrganizationAttribution } from '@endora-commerce/mod-newsletter/migrations';
 import { Migration20260903T101752NewsletterNamespaceBlockNames } from '@endora-commerce/mod-newsletter/migrations';
+import { Migration20260912T125702NewsletterSubscriberTenantScopeIndex } from '@endora-commerce/mod-newsletter/migrations';
 
 // ── orders ──────────────────────────────────────────────────────────────────
 import { Migration20260611T140355OrdersBusinessId } from '@endora-commerce/mod-orders/migrations';
@@ -306,6 +310,7 @@ import { Migration20260611T140415QuoteRequestsQrItemPackaging } from '@endora-co
 import { Migration20260611T140417QuoteRequestsBusinessId } from '@endora-commerce/mod-quote-requests/migrations';
 import { Migration20260617T095510QuoteRequestsBackfillAdminCreatedAwaiting } from '@endora-commerce/mod-quote-requests/migrations';
 import { Migration20260718T200342QuoteRequestsQuoteRequestCustomFieldValues } from '@endora-commerce/mod-quote-requests/migrations';
+import { Migration20260912T125614QuoteRequestsQuoteRequestChannelAttribution } from '@endora-commerce/mod-quote-requests/migrations';
 
 // ── returns ─────────────────────────────────────────────────────────────────
 import { Migration20260625T144227ReturnsInit } from '@endora-commerce/mod-returns/migrations';
@@ -374,6 +379,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── analytics ───────────────────────────────────────────────────────────────
   migration('analytics', Migration20260425T143139AnalyticsInit),
+  migration('analytics', Migration20260912T125655AnalyticsEventsTenantScopeIndexes),
 
   // ── api_keys ────────────────────────────────────────────────────────────────
   migration('api_keys', Migration20260724T173916ApiKeysDistributorBinding),
@@ -426,6 +432,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('cms', Migration20260505T130214CmsInit),
   migration('cms', Migration20260903T101741CmsNamespaceBlockNames),
   migration('cms', Migration20260912T094733CmsSalesChannelCmsPages),
+  migration('cms', Migration20260912T125709CmsPageBodyAssetRefIndex),
 
   // ── comparisons ─────────────────────────────────────────────────────────────
   migration('comparisons', Migration20260501T185834ComparisonsInit),
@@ -500,6 +507,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('inventory', Migration20260611T140348InventoryPerWarehouseLowStockThresholds),
   migration('inventory', Migration20260818T081243InventoryStockAllocationOrderItemFk),
   migration('inventory', Migration20260830T182139InventoryOrganizationAttribution),
+  migration('inventory', Migration20260912T125716InventoryOrganizationWarehouses),
 
   // ── invoice_ledger ──────────────────────────────────────────────────────────
   migration('invoice_ledger', Migration20260908T125013InvoiceLedgerInit),
@@ -532,6 +540,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('newsletter', Migration20260629T200954NewsletterInit),
   migration('newsletter', Migration20260830T212736NewsletterOrganizationAttribution),
   migration('newsletter', Migration20260903T101752NewsletterNamespaceBlockNames),
+  migration('newsletter', Migration20260912T125702NewsletterSubscriberTenantScopeIndex),
 
   // ── orders ──────────────────────────────────────────────────────────────────
   migration('orders', Migration20260611T140355OrdersBusinessId),
@@ -631,6 +640,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('quote_requests', Migration20260611T140417QuoteRequestsBusinessId),
   migration('quote_requests', Migration20260617T095510QuoteRequestsBackfillAdminCreatedAwaiting),
   migration('quote_requests', Migration20260718T200342QuoteRequestsQuoteRequestCustomFieldValues),
+  migration('quote_requests', Migration20260912T125614QuoteRequestsQuoteRequestChannelAttribution),
 
   // ── returns ─────────────────────────────────────────────────────────────────
   migration('returns', Migration20260625T144227ReturnsInit),
