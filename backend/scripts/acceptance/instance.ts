@@ -100,6 +100,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 
+import { normalizeRegistry } from '@endora-commerce/cli';
+
 import { resolveDatabaseTarget } from './assertions.js';
 import {
   compareToExpectation,
@@ -116,6 +118,7 @@ import {
   exitCodeForExpectation,
   expectationRefusals,
   formatReport,
+  hostNpmrc,
   reconcileFigures,
   type AcceptanceExpectation,
   type AcceptanceMode,
@@ -167,6 +170,14 @@ function run(
  * credential with 404 and pnpm reports it in the same sentence it gives for a
  * package that was never published, so the red would be indistinguishable from
  * the criterion's own subject failing.
+ *
+ * An endpoint no `.npmrc` line can be keyed on is the same kind of answer and
+ * is decided **here**, before anything is packed or written: the alternative is
+ * a throw out of the middle of `provisionHost` with a stack trace and exit 1,
+ * which reports a configuration this run could not use as a failure of the
+ * criterion. The value comes back normalised, so the host's file and the
+ * `--registry` the command is given name one endpoint and not two spellings
+ * of it.
  */
 function resolveMode(): { mode: AcceptanceMode; registry: string | null } {
   const registry = (process.env['ENDORA_NPM_REGISTRY'] ?? '').trim();
@@ -179,7 +190,14 @@ function resolveMode(): { mode: AcceptanceMode; registry: string | null } {
         `this run would produce a red A2 that says nothing about the criterion.`,
     );
   }
-  return { mode: 'registry', registry };
+  try {
+    return { mode: 'registry', registry: normalizeRegistry(registry) };
+  } catch (error: unknown) {
+    refuse(
+      `ENDORA_NPM_REGISTRY is not an endpoint an \`.npmrc\` can be written against: ` +
+        `${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 }
 
 /** Every publishable workspace package of this checkout, with its directory. */
@@ -279,13 +297,10 @@ function provisionHost(
     )}\n`,
   );
   // The host is not an instance and its `.npmrc` is the harness's own: the
-  // instance's is written by the command, and asserting that is A2's job.
-  const npmrc = [
-    'ignore-workspace=true',
-    'strict-peer-dependencies=false',
-    ...(registry === null ? [] : [`${SCOPE}:registry=${registry}`, registryAuthLine(registry)]),
-  ];
-  writeFileSync(join(hostDir, '.npmrc'), `${npmrc.join('\n')}\n`);
+  // instance's is written by the command, and asserting that is A2's job. How a
+  // credential is **keyed** is the one thing the two may not decide separately,
+  // so that half comes from the command's own derivation — see `hostNpmrc`.
+  writeFileSync(join(hostDir, '.npmrc'), hostNpmrc(registry, SCOPE));
   const installed = run('pnpm', ['install', '--no-frozen-lockfile'], { cwd: hostDir });
   if (installed.code !== 0) {
     refuse(
@@ -293,11 +308,6 @@ function provisionHost(
         `measure:\n${installed.output}`,
     );
   }
-}
-
-function registryAuthLine(registry: string): string {
-  const url = new URL(registry);
-  return `//${url.host}${url.pathname.replace(/\/$/, '')}/:_authToken=\${ENDORA_NPM_TOKEN}`;
 }
 
 /**

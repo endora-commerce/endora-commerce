@@ -12,6 +12,10 @@
  * not run is neither a pass nor a failure**. So every `unmeasured` case below
  * is paired with the `fail` it must not be confused with, and vice versa.
  */
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+import { authKeys, TOKEN_VARIABLE } from '@endora-commerce/cli';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -20,6 +24,7 @@ import {
   compareToExpectation,
   completeResults,
   endoraClosure,
+  hostNpmrc,
   evaluateA1,
   evaluateA3,
   evaluateA4,
@@ -669,5 +674,79 @@ describe('formatReport', () => {
     expect(report).toContain('A1 PASS — fine');
     expect(report).toContain('note: a note');
     expect(report).toContain('mode=registry pass=1 fail=1 unmeasured=0 of 2');
+  });
+});
+
+describe('the `.npmrc` the host directory installs the CLI through', () => {
+  // GitLab's shape: a packument on the endpoint whose `dist.tarball` the server
+  // is free to place anywhere on the host — which is what makes one auth line
+  // insufficient. The value is a fixture; the real one is a protected variable
+  // and never appears in this repository or in a log line.
+  const REGISTRY = 'https://registry.example.test/api/v4/projects/302/packages/npm/';
+
+  it('authenticates the tarball as well as the packument', () => {
+    const text = hostNpmrc(REGISTRY, '@endora-commerce');
+
+    // The measurement is `packages/cli/src/new-storefront/npmrc.ts`': with the
+    // endpoint key alone the tarball fetch goes out unauthenticated and the
+    // registry answers `ERR_PNPM_FETCH_404 … "No authorization header was set
+    // for the request."` — which is what `acceptance:instance` printed on the
+    // first pipeline that resolved the registry variables.
+    const keys = authKeys(REGISTRY);
+    expect(keys.length).toBe(2);
+    for (const key of keys) expect(text).toContain(`${key}:_authToken=`);
+  });
+
+  it('holds no secret, whatever the token is', () => {
+    const text = hostNpmrc(REGISTRY, '@endora-commerce');
+
+    // An environment reference pnpm expands at read time, so no file on disk
+    // and no CI artefact ever carries the value.
+    expect(text).toContain(`:_authToken=\${${TOKEN_VARIABLE}}`);
+    expect(text).not.toMatch(/_authToken=[^$]/);
+  });
+
+  it('points the scope at the endpoint, with the trailing slash GitLab requires', () => {
+    expect(hostNpmrc('https://registry.example.test/api/v4/projects/302/packages/npm', '@x')).toContain(
+      '@x:registry=https://registry.example.test/api/v4/projects/302/packages/npm/',
+    );
+  });
+
+  it('configures no registry at all in the tarball mode', () => {
+    // The discrimination: the same file serves both modes, and a registry line
+    // written when no registry was named would send every `file:` install's
+    // transitive fetches somewhere nobody asked for.
+    const text = hostNpmrc(null, '@endora-commerce');
+    expect(text).not.toContain('registry=');
+    expect(text).not.toContain('_authToken');
+  });
+
+  it('keeps the two settings the host needs in both modes', () => {
+    for (const text of [hostNpmrc(REGISTRY, '@endora-commerce'), hostNpmrc(null, '@endora-commerce')]) {
+      expect(text).toContain('ignore-workspace=true');
+      expect(text).toContain('strict-peer-dependencies=false');
+    }
+  });
+
+  it('refuses a registry it cannot key an auth line on', () => {
+    // Exit 2's input, not a red: a run that could not configure the endpoint
+    // has measured nothing about the criterion. The refusal is the runner's;
+    // what this owes is a throw rather than a silently unauthenticated file.
+    expect(() => hostNpmrc('not-a-url', '@endora-commerce')).toThrow();
+  });
+
+  it('is where the runner gets it, rather than a second copy of the derivation', () => {
+    // The two-way link, and the whole reason this is a function rather than
+    // four lines in `provisionHost`. The runner had its own auth line — one
+    // key, the shape `packages/cli` had already measured failing and repaired
+    // five days earlier — and nothing in the tree could see that there were two
+    // answers to one question.
+    const source = readFileSync(
+      fileURLToPath(new URL('../../../scripts/acceptance/instance.ts', import.meta.url)),
+      'utf8',
+    );
+
+    expect(source).toContain('hostNpmrc(');
+    expect(source).not.toContain('_authToken');
   });
 });

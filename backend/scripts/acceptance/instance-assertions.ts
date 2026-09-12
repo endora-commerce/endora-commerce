@@ -5,7 +5,9 @@
  * The split is `acceptance/assertions.ts`' and
  * `storefront-scaffold-assertions.ts`': the judgement is pure and unit tested
  * over fixture text, so a red proof per finding costs no install, no database
- * and no boot. Importing this file starts nothing.
+ * and no boot. Importing this file starts nothing — its one import is the
+ * command's own `.npmrc` derivation (see {@link hostNpmrc}), a barrel of pure
+ * functions.
  *
  * ## The assertion numbering carries a collision this file did not invent
  *
@@ -24,6 +26,7 @@
  * `instance-tree.md`'s by neither — and it is recorded here rather than fixed
  * in either contract, because renumbering a contract is the owner's.
  */
+import { authKeys, normalizeRegistry, TOKEN_VARIABLE } from '@endora-commerce/cli';
 
 /** One assertion's outcome. `unmeasured` is neither a pass nor a failure. */
 export type AssertionState = 'pass' | 'fail' | 'unmeasured';
@@ -917,4 +920,64 @@ export interface PackageDependencyDeclaration {
   readonly dependencies: readonly string[];
   /** Peers pnpm's `auto-install-peers` would fetch — the non-optional ones. */
   readonly requiredPeers: readonly string[];
+}
+
+/**
+ * The `.npmrc` the **host** directory installs the `endora` binary through.
+ *
+ * The host is not an instance: its file is this harness's own, and the
+ * instance's is written by `endora new instance --registry` — asserting *that*
+ * one is A2's job. So the two are different files with different authors, and
+ * exactly one thing about them may not differ: **how a credential is keyed**.
+ *
+ * ## Why the derivation is imported and not written here
+ *
+ * It was written here, and the second copy was the defect. `authKeys` exists
+ * because a registry does not have to serve its tarballs under its metadata
+ * path — GitLab serves a tarball from the owning project — so the endpoint key
+ * covers the packument and nothing else, that one fetch goes out
+ * unauthenticated, and the registry answers an absent credential with **404**,
+ * in the same sentence it gives for a package that was never published. That
+ * was measured, repaired and written down at length in
+ * `packages/cli/src/new-storefront/npmrc.ts` on 2026-09-06; this criterion
+ * re-derived one auth line by hand five days later and reproduced the symptom
+ * byte for byte on the first pipeline that resolved the registry variables:
+ *
+ * ```
+ * ERR_PNPM_FETCH_404  GET <endpoint> Not Found - 404
+ * No authorization header was set for the request.
+ * ```
+ *
+ * Two answers to one question, waiting to disagree — and they did. There is one
+ * now, and it is the product's.
+ *
+ * ## The token is a reference and never a value
+ *
+ * `${ENDORA_NPM_TOKEN}` is expanded by pnpm at read time, so no file on disk
+ * and no CI artefact holds the secret. It is the spelling `.gitlab-ci.yml`'s
+ * `publish:packages` uses and the one the scaffolded `.npmrc` carries.
+ *
+ * A malformed endpoint **throws** rather than writing a file that configures
+ * nothing: the caller turns that into exit 2, because a run that could not
+ * reach the registry it was pointed at has measured neither a pass nor a
+ * failure of the criterion.
+ *
+ * @param registry the endpoint, or `null` in the tarball mode — which writes no
+ *   registry line at all, every fetch there being a `file:` specifier.
+ * @param scope the one scope the host installs, e.g. `@endora-commerce`.
+ */
+export function hostNpmrc(registry: string | null, scope: string): string {
+  const lines = [
+    // The host must not be adopted by a workspace above the temporary
+    // directory, and a peer range this checkout already tolerates is not this
+    // criterion's subject. Both belong to neither mode.
+    'ignore-workspace=true',
+    'strict-peer-dependencies=false',
+  ];
+  if (registry !== null) {
+    const endpoint = normalizeRegistry(registry);
+    lines.push(`${scope}:registry=${endpoint}`);
+    for (const key of authKeys(endpoint)) lines.push(`${key}:_authToken=\${${TOKEN_VARIABLE}}`);
+  }
+  return `${lines.join('\n')}\n`;
 }
