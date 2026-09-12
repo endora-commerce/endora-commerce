@@ -74,6 +74,12 @@ async function composeCms(): Promise<Composed> {
     redis: {} as Redis,
     assetReferenceRegistry,
     languageReferenceRegistry,
+    // Feature 120 (FR-015) — the kernel's channel-bridge registry, supplied for
+    // the same reason as the two above: `cms` declares `sales_channel_cms_pages`
+    // from a third contribution hook, and this composition has no platform to
+    // hand it one. It is a plain collector here because the subject of this file
+    // is which hooks probe presence, not what the registry does with an entry.
+    salesChannelBridgeRegistry: { register: () => undefined },
     // The composed manifest set, from which the Page Builder registry takes
     // every block and category declaration (feature 096, T209). A host value no
     // module defaults, so it is registered above the compose call like the

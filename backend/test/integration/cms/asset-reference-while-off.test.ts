@@ -121,6 +121,11 @@ describe('an asset a deactivated cms still references cannot be deleted (D-68)',
       // deactivated page still lists language codes, so `languages` must still
       // refuse to delete one out from under it (feature 077, D-87).
       languageReferenceRegistry: new LanguageReferenceRegistry(),
+      // Feature 120 (FR-015) — the kernel's channel-bridge registry, on the
+      // same terms: `cms` declares `sales_channel_cms_pages` from a third
+      // contribution hook, and this composition has no platform to hand it one.
+      // A plain collector, because the subject here is the asset scanner.
+      salesChannelBridgeRegistry: { register: () => undefined },
     });
     const composed = composeModules([{ id: 'cms', version: '1.0.0', registerModule }], {
       container,

@@ -219,6 +219,13 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // via `composeSalesChannelsKernel` (T110), because channel resolution backs
   // every channel-scoped read and must not be gated on any one module.
   'salesChannelsCache',
+  // Which table holds each channel-scoped entity type's memberships (feature
+  // 120, FR-015). Composed off `composeSalesChannelsKernel` like the cache
+  // above, and contributed by both roots. It is the platform's **only** because
+  // the platform is the one place every owning module can reach: the entries
+  // are each module's own, declared from its boot hook, which is what replaced
+  // the map the kernel used to hold over nine modules' tables (D-226).
+  'salesChannelBridgeRegistry',
   // The settings reader's cache and the two deployment properties the settings
   // admin surface needs: the `secret` encryption key, and the effective-state
   // reader that classifies each setting (Constitution XVII, FR-033). All three

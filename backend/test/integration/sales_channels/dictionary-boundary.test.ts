@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { EventBus } from '@endora-commerce/platform/events';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
+import { testChannelBridges } from '../../helpers/channel-bridges.js';
 
 import type { DictionaryValidator } from '../../../../packages/modules/dictionaries/src/backend/services/dictionary-validator.js';
 import { dictionaryValidatorFor, runDictionarySeedReconcilerFor } from '../../helpers/dictionary-services.js';
@@ -34,6 +35,10 @@ describe('Sales channels dictionary boundary', () => {
       new EventBus(),
       validator,
       new SalesChannelAttributionRegistry(),
+      // Feature 120 (FR-015) — which table holds each entity type's
+      // memberships. This suite composes no platform, so the descriptors are
+      // the ones `setupTestDb` declared from their owning modules.
+      testChannelBridges(),
     );
   });
 

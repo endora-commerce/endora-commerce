@@ -8,6 +8,11 @@ import { HttpError } from '../../http/error-envelope.js';
 import type { AuditPort } from '../ports/audit.js';
 import type { EventBus } from '../../events/bus.js';
 import { SalesChannel } from './sales-channel.entity.js';
+import {
+  channelBridges,
+  type ChannelBridgeRegistration,
+  type ChannelBridgeRegistry,
+} from './channel-bridge-registry.js';
 
 /**
  * SalesChannelMembershipService — feature 005 / T016.
@@ -35,52 +40,23 @@ import { SalesChannel } from './sales-channel.entity.js';
  *   - {@link listChannelsForEntity} / {@link listEntityIdsForChannel}
  *     — symmetric reads from either side of the relationship.
  *
- * Bridges are tracked through a single map ({@link BRIDGE_TABLES}) so
- * adding a new channel-scoped entity type is a one-line edit. The
- * service uses `em.getConnection().execute()` (which honours the EM's
- * active transaction — knex's `getKnex()` would bypass it via its own
- * connection pool, breaking transactional integration tests).
+ * Bridges are resolved through {@link ChannelBridgeRegistry}, which the
+ * module owning each entity type contributes to at compose time (feature 120,
+ * FR-015). This service used to hold the map itself, **total** over
+ * `ChannelMemberEntityTypeSchema` — nine module-owned tables named from inside
+ * the platform, which is D-52/D-53's prohibition expressed in a contract
+ * instead of an import, and which meant a membership call for an entity type
+ * whose module an instance never installed ran SQL against a relation that is
+ * not there. A member nothing registered now refuses before the database is
+ * touched (FR-017). The service uses `em.getConnection().execute()` (which
+ * honours the EM's active transaction — knex's `getKnex()` would bypass it via
+ * its own connection pool, breaking transactional integration tests).
  *
  * Every successful add / remove writes one audit row through
  * {@link AuditPort} and emits one EventBus event. Idempotent
  * no-ops (adding an existing membership / removing a missing one) are
  * NOT audited because they did not change state.
  */
-
-interface BridgeShape {
-  table: string;
-  entityIdColumn: string;
-}
-
-const BRIDGE_TABLES: Record<ChannelMemberEntityType, BridgeShape> = {
-  product: { table: 'sales_channel_products', entityIdColumn: 'product_id' },
-  category: { table: 'sales_channel_categories', entityIdColumn: 'category_id' },
-  'payment-method': {
-    table: 'sales_channel_payment_methods',
-    entityIdColumn: 'payment_method_id',
-  },
-  'delivery-method': {
-    table: 'sales_channel_delivery_methods',
-    entityIdColumn: 'delivery_method_id',
-  },
-  organization: {
-    table: 'sales_channel_organizations',
-    entityIdColumn: 'organization_id',
-  },
-  tax: { table: 'sales_channel_taxes', entityIdColumn: 'tax_id' },
-  customer: {
-    table: 'sales_channel_customer_accounts',
-    entityIdColumn: 'customer_account_id',
-  },
-  promotion: {
-    table: 'sales_channel_promotions',
-    entityIdColumn: 'promotion_id',
-  },
-  'cms-page': {
-    table: 'sales_channel_cms_pages',
-    entityIdColumn: 'cms_page_id',
-  },
-};
 
 export interface MembershipMutationOptions {
   /** When true, falling to zero channels triggers automatic rebind to Default instead of refusal. */
@@ -97,10 +73,17 @@ export interface MembershipMutationResult {
 }
 
 export class SalesChannelMembershipService {
+  /**
+   * `bridges` defaults to the process-level registry the composition roots
+   * contribute into, so every existing construction site keeps working
+   * unchanged. Pass one explicitly to compose an isolated platform — or, in a
+   * test, to drive the FR-017 refusal without a database in reach.
+   */
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly eventBus: EventBus,
     private readonly auditLogService?: AuditPort,
+    private readonly bridges: ChannelBridgeRegistry = channelBridges,
   ) {}
 
   /**
@@ -114,7 +97,7 @@ export class SalesChannelMembershipService {
     entityId: string,
     options: MembershipMutationOptions = {},
   ): Promise<MembershipMutationResult> {
-    const bridge = BRIDGE_TABLES[entityType];
+    const bridge = this.bridges.require(entityType);
     const em = this.emFactory();
 
     const inserted = await em
@@ -155,7 +138,7 @@ export class SalesChannelMembershipService {
     entityId: string,
     options: MembershipMutationOptions = {},
   ): Promise<MembershipMutationResult> {
-    const bridge = BRIDGE_TABLES[entityType];
+    const bridge = this.bridges.require(entityType);
     const em = this.emFactory();
 
     // Step 1: check existence so the no-op path is idempotent and so FR-008
@@ -234,7 +217,7 @@ export class SalesChannelMembershipService {
     entityType: ChannelMemberEntityType,
     entityId: string,
   ): Promise<MembershipMutationResult> {
-    const bridge = BRIDGE_TABLES[entityType];
+    const bridge = this.bridges.require(entityType);
     const em = this.emFactory();
 
     const remaining = await this.countMembershipsForEntity(em, bridge, entityId);
@@ -282,7 +265,7 @@ export class SalesChannelMembershipService {
     targetEntityId: string,
     options: MembershipMutationOptions = {},
   ): Promise<{ copied: number }> {
-    const bridge = BRIDGE_TABLES[entityType];
+    const bridge = this.bridges.require(entityType);
     const em = this.emFactory();
     const rows = await em
       .getConnection()
@@ -321,7 +304,7 @@ export class SalesChannelMembershipService {
     channelIds: readonly [string, ...string[]],
     options: MembershipMutationOptions = {},
   ): Promise<MembershipMutationResult> {
-    const bridge = BRIDGE_TABLES[entityType];
+    const bridge = this.bridges.require(entityType);
     const desiredIds = [...new Set(channelIds)];
     const em = this.emFactory();
     const existingRows = await em
@@ -401,7 +384,7 @@ export class SalesChannelMembershipService {
     entityIds: readonly string[],
   ): Promise<string[]> {
     if (entityIds.length === 0) return [];
-    const bridge = BRIDGE_TABLES[entityType];
+    const bridge = this.bridges.require(entityType);
     const em = this.emFactory();
     const placeholders = entityIds.map(() => '?').join(',');
     const rows = await em
@@ -421,7 +404,7 @@ export class SalesChannelMembershipService {
     entityType: ChannelMemberEntityType,
     entityId: string,
   ): Promise<SalesChannel[]> {
-    const bridge = BRIDGE_TABLES[entityType];
+    const bridge = this.bridges.require(entityType);
     const em = this.emFactory();
     const rows = await em
       .getConnection()
@@ -443,7 +426,7 @@ export class SalesChannelMembershipService {
     page = 0,
     pageSize = 100,
   ): Promise<{ entityIds: string[]; total: number }> {
-    const bridge = BRIDGE_TABLES[entityType];
+    const bridge = this.bridges.require(entityType);
     const em = this.emFactory();
 
     const totalRows = await em
@@ -476,7 +459,7 @@ export class SalesChannelMembershipService {
 
   private async countMembershipsForEntity(
     em: EntityManager,
-    bridge: BridgeShape,
+    bridge: ChannelBridgeRegistration,
     entityId: string,
   ): Promise<number> {
     const rows = await em
