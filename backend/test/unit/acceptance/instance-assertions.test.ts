@@ -30,7 +30,9 @@ import {
   evaluateA4,
   evaluateA10,
   evaluateA11,
+  evaluateA13,
   evaluateA14,
+  evaluateA5,
   evaluateProcess,
   exitCodeFor,
   exitCodeForExpectation,
@@ -363,6 +365,116 @@ describe('A11 — no file of the platform, and none of the shell', () => {
 
   it('is unmeasured when neither package resolved at all', () => {
     expect(evaluateA11(tree, []).state).toBe('unmeasured');
+  });
+});
+
+describe('A5 — the built admin bundle holds exactly the installed modules', () => {
+  const bundle = (
+    overrides: Partial<Parameters<typeof evaluateA5>[0]> = {},
+  ): Parameters<typeof evaluateA5>[0] => ({
+    built: true,
+    named: ['catalog', 'orders'],
+    expected: ['catalog', 'orders'],
+    installed: ['catalog', 'orders', 'taxes'],
+    bytes: 900_000,
+    ...overrides,
+  });
+
+  it('passes when the bundle names exactly the modules that publish a layer', () => {
+    const result = evaluateA5(bundle());
+    expect(result.state).toBe('pass');
+    expect(result.detail).toContain('exactly the 2 installed module packages');
+  });
+
+  it('fails on a screen the client installed and cannot reach', () => {
+    const result = evaluateA5(bundle({ named: ['catalog'] }));
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('missing: orders');
+  });
+
+  it('fails on a module named in the bundle that is not installed', () => {
+    const result = evaluateA5(bundle({ named: ['catalog', 'orders', 'blog'] }));
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('not installed and named anyway: blog');
+  });
+
+  /**
+   * The three vacuous states, each distinguished from the failure it resembles.
+   * A bundle that was never built, one that is there and empty, and a module
+   * set in which nothing publishes a screen all satisfy "exactly" over an empty
+   * set — and reporting any of them as a pass is R6.4's own prohibition.
+   */
+  it('is unmeasured, not failed, when there is nothing to read', () => {
+    expect(evaluateA5(bundle({ built: false })).state).toBe('unmeasured');
+    expect(evaluateA5(bundle({ bytes: 0 })).state).toBe('unmeasured');
+    const noLayers = evaluateA5(bundle({ expected: [], named: [] }));
+    expect(noLayers.state).toBe('unmeasured');
+    expect(noLayers.detail).toContain('publishes an admin layer');
+  });
+});
+
+describe('A13 — the built stylesheet carries each package\'s own classes', () => {
+  const witness = (
+    kind: 'shell' | 'module',
+    unique: number,
+    witnesses: readonly string[],
+  ): Parameters<typeof evaluateA13>[0]['packages'][number] => ({
+    packageName: kind === 'shell' ? '@endora-commerce/admin-shell' : '@endora-commerce/mod-blog',
+    kind,
+    unique,
+    witnesses,
+  });
+
+  it('passes when the shell and a module admin layer each witness', () => {
+    const result = evaluateA13({
+      built: true,
+      bytes: 87_000,
+      packages: [witness('shell', 12, ['ring-offset-4']), witness('module', 3, ['gap-x-7'])],
+    });
+    expect(result.state).toBe('pass');
+    expect(result.detail).toContain('@endora-commerce/admin-shell: .ring-offset-4');
+  });
+
+  /**
+   * The defect FR-023 exists for: the enumeration missed a package, Tailwind
+   * said nothing, and every class only that package declares is gone.
+   */
+  it('fails when a package with classes of its own contributed none', () => {
+    const result = evaluateA13({
+      built: true,
+      bytes: 87_000,
+      packages: [witness('shell', 12, ['ring-offset-4']), witness('module', 3, [])],
+    });
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('@endora-commerce/mod-blog (3 of its own)');
+  });
+
+  it('is unmeasured when there is no stylesheet, or nothing only one package uses', () => {
+    expect(evaluateA13({ built: false, bytes: 0, packages: [] }).state).toBe('unmeasured');
+    expect(evaluateA13({ built: true, bytes: 0, packages: [] }).state).toBe('unmeasured');
+    const noSubject = evaluateA13({
+      built: true,
+      bytes: 87_000,
+      packages: [witness('shell', 0, []), witness('module', 0, [])],
+    });
+    expect(noSubject.state).toBe('unmeasured');
+    expect(noSubject.detail).toContain('no other');
+  });
+
+  /**
+   * SC-011 asks for **one from the shell and one from a module's admin layer**,
+   * so a run that could only see one of the two has answered half the
+   * assertion. Reporting that as a pass is how the half nobody measured stops
+   * being measured at all.
+   */
+  it('is unmeasured when only one of the two kinds offered a class of its own', () => {
+    const result = evaluateA13({
+      built: true,
+      bytes: 87_000,
+      packages: [witness('shell', 12, ['ring-offset-4']), witness('module', 0, [])],
+    });
+    expect(result.state).toBe('unmeasured');
+    expect(result.detail).toContain('no module package offered a class of its own');
   });
 });
 

@@ -58,8 +58,8 @@
           "reason": "There is no migrated schema to boot against: A3 fails, so `bootOnce` is not attempted. IT WAS `fail` BEFORE T141 AND THE CHANGE IS HONESTY, NOT A REGRESSION — the migrate step used to exit 0 having done nothing, so the criterion went on to a boot that could not work; now the migration genuinely fails and the criterion says so once. Three of the four defects recorded here at T140 are repaired and each was measured end to end on a module set that does migrate: `_lifecycle` is composed by the platform itself, so the boot no longer refuses with `not-shipped: _lifecycle`; `pnpm run module:install --all` exists, is named by the command's own next steps and by the generated README, and is run by this criterion between `migrate` and `start` (39 modules in 5.6 s, measured); and the `[i18n] reconcile complete` line this assertion requires now appears (`installed=36 skipped=4 failed=0`). TWO BLOCKERS REMAIN BEHIND A3 AND BOTH ARE REPORTED TO THE ORCHESTRATOR. (1) `catalog`'s boot hook resolves `promptActionToolRegistry`, a plain registration `prompt_actions` owns, and the default set does not ship `prompt_actions` — a `contributes-to` edge is classified for an owner that is switched off, not for one that was never composed, so the boot dies with an `AwilixResolutionError`. (2) Of the 23 container names `backend/src/composition.ts` contributes, 22 are not contributed by `composeApp`, and roughly ten of those are not defaulted by the module that resolves them — `newsletterBridge` is the one this run reaches. That is `specs/117-instance-bring-up/` FR-030/FR-031 and T118's remaining drain: an instance supplies no contribute callback (R2.4), so every one of those names is absent in a client's tree."
         },
         "A5": {
-          "status": "unmeasured",
-          "reason": "The command writes no `admin/` member and prints the omission saying so. `contracts/instance-tree.md` §2.4 is that member's file manifest and T138 is the task; the package it needs (`@endora-commerce/admin-shell`) is on `master` at 0.7.0, so this waits on the writer rather than on the package."
+          "status": "pass",
+          "reason": "The built admin bundle names exactly the installed module packages that publish an admin layer — 23 of 30 installed, over 3.6 MiB of JavaScript, measured on the bundle and not on the registry that produced it. The expectation is read off each installed package's own `exports` map and the evidence off the bundle, which is two authors on purpose, as `evaluateA3` already recomputes the migration order rather than reading the one the platform logged. T138 wrote the member; what it also needed was `endora generate`, because the renderer of `contracts/instance-tree.md` §2.6's two artefacts lived in `backend/scripts` and no client can reach it."
         },
         "A6": {
           "status": "unmeasured",
@@ -67,7 +67,7 @@
         },
         "A7": {
           "status": "unmeasured",
-          "reason": "Its three halves are the built admin bundle (A5's subject, T138), the API surface and the module enumeration (A4's). No half of it has a subject in the tree the command writes today."
+          "reason": "Two of its three halves are the API surface and the module enumeration, and both are A4's — the instance does not boot. The third, the built admin bundle, now has a subject and A5 asserts it in one direction (a module named in the bundle and not installed is A5's `extra`), so what is left here is a third of the assertion. It waits on A4, and A4 on A3. T142 is the row."
         },
         "A8": {
           "status": "unmeasured",
@@ -82,20 +82,20 @@
           "reason": "A module set missing a required module is refused with exit 1, the target directory untouched, and the refusal carries verbatim the `activation.reason` an installed manifest declares — which is what R5.6 and D-100 ask for and what an exit-code check alone would not see. The sentences are read out of the packages this run resolved, never from a list in the criterion."
         },
         "A11": {
-          "status": "unmeasured",
-          "reason": "Half of a two-part claim. `@endora-commerce/platform` resolves and none of the files the command wrote is byte-identical to any of the files it ships — measured, and the counts are printed by the run rather than recorded here. `@endora-commerce/admin-shell` does not resolve in the created instance, because there is no admin member to depend on it (A5, T138), so the other half is vacuously true and a green would be claiming it."
+          "status": "pass",
+          "reason": "Both halves have a subject now: `@endora-commerce/platform` and `@endora-commerce/admin-shell` both resolve in the created instance, and none of the 27 files the command wrote is byte-identical to any of the 1036 those two packages ship. The counts are printed by the run rather than recorded here. Two things had to change for the second half to stop being vacuous: T138 wrote the admin member that depends on the shell, and the criterion learned to look for a package in a **member's** `node_modules` as well as the root's — pnpm installs a package where it is declared, so reading the root alone reported `admin-shell does not resolve` over a tree that had it."
         },
         "A12": {
           "status": "unmeasured",
           "reason": "It needs a fixture registry to publish a platform patch into and a second install to pick it up. T144, gated on F10 (`specs/071-modular-packaging/roadmap.md`)."
         },
         "A13": {
-          "status": "unmeasured",
-          "reason": "The built admin stylesheet of a tree with no admin member. T138 writes the member and `contracts/admin-stylesheet-composition.md` is what the assertion is derived from."
+          "status": "pass",
+          "reason": "174 KiB of built stylesheet carries, for each of 16 packages — the shell and 15 module admin layers — a class only that package uses, so its presence can only be explained by that package's own sources having been scanned. A5 says the screens are in the bundle; this says they are visible. Three exclusions keep the witness honest and each was measured rather than reasoned: a token is read only out of a `class`/`className` position (every string literal made i18n keys and DOM ids look like classes and reported seven modules as unscanned), a class the design system's own imported `theme.css` defines is evidence of nothing in either direction, and a token carrying a `.` is escaped in the compiled CSS and could never be matched. A package with no class of its own is counted and skipped, never failed."
         },
         "A14": {
           "status": "pass",
-          "reason": "230 lines of wiring across the 11 files the command classified as wiring, counted on disk in the created tree rather than on the plan, against R1.4's bound of 250. `instance-tree.md` §6's own words: a scaffold that expanded a file after rendering is caught. IT WAS 204 BEFORE T141: the five `module:*` entry points now close the ORM and the Redis connection they opened and exit — without that they printed their answer and hung forever — and `runOperatorCommand` opens the system scope the host's own scripts open. 21 lines of headroom is less than there was; spend it knowingly."
+          "reason": "241 lines of wiring across the 12 files the command classified as wiring, counted on disk in the created tree rather than on the plan, against R1.4's bound of 250. IT WAS 230 BEFORE T138 and the 12th file is the admin member's `src/main.tsx`, at 11 lines including the workspace member line that went with it. It is one line rather than the twenty-odd an entry point of this shape costs because `AdminRoot` moved the four wrappers `App` has to be mounted inside into the shell — three of them are the shell's own requirements, the router flag most of all, whose absence is an admin that navigates nowhere with no error anywhere. **9 lines of headroom.** Spend it knowingly."
         }
       }
     },
@@ -125,6 +125,17 @@
     "each verified end to end on a module set that does migrate: root scripts reach the member;",
     "an instance runs the platform's own twelve migrations and registers its six entities;",
     "`_lifecycle` is composed by the platform rather than by a generated index no instance has;",
-    "`module:install --all` exists and is documented; and the operator commands no longer hang."
+    "`module:install --all` exists and is documented; and the operator commands no longer hang.",
+    "",
+    "2026-09-12 — T138, the admin member. Measured on the feature branch: mode `tarball`, 7 pass,",
+    "1 fail, 6 unmeasured. A5, A11 and A13 move from `unmeasured` to `pass` and A14 from 230 lines to",
+    "241, inside the same bound. A3 is unchanged and is still the one red: the platform's own",
+    "migration corpus is not self-contained, which is a schema decision and not this row's. A4 is",
+    "unchanged behind it. A7's reason is narrower than it was, because one of its three halves now has",
+    "a subject. Two defects the member's own build found, both repaired here and neither visible to a",
+    "source-tree check: a module package's optional peers were declared by nobody in a scaffolded",
+    "instance, so Vite bound them to `__vite-optional-peer-dep:` stubs and the whole admin bundle",
+    "failed on a named import; and `mod-settings` statically imported `mod-credentials`' preview modal,",
+    "which takes out every module's screens in any instance that did not install `credentials`."
   ]
 }
