@@ -7394,11 +7394,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // measured on the merged tree.** The nine far-side bridge migrations plus this merge
     // request's own changeset: this walk reads `.changeset/`, which is the whole of the
     // difference from the +9 the source-only walks recorded over the same commit.
-    // **`fix/module-docs-site-tree-links`: files 8131 -> 8132 (+1).** This merge request's own
-    // changeset, and nothing else — every other file it touches already existed. Measured
-    // with the changeset moved aside and back, because a whole-repository walk cannot say
-    // on its own which of its 8000-odd files is the new one.
-    files: 8132,
+    // **`fix/module-docs-site-tree-links`: files 8131 -> 8133 (+2).** This merge request's own two
+    // changesets, and nothing else — every other file it touches already existed. Measured
+    // with them moved aside and back, because a whole-repository walk cannot say on its own
+    // which of its 8000-odd files is the new one.
+    files: 8133,
     sites: null,
     sources: [],
     //
@@ -11283,11 +11283,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // measured on the merged tree.** The nine far-side bridge migrations plus this merge
     // request's own changeset: this walk reads `.changeset/`, which is the whole of the
     // difference from the +9 the source-only walks recorded over the same commit.
-    // **`fix/module-docs-site-tree-links`: files 8191 -> 8192 (+1).** This merge request's own
-    // changeset, and nothing else — every other file it touches already existed. Measured
-    // with the changeset moved aside and back, because a whole-repository walk cannot say
-    // on its own which of its 8000-odd files is the new one.
-    files: 8192,
+    // **`fix/module-docs-site-tree-links`: files 8191 -> 8193 (+2).** This merge request's own two
+    // changesets, and nothing else — every other file it touches already existed. Measured
+    // with them moved aside and back, because a whole-repository walk cannot say on its own
+    // which of its 8000-odd files is the new one.
+    files: 8193,
     sites: null,
     sources: ['manifest-index'],
     //
