@@ -131,6 +131,33 @@ export interface PlanInput {
   readonly modules: readonly { readonly id: string; readonly packageName: string }[];
   /** `null` when the admin shell does not resolve at the version being installed. */
   readonly adminShellVersion: string | null;
+  /** `null` when the admin design system does not resolve. §2.4's other package. */
+  readonly adminKitVersion: string | null;
+  /**
+   * The ranges the admin member's own build tools are written from, each read
+   * off the admin shell's manifest rather than chosen here (R2.5a).
+   *
+   * `react` and `react-dom` are its `peerDependencies` — what a host that
+   * mounts the shell must resolve — and `vite`, `@vitejs/plugin-react`,
+   * `tailwindcss` and `@tailwindcss/vite` are the optional peers by which the
+   * shell states what kind of application a host is. A name with no range here
+   * is **not written and not guessed**: the member is omitted, naming it, for
+   * the same reason `devDependenciesFor` leaves one out.
+   */
+  readonly adminRanges: ReadonlyMap<string, string>;
+  /**
+   * The packages the admin project must supply because what it composes
+   * declares them **optional** — name to range, already resolved.
+   *
+   * `index.ts`' `composedOptionalPeers` is the derivation and carries the
+   * argument: `manifests:generate` marks a peer optional exactly when only a UI
+   * layer reaches it, so for a project that renders those UI layers the set is
+   * not optional but **required**, and it is the one statement in either tree of
+   * what an admin host has to have.
+   */
+  readonly adminPeers: ReadonlyMap<string, string>;
+  /** The CLI's own version — `endora generate` is what renders §2.6's artefacts. */
+  readonly cliVersion: string;
   /**
    * The ranges the instance's own `devDependencies` are derived from, each read
    * off a manifest this run resolved rather than chosen here (R2.5a).
@@ -184,9 +211,21 @@ export function assertDeploymentName(deployment: string): void {
   );
 }
 
-/** The two derived artefacts an instance generates and commits none of (§2.6). */
+/**
+ * The derived artefacts an instance generates and commits none of (§2.6,
+ * `instance-repository.md` R3.2).
+ *
+ * **There are three and this list carried two** until T138 wrote the admin
+ * member. `admin/src/tailwind.generated.css` arrived with T124 on the same day
+ * this command landed, R3.2 already said three, and `new-instance.test.ts`'
+ * *"both generated artefacts are git-ignored"* asserted the stale count rather
+ * than catching it. A committed stylesheet enumeration is the tree and the
+ * install disagreeing about which packages were scanned — which is silent, and
+ * is the whole failure `admin-stylesheet-composition.md` exists for.
+ */
 export const GENERATED_ARTEFACTS = [
   'admin/src/modules.generated.ts',
+  'admin/src/tailwind.generated.css',
   'docs/sidebars.modules.generated.js',
 ] as const;
 
@@ -224,18 +263,38 @@ export function envExample(inputs: readonly InstanceBuildInput[]): string {
 export function planInstance(input: PlanInput): InstancePlan {
   const files: PlannedFile[] = [];
   const omitted: PlannedOmission[] = [];
+  // §2.4 — decided first, because the workspace member list, the root scripts
+  // and the `.gitignore` all depend on whether this instance has an operator
+  // interface. Deciding it twice is how two files would come to disagree about
+  // a member one of them writes.
+  const admin = adminMember(input);
 
   const dependencies = new Map<string, string>();
   dependencies.set(`${input.scope}platform`, `^${input.platformVersion}`);
   for (const module of [...input.modules].sort((a, b) => a.id.localeCompare(b.id))) {
     dependencies.set(module.packageName, `^${input.platformVersion}`);
   }
+  // The packages the installed modules declare **optional** — and they are
+  // declared **here**, at the root, rather than in the admin member that needs
+  // them rendered (§2.4).
+  //
+  // pnpm resolves a package's peers from its **dependent's** context, and a
+  // module package's dependent in an instance is this manifest: the module set
+  // is the root's (R3.6) and the admin member declares none of it. So an
+  // optional peer declared in the admin member satisfies nothing — measured,
+  // `mod-invoices`' `@endora-commerce/page-builder-admin` stayed unresolved with
+  // the package installed and declared one member over, and Vite bound the
+  // import to an `__vite-optional-peer-dep:` stub whose every named export is
+  // missing. Declaring the module set a second time in the admin member would
+  // satisfy them and is exactly what R3.6 forbids; declaring their peers beside
+  // them is the same fact in the one place the set already lives.
+  if (admin.written) {
+    for (const [name, range] of [...input.adminPeers].sort(([a], [b]) => a.localeCompare(b))) {
+      if (BUILD_TOOL_PEERS.has(name)) continue;
+      if (!dependencies.has(name)) dependencies.set(name, range);
+    }
+  }
 
-  // §2.4 — the admin member. It is not written by this build, and its absence
-  // is printed rather than silent for `instance-repository.md` R8.2's reason
-  // one surface over: a member that is simply not there is indistinguishable
-  // from one nobody asked for, and a client who does not know they have no
-  // operator interface spends their first hour looking for one.
   // §2.3's host CLI dispatcher. Named rather than silently absent, for the
   // same reason the admin member is: a client who does not know a file is
   // missing spends their first hour looking for it.
@@ -249,16 +308,7 @@ export function planInstance(input: PlanInput): InstancePlan {
       `does; the five \`module:*\` commands are not, and are written`,
   });
 
-  omitted.push({
-    path: 'admin/',
-    reason:
-      input.adminShellVersion === null
-        ? `${input.scope}admin-shell does not resolve at the version being installed; an ` +
-          `instance scaffolded now is a headless API`
-        : `${input.scope}admin-shell resolves at ${input.adminShellVersion}, and the member's ` +
-          `file manifest is \`contracts/instance-tree.md\` §2.4's, which this build does not ` +
-          `write; an instance scaffolded now is a headless API`,
-  });
+  if (admin.omission !== null) omitted.push({ path: 'admin/', reason: admin.omission });
 
   // --- the workspace root (§2.1) -------------------------------------------
   files.push({
@@ -291,7 +341,15 @@ export function planInstance(input: PlanInput): InstancePlan {
       scripts: {
         migrate: 'pnpm -C backend run migrate',
         dev: 'pnpm -C backend run dev',
-        build: 'pnpm -C backend run build',
+        // §2.5's `build` is the whole instance's, and §2.5's `generate` is the
+        // three derived artefacts — two of which are the admin member's, so
+        // both entries name a member that may not be there. An instance with
+        // no operator interface gets neither rather than a script that fails
+        // on a directory nobody wrote.
+        build: admin.written
+          ? 'pnpm -C backend run build && pnpm -C admin run build'
+          : 'pnpm -C backend run build',
+        ...(admin.written ? { generate: 'pnpm -C admin run generate' } : {}),
         start: 'pnpm -C backend run start',
         'module:install': 'pnpm -C backend run module:install',
         'module:uninstall': 'pnpm -C backend run module:uninstall',
@@ -316,6 +374,7 @@ export function planInstance(input: PlanInput): InstancePlan {
       '# set is the one disagreement nothing in this tree could detect.',
       'packages:',
       '  - backend',
+      ...(admin.written ? ['  - admin'] : []),
       '',
     ].join('\n'),
   });
@@ -439,10 +498,15 @@ export function planInstance(input: PlanInput): InstancePlan {
 
   for (const file of backendWiring(input)) files.push(file);
 
+  // --- the admin member (§2.4) ---------------------------------------------
+  for (const file of admin.files) files.push(file);
+
   return {
     files,
     omitted,
-    members: ['root', 'deployment', 'backend'],
+    members: admin.written
+      ? ['root', 'deployment', 'backend', 'admin']
+      : ['root', 'deployment', 'backend'],
     registry: input.registry,
     dependencies,
   };
@@ -842,5 +906,362 @@ install into a second instance is a package: \`pnpm pack\`, then install the tar
 
 \`endora new storefront <dir>\` writes the customer-facing storefront. It is a separate
 repository on purpose: it shares two \`.env\` values with this tree and nothing else.
+`;
+}
+
+// ── the admin member (§2.4) ─────────────────────────────────────────────────
+//
+// `contracts/instance-tree.md` §2.4 in full: *"`admin/index.html`,
+// `admin/src/main.tsx`, `admin/vite.config.ts`, `admin/tailwind.config.ts`, the
+// brand assets, the theme **overrides**, and the **generated** contribution
+// registry and stylesheet enumeration (§2.6). Nothing else."*
+//
+// Two of those nouns no longer describe the tree and are written down here
+// rather than discovered by the next reader.
+//
+//   * **`tailwind.config.ts` does not exist**, in this repository or anywhere
+//     else: Tailwind v4 has no configuration file, and its `@theme` and
+//     `@source` are CSS. What the member holds in its place is `src/index.css`
+//     — the two imports and the override slot, which is §2.4's *"theme
+//     overrides"* and `admin-stylesheet-composition.md` R3.1's.
+//   * **`package.json` and `tsconfig.json` are not in §2.4's list** and a
+//     workspace member is neither without them. §2.3 lists both for the backend;
+//     the omission there is the list's rather than the design's.
+//
+// **The brand assets are not written**, and that is a decision rather than a
+// gap: a logo, a favicon and a PWA icon set are exactly the values R2.5a says a
+// command may not invent, and an instance that shipped ours would be wearing
+// our name. The reference deployment's `public/` also carries the admin service
+// worker, so `registerAdminServiceWorker` — which the shell exports and this
+// entry point does **not** call — would register an asset the tree does not
+// serve. A client drops their own files in `admin/public/` and links them from
+// `index.html`, both of which are theirs.
+
+/** What `planInstance` needs to know about §2.4 before it writes anything else. */
+interface AdminMemberDecision {
+  readonly written: boolean;
+  readonly files: readonly PlannedFile[];
+  /** The sentence printed under `omitted admin/`, or `null` when it is written. */
+  readonly omission: string | null;
+}
+
+/**
+ * The packages the admin member declares, each range read off a manifest this
+ * run resolved (R2.5a) — or the names that had none.
+ *
+ * **It declares no module**, and that is R3.6: *"the set appears exactly once in
+ * the written tree — the root manifest's `dependencies`"*. An instance is a
+ * workspace whose root holds the module packages, so pnpm links them into the
+ * root's `node_modules`, which is where this member's own resolution reaches
+ * them. A second spelling here is the one disagreement nothing in a client's
+ * tree could detect.
+ *
+ * What it does declare is what its **own two source files name**: the shell
+ * `main.tsx` mounts, the design system `index.css` imports, React, and the
+ * build tools. The ranges for those come off the shell's own manifest — its
+ * `peerDependencies` are what a host that mounts it must resolve, and its
+ * optional peers are the shell's statement about what kind of application a
+ * host is.
+ */
+function adminMemberPackages(input: PlanInput): {
+  readonly dependencies: readonly (readonly [string, string])[];
+  readonly devDependencies: readonly (readonly [string, string])[];
+  readonly missing: readonly string[];
+} {
+  const missing: string[] = [];
+  const range = (name: string): string | null => {
+    const found = input.adminRanges.get(name);
+    if (found === undefined || found.length === 0 || found.startsWith('workspace:')) {
+      missing.push(name);
+      return null;
+    }
+    return found;
+  };
+  const dependencies = new Map<string, string>([
+    [`${input.scope}admin-kit`, `^${input.adminKitVersion ?? ''}`],
+    [`${input.scope}admin-shell`, `^${input.adminShellVersion ?? ''}`],
+  ]);
+  const devDependencies: (readonly [string, string])[] = [
+    [`${input.scope}cli`, `^${input.cliVersion}`],
+  ];
+  for (const name of ['react', 'react-dom'] as const) {
+    const declared = range(name);
+    if (declared !== null) dependencies.set(name, declared);
+  }
+  // Nothing else. What the **installed modules** declare optional is the root
+  // manifest's, for the reason written beside it there: pnpm resolves a peer
+  // from the dependent's context, and their dependent is the root.
+  // `typescript` is the CLI's own (R2.3's first named source), exactly as the
+  // backend member's is; the four build tools are the shell's optional peers.
+  const typescript = input.declaredRanges.get('typescript');
+  if (typescript === undefined || typescript.length === 0) missing.push('typescript');
+  else devDependencies.push(['typescript', typescript]);
+  for (const name of ['@tailwindcss/vite', '@vitejs/plugin-react', 'tailwindcss', 'vite'] as const) {
+    const declared = range(name);
+    if (declared !== null) devDependencies.push([name, declared]);
+  }
+  return {
+    dependencies: [...dependencies].sort(([a], [b]) => a.localeCompare(b)),
+    devDependencies: devDependencies.sort(([a], [b]) => a.localeCompare(b)),
+    missing,
+  };
+}
+
+/**
+ * The four the admin member declares as `devDependencies` rather than as
+ * dependencies, because they build the bundle and are not in it.
+ *
+ * They reach this command as the admin shell's own optional peers — its
+ * statement that a host which mounts it is a Vite application compiled with
+ * Tailwind v4 — and that is one set, whichever block a consumer files each
+ * member under.
+ */
+const BUILD_TOOL_PEERS: ReadonlySet<string> = new Set([
+  '@tailwindcss/vite',
+  '@vitejs/plugin-react',
+  'tailwindcss',
+  'vite',
+]);
+
+/**
+ * §2.4, decided and rendered — or omitted, in `new storefront`'s own grammar.
+ *
+ * **Why an omission and not a refusal**, unchanged from the build that wrote no
+ * admin at all: *"the owner's subject is a backend instance, and a command that
+ * refused to write one until an unrelated package existed would be a command
+ * nobody could use to find out whether any of this works."* **Why not silence**:
+ * `instance-repository.md` R8.2's reasoning one surface over — a client who does
+ * not know they have no operator interface spends their first hour looking for
+ * one.
+ *
+ * There are now two ways to reach that omission and they are reported apart,
+ * because the remedies are different: a build in which the shell or the design
+ * system does not resolve, and a build in which one of them does and a range its
+ * own manifest should have declared is not there. The second is R2.5a — *"a
+ * value the tool invented is a value nobody reviewed"* — and naming the range
+ * is what makes it actionable rather than mysterious.
+ */
+function adminMember(input: PlanInput): AdminMemberDecision {
+  const absent = [
+    ...(input.adminShellVersion === null ? [`${input.scope}admin-shell`] : []),
+    ...(input.adminKitVersion === null ? [`${input.scope}admin-kit`] : []),
+  ];
+  if (absent.length > 0) {
+    return {
+      written: false,
+      files: [],
+      omission:
+        `${absent.join(' and ')} ${absent.length === 1 ? 'does' : 'do'} not resolve at the ` +
+        `version being installed, and the admin member is mounted on ${
+          absent.length === 1 ? 'it' : 'them'
+        }; an instance scaffolded now is a headless API`,
+    };
+  }
+  const packages = adminMemberPackages(input);
+  if (packages.missing.length > 0) {
+    return {
+      written: false,
+      files: [],
+      omission:
+        `no manifest this run resolved declares a range for ${packages.missing.join(', ')}, ` +
+        `and the admin member cannot be built without ${
+          packages.missing.length === 1 ? 'it' : 'them'
+        }. A range this command chose would be a value nobody reviewed, so none is written ` +
+        `and an instance scaffolded now is a headless API`,
+    };
+  }
+  return { written: true, files: adminFiles(input, packages), omission: null };
+}
+
+/** The six files §2.4's member is, in the order the plan writes them. */
+function adminFiles(
+  input: PlanInput,
+  packages: ReturnType<typeof adminMemberPackages>,
+): readonly PlannedFile[] {
+  return [
+    {
+      path: 'admin/package.json',
+      kind: 'derived',
+      member: 'admin',
+      content: json({
+        name: `${input.name}-admin`,
+        private: true,
+        type: 'module',
+        scripts: {
+          // `endora generate` renders §2.6's two artefacts over the packages
+          // this instance installed, and `build` runs it first for the reason
+          // both artefacts exist: Vite and Tailwind are static, so a stale or
+          // absent registry is a bundle with screens missing and a stylesheet
+          // with classes missing, neither of which fails loudly.
+          generate: 'endora generate',
+          dev: 'endora generate && vite',
+          build: 'endora generate && vite build',
+          preview: 'vite preview',
+          typecheck: 'tsc --noEmit',
+        },
+        dependencies: Object.fromEntries(packages.dependencies),
+        devDependencies: Object.fromEntries(packages.devDependencies),
+      }),
+    },
+    {
+      path: 'admin/tsconfig.json',
+      kind: 'client',
+      member: 'admin',
+      content: json({
+        compilerOptions: {
+          target: 'ES2023',
+          lib: ['DOM', 'DOM.Iterable', 'ES2023'],
+          module: 'ESNext',
+          moduleResolution: 'Bundler',
+          jsx: 'react-jsx',
+          strict: true,
+          skipLibCheck: true,
+          noEmit: true,
+          types: ['vite/client'],
+          baseUrl: '.',
+          // The `"@/*"` alias is how `endora generate` finds this project: both
+          // artefacts land in the source root of the workspace member that
+          // declares it, which is the derivation `check:admin-surface` and
+          // `check:admin-zones` already share. Renaming it moves the artefacts;
+          // deleting it leaves the generator with no project to write to.
+          paths: { '@/*': ['./src/*'] },
+        },
+        include: ['src'],
+      }),
+    },
+    {
+      path: 'admin/index.html',
+      kind: 'client',
+      member: 'admin',
+      content: adminIndexHtml(input),
+    },
+    {
+      path: 'admin/vite.config.ts',
+      kind: 'client',
+      member: 'admin',
+      content: adminViteConfig(),
+    },
+    {
+      path: 'admin/src/main.tsx',
+      kind: 'wiring',
+      member: 'admin',
+      content: `import { createRoot } from 'react-dom/client';
+import { AdminRoot } from '${input.scope}admin-shell';
+import { MODULE_ADMIN_CONTRIBUTIONS } from './modules.generated.js';
+import './index.css';
+
+const root = document.getElementById('root');
+if (root === null) throw new Error('index.html has no #root to mount into.');
+
+createRoot(root).render(<AdminRoot contributions={MODULE_ADMIN_CONTRIBUTIONS} />);
+`,
+    },
+    {
+      path: 'admin/src/index.css',
+      kind: 'client',
+      member: 'admin',
+      content: adminStylesheet(input),
+    },
+  ];
+}
+
+/** The document the bundle mounts into — the client's, and the client's to brand. */
+function adminIndexHtml(input: PlanInput): string {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- An operator interface is not a public page. -->
+    <meta name="robots" content="noindex, nofollow" />
+    <title>${input.name} — Admin</title>
+    <!--
+      This file is yours. A favicon, a web app manifest, your own fonts and
+      your own <meta> all go here, and the files they name go in \`public/\`.
+      The scaffold writes none of them: a logo is exactly the value a tool may
+      not invent for you.
+    -->
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+`;
+}
+
+/**
+ * The build, which is Vite's business and therefore the client's file.
+ *
+ * Two plugins and a port. `@tailwindcss/vite` is what compiles `index.css`, and
+ * without it every class in this admin is an unrecognised token — silently,
+ * which is the failure `admin-stylesheet-composition.md` is about.
+ */
+function adminViteConfig(): string {
+  return `import { defineConfig, loadEnv } from 'vite';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
+
+export default defineConfig(({ mode }) => {
+  // \`loadEnv(mode, cwd, '')\` — the empty prefix lets this file read an
+  // unprefixed variable such as \`PORT\`. Only \`VITE_*\` reaches the bundle.
+  const env = loadEnv(mode, process.cwd(), '');
+  const port = Number(env['PORT']) || 3002;
+  return {
+    plugins: [react(), tailwindcss()],
+    server: { port, strictPort: true },
+    preview: { port, strictPort: true },
+    // No source maps in a built admin: \`dist\` is served as static files, and a
+    // \`.map\` beside a chunk is every module's screens, route guards and
+    // permission codes, readable by anyone who can reach the app. A
+    // reproduction runs \`pnpm run dev\`, which has them.
+    build: { outDir: 'dist', sourcemap: false },
+  };
+});
+`;
+}
+
+/**
+ * The stylesheet — three imports and the override slot, in that order
+ * (`admin-stylesheet-composition.md` R2.3, R3.1, R3.4).
+ *
+ * The order is the whole mechanism: Tailwind first, the design system's tokens
+ * and classes second, the installed packages' `@source` declarations third, and
+ * this deployment's redeclarations **last**, so a later rule wins over the
+ * package's default. Each semantic token is an indirection, so a utility the
+ * design system's own build never saw still resolves against the `:root` below.
+ */
+function adminStylesheet(input: PlanInput): string {
+  return `@import "tailwindcss";
+
+/*
+ * The admin's design system — its tokens **and** its class vocabulary. It is a
+ * package's, not this project's: a copy of it here would be a fork frozen on
+ * the day you scaffolded, and a module release adding one class would render
+ * unstyled in this instance with no diagnostic anywhere.
+ *
+ * Change a token by redeclaring it in the slot at the bottom of this file, and
+ * a class by writing a later rule there. Never by editing the package.
+ */
+@import "${input.scope}admin-kit/theme.css";
+
+/*
+ * The packages this admin composes, each declaring its own sources.
+ *
+ * Generated by \`pnpm run generate\` (\`endora generate\`) over the packages this
+ * instance installed, and git-ignored: which packages those are is a fact about
+ * the install rather than about this tree. Tailwind is a static scan and says
+ * nothing about a source that matches nothing, so a package that is not scanned
+ * loses every utility class only it declares — silently. Here the failures are
+ * loud instead: a package that is not installed is \`Can't resolve\`, and one
+ * whose tarball omits the file is \`ERR_PACKAGE_PATH_NOT_EXPORTED\`.
+ */
+@import "./tailwind.generated.css";
+
+/*
+ * Your overrides go here, last. A \`:root\` line for a token, an ordinary rule
+ * for a class. This slot is empty rather than absent: your first edit is a line
+ * below this comment, and nothing above it is yours to change.
+ */
 `;
 }

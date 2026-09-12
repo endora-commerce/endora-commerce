@@ -50,11 +50,13 @@ import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { provenanceLine, type ResolvedInput } from '../inputs/resolve.js';
 import { npmrcContent, normalizeRegistry } from '../new-storefront/npmrc.js';
 import {
+  ADMIN_KIT_PACKAGE,
   ADMIN_SHELL_PACKAGE,
   InstanceHostError,
   InstanceInputError,
   resolveInstanceHost,
   type InstanceHost,
+  type ResolvedPackage,
 } from './host.js';
 import { loadModuleCandidates, resolveModuleSet, type ModuleSetResolution } from './modules.js';
 import {
@@ -199,6 +201,7 @@ export async function runNewInstance(
   if (typescriptRange !== undefined) declaredRanges.set('typescript', typescriptRange);
 
   const adminShell = host.packages.get(`${host.scope}${ADMIN_SHELL_PACKAGE}`);
+  const adminKit = host.packages.get(`${host.scope}${ADMIN_KIT_PACKAGE}`);
   const plan = planInstance({
     name,
     deployment,
@@ -213,6 +216,16 @@ export async function runNewInstance(
       .filter((id) => !candidates.get(id)!.carriedByHost)
       .map((id) => ({ id, packageName: candidates.get(id)!.packageName })),
     adminShellVersion: adminShell?.version ?? null,
+    adminKitVersion: adminKit?.version ?? null,
+    adminRanges: adminRangesOf(adminShell),
+    adminPeers: composedOptionalPeers(host, [
+      ...(adminShell === undefined ? [] : [adminShell]),
+      ...(adminKit === undefined ? [] : [adminKit]),
+      ...modules.ids
+        .map((id) => host.packages.get(candidates.get(id)!.packageName))
+        .filter((pkg): pkg is ResolvedPackage => pkg !== undefined),
+    ]),
+    cliVersion: host.cliVersion,
     declaredRanges,
     registry,
     npmrc,
@@ -245,6 +258,111 @@ export async function runNewInstance(
     writeFileSync(target, file.content, 'utf8');
   }
   return result;
+}
+
+/**
+ * The packages an admin project has to supply because the packages it composes
+ * declare them **optional** (§2.4; FR-022 read from the consumer's side).
+ *
+ * `manifests:generate` marks a module package's peer optional *"when every
+ * non-test reach into it came from a UI layer"* — the whole point being that a
+ * backend-only consumer can decline to resolve React, a router and a charting
+ * library. That declaration says something exact about the other consumer:
+ * **an admin project composes those UI layers, so for an admin project the
+ * optional peers are not optional at all.** They are precisely the set a host
+ * that renders these packages must have, and nothing else in either tree says
+ * what it is.
+ *
+ * It is derived rather than listed because a list is wrong the moment a module
+ * grows a screen. Measured before it existed, on the acceptance criterion's own
+ * run: `@endora-commerce/page-builder-core` resolved, its
+ * `@measured/puck` peer did not — pnpm does not auto-install an optional peer —
+ * and Vite bound the import to an `__vite-optional-peer-dep:` stub, so the
+ * scaffolded admin failed to bundle on a package the client had installed.
+ *
+ * The walk starts at the packages the admin mounts and follows their
+ * `@endora-commerce/*` peers, because a module's screens render the page-builder
+ * family's components and those declare optional peers of their own. A peer this
+ * run did not resolve contributes nothing: its optional peers are unknown, and
+ * inventing them is what R2.5a forbids.
+ */
+function composedOptionalPeers(
+  host: InstanceHost,
+  roots: readonly ResolvedPackage[],
+): ReadonlyMap<string, string> {
+  const collected = new Map<string, string>();
+  const seen = new Set<string>();
+  const queue = [...roots];
+  while (queue.length > 0) {
+    const pkg = queue.shift()!;
+    if (seen.has(pkg.name)) continue;
+    seen.add(pkg.name);
+    const peers = pkg.manifest['peerDependencies'];
+    if (peers === null || typeof peers !== 'object') continue;
+    const meta = pkg.manifest['peerDependenciesMeta'];
+    const optional = (name: string): boolean =>
+      meta !== null &&
+      typeof meta === 'object' &&
+      (meta as Record<string, unknown>)[name] !== null &&
+      typeof (meta as Record<string, unknown>)[name] === 'object' &&
+      ((meta as Record<string, { optional?: unknown }>)[name]!.optional === true);
+    for (const [name, range] of Object.entries(peers as Record<string, unknown>)) {
+      const resolved = host.packages.get(name);
+      // Follow every scope peer, optional or not: an optional peer of a package
+      // this admin composes is this admin's to supply, and the package that
+      // declares it may itself be reached only as somebody else's peer.
+      if (resolved !== undefined) queue.push(resolved);
+      if (!optional(name)) continue;
+      if (collected.has(name)) continue;
+      // A **module** package is never declared here, whoever peers on it: the
+      // module set is the root manifest's and appears exactly once in the
+      // written tree (R3.6), and pnpm links a root dependency into the root's
+      // `node_modules`, which is where this member's resolution reaches it. A
+      // module that peers on a module the client did not install is a module
+      // set that is short, and Vite says so loudly — which is the right answer,
+      // and is not one this member's manifest may quietly paper over.
+      if (resolved?.endora?.type === 'module') continue;
+      if (resolved !== undefined) {
+        // A `workspace:` range is what a packed sibling carries here and is
+        // unresolvable outside a workspace; the version it resolved at is the
+        // fact this run actually has (R2.5a).
+        collected.set(name, `^${resolved.version}`);
+        continue;
+      }
+      if (typeof range === 'string' && range.length > 0 && !range.startsWith('workspace:')) {
+        collected.set(name, range);
+      }
+    }
+  }
+  return collected;
+}
+
+/**
+ * What the admin shell says a host that mounts it must resolve (§2.4, R2.5a).
+ *
+ * Its `peerDependencies`, which is the declaration whose whole meaning is *"the
+ * consumer supplies this"* — React and the router — plus the optional peers by
+ * which it states what kind of application a host is: a Vite build with
+ * Tailwind v4. Read off the shell's own manifest and off nothing else, so a
+ * shell that widens `react` widens this in the same run with nothing here to
+ * edit, and a name it stops declaring becomes an omission naming that name
+ * rather than a range this command chose.
+ *
+ * A `workspace:` range is filtered out by the reader rather than here: it is
+ * unresolvable outside this repository's own workspace, and an instance's
+ * manifest carrying one would be a scaffold that cannot install.
+ */
+function adminRangesOf(shell: ResolvedPackage | undefined): ReadonlyMap<string, string> {
+  const ranges = new Map<string, string>();
+  if (shell === undefined) return ranges;
+  for (const field of ['peerDependencies', 'devDependencies'] as const) {
+    const block = shell.manifest[field];
+    if (block === null || typeof block !== 'object') continue;
+    for (const [name, range] of Object.entries(block as Record<string, unknown>)) {
+      if (typeof range === 'string' && !ranges.has(name)) ranges.set(name, range);
+    }
+  }
+  return ranges;
 }
 
 /**

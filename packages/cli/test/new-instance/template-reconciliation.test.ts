@@ -361,7 +361,23 @@ function planInput(overrides: Partial<PlanInput> = {}): PlanInput {
     enginesNode: '>=22.17.0',
     packageManager: undefined,
     modules: [{ id: 'settings', packageName: `${SCOPE}mod-settings` }],
-    adminShellVersion: null,
+    // The admin member, written: T138 made it part of the plan, and a fixture
+    // that left it omitted would reconcile a template one member short of the
+    // one the command builds. Its own files name no host subpath today — and
+    // `hostImportsIn` reads `.ts` only, so a `.tsx` entry point that grew one
+    // would be outside this reconciliation, which is T139's to widen.
+    adminShellVersion: '4.5.6',
+    adminKitVersion: '4.5.6',
+    adminRanges: new Map([
+      ['react', '^19.0.0'],
+      ['react-dom', '^19.0.0'],
+      ['vite', '^7.3.2'],
+      ['@vitejs/plugin-react', '^5.2.0'],
+      ['tailwindcss', '^4.2.4'],
+      ['@tailwindcss/vite', '^4.2.4'],
+    ]),
+    adminPeers: new Map([['lucide-react', '^1']]),
+    cliVersion: '1.2.3',
     declaredRanges: new Map([
       ['@mikro-orm/core', '^6'],
       ['@mikro-orm/postgresql', '^6'],
