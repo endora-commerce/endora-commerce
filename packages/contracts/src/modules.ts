@@ -23,6 +23,7 @@ import { modulePermissionDeclarationSchema } from './admin.js';
 import { errorCodeRe } from './errors.js';
 import { transactionalEmailManifestEntrySchema } from './transactional-emails.js';
 import { BlockCategorySchema, BlockDefinitionSchema, blockNameRe } from './cms.js';
+import { EnvironmentInputSchema } from './environment-inputs.js';
 
 // ---------------------------------------------------------------------------
 // Identifier / version regexes
@@ -922,6 +923,34 @@ export const ModuleManifestSchema = z.object({
    * and `layout` for `email` are two entries.
    */
   blockCategories: z.array(BlockCategorySchema).optional(),
+  /**
+   * The environment inputs this module owns (`specs/117-instance-bring-up/`
+   * FR-002; `contracts/environment-inputs.md` §R2.2).
+   *
+   * **This is the only way a module's requirements can reach a client.** A
+   * module package ships `dist`, `i18n` and `docs`; `.env.example` is a file in
+   * *this* repository. So a client who scaffolds an instance, installs thirty
+   * modules and copies the example gets a file that does not mention the
+   * variables those modules read — and meets each one as a boot that failed for
+   * a reason nothing named. Declared here, the same tree walk that picks up
+   * `permissions`, `actions` and `errorCodes` carries them into the generated
+   * manifest index, so a core module, a per-deployment overlay module and an
+   * installed package all declare on identical terms.
+   *
+   * **A module declares only what it *owns*.** Most of what a module reads is
+   * not its own: `NODE_ENV`, `BACKEND_ROLE`, `STOREFRONT_BASE_URL`,
+   * `REVALIDATE_SECRET` and `SETTINGS_SECRET_ENCRYPTION_KEY` are the platform's,
+   * declared once in `packages/platform/src/env/index.ts`, and a module's read
+   * of one is satisfied by that declaration. Declaring them again would be one
+   * fact with thirty homes and thirty `describes` (D-100), so
+   * {@link defineModuleManifest} refuses an entry whose `owner` is not this
+   * module — and `check:env-inputs` refuses one whose name the platform already
+   * owns.
+   *
+   * Absent means "this module reads no environment variable of its own", which
+   * is true of most modules and is not a finding.
+   */
+  env: z.array(EnvironmentInputSchema).optional(),
 });
 export type ModuleManifest = z.infer<typeof ModuleManifestSchema>;
 
@@ -1268,6 +1297,46 @@ function assertDemoRules(m: ModuleManifest): void {
 }
 
 /**
+ * A module declares only the environment inputs it **owns**
+ * (`specs/117-instance-bring-up/` FR-002, `contracts/environment-inputs.md`
+ * §R2.2).
+ *
+ * The rule this refuses is the one an author gets wrong by being helpful. Of
+ * the 28 variables the module tree reads, 7 are the platform's — `NODE_ENV`,
+ * `BACKEND_ROLE`, `STOREFRONT_BASE_URL`, `PUBLIC_API_BASE_URL`,
+ * `BACKEND_PUBLIC_URL`, `REVALIDATE_SECRET` and
+ * `SETTINGS_SECRET_ENCRYPTION_KEY` — read by thirty modules between them, and an
+ * author declaring what their module reads rather than what it owns writes the
+ * same fact into thirty manifests with thirty `describes`. Whichever a reader
+ * reaches first wins, and the other twenty-nine drift.
+ *
+ * It is refused **here**, in one manifest, at import time, because that is
+ * everything this layer can decide on its own: an `owner` naming another module
+ * or the platform is wrong whatever the rest of the estate holds. What it
+ * cannot decide — whether the name is one the *platform* already declares — is
+ * `check:env-inputs`' `module-declares-a-platform-input`, which needs the
+ * platform's declaration to answer.
+ */
+function assertEnvironmentInputRules(m: ModuleManifest): void {
+  for (const input of m.env ?? []) {
+    const owner = input.owner;
+    if (owner.kind === 'module' && owner.moduleId === m.id) continue;
+    const declared =
+      owner.kind === 'module'
+        ? `the module "${owner.moduleId}"`
+        : owner.kind === 'application'
+          ? `the ${owner.application} application`
+          : 'the platform';
+    throw new Error(
+      `[contracts/modules] manifest "${m.id}" declares the environment input ` +
+        `"${input.name}" as owned by ${declared} — a module declares only what it owns. ` +
+        `A read of somebody else's input is satisfied by *their* declaration; declaring ` +
+        `it here would be one fact with two homes and two descriptions.`,
+    );
+  }
+}
+
+/**
  * Identity-with-validation helper for module authors. Modules export a
  * single `manifest` constant via this helper so TypeScript inference is
  * preserved and the loader can ingest the validated payload directly.
@@ -1313,6 +1382,7 @@ export function defineModuleManifest(m: ModuleManifest): ModuleManifest {
   assertErrorCodeRules(m);
   assertBlockRules(m);
   assertDemoRules(m);
+  assertEnvironmentInputRules(m);
   return ModuleManifestSchema.parse(m);
 }
 
