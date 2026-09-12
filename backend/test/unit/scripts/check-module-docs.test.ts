@@ -16,7 +16,9 @@ import {
   navigationEntriesIn,
   PAGES_OUTSIDE_THE_NAVIGATION,
   pageKey,
+  pageLinksOf,
   proseKey,
+  vacuousLinkWalkReason,
   sitesOf,
   type DerivedFactSite,
   type ForeignLinkLedger,
@@ -34,6 +36,7 @@ import {
   relativeLinksIn,
   resolveDocsLayout,
   slugNamesModule,
+  type DocsAttribution,
 } from '../../../scripts/lib/module-docs.js';
 import {
   createModuleDocsFixture,
@@ -79,32 +82,15 @@ function compliant(): {
  * The links a fixture's module-owned pages write, resolved as the real run
  * resolves them.
  *
- * The same three steps `main` takes — read the file, resolve the relative
- * target to a doc id, and ask which module owns the page at that id — so a
- * proof's link population is produced by the reader under test rather than
- * declared beside it.
+ * `pageLinksOf` is the run's **own** derivation, called here with the fixture's
+ * bytes — read the file, resolve the relative target to a doc id, ask which
+ * module owns the page at that id, and record whether the target climbed above
+ * the category at all. A second copy of those four steps in the fixture would be
+ * a second answer to what a link resolves to, which is the shape this estate
+ * refuses; the reader under test produces the proof's population.
  */
-function linksOf(fixture: ReturnType<typeof createModuleDocsFixture>): PageLink[] {
-  const owner = new Map<string, string>();
-  for (const page of fixture.pages) {
-    if (page.origin.kind === 'module' && page.origin.moduleId !== null) {
-      owner.set(page.docId, page.origin.moduleId);
-    }
-  }
-  const links: PageLink[] = [];
-  for (const page of fixture.pages) {
-    if (page.origin.kind !== 'module' || page.origin.moduleId === null) continue;
-    for (const link of relativeLinksIn(page, readFileSync(page.path, 'utf8'))) {
-      links.push({
-        fromModule: page.origin.moduleId,
-        fromDocId: page.docId,
-        toModule: link.docId === null ? null : owner.get(link.docId) ?? null,
-        toDocId: link.docId,
-        target: link.target,
-      });
-    }
-  }
-  return links;
+function linksOf(attribution: DocsAttribution): PageLink[] {
+  return pageLinksOf(attribution, (path) => readFileSync(path, 'utf8'));
 }
 
 function run(
@@ -151,7 +137,7 @@ function run(
         mapArtefactNaming(rows),
         modules.map((module) => module.id),
       ),
-      links: overrides.links ?? linksOf(fixture),
+      links: overrides.links ?? linksOf(attribution),
       proseSites: overrides.proseSites ?? [],
       ledgers: {
         undocumented: {},
@@ -683,7 +669,7 @@ describe('the finding predicates', () => {
       ]);
     });
 
-    it("does not report a module's link into its own pages, or one leaving the category", () => {
+    it("does not report a module's link into its own pages", () => {
       const result = run({
         modules: [
           {
@@ -692,9 +678,13 @@ describe('the finding predicates', () => {
               {
                 path: 'catalog.md',
                 frontMatter: { title: 'Catalog' },
-                body: 'See [attrs](./catalog/attributes.md) and [ops](../operations/runbooks).',
+                body: 'See [attrs](./catalog/attributes.md).',
               },
-              { path: 'catalog/attributes.md', frontMatter: { title: 'Attributes' } },
+              {
+                path: 'catalog/attributes.md',
+                frontMatter: { title: 'Attributes' },
+                body: 'Back up to [catalog](../catalog.md), which is still inside the category.',
+              },
             ],
           },
           { id: 'blog', docs: [{ path: 'blog/index.md', frontMatter: { title: 'Blog' } }] },
@@ -706,6 +696,161 @@ describe('the finding predicates', () => {
         ],
       });
       expect(result.findings).toEqual([]);
+    });
+
+    // The new target position, and the one the sibling sweep waved through for
+    // as long as it existed: `toModule === null` was `continue`, so a link into
+    // the site's own tree was classified by nothing at all. It is reported per
+    // **site** — the page and the link as written — because there is no ledger
+    // to key and that pair is what an author needs to rewrite the sentence.
+    it("reports a module page's relative link into the site's own tree", () => {
+      const result = run({
+        modules: [
+          {
+            id: 'catalog',
+            docs: [
+              {
+                path: 'catalog.md',
+                frontMatter: { title: 'Catalog' },
+                body: 'See [fields](../architecture/custom-fields.md).',
+              },
+            ],
+          },
+          { id: 'blog', docs: [{ path: 'blog/index.md', frontMatter: { title: 'Blog' } }] },
+        ],
+        pages: [],
+        rows: [
+          { moduleId: 'catalog', slug: 'catalog' },
+          { moduleId: 'blog', slug: 'blog' },
+        ],
+      });
+      expect(result.findings).toEqual([
+        expect.objectContaining({
+          kind: 'site-tree-link',
+          key: 'modules/catalog -> ../architecture/custom-fields.md',
+        }),
+      ]);
+    });
+
+    // The same defect written from a sub-page, where it takes **two** `..` to
+    // leave the category and the first one is an ordinary sibling hop. A
+    // depth-blind predicate — one that keyed on the literal `../` prefix rather
+    // than on where the path resolves — would report the sub-page's link into
+    // its own module as a finding and miss this one.
+    it('reports it from a sub-page, where the first `..` is still inside the category', () => {
+      const result = run({
+        modules: [
+          {
+            id: 'catalog',
+            docs: [
+              { path: 'catalog.md', frontMatter: { title: 'Catalog' } },
+              {
+                path: 'catalog/attributes.md',
+                frontMatter: { title: 'Attributes' },
+                body: 'Up to [catalog](../catalog.md), out to [fields](../../architecture/x.md).',
+              },
+            ],
+          },
+          { id: 'blog', docs: [{ path: 'blog/index.md', frontMatter: { title: 'Blog' } }] },
+        ],
+        pages: [],
+        rows: [
+          { moduleId: 'catalog', slug: 'catalog' },
+          { moduleId: 'blog', slug: 'blog' },
+        ],
+      });
+      expect(result.findings).toEqual([
+        expect.objectContaining({
+          kind: 'site-tree-link',
+          key: 'modules/catalog/attributes -> ../../architecture/x.md',
+        }),
+      ]);
+    });
+
+    // The discrimination that says the predicate is *where the target resolves*
+    // and not *the doc id came back null*. A link to the category **root** also
+    // resolves to no doc id, and every instance has that page because the
+    // generator writes it — so reading `toModule === null` as the finding would
+    // report a link that is correct everywhere.
+    it('says nothing about a link to the modules category root', () => {
+      const result = run({
+        modules: [
+          {
+            id: 'catalog',
+            docs: [
+              { path: 'catalog.md', frontMatter: { title: 'Catalog' } },
+              {
+                path: 'catalog/attributes.md',
+                frontMatter: { title: 'Attributes' },
+                body: 'See the [module index](../.).',
+              },
+            ],
+          },
+          { id: 'blog', docs: [{ path: 'blog/index.md', frontMatter: { title: 'Blog' } }] },
+        ],
+        pages: [],
+        rows: [
+          { moduleId: 'catalog', slug: 'catalog' },
+          { moduleId: 'blog', slug: 'blog' },
+        ],
+      });
+      expect(result.findings).toEqual([]);
+    });
+
+    // The refusal that keeps this kind honest. `site-tree-link` has no ledger to
+    // go loudly stale, so a walk that resolved no link at all would print a
+    // clean line over every page in every package — #237's shape, where `files`
+    // holds steady while the syntax walk goes blind.
+    it('refuses a link walk that came back empty, and passes one that did not', () => {
+      expect(vacuousLinkWalkReason([], '/docs/modules')).toContain('/docs/modules');
+      expect(vacuousLinkWalkReason([], '/docs/modules')).toContain('no ledger');
+      expect(
+        vacuousLinkWalkReason(
+          [
+            {
+              fromModule: 'catalog',
+              fromDocId: 'modules/catalog',
+              toModule: null,
+              toDocId: null,
+              target: '../architecture/x.md',
+              leavesCategory: true,
+            },
+          ],
+          '/docs/modules',
+        ),
+      ).toBeNull();
+    });
+
+    // The two kinds are reported apart, over one page, because they differ in
+    // fate: the sibling link drains through a ledger as each module's author
+    // rewrites a sentence, and the site-tree link has no ledger and no instance
+    // in which it resolves. One kind over both would make the second wait on the
+    // first's drain.
+    it('reports a sibling link and a site-tree link on one page as two kinds', () => {
+      const result = run({
+        modules: [
+          {
+            id: 'catalog',
+            docs: [
+              {
+                path: 'catalog.md',
+                frontMatter: { title: 'Catalog' },
+                body: 'See [blog](./blog/index.md) and [fields](../architecture/x.md).',
+              },
+            ],
+          },
+          { id: 'blog', docs: [{ path: 'blog/index.md', frontMatter: { title: 'Blog' } }] },
+        ],
+        pages: [],
+        rows: [
+          { moduleId: 'catalog', slug: 'catalog' },
+          { moduleId: 'blog', slug: 'blog' },
+        ],
+      });
+      expect(result.findings.map((finding) => finding.kind).sort()).toEqual([
+        'foreign-module-link',
+        'site-tree-link',
+      ]);
     });
 
     it('reports both directions of the foreign-link ledger, count included', () => {
@@ -816,9 +961,25 @@ describe('the finding predicates', () => {
       expect(
         relativeLinksIn(page, 'a [x](../catalog.md) b [y](./attribute-sets.md#anchor) c [z](../../a/b)'),
       ).toEqual([
-        { target: '../catalog.md', docId: 'modules/catalog' },
-        { target: './attribute-sets.md#anchor', docId: 'modules/catalog/attribute-sets' },
-        { target: '../../a/b', docId: null },
+        { target: '../catalog.md', docId: 'modules/catalog', leavesCategory: false },
+        {
+          target: './attribute-sets.md#anchor',
+          docId: 'modules/catalog/attribute-sets',
+          leavesCategory: false,
+        },
+        { target: '../../a/b', docId: null, leavesCategory: true },
+      ]);
+    });
+
+    // The resolver keeps the two null-doc-id states apart, which is the whole of
+    // what `site-tree-link` rests on: a link that **left** the category names a
+    // page only this repository's site has, and a link to the category **root**
+    // names one every instance has. Both come back with no doc id.
+    it('tells a link that left the category from one that resolved to its root', () => {
+      const page = { relativePath: 'catalog/attributes.md' } as never;
+      expect(relativeLinksIn(page, 'a [x](../../architecture/y.md) b [y](../.)')).toEqual([
+        { target: '../../architecture/y.md', docId: null, leavesCategory: true },
+        { target: '../.', docId: null, leavesCategory: false },
       ]);
     });
   });

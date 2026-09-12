@@ -5588,7 +5588,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 266 -> 270.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 270,
+    // **`site-tree-link`: sites 270 -> 262, and `files` did not move.** The
+    // finding is the same walk with the target position widened, so it added no
+    // population — what moved the number is the **repair**: the eight links into
+    // this repository's own site tree, in six module packages, are now prose.
+    // 45 links -> 37, the navigation entries and the map rows untouched. Both
+    // halves are the #235/#237 shape read the other way round: a widening that
+    // classifies an existing population moves neither number, and the edit that
+    // follows it moves `sites` alone.
+    sites: 262,
     // Three authors, each seeing something the others cannot. `manifest-index`
     // is issue #215's shared floor over the module walk, whose unit is the
     // module's own directory. `sidebar-entries` is the **committed artefact's**
@@ -7386,7 +7394,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // measured on the merged tree.** The nine far-side bridge migrations plus this merge
     // request's own changeset: this walk reads `.changeset/`, which is the whole of the
     // difference from the +9 the source-only walks recorded over the same commit.
-    files: 8131,
+    // **`fix/module-docs-site-tree-links`: files 8131 -> 8132 (+1).** This merge request's own
+    // changeset, and nothing else — every other file it touches already existed. Measured
+    // with the changeset moved aside and back, because a whole-repository walk cannot say
+    // on its own which of its 8000-odd files is the new one.
+    files: 8132,
     sites: null,
     sources: [],
     //
@@ -11271,7 +11283,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // measured on the merged tree.** The nine far-side bridge migrations plus this merge
     // request's own changeset: this walk reads `.changeset/`, which is the whole of the
     // difference from the +9 the source-only walks recorded over the same commit.
-    files: 8191,
+    // **`fix/module-docs-site-tree-links`: files 8191 -> 8192 (+1).** This merge request's own
+    // changeset, and nothing else — every other file it touches already existed. Measured
+    // with the changeset moved aside and back, because a whole-repository walk cannot say
+    // on its own which of its 8000-odd files is the new one.
+    files: 8192,
     sites: null,
     sources: ['manifest-index'],
     //
