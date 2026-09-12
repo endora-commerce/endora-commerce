@@ -26,7 +26,7 @@
  * where"*: `manifests:generate` renders the stylesheet and its `exports`/`files`
  * entries (R1.4), `composer:generate` renders `admin/src/tailwind.generated.css`
  * over the packages that declare the subpath (R2.1), and the guard
- * (`scripts/tailwind-source-scan.ts`) plants a probe in each directory and
+ * (`backend/scripts/tailwind-source-scan.ts`) plants a probe in each directory and
  * asserts the compiled stylesheet carries it (T125). Two derivations of one
  * population are two answers waiting to disagree, and the disagreement here is
  * invisible: the stylesheet would name a directory the guard never probes, or

@@ -89,12 +89,15 @@ import { declaresRegisterModule } from './lib/module-roots.js';
 // own (R1.3): one derivation, so the artefact cannot come to disagree with the
 // algorithm that reads it.
 import { BASELINE_THROUGH, historicalBaselineOrder } from '@endora-commerce/platform/db';
-import { ADMIN_REGISTRY_ARTEFACT, findAliasMember } from './lib/admin-surfaces.js';
-import { nodeWorkspaceFs, workspaceMembers } from './lib/workspace-packages.js';
 import {
-  TAILWIND_REGISTRY_ARTEFACT,
-  TAILWIND_SOURCE_SUBPATH,
-} from './lib/tailwind-sources.js';
+  adminRegistryOutputPathIn,
+  collectAdminContributions,
+  collectTailwindSources,
+  emitAdminRegistry,
+  emitTailwindRegistry,
+  tailwindRegistryOutputPathIn,
+} from './lib/admin-artefacts.js';
+import { nodeWorkspaceFs, workspaceMembers } from './lib/workspace-packages.js';
 import {
   attributeDocs,
   categoryPositionOf,
@@ -182,8 +185,8 @@ export function generatedArtifactPaths(): readonly string[] {
     entitiesRegistryOutputPath,
     migrationsRegistryOutputPath,
     baselineListOutputPath(),
-    adminRegistryOutputPath(),
-    tailwindRegistryOutputPath(),
+    adminRegistryOutputPathIn(repoRoot),
+    tailwindRegistryOutputPathIn(repoRoot),
     ...docsArtefactPaths(),
   ];
 }
@@ -191,7 +194,7 @@ export function generatedArtifactPaths(): readonly string[] {
 /**
  * The two documentation artefacts, at the site the workspace declares.
  *
- * A function for the same reason `adminRegistryOutputPath` is: the site's
+ * A function for the same reason `adminRegistryOutputPathIn` is: the site's
  * location is filesystem work over the workspace globs, and a module-level
  * constant would do it at *import* time — so a tree with no Docusaurus site
  * would throw before any caller had a chance to say what it was doing.
@@ -2073,201 +2076,15 @@ export function renderBaselineList(sources: SourceTree = readSourceTree()): {
 // is written into the **admin** application, because that is the program that
 // consumes it, and its location is derived from the `"@/*"` alias exactly as
 // `check:admin-surface` and `check:admin-zones` derive theirs.
-
-/** The layer a module package publishes its admin contributions from. */
-const ADMIN_LAYER = 'admin';
-
-/** Where a module package that ships **sources** keeps that layer. */
-const ADMIN_LAYER_ENTRY = `src/${ADMIN_LAYER}/index.ts`;
-
-/** Where a module package that ships **sources** keeps them at all. */
-const PACKAGE_SOURCE_ROOT = 'src';
-
-/** One module package's admin contribution, as the artefact names it. */
-export interface AdminContributionEntry {
-  /** `endora.id`, the identity of record (D-142). */
-  readonly moduleId: string;
-  /** The bare specifier, derived from the package's own `exports` map (D-149). */
-  readonly specifier: string;
-}
-
-/**
- * Every module package that ships an admin layer, sorted by module id.
- *
- * **Discovery is the package's own statement about itself** (R2): the `endora`
- * block says it is a module, and the presence of `src/admin/index.ts` says it
- * contributes. Nothing keys on a directory name and `packages/modules` is
- * spelled nowhere (D-100).
- *
- * **A module with the layer and no `./admin` subpath is refused, not skipped**
- * (R4). `packageSpecifierFor` raises `ModulePackageError` naming the file and
- * the declared subpaths, because a skip is how a whole layer goes missing
- * without a word — the same reason a packaged migration covered by no declared
- * subpath is refused rather than dropped.
- */
-export function collectAdminContributions(
-  packages: readonly ModulePackage[],
-  exists: (path: string) => boolean = existsSync,
-): readonly AdminContributionEntry[] {
-  const found: AdminContributionEntry[] = [];
-  for (const pkg of packages) {
-    const specifier = adminLayerSpecifierOf(pkg, exists);
-    if (specifier === null) continue;
-    found.push({ moduleId: pkg.moduleId, specifier });
-  }
-  return found.sort((a, b) => a.moduleId.localeCompare(b.moduleId));
-}
-
-/**
- * The bare specifier of one package's admin layer, or `null` when it ships none.
- *
- * **Two shapes of package, one question, and the evidence decides which is
- * being asked** (`specs/110-instance-repository/` FR-005). A package this
- * repository holds ships its sources, so the layer is a source file and the
- * specifier comes from taking that file through the package's emit layout and
- * its `exports` map, exactly as it always has. A package an **instance**
- * installed ships `dist` and nothing else — its `files` list carries no `src/`
- * — so the only evidence it can offer is its own `exports` map, and the layer
- * is the subpath whose target covers a directory named {@link ADMIN_LAYER}.
- *
- * **Which question is asked is decided by the package's own declaration, not by
- * a fallback.** A package that declares a build layout — `tsconfig.build.json`,
- * which is in no published package's `files` list — ships sources and is judged
- * by its sources, full stop. Without that clause a member whose admin layer was
- * **deleted** would go on contributing out of a stale `dist/admin/`, because
- * `tsc` does not remove what it no longer emits, and the registry would name a
- * screen whose source is gone. The `src/` probe is the same statement for a
- * package that ships sources and declares no build at all.
- *
- * A source layer the `exports` map does not cover is still a refusal, and
- * `packageSpecifierFor` is what raises it (R4): a skip is how a whole layer
- * goes missing without a word.
- */
-function adminLayerSpecifierOf(
-  pkg: ModulePackage,
-  exists: (path: string) => boolean,
-): string | null {
-  const shipsSources =
-    pkg.emit !== null || exists(absolutePathInPackage(pkg, PACKAGE_SOURCE_ROOT));
-  if (shipsSources) {
-    return exists(absolutePathInPackage(pkg, ADMIN_LAYER_ENTRY))
-      ? packageSpecifierFor(pkg, ADMIN_LAYER_ENTRY)
-      : null;
-  }
-  return publishedAdminLayerSpecifierOf(pkg, exists);
-}
-
-/**
- * The declared subpath serving an installed package's admin layer, or `null`.
- *
- * The subpath's **name** is not read — a package may call it anything — and
- * neither is `dist`. What is read is where its target lands: the directory a
- * barrel covers, whose last segment is the layer's. A subpath whose target file
- * is not in the package is a **refusal**, because the registry would import it
- * and Vite would fail to resolve it at bundle time, which is a failure a client
- * cannot attribute to anything.
- */
-function publishedAdminLayerSpecifierOf(
-  pkg: ModulePackage,
-  exists: (path: string) => boolean,
-): string | null {
-  for (const [subpath, target] of pkg.exports) {
-    if (subpath === './package.json') continue;
-    const relativePath = target.replace(/^\.\//, '');
-    const directory = dirname(relativePath);
-    if (directory.split('/').pop() !== ADMIN_LAYER) continue;
-    if (!exists(absolutePathInPackage(pkg, relativePath))) {
-      throw new ModulePackageError(
-        `[composer] ${pkg.name} exports '${subpath}' as ${target}, and that file is not in ` +
-          `the package. The admin registry imports the layer by that specifier, so an entry ` +
-          `for it would break the bundle; dropping it instead is how a client loses a screen ` +
-          `they installed with no error anywhere.`,
-      );
-    }
-    return `${pkg.name}/${subpath.replace(/^\.\//, '')}`;
-  }
-  return null;
-}
-
-/** A JS identifier for one entry's import binding — `import_export` → `contributions0`. */
-function adminBindingOf(index: number): string {
-  return `contributions${index}`;
-}
-
-/** Pure render of the admin registry, exported so a test can drive it. */
-export function emitAdminRegistry(entries: readonly AdminContributionEntry[]): string {
-  const imports = entries
-    .map(
-      (entry, index) =>
-        `import { contributions as ${adminBindingOf(index)} } from '${entry.specifier}';`,
-    )
-    .join('\n');
-  const body = entries
-    .map(
-      (entry, index) =>
-        `  { moduleId: '${entry.moduleId}', contributions: ${adminBindingOf(index)} },`,
-    )
-    .join('\n');
-
-  return `${HEADER('generate-composer.ts')}//
-// The admin contribution registry — every module package's \`./admin\` layer,
-// named by the bare specifier its own \`exports\` map declares (feature 091,
-// \`contracts/admin-registry.md\`).
 //
-// It exists because \`admin/src/App.tsx\` and \`admin/src/components/AppShell.tsx\`
-// were the last two registries a module author had to hand-edit. Measured over
-// the twelve most recently added modules, 11 of 12 edited each of them, while
-// every backend registration point they also used to edit — the composition,
-// the two \`db/\` registries, the manifest index, the permission inventory — had
-// already been converted to a generator or a derivation. This is that remedy,
-// applied to the two that were left.
-//
-// **Enumerable without being executed.** Every route and zone component in a
-// contribution is a \`() => import('…')\` factory, so importing this file costs
-// the declarations and none of the screens: Vite splits one chunk per module
-// and an operator downloads only what their role can reach.
-//
-// **The registry answers "what could be here", never "what is here now".**
-// Presence and permission are applied at render by \`isSurfaceVisible\`, the one
-// predicate the sidebar, the palette and the dashboard already share — an
-// operator's activation flip must take effect without a rebuild (Principle XVII
-// item 5), and a registry that filtered would make it a restart.
-//
-// **Bare core under every value of \`DEPLOYMENT\`** (D-104), like the manifest
-// index: a deployment's overlay modules are discovered at runtime and
-// contribute to no committed artefact.
-
-import type { AdminContributions } from '@endora-commerce/admin-kit/contributions';
-
-${imports}
-
-/** One module's contribution set, keyed by the module id that shipped it. */
-export interface AdminRegistryEntry {
-  readonly moduleId: string;
-  readonly contributions: AdminContributions;
-}
-
-export const MODULE_ADMIN_CONTRIBUTIONS: readonly AdminRegistryEntry[] = [
-${body}
-];
-`;
-}
-
-/**
- * Where the registry lands: the source root of the workspace member declaring
- * the `"@/*"` alias.
- *
- * Derived rather than spelled, for the reason `lib/admin-surfaces.ts` gives at
- * length: that alias is what `tsc` and Vite both resolve the admin's own
- * imports through, so it is a live declaration, and zero or two members
- * declaring it is a refusal rather than a walk narrowed to whichever sorted
- * first.
- */
-function adminRegistryOutputPath(root: string = repoRoot): string {
-  const members = workspaceMembers(root, nodeWorkspaceFs());
-  const { member, target } = findAliasMember(members);
-  return join(resolve(member.dir, target), ADMIN_REGISTRY_ARTEFACT);
-}
+// **The renderer moved and the population did not** (`specs/110-instance-repository/`
+// T138). `collectAdminContributions`, `emitAdminRegistry` and their two
+// stylesheet siblings are `@endora-commerce/cli/lib/admin-artefacts.js`' now,
+// because an instance has to render the same two files over the packages it
+// installed and cannot reach `backend/scripts` — R3.5's *one generator, two
+// populations*, which a second implementation inside the CLI would have made
+// two answers to one question. What stays here is the wrapper that supplies
+// **this** tree's population and output root.
 
 /**
  * Pure render — the target path + expected content of the admin registry.
@@ -2281,7 +2098,7 @@ export function renderAdminRegistry(
   population: ArtefactPopulation = workspacePopulation(),
 ): { outputPath: string; content: string } {
   return {
-    outputPath: adminRegistryOutputPath(population.root),
+    outputPath: adminRegistryOutputPathIn(population.root),
     content: emitAdminRegistry(collectAdminContributions(population.packages)),
   };
 }
@@ -2289,186 +2106,17 @@ export function renderAdminRegistry(
 // ── the admin stylesheet composition (artefact eight) ───────────────────────
 //
 // `specs/110-instance-repository/contracts/admin-stylesheet-composition.md` R2,
-// FR-023. `admin/src/index.css` used to reach every package's UI with one
-// `@source "../../packages/**"`. In this repository that is correct; in a
-// client's instance it names a directory that is not there, because under D-207
-// the shell and the module packages are **installed**. Tailwind emits no
-// diagnostic for a source matching nothing (§1, M12), so the instance's admin
-// would build green and render **every** screen unstyled — after T120 the shell
-// is a package too.
-//
-// The repair inverts the direction: a package declares its own `@source` lines
-// at `./tailwind.css` (R1, rendered by `manifests:generate`) and the host
-// imports them by name. Every way of getting *that* wrong is loud — an
-// undeclared subpath is `ERR_PACKAGE_PATH_NOT_EXPORTED` (M9), a missing package
-// is `Can't resolve` (M10) — which is the property the mechanism was chosen
-// for.
-//
-// It is rendered here rather than written by hand for R2.5's reason, which is
-// `plan.md` R7.6: a shape we cannot adopt ourselves is one we may not ask a
-// client for, and our own admin build is then the instance's mechanism on every
-// pipeline — the only continuous evidence that it works.
-
-/** One package whose `./tailwind.css` the host imports. */
-export interface TailwindSourceEntry {
-  /** The npm name, which is also the sort key (R2.1). */
-  readonly name: string;
-  /** The specifier the artefact writes — `<name>/tailwind.css`. */
-  readonly specifier: string;
-}
-
-/** Every dependency name one manifest declares, or `[]` when it is not there. */
-function declaredDependencyNames(manifestPath: string): readonly string[] {
-  if (!existsSync(manifestPath)) return [];
-  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, unknown>;
-  const declared = manifest['dependencies'];
-  if (typeof declared !== 'object' || declared === null || Array.isArray(declared)) return [];
-  return Object.keys(declared as Record<string, unknown>);
-}
-
-/**
- * The packages this tree composes, resolved to their directories.
- *
- * **A declared dependency is the population**, and it is the one derivation
- * that answers identically in both trees: a bare specifier resolves only
- * through a declared dependency, so a package nothing declares is a package
- * whose stylesheet could not be imported anyway (M10). Nothing keys on a scope,
- * a `mod-` prefix or a directory (D-100).
- *
- * **Two manifests, unioned, because the two trees put the declaration in
- * different places and both are correct.** Here `manifests:generate` reconciles
- * every contributing module into `admin/package.json`, so the admin's own
- * manifest is the complete answer. An instance is scaffolded as a workspace
- * whose *root* holds the module dependencies and whose admin project is a
- * member of it — pnpm links a root dependency into the root `node_modules`,
- * where the admin's own resolution reaches it. Reading only the admin's
- * manifest there would render an artefact naming nothing, which is the silence
- * this whole contract exists to remove.
- */
-function composedPackageDirectories(root: string): ReadonlyMap<string, string> {
-  const members = workspaceMembers(root, nodeWorkspaceFs());
-  const { member } = findAliasMember(members);
-  const names = [
-    ...declaredDependencyNames(join(member.dir, 'package.json')),
-    ...declaredDependencyNames(join(root, 'package.json')),
-  ];
-  const byName = new Map(members.map((entry) => [entry.name, entry.dir]));
-  const found = new Map<string, string>();
-  for (const name of names) {
-    // A workspace member first, then the installed copy. The order is the one
-    // `check:module-boundary` and `overlay:check` already take: a member's own
-    // directory is the declaration this repository can change, and following
-    // the link instead would answer from whichever checkout `node_modules` was
-    // wired to (issue #255).
-    const memberDir = byName.get(name);
-    const dir = memberDir ?? join(root, 'node_modules', name);
-    if (!existsSync(join(dir, 'package.json'))) continue;
-    found.set(name, dir);
-  }
-  return found;
-}
-
-/** Does the package at `dir` declare `./tailwind.css`? R2.1's predicate, off the map. */
-function declaresTailwindSubpath(dir: string): boolean {
-  const text = readFileSync(join(dir, 'package.json'), 'utf8');
-  let manifest: { exports?: Record<string, unknown> };
-  try {
-    manifest = JSON.parse(text) as { exports?: Record<string, unknown> };
-  } catch {
-    return false;
-  }
-  return manifest.exports?.[TAILWIND_SOURCE_SUBPATH] !== undefined;
-}
-
-/**
- * Every package the host imports a source declaration from, sorted by name.
- *
- * **The population is FR-005's widened by one predicate** (R2.2): the admin
- * contribution registry's is *"declares `./admin`"*, this one's is *"declares
- * `./tailwind.css`"* — a superset, because it also holds the shell and the kit
- * family, which contribute UI and contribute no registry entry.
- *
- * That superset relation is asserted rather than assumed: a package the registry
- * imports and this does not is a **refusal**. It is the one state in which the
- * whole mechanism fails silently in the direction it exists to prevent — the
- * screen is registered, the bundle builds, and every class only that module
- * declares is dropped. `manifests:generate` renders both halves from one layer
- * inventory, so this state means the two artefacts were committed apart.
- */
-export function collectTailwindSources(
-  population: ArtefactPopulation = workspacePopulation(),
-): readonly TailwindSourceEntry[] {
-  const composed = composedPackageDirectories(population.root);
-  const declaring = new Set<string>();
-  for (const [name, dir] of composed) {
-    if (declaresTailwindSubpath(dir)) declaring.add(name);
-  }
-  for (const entry of collectAdminContributions(population.packages)) {
-    const name = packageNameOf(entry.specifier);
-    if (declaring.has(name)) continue;
-    throw new ModulePackageError(
-      `[composer] ${name} contributes an admin layer and declares no ` +
-        `'${TAILWIND_SOURCE_SUBPATH}'. The generated stylesheet imports one per package, so ` +
-        `this module's screens would build and render with none of the utility classes only ` +
-        `it declares — silently, because Tailwind reports nothing about a source it never ` +
-        `had. Run \`pnpm --filter backend run manifests:generate\`: the subpath is rendered ` +
-        `from the same layer inventory as './admin'.`,
-    );
-  }
-  return [...declaring]
-    .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0))
-    .map((name) => ({ name, specifier: `${name}/tailwind.css` }));
-}
-
-/** `@endora-commerce/mod-blog/tailwind.css` → `@endora-commerce/mod-blog`. */
-function packageNameOf(specifier: string): string {
-  const segments = specifier.split('/');
-  return specifier.startsWith('@') ? segments.slice(0, 2).join('/') : segments[0]!;
-}
-
-/** Pure render of the generated stylesheet, exported so a test can drive it. */
-export function emitTailwindRegistry(entries: readonly TailwindSourceEntry[]): string {
-  const imports = entries.map((entry) => `@import "${entry.specifier}";`).join('\n');
-  return `/* AUTO-GENERATED by scripts/generate-composer.ts — DO NOT EDIT.
- * Run \`pnpm --filter backend run composer:generate\` to refresh. Editing this
- * file by hand is undone by the next build, and
- * \`pnpm --filter backend run overlay:check\` fails on the drift.
- *
- * The admin stylesheet composition — one import per package that declares
- * \`./tailwind.css\`, which is where that package's own \`@source\` directives
- * live (\`specs/110-instance-repository/contracts/admin-stylesheet-composition.md\`
- * R2.1).
- *
- * It replaces \`@source "../../packages/**"\`, which was correct here and named a
- * directory that does not exist in a client's instance — where the shell and
- * every module are installed under \`node_modules\`. Tailwind says nothing about a
- * source that matches nothing (M12), so that instance's admin built green and
- * rendered unstyled. Here every failure is a build error instead: a package that
- * is not installed is \`Can't resolve\`, and one whose tarball omits the file is
- * \`ERR_PACKAGE_PATH_NOT_EXPORTED\`.
- *
- * An \`@source\` **adds** to Tailwind's automatic detection rather than replacing
- * it, and that detection is rooted at this Vite project — so the admin's own
- * sources need no directive here (R2.3).
- */
-${imports}
-`;
-}
-
-/** Where the generated stylesheet lands: beside the admin contribution registry. */
-function tailwindRegistryOutputPath(root: string = repoRoot): string {
-  const members = workspaceMembers(root, nodeWorkspaceFs());
-  const { member, target } = findAliasMember(members);
-  return join(resolve(member.dir, target), TAILWIND_REGISTRY_ARTEFACT);
-}
+// FR-023. The derivation is `@endora-commerce/cli/lib/admin-artefacts.js`' —
+// see the note above the admin registry's wrapper — and what stays here is the
+// wrapper supplying this tree's population and output root.
 
 /** Pure render — the target path + expected content of the generated stylesheet. */
 export function renderTailwindRegistry(
   population: ArtefactPopulation = workspacePopulation(),
 ): { outputPath: string; content: string } {
   return {
-    outputPath: tailwindRegistryOutputPath(population.root),
-    content: emitTailwindRegistry(collectTailwindSources(population)),
+    outputPath: tailwindRegistryOutputPathIn(population.root),
+    content: emitTailwindRegistry(collectTailwindSources(population.root, population.packages)),
   };
 }
 

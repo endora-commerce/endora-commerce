@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
+// The renderer moved into `@endora-commerce/cli` with T138, because an
+// instance renders the same artefact over the packages it installed and cannot
+// reach `backend/scripts` (`contracts/instance-repository.md` R3.5). The shim
+// at the old path is what every other consumer in `backend/` still names it by.
 import {
   collectAdminContributions,
   emitAdminRegistry,
-} from '../../../scripts/generate-composer.js';
+} from '../../../scripts/lib/admin-artefacts.js';
 import { ModulePackageError, type ModulePackage } from '../../../scripts/lib/module-packages.js';
 
 /**
