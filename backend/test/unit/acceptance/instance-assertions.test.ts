@@ -33,6 +33,7 @@ import {
   evaluateA13,
   evaluateA14,
   evaluateA5,
+  evaluateA6,
   evaluateProcess,
   exitCodeFor,
   exitCodeForExpectation,
@@ -410,6 +411,81 @@ describe('A5 — the built admin bundle holds exactly the installed modules', ()
     const noLayers = evaluateA5(bundle({ expected: [], named: [] }));
     expect(noLayers.state).toBe('unmeasured');
     expect(noLayers.detail).toContain('publishes an admin layer');
+  });
+});
+
+describe('A6 — the documentation site builds and its navigation names the pages', () => {
+  const site = (
+    overrides: Partial<Parameters<typeof evaluateA6>[0]> = {},
+  ): Parameters<typeof evaluateA6>[0] => ({
+    present: true,
+    omission: null,
+    built: true,
+    buildOutput: '',
+    expected: ['blog', 'catalog'],
+    named: ['blog', 'catalog'],
+    routed: ['blog', 'catalog'],
+    pages: 41,
+    ...overrides,
+  });
+
+  it('passes when the navigation names a routed page for every documented module', () => {
+    const result = evaluateA6(site());
+    expect(result.state).toBe('pass');
+    expect(result.detail).toContain('exactly the 2 installed module packages');
+  });
+
+  it('fails on a page the client installed and cannot find', () => {
+    const result = evaluateA6(site({ named: ['blog'], routed: ['blog'] }));
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('missing: catalog');
+  });
+
+  it('fails on a module the navigation names and the client did not install', () => {
+    const result = evaluateA6(
+      site({ named: ['blog', 'catalog', 'payu'], routed: ['blog', 'catalog', 'payu'] }),
+    );
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('not installed and named anyway: payu');
+  });
+
+  /**
+   * A sidebar entry and a served page are not the same claim, and D-200 is why:
+   * Docusaurus excludes an underscore-prefixed file from routing **by design**,
+   * so a navigation naming one is a link to nothing that the build itself does
+   * not refuse. An assertion that stopped at the fragment would pass over it.
+   */
+  it('fails on a named page the built site serves no route for', () => {
+    const result = evaluateA6(site({ routed: ['blog'] }));
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('named and served by no route: catalog');
+  });
+
+  it('fails — never "unmeasured" — when the site did not build', () => {
+    const result = evaluateA6(site({ built: false, pages: 0, buildOutput: 'Error: broken link' }));
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('broken link');
+  });
+
+  /**
+   * The two vacuous states. A member that is not there is the omission the
+   * command printed — verbatim, so the client's own sentence is what a reader
+   * gets — and a module set in which nothing ships documentation satisfies
+   * "names the installed modules' pages" over an empty set.
+   */
+  it('is unmeasured, not failed, when there is nothing to read', () => {
+    const absent = evaluateA6(site({ present: false, omission: 'omitted docs/ — no range' }));
+    expect(absent.state).toBe('unmeasured');
+    expect(absent.detail).toContain('no range');
+    const undocumented = evaluateA6(site({ expected: [], named: [], routed: [] }));
+    expect(undocumented.state).toBe('unmeasured');
+    expect(undocumented.detail).toContain('ships a documentation layer');
+  });
+
+  it('says so when the member is absent and the command printed no reason', () => {
+    const silent = evaluateA6(site({ present: false, omission: null }));
+    expect(silent.state).toBe('unmeasured');
+    expect(silent.detail).toContain('printed no omission');
   });
 });
 

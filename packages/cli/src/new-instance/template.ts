@@ -89,7 +89,7 @@ import { InstanceInputError } from './host.js';
 export type FileKind = 'client' | 'wiring' | 'derived';
 
 /** Which member of the workspace a file belongs to, or the workspace root. */
-export type MemberName = 'root' | 'deployment' | 'backend' | 'admin';
+export type MemberName = 'root' | 'deployment' | 'backend' | 'admin' | 'docs';
 
 /** One file the command would write. */
 export interface PlannedFile {
@@ -158,6 +158,19 @@ export interface PlanInput {
   readonly adminPeers: ReadonlyMap<string, string>;
   /** The CLI's own version — `endora generate` is what renders §2.6's artefacts. */
   readonly cliVersion: string;
+  /**
+   * The ranges the documentation member is written from — name to range, read
+   * off the CLI's own manifest (R2.3's first named source, and R2.5a).
+   *
+   * `@docusaurus/core` and `@docusaurus/preset-classic` are the CLI's **optional
+   * peers**, which is the same declaration the admin shell makes about a host
+   * that mounts it: *"an application of this kind resolves these"*. The CLI
+   * renders this site's navigation and imports neither package, exactly as the
+   * shell declares `vite` and `tailwindcss` and imports neither. A name with no
+   * range here is **not written and not guessed**: the member is omitted,
+   * naming it.
+   */
+  readonly docsRanges: ReadonlyMap<string, string>;
   /**
    * The ranges the instance's own `devDependencies` are derived from, each read
    * off a manifest this run resolved rather than chosen here (R2.5a).
@@ -229,6 +242,25 @@ export const GENERATED_ARTEFACTS = [
   'docs/sidebars.modules.generated.js',
 ] as const;
 
+/**
+ * The generated **trees** — a whole directory the generator owns, rather than a
+ * file it writes.
+ *
+ * They are apart from {@link GENERATED_ARTEFACTS} because the two answer
+ * different questions: that list is the files a reconciliation can name and
+ * compare, this one is what `.gitignore` has to cover. The documentation half
+ * of §2.6 is a *population* rather than a file — one copied page per page a
+ * module ships, one reference page per module, and the stamp that lets a run
+ * undo the previous one's copies — so a client's `.gitignore` names the
+ * directories and git's own "a tracked file is never ignored" keeps a page they
+ * write themselves visible with no exception list to maintain.
+ */
+export const GENERATED_TREES = [
+  'docs/docs/modules/**',
+  'docs/docs/module-reference/**',
+  'docs/.module-docs-copies.json',
+] as const;
+
 /** Lines of wiring in a plan — R1.4's bound, measured rather than intended. */
 export function wiringLineCount(plan: InstancePlan): number {
   return plan.files
@@ -268,6 +300,9 @@ export function planInstance(input: PlanInput): InstancePlan {
   // interface. Deciding it twice is how two files would come to disagree about
   // a member one of them writes.
   const admin = adminMember(input);
+  // §2.4a — same reasoning, same three consequences (the member list, the root
+  // scripts, the `.gitignore`), decided in the same place.
+  const docs = docsMember(input);
 
   const dependencies = new Map<string, string>();
   dependencies.set(`${input.scope}platform`, `^${input.platformVersion}`);
@@ -309,6 +344,7 @@ export function planInstance(input: PlanInput): InstancePlan {
   });
 
   if (admin.omission !== null) omitted.push({ path: 'admin/', reason: admin.omission });
+  if (docs.omission !== null) omitted.push({ path: 'docs/', reason: docs.omission });
 
   // --- the workspace root (§2.1) -------------------------------------------
   files.push({
@@ -346,10 +382,16 @@ export function planInstance(input: PlanInput): InstancePlan {
         // both entries name a member that may not be there. An instance with
         // no operator interface gets neither rather than a script that fails
         // on a directory nobody wrote.
-        build: admin.written
-          ? 'pnpm -C backend run build && pnpm -C admin run build'
-          : 'pnpm -C backend run build',
-        ...(admin.written ? { generate: 'pnpm -C admin run generate' } : {}),
+        build: [
+          'pnpm -C backend run build',
+          ...(admin.written ? ['pnpm -C admin run build'] : []),
+          ...(docs.written ? ['pnpm -C docs run build'] : []),
+        ].join(' && '),
+        // One `endora generate` renders every member's artefacts, so the root
+        // script is the command itself rather than a member's. An instance with
+        // neither member gets no `generate` at all, rather than a script that
+        // fails on a directory nobody wrote.
+        ...(admin.written || docs.written ? { generate: 'endora generate' } : {}),
         start: 'pnpm -C backend run start',
         'module:install': 'pnpm -C backend run module:install',
         'module:uninstall': 'pnpm -C backend run module:uninstall',
@@ -358,7 +400,9 @@ export function planInstance(input: PlanInput): InstancePlan {
         'module:status': 'pnpm -C backend run module:status',
       },
       dependencies: Object.fromEntries([...dependencies].sort(([a], [b]) => a.localeCompare(b))),
-      devDependencies: Object.fromEntries(devDependenciesFor(input)),
+      devDependencies: Object.fromEntries(
+        devDependenciesFor(input, admin.written || docs.written),
+      ),
     }),
   });
 
@@ -375,6 +419,7 @@ export function planInstance(input: PlanInput): InstancePlan {
       'packages:',
       '  - backend',
       ...(admin.written ? ['  - admin'] : []),
+      ...(docs.written ? ['  - docs'] : []),
       '',
     ].join('\n'),
   });
@@ -418,6 +463,13 @@ export function planInstance(input: PlanInput): InstancePlan {
       '# and the install disagree.',
       ...GENERATED_ARTEFACTS,
       '',
+      '# The documentation site\'s are a population rather than a file: one copied page per',
+      '# page a module ships, one reference page per module, and the stamp that lets a run',
+      '# undo the previous one\'s copies. A **tracked** file is never ignored whatever the',
+      '# pattern says, so a page you write yourself stays visible and no exception list is',
+      '# written down here.',
+      ...GENERATED_TREES,
+      '',
       'node_modules',
       'dist',
       '.env',
@@ -429,7 +481,10 @@ export function planInstance(input: PlanInput): InstancePlan {
     path: 'README.md',
     kind: 'client',
     member: 'root',
-    content: readme(input, dependencies.size),
+    content: readme(input, dependencies.size, {
+      admin: admin.written,
+      docs: docs.written,
+    }),
   });
 
   // --- the deployment (§2.2) -----------------------------------------------
@@ -501,12 +556,19 @@ export function planInstance(input: PlanInput): InstancePlan {
   // --- the admin member (§2.4) ---------------------------------------------
   for (const file of admin.files) files.push(file);
 
+  // --- the documentation member (§2.4a) ------------------------------------
+  for (const file of docs.files) files.push(file);
+
   return {
     files,
     omitted,
-    members: admin.written
-      ? ['root', 'deployment', 'backend', 'admin']
-      : ['root', 'deployment', 'backend'],
+    members: [
+      'root',
+      'deployment',
+      'backend',
+      ...(admin.written ? (['admin'] as const) : []),
+      ...(docs.written ? (['docs'] as const) : []),
+    ],
     registry: input.registry,
     dependencies,
   };
@@ -579,7 +641,19 @@ export const deployment = '${deployment}';
  * member's `dev` script uses `tsc` and `node --watch`, which need nothing that
  * is not already here.
  */
-export function devDependenciesFor(input: PlanInput): readonly (readonly [string, string])[] {
+export function devDependenciesFor(
+  input: PlanInput,
+  /**
+   * Does this instance have an artefact to generate at all?
+   *
+   * The root's `generate` script is `endora generate` — one run renders every
+   * member's artefacts — so the binary has to be on the **root's** path. An
+   * instance with neither an admin project nor a documentation site has no
+   * `generate` script, and declaring the tool that runs it would be a
+   * dependency with nothing to do.
+   */
+  generates = false,
+): readonly (readonly [string, string])[] {
   const wanted: readonly (readonly [string, string])[] = [
     ['@mikro-orm/core', input.declaredRanges.get('@mikro-orm/core') ?? ''],
     ['@mikro-orm/postgresql', input.declaredRanges.get('@mikro-orm/postgresql') ?? ''],
@@ -588,6 +662,9 @@ export function devDependenciesFor(input: PlanInput): readonly (readonly [string
     ['zod', input.declaredRanges.get('zod') ?? ''],
     ['ioredis', input.declaredRanges.get('ioredis') ?? ''],
     ['typescript', input.declaredRanges.get('typescript') ?? ''],
+    ...(generates
+      ? ([[`${input.scope}cli`, `^${input.cliVersion}`]] as const)
+      : ([] as const)),
   ];
   // A package whose range no resolved manifest declares is **left out**, not
   // guessed at. The client adds it and reviews the range they chose, which is
@@ -858,7 +935,20 @@ await runOperatorCommand(${runner});
 }
 
 /** The client's own README: what this tree is, and what maintains it. */
-function readme(input: PlanInput, dependencyCount: number): string {
+/**
+ * The tree's own README — the client's, written once and never read by us
+ * again.
+ *
+ * The "what is here" table is built from the members this run actually wrote,
+ * not from a list: which members exist depends on what resolved (§2.4, §2.4a),
+ * and a README naming a directory the command omitted is the first thing a
+ * client would find wrong with their new tree.
+ */
+function readme(
+  input: PlanInput,
+  dependencyCount: number,
+  members: { readonly admin: boolean; readonly docs: boolean },
+): string {
   return `# ${input.name}
 
 An Endora Commerce instance. It **composes** the platform; it is not a fork of it and holds a
@@ -871,7 +961,7 @@ copy of no part of it.
 | \`package.json\` | the module list. There is no other: the \`dependencies\` are what this instance composes, and the platform discovers them from \`node_modules\` at runtime |
 | \`apps/${input.deployment}/\` | your deployment — your overlay modules, and \`divergence.ts\` |
 | \`backend/\` | the entry points: a process that listens, a process that consumes queues, an ORM configuration and the operator commands |
-
+${members.admin ? '| `admin/` | the operator interface — the admin shell, mounted over the screens your modules ship |\n' : ''}${members.docs ? '| `docs/` | the documentation site — a page per module, written by the module that ships it |\n' : ''}
 ${String(dependencyCount)} packages are declared today. Every one of them is a dependency, so a
 fix in any of them reaches you through \`pnpm update\` with no file in this tree edited.
 
@@ -879,7 +969,8 @@ fix in any of them reaches you through \`pnpm update\` with no file in this tree
 
 \`\`\`
 pnpm install
-pnpm run build                      # the entry points, compiled
+pnpm run generate                   # the files the admin and the docs site are built from
+pnpm run build                      # the entry points, compiled, and every member built
 pnpm run migrate                    # the schema, in the order the manifests compute
 pnpm run module:install --all       # every module you declared, in dependency order
 pnpm run start                      # the API
@@ -1022,6 +1113,211 @@ const BUILD_TOOL_PEERS: ReadonlySet<string> = new Set([
   'tailwindcss',
   'vite',
 ]);
+
+/**
+ * §2.4a, decided and rendered — or omitted, in the admin member's own grammar.
+ *
+ * **Why a member at all.** `instance-tree.md` §2.6 lists the documentation
+ * registry among the three artefacts an instance generates and §2 listed no
+ * member that would hold it, so the `.gitignore` this command writes has named
+ * `docs/sidebars.modules.generated.js` since the command landed and nothing
+ * wrote a site for it. A client installs thirty module packages, each shipping
+ * its own `docs/` layer in its tarball, and until this member existed there was
+ * nowhere for a human to read one.
+ *
+ * **Why an omission and not a refusal**, exactly as for the admin member: the
+ * owner's subject is a backend instance, and a command that refused to write one
+ * until Docusaurus had a range would be a command nobody could use. And **why
+ * not silence**: a client who does not know they have no documentation site goes
+ * looking for one.
+ *
+ * **Four files and no `tsconfig.json`.** The configuration and the sidebar are
+ * `.js` rather than `.ts` — Docusaurus reads both — which is what keeps the
+ * member off `@docusaurus/tsconfig`, `@docusaurus/types` and
+ * `@docusaurus/module-type-aliases`, three more ranges this command would have
+ * to find a source for in order to write a file whose whole content is two
+ * objects. `sidebars.js` is also the name `resolveDocsLayout` looks for.
+ */
+function docsMember(input: PlanInput): AdminMemberDecision {
+  const missing = ['@docusaurus/core', '@docusaurus/preset-classic'].filter((name) => {
+    const range = input.docsRanges.get(name);
+    return range === undefined || range.length === 0 || range.startsWith('workspace:');
+  });
+  if (missing.length > 0) {
+    return {
+      written: false,
+      files: [],
+      omission:
+        `no manifest this run resolved declares a range for ${missing.join(', ')}, and the ` +
+        `documentation site is built with ${missing.length === 1 ? 'it' : 'them'}. A range ` +
+        `this command chose would be a value nobody reviewed, so none is written and the ` +
+        `pages your module packages ship have no site to be read in`,
+    };
+  }
+  return { written: true, files: docsFiles(input), omission: null };
+}
+
+/** The four files §2.4a's member is, in the order the plan writes them. */
+function docsFiles(input: PlanInput): readonly PlannedFile[] {
+  return [
+    {
+      path: 'docs/package.json',
+      kind: 'derived',
+      member: 'docs',
+      content: json({
+        name: `${input.name}-docs`,
+        private: true,
+        scripts: {
+          // `endora generate` first, for the reason the admin member's `build`
+          // runs it first: Docusaurus is a static build, so a navigation that
+          // is stale or absent is a site with pages missing, and
+          // `onBrokenLinks: 'throw'` turns the *absent* half into a crash
+          // rather than a silence — which is the better of the two failures and
+          // still not one a client should have to meet.
+          generate: 'endora generate',
+          dev: 'endora generate && docusaurus start',
+          build: 'endora generate && docusaurus build',
+          serve: 'docusaurus serve',
+        },
+        dependencies: {
+          '@docusaurus/core': input.docsRanges.get('@docusaurus/core')!,
+          '@docusaurus/preset-classic': input.docsRanges.get('@docusaurus/preset-classic')!,
+        },
+        devDependencies: { [`${input.scope}cli`]: `^${input.cliVersion}` },
+      }),
+    },
+    {
+      path: 'docs/docusaurus.config.js',
+      kind: 'client',
+      member: 'docs',
+      content: docsConfig(input),
+    },
+    {
+      path: 'docs/sidebars.js',
+      kind: 'client',
+      member: 'docs',
+      content: docsSidebar(),
+    },
+    {
+      path: 'docs/docs/intro.md',
+      kind: 'client',
+      member: 'docs',
+      content: docsIntro(input),
+    },
+  ];
+}
+
+/**
+ * The site's configuration — the client's, in the sense `admin/vite.config.ts`
+ * is theirs: build-tool configuration they will edit.
+ *
+ * Three values are load-bearing rather than decorative. `onBrokenLinks: 'throw'`
+ * is what makes a navigation entry naming a page that is not there fail the
+ * build instead of serving a 404 nobody notices — it is the property feature
+ * 100's own `build:docs` job exists for. The docs plugin declares **no**
+ * `path`, so the content root is Docusaurus's own `docs/`, which is where
+ * `endora generate` puts the pages your modules ship. And `routeBasePath: '/'`
+ * makes the documentation the site rather than a section of one: an instance's
+ * documentation site has nothing else in it.
+ */
+function docsConfig(input: PlanInput): string {
+  return `// @ts-check
+// The documentation site of this instance. Yours to brand and to extend — the
+// title, the URL and the navbar below are values nobody but you can supply.
+//
+// What you should not remove:
+//
+//   * \`onBrokenLinks: 'throw'\` — a navigation entry naming a page that is not
+//     there fails the build instead of serving a 404 nobody notices;
+//   * the docs plugin's absent \`path\` — the content root is Docusaurus's own
+//     \`docs/\`, which is where \`endora generate\` copies the pages your module
+//     packages ship.
+
+/** @type {import('@docusaurus/types').Config} */
+const config = {
+  title: '${input.name} documentation',
+  tagline: 'Every module this instance installed, documented by the module that ships it.',
+  url: 'https://example.com',
+  baseUrl: '/',
+  onBrokenLinks: 'throw',
+  onBrokenMarkdownLinks: 'warn',
+  favicon: undefined,
+  presets: [
+    [
+      'classic',
+      {
+        docs: {
+          sidebarPath: './sidebars.js',
+          routeBasePath: '/',
+        },
+        blog: false,
+      },
+    ],
+  ],
+  themeConfig: {
+    navbar: {
+      title: '${input.name}',
+      items: [{ type: 'docSidebar', sidebarId: 'main', position: 'left', label: 'Documentation' }],
+    },
+  },
+};
+
+module.exports = config;
+`;
+}
+
+/**
+ * The navigation — the client's own, with one generated category in it.
+ *
+ * It is `admin/src/index.css`'s shape rather than `admin/src/main.tsx`'s: the
+ * file is yours, and one line of it names a file a generator writes. Everything
+ * you add goes beside \`'intro'\`; nothing you add has to know that the Modules
+ * category is derived.
+ */
+function docsSidebar(): string {
+  return `// @ts-check
+
+/** @type {import('@docusaurus/plugin-content-docs').SidebarsConfig} */
+const sidebars = {
+  main: [
+    'intro',
+    {
+      type: 'category',
+      label: 'Modules',
+      link: { type: 'generated-index', title: 'Modules' },
+      // Generated by \`endora generate\` over the module packages THIS instance
+      // installed, and not committed: a different module set is a different
+      // navigation. Run \`pnpm run generate\` before the first build.
+      items: require('./sidebars.modules.generated.js'),
+    },
+  ],
+};
+
+module.exports = sidebars;
+`;
+}
+
+/** The page the site opens on. Yours from the first word. */
+function docsIntro(input: PlanInput): string {
+  return `---
+title: ${input.name}
+sidebar_label: Start here
+slug: /
+---
+
+# ${input.name}
+
+This is your instance's documentation site. Everything under **Modules** is
+written by the module that ships it and copied in by \`pnpm run generate\`, so a
+module you install brings its own pages and a module you remove takes them with
+it. Nothing under that category is yours to edit — the next \`generate\` undoes
+it.
+
+Everything else is yours. Write your own operating notes beside this page and
+add them to \`sidebars.js\`.
+`;
+}
+
 
 /**
  * §2.4, decided and rendered — or omitted, in `new storefront`'s own grammar.

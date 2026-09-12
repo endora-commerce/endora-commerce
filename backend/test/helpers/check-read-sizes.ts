@@ -2398,7 +2398,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 5603 -> 5606 (+3).**
     // The whole-tree population takes all three of the feature's new sources: the registry, its
     // co-located platform test and `backend/test/helpers/channel-bridges.ts`.
-    files: 5606,
+    // **`specs/110-instance-repository/` T137 (the documentation member and the
+    // moved documentation renderers): files 5606 -> 5608 (+2).**
+    // The two new files under `packages/cli/src/`. This walk is `.ts`/`.tsx`/`.js` over
+    // the whole tree minus `backend/scripts` and `backend/test/unit/scripts`, so the shim
+    // and the two new tests are outside it and the changeset is not source.
+    // Measured on the **merged** tree, in a fresh worktree in the quality job's shape:
+    // the ignored copies under `docs/docs/modules/` swept, the copy stamp and
+    // `docs/build` removed — a checkout that has built the site reads 86 higher on
+    // `check-nul-bytes`. Re-measured rather than added to the pre-merge delta, and
+    // `check-fixture-substitution` is why: it moved 587 -> 588 before the merge and
+    // reads 587 on the merged tree, feature 120's helper edits having cancelled it.
+    files: 5608,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2552,7 +2563,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `.replace()` shape the site counter opens. The four files are the seven minus the two
     // shims under `backend/scripts` and minus the changeset, which this walk does not read.
 
-    sites: 556,
+    // **`specs/110-instance-repository/` T137 (the documentation member and the
+    // moved documentation renderers): sites 556 -> 558 (+2).**
+    // Two more classified expressions in those two files. No new fold and no new slug
+    // builder: both ledgers are untouched.
+    // Measured on the **merged** tree, in a fresh worktree in the quality job's shape:
+    // the ignored copies under `docs/docs/modules/` swept, the copy stamp and
+    // `docs/build` removed — a checkout that has built the site reads 86 higher on
+    // `check-nul-bytes`. Re-measured rather than added to the pre-merge delta, and
+    // `check-fixture-substitution` is why: it moved 587 -> 588 before the merge and
+    // reads 587 on the merged tree, feature 120's helper edits having cancelled it.
+    sites: 558,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -7271,7 +7292,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 8111 -> 8115 (+4).**
     // The whole-repository walk takes all four files the merge request adds: the registry, its test,
     // the test helper and the changeset.
-    files: 8115,
+    // **`specs/110-instance-repository/` T137 (the documentation member and the
+    // moved documentation renderers): files 8115 -> 8121 (+6).**
+    // The five new files — `packages/cli/src/lib/docs-artefacts.ts`,
+    // `packages/cli/src/new-instance/docs-toolchain.ts`,
+    // `backend/scripts/lib/docs-artefacts.ts` and the two new tests under
+    // `packages/cli/test/new-instance/` — plus this branch's changeset, which this
+    // whole-repository walk reads and the narrower ones do not.
+    // Measured on the **merged** tree, in a fresh worktree in the quality job's shape:
+    // the ignored copies under `docs/docs/modules/` swept, the copy stamp and
+    // `docs/build` removed — a checkout that has built the site reads 86 higher on
+    // `check-nul-bytes`. Re-measured rather than added to the pre-merge delta, and
+    // `check-fixture-substitution` is why: it moved 587 -> 588 before the merge and
+    // reads 587 on the merged tree, feature 120's helper edits having cancelled it.
+    files: 8121,
     sites: null,
     sources: [],
     //
@@ -8273,7 +8307,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `quality` job's shape, against `origin/master` at 15b866da3 measured the same way,
     // so nothing below folds in a number that was already stale.
 
-    files: 2483,
+    // **`specs/110-instance-repository/` T137 (the documentation member and the
+    // moved documentation renderers): files 2483 -> 2484 (+1).**
+    // One file. This walk is the module roots plus the application, and the application
+    // gains `backend/scripts/lib/docs-artefacts.ts`; the two new `packages/cli/src/`
+    // files are in neither population, the CLI not being a module package.
+    // Measured on the **merged** tree, in a fresh worktree in the quality job's shape:
+    // the ignored copies under `docs/docs/modules/` swept, the copy stamp and
+    // `docs/build` removed — a checkout that has built the site reads 86 higher on
+    // `check-nul-bytes`. Re-measured rather than added to the pre-merge delta, and
+    // `check-fixture-substitution` is why: it moved 587 -> 588 before the merge and
+    // reads 587 on the merged tree, feature 120's helper edits having cancelled it.
+    files: 2484,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -10231,7 +10276,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 4624 -> 4627 (+3).**
     // The feature's three new sources. The registry is the platform's, reached by container name
     // rather than by a source path, so no reach is classified.
-    files: 4627,
+    // **`specs/110-instance-repository/` T137 (the documentation member and the
+    // moved documentation renderers): files 4627 -> 4628 (+1).**
+    // The same one file as `check-platform-surface` above, for the same reason.
+    // Measured on the **merged** tree, in a fresh worktree in the quality job's shape:
+    // the ignored copies under `docs/docs/modules/` swept, the copy stamp and
+    // `docs/build` removed — a checkout that has built the site reads 86 higher on
+    // `check-nul-bytes`. Re-measured rather than added to the pre-merge delta, and
+    // `check-fixture-substitution` is why: it moved 587 -> 588 before the merge and
+    // reads 587 on the merged tree, feature 120's helper edits having cancelled it.
+    files: 4628,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -11082,7 +11136,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 8171 -> 8175 (+4).**
     // The four files the merge request adds, over the same index-derived population
     // `check-nul-bytes` walks.
-    files: 8175,
+    // **`specs/110-instance-repository/` T137 (the documentation member and the
+    // moved documentation renderers): files 8175 -> 8181 (+6).**
+    // The same six files as `check-nul-bytes` above, this walk having the same
+    // whole-repository listing.
+    // Measured on the **merged** tree, in a fresh worktree in the quality job's shape:
+    // the ignored copies under `docs/docs/modules/` swept, the copy stamp and
+    // `docs/build` removed — a checkout that has built the site reads 86 higher on
+    // `check-nul-bytes`. Re-measured rather than added to the pre-merge delta, and
+    // `check-fixture-substitution` is why: it moved 587 -> 588 before the merge and
+    // reads 587 on the merged tree, feature 120's helper edits having cancelled it.
+    files: 8181,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -11612,7 +11676,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
 
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 6246 -> 6249 (+3).**
     // The three source files the merge request adds; the changeset is markdown outside `docs/docs/`.
-    files: 6249,
+    // **`specs/110-instance-repository/` T137 (the documentation member and the
+    // moved documentation renderers): files 6249 -> 6254 (+5).**
+    // The five TypeScript files `check-nul-bytes` names; the changeset is markdown under
+    // `.changeset/`, which is outside this walk's roots.
+    // Measured on the **merged** tree, in a fresh worktree in the quality job's shape:
+    // the ignored copies under `docs/docs/modules/` swept, the copy stamp and
+    // `docs/build` removed — a checkout that has built the site reads 86 higher on
+    // `check-nul-bytes`. Re-measured rather than added to the pre-merge delta, and
+    // `check-fixture-substitution` is why: it moved 587 -> 588 before the merge and
+    // reads 587 on the merged tree, feature 120's helper edits having cancelled it.
+    files: 6254,
     sites: null,
     sources: ['manifest-index'],
     //
