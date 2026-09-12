@@ -52,7 +52,8 @@
  * Exit 0 = a release branch is ready to push; 1 = refused; 2 = it did not run.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -115,6 +116,66 @@ function trackedVersions() {
   return versions;
 }
 
+/**
+ * The number this release is named after — **the highest version any package
+ * reaches**, read out of the changesets CLI's own plan.
+ *
+ * The branch name used to be a date, and the convention in this repository is a
+ * version: the only release branch that has ever existed is
+ * `release/version-0.7.0`. A date is also the wrong shape for the protected
+ * pattern's purpose — `release/version-*` is protected so that the publish job
+ * can resolve its credentials, and an operator reading the branch list wants to
+ * know *what* is being published, not *when* somebody ran the command.
+ *
+ * It is **asked of `changeset status`** rather than computed here. That command
+ * is the CLI's own answer to "what would this release do", it already runs in
+ * `release:changeset` on every merge request, and a second implementation of
+ * the bump arithmetic would be two answers to one question waiting to disagree
+ * — the reason `specs/114-release-shape-gate/` FR-007 forbids reimplementing it.
+ *
+ * **A release is not uniform, and the name is therefore an approximation**, said
+ * here rather than discovered: the release of 2026-09-11 moved 68 packages to
+ * `0.8.0` and 15 to `0.7.1`. The highest is the series marker — it is the number
+ * the next release counts from — and a name cannot carry both.
+ */
+function plannedReleaseNumber() {
+  const directory = mkdtempSync(join(tmpdir(), 'version-packages-'));
+  const file = join(directory, 'plan.json');
+  try {
+    const status = spawnSync('pnpm', ['exec', 'changeset', 'status', '--output', file], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+    });
+    if (status.status !== 0 || !existsSync(file)) {
+      refuse(
+        2,
+        '`changeset status` did not produce a release plan, so this run cannot name the branch ' +
+          'after the version it would publish. Pass `--branch release/version-<n>` if you know ' +
+          'the number, and find out why the CLI could not answer before you release.',
+      );
+    }
+    const plan = JSON.parse(readFileSync(file, 'utf8'));
+    const versions = (plan.releases ?? [])
+      .map((release) => release.newVersion)
+      .filter((version) => typeof version === 'string' && /^\d+\.\d+\.\d+/.test(version));
+    if (versions.length === 0) {
+      refuse(
+        2,
+        'the release plan names no new version. `version:packages` refuses a run that moves ' +
+          'nothing a few lines below; this is the same refusal one step earlier, where it can ' +
+          'still tell you before a branch exists.',
+      );
+    }
+    const key = (version) => version.split('.').map((part) => Number.parseInt(part, 10));
+    return versions.sort((a, b) => {
+      const [x, y] = [key(a), key(b)];
+      return y[0] - x[0] || y[1] - x[1] || y[2] - x[2];
+    })[0];
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 function main() {
   const base = argument('--base', 'master');
 
@@ -154,10 +215,11 @@ function main() {
   }
 
   const before = trackedVersions();
-  const branch = argument('--branch', `release/version-${new Date().toISOString().slice(0, 10)}`);
+  const branch = argument('--branch', `release/version-${plannedReleaseNumber()}`);
 
-  // The default branch name carries a date, so a second release on one day
-  // lands on the first one's name. Refuse it rather than letting `git checkout
+  // Two releases that would publish the same highest version land on one name —
+  // a re-cut after an abandoned attempt is the ordinary case. Refuse it rather
+  // than letting `git checkout
   // -b` throw: the throw is a stack trace on a run that has already changed
   // nothing, which reads like a defect in this script instead of a question for
   // the operator — and the answer is theirs, since the standing branch may be a
