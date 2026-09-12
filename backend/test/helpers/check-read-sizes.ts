@@ -2379,7 +2379,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // two sides' deltas.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 5599,
+    // **`specs/110-instance-repository/` T138 (the admin member): files +4 and sites +2.** The seven
+    // files this branch adds are `AdminRoot.tsx` in the shell, `endora generate` and its
+    // test, the two halves of the admin-artefact renderer that moved into the CLI, the
+    // shim left at its old path, and the changeset. Measured in a clean worktree in the
+    // `quality` job's shape, against `origin/master` at 15b866da3 measured the same way,
+    // so nothing below folds in a number that was already stale.
+    // The two sites are `admin-artefacts.ts`' two `target.replace(/^\.\//, '')` calls, which
+    // moved **into** this walk rather than being written: `backend/scripts` is out of its
+    // population and `packages/cli/src` is in it. Neither is a fold; both are the ordinary
+    // `.replace()` shape the site counter opens. The four files are the seven minus the two
+    // shims under `backend/scripts` and minus the changeset, which this walk does not read.
+
+    files: 5603,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2526,7 +2538,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `changeset-flow.test.ts` now reads out of `.changeset/config.json`. Quality-job shape — the
     // ignored copies under `docs/docs/modules/` swept first. Measured on the combined tree, never
     // summed from the two sides' deltas.
-    sites: 554,
+    // **T138: the file half of the move noted above the site count.**
+    // The two sites are `admin-artefacts.ts`' two `target.replace(/^\.\//, '')` calls, which
+    // moved **into** this walk rather than being written: `backend/scripts` is out of its
+    // population and `packages/cli/src` is in it. Neither is a fold; both are the ordinary
+    // `.replace()` shape the site counter opens. The four files are the seven minus the two
+    // shims under `backend/scripts` and minus the changeset, which this walk does not read.
+
+    sites: 556,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -2871,7 +2890,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // sides' deltas.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 1315,
+    // **`specs/110-instance-repository/` T138 (the admin member): files +3, and none of them this branch's.** The seven
+    // files this branch adds are `AdminRoot.tsx` in the shell, `endora generate` and its
+    // test, the two halves of the admin-artefact renderer that moved into the CLI, the
+    // shim left at its old path, and the changeset. Measured in a clean worktree in the
+    // `quality` job's shape, against `origin/master` at 15b866da3 measured the same way,
+    // so nothing below folds in a number that was already stale.
+    // **`master` moved this one and no branch re-recorded it.** The three files are
+    // `specs/120-migration-closure-bridge-ownership/`'s spec, plan and tasks, which landed at
+    // 15b866da3; measured on a pristine worktree of that commit, this entry drifts by exactly
+    // the same +3 with none of this branch's files in the tree. It is re-recorded here
+    // because the census reads the tree and not the diff, and an entry left stale is one the
+    // next author meets with nothing wrong in their own change.
+
+    files: 1318,
     sites: 13,
     sources: [],
     //
@@ -3965,7 +3997,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `docs/docs/modules/` swept first, because no job has placed them when these checks
     // run and a developer's tree reads ~80 higher on `check-nul-bytes`.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
-    files: 648,
+    // **`specs/110-instance-repository/` T138 (the admin member): files +1.** The seven
+    // files this branch adds are `AdminRoot.tsx` in the shell, `endora generate` and its
+    // test, the two halves of the admin-artefact renderer that moved into the CLI, the
+    // shim left at its old path, and the changeset. Measured in a clean worktree in the
+    // `quality` job's shape, against `origin/master` at 15b866da3 measured the same way,
+    // so nothing below folds in a number that was already stale.
+
+    files: 649,
     sites: 68,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
@@ -5098,7 +5137,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 2810,
+    // **`specs/110-instance-repository/` T138 (the admin member): files +1.** The seven
+    // files this branch adds are `AdminRoot.tsx` in the shell, `endora generate` and its
+    // test, the two halves of the admin-artefact renderer that moved into the CLI, the
+    // shim left at its old path, and the changeset. Measured in a clean worktree in the
+    // `quality` job's shape, against `origin/master` at 15b866da3 measured the same way,
+    // so nothing below folds in a number that was already stale.
+
+    files: 2811,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 56 -> 66.**
     // The header block above this table has the arithmetic; nothing here
@@ -5317,7 +5363,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 2908,
+    // **`specs/110-instance-repository/` T138 (the admin member): files +1.** The seven
+    // files this branch adds are `AdminRoot.tsx` in the shell, `endora generate` and its
+    // test, the two halves of the admin-artefact renderer that moved into the CLI, the
+    // shim left at its old path, and the changeset. Measured in a clean worktree in the
+    // `quality` job's shape, against `origin/master` at 15b866da3 measured the same way,
+    // so nothing below folds in a number that was already stale.
+
+    files: 2909,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -6239,7 +6292,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 5163,
+    // **`specs/110-instance-repository/` T138 (the admin member): files +1 and sites +5.** The seven
+    // files this branch adds are `AdminRoot.tsx` in the shell, `endora generate` and its
+    // test, the two halves of the admin-artefact renderer that moved into the CLI, the
+    // shim left at its old path, and the changeset. Measured in a clean worktree in the
+    // `quality` job's shape, against `origin/master` at 15b866da3 measured the same way,
+    // so nothing below folds in a number that was already stale.
+    // The file is `AdminRoot.tsx`, which the shell's source root contributes to the admin host
+    // walk; the five sites are its own import specifiers and the `mod-settings` reach that
+    // became a dynamic import, which this check counts exactly as it counted the static one.
+
+    files: 5164,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -6322,7 +6385,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 12651 -> 12915.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 12915,
+    // **T138: the file half of the move noted above the site count.**
+    // The file is `AdminRoot.tsx`, which the shell's source root contributes to the admin host
+    // walk; the five sites are its own import specifiers and the `mod-settings` reach that
+    // became a dynamic import, which this check counts exactly as it counted the static one.
+
+    sites: 12920,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -7152,7 +7220,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // on both sides in one worktree created from the branch, `quality`-job tree shape, with
     // nothing rebuilt between the two runs: `origin/master` reads 8171, the recorded value
     // exactly, and the branch reads 8172.
-    files: 8101,
+    // **`specs/110-instance-repository/` T138 (the admin member): files +7, plus 3 of `master`'s own.** The seven
+    // files this branch adds are `AdminRoot.tsx` in the shell, `endora generate` and its
+    // test, the two halves of the admin-artefact renderer that moved into the CLI, the
+    // shim left at its old path, and the changeset. Measured in a clean worktree in the
+    // `quality` job's shape, against `origin/master` at 15b866da3 measured the same way,
+    // so nothing below folds in a number that was already stale.
+    // Three of the ten are `specs/120-…`'s, which arrived on `master` at 15b866da3 without a
+    // re-record; the pristine-worktree measurement of that commit reads 8104 against a
+    // recorded 8101. This walk reads the whole repository, so it is the one that sees the
+    // changeset and the two `backend/scripts` shims as well.
+
+    files: 8111,
     sites: null,
     sources: [],
     //
@@ -8140,7 +8219,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // two sides' deltas.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 2482,
+    // **`specs/110-instance-repository/` T138 (the admin member): files +1.** The seven
+    // files this branch adds are `AdminRoot.tsx` in the shell, `endora generate` and its
+    // test, the two halves of the admin-artefact renderer that moved into the CLI, the
+    // shim left at its old path, and the changeset. Measured in a clean worktree in the
+    // `quality` job's shape, against `origin/master` at 15b866da3 measured the same way,
+    // so nothing below folds in a number that was already stale.
+
+    files: 2483,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -8589,7 +8675,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which is the point of !966 having taken the changesets out of both.
     // The next branch to write a changeset restores the token and this line
     // with it.
-    sources: ['workspace-globs'],
+    //
+    // **`specs/110-instance-repository/` T138 is that branch, and this is the
+    // re-record the paragraph above predicted in the other direction.** It
+    // carries one changeset naming three subjects, so `changeset-subjects` is
+    // printed again and the token is back. `files` and `sites` are untouched at
+    // 89 and 513 — !966 took the changesets out of both, which is exactly why a
+    // branch adding one moves this line and neither of those.
+    sources: ['changeset-subjects', 'workspace-globs'],
   },
   'backend/scripts/check-rsc-discipline.ts': {
     prefix: '[rsc-discipline]',
@@ -10072,7 +10165,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // sides' deltas.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 4623,
+    // **`specs/110-instance-repository/` T138 (the admin member): files +1.** The seven
+    // files this branch adds are `AdminRoot.tsx` in the shell, `endora generate` and its
+    // test, the two halves of the admin-artefact renderer that moved into the CLI, the
+    // shim left at its old path, and the changeset. Measured in a clean worktree in the
+    // `quality` job's shape, against `origin/master` at 15b866da3 measured the same way,
+    // so nothing below folds in a number that was already stale.
+
+    files: 4624,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -10191,7 +10291,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 429 -> 436.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    files: 436,
+    // **`specs/110-instance-repository/` T138 (the admin member): files +1.** The seven
+    // files this branch adds are `AdminRoot.tsx` in the shell, `endora generate` and its
+    // test, the two halves of the admin-artefact renderer that moved into the CLI, the
+    // shim left at its old path, and the changeset. Measured in a clean worktree in the
+    // `quality` job's shape, against `origin/master` at 15b866da3 measured the same way,
+    // so nothing below folds in a number that was already stale.
+
+    files: 437,
     sites: null,
     // `admin-ui` is the workspace manifests' own answer to "how many packages
     // ship a tree of admin UI", reconciled against how many of them the walk
@@ -10904,7 +11011,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // on both sides in one worktree created from the branch, `quality`-job tree shape, with
     // nothing rebuilt between the two runs: `origin/master` reads 8231, the recorded value
     // exactly, and the branch reads 8232.
-    files: 8161,
+    // **`specs/110-instance-repository/` T138 (the admin member): files +7, plus 3 of `master`'s own.** The seven
+    // files this branch adds are `AdminRoot.tsx` in the shell, `endora generate` and its
+    // test, the two halves of the admin-artefact renderer that moved into the CLI, the
+    // shim left at its old path, and the changeset. Measured in a clean worktree in the
+    // `quality` job's shape, against `origin/master` at 15b866da3 measured the same way,
+    // so nothing below folds in a number that was already stale.
+    // Three of the ten are `specs/120-…`'s, on `master` at 15b866da3 and re-recorded here for
+    // the reason `check-doc-snippets` states: the census reads the tree, not the diff.
+
+    files: 8171,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -11424,7 +11540,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // not, exactly as this branch's 214 deleted changesets and 83 added changelogs are not
     // and its `.mjs` verifier is. Measured on the merged tree after the resolution was
     // committed, this population being the index.
-    files: 6240,
+    // **`specs/110-instance-repository/` T138 (the admin member): files +6.** The seven
+    // files this branch adds are `AdminRoot.tsx` in the shell, `endora generate` and its
+    // test, the two halves of the admin-artefact renderer that moved into the CLI, the
+    // shim left at its old path, and the changeset. Measured in a clean worktree in the
+    // `quality` job's shape, against `origin/master` at 15b866da3 measured the same way,
+    // so nothing below folds in a number that was already stale.
+    // Six rather than seven: this walk reads source and the changeset is a `.md` outside it.
+
+    files: 6246,
     sites: null,
     sources: ['manifest-index'],
     //

@@ -47,6 +47,12 @@ import {
   InstanceInputError,
   runNewInstance,
 } from '../new-instance/index.js';
+import {
+  generateReport,
+  GenerateHostError,
+  GenerateInputError,
+  runGenerate,
+} from '../generate/index.js';
 
 const USAGE = `endora — scaffolding and conformance tooling for Endora Commerce modules.
 
@@ -54,6 +60,7 @@ Usage:
   endora new module <id> --name <text> --description <text> [options]
   endora new instance <dir> [--module <id>...] [--deployment <name>] [--registry <url>] [--dry-run]
   endora new storefront <dir> [--registry <url>] [--<input> <value>...] [--dry-run]
+  endora generate [--dry-run]
   endora --help
 
 \`endora new module\` writes a module package that is composed by the platform,
@@ -109,6 +116,15 @@ Options for \`new instance\`:
   --dry-run                     report every file it would write, the resolved
                                 module set with its closure, and every omission;
                                 write nothing
+
+\`endora generate\` renders the two files an instance's admin project is built
+from and commits neither: the contribution registry of the module packages this
+instance installed, and the stylesheet enumeration that makes their utility
+classes survive Tailwind's scan. Both are facts about the install rather than
+about the tree, so they are regenerated after every \`pnpm install\` and are
+git-ignored. Run it anywhere inside the instance; it finds the workspace root
+upwards. It reports every package the discovery excluded, because a linked
+package is invisible to this instance's runtime discovery too.
 
 \`endora new storefront\` copies the reference storefront out of this repository
 into a directory you then own outright, and rewrites every declaration in it that
@@ -415,6 +431,46 @@ async function runNewStorefrontCommand(
  * the refusal's class: an operator-fixable refusal is 1, an input the run could
  * not read is 2 (`instance-tree.md` §4).
  */
+/**
+ * `endora generate` — the two artefacts an instance's admin project is built
+ * from (`contracts/instance-tree.md` §2.6).
+ *
+ * It takes no positional: the instance is the workspace above the working
+ * directory, so `pnpm -C admin run generate` and a client standing in the root
+ * both answer the same. A positional would be a second way to name a tree the
+ * run is already standing in.
+ */
+function runGenerateCommand(parsed: Parsed, rest: readonly string[], cwd: string): number {
+  if (rest.length > 0) {
+    process.stderr.write(
+      `endora: \`generate\` takes no argument; got ${rest.join(', ')}. It renders the ` +
+        `artefacts of the instance whose workspace root is above the current directory.\n`,
+    );
+    return 1;
+  }
+  try {
+    const result = runGenerate({ cwd, dryRun: asFlag(parsed.values['dry-run']) });
+    process.stdout.write(
+      `endora generate ${result.root}${result.dryRun ? ' — dry run, nothing written' : ''}\n`,
+    );
+    for (const line of generateReport(result)) process.stdout.write(`  ${line}\n`);
+    process.stdout.write(
+      `  ${String(result.modules)} installed module package(s) in the population\n`,
+    );
+    return 0;
+  } catch (error: unknown) {
+    if (error instanceof GenerateInputError) {
+      process.stderr.write(`endora: ${error.message}\n`);
+      return 1;
+    }
+    if (error instanceof GenerateHostError) {
+      process.stderr.write(`endora: ${error.message}\n`);
+      return 2;
+    }
+    throw error;
+  }
+}
+
 async function runNewInstanceCommand(
   parsed: Parsed,
   rest: readonly string[],
@@ -526,9 +582,14 @@ export async function main(argv: readonly string[], cwd: string): Promise<number
     return runCheckCommand(parsed, [subject, ...rest].filter((v) => v !== undefined), cwd);
   }
 
+  if (command === 'generate') {
+    return runGenerateCommand(parsed, [subject, ...rest].filter((v) => v !== undefined), cwd);
+  }
+
   if (command !== 'new') {
     process.stderr.write(
-      `endora: unknown command "${command}". This build provides \`new module\`.\n`,
+      `endora: unknown command "${command}". This build provides \`new module\`, ` +
+        `\`new instance\`, \`new storefront\`, \`generate\` and \`check\`.\n`,
     );
     return 1;
   }

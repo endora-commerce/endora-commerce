@@ -112,6 +112,9 @@ import {
   evaluateA4,
   evaluateA10,
   evaluateA11,
+  evaluateA13,
+  evaluateA5,
+  type AdminStylesheetObservation,
   evaluateA14,
   evaluateProcess,
   exitCodeFor,
@@ -385,16 +388,39 @@ function digestTree(root: string, skip: ReadonlySet<string>): readonly DigestedF
   return digested;
 }
 
-/** The `@endora-commerce/*` packages the created manifest names. */
+/**
+ * The `@endora-commerce/*` packages the created **workspace** names — the root
+ * manifest and every member's.
+ *
+ * It read the root's alone until T138, which was complete while the workspace
+ * had one member that declares no dependency of its own (§2.3). The admin
+ * member declares three — the shell it mounts, the design system its stylesheet
+ * imports, and the CLI that renders its two build artefacts — and none of them
+ * is in the platform's dependency closure, so a root-only read leaves them
+ * resolving `^<version>` against a registry. In tarball mode that is an install
+ * failure attributed to A2; and the module set is still the root's (R3.6), so
+ * this widens which *packages* are pinned and not which *modules* are composed.
+ *
+ * The members come off the created `pnpm-workspace.yaml`, which is the tree's
+ * own statement of what it is, rather than off a directory list here.
+ */
 function declaredPackages(target: string): readonly string[] {
-  const manifest = JSON.parse(readFileSync(join(target, 'package.json'), 'utf8')) as {
-    dependencies?: Record<string, string>;
-    devDependencies?: Record<string, string>;
-  };
-  const declared = [
-    ...Object.keys(manifest.dependencies ?? {}),
-    ...Object.keys(manifest.devDependencies ?? {}),
-  ].filter((name) => name.startsWith(`${SCOPE}/`));
+  const roots = [target, ...workspaceMemberDirectories(target)];
+  const declared: string[] = [];
+  for (const root of roots) {
+    const manifestPath = join(root, 'package.json');
+    if (!existsSync(manifestPath)) continue;
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+    for (const name of [
+      ...Object.keys(manifest.dependencies ?? {}),
+      ...Object.keys(manifest.devDependencies ?? {}),
+    ]) {
+      if (name.startsWith(`${SCOPE}/`) && !declared.includes(name)) declared.push(name);
+    }
+  }
   if (declared.length === 0) {
     refuse(
       `the created instance declares no ${SCOPE}/* package, so there is nothing to install and ` +
@@ -402,6 +428,33 @@ function declaredPackages(target: string): readonly string[] {
     );
   }
   return declared;
+}
+
+/**
+ * The member directories the created `pnpm-workspace.yaml` declares.
+ *
+ * A flat `- name` list, which is what the command writes (§2.1) — a glob would
+ * be a shape this criterion does not read, and it says so by returning nothing
+ * rather than by guessing, which shows up as a member's packages missing from
+ * the pin rather than as a silent pass.
+ */
+function workspaceMemberDirectories(target: string): readonly string[] {
+  const file = join(target, 'pnpm-workspace.yaml');
+  if (!existsSync(file)) return [];
+  const members: string[] = [];
+  let inPackages = false;
+  for (const line of readFileSync(file, 'utf8').split('\n')) {
+    if (/^packages:\s*$/.test(line)) {
+      inPackages = true;
+      continue;
+    }
+    if (inPackages) {
+      const entry = /^\s+-\s+(\S+)\s*$/.exec(line);
+      if (entry === null) break;
+      members.push(join(target, entry[1]!.replace(/^['"]|['"]$/g, '')));
+    }
+  }
+  return members;
 }
 
 /** What each installed host package declares, for the closure derivation. */
@@ -764,6 +817,213 @@ async function bootOnce(
 }
 
 /**
+ * Every file under a directory whose name ends in one of `suffixes`.
+ *
+ * A plain recursive walk, and `node_modules` is not skipped by name: the two
+ * callers below are given a package's own directory or the admin project's
+ * `dist`, neither of which holds one.
+ */
+function filesWithSuffix(root: string, suffixes: readonly string[]): readonly string[] {
+  if (!existsSync(root)) return [];
+  const found: string[] = [];
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    const full = join(root, entry.name);
+    if (entry.isDirectory()) found.push(...filesWithSuffix(full, suffixes));
+    else if (suffixes.some((suffix) => entry.name.endsWith(suffix))) found.push(full);
+  }
+  return found;
+}
+
+/**
+ * The module packages this instance installed, with the admin layer each one
+ * **publishes** — read off its own `exports` map.
+ *
+ * Deliberately a second reading of the question the CLI's generator answers,
+ * and R6.3's A5 is what asks for it: the generator says which layers it
+ * imported and the packages say which layers they publish, so the criterion is
+ * not one program asserting itself. It is the same arrangement `evaluateA3`
+ * already has, where the order is recomputed rather than read back.
+ *
+ * A subpath is an admin layer when its target lands in a directory called
+ * `admin`; the subpath's **name** is not read, because a package may call it
+ * anything.
+ */
+function installedModules(
+  target: string,
+): readonly { id: string; packageName: string; dir: string; admin: boolean }[] {
+  const scope = join(target, 'node_modules', SCOPE);
+  if (!existsSync(scope)) return [];
+  const found: { id: string; packageName: string; dir: string; admin: boolean }[] = [];
+  for (const entry of readdirSync(scope)) {
+    const dir = join(scope, entry);
+    const manifestPath = join(dir, 'package.json');
+    if (!existsSync(manifestPath)) continue;
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+      name?: string;
+      endora?: { type?: string; id?: string };
+      exports?: Record<string, unknown>;
+    };
+    if (manifest.endora?.type !== 'module' || typeof manifest.endora.id !== 'string') continue;
+    const admin = Object.entries(manifest.exports ?? {}).some(([subpath, targetPath]) => {
+      if (subpath === './package.json') return false;
+      const spelled =
+        typeof targetPath === 'string'
+          ? targetPath
+          : typeof (targetPath as { default?: unknown } | null)?.default === 'string'
+            ? ((targetPath as { default: string }).default)
+            : null;
+      if (spelled === null) return false;
+      return dirname(spelled.replace(/^\.\//, '')).split('/').pop() === 'admin';
+    });
+    found.push({
+      id: manifest.endora.id,
+      packageName: manifest.name ?? `${SCOPE}/${entry}`,
+      dir,
+      admin,
+    });
+  }
+  return found.sort((left, right) => left.id.localeCompare(right.id));
+}
+
+/** A5's evidence: the module ids the built bundle names, and how much it read. */
+function bundleEvidence(adminDist: string): { named: readonly string[]; bytes: number } {
+  const named = new Set<string>();
+  let bytes = 0;
+  for (const file of filesWithSuffix(adminDist, ['.js', '.mjs'])) {
+    const text = readFileSync(file, 'utf8');
+    bytes += text.length;
+    // The registry's own shape, which survives minification: the property is a
+    // plain object key and esbuild does not mangle one.
+    for (const match of text.matchAll(/moduleId\s*:\s*["']([a-z0-9_]+)["']/g)) {
+      named.add(match[1]!);
+    }
+  }
+  return { named: [...named].sort(), bytes };
+}
+
+/**
+ * Class tokens a tree writes, read **only** out of a `class` / `className`
+ * position.
+ *
+ * Every string literal was the first spelling and it is far too wide: measured
+ * on the criterion's own tree, it made i18n keys (`permission-authority`),
+ * palette action ids (`open-audit-log`) and DOM ids (`f-action`) look like
+ * classes only one package uses, and then reported their absence from the
+ * stylesheet as that package having gone unscanned — a red about the probe
+ * wearing the costume of a red about the product. The attribute position is
+ * what makes a token a class.
+ *
+ * A token carrying a `.` or a `/` is out of the population by construction: the
+ * compiled CSS escapes it (`.space-y-0\.5`), so it can never be matched by
+ * {@link cssClasses} and would be a permanent false absence. One witness per
+ * package is all this needs.
+ */
+function classTokensIn(root: string, suffixes: readonly string[]): ReadonlySet<string> {
+  const tokens = new Set<string>();
+  for (const file of filesWithSuffix(root, suffixes)) {
+    const text = readFileSync(file, 'utf8');
+    for (const match of text.matchAll(/\bclass(?:Name)?\s*[:=]\s*["'`]([^"'`]{0,600})["'`]/g)) {
+      for (const token of match[1]!.split(/\s+/)) {
+        if (/^[a-z][a-z0-9]*(?:-[a-z0-9]+)+$/.test(token) && token.length >= 4) tokens.add(token);
+      }
+    }
+  }
+  return tokens;
+}
+
+/** The class names a compiled stylesheet actually defines a rule for. */
+function cssClasses(files: readonly string[]): { classes: ReadonlySet<string>; bytes: number } {
+  const classes = new Set<string>();
+  let bytes = 0;
+  for (const file of files) {
+    const text = readFileSync(file, 'utf8');
+    bytes += text.length;
+    for (const match of text.matchAll(/\.(-?[a-z][a-zA-Z0-9_-]*)(?=[\s{,.:>~+)\]])/g)) {
+      classes.add(match[1]!);
+    }
+  }
+  return { classes, bytes };
+}
+
+/**
+ * A13's reading: which packages' own classes survived into the built stylesheet.
+ *
+ * "Its own" is derived rather than declared — a class this package uses that no
+ * other installed package and no file of the admin project uses — so the
+ * witness cannot have arrived from anywhere but this package's sources having
+ * been scanned. That is the only evidence that distinguishes a stylesheet built
+ * from the generated enumeration from one built without it, which is the whole
+ * of FR-023.
+ */
+function stylesheetWitnesses(
+  target: string,
+  adminDist: string,
+): AdminStylesheetObservation {
+  const css = cssClasses(filesWithSuffix(adminDist, ['.css']));
+  const subjects: { packageName: string; kind: 'shell' | 'module'; dir: string }[] = [];
+  // The shell is the **admin member's** dependency, so it is installed there
+  // and not at the root. Reading the root alone gave it an empty token set,
+  // which silently widened every module's "own" classes by everything the
+  // shell also uses — and reported seven modules as unscanned on that basis.
+  const shellDir = [target, ...workspaceMemberDirectories(target)]
+    .map((root) => join(root, 'node_modules', SCOPE, 'admin-shell'))
+    .find((candidate) => existsSync(candidate));
+  if (shellDir !== undefined) {
+    subjects.push({ packageName: `${SCOPE}/admin-shell`, kind: 'shell', dir: shellDir });
+  }
+  for (const module of installedModules(target)) {
+    if (!module.admin) continue;
+    subjects.push({ packageName: module.packageName, kind: 'module', dir: module.dir });
+  }
+
+  // The design system's own stylesheet is **imported**, not scanned, so every
+  // class it defines is in the bundle whether or not any package was scanned.
+  // Those are evidence of nothing and are subtracted from every package's set —
+  // in both directions: a missing one is not a defect, and a present one is not
+  // a witness. Derived from the file the admin project imports rather than from
+  // a prefix written down here.
+  const designSystem = new Set<string>();
+  for (const root of [target, ...workspaceMemberDirectories(target)]) {
+    const theme = join(root, 'node_modules', SCOPE, 'admin-kit', 'theme.css');
+    if (!existsSync(theme)) continue;
+    for (const name of cssClasses([theme]).classes) designSystem.add(name);
+    break;
+  }
+
+  const tokensByPackage = new Map<string, ReadonlySet<string>>();
+  for (const subject of subjects) {
+    const scanned = classTokensIn(subject.dir, ['.js', '.mjs']);
+    tokensByPackage.set(
+      subject.packageName,
+      new Set([...scanned].filter((token) => !designSystem.has(token))),
+    );
+  }
+  // The admin project's own sources are excluded from every package's "own"
+  // set: a class the client's own `index.css` or `main.tsx` uses reaches the
+  // stylesheet through Tailwind's automatic detection, which is rooted at the
+  // Vite project and would be there with no enumeration at all.
+  const projectTokens = classTokensIn(join(target, 'admin', 'src'), ['.tsx', '.ts', '.css']);
+
+  const packages = subjects.map((subject) => {
+    const own = tokensByPackage.get(subject.packageName)!;
+    const unique = [...own].filter((token) => {
+      if (projectTokens.has(token)) return false;
+      for (const [name, tokens] of tokensByPackage) {
+        if (name !== subject.packageName && tokens.has(token)) return false;
+      }
+      return true;
+    });
+    return {
+      packageName: subject.packageName,
+      kind: subject.kind,
+      unique: unique.length,
+      witnesses: unique.filter((token) => css.classes.has(token)).sort().slice(0, 3),
+    };
+  });
+  return { built: css.bytes > 0, bytes: css.bytes, packages };
+}
+
+/**
  * The assertions this criterion cannot measure today, each with the contract or
  * task that retires it.
  *
@@ -778,11 +1038,6 @@ function declaredUnmeasured(adminOmission: string | null): readonly AssertionRes
     'the created tree holds no `admin/` member and the command printed no omission for it';
   return [
     {
-      id: 'A5' as const,
-      state: 'unmeasured' as const,
-      detail: `${noAdminMember} — \`instance-tree.md\` §2.4's file manifest is T138's and is unwritten`,
-    },
-    {
       id: 'A6' as const,
       state: 'unmeasured' as const,
       detail:
@@ -794,9 +1049,11 @@ function declaredUnmeasured(adminOmission: string | null): readonly AssertionRes
       id: 'A7' as const,
       state: 'unmeasured' as const,
       detail:
-        'its three halves are the built admin bundle (A5\'s subject, T138), the API surface ' +
-        'and the module enumeration (A4\'s, and the instance does not boot) — so no half of it ' +
-        'has a subject in this tree',
+        'two of its three halves are the API surface and the module enumeration, and both are ' +
+        'A4\'s — the instance does not boot. The third, the built admin bundle, now has a ' +
+        'subject and is asserted in one direction by A5 (a module named and not installed is ' +
+        'A5\'s `extra`); a verdict here over that half alone would be answering a third of ' +
+        'the assertion',
     },
     {
       id: 'A8' as const,
@@ -818,11 +1075,51 @@ function declaredUnmeasured(adminOmission: string | null): readonly AssertionRes
         'it needs a fixture registry to publish a platform patch into: T144, gated on F10 ' +
         '(`specs/071-modular-packaging/roadmap.md`)',
     },
-    {
-      id: 'A13' as const,
-      state: 'unmeasured' as const,
-      detail: `${noAdminMember} — there is no built stylesheet to read, T138 and \`contracts/admin-stylesheet-composition.md\``,
-    },
+  ];
+}
+
+/**
+ * A5 and A13, over the tree the instance's own `build` script produced — or the
+ * reason there is nothing to read.
+ *
+ * The two are computed together because they share one input and answer two
+ * different questions about it: A5 that the screens are in the bundle, A13 that
+ * they are visible. The admin member may legitimately not be there at all, and
+ * that case is the omission the command printed, reported verbatim.
+ */
+function adminBundleAssertions(
+  target: string,
+  adminOmission: string | null,
+): readonly AssertionResult[] {
+  const adminDist = join(target, 'admin', 'dist');
+  if (!existsSync(join(target, 'admin'))) {
+    const reason =
+      adminOmission ??
+      'the created tree holds no `admin/` member and the command printed no omission for it';
+    return [
+      { id: 'A5', state: 'unmeasured', detail: reason },
+      {
+        id: 'A13',
+        state: 'unmeasured',
+        detail: `${reason} — there is no built stylesheet to read`,
+      },
+    ];
+  }
+  const modules = installedModules(target);
+  const bundle = bundleEvidence(adminDist);
+  return [
+    evaluateA5({
+      built: existsSync(adminDist),
+      named: bundle.named,
+      expected: modules.filter((module) => module.admin).map((module) => module.id),
+      installed: modules.map((module) => module.id),
+      bytes: bundle.bytes,
+    }),
+    evaluateA13(
+      existsSync(adminDist)
+        ? stylesheetWitnesses(target, adminDist)
+        : ({ built: false, bytes: 0, packages: [] } satisfies AdminStylesheetObservation),
+    ),
   ];
 }
 
@@ -1071,6 +1368,7 @@ async function main(): Promise<void> {
       results.push({ id: 'A4', state: 'unmeasured', detail: 'there is no install to boot' });
     }
 
+    results.push(...adminBundleAssertions(target, adminOmission));
     results.push(...declaredUnmeasured(adminOmission));
   } finally {
     await dropDatabase(database.adminUrl, database.databaseName);
@@ -1117,8 +1415,18 @@ async function main(): Promise<void> {
  */
 function shippedBy(target: string): readonly ShippedFiles[] {
   const shipped: ShippedFiles[] = [];
+  // The root's `node_modules` **and** each member's: pnpm installs a package
+  // where it is declared, and since T138 the shell is the admin member's
+  // dependency rather than the root's. Reading the root alone reported
+  // `admin-shell does not resolve` over a tree that had it, which is A11's own
+  // `unmeasured` verdict arriving from the criterion's blind spot rather than
+  // from the tree.
+  const roots = [target, ...workspaceMemberDirectories(target)];
   for (const name of ['platform', 'admin-shell']) {
-    const dir = join(target, 'node_modules', SCOPE, name);
+    const dir =
+      roots
+        .map((root) => join(root, 'node_modules', SCOPE, name))
+        .find((candidate) => existsSync(candidate)) ?? join(target, 'node_modules', SCOPE, name);
     // An absent package is recorded as unresolved rather than skipped: R6.3's
     // A11 is a claim about **both**, and a comparison against a package that is
     // not there is vacuously clean — which is the silence the judgement reports

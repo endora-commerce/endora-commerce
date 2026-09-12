@@ -70,6 +70,16 @@ export const PLATFORM_PACKAGE = 'platform';
 /** The admin shell, when it resolves (`instance-tree.md` §2.4). */
 export const ADMIN_SHELL_PACKAGE = 'admin-shell';
 
+/**
+ * The admin design system, §2.4's other package.
+ *
+ * Both are named because the member is mounted on both and neither is reachable
+ * through the other: the shell is what `main.tsx` mounts and the kit is what
+ * `index.css` imports the token and class vocabulary from. A build in which one
+ * resolves and the other does not writes no admin member, and says which.
+ */
+export const ADMIN_KIT_PACKAGE = 'admin-kit';
+
 /** One `@endora-commerce/*` package this run resolved, with its own manifest. */
 export interface ResolvedPackage {
   /** The npm name, verbatim — this is what goes into `dependencies`. */

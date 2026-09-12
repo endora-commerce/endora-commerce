@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import type {
   ConfigurationDto,
   ConfigurationListResponse,
@@ -6,7 +6,30 @@ import type {
 import { apiClient, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
 import { Button, Select } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { ConfigurationPreviewModal } from '@endora-commerce/mod-credentials/admin-ui';
+/**
+ * Loaded lazily, and that is a **build** decision rather than a performance one
+ * (`specs/110-instance-repository/` T138).
+ *
+ * `credentials` is an **optional** peer of this package — `manifests:generate`
+ * marks a peer optional when only a UI layer reaches it — so a client's instance
+ * that did not install `credentials` has no such package, and a *static* named
+ * import of one is a bundle that does not build. Measured on the acceptance
+ * criterion's own scaffolded instance: Vite binds an unresolved optional peer to
+ * an `__vite-optional-peer-dep:` stub, and a named import off a stub is
+ * `"ConfigurationPreviewModal" is not exported by …` — which takes out the whole
+ * admin bundle, every module's screens with it, over one button.
+ *
+ * A dynamic import is not analysed that way, so the stub survives to runtime,
+ * where it is never reached: the render below is already gated on the module's
+ * presence (Z12), and a module that is not installed is never present. The gate
+ * was there first and answers the operator's question; this answers the
+ * bundler's, and neither stands in for the other.
+ */
+const ConfigurationPreviewModal = lazy(() =>
+  import('@endora-commerce/mod-credentials/admin-ui').then((module) => ({
+    default: module.ConfigurationPreviewModal,
+  })),
+);
 
 /**
  * List the configurations of one type (feature 091, P6).
@@ -122,11 +145,13 @@ export function ConfigurationReferenceInput({
             {t('editor.credentialRef.preview')}
           </Button>
 
-          <ConfigurationPreviewModal
-            open={preview !== null}
-            configuration={preview}
-            onClose={() => setPreview(null)}
-          />
+          <Suspense fallback={null}>
+            <ConfigurationPreviewModal
+              open={preview !== null}
+              configuration={preview}
+              onClose={() => setPreview(null)}
+            />
+          </Suspense>
         </>
       ) : null}
     </div>

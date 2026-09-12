@@ -630,6 +630,188 @@ export function evaluateA11(
   };
 }
 
+/**
+ * What A5 read: the built admin bundle, and who was entitled to be in it.
+ *
+ * `expected` is derived from the **installed packages' own `exports` maps** and
+ * not from the registry the generator wrote, which is R6.3's own instruction —
+ * *"asserted over the built bundle, not over the registry that produced it"*.
+ * Two authors, deliberately: the generator says which layers it imported, the
+ * packages say which layers they publish, and the bundle is the evidence. A
+ * criterion that read the generator's artefact at both ends would be asserting
+ * one program against itself, which is `evaluateA3`'s arrangement one surface
+ * over — it recomputes the migration order rather than reading the one the
+ * platform logged.
+ */
+export interface AdminBundleObservation {
+  /** Did the instance's own `build` script produce an admin bundle? */
+  readonly built: boolean;
+  /** Module ids the built bundle names. */
+  readonly named: readonly string[];
+  /** Module ids whose installed package publishes an admin layer. */
+  readonly expected: readonly string[];
+  /** Every installed module id, whether or not it ships a screen. */
+  readonly installed: readonly string[];
+  /** Bytes of JavaScript read, so a bundle that is there and empty is visible. */
+  readonly bytes: number;
+}
+
+/**
+ * A5 — the admin bundle holds the admin layers of **exactly** the installed
+ * modules.
+ *
+ * Both directions, and they are different defects: a missing id is a screen the
+ * client installed and cannot reach, and an extra one is a module they did not
+ * install advertising itself in their operator interface (which is also A7's
+ * subject, asked of a wider population).
+ */
+export function evaluateA5(observed: AdminBundleObservation): AssertionResult {
+  if (!observed.built) {
+    return {
+      id: 'A5',
+      state: 'unmeasured',
+      detail:
+        'the instance\'s own `build` script produced no admin bundle, so there is nothing to ' +
+        'read; whatever went wrong is reported by A3, which is the assertion that runs it',
+    };
+  }
+  if (observed.bytes === 0) {
+    return {
+      id: 'A5',
+      state: 'unmeasured',
+      detail: 'the admin bundle is there and holds no JavaScript, so it is evidence of nothing',
+    };
+  }
+  if (observed.expected.length === 0) {
+    return {
+      id: 'A5',
+      state: 'unmeasured',
+      detail:
+        `none of the ${String(observed.installed.length)} installed module packages publishes ` +
+        'an admin layer, so "exactly the installed modules" is satisfied by an empty set and ' +
+        'says nothing about whether a screen would have been bundled',
+    };
+  }
+  const missing = observed.expected.filter((id) => !observed.named.includes(id));
+  const extra = observed.named.filter((id) => !observed.expected.includes(id));
+  if (missing.length > 0 || extra.length > 0) {
+    return {
+      id: 'A5',
+      state: 'fail',
+      detail:
+        `${String(observed.expected.length)} installed module packages publish an admin layer ` +
+        `and the built bundle names ${String(observed.named.length)}` +
+        (missing.length > 0 ? `; missing: ${missing.join(', ')}` : '') +
+        (extra.length > 0 ? `; not installed and named anyway: ${extra.join(', ')}` : ''),
+    };
+  }
+  return {
+    id: 'A5',
+    state: 'pass',
+    detail:
+      `the built bundle names exactly the ${String(observed.expected.length)} installed module ` +
+      `packages that publish an admin layer, out of ${String(observed.installed.length)} ` +
+      `installed, over ${String(Math.round(observed.bytes / 1024))} KiB of JavaScript`,
+  };
+}
+
+/** One package's contribution to the built stylesheet, and how it was found. */
+export interface StylesheetWitness {
+  readonly packageName: string;
+  /** `shell` and `module` are the two the contract names; both must witness. */
+  readonly kind: 'shell' | 'module';
+  /** Utility-shaped class tokens this package alone uses. */
+  readonly unique: number;
+  /** Those of them the built stylesheet actually carries. */
+  readonly witnesses: readonly string[];
+}
+
+/** What A13 read: the built stylesheet, and who is entitled to be in it. */
+export interface AdminStylesheetObservation {
+  readonly built: boolean;
+  readonly bytes: number;
+  readonly packages: readonly StylesheetWitness[];
+}
+
+/**
+ * A13 — the built stylesheet carries a class that only an installed package
+ * declares, one from the shell and one from a module's admin layer (FR-023,
+ * SC-011).
+ *
+ * **A5 says the screens are in the bundle; this says they are visible**, and the
+ * two are not the same claim: Tailwind is a static scan that reports nothing
+ * about a source matching nothing, so a package the enumeration failed to name
+ * builds green and renders with none of the utility classes only it declares.
+ *
+ * The witness is derived, never listed: a class this package uses and no other
+ * installed package and no file of the admin project uses. A package with no
+ * such class is **skipped and counted**, not failed — it has no subject, and
+ * treating "I could not tell" as a failure would send a reader to repair a
+ * scan that is working. A package that has one and whose class is absent from
+ * the stylesheet is the defect this assertion exists for.
+ */
+export function evaluateA13(observed: AdminStylesheetObservation): AssertionResult {
+  if (!observed.built || observed.bytes === 0) {
+    return {
+      id: 'A13',
+      state: 'unmeasured',
+      detail: observed.built
+        ? 'the built admin stylesheet is empty, so it is evidence of nothing'
+        : 'the instance\'s own `build` script produced no admin stylesheet to read',
+    };
+  }
+  const withSubject = observed.packages.filter((entry) => entry.unique > 0);
+  if (withSubject.length === 0) {
+    return {
+      id: 'A13',
+      state: 'unmeasured',
+      detail:
+        `none of the ${String(observed.packages.length)} packages read uses a class no other ` +
+        'package and no file of the admin project uses, so there is no class whose presence ' +
+        'could only be explained by that package having been scanned',
+    };
+  }
+  const silent = withSubject.filter((entry) => entry.witnesses.length === 0);
+  if (silent.length > 0) {
+    return {
+      id: 'A13',
+      state: 'fail',
+      detail:
+        `${String(silent.length)} of ${String(withSubject.length)} packages contributed no ` +
+        `class to the built stylesheet, so their screens render unstyled: ` +
+        silent
+          .slice(0, 5)
+          .map((entry) => `${entry.packageName} (${String(entry.unique)} of its own)`)
+          .join(', '),
+    };
+  }
+  for (const kind of ['shell', 'module'] as const) {
+    if (!withSubject.some((entry) => entry.kind === kind)) {
+      return {
+        id: 'A13',
+        state: 'unmeasured',
+        detail:
+          `no ${kind} package offered a class of its own, and SC-011 asks for one from the ` +
+          'shell and one from a module\'s admin layer — a verdict over one of the two would ' +
+          'be answering half the assertion',
+      };
+    }
+  }
+  const sample = withSubject
+    .slice(0, 2)
+    .map((entry) => `${entry.packageName}: .${entry.witnesses[0]!}`)
+    .join(', ');
+  return {
+    id: 'A13',
+    state: 'pass',
+    detail:
+      `${String(Math.round(observed.bytes / 1024))} KiB of built stylesheet carries a class ` +
+      `only its own package declares for each of ${String(withSubject.length)} packages, the ` +
+      `shell and ${String(withSubject.filter((e) => e.kind === 'module').length)} module ` +
+      `admin layers among them — ${sample}`,
+  };
+}
+
 /** What A14 measured on the created tree: the wiring files, and their lines. */
 export interface WiringObservation {
   /** One entry per file the command classified as wiring, with its line count. */

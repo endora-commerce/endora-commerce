@@ -39,6 +39,7 @@ import {
 import { resolveModuleSet, type ModuleCandidate } from '../src/new-instance/modules.js';
 import {
   devDependenciesFor,
+  GENERATED_ARTEFACTS,
   planInstance,
   wiringLineCount,
   type PlanInput,
@@ -70,7 +71,10 @@ interface FixturePackage {
   /** Overrides the whole `exports` map, for the "no root export" proof. */
   readonly exports?: unknown;
   readonly peerDependencies?: Record<string, string>;
+  /** Which of those a consumer supplies — §2.4's whole derivation reads it. */
+  readonly peerDependenciesMeta?: Record<string, { optional: boolean }>;
   readonly dependencies?: Record<string, string>;
+  readonly devDependencies?: Record<string, string>;
 }
 
 /**
@@ -99,7 +103,11 @@ function installFixture(packages: readonly FixturePackage[]): string {
         ...(pkg.peerDependencies === undefined
           ? {}
           : { peerDependencies: pkg.peerDependencies }),
+        ...(pkg.peerDependenciesMeta === undefined
+          ? {}
+          : { peerDependenciesMeta: pkg.peerDependenciesMeta }),
         ...(pkg.dependencies === undefined ? {} : { dependencies: pkg.dependencies }),
+        ...(pkg.devDependencies === undefined ? {} : { devDependencies: pkg.devDependencies }),
       }),
       'utf8',
     );
@@ -173,6 +181,10 @@ function planInput(overrides: Partial<PlanInput> = {}): PlanInput {
     packageManager: undefined,
     modules: [{ id: 'settings', packageName: `${SCOPE}mod-settings` }],
     adminShellVersion: null,
+    adminKitVersion: null,
+    adminRanges: new Map(),
+    adminPeers: new Map(),
+    cliVersion: '1.2.3',
     declaredRanges: new Map([
       ['@mikro-orm/core', '^6'],
       ['@mikro-orm/postgresql', '^6'],
@@ -476,11 +488,24 @@ describe('the tree (§1, §2)', () => {
     }
   });
 
-  it('§2.6 — both generated artefacts are git-ignored', () => {
+  /**
+   * §2.6 and `instance-repository.md` R3.2 — and the count is **three**.
+   *
+   * This case read *"both generated artefacts"* and asserted two while R3.2
+   * already said three: `admin/src/tailwind.generated.css` arrived with T124 on
+   * the day this command landed, so the assertion recorded the stale number
+   * rather than catching it. A committed stylesheet enumeration is the tree and
+   * the install disagreeing about which packages Tailwind scanned, which is
+   * silent in exactly the direction `admin-stylesheet-composition.md` exists
+   * for. Derived from the constant rather than listed here, so a fourth
+   * artefact is covered by existing.
+   */
+  it('§2.6 — every generated artefact is git-ignored', () => {
     const plan = planInstance(planInput());
     const ignore = plan.files.find((file) => file.path === '.gitignore')!;
-    expect(ignore.content).toContain('admin/src/modules.generated.ts');
-    expect(ignore.content).toContain('docs/sidebars.modules.generated.js');
+    expect(GENERATED_ARTEFACTS.length).toBeGreaterThanOrEqual(3);
+    for (const artefact of GENERATED_ARTEFACTS) expect(ignore.content).toContain(artefact);
+    expect(ignore.content).toContain('admin/src/tailwind.generated.css');
   });
 
   it('D-216 — no demo artefact is written, at any tier', () => {
@@ -597,6 +622,176 @@ describe('the tree (§1, §2)', () => {
     expect(plan.files.some((file) => file.path.startsWith('admin/'))).toBe(false);
     const omission = plan.omitted.find((entry) => entry.path === 'admin/')!;
     expect(omission.reason).toContain('headless API');
+  });
+});
+
+/**
+ * §2.4 — the admin member, written (`specs/110-instance-repository/` T138).
+ *
+ * Every case below drives {@link planInstance} over a plan input whose admin
+ * halves are present, which is what {@link runNewInstance} builds from the
+ * packages it resolved: the shell's and the kit's versions, the ranges off the
+ * shell's own manifest, and the optional peers of everything the instance
+ * composes. A case that handed the member a pre-decided file list would be
+ * asserting the fixture (issue #130).
+ */
+describe('the admin member (instance-tree.md §2.4)', () => {
+  const withAdmin = (overrides: Partial<PlanInput> = {}): PlanInput =>
+    planInput({
+      adminShellVersion: '4.5.6',
+      adminKitVersion: '4.5.6',
+      adminRanges: new Map([
+        ['react', '^19.0.0'],
+        ['react-dom', '^19.0.0'],
+        ['vite', '^7.3.2'],
+        ['@vitejs/plugin-react', '^5.2.0'],
+        ['tailwindcss', '^4.2.4'],
+        ['@tailwindcss/vite', '^4.2.4'],
+      ]),
+      adminPeers: new Map([
+        ['@measured/puck', '^0'],
+        ['lucide-react', '^1'],
+        ['vite', '^7.3.2'],
+      ]),
+      ...overrides,
+    });
+
+  it('writes the member, and no file outside it changes kind', () => {
+    const plan = planInstance(withAdmin());
+    const admin = plan.files.filter((file) => file.member === 'admin');
+    expect(admin.map((file) => file.path).sort()).toEqual([
+      'admin/index.html',
+      'admin/package.json',
+      'admin/src/index.css',
+      'admin/src/main.tsx',
+      'admin/tsconfig.json',
+      'admin/vite.config.ts',
+    ]);
+    // R1.1: one file of this member is wiring and the rest are the client's or
+    // derived. A member with no wiring at all would mean the registry reached
+    // the shell by some route this bound does not see.
+    expect(admin.filter((file) => file.kind === 'wiring').map((file) => file.path)).toEqual([
+      'admin/src/main.tsx',
+    ]);
+    expect(plan.omitted.some((entry) => entry.path === 'admin/')).toBe(false);
+    expect(plan.members).toContain('admin');
+  });
+
+  it('R1.4 — the wiring it adds keeps the whole plan under the bound', () => {
+    expect(wiringLineCount(planInstance(withAdmin()))).toBeLessThan(250);
+  });
+
+  it('R5.4 — the workspace lists both members, and one when the admin is omitted', () => {
+    const workspaceOf = (plan: ReturnType<typeof planInstance>): string =>
+      plan.files.find((file) => file.path === 'pnpm-workspace.yaml')!.content;
+    expect(workspaceOf(planInstance(withAdmin()))).toContain('  - admin');
+    expect(workspaceOf(planInstance(planInput()))).not.toContain('  - admin');
+  });
+
+  /**
+   * R3.6 — the module set appears exactly once, and it is the root's.
+   *
+   * The measured defect this guards is subtler than a duplicated list: pnpm
+   * resolves a package's peers from its **dependent's** context, so declaring
+   * the module set here is the obvious way to make a module's optional peers
+   * resolve — and it is the one thing R3.6 forbids. The peers are declared
+   * beside the modules instead, at the root.
+   */
+  it('R3.6 — the admin member declares no module package, and the root declares their peers', () => {
+    const plan = planInstance(withAdmin());
+    const admin = JSON.parse(
+      plan.files.find((file) => file.path === 'admin/package.json')!.content,
+    ) as { dependencies: Record<string, string>; devDependencies: Record<string, string> };
+    const declared = [...Object.keys(admin.dependencies), ...Object.keys(admin.devDependencies)];
+    expect(declared.filter((name) => name.startsWith(`${SCOPE}mod-`))).toEqual([]);
+    expect(declared).toContain(`${SCOPE}admin-shell`);
+    expect(declared).toContain(`${SCOPE}admin-kit`);
+
+    const root = JSON.parse(plan.files.find((file) => file.path === 'package.json')!.content) as {
+      dependencies: Record<string, string>;
+    };
+    expect(root.dependencies['@measured/puck']).toBe('^0');
+    expect(root.dependencies['lucide-react']).toBe('^1');
+    // A build tool is the admin member's and never the root's: it builds the
+    // bundle and is not in it.
+    expect(root.dependencies['vite']).toBeUndefined();
+    expect(admin.devDependencies['vite']).toBe('^7.3.2');
+  });
+
+  it('§2.5 — the root gains `generate`, and `build` reaches both members', () => {
+    const scripts = (plan: ReturnType<typeof planInstance>): Record<string, string> =>
+      (JSON.parse(plan.files.find((file) => file.path === 'package.json')!.content) as {
+        scripts: Record<string, string>;
+      }).scripts;
+    const withMember = scripts(planInstance(withAdmin()));
+    expect(withMember['generate']).toBe('pnpm -C admin run generate');
+    expect(withMember['build']).toContain('pnpm -C admin run build');
+    const without = scripts(planInstance(planInput()));
+    expect(without['generate']).toBeUndefined();
+    expect(without['build']).toBe('pnpm -C backend run build');
+  });
+
+  it('the entry point mounts the shell over the generated registry, and nothing else', () => {
+    const main = planInstance(withAdmin()).files.find(
+      (file) => file.path === 'admin/src/main.tsx',
+    )!;
+    expect(main.content).toContain(`from '${SCOPE}admin-shell'`);
+    expect(main.content).toContain("from './modules.generated.js'");
+    // The service worker registers an asset this member does not ship, so a
+    // call to it here would be a dead promise in a client's tree.
+    expect(main.content).not.toContain('registerAdminServiceWorker');
+  });
+
+  it('the stylesheet imports the design system and the generated enumeration, in order', () => {
+    const css = planInstance(withAdmin()).files.find(
+      (file) => file.path === 'admin/src/index.css',
+    )!.content;
+    const order = ['@import "tailwindcss"', 'admin-kit/theme.css', './tailwind.generated.css'];
+    let cursor = -1;
+    for (const fragment of order) {
+      const at = css.indexOf(fragment);
+      expect(at).toBeGreaterThan(cursor);
+      cursor = at;
+    }
+    // R2.3 — the override slot is last, so a redeclaration wins.
+    expect(css.lastIndexOf('@import')).toBeLessThan(css.indexOf('Your overrides go here'));
+  });
+
+  it('the project is findable by the `"@/*"` alias its generator locates it through', () => {
+    const tsconfig = JSON.parse(
+      planInstance(withAdmin()).files.find((file) => file.path === 'admin/tsconfig.json')!.content,
+    ) as { compilerOptions: { paths: Record<string, string[]> } };
+    expect(tsconfig.compilerOptions.paths['@/*']).toEqual(['./src/*']);
+  });
+
+  it('§2.4 — one package absent omits the member and says which', () => {
+    for (const [missing, overrides] of [
+      [`${SCOPE}admin-shell`, { adminShellVersion: null }],
+      [`${SCOPE}admin-kit`, { adminKitVersion: null }],
+    ] as const) {
+      const plan = planInstance(withAdmin(overrides));
+      expect(plan.files.some((file) => file.member === 'admin')).toBe(false);
+      const omission = plan.omitted.find((entry) => entry.path === 'admin/')!;
+      expect(omission.reason).toContain(missing);
+      expect(omission.reason).toContain('headless API');
+    }
+  });
+
+  /**
+   * R2.5a — a range with no source is not invented, here as everywhere.
+   *
+   * The remedy is the operator's and the sentence names the package, because
+   * *"a value the tool invented is a value nobody reviewed"* is unactionable
+   * unless the run says which value it would have had to invent.
+   */
+  it('§2.4 — a build-tool range with no source omits the member and names it', () => {
+    const ranges = new Map(withAdmin().adminRanges);
+    ranges.delete('@tailwindcss/vite');
+    const plan = planInstance(withAdmin({ adminRanges: ranges }));
+    expect(plan.files.some((file) => file.member === 'admin')).toBe(false);
+    expect(plan.omitted.find((entry) => entry.path === 'admin/')!.reason).toContain(
+      '@tailwindcss/vite',
+    );
   });
 });
 

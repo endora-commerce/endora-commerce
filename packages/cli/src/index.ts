@@ -89,6 +89,17 @@ export {
   type PlannedOmission,
 } from './new-instance/template.js';
 export {
+  artefactIsCurrent,
+  findInstanceRoot,
+  generateReport,
+  GenerateHostError,
+  GenerateInputError,
+  runGenerate,
+  type GeneratedArtefact,
+  type GenerateOptions,
+  type GenerateResult,
+} from './generate/index.js';
+export {
   runNewStorefront,
   storefrontDeclaredInputs,
   type NewStorefrontOptions,
