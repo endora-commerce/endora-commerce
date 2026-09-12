@@ -2579,6 +2579,40 @@
         }
       }
     },
+    "/api/v1/admin/infakt/connection": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/infakt/connection/channels/{salesChannelId}": {
+      "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/infakt/connection/test": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/inpost/config": {
       "get": {
         "responses": {
@@ -2707,6 +2741,40 @@
       }
     },
     "/api/v1/admin/inventory/warehouse-low-stock-thresholds": {
+      "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/invoice-ledger/deliveries": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/invoice-ledger/deliveries/{id}/retry": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/invoice-ledger/routing": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
       "put": {
         "responses": {
           "200": {
@@ -7215,6 +7283,15 @@
           }
         }
       },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/integrations/infakt/webhook": {
       "post": {
         "responses": {
           "200": {
