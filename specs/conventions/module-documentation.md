@@ -42,6 +42,18 @@ module.
    module by name, or link the module map. `foreign-module-link` is the finding, and its
    per-consumer shards under `backend/scripts/ledgers/foreign-module-links/` are the 24
    links standing, expected to empty.
+1b. **And do not link the site's own tree either** — `../architecture/…`,
+   `../integrations/…`, anything above the modules category. A sibling module is
+   at least *sometimes* there; a page above the category travels with no package
+   at all, so it is absent from **every** reader's instance whatever they
+   installed, and their own build fails on it under `onBrokenLinks: 'throw'`.
+   Name the guide in prose, or link the module map. Where the content genuinely
+   belongs to the module, move it into the module's own `docs/` layer, where it
+   becomes a page the module ships and a relative link can reach it.
+   `site-tree-link` is the finding and it has **no ledger**: unlike
+   `foreign-module-link` there is no instance in which such a link resolves, so
+   an entry could only license one. It landed at zero, the eight links then
+   standing in six module packages repaired with it.
 2. **Front matter is Docusaurus's own and nothing this repository invented** — `title`
    (required), `description` (one sentence naming the capability; it is the module map's
    summary column and the page's meta description), and optionally `sidebar_label` and

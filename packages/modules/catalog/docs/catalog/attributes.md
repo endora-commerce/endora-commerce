@@ -159,7 +159,7 @@ assigned Attribute Set.
 ## Storage
 
 Since feature 061 (migration `102`) an attribute is split between the
-generic [Custom Fields layer](../../architecture/custom-fields.md) and
+generic Custom Fields layer that the `custom_fields` module owns and
 a catalog-owned extension row. The API shape above is unchanged — the
 admin surface composes the two back into the legacy form.
 

@@ -157,8 +157,8 @@ documented service ports per Constitution I):
 
 ## Feature 061 — attributes as Custom Field extensions
 
-Feature 061 converged the attribute definition store onto the generic
-[Custom Fields layer](../architecture/custom-fields.md) (feature 055),
+Feature 061 converged the attribute definition store onto the generic Custom
+Fields layer that the `custom_fields` module owns (feature 055),
 adapter-shaped per Constitution Principle XIV. Nothing changed on the
 HTTP surface — every endpoint above keeps its shape — but the storage
 and ownership model is different:
