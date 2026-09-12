@@ -9,8 +9,16 @@ import { Migration } from '@mikro-orm/migrations';
  *       folder_id, visibility, label, storage_backend, storage_locator,
  *       pending_cleanup, purge_after_at, mime_type_overridden.
  *   - new `categories.main_image_asset_id` FK column.
- *   - GIN index on `cms_pages.body` so reference-protection's JSONB-path
- *     scan stays fast (research R10).
+ *
+ * It also created a GIN index on `cms_pages.body`, so reference-protection's
+ * JSONB-path scan stays fast (research R10), until
+ * `specs/120-migration-closure-bridge-ownership/` Phase 3. `cms_pages` is
+ * `cms`' table and this module does not declare `cms` — nor could it, `cms`
+ * declaring `assets_library` — so under D-226 the index moved to
+ * `Migration20260912T125709CmsPageBodyAssetRefIndex`, verbatim and
+ * `if not exists`. An instance that omits `cms` no longer has this migration
+ * indexing a table nothing builds; the index itself is unchanged, and the
+ * reference scan that needs it is unaffected.
  *
  * Backfill:
  *   - every pre-existing assets row is mapped to storage_backend='local'
@@ -94,13 +102,6 @@ export class Migration20260505T102206AssetsLibraryInit extends Migration {
       'create index "categories_main_image_asset_id_index" on "categories" ("main_image_asset_id");',
     );
 
-    // --- cms_pages.body GIN index for asset-ref scan ---------------------
-    // Reference-registry's CMS descriptor uses jsonb_path_exists on body;
-    // this index keeps the probe sub-millisecond at the platform's scale.
-    this.addSql(
-      'create index "idx_cms_pages_body_asset_refs" on "cms_pages" using gin ("body" jsonb_path_ops);',
-    );
-
     // --- backfill --------------------------------------------------------
     // Pass 1: copy storage_url into storage_locator for every row that
     // still has the column-default empty string.
@@ -120,7 +121,6 @@ export class Migration20260505T102206AssetsLibraryInit extends Migration {
   }
 
   override async down(): Promise<void> {
-    this.addSql('drop index if exists "idx_cms_pages_body_asset_refs";');
     this.addSql(
       'alter table "categories" drop constraint if exists "categories_main_image_fk";',
     );
