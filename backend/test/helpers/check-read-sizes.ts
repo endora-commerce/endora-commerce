@@ -1144,6 +1144,55 @@ export interface RecordedReadSize {
  * two, and the census over the merged tree then reported exactly those two as
  * drifted and nothing else — a prediction and its measurement, in that order.
  * Neither number is a sum of the two sides' deltas; both were read off the run.
+ *
+ * ## Feature 121 (`specs/121-platform-liveness-probe/`, D-229) — 34 entries, one deletion
+ *
+ * The liveness probe became `packages/platform/src/http/health.ts` and the
+ * `health_checks` module package was dissolved. **Six tracked files net**, and
+ * that single number is the arithmetic behind every entry below: eleven files
+ * deleted — the package's eight, its environment-input ledger shard, its
+ * generated `module-reference/` page and its contract test — against five
+ * added: the platform source, its co-located test, the contract test in its new
+ * home under `test/contract/http/`, the docs page in the site's own tree and
+ * the changeset. Each walk moves by however many of those six its own
+ * population can see, which is why the deltas run from −1 to −6 and why
+ * `check-naming.sh`, whose population is `git ls-files --cached --others
+ * --exclude-standard`, moves by exactly six.
+ *
+ * Three entries are worth a sentence because they are not a file count.
+ * `check-off-state-coverage` loses two `sites` and one `file`: the module left
+ * the manifest index, and the contract test that named it in `withModuleOff`
+ * went with the module — that is T3-B's answer moving while its derivation did
+ * not. `check-default-language-prose` loses **45** `sites`, and a `site` there
+ * is a classified string or template literal rather than a file: the dissolved
+ * manifest carried two bilingual `describes` blocks and two bilingual `without`
+ * sentences, and its three sources held the rest between them. And
+ * `check-kernel-boundary` **rises** by two `sites`, the only entry that does —
+ * a `site` there is one of a platform file's outward imports (Rule B), and
+ * `packages/platform/src/http/health.ts` is a platform file where the module's
+ * sources were not.
+ *
+ * **Measured in two worktrees stood up for this branch and worked in nowhere
+ * else**, `pnpm install --frozen-lockfile` then `pnpm run build:packages` before
+ * anything, and neither carrying the `docs/docs/modules/` copies
+ * `composer:generate` places. The first is detached at `origin/master`
+ * (76459b672) and reports **3 drifted, 41 agree, 0 not measured, of 44** —
+ * `check-nul-bytes` 8184 → 8180, `check-doc-snippets` 1321 → 1324 and
+ * `check-naming.sh` 8236 → 8240, all of them `master`'s own staleness and none
+ * of it this branch's. The second is detached at this branch **merged with that
+ * same `origin/master`**, which is the tree the merge produces, and every number
+ * below is read off that run rather than reconciled from the two sides
+ * (`specs/117-instance-bring-up/` T141's precedent, for the same reason). The
+ * three pre-existing drifts are re-recorded here too, and their published
+ * values are the merged tree's: `master` moved them, this branch measured them,
+ * and leaving them stale to keep the attribution tidy would put a number no
+ * clean tree can reproduce back into the record.
+ *
+ * The prediction and its measurement, in that order: the base run named three
+ * entries, this branch's own diff names six tracked files, and the merged run
+ * reports the base's three moved by exactly this branch's visible share
+ * (`check-naming.sh` 8240 → 8234) with the other 31 moving from values the base
+ * had agreed with.
  */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
@@ -1431,7 +1480,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **merged** tree in the quality job's shape, and attributed by the branch's own
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
-    files: 2061,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 2061 -> 2059.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2059,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1759,7 +1811,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **merged** tree in the quality job's shape, and attributed by the branch's own
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
-    files: 2193,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 2193 -> 2191.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2191,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1869,7 +1924,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 1751,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 1751 -> 1748.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 1748,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -2001,7 +2059,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    files: 2291,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 2291 -> 2288.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2288,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -2535,7 +2596,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The three files are those two plus `lib/divergence-artefacts.ts` and
     // `generate/divergence.ts`, less the deleted `backend/src/overlay/divergence-report.ts`
     // and `packages/cli/test/`, which this walk does not read.
-    files: 5633,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 5633 -> 5632.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 5632,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2915,7 +2979,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // root this walk reads for the owner map.
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    files: 2476,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 2476 -> 2475.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2475,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -3085,7 +3152,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Its population is the documents, and `specs/121-platform-liveness-probe/tasks.md` is
     // one of them. The other +1 is `specs/session-handover-2026-09-13.md`, already on
     // `origin/master` at 702a19c9f — pristine master reads 1320, this branch 1321.
-    files: 1321,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 1321 -> 1323.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 1323,
     sites: 13,
     sources: [],
     //
@@ -3403,7 +3473,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **merged** tree in the quality job's shape, and attributed by the branch's own
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
-    files: 2193,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 2193 -> 2191.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2191,
     sites: 265,
     sources: ['manifest-index'],
   },
@@ -3711,7 +3784,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **merged** tree in the quality job's shape, and attributed by the branch's own
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
-    files: 2193,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 2193 -> 2191.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2191,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4016,7 +4092,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **merged** tree in the quality job's shape, and attributed by the branch's own
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
-    files: 2193,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 2193 -> 2191.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2191,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -4264,7 +4343,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **merged** tree in the quality job's shape, and attributed by the branch's own
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
-    files: 2860,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 2860 -> 2858.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2858,
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
     sites: 138,
@@ -5093,7 +5175,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **merged** tree in the quality job's shape, and attributed by the branch's own
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
-    files: 2193,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 2193 -> 2191.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2191,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -5131,7 +5216,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fewer files than the 139 recorded against the tree before it: 140. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    sites: 150,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): sites 150 -> 152.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 152,
     // `platform-subpaths` is T118a's second author over rule B's population: the
     // platform's `exports` map is a different program's answer to "which directories
     // does this package have", and a published subpath naming no walked directory is a
@@ -5203,7 +5291,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // ledger shard is exactly this check's population — one of the artefacts whose job is to
     // carry a reason — so both count and the changeset does not.
     // **Phase 3 (T3-C): +10, all of it this branch's** (`9a0e8e0d0` agreed with the recorded 310). The ten shards of the Settings-debt ledger at `backend/scripts/ledgers/module-environment-inputs/`. This check's population is the artefacts whose job is to carry a reason, ledger shards among them, so a new ledger raises it by its shard count and by nothing else.
-    files: 320,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 320 -> 318.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 318,
     // **2026-09-04: 14 -> 15.** One further named-subject lock claim.
     // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge` retired):**
     // sites 15 -> 17, files unchanged. `pwa`'s manifest gains `orders` in its
@@ -5477,7 +5568,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
 
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    files: 2829,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 2829 -> 2826.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2826,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 56 -> 66.**
     // The header block above this table has the arithmetic; nothing here
@@ -5604,7 +5698,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 2151,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 2151 -> 2148.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2148,
     // The finer population, and it is the one that moves when nothing else does
     // (issues #235/#237): tree sites, unreadable sites, renderer-map sites, the
     // block declarations and the declared `(key, context)` sections. A block
@@ -5720,7 +5817,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
 
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    files: 2927,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 2927 -> 2924.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2924,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -5766,7 +5866,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 72 -> 74.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 74,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): sites 74 -> 73.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 73,
     // `manifest-index` is issue #215's shared floor over the module walk, whose
     // unit here is the module's **own directory** — `dirname(manifestPath)`, the
     // anchor the boot reconciler joins `bundlesDir` to. `shipped-languages` is
@@ -5836,7 +5939,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // entries and the map rows are untouched. Phase 3 added five migrations and touched the
     // module walk and moved this entry by nothing, which is the right answer — a migration
     // is not a documentation page.
-    sites: 261,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): sites 261 -> 259.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 259,
     // Three authors, each seeing something the others cannot. `manifest-index`
     // is issue #215's shared floor over the module walk, whose unit is the
     // module's own directory. `sidebar-entries` is the **committed artefact's**
@@ -6018,7 +6124,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: sites 35207 (+1).**
     // One literal classified, from the registry's refusal message. `files` does not move: this walk's
     // population is the module roots and the file the feature adds is the platform's.
-    files: 1763,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 1763 -> 1760.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 1760,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -6113,7 +6222,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Phase 3 (T3-C): +195, all of it this branch's** (`9a0e8e0d0` agreed with the recorded 35208). The 22 module-owned environment declarations: each carries an English and a Polish sentence, several a second pair under `optional.without`, and every one of those literals is classified and **exempt**, the enclosing property key being a shipped language. `files` does not move — the declarations went into manifests this walk already opened, which is the #235/#237 shape and the reason both numbers are recorded.
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    sites: 35464,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): sites 35464 -> 35419.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 35419,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -6701,7 +6813,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **merged** tree in the quality job's shape, and attributed by the branch's own
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
-    files: 5203,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 5203 -> 5199.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 5199,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -6806,7 +6921,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // 0 and 27 -> 26.
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    sites: 12986,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): sites 12986 -> 12979.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 12979,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -7718,7 +7836,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // rather than subtracted: pristine master reads 8183 against this branch's 8184.
     // Measured on a clean tree: `git clean -fX docs/docs/modules`, `docs/build` removed
     // and the module-doc copy stamp deleted. Without that the same walk reads higher again.
-    files: 8184,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 8184 -> 8174.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 8174,
     sites: null,
     sources: [],
     //
@@ -7753,7 +7874,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 111 -> 114.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    files: 114,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 114 -> 113.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 113,
     // The finer population, and the one that moves when a **resolver shape** is
     // added or lost: every `expectModuleAbsent` and `withModuleOff` call the
     // walk read, both helpers, one per call however many modules the call
@@ -7770,7 +7894,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 202 -> 205.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 205,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): sites 205 -> 203.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 203,
     // Two independent authors, so the check computes no module list and no
     // call-name list of its own. `manifest-index` is every entry the generated
     // index carries against every entry whose manifest this run could classify
@@ -7904,14 +8031,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    sites: 919,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): sites 919 -> 912.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 912,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 86 -> 87.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 87 -> 89.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    files: 89,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 89 -> 88.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 88,
     sources: [],
   },
   'backend/scripts/check-port-catches.ts': {
@@ -8305,7 +8438,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **merged** tree in the quality job's shape, and attributed by the branch's own
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
-    files: 2193,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 2193 -> 2191.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2191,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -8447,7 +8583,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2011,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 2011 -> 2008.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2008,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 1471 -> 1535.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
@@ -8476,7 +8615,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    sites: 1677,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): sites 1677 -> 1674.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 1674,
     sources: ['manifest-index'],
   },
   // Two derivations, deliberately, because the check has two inputs that can be
@@ -8792,7 +8934,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **merged** tree in the quality job's shape, and attributed by the branch's own
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
-    files: 2505,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 2505 -> 2501.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2501,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -8895,7 +9040,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    sites: 1902,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): sites 1902 -> 1901.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 1901,
     // count moves with the file count here because the reaches that went are exactly
     // the files that went.
     // **T119a: sites 1870 -> 1861.** The same nine files, each the single relative
@@ -9074,7 +9222,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2112,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 2112 -> 2109.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2109,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 692 -> 721.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -9216,14 +9367,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 87 -> 89.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    files: 89,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 89 -> 88.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 88,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 495 -> 501.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 501 -> 513.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 513,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): sites 513 -> 507.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 507,
     // **Feature 114 Phase 3 (FR-017, D-225): a second author, and neither count
     // moves.** `changeset-subjects` is the distinct package names the changeset
     // files name, reconciled against the members the workspace globs produce.
@@ -9842,7 +9999,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **merged** tree in the quality job's shape, and attributed by the branch's own
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
-    files: 2193,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 2193 -> 2191.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2191,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -10080,7 +10240,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `test/integration/megamenu/cross-module-targets.test.ts` becomes a site. It is
     // server-bound and multi-owner, so it stays under `backend/test` and needs no ledger
     // entry.
-    sites: 1115,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): sites 1115 -> 1114.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 1114,
     // Two independent authors. `manifest-index` is issue #215's shared floor
     // over the module walk, whose unit is the module's own directory rather than
     // a test file — 14 of the 70 packages ship no test and a floor over test
@@ -10399,7 +10562,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **merged** tree in the quality job's shape, and attributed by the branch's own
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
-    files: 2193,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 2193 -> 2191.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 2191,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -10849,7 +11015,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **merged** tree in the quality job's shape, and attributed by the branch's own
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
-    files: 4657,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 4657 -> 4655.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 4655,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -10907,7 +11076,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which resolves it out of the composed `entities` array. A helper import is no
     // reach, so 81 sites go and none arrives.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The value reaches into a package's source that the module's tests make.
-    sites: 871,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): sites 871 -> 870.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    sites: 870,
     sources: ['manifest-index', 'entities-registry', 'tenant-chains'],
     //
     // **852 -> 851 sites, 4336 -> 4337 files, and the two have different causes.**
@@ -11756,7 +11928,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // One file — `specs/121-platform-liveness-probe/tasks.md` — which this whole-repository
     // walk opens like any other. Pristine `origin/master` at 702a19c9f reads 8235, which is
     // the recorded value: T138a left this entry describing the tree exactly.
-    files: 8236,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 8236 -> 8234.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 8234,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -12320,7 +12495,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` T138a: 6284 -> 6288.** All four are this branch's: the
     // four files `packages/cli/src` gains, less the one `backend/src` loses. The two changesets
     // are not under `docs/docs/`, so this walk does not see them.
-    files: 6288,
+    // **Feature 121 (`specs/121-platform-liveness-probe/`, D-229): files 6288 -> 6285.**
+    // The header block above this table has the arithmetic; nothing here
+    // widened a band.
+    files: 6285,
     sites: null,
     sources: ['manifest-index'],
     //
