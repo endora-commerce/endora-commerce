@@ -39,12 +39,7 @@ import {
 } from '../src/overlay/overlay-roots.js';
 import { resolveOverlay } from '../src/overlay/resolve-overlay.js';
 import {
-  renderDivergenceMarkdown,
-  serializeDivergenceModule,
-} from '../src/overlay/divergence-report.js';
-import {
   claimFileOnce,
-  deriveDivergence,
   moduleContextSeams,
   routeIdentities,
   type DivergenceFinding,
@@ -52,6 +47,12 @@ import {
   type OverlaySource,
   type RouteSource,
 } from './lib/divergence.js';
+import {
+  overlaySourcesUnder,
+  overlayTreeSpellsASeamCall,
+  renderDivergenceArtefacts,
+  type DivergenceRendering,
+} from '@endora-commerce/cli/lib/divergence-artefacts.js';
 import {
   HOST_REGISTERED_PORTS,
   ROOT_FILES,
@@ -101,6 +102,22 @@ export function divergenceOutputPaths(deployment: string | null): {
 // The inputs that are not the deployment's own tree
 // ---------------------------------------------------------------------------
 
+/**
+ * This host's own source walk, and it stays here rather than joining the shared
+ * assembly in the package.
+ *
+ * The two hosts read two different *populations*, which is R3.5's own split: this
+ * one's is the module tree, the platform tree and two composition roots, all of
+ * them TypeScript **sources**, and a client instance's is the `dist` its packages
+ * published. `walkAnalysableSources` accepts both dialects and does not skip a
+ * `dist/` directory, which is right there and wrong here — a module package's
+ * `src` holds no build output today and a walk that would pick one up if it did
+ * is a walk whose `files=` moves for a reason nobody chose.
+ *
+ * The **overlay** walk is the one both hosts genuinely share, and that one is
+ * `overlaySourcesUnder`: an overlay module is a client's own source in either
+ * tree.
+ */
 function walkTypeScript(root: string, out: string[] = []): string[] {
   let entries: Dirent[];
   try {
@@ -341,13 +358,19 @@ async function buildEnvironment(): Promise<DivergenceEnvironment> {
 // The render
 // ---------------------------------------------------------------------------
 
-/** One rendering: where it goes and what it says. */
-export interface Rendering {
-  readonly outputPath: string;
-  readonly content: string;
-  /** The label `overlay:check` prints. */
-  readonly label: string;
-}
+/**
+ * One rendering: where it goes and what it says.
+ *
+ * The package's shape, named here because `check-overlay-determinism.ts` and the
+ * acceptance instrument both already import this spelling.
+ */
+export type Rendering = DivergenceRendering;
+
+/**
+ * Re-exported for `check-divergence.ts`, which asks it of this host's overlay
+ * sources — the refusal is the check's and the probe is the package's.
+ */
+export { overlayTreeSpellsASeamCall };
 
 export interface RenderedDivergence {
   readonly deployment: string;
@@ -359,25 +382,11 @@ export interface RenderedDivergence {
   readonly overlaySources: readonly OverlaySource[];
 }
 
-/** The deployment's own overlay sources, attributed to the module that owns them. */
-export function overlaySourcesOf(
-  overlayRoot: string | null,
-  moduleIds: readonly string[],
-  base: string,
-): OverlaySource[] {
-  if (overlayRoot === null) return [];
-  const sources: OverlaySource[] = [];
-  for (const moduleId of moduleIds) {
-    for (const file of walkTypeScript(join(overlayRoot, moduleId))) {
-      sources.push({
-        moduleId,
-        file: relative(base, file).split(sep).join('/'),
-        text: readFileSync(file, 'utf8'),
-      });
-    }
-  }
-  return sources;
-}
+/**
+ * The deployment's own overlay sources — the package's walk, named here because
+ * `check-divergence.ts` and the acceptance instrument both already import it.
+ */
+export const overlaySourcesOf = overlaySourcesUnder;
 
 async function loadDeclaration(deployment: string | null): Promise<{
   omittedModules: ReadonlyArray<{ moduleId: string; reason: string }>;
@@ -410,19 +419,6 @@ export async function renderDivergence(
     shared.layout.repoRoot,
   );
 
-  const result = deriveDivergence({
-    deployment: deployment ?? 'core',
-    overlayRoot:
-      overlayRoot === null ? null : relative(shared.layout.repoRoot, overlayRoot).split(sep).join('/'),
-    overlayModules: resolution.newModules,
-    sources,
-    routes: shared.routes,
-    owners: shared.owners,
-    rootSupplied: shared.rootSupplied,
-    declaration: await loadDeclaration(deployment),
-    seams: shared.seams,
-  });
-
   const paths = divergenceOutputPaths(deployment);
 
   // Module-resolvable path from the emitted file to src/overlay/types.js.
@@ -432,50 +428,41 @@ export async function renderDivergence(
   if (!typesSpec.startsWith('.')) typesSpec = `./${typesSpec}`;
 
   const label = `divergence (${deployment ?? 'core'})`;
+  // One derivation, two renderings — the loop is the package's, so a host that
+  // asks for a third (an instance asks for `json` rather than `module`) cannot
+  // acquire a second derivation by acquiring a rendering.
+  //
+  // `hostNotRecorded` is empty here and is the whole of what this host does not
+  // pass: it fills all three sources of the owner map, so there is no narrowing
+  // for the artefact to state and the six committed renderings are what they were.
+  const { result, renderings } = renderDivergenceArtefacts(
+    {
+      deployment: deployment ?? 'core',
+      overlayRoot:
+        overlayRoot === null
+          ? null
+          : relative(shared.layout.repoRoot, overlayRoot).split(sep).join('/'),
+      overlayModules: resolution.newModules,
+      sources,
+      routes: shared.routes,
+      owners: shared.owners,
+      rootSupplied: shared.rootSupplied,
+      declaration: await loadDeclaration(deployment),
+      seams: shared.seams,
+    },
+    [
+      { rendering: 'module', outputPath: paths.module, typesImportSpecifier: typesSpec, label: `${label} [ts]` },
+      { rendering: 'markdown', outputPath: paths.markdown, label: `${label} [md]` },
+    ],
+  );
+
   return {
     deployment: deployment ?? 'core',
-    renderings: [
-      {
-        outputPath: paths.module,
-        content: serializeDivergenceModule(result.report, typesSpec),
-        label: `${label} [ts]`,
-      },
-      {
-        outputPath: paths.markdown,
-        content: renderDivergenceMarkdown(result.report),
-        label: `${label} [md]`,
-      },
-    ],
+    renderings,
     result,
     overlayFilesRead: sources.length,
     overlaySources: sources,
   };
-}
-
-/**
- * Does the overlay tree **spell** a seam call at all?
- *
- * A second author for refusal 3, and the reason it is a text probe rather than a
- * second walk: what has to be caught is the *syntax walk* going blind, and a
- * second syntax walk would go blind with it. With two overlay modules in this
- * repository, a resolver that stopped recognising `ctx.di.decorate` prints a
- * clean report over a tree full of decorations, and `sites=0` is
- * indistinguishable from a deployment that only registers routes — which is a
- * legal thing for an overlay module to do. This tells the two apart.
- */
-export function overlayTreeSpellsASeamCall(sources: readonly OverlaySource[]): boolean {
-  const spellings = [
-    'di.register(',
-    'di.providePort(',
-    'di.decorate(',
-    '.subscribe(',
-    '.interceptors(',
-    '.rootPlugin(',
-    '.worker(',
-    'lazyPort(',
-    'lazyPort<',
-  ];
-  return sources.some((source) => spellings.some((spelling) => source.text.includes(spelling)));
 }
 
 function describeFinding(finding: DivergenceFinding): string {

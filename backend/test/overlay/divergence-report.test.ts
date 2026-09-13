@@ -6,7 +6,7 @@ import {
   RUNG_COSTS,
   serializeDivergenceJson,
   serializeDivergenceModule,
-} from '../../src/overlay/divergence-report.js';
+} from '@endora-commerce/cli/lib/divergence-artefacts.js';
 import { divergenceBoundary } from '../../scripts/lib/divergence.js';
 
 /**
@@ -18,6 +18,13 @@ import { divergenceBoundary } from '../../scripts/lib/divergence.js';
  * the artefact this one supersedes. Their subjects survive here unchanged; what
  * moved is the shape they are asserted over, and one addition — the markdown
  * rendering, which is new and is the one an upgrader reads.
+ *
+ * The two renderings are `@endora-commerce/cli`'s since
+ * `specs/110-instance-repository/` T138a, and this file stays in `backend/`
+ * because its other subject is the **committed artefact** — the bare-core report
+ * on disk in this repository, which is the application's and is byte-compared by
+ * `overlay:check`. What moved is the renderer; what is asserted here is what this
+ * tree's own artefact says.
  */
 
 const FIXTURES = '/home/somebody/checkout/backend/src/apps/acme/modules';

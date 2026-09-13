@@ -33,13 +33,19 @@
  * composes a path under it, so `overlay-roots.ts` keeps the derivation and
  * nothing else (R1.3).
  *
- * Two files stayed behind for reasons of their own, each written in place:
- * `types.ts` (named **by relative path** from every deployment's generated
- * divergence artefact, deliberately, so that a committed artefact's import does
- * not depend on the deployment's dependency graph) and `divergence-report.ts`,
- * the renderer of those artefacts, which stays with them. `divergence-loader.ts`
- * is no longer one of them: T114a deleted its `RUNNING_FROM_DIST` in favour of
+ * One file stayed behind for a reason of its own, written in place: `types.ts`,
+ * named **by relative path** from every deployment's generated divergence
+ * artefact, deliberately, so that a committed artefact's import does not depend
+ * on the deployment's dependency graph. `divergence-loader.ts` is no longer one
+ * of them: T114a deleted its `RUNNING_FROM_DIST` in favour of
  * {@link resolveOverlayUnit}, so it derives nothing and is movable (R3).
+ *
+ * **`divergence-report.ts` was named here as a second and is gone** — not to this
+ * package but to `@endora-commerce/cli`, with the derivation that feeds it
+ * (`specs/110-instance-repository/` T138a). The report has two hosts, a client's
+ * instance renders one over its own `apps/` tree, and a build-time renderer has
+ * no runtime reader that would justify a package every instance loads at boot
+ * carrying it. This paragraph said it *"stays with them"*; it did not.
  *
  * ## Why no module may name it
  *

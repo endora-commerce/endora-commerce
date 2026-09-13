@@ -654,6 +654,71 @@ export function installedModulePackages(
   return scanInstalledModulePackages(instanceRoot, fs).packages;
 }
 
+/** The installed host package, as this walk can see it. */
+export interface InstalledPlatformPackage {
+  readonly name: string;
+  /** Its directory in the instance's `node_modules`, absolute. */
+  readonly dir: string;
+  /** `exports` subpath → target, as declared. Wildcard subpaths are dropped. */
+  readonly exports: ReadonlyMap<string, string>;
+}
+
+/**
+ * The platform an instance installed, or `null` when none resolves.
+ *
+ * The same walk and the same three rules as {@link scanInstalledModulePackages},
+ * one `endora.type` value over: the discriminator is the package's own
+ * declaration and never its name, which is `platform-root.ts`' rule applied to
+ * an installed tree rather than to a workspace. The scope was `@b2b/` until
+ * D-161 and a name written into a tool is a rename away from a walk that
+ * silently sees nothing.
+ *
+ * Two installed packages declaring it is an error rather than a first-one-wins,
+ * for the reason `platform-root.ts` refuses the same state in a workspace: the
+ * walk would narrow to whichever sorted first and report on it as if it were the
+ * platform.
+ */
+export function scanInstalledPlatformPackage(
+  instanceRoot: string,
+  fs: InstanceFs = nodeInstanceFs(),
+): InstalledPlatformPackage | null {
+  const root = join(instanceRoot, 'node_modules');
+  const realRoot = fs.realPath(root);
+  if (realRoot === null) return null;
+
+  const found: InstalledPlatformPackage[] = [];
+  for (const directory of installedCandidates(root, fs)) {
+    const text = fs.readText(join(directory, 'package.json'));
+    if (text === null) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text) as unknown;
+    } catch {
+      continue;
+    }
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) continue;
+    const manifest = parsed as Record<string, unknown>;
+    const endora = manifest['endora'];
+    if (typeof endora !== 'object' || endora === null || Array.isArray(endora)) continue;
+    if ((endora as Record<string, unknown>)['type'] !== 'platform') continue;
+    const real = fs.realPath(directory);
+    if (real === null || !isUnderDirectory(real, realRoot)) continue;
+    found.push({
+      name: typeof manifest['name'] === 'string' ? manifest['name'] : basename(directory),
+      dir: directory,
+      exports: declaredExports(manifest),
+    });
+  }
+  if (found.length > 1) {
+    throw new ModulePackageError(
+      `[composer] ${String(found.length)} installed packages declare ` +
+        `\`endora.type: "platform"\` (${found.map((pkg) => pkg.name).join(', ')}). A walk would ` +
+        'narrow to whichever sorted first and report on it as if it were the platform.',
+    );
+  }
+  return found[0] ?? null;
+}
+
 /** `true` when `child` is inside `parent` and is not `parent` itself. */
 function isUnderDirectory(child: string, parent: string): boolean {
   const rel = relative(parent, child);

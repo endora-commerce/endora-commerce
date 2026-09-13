@@ -12,9 +12,13 @@
 // which measured that no loader for a shadowed `route` or `config` file was
 // ever written and that feature 072 deleted the one written for `service`.
 
+// `divergence-report.js` is no longer one of these: the two renderings of the
+// divergence report moved to `@endora-commerce/cli` with the derivation that
+// feeds them (`specs/110-instance-repository/` T138a), because the report has a
+// second host — a client's instance renders one over its own `apps/` tree — and
+// a renderer has no runtime reader that would justify the platform carrying it.
 export * from './types.js';
 export * from './overlay-roots.js';
 export * from './resolve-overlay.js';
 export * from './divergence-loader.js';
-export * from './divergence-report.js';
 export * from './overlay-runtime.js';
