@@ -50,7 +50,9 @@ demo verbs, `pnpm run admin:create` exits 0, and the row lands in `admin_users` 
 hash, `status=active` and a `platform_admin` role holding `["*"]`. **A15 is added to the instance
 acceptance criterion and is green** — `POST /api/v1/auth/admin/login` answers 200 with the admin
 session cookie set. It needed this change *and* `fix/instance-500-pipeline`, which landed the same
-day, and it is the only assertion that measures their conjunction. A15 also corrects a premise
+day, and it is the only assertion that measures their conjunction. Re-measured once more after
+feature 121 merged, the criterion reads `pass=11 fail=0 unmeasured=4 of 15` — no red at all. A15
+also corrects a premise
 three documents carry: the route is `/api/v1/auth/admin/login`, and `/api/v1/admin/auth/login`,
 which `research.md` §4.3/§4.4 and A4's own reason all name, is registered by nothing.
 
