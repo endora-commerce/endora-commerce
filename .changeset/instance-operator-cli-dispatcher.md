@@ -43,5 +43,17 @@ receives no demo artefact in a tree they own: no composition, **no script**, no 
 placeholder"* — and it names where the capability does belong, which is the next-steps block.
 `pnpm run cli demo seed` reaches both verbs, so nothing is unavailable.
 
-Wiring cost, re-measured on the plan rather than computed from a delta: **237** lines over 12 files
-without the admin member and **248** with it, against R1.4's bound of 250.
+Proved end to end rather than at plan level. On a scaffolded instance installed from tarballs into
+`os.tmpdir()`, with no checkout of this repository anywhere and no symlink back:
+`pnpm run cli --list` enumerates the six commands its installed modules declare plus the two host
+demo verbs, `pnpm run admin:create` exits 0, and the row lands in `admin_users` with an argon2id
+hash, `status=active` and a `platform_admin` role holding `["*"]`. **A15 is added to the instance
+acceptance criterion and is green** — `POST /api/v1/auth/admin/login` answers 200 with the admin
+session cookie set. It needed this change *and* `fix/instance-500-pipeline`, which landed the same
+day, and it is the only assertion that measures their conjunction. A15 also corrects a premise
+three documents carry: the route is `/api/v1/auth/admin/login`, and `/api/v1/admin/auth/login`,
+which `research.md` §4.3/§4.4 and A4's own reason all name, is registered by nothing.
+
+Wiring cost, re-measured rather than computed from a delta: **237** lines over 12 files on the
+plan without the admin member, and **248 over 13 files on the created tree** with it, against
+R1.4's bound of 250 — two lines of headroom left.
