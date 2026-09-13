@@ -1729,7 +1729,14 @@ function measureTenancy(target: string, environment: NodeJS.ProcessEnv): Tenancy
     narrowedOrganizations: null,
   });
   if (!existsSync(tsx)) return inconclusive(`${tsx} is not there, so the probe cannot be run`);
-  const result = run(tsx, [probe], {
+  // `--env-file-if-exists=../.env`, the instance's own spelling, and the reason
+  // is `specs/123-oss-install-experience/` G3: this criterion supplies **nothing**
+  // through the environment. `DATABASE_URL` lives in the `.env` a client filled
+  // in — the file the instance's own scripts read the same way — and without the
+  // flag the probe throws `DATABASE_URL must be set` and A9 goes `unmeasured`
+  // over a schema that is right there. `cwd` is the instance's backend member,
+  // so the file is one directory up.
+  const result = run(tsx, ['--env-file-if-exists=../.env', probe], {
     cwd: join(target, 'backend'),
     env: { ...environment, ACCEPTANCE_INSTANCE_ROOT: target },
   });
