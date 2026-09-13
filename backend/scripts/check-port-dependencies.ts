@@ -203,6 +203,22 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // Who an admin actor is, resolved differently by production and the harness
   // — which is exactly the difference a composition root exists to hold.
   'adminContextResolver',
+  // The calling customer's Organization, or `null`. It was a
+  // `HOST_REGISTERED_PORTS` entry owned by `auth` and is the platform's own
+  // since `specs/117-instance-bring-up/` Phase 6, where `composeApp` took it as
+  // the tenth of T118b's actor-shaped names — its value expression names no
+  // module, which is that move's criterion. Four modules read it and nothing
+  // defaulted it, so the entry was not describing a bridge that would be
+  // retired by an owner: there was no owner to retire it.
+  'customerOrganizationIdResolver',
+  // The key newsletter confirmation and unsubscribe links are signed with
+  // (`specs/117-instance-bring-up/` Phase 6, T6-B1). The platform's rather than
+  // the module's, deliberately: `NEWSLETTER_TOKEN_SECRET` is declared in
+  // `@endora-commerce/platform`'s own environment declaration and
+  // `check:env-inputs` does not judge module packages, so moving the read into
+  // `newsletter` would take it out of the judged population and leave the
+  // declaration reading as an `unread-input`.
+  'newsletterTokenSecret',
   // `configurationTypeRegistry` left this list in T143a. It read "the root
   // creates and populates it", and the second half stopped being true: each
   // configuration type is declared by the module that owns it, from that
@@ -272,15 +288,21 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // caller on an audit record.
   'inventoryAdminAuditContext',
   // Same shape for `catalog` (T142): whether this process runs the
-  // bulk-operation consumer (Principle X), how it names an acting admin on an
-  // audit record, and the three adapters that reach modules `catalog` must not
-  // read through directly — availability bands, the image placeholder, and the
-  // Meilisearch reindex production runs and the harness must not.
+  // bulk-operation consumer (Principle X), and how it names an acting admin on
+  // an audit record.
+  //
+  // The three adapters that stood beside them — `catalogExternalAvailability`,
+  // `catalogImagePlaceholderUrl` and `catalogSearchReindex` — left this list in
+  // `specs/117-instance-bring-up/` Phase 6. The entry called them *"adapters
+  // that reach modules `catalog` must not read through directly"*, which is
+  // true and is an argument for a **port**, not for a root's closure: two of
+  // them were a gated port plus the presence probe this module's manifest
+  // already obliges, and the third was two platform registrations. `catalog`
+  // registers all three itself. `catalogSearchReindex` is still contributed by
+  // the harness, which is now an override of a module default rather than the
+  // only supply there is.
   'catalogRunBulkOperationWorker',
   'catalogAdminAuditContext',
-  'catalogExternalAvailability',
-  'catalogImagePlaceholderUrl',
-  'catalogSearchReindex',
   // The storefront origin a customer-facing link points at — an invitation, a
   // set-password mail. One name, because it is one environment fact:
   // `organizations` (T138) and `customers` (T140) both send such links, and two
@@ -361,23 +383,28 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // them through a cradle accessor, which this check could not see, so nothing
   // checked that both compositions supply them.
   customerActorResolver: 'auth',
-  customerModerationActorResolver: 'auth',
+  // `customerModerationActorResolver` left this table in
+  // `specs/117-instance-bring-up/` Phase 6: `customers` registers it itself,
+  // which is this table's own one condition for an entry going.
   // The calling customer as a bare id. Root-shaped for the same reason
   // `customerContextResolver` is — production reads `request.actor`, the harness
   // `request.testActor` — and owned by `auth` in principle. Read by the four
   // payment gateways (wave 3).
   customerAccountIdResolver: 'auth',
-  // Which organizations a sales-rep admin may see (T141) — actor-shaped like
-  // the four above. Its transactional-sender twin drained in T120.
-  ordersAdminScopeResolver: 'auth',
-  // The calling customer's Organization, or `null`. The fourth member of the
-  // family above and root-shaped for the same reason, but softer than all of
-  // them on purpose: it answers `null` for anonymous traffic *and* for a
-  // Customer with no Organization, where `customerContextResolver` throws 401
-  // or 422. That difference is the point — it is read on restriction checks
-  // (T138), and catching a throw to mean "unrestricted" is how a fail-closed
-  // gate becomes fail-open.
-  customerOrganizationIdResolver: 'auth',
+  // `ordersAdminScopeResolver` left this table in
+  // `specs/117-instance-bring-up/` Phase 6 and never belonged in it: the entry
+  // called it actor-shaped and owned by `auth`, and the body decides on
+  // `admin_roles.code === 'sales_representative'` over a row it reads through
+  // `admin_users`. `orders` registers it itself.
+  //
+  // `customerOrganizationIdResolver` left it in the same phase, the other way:
+  // it *is* actor-shaped, so it went to `composeApp` beside the nine T118b
+  // moved, and this table's subject is a name a root registers on a **module's**
+  // behalf. Its softness is the reason it is its own name, and the reason is
+  // now written where the registration is — it answers `null` for anonymous
+  // traffic *and* for a Customer with no Organization, where
+  // `customerContextResolver` throws, and catching that throw to mean
+  // "unrestricted" is how a fail-closed gate becomes fail-open.
   // The admin-editable transactional sender, as a getter because
   // `transactional_emails` announces it after `organizations` composes. Same
   // shape and same owner as `inventoryTemplateEmail`; the two drain together.
@@ -412,9 +439,12 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // `quote_requests`' three composition-shaped inputs (T132): who is asking
   // (production reads `request.actor`, the harness `request.testActor`), the
   // organization's tax rate, and the subtree the RFQ admin scope rolls up over.
-  rfqCustomerContextResolver: 'auth',
-  rfqAdminContextResolver: 'auth',
-  rfqTaxRateResolver: 'taxes',
+  // `rfqCustomerContextResolver`, `rfqAdminContextResolver` and
+  // `rfqTaxRateResolver` left this table in `specs/117-instance-bring-up/`
+  // Phase 6: `quote_requests` registers all three itself, over the four ports
+  // its manifest already declared — `customerAccountReadPort`,
+  // `adminUserReadPort`, `adminRolePort` and, for the rate,
+  // `organizationTaxProfilePort` with `taxService`.
   // Inherited credit limits (feature 056). Owned by `organizations`, still
   // hand-wired; the entry goes when that module converts.
   // The composed attribute read model (feature 061). Owned by `catalog`, still
@@ -436,10 +466,15 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // which modules a deployment ships is not a module's business — and one name
   // rather than two, so a root cannot wire the reading without the generation.
   modulePresenceProbe: '_lifecycle',
-  // Every way `pwa` reaches outside itself — the `assets_library` upload facade,
-  // the sales-channel code⇄id helpers, the admin audit context and the FR-024
-  // push-target resolvers — contributed as one bridge by a root.
-  pwaBridge: 'pwa',
+  // `pwaBridge` was here — every way `pwa` reached outside itself, contributed
+  // as one bridge by a root — and `specs/110-instance-repository/` T118c
+  // retired the name. The entry outlived it by two features, for the reason the
+  // two comments below already record: this table's `unsupplied` finding asks
+  // whether a module still *resolves* an unregistered name (issue #49), and the
+  // staleness sweep's one condition is that the owner's `backend.ts` registers
+  // the name itself. Neither can ever fire for a name nothing registers and
+  // nothing reads, so an entry for one sits here describing a contribution that
+  // does not exist. Delete the entry in the merge request that retires the name.
   // Whether this composition runs the push-delivery consumer. A deployment
   // decision: production follows `BACKEND_ROLE`, the harness runs none.
   pwaRunWorkers: 'pwa',
@@ -451,11 +486,19 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // registers and nothing reads is invisible to it, so a retired bridge sits
   // here describing a contribution that no longer exists. Delete the entry in
   // the merge request that retires the name; nothing else will notice.
-  // The seller's NIP, read from the invoices seller settings. A root's, because
-  // the setting belongs to `invoices` and the format handling is composition
-  // policy rather than a KSeF concern.
-  ksefSellerNipResolver: 'ksef',
-  newsletterBridge: 'newsletter',
+  // `ksefSellerNipResolver` left this table in `specs/117-instance-bring-up/`
+  // Phase 6. The entry said it was a root's *"because the setting belongs to
+  // `invoices` and the format handling is composition policy rather than a KSeF
+  // concern"*, and neither half survives reading: `ksef` declares `invoices`, so
+  // the setting is one it may read, and stripping a `PL` prefix off a NIP is a
+  // KSeF format rule and nothing else. `ksef` registers it itself.
+  //
+  // `newsletterBridge` left it in the same phase, and went entirely: nine
+  // members, each a port, a platform contribution, a platform helper or an
+  // environment input. `NEWSLETTER_TOKEN_SECRET` stays a platform-declared
+  // input, so the platform registers the resolved value as
+  // `newsletterTokenSecret` (T6-B1 route (b)) and that name is in
+  // `PLATFORM_OWNED_NAMES` above.
   searchRunWorkers: 'search',
   // Whether this composition runs the webhook delivery consumer (T143a). The
   // worker itself is `webhooks`' own now; only the deployment half — production
@@ -545,6 +588,13 @@ export const CAPTURABLE_NAMES: ReadonlySet<string> = new Set([
   // this check learned to follow in issue #90.
   'storefrontBaseUrl',
   'organizationsExposeTestProbe',
+  // The key newsletter confirmation and unsubscribe links are signed with,
+  // registered by the platform (`specs/117-instance-bring-up/` Phase 6, T6-B1)
+  // and read at construction because the token helper is built with it. Same
+  // category as the two above and as `productFeedsTokenEncryptionKey`: a string
+  // read from the environment, not a gate, so capturing one cannot outlive a
+  // module being switched off.
+  'newsletterTokenSecret',
 ]);
 
 /**
@@ -1600,6 +1650,116 @@ export function findRootIssues(input: RootCheckInput): RootRegistrationIssue[] {
   return issues;
 }
 
+/**
+ * A container name a module reads that **a client's instance cannot resolve**
+ * (`specs/117-instance-bring-up/` FR-034).
+ *
+ * ## Why this is a widening and not a check of its own
+ *
+ * This file already asks whether every supply-exempt name is supplied by *"the
+ * three supply sources a composition really has"*, and gets the wrong answer for
+ * a structural reason. Its two roots are `src/composition.ts` and
+ * `test/helpers/test-server.ts`, and `ROOT_DELEGATES_TO` already follows
+ * production into `composeApp` — so this check has been **reading**
+ * `packages/platform/src/composition/compose-app.ts` since feature 109. What it
+ * does with those names is the defect: it *unions* them with the deployment
+ * root's and calls the result "production". An instance is a third composition
+ * that has the second set and not the first, and the union is what made it
+ * invisible.
+ *
+ * A new `check-*` script would owe an inventory row, an estate verdict, a
+ * `gate-coverage` classification, a recorded read size with an independent
+ * `sources=` author, one red proof per finding and its own exit-2 states — and
+ * it would have to build a **second** port-and-registration→owner map over the
+ * module tree, which this file already has. Two derivations of one population
+ * are two answers waiting to disagree.
+ *
+ * ## What it refuses
+ *
+ * One finding, `instance-unsupplied`: a name a module resolves, which **no
+ * module registers**, which the **kernel** does not supply, and which
+ * `composeApp` does not register either. Such a name exists only because
+ * `backend/src/composition.ts` or the test harness writes it, and a client's
+ * tree is neither: `endora new instance` writes a tree whose whole composition
+ * is one `composeApp({ deploymentRoot })` call with no `contribute` callback
+ * (`instance-repository.md` R2.4).
+ *
+ * ## Its ledger is `ROOT_DIVERGENCE_ALLOWED`, and an entry is never the repair
+ *
+ * That table exists, is empty, and is documented as *"a statement that the two
+ * compositions genuinely differ on that name"*. An entry for an instance would
+ * be a statement that a client's tree legitimately cannot resolve a name, which
+ * R2.4 refuses — so it stays empty, and the honest repairs are the two the
+ * message names: the owning module defaults it, or the platform does.
+ *
+ * ## What it is deliberately *not*
+ *
+ * It is not a judgement about which modules an instance installs. A module
+ * reading a port whose owner is outside its declared `dependencies` closure is
+ * already this file's `findViolations` finding, with its own remedy, and asking
+ * the same question twice here would put two answers under one defect.
+ */
+export function findInstanceGaps(input: {
+  /** Every `(module, name)` a module resolves from the container. */
+  readonly resolutions: readonly { readonly moduleId: string; readonly name: string }[];
+  /** Names some module registers — an instance installs modules, so these are fine. */
+  readonly moduleRegistered: ReadonlySet<string>;
+  /** Names the platform's own `kernel/` sources register, on every composition. */
+  readonly kernelNames: ReadonlySet<string>;
+  /** Names `composeApp` registers — the whole of an instance's own composition. */
+  readonly instanceSupplied: ReadonlySet<string>;
+  /** `HOST_REGISTERED_PORTS`, read only to name the owner in principle. */
+  readonly hostRegistered: Readonly<Record<string, string>>;
+}): { readonly name: string; readonly readers: readonly string[]; readonly owner: string | null }[] {
+  const byName = new Map<string, Set<string>>();
+  for (const resolution of input.resolutions) {
+    if (input.moduleRegistered.has(resolution.name)) continue;
+    if (input.kernelNames.has(resolution.name)) continue;
+    if (input.instanceSupplied.has(resolution.name)) continue;
+    if (ROOT_DIVERGENCE_ALLOWED[resolution.name] !== undefined) continue;
+    const readers = byName.get(resolution.name) ?? new Set<string>();
+    readers.add(resolution.moduleId);
+    byName.set(resolution.name, readers);
+  }
+  return [...byName]
+    .map(([name, readers]) => ({
+      name,
+      readers: [...readers].sort(),
+      owner: input.hostRegistered[name] ?? null,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function describeInstanceGap(gap: {
+  readonly name: string;
+  readonly readers: readonly string[];
+  readonly owner: string | null;
+}): string {
+  return (
+    `  - '${gap.name}' is resolved by ${gap.readers.join(', ')} and registered by no module, ` +
+    `no
+    kernel source and not by 'composeApp'.
+` +
+    `    A client's instance composes with 'composeApp({ deploymentRoot })' and contributes
+` +
+    `    nothing (instance-repository.md R2.4), so it resolves this name to nothing and answers
+` +
+    `    500 on the first request that reads it — after a boot that looked fine.
+` +
+    (gap.owner === null
+      ? `    Default it in the module that reads it, or register it in 'composeApp' if its value
+` +
+        `    expression names no module.
+`
+      : `    HOST_REGISTERED_PORTS names '${gap.owner}' as the owner in principle: default it
+` +
+        `    there. An entry in ROOT_DIVERGENCE_ALLOWED is never the repair — it would say a
+` +
+        `    client's tree legitimately cannot resolve the name.
+`)
+  );
+}
+
 export function describeRootIssue(issue: RootRegistrationIssue): string {
   if (issue.kind === 'root-shadows-module-port') {
     return (
@@ -2090,6 +2250,8 @@ async function main(): Promise<void> {
     (entry) => !resolvedPairs.has(entry),
   );
   const rootNames = new Map<string, ReadonlySet<string>>();
+  // FR-034 — what a **third** composition registers. See {@link findInstanceGaps}.
+  const instanceSupplied = new Set<string>();
   for (const [label, relative] of Object.entries(ROOT_FILES)) {
     const full = join(layout.applicationRoot, relative);
     if (!existsSync(full)) continue;
@@ -2121,7 +2283,15 @@ async function main(): Promise<void> {
       const supplyFields = new Set<string>();
       for (const file of delegation.composer.files) {
         const composerSource = readFileSync(file, 'utf8');
-        for (const name of rootRegisteredNames(composerSource, file)) names.add(name);
+        for (const name of rootRegisteredNames(composerSource, file)) {
+          names.add(name);
+          // `specs/117-instance-bring-up/` FR-034 — the same names, kept apart,
+          // because they are the whole of what an instance's composition
+          // registers. Only the production root delegates to `composeApp`; the
+          // harness delegates to the test kit, which is not an instance's
+          // composer and must not widen this set.
+          if (label === 'production') instanceSupplied.add(name);
+        }
         for (const field of delegatedSupplyFields(composerSource, file)) supplyFields.add(field);
       }
       // And the names this root hands the composer **as data**, through whichever
@@ -2152,6 +2322,31 @@ async function main(): Promise<void> {
     platformNames: PLATFORM_OWNED_NAMES,
     kernelNames,
     moduleOwnedNames,
+  });
+
+  // FR-034 — the third composition. Exit 2 before the finding, because with an
+  // empty supply set every name a root registers reads as an instance gap: that
+  // is a fact about the walk dressed as a fact about the tree, and its remedy
+  // would be eleven repairs nobody needs.
+  if (instanceSupplied.size === 0) {
+    console.error(
+      "[port-deps] 'composeApp' registered no container name that this run could read. That is " +
+        'the whole of what a client instance composes, so every name a deployment root ' +
+        'registers would be reported as unresolvable there; refusing to report anything.',
+    );
+    process.exit(2);
+  }
+  const instanceGaps = findInstanceGaps({
+    resolutions,
+    // `moduleOwnedNames` and not `moduleRegistered`: the question here is *does
+    // a module register this name at all*, and a `ctx.di.register` default
+    // answers yes exactly as a `providePort` does (D-73's reasoning, one sweep
+    // over). `moduleRegistered` is ports only, and reading it here would report
+    // every module's own service registration as an instance gap.
+    moduleRegistered: new Set(moduleOwnedNames.keys()),
+    kernelNames,
+    instanceSupplied,
+    hostRegistered: HOST_REGISTERED_PORTS,
   });
 
   if (process.argv.includes('--list')) {
@@ -2202,7 +2397,7 @@ async function main(): Promise<void> {
       new Set(files.map((file) => moduleOf(file, layout.hostResidentModules))).size
     } ` +
       `resolutions=${resolutions.length} violations=${violations.length} ` +
-      `root-issues=${rootIssues.length} ` +
+      `root-issues=${rootIssues.length} instance-gaps=${instanceGaps.length} ` +
       `packages=${packages.discovered} package-names=${packages.containerNames.length} ` +
       `platform-names=${PLATFORM_OWNED_NAMES.size} kernel-supplied=${
         [...PLATFORM_OWNED_NAMES].filter((name) => kernelNames.has(name)).length
@@ -2247,6 +2442,16 @@ async function main(): Promise<void> {
     for (const issue of rootIssues) console.error(describeRootIssue(issue));
   }
 
+  if (instanceGaps.length > 0) {
+    console.error(
+      `\nA container name a client's instance cannot resolve. The two compositions in this ` +
+        `repository both supply it and neither is an instance's: one composes with ` +
+        `'composeApp' and nothing else, so it meets this as a 500 on the first request that ` +
+        `reads the name, after a boot that looked fine:`,
+    );
+    for (const gap of instanceGaps) console.error(describeInstanceGap(gap));
+  }
+
   if (nonBindingIssues.length > 0) {
     console.error(
       `\nA \`nonBindingDependencies\` entry does not hold. The entry withdraws the refusal ` +
@@ -2289,6 +2494,7 @@ async function main(): Promise<void> {
     violations.length === 0 &&
       stale.length === 0 &&
       rootIssues.length === 0 &&
+      instanceGaps.length === 0 &&
       drained.length === 0 &&
       aliasDrained.length === 0 &&
       nonBindingIssues.length === 0 &&

@@ -39,11 +39,12 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | `admin_notifications` | no | degrades-without `adminNotificationRecordPort` — bulk edits and search reindexes still run and still report on the Bulk actions page; only the bell entry is missing — the completion e-mail to the admin still goes out |
 | `api_keys` | no | degrades-without `requireApiKey` — the external catalog namespace stops accepting machine-to-machine callers |
 | `api_keys` | no | degrades-without `requireBoundApiKey` — the external catalog namespace stops accepting machine-to-machine callers |
-| `inventory` | no | degrades-without `catalogExternalAvailability` — product listings and the external catalog namespace stop carrying an availability band |
+| `inventory` | no | degrades-without `inventoryAvailabilityPort` — product listings and the external catalog namespace stop carrying an availability band |
 | `inventory` | no | degrades-without `inventoryProductThresholdWritePort` — a duplicated product does not inherit the source’s per-warehouse low-stock thresholds |
 | `prompt_actions` | no | contributes-to `promptActionBulkProgressRegistry` |
 | `prompt_actions` | no | contributes-to `promptActionToolRegistry` |
 | `search` | no | degrades-without `searchQueryPort` — the storefront product listing is served from PostgreSQL instead of the search index |
+| `search` | no | degrades-without `searchReindexPort` — an attribute’s `searchable` flip rebuilds no search index |
 
 ## Permissions
 

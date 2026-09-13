@@ -3,8 +3,11 @@ import type { FastifyRequest } from 'fastify';
 import type { Redis } from 'ioredis';
 import { z } from 'zod';
 import type {
+  Actor,
   AddressReadPort,
   AddressServicePort,
+  AdminRolePort,
+  AdminUserReadPort,
   AssetReadPort,
   CartReadPort,
   CartWritePort,
@@ -28,6 +31,7 @@ import type {
   PromptActionToolRegistryPort,
   ResolvedTax,
   SalesChannelAttributionRegistryPort,
+  SalesRepAssignmentPort,
   ShippingEmailRendererPort,
   TransactionalEmailSender,
 } from '@endora-commerce/contracts';
@@ -218,6 +222,12 @@ export interface OrdersCradle {
   /** `transactional_emails`' own accessor since T120, late-bound by that module. */
   readonly transactionalEmailSenderAccessor: () => TransactionalEmailSender | undefined;
   /** Root-shaped, owner `auth`: which organizations a sales-rep admin may see. */
+  /**
+   * Which organizations a sales-rep admin may see, defaulted by this module
+   * since `specs/117-instance-bring-up/` Phase 6 — see
+   * `registerAdminScopeResolver` below. A root that answers differently still
+   * contributes over it; the test harness does.
+   */
   readonly ordersAdminScopeResolver: NonNullable<OrdersModuleOptions['resolveAdminOrdersScope']>;
   readonly orderServiceAccessor: () => OrderService | null;
   readonly orderListServiceAccessor: () => OrderListService | null;
@@ -375,6 +385,68 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     orderPurchaseConversion: ctx
       .asFunction(({ emFactory }: OrdersCradle) => new PurchaseConversionService(emFactory))
+      .singleton(),
+  });
+
+  /**
+   * Feature 026 US6 — admin orders visibility scope, defaulted here
+   * (`specs/117-instance-bring-up/` Phase 6, FR-033). Sales-rep admins see only
+   * orders from organizations they own; every other admin sees everything.
+   *
+   * It was contributed by `backend/src/composition.ts` and by
+   * `backend/test/helpers/test-server.ts` and by nothing else, so a composition
+   * that is neither — which is every client instance — could not resolve it.
+   * The admin orders list is one of the first screens an operator opens, so the
+   * absence was a 500 at the front of the admin surface after a boot that
+   * looked fine.
+   *
+   * **The production root wrote the role lookup as `knex.raw`**, joining
+   * `admin_users` to `admin_roles` on this module's `EntityManager` — two
+   * modules' tables read outside either owner's gate, which no port check can
+   * see because SQL names no specifier. The two ports say the same thing, and
+   * `quote_requests`' `rfqAdminContextResolver` has read the role that way
+   * since T132, so the port shape is the one with the prior art.
+   *
+   * The two owners join this manifest's binding `dependencies`, which costs
+   * nobody an activation control: both declare `activation.nonDeactivatable`,
+   * so neither has an absent state for a `degrades-without` entry to describe.
+   * `organizations` was already there.
+   *
+   * `composeApp` does **not** default it and must not: the body reads a module's
+   * table through a module's port and decides on a module's business rule
+   * (`admin_roles.code === 'sales_representative'`), which is what kept it out
+   * of T118b's actor-shaped nine. Its home is here.
+   */
+  ctx.di.register({
+    ordersAdminScopeResolver: ctx
+      .asFunction(() => {
+        const admins = lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort');
+        const roles = lazyPort<AdminRolePort>(ctx, 'adminRolePort');
+        const salesRepScope = lazyPort<SalesRepAssignmentPort>(
+          ctx,
+          'organizationSalesRepScopePort',
+        );
+        return async (
+          request: FastifyRequest,
+        ): Promise<{ allowAll: true } | { allowAll: false; allowedOrganizationIds: string[] }> => {
+          const actor = request.actor as Actor | undefined;
+          // Not a refusal: a non-admin caller is every storefront request, and
+          // the admin routes this scopes are gated by `requireAdmin` already.
+          // "No scope to apply" is the honest answer and the one the root gave.
+          if (actor?.kind !== 'admin' || !actor.adminUserId) return { allowAll: true };
+          const adminUser = await admins.findById(actor.adminUserId);
+          // `getById` cannot 404 here: `admin_users_admin_role_fk` is
+          // `on delete restrict`, so a non-null `adminRoleId` names a row.
+          const role = adminUser?.adminRoleId ? await roles.getById(adminUser.adminRoleId) : null;
+          if (role?.code !== 'sales_representative') return { allowAll: true };
+          // Feature 056 — subtree-expanded when the rep holds
+          // `organizations:rollup`, which is `organizations`' decision.
+          const allowedOrganizationIds = await salesRepScope.listAssignedOrganizationIds(
+            actor.adminUserId,
+          );
+          return { allowAll: false, allowedOrganizationIds };
+        };
+      })
       .singleton(),
   });
 

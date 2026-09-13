@@ -78,7 +78,16 @@ export interface SubscriberServiceDeps {
   emFactory: () => EntityManager;
   optIn: NewsletterOptInService;
   /** Channel used for opt-in reads when a subscriber has no origin channel. */
-  defaultChannelId: string | null;
+  /**
+   * The channel a subscriber with no origin channel belongs to, **resolved per
+   * call** since `specs/117-instance-bring-up/` Phase 6.
+   *
+   * It was a value the composition awaited and passed in, which is what made
+   * `newsletterBridge` a thing only a composition root could assemble. An
+   * accessor lets this module resolve the system-default channel itself,
+   * through the port the platform already contributes.
+   */
+  resolveDefaultChannelId: () => Promise<string | null>;
   links: NewsletterLinkBuilder;
   /**
    * `customer_accounts`' read model, for the one field the owner stamp needs:
@@ -158,7 +167,7 @@ export class NewsletterSubscriberService {
     const email = input.email.trim().toLowerCase();
 
     const channelId = input.salesChannelId;
-    const settingsChannelId = channelId ?? this.deps.defaultChannelId;
+    const settingsChannelId = channelId ?? (await this.deps.resolveDefaultChannelId());
     const mode = await this.deps.optIn.resolveMode(settingsChannelId);
 
     // Suppressed (complaint/bounce) addresses are not silently re-subscribed.

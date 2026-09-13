@@ -109,6 +109,14 @@ export const manifest = defineModuleManifest({
   // now, and the panels read the gated port directly.
   dependencies: [
     'addresses',
+    // `specs/117-instance-bring-up/` Phase 6 — `customerModerationActorResolver`
+    // is this module's own since FR-033, and it reads the moderating admin's
+    // role through `adminRolePort` beside the `adminUserReadPort` already
+    // declared below. The production root asked the same question in
+    // `knex.raw` over both tables; a port needs the edge and the SQL never
+    // declared one. `admin_roles` declares `activation.nonDeactivatable`, so
+    // the edge costs no operator an activation control.
+    'admin_roles',
     'admin_users',
     'auth',
     'carts',

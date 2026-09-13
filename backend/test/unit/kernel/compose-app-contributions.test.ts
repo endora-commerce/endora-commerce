@@ -152,6 +152,13 @@ const PLATFORM_CONTRIBUTIONS: readonly string[] = [
   // contributed on both sides would be the silent overwrite the disjointness
   // assertion below refuses.
   'lifecycleManifestRegistry',
+  // The tenth actor-shaped name, added by `specs/117-instance-bring-up/`
+  // Phase 6. T118b left it in the deployment's `values` with a comment saying
+  // it stayed *because* it reads `request.actor` — and T118b is the merge
+  // request that moved that augmentation into the platform, so the stated
+  // blocker expired in the commit meant to clear it. Its value expression names
+  // no module, which is this list's criterion unchanged.
+  'customerOrganizationIdResolver',
   'mfaDefaultChannelIdResolver',
   'moduleQueueRedis',
   'modulePresenceProbe',
@@ -172,38 +179,56 @@ const PLATFORM_CONTRIBUTIONS: readonly string[] = [
 ];
 
 /**
- * The tenth actor-shaped name, and why it is on neither list above.
+ * The names that are on neither list because their **module** owns them.
  *
- * `specs/110-instance-repository/` T118b's "Done when" enumerated **ten**
- * contributions to move and this file holds nine. `ordersAdminScopeResolver` is
- * the tenth and it stays with the reference deployment, measured rather than
- * deferred: `resolveAdminOrdersScope` reads `admin_users` and `admin_roles` in
- * raw SQL and branches on `admin_roles.code === 'sales_representative'`. That is
- * a module's table and a module's business rule, so its value expression **does**
- * name a module in the only sense the criterion cares about, and the actor
- * augmentation was never its only blocker. Moving it would have put the first SQL
- * read of a module-owned table into `@endora-commerce/platform` — refused by no
- * check in the estate, because every check that judges that boundary reads
- * *imports*.
+ * `ordersAdminScopeResolver` stood here alone, as *"the tenth actor-shaped
+ * name"*, with a paragraph saying it stays with the reference deployment:
+ * `resolveAdminOrdersScope` reads `admin_users` and `admin_roles` in raw SQL
+ * and branches on `admin_roles.code === 'sales_representative'`, which is a
+ * module's table and a module's business rule, so moving it would have put the
+ * first SQL read of a module-owned table inside `@endora-commerce/platform`.
  *
- * It is also the half that cannot travel alone: the deployment's
- * `buildTenantContext` calls the same function for the admin arm, and that
- * mapping stays behind for its own reasons (`customerRollupScopePort` and
- * `organizationTreeService`). Two copies of one query, or an export back out of
- * the platform for the deployment to call, are both worse than one function in
- * the root that owns both callers.
+ * **That argument is right and its conclusion was one step short**
+ * (`specs/117-instance-bring-up/` Phase 6). What follows from "a module's table
+ * and a module's business rule" is *that module* — not a composition root. The
+ * name was defaulted by nobody, so every composition that is neither
+ * `backend/src/composition.ts` nor `backend/test/helpers/test-server.ts` could
+ * not resolve it, and a client's instance is exactly that composition: it calls
+ * `composeApp` and contributes nothing (R2.4). `orders` registers it now, over
+ * `adminUserReadPort` and `adminRolePort` with both edges declared, which is
+ * also how the SQL leaves the root.
+ *
+ * The nine beside it are the same finding in five other modules:
+ * `quote_requests`' two RFQ context resolvers and its tax rate, `customers`'
+ * moderation actor, `ksef`'s seller NIP, `newsletter`'s nine-member bridge, and
+ * `catalog`'s three adapters. Note what stayed: the deployment's
+ * `buildTenantContext` still calls `resolveAdminOrdersScope` for its admin arm,
+ * and that mapping is this root's own. A root keeping a function it calls
+ * itself is not a contribution.
+ *
+ * The assertion is two-way. A name here must be contributed by **neither**
+ * side — one of them taking it back is a module default silently overwritten,
+ * which is what this whole file exists to make impossible.
  */
-const DEPLOYMENT_ACTOR_SHAPED: readonly string[] = ['ordersAdminScopeResolver'];
+const MODULE_OWNED_FORMER_CONTRIBUTIONS: readonly string[] = [
+  'catalogExternalAvailability',
+  'catalogImagePlaceholderUrl',
+  'catalogSearchReindex',
+  'customerModerationActorResolver',
+  'ksefSellerNipResolver',
+  'newsletterBridge',
+  'ordersAdminScopeResolver',
+  'rfqAdminContextResolver',
+  'rfqCustomerContextResolver',
+  'rfqTaxRateResolver',
+];
 
 describe('T118 — the contribution wiring is the platform’s and the values are not', () => {
-  it('leaves the tenth actor-shaped name with the deployment (T118b)', () => {
-    // Two directions. It must still be contributed — a name silently dropped
-    // is a module resolving a registration nobody wrote — and it must not have
-    // been swept into the platform's set along with the nine.
+  it('leaves the four module-owned names to their modules, on both sides', () => {
     const deployment = new Set(contributedNames(productionPath));
 
-    for (const name of DEPLOYMENT_ACTOR_SHAPED) {
-      expect(deployment.has(name), `${name} is no longer contributed at all`).toBe(true);
+    for (const name of MODULE_OWNED_FORMER_CONTRIBUTIONS) {
+      expect(deployment.has(name), `${name} is contributed by the deployment again`).toBe(false);
       expect(PLATFORM_CONTRIBUTIONS).not.toContain(name);
     }
   });
@@ -309,7 +334,22 @@ describe('T118 — the contribution wiring is the platform’s and the values ar
     // the other's — which is what a ledger derived *about* the contributions
     // costs when two targets land together, and why this one is measured on the
     // combined tree rather than decremented.
-    expect(deployment.size + PLATFORM_CONTRIBUTIONS.length).toBe(53);
+    //
+    // **53 -> 44, measured on this tree by `specs/117-instance-bring-up/`
+    // Phase 6 and not decremented by hand.** Ten names left the deployment for
+    // the modules that read them — the block above — and one, the tenth
+    // actor-shaped name, moved from the deployment's `values` into
+    // `composeApp`, so it joins `PLATFORM_CONTRIBUTIONS` rather than leaving the
+    // sum. A `values` entry is not a contribution and was never counted here,
+    // so the arithmetic is -10 +1 and not -11 +1.
+    //
+    // It is the largest single fall this number has taken and the reason is
+    // worth writing down rather than the arithmetic: the ten were not
+    // *overrides*, which is what a contribution is. Nothing defaulted any of
+    // them, so they were **required** values supplied through the override
+    // window, and the cost of that fell entirely on the compositions that are
+    // neither of the two roots — which is every client instance.
+    expect(deployment.size + PLATFORM_CONTRIBUTIONS.length).toBe(44);
   });
 
   it('contributes before the caller’s callback, so a deployment can still override', () => {

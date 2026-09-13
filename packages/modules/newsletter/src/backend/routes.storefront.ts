@@ -24,7 +24,7 @@ export interface NewsletterStorefrontDeps {
   /** Resolve a sales-channel code to its id; null when unknown. */
   resolveChannelIdByCode: (code: string) => Promise<string | null>;
   /** The channel a request with no `?channel=` belongs to; null = none. */
-  defaultChannelId: string | null;
+  resolveDefaultChannelId: () => Promise<string | null>;
   /** Storefront base used for post-confirm/unsubscribe redirects. */
   storefrontBaseUrl: string;
 }
@@ -41,7 +41,7 @@ export async function registerNewsletterStorefrontRoutes(
   app.get('/api/v1/newsletter/status', async (request, reply) => {
     const { channel } = request.query as { channel?: string };
     const channelId = channel ? await deps.resolveChannelIdByCode(channel) : null;
-    const optInMode = await deps.optIn.resolveMode(channelId ?? deps.defaultChannelId);
+    const optInMode = await deps.optIn.resolveMode(channelId ?? (await deps.resolveDefaultChannelId()));
     return reply.send({ data: { enabled: true, optInMode } });
   });
 

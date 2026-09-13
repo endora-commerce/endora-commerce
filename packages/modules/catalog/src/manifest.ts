@@ -197,12 +197,14 @@ export const manifest = defineModuleManifest({
     },
     {
       moduleId: 'inventory',
-      // The name this module resolves. A composition root registers it on
-      // `inventory`'s behalf — the closure forwards to
-      // `inventoryAvailabilityPort.resolveAvailabilityBands` and probes
-      // presence in front of it — so this is where the edge is visible from
-      // here, and where the check can see something resolving it.
-      name: 'catalogExternalAvailability',
+      // `inventoryAvailabilityPort`, which this module resolves itself since
+      // `specs/117-instance-bring-up/` Phase 6. The entry named
+      // `catalogExternalAvailability` while a composition root registered the
+      // closure on `inventory`'s behalf; that closure was
+      // `effectiveState.isPresent('inventory')` plus this port, which is the
+      // shape a module writes for itself, and nothing defaulted the name — so
+      // every composition that was neither root resolved it to nothing.
+      name: 'inventoryAvailabilityPort',
       kind: 'degrades-without',
       whenAbsent:
         'product listings and the external catalog namespace stop carrying an availability band',
@@ -231,6 +233,25 @@ export const manifest = defineModuleManifest({
         'acknowledged edge sits in the refusal graph and would make `inventory` undeactivatable ' +
         'while a catalogue is present. The degrade is real: the duplicate falls back to the ' +
         'product- and warehouse-level chain, as on a deployment without the module.',
+    },
+    {
+      moduleId: 'search',
+      // The full reindex an attribute's `searchable` flip runs, resolved by
+      // this module since `specs/117-instance-bring-up/` Phase 6 — it was
+      // `catalogSearchReindex`, a root's closure over this same port, and
+      // nothing defaulted it. The degrade is the reason it is probed rather
+      // than gated: with `search` off there is no index to rebuild, so
+      // "nothing was indexed" is the honest answer and 503-ing an unrelated
+      // attribute edit because an optional module is off is not.
+      name: 'searchReindexPort',
+      kind: 'degrades-without',
+      whenAbsent: 'an attribute’s `searchable` flip rebuilds no search index',
+      reason:
+        'The same ground as `searchQueryPort` below and the same owner: PostgreSQL is the ' +
+        'default backend for every catalogue read, so a switched-off `search` costs the ' +
+        'index and nothing else. Declared rather than acknowledged, because an ' +
+        'acknowledged edge keeps the bind and would make `search` undeactivatable for as ' +
+        'long as the platform has a catalogue.',
     },
     {
       moduleId: 'search',

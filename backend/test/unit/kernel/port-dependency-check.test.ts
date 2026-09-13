@@ -9,9 +9,11 @@ import {
   describe as describeViolation,
   describeNonBindingIssue,
   describeUnassignedEdge,
+  findInstanceGaps,
   findNonBindingIssues,
   findViolations,
   findRootIssues,
+  describeInstanceGap,
   importedContributionSeams,
   ledgerReads,
   nonBindingPortEdges,
@@ -1891,5 +1893,94 @@ describe('a delegating root supplies through its composer', () => {
     expect(delegationRefusalMessage('[port-deps]', delegation.refusal)).toContain(
       'supplies nothing',
     );
+  });
+});
+
+/**
+ * The third composition (`specs/117-instance-bring-up/` FR-034).
+ *
+ * `findRootIssues` above compares the two roots **to each other**, and the
+ * eleven names feature 117's Phase 6 drained were in **both** — so the sweep
+ * that exists to find a supply gap was structurally incapable of seeing the
+ * largest one there was. A client's tree composes with `composeApp` and nothing
+ * else, which is a third supply set this file had no notion of.
+ *
+ * The second case is what makes the first worth anything. A rule that reported
+ * every name a module reads would be red on a correct tree, so the
+ * discrimination is asserted beside the finding rather than inferred from the
+ * finding's absence elsewhere.
+ */
+describe('findInstanceGaps — what a client instance cannot resolve', () => {
+  const READER = [
+    'export function registerModule(ctx: ModuleContext): void {',
+    '  ctx.di.register({',
+    '    orderService: ctx.asFunction(() => ({',
+    '      scope: () => ctx.cradle<Deps>().ordersAdminScopeResolver(),',
+    '    })).singleton(),',
+    '  });',
+    '}',
+  ].join('\n');
+  const READER_FILE = '/repo/packages/modules/orders/src/backend/index.ts';
+  const COMPOSE_APP_FILE = '/repo/packages/platform/src/composition/compose-app.ts';
+
+  const gapsOver = (composeApp: string, ownerSource = ''): ReturnType<typeof findInstanceGaps> =>
+    findInstanceGaps({
+      resolutions: resolvedNames(READER, READER_FILE).map((resolution) => ({
+        moduleId: 'orders',
+        name: resolution.name,
+      })),
+      moduleRegistered: new Set(registeredNames(ownerSource, '/repo/owner.ts')),
+      kernelNames: new Set<string>(),
+      instanceSupplied: new Set(rootRegisteredNames(composeApp, COMPOSE_APP_FILE)),
+      hostRegistered: { ordersAdminScopeResolver: 'auth' },
+    });
+
+  it('reports a name only a deployment root supplies', () => {
+    const gaps = gapsOver('registerValues(container, { redis, eventBus });');
+
+    expect(gaps.map((gap) => gap.name)).toEqual(['ordersAdminScopeResolver']);
+    expect(gaps[0]!.readers).toEqual(['orders']);
+    // The owner in principle reaches the message, so its reader is sent to the
+    // module that should default it rather than to the table.
+    expect(gaps[0]!.owner).toBe('auth');
+    expect(describeInstanceGap(gaps[0]!)).toContain("default it");
+  });
+
+  it('says nothing about a name `composeApp` supplies — the discrimination', () => {
+    expect(
+      gapsOver('composedModules.contribute({ ordersAdminScopeResolver: fromActor });'),
+    ).toEqual([]);
+  });
+
+  it('says nothing about a name the owning module registers', () => {
+    expect(
+      gapsOver(
+        'registerValues(container, { redis });',
+        [
+          'export function registerModule(ctx: ModuleContext): void {',
+          '  ctx.di.register({ ordersAdminScopeResolver: ctx.asFunction(() => fromActor) });',
+          '}',
+        ].join('\n'),
+      ),
+    ).toEqual([]);
+  });
+
+  it('names every reader of one gap once, rather than one finding per read', () => {
+    const gaps = findInstanceGaps({
+      resolutions: [
+        { moduleId: 'orders', name: 'ordersAdminScopeResolver' },
+        { moduleId: 'customers', name: 'ordersAdminScopeResolver' },
+        { moduleId: 'orders', name: 'ordersAdminScopeResolver' },
+      ],
+      moduleRegistered: new Set(),
+      kernelNames: new Set(),
+      instanceSupplied: new Set(['redis']),
+      hostRegistered: {},
+    });
+
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0]!.readers).toEqual(['customers', 'orders']);
+    // No owner in principle, so the message offers both honest repairs.
+    expect(describeInstanceGap(gaps[0]!)).toContain("register it in 'composeApp'");
   });
 });

@@ -74,7 +74,7 @@ describe('newsletter self-service (US9)', () => {
     const subscribers = new NewsletterSubscriberService({
       emFactory: () => db.em(),
       optIn,
-      defaultChannelId: null,
+      resolveDefaultChannelId: async () => null,
       // The real read port over this transaction's own rows, so the
       // organisation the subscriber carries is the one the account really has
       // rather than one a stub asserted.

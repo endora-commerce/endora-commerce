@@ -1,9 +1,6 @@
 import type { AssetsLibraryCradle } from '@endora-commerce/mod-assets-library/backend';
 import type { CartShoppingListBridge } from '@endora-commerce/mod-carts/backend';
 import type { FastifyRequest } from 'fastify';
-import { randomUUID } from 'crypto';
-import { z } from 'zod';
-import { ERROR_CODES, type ProductAvailability } from '@endora-commerce/contracts';
 // Feature 080 (T052) — the contract types for the seven ports that replaced
 // this root's five entity-class reads. Types only: what a root resolves is a
 // container name, and the shape it resolves it against is published in
@@ -28,7 +25,6 @@ import type {
   OrganizationTaxProfilePort,
   TaxServicePort,
 } from '@endora-commerce/contracts';
-import { HttpError } from '@endora-commerce/platform/http';
 import type { ModulePlugin } from '@endora-commerce/platform/composition';
 import { initOrm, closeOrm } from './db/index.js';
 import { type TenantContext } from './tenancy/tenant-context.js';
@@ -63,7 +59,6 @@ import { MODULES } from './composition.generated.js';
 // itself now and every URL it produces is absolute, so a root that rebases one
 // is a root that can disagree with the module and with the other root — which
 // both of them did.
-import { resolvePublicApiBaseUrl } from './kernel/index.js';
 // T118b — and **no** reach into that package for `request.actor` any more. This
 // import used to be `import type { Actor } from '@endora-commerce/mod-auth/backend'`,
 // whose real job was not the type: it dragged `auth`'s `declare module 'fastify'`
@@ -101,8 +96,10 @@ import { DefaultChannelReconciler } from '@endora-commerce/platform/composition'
 // Feature 046 — Progressive Web App. No type import: T118c retired `pwaBridge`
 // and this deployment contributes nothing for the module.
 // Feature 047 — Transactional Emails.
-// Feature 048 — Newsletter.
-import type { NewsletterBridge } from '@endora-commerce/mod-newsletter/backend';
+// Feature 048 — Newsletter. No type import: `specs/117-instance-bring-up/`
+// Phase 6 retired `newsletterBridge` and this deployment contributes nothing
+// for the module beyond the branding accessor, which is the module's own
+// contribution point.
 // Feature 049 — Google Analytics.
 // Feature 063 — LinkedIn Ads.
 // Feature 064 — Meta Ads.
@@ -400,25 +397,15 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     // load reads. The platform may not locate the file (D115-3), so the value
     // is supplied rather than read.
     declaredOmissions: divergenceDeclaration.omittedModules.map((entry) => entry.moduleId),
-    values: {
-      // Feature 072 (T138) — the actor half of what used to be
-      // `buildOrgAllowListResolver`: who is asking, as a bare Organization id.
-      // Soft by contract — `null` for anonymous traffic *and* for a Customer
-      // with no Organization — which is why it cannot reuse
-      // `customerContextResolver`, that one throwing 401/422 for both. Catching
-      // that to mean "unrestricted" is the fail-open hazard this split exists
-      // to remove.
-      //
-      // A host value rather than a contribution: no module defaults it, so it
-      // has no window. It stays here rather than moving with the assembly
-      // because it reads `request.actor`, which is `auth`'s `declare module
-      // 'fastify'` block — T118b's subject.
-      customerOrganizationIdResolver: (request: FastifyRequest): string | null => {
-        const actor = (request as { actor?: { kind: string; organizationId?: string | null } })
-          .actor;
-        return actor?.kind === 'customer' ? (actor.organizationId ?? null) : null;
-      },
-    },
+    // `customerOrganizationIdResolver` was the one entry here and is
+    // `composeApp`'s since `specs/117-instance-bring-up/` Phase 6. The comment
+    // that stood in its place said it stayed *"because it reads
+    // `request.actor`, which is `auth`'s `declare module 'fastify'` block —
+    // T118b's subject"*, and T118b is the merge request that moved that
+    // augmentation into the platform and took the nine other actor-shaped
+    // names with it. The blocker expired in the commit that was supposed to
+    // clear it, and the cost was borne by every composition that is not this
+    // file: four modules read the name and nothing defaulted it.
     // Feature 050 — establish the ambient TenantContext for every request from
     // the already-authenticated actor (never from request inputs). The mapping
     // is this deployment's until T118b relocates the `request.actor`
@@ -459,10 +446,7 @@ async function contributeReferenceDeployment(
     container,
     em,
     redis,
-    eventBus,
     auditLogService,
-    settings,
-    salesChannels,
     orm,
     redisSubscriber,
     resolvedModules: resolvedRegistry,
@@ -470,12 +454,11 @@ async function contributeReferenceDeployment(
   } = ctx;
   const { scopedPlugins } = seams;
 
-  // T143a — `search`'s full-reindex port, read lazily. `catalog` triggers a
-  // reindex when an attribute's `searchable` flag flips, and the module that
-  // owns the indexer is the one that must answer for it.
-  const searchCradle = (): {
-    searchReindexPort: { reindexAll(): Promise<{ documentCount: number }> };
-  } => container.cradle as never;
+  // `searchCradle` stood here to forward `search`'s full-reindex port into
+  // `catalogSearchReindex`. `specs/117-instance-bring-up/` Phase 6 retired the
+  // contribution: `catalog` resolves `searchReindexPort` itself and declares
+  // the edge, which is what "the module that owns the indexer answers for it"
+  // was always going to mean.
 
   // Feature 080 (T052) — the ports that replaced this root's reads of five
   // other modules' entity classes: `CustomerAccount`, `AdminUser`,
@@ -542,15 +525,10 @@ async function contributeReferenceDeployment(
    */
   const reads = (): ContainerReads => container.cradle as never;
 
-  // T143a — `inventory`'s availability port, read lazily.
-  const inventoryCradle = (): {
-    inventoryAvailabilityPort: {
-      resolveAvailabilityBands(
-        productIds: string[],
-        salesChannelId: string,
-      ): Promise<Map<string, { band: string; inStock: boolean }>>;
-    };
-  } => container.cradle as never;
+  // `inventoryCradle` stood here to forward `inventory`'s availability port
+  // into `catalogExternalAvailability`, retired in the same phase and for the
+  // same reason: `catalog` resolves the port and keeps the D-61 presence probe
+  // that closure carried.
 
 
   // Feature 072 (T094) — one `CustomerAuthService` for the composition.
@@ -617,18 +595,11 @@ async function contributeReferenceDeployment(
   // versions carry the 401 and the 500 verbatim, with the invariant note in
   // full. Nothing in this root asks either question directly any more.
 
-  /**
-   * Resolver for customer routes that work with or without an Organization
-   * (e.g. Returns history/submission). Unlike the platform's
-   * `customerContextResolver`, it does not require an Organization — it only
-   * asserts a customer session.
-   */
-  const resolveCustomerAccountId = (request: FastifyRequest): string => {
-    if (request.actor.kind !== 'customer') {
-      throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-    }
-    return request.actor.customerAccountId;
-  };
+  // `resolveCustomerAccountId` stood here for customer routes that work with or
+  // without an Organization, and it was byte-for-byte the platform's own
+  // `customerAccountIdResolver` under a second name. Its last reader was
+  // `newsletterBridge`, retired by `specs/117-instance-bring-up/` Phase 6, and
+  // the module resolves the platform's name instead — one closure, one place.
 
   // ---- Module composition (order mirrors test/helpers/test-server.ts) -----
 
@@ -934,10 +905,10 @@ async function contributeReferenceDeployment(
   // Feature 072 (T117) — `seo` owns its services and routes now.
   let shoppingListService: ShoppingListBridgeService | null = null;
 
-  // Feature 072 (T079) — the platform mailer, resolved from the container the
-  // `email` module registered it into. Six senders share it, which is why it
-  // was never really "the organizations mailer" and is not named one now.
-  const platformMailer = reads().emailMailer;
+  // `platformMailer` — the `email` module's registration, read here so this
+  // root could hand it to `newsletter`. `specs/117-instance-bring-up/` Phase 6
+  // retired the last such hand-over: every consumer resolves `emailMailer`
+  // itself, which is what it has been a registration for since T079.
 
   // Feature 026's moderation lifecycle — the moderation service, the
   // registration notifier, their two `organization.registered.v1`
@@ -1232,75 +1203,31 @@ async function contributeReferenceDeployment(
   // reach modules `catalog` must not read through directly. The other two left:
   // whether this process runs the bulk-operation consumer (Principle X) with
   // T118, and `catalogAdminAuditContext` with T118b.
-  composedModules.contribute({
-    catalogExternalAvailability: async (productIds: string[], salesChannelId: string) => {
-      // D-61 — the presence probe a `degrades-without` edge owes its owner
-      // (D-44), and it belongs here because this closure is where the port is
-      // resolved. `catalog` declares the degrade in its manifest: a product
-      // listing without `inventory` carries no availability band, which is the
-      // empty map, and is exactly what the decorator's absent-contribution path
-      // already answers. A closed gate **throws** rather than resolving to
-      // `undefined`, so this has to come before the resolution — optional
-      // chaining and a `catch` both defend against nothing here.
-      if (!effectiveState.isPresent('inventory')) {
-        return new Map<string, ProductAvailability>();
-      }
-      return inventoryCradle().inventoryAvailabilityPort.resolveAvailabilityBands(
-        productIds,
-        salesChannelId,
-      );
-    },
-    // Full Meilisearch reindex (the `search:reindex` CLI equivalent), run as a
-    // `search_reindex` bulk operation when an attribute's `searchable` flag
-    // flips. T143a — forwarded to `search`'s own port rather than performed
-    // here: this closure used to build a **second** `SearchIndexer` beside the
-    // one `searchModule` already holds, and being a root's it answered with
-    // `search` switched off. Read per call, so the gate stays live.
-    catalogSearchReindex: async () => searchCradle().searchReindexPort.reindexAll(),
-    // Storefront product-image placeholder (general.product_image_placeholder_url),
-    // resolved global-or-per-channel through the SettingsService. Returns null
-    // (no placeholder) when unset or on any resolution error so a settings
-    // hiccup can never break product listings.
-    catalogImagePlaceholderUrl: async (salesChannelCode?: string) => {
-      try {
-        // An unknown code falls back to the system-default channel, which
-        // always exists (D-48); the placeholder is a per-storefront property,
-        // so the default channel's value is the wanted answer, not the
-        // platform-wide one the old `?? null` quietly switched to.
-        const channelId =
-          (salesChannelCode ? await salesChannels.resolver.getByCode(salesChannelCode) : null)
-            ?.id ?? (await salesChannels.resolver.getSystemDefault()).id;
-        const url = await settings.settingsService.get(
-          'product_image_placeholder_url',
-          channelId,
-          z.string(),
-        );
-        const trimmed = url.trim();
-        return trimmed === '' ? null : trimmed;
-      } catch {
-        return null;
-      }
-    },
-  });
+  // `catalogExternalAvailability`, `catalogSearchReindex` and
+  // `catalogImagePlaceholderUrl` were contributed here and are `catalog`'s own
+  // since `specs/117-instance-bring-up/` Phase 6. Each reached something the
+  // module may not read directly and each reached it through a seam the module
+  // already holds — two gated ports whose owners its manifest declares
+  // `degrades-without`, and two platform registrations — so none of the three
+  // was this deployment's judgement to make. Nothing defaulted them, and
+  // `catalog` is in the module set every instance installs, so all three were
+  // 500s waiting on a storefront listing, a product image and an attribute
+  // edit.
 
-  // Feature 072 (T141) — the two names `orders` still takes from a composition:
-  // which organizations a sales-rep admin may see, and the admin-editable
-  // sender, late-bound because `transactional_emails` publishes it after this
-  // module composes.
+  // `ordersAdminScopeResolver` was contributed here and is `orders`' own since
+  // `specs/117-instance-bring-up/` Phase 6. T118b was right that it is not an
+  // actor read — it decides on `admin_roles.code === 'sales_representative'`,
+  // which is a module's business rule — and drew the wrong conclusion from it:
+  // the home that follows from "a module's table and a module's business rule"
+  // is that module, not this root. Nothing defaulted the name, so every
+  // composition that is not this file and not the test harness met it as a 500
+  // on the admin orders list. The module reads the role through
+  // `adminUserReadPort` and `adminRolePort` and declares both edges, which is
+  // also how the `knex.raw` join over two other modules' tables leaves this
+  // file.
   //
-  // T118b — the first is the **tenth** actor-shaped name and is the one that did
-  // not move with the other nine. It is not an actor read: `resolveAdminOrdersScope`
-  // asks `request.actor` for an admin id and then queries `admin_users` and
-  // `admin_roles` in raw SQL, deciding on `admin_roles.code === 'sales_representative'`.
-  // That is a module's table and a module's business rule, so the augmentation was
-  // never its only blocker, and putting it in `@endora-commerce/platform` would be
-  // the first SQL read of a module-owned table from inside the host — refused by
-  // nothing in the estate, because every check that judges that boundary reads
-  // *imports*. It also cannot travel alone: `buildTenantContext` below calls the
-  // same function for its admin arm and stays here for its own two container reads.
-  composedModules.contribute({
-    ordersAdminScopeResolver: resolveAdminOrdersScope,
-  });
+  // `resolveAdminOrdersScope` survives above for `buildTenantContext`'s admin
+  // arm, which is this root's own and stays.
 
   composedModules.contribute({
     cartShoppingListBridge: {
@@ -1403,81 +1330,20 @@ async function contributeReferenceDeployment(
   // four settings reads now. What stays is a composition's answer to who is
   // asking, the organization's tax rate, and the subtree the RFQ admin scope
   // rolls up over.
-  composedModules.contribute({
-    rfqCustomerContextResolver: async (request: FastifyRequest) => {
-      if (request.actor.kind !== 'customer') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
-      }
-      // D-178 — an invariant, not a business state; see the platform's
-      // `customerContextResolver`, which carries the reasoning in full.
-      if (!request.actor.organizationId) {
-        throw new HttpError(
-          500,
-          ERROR_CODES.INTERNAL,
-          'Invariant violated: a customer account has no Organization (Principle XI).',
-          { code: 'customer_account_organization_missing' },
-        );
-      }
-      const account = await identityPorts().customerAccountReadPort.findById(
-        request.actor.customerAccountId,
-      );
-      return {
-        customerAccountId: request.actor.customerAccountId,
-        organizationId: request.actor.organizationId,
-        isOrgAdmin: account?.role === 'organization_admin',
-      };
-    },
-    rfqAdminContextResolver: async (request: FastifyRequest) => {
-      if (request.actor.kind !== 'admin') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-      }
-      const ports = identityPorts();
-      const adminUser = await ports.adminUserReadPort.findById(request.actor.adminUserId);
-      // `getById` rather than a nullable lookup, and it cannot 404 here:
-      // `admin_users_admin_role_fk` is `on delete restrict`, so a non-null
-      // `adminRoleId` names a row that exists.
-      const role = adminUser?.adminRoleId
-        ? await ports.adminRolePort.getById(adminUser.adminRoleId)
-        : null;
-      return {
-        adminUserId: request.actor.adminUserId,
-        isPlatformAdmin: role?.code === 'platform_admin',
-        roleLabel:
-          role?.code === 'platform_admin'
-            ? 'Platform administrator'
-            : role?.code === 'sales_representative'
-              ? 'Sales representative'
-              : (role?.name ?? 'Administrator'),
-      };
-    },
-    // No `catch` (issue #84). `taxRateFor` answers "nothing applies" as a
-    // value — `{ source: 'none' }`, with no rate to read — so the only errors
-    // left here are a failing database and `taxes` being switched off.
-    // Returning 0 for either quoted a zero-VAT price on an operator's behalf
-    // and called it an answer.
-    // T143c — the Organization is read through `organizations`' own port
-    // rather than by loading its entity here. Both roots spelled the same
-    // query, and being a root's it answered with `organizations` switched
-    // off: a quote priced from a tenancy row the platform was refusing to
-    // serve. The refusal now reaches the same place a database failure does.
-    rfqTaxRateResolver: async (organizationId: string) => {
-      const org = await reads().organizationTaxProfilePort.taxProfileOf(organizationId);
-      const vatStatus = org?.vatStatus ?? 'vat_payer';
-      if (vatStatus !== 'vat_payer') return 0;
-      const country = org?.country ?? 'PL';
-      const resolved = await reads().taxService.taxRateFor({
-        country,
-        productType: 'simple',
-        vatStatus,
-      });
-      // `none` is the operator's own configuration state — `taxes` is present
-      // and holds no rule that applies and no default — so a quote is priced
-      // net, and the quote view drops its VAT row rather than printing a 0%
-      // one. An *absent* `taxes` never reaches this line: the port gate above
-      // throws (issue #124).
-      return resolved.source === 'none' ? 0 : resolved.rate;
-    },
-  });
+  // `rfqCustomerContextResolver` and `rfqAdminContextResolver` were contributed
+  // here and are `quote_requests`' own since `specs/117-instance-bring-up/`
+  // Phase 6. Both bodies read `request.actor` and three ports that manifest
+  // already declares — `customerAccountReadPort`, `adminUserReadPort` and
+  // `adminRolePort` — so neither carried a judgement this deployment makes, and
+  // nothing defaulted them: a composition that is not this file and not the
+  // test harness could resolve neither.
+  // `rfqTaxRateResolver` was contributed here and is `quote_requests`' own
+  // since `specs/117-instance-bring-up/` Phase 6, beside the two actor
+  // resolvers above. Two ports — `organizationTaxProfilePort` and
+  // `taxService` — both already that manifest's binding `dependencies`, and no
+  // `catch` there either, for the reason this contribution carried one nowhere:
+  // `taxRateFor` answers "nothing applies" as a *value*, so returning 0 for an
+  // error would quote a zero-VAT price on an operator's behalf.
 
   // Feature 072 (T138) — what a login does beyond logging in. Points *outward*
   // from `organizations` to two modules that depend on it, so it cannot be a
@@ -1534,33 +1400,16 @@ async function contributeReferenceDeployment(
   // can reach the OrderListService (late-bound) and the RfqService for the
   // self-service order / RFQ history endpoints.
   // Feature 072 (T140) — `customers` owns its services, its routes and its
-  // three settings reads now. Two names stay a composition's: who is moderating
-  // — an actor read *plus* the same `admin_roles` query `ordersAdminScopeResolver`
-  // makes, which is why it stayed where that one did — and the late-bound
-  // order-list service `orders` builds. Who is *asking* (`customerActorResolver`)
-  // was the third and is the platform's since T118b.
-  composedModules.contribute({
-    customerModerationActorResolver: async (request: FastifyRequest) => {
-      const actor = request.actor;
-      if (actor.kind !== 'admin') {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-      }
-      const knex = em().getKnex();
-      const roleRow = (await knex.raw(
-        `select ar."code" as code from "admin_users" au left join "admin_roles" ar on ar."id" = au."admin_role_id" where au."id" = ?`,
-        [actor.adminUserId],
-      )) as { rows: Array<{ code: string | null }> };
-      const isPlatformAdmin = (roleRow.rows[0]?.code ?? null) !== 'sales_representative';
-      let allowedOrganizationIds: string[] = [];
-      if (!isPlatformAdmin) {
-        // Feature 056 — subtree-expanded when the rep holds `organizations:rollup`.
-        allowedOrganizationIds = await salesRepScope().listAssignedOrganizationIds(
-          actor.adminUserId,
-        );
-      }
-      return { adminUserId: actor.adminUserId, isPlatformAdmin, allowedOrganizationIds };
-    },
-  });
+  // three settings reads now. Who is *asking* (`customerActorResolver`) is the
+  // platform's since T118b.
+  // `customerModerationActorResolver` was contributed here and is `customers`'
+  // own since `specs/117-instance-bring-up/` Phase 6. Nothing defaulted it, so
+  // every composition that is not this file and not the test harness met it as
+  // a 500 on the admin customers screen. The module reads the moderating
+  // admin's role through `adminUserReadPort` and `adminRolePort` and declares
+  // both edges, which is also how the second copy of the `knex.raw` join over
+  // `admin_users` and `admin_roles` leaves this file — the harness had been
+  // written over the ports since T140, so the SQL was the outlier.
 
   // Feature 047 — Invoices. Owns issuance, numbering, PDF rendering, admin +
   // customer routes. Constructed before returns so the corrective-invoice
@@ -1580,21 +1429,10 @@ async function contributeReferenceDeployment(
   // domain events, submits FA(3) documents through a durable queue, and feeds
   // the KSeF number/QR back through the invoices port + PDF-renderer seam.
   // Feature 072 (T104) — `ksef` owns its services and routes now.
-  composedModules.contribute({
-    ksefSellerNipResolver: async () => {
-      try {
-        // Platform-wide: one legal seller issues every invoice this deployment
-        // produces, so there is no channel to read for. This used to be the nil
-        // UUID — a well-formed id that addresses no row, which resolved to the
-        // same tier by accident rather than by saying so (D-41).
-        const raw = await settings.settingsService.get('invoices.seller.tax_id', null, z.string());
-        const nip = raw.replace(/^PL/i, '').replace(/[\s-]/g, '');
-        return nip.length > 0 ? nip : null;
-      } catch {
-        return null;
-      }
-    },
-  });
+  // `ksefSellerNipResolver` was contributed here and is `ksef`'s own since
+  // `specs/117-instance-bring-up/` Phase 6. `invoices.seller.tax_id` is a
+  // setting `ksef` may read — it declares `invoices` — and stripping a `PL`
+  // prefix off a NIP is a KSeF format rule, not composition policy.
 
   // PDF QR seam (contracts/invoices-integration.md §3) — one resolver covers
   // every render path; absent/disabled module ⇒ pre-059 output.
@@ -1708,39 +1546,16 @@ async function contributeReferenceDeployment(
   // These stay here because they are pinned per composition rather than
   // derived: the token secret and base URLs decide what an unsubscribe link
   // looks like, and the harness needs that predictable.
+  // `newsletterBridge` was contributed here and is gone since
+  // `specs/117-instance-bring-up/` Phase 6: nine members, every one of them a
+  // port, a platform contribution, a platform helper or an environment input,
+  // and none of them this deployment's judgement. `newsletter` reads all nine
+  // itself. `NEWSLETTER_TOKEN_SECRET` stays a **platform** input — `composeApp`
+  // registers the resolved value as `newsletterTokenSecret` — so the read stays
+  // in the tree `check:env-inputs` judges (T6-B1 route (b)), and the third
+  // fallback this file carried, a literal `'newsletter-dev-secret'`, is not
+  // reproduced anywhere: it was a shipped signing key that nothing declared.
   composedModules.contribute({
-    newsletterBridge: {
-      tokenSecret:
-        process.env['NEWSLETTER_TOKEN_SECRET'] ??
-        process.env['SESSION_COOKIE_SECRET'] ??
-        'newsletter-dev-secret',
-      // The channel a subscriber with no channel context belongs to. Kept as a
-      // *channel* rather than folded into D-41's platform-wide read: opt-in
-      // mode and confirmation TTL are per-storefront properties, so "the
-      // system-default channel's value" and "the platform-wide value" are
-      // different answers and this one wants the former. The provider config
-      // reads, which are genuinely platform-wide, no longer take it at all.
-      defaultChannelId: (await salesChannels.resolver.getSystemDefault()).id,
-      resolveChannelIdByCode: async (code) =>
-        (await salesChannels.resolver.getByCode(code))?.id ?? null,
-      // The confirm/unsubscribe links this builds are `/api/v1/newsletter/...`
-      // paths, so the origin is the API's, never the storefront's. It used to
-      // fall back to `STOREFRONT_BASE_URL`, which on the shipped production
-      // template pointed every confirmation link at a Next.js host that serves
-      // no such route (issue #218).
-      publicBaseUrl: resolvePublicApiBaseUrl(),
-      storefrontBaseUrl: process.env['STOREFRONT_BASE_URL'] ?? 'http://localhost:3000',
-      loadCustomerEmail: async (customerAccountId) =>
-        (await identityPorts().customerAccountReadPort.findById(customerAccountId))?.email ?? null,
-      mailer: platformMailer,
-      emitEvent: (name, payload) =>
-        eventBus.emit(name, {
-          eventId: randomUUID(),
-          occurredAt: new Date().toISOString(),
-          ...payload,
-        }),
-      resolveCustomerAccountId,
-    } satisfies NewsletterBridge,
     // Contribution: campaign email carries this deployment's logo and accent,
     // announced by `transactional_emails` after it is built.
     newsletterEmailBranding: async (salesChannelId: string | null) => {

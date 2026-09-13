@@ -108,7 +108,14 @@ const CLUSTER_SIX: ReadonlyArray<{
   {
     what: 'the full Meilisearch reindex',
     owner: 'search',
-    inBackend: "providePort('searchReindexPort'",
+    // The name and not the call's spelling: it was
+    // `providePort('searchReindexPort'` until `specs/117-instance-bring-up/`
+    // Phase 6 published `SearchReindexPort` and the registration took the type
+    // argument its `searchQueryPort` sibling already carried. The claim here is
+    // that the **module** provides the name; whether the call names its type is
+    // `check:port-shape`'s question, and pinning the spelling reds this file
+    // for a repair it has no opinion about.
+    inBackend: "'searchReindexPort'",
     notInRoot: 'new SearchIndexer(',
   },
   {

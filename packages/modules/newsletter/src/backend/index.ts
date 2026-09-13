@@ -1,10 +1,12 @@
+import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Redis } from 'ioredis';
 import type { FastifyRequest } from 'fastify';
 import type { CmsBlockSeedPort, CustomerAccountReadPort } from '@endora-commerce/contracts';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { EventBus } from '@endora-commerce/platform/events';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
-import { lazyPort } from '@endora-commerce/platform/kernel';
+import { lazyPort, resolvePublicApiBaseUrl } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { newsletterModule, type NewsletterModuleOptions } from './plugin.js';
 import { ensureNewsletterConsentBlock } from './services/consent-block-seeder.js';
@@ -24,24 +26,43 @@ import { NewsletterTag } from './entities/newsletter-tag.entity.js';
 
 /**
  * `newsletter` — the module whose secret the harness pins (feature 072, wave 2,
- * T114).
+ * T114), and which assembled nine of its own inputs in a composition root until
+ * `specs/117-instance-bring-up/` Phase 6.
  *
- * Eight options are composition-specific rather than environmental, and telling
- * the two apart is the whole exercise here. `tokenSecret`, `publicBaseUrl` and
- * `storefrontBaseUrl` *look* like configuration a packaged module should read
- * from `process.env` — and the root does read them from there. But the harness
- * pins a fixed secret and `http://localhost`, because an unsubscribe token is
- * signed on one request and verified on another, and a test asserting a
- * specific link needs the link to be predictable.
+ * **`newsletterBridge` is gone.** It was contributed by
+ * `backend/src/composition.ts` and by `backend/test/helpers/test-server.ts` and
+ * by nothing else, so a composition that is neither — which is every client
+ * instance, whose whole composition is one `composeApp({ deploymentRoot })`
+ * call — could not resolve it, and the module's own registration read
+ * `b.tokenSecret` eagerly, so that composition failed the moment anything
+ * touched `newsletter`.
  *
- * So they are contributed, with `defaultChannelId`, `resolveChannelIdByCode`,
- * `resolveCustomerAccountId`, `loadCustomerEmail` and `emitEvent`, as one
- * {@link NewsletterBridge}. This is the `pwa` correction applied before the
- * failure rather than after it: what the harness does differently from
- * production is information about the seam, not boilerplate to normalise away.
+ * The argument for the bridge was that the harness differs from production and
+ * *"what the harness does differently is information about the seam"*. That is
+ * still true and it is an argument for a **contribution point**, not for a
+ * required value: a module default the harness overwrites says the same thing
+ * and leaves a composition that overwrites nothing with a working module.
+ * `newsletterEmailBranding`, eleven lines below, has been the right shape all
+ * along.
  *
- * `mailer` stays in the bridge for the same reason — the harness injects a
- * capturing mailer so a test can read what was sent.
+ * Every member was a port, a platform contribution or an environment input —
+ * none was a judgement anybody makes:
+ *
+ *  - `tokenSecret` -> `newsletterTokenSecret`, the platform's own value, so
+ *    `NEWSLETTER_TOKEN_SECRET` stays a platform-declared input that
+ *    `check:env-inputs` can see (T6-B1 route (b)).
+ *  - `defaultChannelId` -> `salesChannelResolutionPort.getSystemDefault()`, as
+ *    an accessor: it was the one member only a root could produce, because it
+ *    was an *awaited value*.
+ *  - `resolveChannelIdByCode` -> `salesChannelCodeIdPort`.
+ *  - `publicBaseUrl` -> `resolvePublicApiBaseUrl()`, the platform's helper.
+ *  - `storefrontBaseUrl` -> the platform's own registration of that name.
+ *  - `loadCustomerEmail` -> `customerAccountReadPort`, already resolved eleven
+ *    lines down for `customerAccounts`.
+ *  - `mailer` -> `emailMailer`.
+ *  - `emitEvent` -> `eventBus`.
+ *  - `resolveCustomerAccountId` -> the platform's `customerAccountIdResolver`,
+ *    which is the identical closure under its own name.
  *
  * `auditLog` stops being optional: subscribing and unsubscribing are consent
  * records, and consent that was recorded nowhere is indistinguishable from
@@ -55,18 +76,6 @@ import { NewsletterTag } from './entities/newsletter-tag.entity.js';
  * fallback, which is what the harness has always exercised.
  */
 
-export interface NewsletterBridge {
-  readonly tokenSecret: NonNullable<NewsletterModuleOptions['tokenSecret']>;
-  readonly defaultChannelId: NewsletterModuleOptions['defaultChannelId'];
-  readonly resolveChannelIdByCode: NonNullable<NewsletterModuleOptions['resolveChannelIdByCode']>;
-  readonly publicBaseUrl: NonNullable<NewsletterModuleOptions['publicBaseUrl']>;
-  readonly storefrontBaseUrl: NonNullable<NewsletterModuleOptions['storefrontBaseUrl']>;
-  readonly resolveCustomerAccountId: NonNullable<NewsletterModuleOptions['resolveCustomerAccountId']>;
-  readonly loadCustomerEmail: NonNullable<NewsletterModuleOptions['loadCustomerEmail']>;
-  readonly mailer: NonNullable<NewsletterModuleOptions['mailer']>;
-  readonly emitEvent: NonNullable<NewsletterModuleOptions['emitEvent']>;
-}
-
 export interface NewsletterCradle {
   readonly emFactory: () => EntityManager;
   readonly auditLogService: AuditPort;
@@ -78,7 +87,24 @@ export interface NewsletterCradle {
   readonly credentialsService: NonNullable<NewsletterModuleOptions['credentials']>;
   /** Undefined in a composition with no queue infrastructure; dispatch then runs inline. */
   readonly moduleQueueRedis: Redis | undefined;
-  readonly newsletterBridge: NewsletterBridge;
+  /**
+   * The key confirmation and unsubscribe links are signed with. The platform's
+   * own registration — `NEWSLETTER_TOKEN_SECRET`, falling back to the session
+   * key — so that the environment read stays in the tree `check:env-inputs`
+   * judges (T6-B1). A harness pins it, because a token signed on one request
+   * and verified on another has to be predictable for a test to assert a link.
+   */
+  readonly newsletterTokenSecret: string;
+  readonly emailMailer: NonNullable<NewsletterModuleOptions['mailer']>;
+  readonly customerAccountIdResolver: NonNullable<
+    NewsletterModuleOptions['resolveCustomerAccountId']
+  >;
+  readonly storefrontBaseUrl: string;
+  readonly eventBus: EventBus;
+  readonly salesChannelResolutionPort: {
+    getSystemDefault(): Promise<{ id: string }>;
+  };
+  readonly salesChannelCodeIdPort: { idByCode(code: string): Promise<string | null> };
   /** Contribution point: absent means campaign email renders with the neutral fallback. */
   readonly newsletterEmailBranding: NewsletterModuleOptions['resolveEmailBranding'];
   readonly newsletter: ReturnType<typeof newsletterModule>;
@@ -92,9 +118,16 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
 
     newsletter: ctx
-      .asFunction(({ emFactory, auditLogService, moduleQueueRedis }: NewsletterCradle) => {
-        const bridge = (): NewsletterBridge => ctx.cradle<NewsletterCradle>().newsletterBridge;
-        const b = bridge();
+      .asFunction(
+        ({
+          emFactory,
+          auditLogService,
+          moduleQueueRedis,
+          newsletterTokenSecret,
+          storefrontBaseUrl,
+          eventBus,
+        }: NewsletterCradle) => {
+        const cradle = (): NewsletterCradle => ctx.cradle<NewsletterCradle>();
         return newsletterModule({
           emFactory,
           auditLog: auditLogService,
@@ -124,16 +157,33 @@ export function registerModule(ctx: ModuleContext): void {
             ctx.cradle<NewsletterCradle>().requireCustomer(req, reply),
           resolveAuditContext: (req: FastifyRequest) =>
             ctx.cradle<NewsletterCradle>().adminAuditActorResolver(req),
-          // Values a composition pins rather than derives.
-          tokenSecret: b.tokenSecret,
-          defaultChannelId: b.defaultChannelId,
-          publicBaseUrl: b.publicBaseUrl,
-          storefrontBaseUrl: b.storefrontBaseUrl,
-          mailer: b.mailer,
-          resolveChannelIdByCode: (code) => bridge().resolveChannelIdByCode(code),
-          resolveCustomerAccountId: (req) => bridge().resolveCustomerAccountId(req),
-          loadCustomerEmail: (id) => bridge().loadCustomerEmail(id),
-          emitEvent: (name, payload) => bridge().emitEvent(name, payload),
+          // The nine former `newsletterBridge` members, each read where it
+          // belongs. A composition that wants a different answer contributes
+          // over the name it disagrees with; the harness pins the secret and
+          // the two origins, and gets a capturing mailer through `emailMailer`.
+          tokenSecret: newsletterTokenSecret,
+          publicBaseUrl: resolvePublicApiBaseUrl(),
+          storefrontBaseUrl,
+          // `lazyPort`, not `cradle().emailMailer`: this factory body runs once,
+          // and a cradle read written into it resolves the name there — the
+          // captured-registration shape `check:port-dependencies` refuses.
+          mailer: lazyPort<NonNullable<NewsletterModuleOptions['mailer']>>(ctx, 'emailMailer'),
+          // An accessor, so nothing is awaited while this factory runs. The
+          // opt-in policy is the only reader and it asks per subscribe.
+          resolveDefaultChannelId: async () =>
+            (await cradle().salesChannelResolutionPort.getSystemDefault()).id,
+          resolveChannelIdByCode: (code) => cradle().salesChannelCodeIdPort.idByCode(code),
+          resolveCustomerAccountId: (req) => cradle().customerAccountIdResolver(req),
+          loadCustomerEmail: async (customerAccountId) =>
+            (await lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort').findById(
+              customerAccountId,
+            ))?.email ?? null,
+          emitEvent: (name, payload) =>
+            eventBus.emit(name, {
+              eventId: randomUUID(),
+              occurredAt: new Date().toISOString(),
+              ...payload,
+            }),
           // Queue-backed dispatch when the composition has Redis; the module
           // falls back to inline sending when it does not (Principle X).
           ...(moduleQueueRedis === undefined ? {} : { redis: moduleQueueRedis }),
@@ -157,7 +207,8 @@ export function registerModule(ctx: ModuleContext): void {
               : resolve(salesChannelId);
           },
         });
-      })
+        },
+      )
       .singleton(),
   });
 

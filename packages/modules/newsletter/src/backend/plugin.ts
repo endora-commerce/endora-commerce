@@ -66,8 +66,12 @@ export interface NewsletterModuleOptions {
    * subscriber with no channel and the platform-wide value is not. The provider
    * configuration, which *is* platform-wide, reads `null` directly and no
    * longer takes this at all (feature 072, D-41).
+   *
+   * An **accessor** since `specs/117-instance-bring-up/` Phase 6: it was an
+   * awaited value, which is the one member of the old `newsletterBridge` that
+   * only a composition root could produce. Both readers are already `async`.
    */
-  defaultChannelId: string | null;
+  resolveDefaultChannelId: () => Promise<string | null>;
   resolveChannelIdByCode: (code: string) => Promise<string | null>;
   publicBaseUrl: string;
   storefrontBaseUrl: string;
@@ -158,7 +162,7 @@ export function newsletterModule(options: NewsletterModuleOptions): ModuleAttach
   const subscribers = new NewsletterSubscriberService({
     emFactory: options.emFactory,
     optIn,
-    defaultChannelId: options.defaultChannelId,
+    resolveDefaultChannelId: options.resolveDefaultChannelId,
     links,
     customerAccounts: options.customerAccounts,
     ...(options.mailer ? { mailer: options.mailer } : {}),
@@ -296,7 +300,7 @@ export function newsletterModule(options: NewsletterModuleOptions): ModuleAttach
         tokens,
         tracking,
         resolveChannelIdByCode: options.resolveChannelIdByCode,
-        defaultChannelId: options.defaultChannelId,
+        resolveDefaultChannelId: options.resolveDefaultChannelId,
         storefrontBaseUrl: options.storefrontBaseUrl,
       });
       await registerNewsletterAdminRoutes(scoped, {

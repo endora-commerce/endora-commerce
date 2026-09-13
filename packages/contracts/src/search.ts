@@ -287,3 +287,28 @@ export interface SearchQueryPort {
   ): Promise<SearchListOutcome>;
 }
 
+/**
+ * Container name: `searchReindexPort`. Owner: `search`.
+ *
+ * A full rebuild of every channel's index, over the one indexer `searchModule`
+ * holds — so a composition has exactly one Meilisearch client whichever entry
+ * point triggers the reindex. `catalog` runs it as a `search_reindex` bulk
+ * operation when an attribute's `searchable` flag flips, and the `search:reindex`
+ * CLI command is the other caller.
+ *
+ * Published by `specs/117-instance-bring-up/` Phase 6, which is when it first
+ * had a consumer that resolves it **by name**: a composition root used to
+ * resolve it and hand `catalog` a closure, and a root's read is outside
+ * `check:port-shape`'s population, so the name went unpublished for as long as
+ * nothing inside a module asked for it.
+ *
+ * **Owner off:** `catalog` decides presence in front of the gate rather than
+ * catching behind it, and answers `{ documentCount: 0 }` — its manifest declares
+ * the edge `degrades-without`, because with `search` absent there is no index to
+ * rebuild and 503-ing an unrelated attribute edit would make an operator's
+ * supported off-switch fail a catalogue write.
+ */
+export interface SearchReindexPort {
+  reindexAll(): Promise<{ documentCount: number }>;
+}
+

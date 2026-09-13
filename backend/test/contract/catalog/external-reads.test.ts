@@ -340,7 +340,7 @@ describe('External catalog reads (062 / T013)', () => {
    * D-61 — the declared degrade, with `inventory` switched off.
    *
    * `catalog` declares this edge as `degrades-without` in its manifest
-   * (`inventory:catalogExternalAvailability`, *"product listings and the
+   * (`inventory:inventoryAvailabilityPort`, *"product listings and the
    * external catalog namespace stop carrying an availability band"*), and D-44
    * §10 names the risk that declaration carries: a degradation nobody
    * implemented turns an operator's refusal into a crash. So the sentence is

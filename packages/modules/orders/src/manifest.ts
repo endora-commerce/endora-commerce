@@ -120,6 +120,16 @@ export const manifest = defineModuleManifest({
   // rather than a flip-time refusal.
   dependencies: [
     'addresses',
+    // `specs/117-instance-bring-up/` Phase 6 — `ordersAdminScopeResolver` is
+    // this module's own since FR-033, and it reads the acting admin's role
+    // through `adminUserReadPort` and `adminRolePort` to decide whether the
+    // orders list is scoped to a sales rep's organizations. The production root
+    // asked the same question in `knex.raw` over both tables; a port needs the
+    // edge and the SQL never declared one. Neither owner loses an activation
+    // control by it — both declare `activation.nonDeactivatable`, so neither
+    // has an absent state a `degrades-without` entry could describe.
+    'admin_roles',
+    'admin_users',
     'api_keys',
     'assets_library',
     'catalog',

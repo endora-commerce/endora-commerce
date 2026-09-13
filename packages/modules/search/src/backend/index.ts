@@ -5,6 +5,7 @@ import type {
   ListingPricePort,
   OrganizationDetailsPort,
   SearchQueryPort,
+  SearchReindexPort,
 } from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { lazyPort } from '@endora-commerce/platform/kernel';
@@ -182,10 +183,10 @@ export function registerModule(ctx: ModuleContext): void {
    * built — so a composition holds exactly one indexer and one Meilisearch
    * client, whichever entry point triggers the reindex.
    */
-  ctx.di.providePort(
+  ctx.di.providePort<SearchReindexPort>(
     'searchReindexPort',
     ctx
-      .asFunction(({ search, emFactory }: SearchCradle) => ({
+      .asFunction(({ search, emFactory }: SearchCradle): SearchReindexPort => ({
         async reindexAll(): Promise<{ documentCount: number }> {
           const results = await search.handle.indexer.reindexAllChannels(emFactory());
           return { documentCount: results.reduce((sum, r) => sum + r.documentCount, 0) };

@@ -267,6 +267,59 @@ export interface RecordedReadSize {
  *   - `check-module-boundary` reports both halves in place: module files
  *     1873 -> 1879, admin files 138 -> 136.
  *
+ * ## `specs/117-instance-bring-up/` Phase 6 — the arithmetic, measured on both trees
+ *
+ * Eighteen numbers across sixteen entries, re-recorded because the drift census
+ * named them. The branch adds **six** files and deletes none: three co-located
+ * module tests (`quote_requests`, `customers`, `orders`, one each, for the actor
+ * resolvers those modules now default) and three changesets.
+ *
+ * **Every delta below is against a pristine `origin/master` worktree, not
+ * against the recorded value.** That distinction is the whole reason this block
+ * exists: several recorded numbers lagged `master` by one to three before this
+ * branch touched anything — `check-container-imports` read 2287 against a tree
+ * of 2288, `check-nul-bytes` 8160 against 8162 — so subtracting the recorded
+ * value from the observed one would have attributed somebody else's merge to
+ * this one. Re-recording fixes that lag as well, which is why a few deltas
+ * below do not equal the census's printed arrow.
+ *
+ * The numbers fall out by walk family, and that is the way to check them:
+ *
+ *   - a walk over module `.ts` gains exactly **3**, the three new tests:
+ *     `check-container-imports` 2288 -> 2291, `check-singleton-identity`
+ *     4655 -> 4658, `check-admin-zones` 2826 -> 2829,
+ *     `check-class-vocabulary` 2924 -> 2927, `check-divergence` 2473 -> 2476,
+ *     `check-test-ownership` 1758 -> 1761, and `check-diacritic-folds`'
+ *     source-only whole-tree walk 5627 -> 5630 (the three changesets are `.md`
+ *     and do not count there);
+ *   - a whole-tree walk gains **6**, the three tests plus the three changesets:
+ *     `check-nul-bytes` 8162 -> 8168, `check-naming.sh` 8222 -> 8228, and
+ *     `check-language.sh` 6281 -> 6284 — that last one **+3**, being the same
+ *     walk without the changesets again;
+ *   - `check-module-boundary` reports both halves: files 5198 -> 5204 (the six,
+ *     it reads `.ts` and `.md`), sites 12958 -> 12986 (+28 import specifiers and
+ *     table references, from the new imports in five modules' `backend.ts` and
+ *     the three test files).
+ *
+ * Four `sites` numbers are the subject of the change rather than a side effect
+ * of it, and each is worth reading:
+ *
+ *   - `check-port-dependencies` 1654 -> **1677**, +23 container resolutions.
+ *     That is the phase in one number: eleven names that were supplied by a
+ *     composition root are resolved by a module now, and each is resolved
+ *     through one or more ports it did not previously name.
+ *   - `check-port-shape` 789 -> **806**, +17 — the same resolutions seen by the
+ *     check that asks whether a contract publishes the name. One of them did
+ *     not, which is how `SearchReindexPort` came to be published.
+ *   - `check-platform-surface` 1896 -> **1902**, +6 platform reaches: the
+ *     modules that now name `HttpError`, `ERROR_CODES` and
+ *     `resolvePublicApiBaseUrl` for themselves instead of receiving a closure a
+ *     root built out of them.
+ *   - `check-default-language-prose` 35406 -> **35464**, +58 classified
+ *     literals, and `check-env-inputs` 139 -> **138**, one fewer `process.env`
+ *     read: the deployment root's `NEWSLETTER_TOKEN_SECRET` chain moved into
+ *     `composeApp`, where it is one read rather than two.
+ *
  * Three `sites` numbers are exact rather than approximate. `check-admin-zones`
  * moves 41 -> 46: four renders (`OrderDetail`'s payment tab body, and
  * `OrderShipmentsTab`'s row zone, footer zone and the `useAdminZone` its tab
@@ -1371,13 +1424,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 2061 -> 2062.**
     // One platform source file (`kernel/contribution-sinks.ts`). It declares no action,
     // so nothing else moves.
-    // **`specs/110-instance-repository/` T138a: -1 file.** The divergence report's two
-    // renderings moved into `@endora-commerce/cli` with the derivation that feeds them,
-    // so `backend/src/overlay/divergence-report.ts` is gone and nothing under a root this
-    // walk reads replaced it — the three files the task adds are the package's.
-    // Attributed by measuring the same census on a pristine `dbc81c45e` worktree: this
-    // entry agreed there, so the whole of the move is this branch's.
-    files: 2061,
+    files: 2062,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1698,13 +1745,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
     // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 2193 -> 2194.**
     // One platform source file (`kernel/contribution-sinks.ts`).
-    // **`specs/110-instance-repository/` T138a: -1 file.** The divergence report's two
-    // renderings moved into `@endora-commerce/cli` with the derivation that feeds them,
-    // so `backend/src/overlay/divergence-report.ts` is gone and nothing under a root this
-    // walk reads replaced it — the three files the task adds are the package's.
-    // Attributed by measuring the same census on a pristine `dbc81c45e` worktree: this
-    // entry agreed there, so the whole of the move is this branch's.
-    files: 2193,
+    files: 2194,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1944,7 +1985,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2287,
+    // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
+    // block above this table has the arithmetic; nothing here widened a band.
+    files: 2291,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -2470,15 +2513,6 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Three: the two new platform files (source and its co-located test) and the new
     // backend unit test. Its population is the whole tree, tests included.
     // **Not this branch's: +1 was already standing on `9a0e8e0d0`**, measured there in a pristine worktree in the `quality` shape. This branch adds nothing to this walk, which excludes `backend/scripts` and so does not see the ledger shards; the one test file Phase 3 adds landed with T3-A in !1619 and is already in the base.
-    // **`specs/110-instance-repository/` T138a: files 5626 -> 5630, sites 558 -> 560.**
-    // +1 is inherited from `master` (measured on a pristine `dbc81c45e` worktree, which
-    // reads 5627); the other +3 and both sites are this branch's, and they are a
-    // **population** move rather than a growth: `backend/scripts` is out of this walk and
-    // `packages/` is in it, so relocating `lib/divergence.ts` and `lib/registration-owners.ts`
-    // into `@endora-commerce/cli` brings two files that were always there into the
-    // population for the first time, with whatever they spell. The four files are those
-    // two, `lib/divergence-artefacts.ts` and `generate/divergence.ts`, less the deleted
-    // `backend/src/overlay/divergence-report.ts`.
     files: 5630,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
@@ -2643,7 +2677,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `check-nul-bytes`. Re-measured rather than added to the pre-merge delta, and
     // `check-fixture-substitution` is why: it moved 587 -> 588 before the merge and
     // reads 587 on the merged tree, feature 120's helper edits having cancelled it.
-    sites: 560,
+    // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
+    // block above this table has the arithmetic; nothing here widened a band.
+    sites: 556,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -2855,7 +2891,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 2470 -> 2472.**
     // Two: the new platform source file and its co-located test, both under a source
     // root this walk reads for the owner map.
-    files: 2472,
+    // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
+    // block above this table has the arithmetic; nothing here widened a band.
+    files: 2476,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -3332,13 +3370,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
     // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 2193 -> 2194.**
     // One platform source file (`kernel/contribution-sinks.ts`). It declares no entity.
-    // **`specs/110-instance-repository/` T138a: -1 file.** The divergence report's two
-    // renderings moved into `@endora-commerce/cli` with the derivation that feeds them,
-    // so `backend/src/overlay/divergence-report.ts` is gone and nothing under a root this
-    // walk reads replaced it — the three files the task adds are the package's.
-    // Attributed by measuring the same census on a pristine `dbc81c45e` worktree: this
-    // entry agreed there, so the whole of the move is this branch's.
-    files: 2193,
+    files: 2194,
     sites: 265,
     sources: ['manifest-index'],
   },
@@ -3639,13 +3671,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 2193 -> 2194.**
     // One platform source file. It starts no timer and registers no boot hook, so the
     // ledger stays at two entries and neither of them is new.
-    // **`specs/110-instance-repository/` T138a: -1 file.** The divergence report's two
-    // renderings moved into `@endora-commerce/cli` with the derivation that feeds them,
-    // so `backend/src/overlay/divergence-report.ts` is gone and nothing under a root this
-    // walk reads replaced it — the three files the task adds are the package's.
-    // Attributed by measuring the same census on a pristine `dbc81c45e` worktree: this
-    // entry agreed there, so the whole of the move is this branch's.
-    files: 2193,
+    files: 2194,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3943,13 +3969,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
     // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 2193 -> 2194.**
     // One platform source file. It is no entry point, so no site is added.
-    // **`specs/110-instance-repository/` T138a: -1 file.** The divergence report's two
-    // renderings moved into `@endora-commerce/cli` with the derivation that feeds them,
-    // so `backend/src/overlay/divergence-report.ts` is gone and nothing under a root this
-    // walk reads replaced it — the three files the task adds are the package's.
-    // Attributed by measuring the same census on a pristine `dbc81c45e` worktree: this
-    // entry agreed there, so the whole of the move is this branch's.
-    files: 2193,
+    files: 2194,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -4190,14 +4210,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 650 -> 651.**
     // One platform source file. It reads no environment variable.
     // **`specs/117-instance-bring-up/` Phase 3 (T3-B): files 651 -> 2861, sites 68 -> 139.** Not drift and not a widened band — a **population change**, stated as one. This check's subject was the three trees a running Endora is made of; it is now those three **and the module tree**, because a module declares its own environment inputs in its `manifest.ts` and a module package ships no `.env.example`. The module walk adds 2210 files (2237 module sources minus the 27 of `_lifecycle`, whose sources are the platform's and which the backend tree's walk already opened — one file is opened once, or `files=` describes no tree) and 71 read sites, which is the whole of what this phase makes visible: 28 distinct variables in 30 of the 74 packages. Measured at `7e2465db2` against `9a0e8e0d0` measured the same way; the base agreed with the recorded 651/68, so every unit of this move is this branch's.
-    // **`specs/110-instance-repository/` T138a: -1 file.** The divergence report's two
-    // renderings moved into `@endora-commerce/cli` with the derivation that feeds them,
-    // so `backend/src/overlay/divergence-report.ts` is gone and nothing under a root this
-    // walk reads replaced it — the three files the task adds are the package's.
-    // Attributed by measuring the same census on a pristine `dbc81c45e` worktree: this
-    // entry agreed there, so the whole of the move is this branch's.
-    files: 2860,
-    sites: 139,
+    files: 2861,
+    // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
+    // block above this table has the arithmetic; nothing here widened a band.
+    sites: 138,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
     // anything a declaration does. A consumer counts as covered only when it
@@ -5016,13 +5032,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // One platform source file (`kernel/contribution-sinks.ts`) and the one outward
     // import it adds — `lifecycle/services/gating-graph.ts` naming it, which is the
     // supply direction rule B allows. Its `.test.ts` sibling is outside this walk.
-    // **`specs/110-instance-repository/` T138a: -1 file.** The divergence report's two
-    // renderings moved into `@endora-commerce/cli` with the derivation that feeds them,
-    // so `backend/src/overlay/divergence-report.ts` is gone and nothing under a root this
-    // walk reads replaced it — the three files the task adds are the package's.
-    // Attributed by measuring the same census on a pristine `dbc81c45e` worktree: this
-    // entry agreed there, so the whole of the move is this branch's.
-    files: 2193,
+    files: 2194,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -5404,7 +5414,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
 
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
 
-    files: 2825,
+    // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
+    // block above this table has the arithmetic; nothing here widened a band.
+    files: 2829,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 56 -> 66.**
     // The header block above this table has the arithmetic; nothing here
@@ -5645,7 +5657,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
 
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
 
-    files: 2923,
+    // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
+    // block above this table has the arithmetic; nothing here widened a band.
+    files: 2927,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -6036,7 +6050,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // One literal, in the new platform source file. Every other string this branch adds
     // is a comment or a test, neither of which is in this population.
     // **Phase 3 (T3-C): +195, all of it this branch's** (`9a0e8e0d0` agreed with the recorded 35208). The 22 module-owned environment declarations: each carries an English and a Polish sentence, several a second pair under `optional.without`, and every one of those literals is classified and **exempt**, the enclosing property key being a shipped language. `files` does not move — the declarations went into manifests this walk already opened, which is the #235/#237 shape and the reason both numbers are recorded.
-    sites: 35403,
+    // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
+    // block above this table has the arithmetic; nothing here widened a band.
+    sites: 35464,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -6617,12 +6633,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 5194 -> 5196.**
     // Two platform files. No module source moves at all, which is the shape of this
     // repair: the mechanism is the platform's and no contributor is edited.
-    // **`specs/110-instance-repository/` T138a: 5196 -> 5197.** Net +1, and it is two moves:
-    // +2 inherited from `master` (a pristine `dbc81c45e` worktree reads 5198) and -1 this
-    // branch's, `backend/src/overlay/divergence-report.ts` going. `sites` did not move at
-    // all — this check's site population is import specifiers and SQL table references, and
-    // the file that left held neither.
-    files: 5197,
+    files: 5204,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -6725,7 +6736,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // under `backend/scripts/`, which this check does not walk as module source, so
     // `files=5194` is unchanged. `cross-module DML` moves 47 -> 43 and the two DML ledgers 1 ->
     // 0 and 27 -> 26.
-    sites: 12954,
+    // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
+    // block above this table has the arithmetic; nothing here widened a band.
+    sites: 12986,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -7624,11 +7637,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // entries that move are the two whose population is the whole repository; that
     // `check-diacritic-folds` and `check-language.sh` do **not** move is the
     // corroboration, `.md` being outside both.
-    // **`specs/110-instance-repository/` T138a: 8160 -> 8168.** +2 inherited from `master`
-    // (a pristine `dbc81c45e` worktree reads 8162) and +6 this branch's: four source files
-    // added under `packages/cli/src`, one test, two changesets, less the deleted
-    // `backend/src/overlay/divergence-report.ts`. This walk is the whole repository, so it
-    // is the one that counts the changesets.
+    // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
+    // block above this table has the arithmetic; nothing here widened a band.
     files: 8168,
     sites: null,
     sources: [],
@@ -8209,13 +8219,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
     // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 2193 -> 2194.**
     // One platform source file. It writes no `catch`.
-    // **`specs/110-instance-repository/` T138a: -1 file.** The divergence report's two
-    // renderings moved into `@endora-commerce/cli` with the derivation that feeds them,
-    // so `backend/src/overlay/divergence-report.ts` is gone and nothing under a root this
-    // walk reads replaced it — the three files the task adds are the package's.
-    // Attributed by measuring the same census on a pristine `dbc81c45e` worktree: this
-    // entry agreed there, so the whole of the move is this branch's.
-    files: 2193,
+    files: 2194,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -8384,7 +8388,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 1579 -> 1645.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 1654,
+    // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
+    // block above this table has the arithmetic; nothing here widened a band.
+    sites: 1677,
     sources: ['manifest-index'],
   },
   // Two derivations, deliberately, because the check has two inputs that can be
@@ -8693,13 +8699,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `transactional_emails` DML ledger shards (`migration-undeclared-references/` and
     // `migration-foreign-writes/`), which FR-020 removes with the statements they recorded.
     // **Phase 3 (T3-C): +10, all of it this branch's** (`9a0e8e0d0` agreed with the recorded 2496). The ten ledger shards, which its application-half walk opens like any other source under `backend/`.
-    // **`specs/110-instance-repository/` T138a: -1 file.** The divergence report's two
-    // renderings moved into `@endora-commerce/cli` with the derivation that feeds them,
-    // so `backend/src/overlay/divergence-report.ts` is gone and nothing under a root this
-    // walk reads replaced it — the three files the task adds are the package's.
-    // Attributed by measuring the same census on a pristine `dbc81c45e` worktree: this
-    // entry agreed there, so the whole of the move is this branch's.
-    files: 2505,
+    files: 2506,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -8800,7 +8800,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 1853 -> 1896.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 1896,
+    // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
+    // block above this table has the arithmetic; nothing here widened a band.
+    sites: 1902,
     // count moves with the file count here because the reaches that went are exactly
     // the files that went.
     // **T119a: sites 1870 -> 1861.** The same nine files, each the single relative
@@ -9004,7 +9006,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 747 -> 788.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 789,
+    // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
+    // block above this table has the arithmetic; nothing here widened a band.
+    sites: 806,
     sources: ['manifest-index', 'ports-subpaths'],
   },
   // Small on purpose: this population is the *workspace*, not a source tree —
@@ -9738,13 +9742,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
     // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 2193 -> 2194.**
     // One platform source file. It subscribes to nothing and builds no worker.
-    // **`specs/110-instance-repository/` T138a: -1 file.** The divergence report's two
-    // renderings moved into `@endora-commerce/cli` with the derivation that feeds them,
-    // so `backend/src/overlay/divergence-report.ts` is gone and nothing under a root this
-    // walk reads replaced it — the three files the task adds are the package's.
-    // Attributed by measuring the same census on a pristine `dbc81c45e` worktree: this
-    // entry agreed there, so the whole of the move is this branch's.
-    files: 2193,
+    files: 2194,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -9952,7 +9950,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `test/unit/kernel/contribution-absent-owner.test.ts`, plus the three route sites
     // its three composed contributors contribute.
     // **Not this branch's**: already standing on `9a0e8e0d0`. Its `sites` does not move at all, and that is worth a line: Phase 3's one test file names **two** module packages rather than one, so it is not classified as either module's test — which is correct, its subject being `defineModuleManifest` — and contributes no site.
-    files: 1757,
+    // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
+    // block above this table has the arithmetic; nothing here widened a band.
+    files: 1761,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -10292,13 +10292,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
     // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 2193 -> 2194.**
     // One platform source file. It writes no SQL.
-    // **`specs/110-instance-repository/` T138a: -1 file.** The divergence report's two
-    // renderings moved into `@endora-commerce/cli` with the derivation that feeds them,
-    // so `backend/src/overlay/divergence-report.ts` is gone and nothing under a root this
-    // walk reads replaced it — the three files the task adds are the package's.
-    // Attributed by measuring the same census on a pristine `dbc81c45e` worktree: this
-    // entry agreed there, so the whole of the move is this branch's.
-    files: 2193,
+    files: 2194,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -10739,7 +10733,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `@TransitivelyScoped` parent and a second class of that name is the
     // `chain-parent-reach` this check refuses.
     // **+11, of which 10 are this branch's and 1 was already standing on `9a0e8e0d0`.** The ten are the ledger shards.
-    files: 4654,
+    // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
+    // block above this table has the arithmetic; nothing here widened a band.
+    files: 4658,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -11638,9 +11634,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // counts once committed and the branch's seven modified files count for
     // nothing — which is why the two whole-repository entries move by exactly one
     // together and no other entry moves at all.
-    // **`specs/110-instance-repository/` T138a: 8220 -> 8228.** +2 inherited from `master`
-    // (a pristine `dbc81c45e` worktree reads 8222) and +6 this branch's, on the same
-    // arithmetic `check-nul-bytes` records one entry over.
+    // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
+    // block above this table has the arithmetic; nothing here widened a band.
     files: 8228,
     sites: null,
     sources: ['manifest-index'],
@@ -12200,11 +12195,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Three: the two platform files and the backend unit test. Comments only, all
     // English.
     // **+11, of which 10 are this branch's and 1 was already standing on `9a0e8e0d0`.** The ten are the ledger shards. Its population is source-code comments, so the ledger's `README.md` is not among them — that walk is `docs/docs/**`.
-    // **`specs/110-instance-repository/` T138a: 6280 -> 6285.** +1 inherited from `master`
-    // (a pristine `dbc81c45e` worktree reads 6281) and +4 this branch's: the four files
-    // `packages/cli/src` gains, less the one `backend/src` loses. The two changesets are
-    // not under `docs/docs/`, so this walk does not see them.
-    files: 6285,
+    // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
+    // block above this table has the arithmetic; nothing here widened a band.
+    files: 6284,
     sites: null,
     sources: ['manifest-index'],
     //

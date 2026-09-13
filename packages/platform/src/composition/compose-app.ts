@@ -605,6 +605,28 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     pimAkeneoPublicBaseUrl: resolvePublicApiBaseUrl(),
     productFeedsPublicBaseUrl: resolvePublicApiBaseUrl(),
     productFeedsTokenEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'],
+    // The key newsletter confirmation and unsubscribe links are signed with
+    // (`specs/117-instance-bring-up/` Phase 6, T6-B1).
+    //
+    // A **value** rather than a read inside the module, and the reason is where
+    // the estate can see it: `NEWSLETTER_TOKEN_SECRET` is declared in this
+    // package's own environment declaration, and `check:env-inputs` does not
+    // judge module packages — that is Phase 3. Moving the read into
+    // `@endora-commerce/mod-newsletter` would take it out of the judged
+    // population and leave the declaration here reading as an `unread-input`,
+    // which is two defects for the price of a tidy-up. The platform registering
+    // a module-named value is not the platform importing a module, and it is
+    // what `pimAkeneoPublicBaseUrl` and the five `*RunWorkers` flags above
+    // already are.
+    //
+    // The fallback chain is the declaration's own sentence: absent, *"newsletter
+    // links are signed with the session key instead"*. The **third** fallback
+    // the reference deployment carried — a literal `'newsletter-dev-secret'` —
+    // is deliberately not reproduced. It is a shipped default signing key,
+    // nothing declares it, and a deployment that reached it signed every
+    // confirmation link with a secret that is in this repository.
+    newsletterTokenSecret:
+      process.env['NEWSLETTER_TOKEN_SECRET'] ?? process.env['SESSION_COOKIE_SECRET'] ?? '',
     // The one connection ioredis has put into subscriber mode. Shared, because
     // a subscriber connection cannot serve commands: a per-module one would
     // cost a socket per module and buy nothing.
@@ -861,7 +883,7 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     },
   });
 
-  // --- the actor-shaped nine (T118b) ---------------------------------------
+  // --- the actor-shaped ten (T118b, completed by feature 117's Phase 6) -----
   //
   // Nine names that answer one question — *who is asking?* — off `request.actor`
   // and nothing else. They stayed in `backend/src/composition.ts` through T118
@@ -872,12 +894,17 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // `@endora-commerce/contracts`, and the nine came with it. Their value
   // expressions name no module, which is T118's criterion unchanged.
   //
-  // The tenth actor-shaped name, `ordersAdminScopeResolver`, deliberately did
-  // **not** move, and the reason is written in `composition.ts` beside it: its
-  // body reads `admin_users` and `admin_roles` in raw SQL and decides on
-  // `admin_roles.code === 'sales_representative'`. That is a module's table and
-  // a module's business rule, not an actor read, and the augmentation was never
-  // its only blocker.
+  // **The tenth arrived with `specs/117-instance-bring-up/` Phase 6** and is
+  // `customerOrganizationIdResolver`, below. T118b left it in the deployment's
+  // `values` saying it stayed because it reads `request.actor` — the very thing
+  // T118b moved — so the reason expired in the commit that wrote it, and four
+  // modules went on reading a name only two compositions in the world supplied.
+  //
+  // `ordersAdminScopeResolver` was called the tenth and is not on this list at
+  // all: its body decides on `admin_roles.code === 'sales_representative'` over
+  // a row it reads from `admin_users`, which is a module's business rule over a
+  // module's table. That is a correct reason not to put it here, and the home
+  // it points at is `orders`, which registers it since the same phase.
   //
   // **Where a widening appears below it is that site's own.** `request.actor` is
   // decorated by `auth`'s `onRequest` hook; the three audit-context resolvers
@@ -1005,6 +1032,34 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
       const anon = cookies?.[ANONYMOUS_CART_COOKIE];
       if (anon) return { anonymousToken: anon };
       return {};
+    },
+    // Feature 072 (T138) — the actor half of what used to be
+    // `buildOrgAllowListResolver`: who is asking, as a bare Organization id.
+    //
+    // **The tenth actor-shaped name, and it arrived three features late**
+    // (`specs/117-instance-bring-up/` Phase 6). It was a `values` entry of
+    // `backend/src/composition.ts`, and the comment beside it said why: *"it
+    // reads `request.actor`, which is `auth`'s `declare module 'fastify'`
+    // block — T118b's subject"*. T118b is the merge request that moved the
+    // augmentation to `../http/request-actor.ts` and brought the nine above
+    // with it; this one was left behind and its stated blocker expired in the
+    // same commit. Its value expression names no module, which is T118's
+    // criterion unchanged.
+    //
+    // Four modules read it — `delivery_methods`, `inventory`, `orders` and
+    // `payment_methods` — and nothing defaulted it, so a composition that was
+    // not `backend/src/composition.ts` did not have it. That is not an
+    // override a client declines; it is a name a scaffolded instance cannot
+    // resolve, met as a 500 on the first restriction check rather than at boot.
+    //
+    // **Soft by contract, and the softness is the reason it is its own name.**
+    // It answers `null` for anonymous traffic *and* for a Customer with no
+    // Organization, where `customerContextResolver` above throws. It is read on
+    // restriction checks, and catching that throw to mean "unrestricted" is how
+    // a fail-closed gate becomes fail-open. Do not merge the two.
+    customerOrganizationIdResolver: (request: FastifyRequest): string | null => {
+      const actor = request.actor as Actor | undefined;
+      return actor?.kind === 'customer' ? (actor.organizationId ?? null) : null;
     },
     // Feature 072 (T140) — `customers`' own view of the calling customer:
     // the account and its Organization, the second nullable. It is not

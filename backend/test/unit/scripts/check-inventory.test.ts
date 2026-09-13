@@ -267,6 +267,7 @@ import { coreSources, renderEntitiesRegistry } from '../../../scripts/generate-c
 import { checkPortCatches, keyOf, type PortCatch } from '../../../scripts/check-port-catches.js';
 import {
   findNonBindingIssues,
+  findInstanceGaps,
   findRootIssues,
   findViolations,
   importedContributionSeams,
@@ -1223,6 +1224,47 @@ const ORDERS_RESOLVES_THE_BRIDGE = [
   '  });',
   '}',
 ].join('\n');
+
+/**
+ * The third composition, as source text — the top of `findInstanceGaps`
+ * (`specs/117-instance-bring-up/` FR-034).
+ *
+ * `composeApp`'s registrations are the **whole** of what a client's instance
+ * composes: `endora new instance` writes a tree that calls
+ * `composeApp({ deploymentRoot })` and supplies no `contribute` callback
+ * (`instance-repository.md` R2.4). So the supply set here comes out of
+ * `rootRegisteredNames` over a `composeApp` fixture, and the reader's
+ * resolution out of `ordersResolutions` over the module's own source — the same
+ * two scanners a real run uses.
+ */
+function instanceGaps(input: {
+  readonly composeAppSource: string;
+  readonly consumerSource: string;
+  /** A module's `backend.ts`, for the names it registers itself. */
+  readonly ownerSource?: string;
+  readonly kernelSource?: string;
+}): ReturnType<typeof findInstanceGaps> {
+  return findInstanceGaps({
+    resolutions: ordersResolutions(input.consumerSource),
+    moduleRegistered: new Set(registeredNames(input.ownerSource ?? '', PAYMENTS_FILE)),
+    kernelNames: new Set(
+      rootRegisteredNames(input.kernelSource ?? '', KERNEL_CONTAINER_FILE),
+    ),
+    instanceSupplied: new Set(
+      rootRegisteredNames(input.composeAppSource, COMPOSE_APP_FILE),
+    ),
+    hostRegistered: { ordersAdminScopeResolver: 'auth' },
+  });
+}
+
+const COMPOSE_APP_FILE = '/repo/packages/platform/src/composition/compose-app.ts';
+/** A platform composer that registers something, and not the name under test. */
+const COMPOSE_APP_SUPPLIES_SOMETHING_ELSE =
+  'registerValues(container, { redis, eventBus, commandBus });';
+// The discrimination — the same composer registering the name the reader asks
+// for, which must produce **no** finding — is asserted in the companion test
+// (`test/unit/kernel/port-dependency-check.test.ts`), because this file's `red`
+// map takes proofs that must be greater than zero.
 
 /* -------------------------------------------------------------------------- *
  * `PLATFORM_OWNED_NAMES`, as the four things being on it can be wrong about
@@ -7130,6 +7172,24 @@ const CHECKS: readonly CheckEntry[] = [
             consumerSource: ORDERS_RESOLVES_THE_BRIDGE,
           }).filter((issue) => issue.kind === 'root-divergence').length,
       ),
+      // `findInstanceGaps` — the third composition
+      // (`specs/117-instance-bring-up/` FR-034). A name only a deployment root
+      // supplies is a name a client's instance resolves to nothing, and the
+      // three sweeps above cannot see it: they compare the two roots to each
+      // other, and these names are in **both**.
+      //
+      // The fixture enters as source text at the top of the analysis, like
+      // every other proof here: the reader's resolution comes out of
+      // `ordersResolutions`, the supply set out of `rootRegisteredNames` over a
+      // `composeApp` fixture. Handing the function two finished name sets would
+      // prove the set difference and leave both scanners unproven (issue #130).
+      'instance-unsupplied': top(
+        () =>
+          instanceGaps({
+            composeAppSource: COMPOSE_APP_SUPPLIES_SOMETHING_ELSE,
+            consumerSource: ORDERS_RESOLVES_THE_BRIDGE,
+          }).length,
+      ),
       // The same function over `PLATFORM_OWNED_NAMES` (issue #49, D-73). Four
       // shapes, four fixtures, and each names only its own: the unsupplied one
       // is registered nowhere, the divergent one by a single root, the
@@ -11114,8 +11174,12 @@ describe('every red proof enters at the top of the analysis', () => {
       // claimed over a name nothing gates, one claimed beside the bind that
       // makes it false, and one carrying nothing for the operator to read —
       // the last two entering through `ModuleManifestSchema` rather than
-      // `defineModuleManifest`, which is the only route they have.
-      'backend/scripts/check-port-dependencies.ts': 23,
+      // `defineModuleManifest`, which is the only route they have. Plus
+      // `specs/117-instance-bring-up/` FR-034's one: a name a module reads that
+      // **both** deployment roots supply and `composeApp` does not, which the
+      // three root sweeps beside it could not see — they compare the two roots
+      // to each other, and a client's instance is neither of them.
+      'backend/scripts/check-port-dependencies.ts': 24,
       // Two for the optional-method rule: the published port and the interface
       // widening one, which is exactly where it bites. Plus issue #192's three
       // for the container-name signal — the two shapes a wrong name takes, and
