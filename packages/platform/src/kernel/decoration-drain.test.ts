@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { EventBus } from '../events/index.js';
-import { createRootContainer, type KernelContainer } from './container.js';
+import {
+  createRootContainer,
+  registerValues,
+  type KernelContainer,
+  type KernelCradle,
+} from './container.js';
 import {
   AmbiguousDecorationError,
   ForeignDecorationError,
@@ -378,5 +383,239 @@ describe('D-176 Q3 — an overlay may not decorate an installed package’s regi
     }
 
     expect(composed).toBeUndefined();
+  });
+});
+
+/**
+ * D-156.4 and `specs/124-instance-customisation-gap/` FR-003 — a decorated
+ * `asValue` registration is resolvable **from a singleton**, which is where the
+ * defect was invisible.
+ *
+ * D-156.4 sanctions a deployment overlay wrapping the root-supplied names by
+ * name — `commandBus`, `auditLogService`, `eventBus`, `emFactory` — and every
+ * one of them is registered through `registerValues`, i.e. `asValue`. In
+ * `awilix@13.0.5` `asValue` is the pair `{ resolve, isLeakSafe: true }` with no
+ * `lifetime`, and `throwIfLifetimeLeakage` short-circuits on `isLeakSafe`. The
+ * drain used to re-register the wrapper as
+ * `asFunction(…).setLifetime(inner.lifetime ?? Lifetime.TRANSIENT)`, which reads
+ * the missing `lifetime` and drops its partner: the wrapper asserted TRANSIENT
+ * and was no longer leak-safe, so the first SINGLETON ancestor to resolve the
+ * name raised `AwilixResolutionError: … has a shorter lifetime than its
+ * ancestor` and the boot died.
+ *
+ * **Both shapes are pinned below on purpose.** Resolving the decorated name
+ * straight off the container never threw — the leak check compares against a
+ * resolving *ancestor* and there is none — so a test written that way goes green
+ * over the bug. It is kept as the discrimination rather than deleted.
+ */
+describe('FR-003 — a wrapped asValue survives resolution through a singleton', () => {
+  /**
+   * A module whose service is a `singleton()` taking one name off the cradle
+   * **while the factory runs**.
+   *
+   * Reading the cradle lazily from a method instead would resolve the
+   * dependency with an empty `resolutionStack`, where `throwIfLifetimeLeakage`
+   * has no ancestor to compare against — green over the bug, for the same
+   * reason a direct `container.resolve` is. Measured: the first draft of this
+   * fixture deferred the read and all three cases below passed unrepaired.
+   */
+  function singletonConsumer(id: string, dependency: string): ModuleEntry {
+    return {
+      id,
+      version: '1.0.0',
+      registerModule: (ctx: ModuleContext): void => {
+        ctx.di.register({
+          consumer: ctx
+            .asFunction((cradle: KernelCradle) => {
+              const resolved = cradle[dependency];
+              return { read: (): unknown => resolved };
+            })
+            .singleton(),
+        });
+      },
+    };
+  }
+
+  it('resolves a root-supplied name an overlay wrapped, through a singleton ancestor', () => {
+    // The measured red, in its smallest form: `commandBus` behind a module that
+    // resolves it. This is A8's own pair.
+    const container = createRootContainer();
+    registerValues(container, { commandBus: 'the-audited-write-path' });
+
+    composeModules(
+      [
+        {
+          id: 'acme_overlay',
+          version: '1.0.0',
+          overlay: true,
+          registerModule: (ctx) =>
+            ctx.di.decorate<string>('commandBus', (inner) => `${inner}+wrapped`),
+        },
+        singletonConsumer('catalog', 'commandBus'),
+      ],
+      { container, eventBus: new EventBus(), log: log() },
+    );
+
+    expect(container.resolve<{ read: () => unknown }>('consumer').read()).toBe(
+      'the-audited-write-path+wrapped',
+    );
+  });
+
+  it('resolves the same name straight off the container — which never broke', () => {
+    // Kept because it is the shape that hid the defect: no resolving ancestor,
+    // no leak check, green either way.
+    const container = createRootContainer();
+    registerValues(container, { commandBus: 'the-audited-write-path' });
+
+    composeModules(
+      [
+        {
+          id: 'acme_overlay',
+          version: '1.0.0',
+          overlay: true,
+          registerModule: (ctx) =>
+            ctx.di.decorate<string>('commandBus', (inner) => `${inner}+wrapped`),
+        },
+      ],
+      { container, eventBus: new EventBus(), log: log() },
+    );
+
+    expect(container.resolve<string>('commandBus')).toBe('the-audited-write-path+wrapped');
+  });
+
+  it('resolves a module-owned asValue an overlay wrapped, through a singleton ancestor', () => {
+    // `registerValues` is not the only producer of an `asValue`: `ctx.asValue`
+    // is one too, and `storefrontBaseUrl` behind `organizations` was the second
+    // measured pair. The repair is about the resolver's shape, not about who
+    // registered it.
+    const container = createRootContainer();
+
+    composeModules(
+      [
+        owner('price_lists', 'core'),
+        overlayDecorator('acme_overlay', 'acme'),
+        singletonConsumer('organizations', 'label'),
+      ],
+      { container, eventBus: new EventBus(), log: log() },
+    );
+
+    expect(container.resolve<{ read: () => unknown }>('consumer').read()).toBe('core+acme');
+  });
+
+  it('resolves a chain of two wraps over one asValue, in call order', () => {
+    // The second wrap's inner is the first wrap — a SINGLETON, not an `asValue`
+    // — so it takes the ordinary `inner.lifetime` branch. Nothing is
+    // special-cased for a second decoration, and this is what says so.
+    const container = createRootContainer();
+
+    composeModules(
+      [
+        owner('price_lists', 'core'),
+        overlayDecorator('acme_overlay', 'one', 'two'),
+        singletonConsumer('organizations', 'label'),
+      ],
+      { container, eventBus: new EventBus(), log: log() },
+    );
+
+    expect(container.resolve<{ read: () => unknown }>('consumer').read()).toBe('core+one+two');
+  });
+
+  it('gives one object to every resolution of a wrapped asValue', () => {
+    // The property a consumer of an `asValue` actually relies on, and the
+    // reason SINGLETON is the right answer rather than a way past the guard:
+    // two resolutions of a name whose whole contract is "one object" must not
+    // hand back two wrappers.
+    const container = createRootContainer();
+    registerValues(container, { auditLogService: { write: (): void => {} } });
+
+    composeModules(
+      [
+        {
+          id: 'acme_overlay',
+          version: '1.0.0',
+          overlay: true,
+          registerModule: (ctx) =>
+            ctx.di.decorate<object>('auditLogService', (inner) => ({ ...inner, wrapped: true })),
+        },
+      ],
+      { container, eventBus: new EventBus(), log: log() },
+    );
+
+    expect(container.resolve<object>('auditLogService')).toBe(
+      container.resolve<object>('auditLogService'),
+    );
+  });
+});
+
+/**
+ * FR-004 — every **other** inner resolver keeps the lifetime it had.
+ *
+ * The repair is about `asValue` alone. A wrap over a transient stays transient,
+ * and a wrap that reaches for a genuinely scoped registration still throws —
+ * that guard doing its job is the thing the `.singleton()` branch must not buy
+ * its way past.
+ */
+describe('FR-004 — the wrapper keeps a non-asValue inner’s lifetime', () => {
+  it('stays transient over a transient inner', () => {
+    const container = createRootContainer();
+
+    composeModules(
+      [
+        {
+          id: 'price_lists',
+          version: '1.0.0',
+          registerModule: (ctx) =>
+            ctx.di.register({ ticket: ctx.asFunction(() => ({ id: {} })).transient() }),
+        },
+        {
+          id: 'acme_overlay',
+          version: '1.0.0',
+          overlay: true,
+          registerModule: (ctx) => ctx.di.decorate<object>('ticket', (inner) => inner),
+        },
+      ],
+      { container, eventBus: new EventBus(), log: log() },
+    );
+
+    expect(container.resolve<object>('ticket')).not.toBe(container.resolve<object>('ticket'));
+  });
+
+  it('still refuses a singleton that reaches through a wrap for a scoped inner', () => {
+    const container = createRootContainer();
+
+    composeModules(
+      [
+        {
+          id: 'price_lists',
+          version: '1.0.0',
+          registerModule: (ctx) =>
+            ctx.di.register({ perScope: ctx.asFunction(() => ({ id: {} })).scoped() }),
+        },
+        {
+          id: 'acme_overlay',
+          version: '1.0.0',
+          overlay: true,
+          registerModule: (ctx) => ctx.di.decorate<object>('perScope', (inner) => inner),
+        },
+        {
+          id: 'catalog',
+          version: '1.0.0',
+          registerModule: (ctx) =>
+            ctx.di.register({
+              consumer: ctx
+                .asFunction((cradle: KernelCradle) => {
+                  const resolved = cradle['perScope'];
+                  return { read: (): unknown => resolved };
+                })
+                .singleton(),
+            }),
+        },
+      ],
+      { container, eventBus: new EventBus(), log: log() },
+    );
+
+    expect(() => container.resolve<{ read: () => unknown }>('consumer')).toThrow(
+      /shorter lifetime/,
+    );
   });
 });

@@ -121,7 +121,7 @@ import {
   type RegisteredManifestEntry,
 } from '../lifecycle/index.js';
 import { activeOverlayModulesRoot } from '../overlay/deployment-roots.js';
-import { overlayModuleEntriesUnder } from '../overlay/overlay-runtime.js';
+import { overlayModulesUnder } from '../overlay/overlay-runtime.js';
 import {
   discoverPackageModuleManifests,
   installedPackageModuleIdClaims,
@@ -395,18 +395,37 @@ interface PlatformContainerReads {
  * entities are those packages' entities, and its migrations are those packages'
  * migrations. Each is the same platform function the application's own binding
  * calls, with `core` empty, so there is no second derivation of any of them.
+ *
+ * **Exported for its own test and named by no barrel.** Every other seam that
+ * could reach it needs a PostgreSQL, a Redis and an installed module set —
+ * `composeApp` opens all three before it composes anything — while the property
+ * this function has to hold is decided entirely by what it reads off disk: the
+ * modules it composes and the manifests it resolves must be one set.
+ * `default-composition-overlay.test.ts` is that assertion and it runs against a
+ * fixture deployment root with no service behind it. `./composition` does not
+ * carry the name, so nothing outside this package can call it.
  */
-async function defaultComposition(
+export async function defaultComposition(
   deploymentRoot: string,
   env: NodeJS.ProcessEnv,
 ): Promise<Required<AppComposition>> {
-  const overlayRoot = activeOverlayModulesRoot(deploymentRoot, env);
-  const claims = installedPackageModuleIdClaims(nodeModulesRootsFor(env));
-  const overlay = overlayRoot === null ? [] : await overlayModuleEntriesUnder(overlayRoot, claims);
+  // Both overlay seams off one reader, over one id set
+  // (`specs/124-instance-customisation-gap/` FR-001, FR-002). The registration
+  // half used to be composed here while the manifest half was passed
+  // `async () => []` four lines below, so an instance's overlay module reached
+  // the container, the permission gate and the presence projection and never
+  // `lifecycleManifestRegistry`: the boot reconcile accounted for one module
+  // fewer than the presence projection enumerated, which is A4's own
+  // arithmetic, and no operator could switch the module off because there was
+  // no manifest to gate it against (Principle XVII).
+  const overlayModules = overlayModulesUnder(activeOverlayModulesRoot(deploymentRoot, env), () =>
+    installedPackageModuleIdClaims(nodeModulesRootsFor(env)),
+  );
+  const overlay = await overlayModules.entries();
   const packages = await loadPackageModuleEntries(env);
   const manifests = await resolveManifestEntries({
     core: [],
-    overlay: async () => [],
+    overlay: () => overlayModules.manifests(),
     packages: () => discoverPackageModuleManifests(env),
   });
   const bootstrap = createOrmBootstrap(async () => {

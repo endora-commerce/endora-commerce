@@ -56,6 +56,22 @@ export type Registration<T = unknown> = Resolver<T>;
 export type RegistrationBuilder<T> = BuildResolver<T> & DisposableResolver<T>;
 
 /**
+ * Is this resolver a **root-resolved constant** — awilix's `asValue`?
+ *
+ * The signature is the pair `{ resolve, isLeakSafe: true }` with no `lifetime`,
+ * and both halves are asked for, deliberately. `lifetime === undefined` alone
+ * would also match a hand-built resolver object that is *not* leak-safe, whose
+ * author meant something by leaving the field off that this function has no way
+ * to read; `isLeakSafe` alone would match a future builder that opts out of the
+ * leak check while still declaring a lifetime. Only the pair means the thing
+ * this predicate is used for in `decorate`: a constant the root registered,
+ * whose contract is one object for every resolution.
+ */
+function isRootResolvedConstant(resolver: Resolver<unknown>): boolean {
+  return resolver.lifetime === undefined && resolver.isLeakSafe === true;
+}
+
+/**
  * A module's explicit boot phase (FR-021).
  *
  * Registration is lazy: a service nothing resolves is never constructed. Some
@@ -996,13 +1012,33 @@ export function createModuleContext(options: ModuleContextOptions): ModuleContex
           const innerName = decorations.innerNameFor(name);
           container.register({ [innerName]: inner });
           container.register({
-            [name]: asFunction((cradle: KernelCradle) =>
-              wrap(cradle[innerName] as T, cradle),
-              // Preserve the inner registration's lifetime, so decorating does
-              // not silently turn a singleton into a per-resolution instance.
-              // An `asValue` resolver carries none; awilix treats that as
-              // transient at resolution, so the wrapper must too.
-            ).setLifetime(inner.lifetime ?? Lifetime.TRANSIENT),
+            // Preserve the inner registration's lifetime, so decorating does
+            // not silently turn a singleton into a per-resolution instance.
+            //
+            // An `asValue` resolver carries no `lifetime`, and reading that
+            // field alone is what used to kill the boot: `asValue` is the
+            // **pair** `{ resolve, isLeakSafe: true }`, and `isLeakSafe` is
+            // what `throwIfLifetimeLeakage` short-circuits on. A wrapper
+            // registered TRANSIENT drops the partner and asserts the one
+            // lifetime the pair never meant, so the first SINGLETON ancestor to
+            // resolve the name raised `AwilixResolutionError: … has a shorter
+            // lifetime than its ancestor` — measured on `commandBus` behind
+            // `catalog`, which is a name D-156.4 sanctions a deployment overlay
+            // wrapping by name (`specs/124-instance-customisation-gap/` FR-003).
+            //
+            // The pair means "root-resolved constant", which is SINGLETON: two
+            // resolutions give the same object, which is the whole contract of
+            // the name being wrapped, and a singleton is never a lifetime leak,
+            // so the strict check passes by construction rather than by being
+            // switched off. Every other inner keeps exactly what it had, and a
+            // wrap reaching for a genuinely scoped registration still throws.
+            [name]: isRootResolvedConstant(inner)
+              ? asFunction((cradle: KernelCradle) =>
+                  wrap(cradle[innerName] as T, cradle),
+                ).singleton()
+              : asFunction((cradle: KernelCradle) =>
+                  wrap(cradle[innerName] as T, cradle),
+                ).setLifetime(inner.lifetime ?? Lifetime.TRANSIENT),
           });
         };
 

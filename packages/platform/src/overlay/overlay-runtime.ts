@@ -274,8 +274,25 @@ export async function overlayModuleEntriesUnder(
   root: string,
   claimsOutsideTheOverlay: readonly ModuleIdClaim[],
 ): Promise<ModuleEntry[]> {
+  return await overlayModuleEntriesForIds(root, overlayModuleIdsUnder(root, claimsOutsideTheOverlay));
+}
+
+/**
+ * {@link overlayModuleEntriesUnder} over an id set already derived.
+ *
+ * It exists so a caller that needs **both** seams — the entries it composes and
+ * the manifests the resolved registry is built from — asserts the id-collision
+ * claim set once, over one array, rather than twice over two derivations that
+ * `overlayModuleIdsUnder`'s own contract says must never be able to answer
+ * differently. {@link overlayModulesUnder} is that caller's shape; this stays
+ * private because an id set assembled anywhere but there has not been checked.
+ */
+async function overlayModuleEntriesForIds(
+  root: string,
+  ids: readonly string[],
+): Promise<ModuleEntry[]> {
   const entries: ModuleEntry[] = [];
-  for (const id of overlayModuleIdsUnder(root, claimsOutsideTheOverlay)) {
+  for (const id of ids) {
     const moduleDir = join(root, id);
     const backendPath = resolveOverlayUnit(moduleDir, 'backend');
     if (backendPath === null) continue;
@@ -314,4 +331,60 @@ export async function overlayModuleEntriesUnder(
     });
   }
   return entries;
+}
+
+/**
+ * One deployment's overlay modules, read **once** for both seams
+ * (`specs/124-instance-customisation-gap/` FR-001, FR-002).
+ *
+ * Every composition root that has an overlay root needs the same two answers —
+ * the `ModuleEntry` list it composes and the `OverlayModuleManifest` list
+ * `resolveManifestEntries` resolves the registry from — and needs them over the
+ * **same** ids. Written out at each site that is three lines repeated, and the
+ * repetition is what produced the defect this function exists to close:
+ * `defaultComposition` composed `overlayModuleEntriesUnder(...)` and passed
+ * `overlay: async () => []` four lines below it, so an instance's overlay module
+ * reached the container, the permission gate and the presence projection and
+ * never `lifecycleManifestRegistry` — the state `resolveManifestEntries`' own
+ * doc block calls *"Principle XVII defeated in silence"*, reproduced by
+ * construction on the one path an instance takes.
+ *
+ * `root` is `string | null` on purpose: "this deployment has no overlay root"
+ * is the answer {@link activeOverlayModulesRoot} gives, and taking the ternary
+ * in here is what stops a caller writing the empty case for one seam and
+ * forgetting it for the other.
+ *
+ * The ids are derived **lazily and once**. Lazily, because the claim set is a
+ * `node_modules` scan a root with no overlay must not pay for and because the
+ * collision refusal must stay where it fires today — inside the supplier a
+ * caller hands to `resolveManifestEntries`, not before it. Once, because
+ * `overlayModuleIdsUnder` asserts the claims as it derives them, and asserting
+ * the same set twice is wasteful rather than wrong only for as long as the two
+ * derivations cannot drift.
+ */
+export interface OverlayModules {
+  /** The overlay module ids under this root — `[]` when there is no root. */
+  ids(): readonly string[];
+  /** The manifest half: what the resolved registry is built from. */
+  manifests(): Promise<OverlayModuleManifest[]>;
+  /** The registration half: what a composition root composes. */
+  entries(): Promise<ModuleEntry[]>;
+}
+
+export function overlayModulesUnder(
+  root: string | null,
+  claimsOutsideTheOverlay: () => readonly ModuleIdClaim[],
+): OverlayModules {
+  let derived: readonly string[] | undefined;
+  const ids = (): readonly string[] => {
+    if (derived === undefined) {
+      derived = root === null ? [] : overlayModuleIdsUnder(root, claimsOutsideTheOverlay());
+    }
+    return derived;
+  };
+  return {
+    ids,
+    manifests: async () => (root === null ? [] : await overlayModuleManifestsUnder(root, ids())),
+    entries: async () => (root === null ? [] : await overlayModuleEntriesForIds(root, ids())),
+  };
 }

@@ -74,6 +74,8 @@ export {
   overlayModuleEntriesUnder,
   overlayModuleIdsUnder,
   overlayModuleManifestsUnder,
+  overlayModulesUnder,
   resolveOverlayUnit,
   type OverlayModuleManifest,
+  type OverlayModules,
 } from './overlay-runtime.js';
