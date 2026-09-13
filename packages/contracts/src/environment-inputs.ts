@@ -38,9 +38,13 @@
  * ## `consumers` scopes `requirement`; it does not merely describe it
  *
  * `specs/118-instance-member-selection/` establishes that an instance may
- * deliberately omit a member — today its admin, while
- * `@endora-commerce/admin-shell` does not exist
- * (`specs/110-instance-repository/contracts/instance-tree.md` §2.4). An input
+ * deliberately omit a member — its admin being the ruled case (D-215). That
+ * member is absent when the operator declines it, or when
+ * `@endora-commerce/admin-shell` does not **resolve** at the version being
+ * installed (`specs/110-instance-repository/contracts/instance-tree.md` §2.4).
+ * This comment read *"while `@endora-commerce/admin-shell` does not exist"*
+ * until 2026-09-13, by which time `packages/admin-shell` did — a premise about
+ * the tree, written into a source file where nothing re-derives it. An input
  * no written member reads is not "required and missing"; it is **not in this
  * run's population at all**, which is what keeps the provenance line to four
  * outcomes instead of five.
