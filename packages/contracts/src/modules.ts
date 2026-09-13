@@ -313,7 +313,7 @@ export const ModuleDemoManifestSchema = z.object({
  * {@link ModuleDocsDeclarationSchema}'s rule and it exists for the same reason:
  * a universal obligation over a population where some members legitimately owe
  * nothing is repaired by empty files whose only effect is to make a check pass.
- * `health_checks`, `pim_connector` and `email` genuinely have nothing to show.
+ * `pim_connector` and `email` genuinely have nothing to show.
  */
 export const ModuleDemoDeclarationSchema = z.union([
   ModuleDemoManifestSchema,

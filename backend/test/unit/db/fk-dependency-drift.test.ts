@@ -582,11 +582,15 @@ describe('fk drift — T057 a removed module leaves no foreign key behind (US4)'
    * not — it is a migration that succeeds against a database built before the
    * removal and fails against a fresh one, which is the worst place to find it.
    *
-   * `health_checks` is feature 072's removal subject (see
-   * test/unit/kernel/module-removal.test.ts): fan-out 0, no entity, no
-   * migration.
+   * The subject is `test/unit/kernel/module-removal.test.ts`' subject, and it
+   * is named here rather than imported because the two files ask different
+   * questions of it and a shared constant would hide the day they disagree.
+   * It was `health_checks` until D-229 dissolved that module into the platform,
+   * at which point both assertions below passed over a module that did not
+   * exist — an empty scan for a subject with no tables to have. Re-pointed with
+   * the other file, at a module the tree still ships.
    */
-  const REMOVED = 'health_checks';
+  const REMOVED = 'google_tag_manager';
 
   /** Every foreign key any remaining migration carries into `moduleId`'s tables. */
   function edgesInto(moduleId: string, edges: readonly FkEdge[]): FkEdge[] {

@@ -59,12 +59,12 @@ describe('demoEntriesFrom — the runner\'s input (§3.5)', () => {
     const entries = demoEntriesFrom([
       { manifest: manifest('catalog') },
       { manifest: { ...manifest('inventory'), dependencies: ['catalog'] } },
-      { manifest: manifest('health_checks', false) },
+      { manifest: manifest('pim_connector', false) },
     ]);
     expect(entries).toEqual([
       { id: 'catalog', dependencies: [] },
       { id: 'inventory', dependencies: ['catalog'] },
-      { id: 'health_checks', dependencies: [], demo: false },
+      { id: 'pim_connector', dependencies: [], demo: false },
     ]);
   });
 

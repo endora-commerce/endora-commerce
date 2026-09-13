@@ -160,13 +160,22 @@ describe('defineModuleManifest — env declaration (feature 117 Phase 3)', () =>
 describe('a module’s `env` survives into its published manifest', () => {
   // Two packages rather than one, and not as belt and braces: one package's
   // `dist` carrying the field could be a fact about how that package happens to
-  // build. Two, declaring differently — `search`'s is `required` and `pwa`'s is
-  // `optional` with a consequence — is a fact about the mechanism. It is also
-  // what keeps this file out of `check:test-ownership`'s `misplaced-test`, and
-  // correctly so: a file naming exactly one module is that module's test and
-  // belongs beside its subject, and this one is `defineModuleManifest`'s.
+  // build. Two, declaring differently — `assets_library`'s is `required` and
+  // `pwa`'s is `optional` with a consequence — is a fact about the mechanism.
+  // It is also what keeps this file out of `check:test-ownership`'s
+  // `misplaced-test`, and correctly so: a file naming exactly one module is
+  // that module's test and belongs beside its subject, and this one is
+  // `defineModuleManifest`'s.
+  //
+  // The `required` half was `@endora-commerce/mod-search`'s `MEILISEARCH_URL`
+  // until D-229: the platform declares that name now, so the module stopped
+  // describing it a second time and its remaining declaration is `optional`.
   const cases = [
-    { specifier: '@endora-commerce/mod-search', moduleId: 'search', name: 'MEILISEARCH_URL' },
+    {
+      specifier: '@endora-commerce/mod-assets-library',
+      moduleId: 'assets_library',
+      name: 'ASSETS_LIBRARY_HMAC_KEY',
+    },
     { specifier: '@endora-commerce/mod-pwa', moduleId: 'pwa', name: 'PWA_VAPID_SUBJECT' },
   ] as const;
 

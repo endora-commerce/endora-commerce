@@ -187,7 +187,7 @@ describe('planDemoRun — the three states (§1.2)', () => {
       mode: 'seed',
       entries: [
         entry('catalog', { demo: body() }),
-        entry('health_checks', { demo: false }),
+        entry('pim_connector', { demo: false }),
         entry('orders', {}),
         entry('carts', {}),
       ],

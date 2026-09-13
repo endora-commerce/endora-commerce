@@ -91,6 +91,18 @@ export { ApiInterceptorRegistry } from '../http/interceptors/index.js';
 // built. `./http` carries `HttpError`, which is what a module raises, and not
 // this — a module does not own an app to attach anything to.
 export { registerErrorEnvelope } from '../http/error-envelope.js';
+// D-229 — the liveness probe is the platform's own surface. It is here and not
+// on `./http` for the same reason `registerErrorEnvelope` is: a composition
+// root puts it in the `modules` array it hands to `buildServer`, and a module
+// has no such array. Both roots call it — `composeApp` and the test kit — so
+// the harness composes the route production serves rather than a second
+// hand-written copy of it.
+// Two names only: `healthRoutePlugin`, which both roots put into their
+// `modules` array, and `healthResponseSchema`, which the contract test parses
+// the answer with. The probes factory, the registrar and the three types stay
+// inside the package — R3.1a refuses a name no consumer outside the platform
+// imports, and nothing outside builds a probe of its own.
+export { healthResponseSchema, healthRoutePlugin } from '../http/health.js';
 // The proxy trust level is a deployment input the root reads off the
 // environment and hands to `buildServer`; a module never sees it.
 export { parseTrustedProxy, type TrustedProxy } from '../http/trusted-proxy.js';

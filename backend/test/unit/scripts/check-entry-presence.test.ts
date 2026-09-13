@@ -327,7 +327,10 @@ describe('the switchable-module derivation is shared, and reads the manifests', 
   const manifests = [
     { id: 'blog', activation: { settingCode: 'blog.enabled', default: true } },
     { id: 'dictionaries', activation: { nonDeactivatable: true, reason: 'core' } },
-    { id: 'health_checks' },
+    // A manifest with no `activation` block at all. No module ships that
+    // shape any more (D-229 dissolved the last one), and the input shape still
+    // admits it — a package from outside this repository can arrive with one.
+    { id: 'fixture_unclassified' },
   ];
 
   it('locks exactly the modules whose manifest says so', () => {

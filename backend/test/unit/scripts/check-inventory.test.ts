@@ -5352,10 +5352,12 @@ const CHECKS: readonly CheckEntry[] = [
         ),
       ),
       // Its sharper half: a **sibling's** declaration does not satisfy this
-      // module's read. `search` declares `MEILISEARCH_URL`; `health_checks`'
-      // probe reads it and declares no dependency on `search`, so a client
-      // installing `health_checks` alone would be short a variable a check that
-      // resolved tree-wide had reported green.
+      // module's read. `search` declared `MEILISEARCH_URL` while the
+      // `health_checks` module's probe read it and declared no dependency on
+      // `search`, so a client installing that module alone would have been
+      // short a variable a check resolving tree-wide had reported green. D-229
+      // made the probe the platform's, so the pair is fictional now and the
+      // rule is not.
       'undeclared-module-input-from-a-sibling': top(() =>
         envInputFindings(
           [
@@ -5368,7 +5370,7 @@ const CHECKS: readonly CheckEntry[] = [
               },
             ]),
           ],
-          moduleEnvSource('health_checks', "const b = process.env['MEILISEARCH_URL'];\n"),
+          moduleEnvSource('analytics', "const b = process.env['MEILISEARCH_URL'];\n"),
           'undeclared-module-input',
         ),
       ),

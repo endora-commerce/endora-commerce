@@ -50,13 +50,20 @@
  * a number somebody eventually raises. If the platform axis is to be held for
  * locked modules too, that is a **second** predicate over a second population.
  *
- * **`health_checks` is outside the population by derivation, not by a ledger
- * entry.** It declares no activation block at all and every route it owns is
- * exempted from gating through `ctx.ungatedRoutes` (D-36b), so there is no seam
- * an `expectModuleAbsent` could assert — its probes are *required* to keep
- * answering while it is off. That its class has exactly one member is pinned,
- * independently, by `test/unit/_lifecycle/non-deactivatable-set.test.ts`;
- * writing it in here would be a derived fact copied into a second place (D-100).
+ * **A manifest with no activation block at all is outside the population for
+ * the same reason, and today there are none.** `health_checks` was the single
+ * member of that class: it declared no activation block and every route it
+ * owned was exempted from gating through `ctx.ungatedRoutes` (D-36b), so there
+ * was no seam an `expectModuleAbsent` could assert — its probes were *required*
+ * to keep answering while it was off. D-229 moved those probes into the
+ * platform and dissolved the module, and
+ * `test/unit/_lifecycle/non-deactivatable-set.test.ts` now pins the class as
+ * **empty**: every registered module declares one arm or the other. The
+ * derivation here is unchanged — a `settingCode` string is still the whole
+ * predicate — and it is only its answer that moved, which is why nothing in
+ * this file was edited for it beyond this paragraph. Writing the class's
+ * membership in here would be a derived fact copied into a second place
+ * (D-100).
  *
  * ## An unregistered subject, and the one derivation that excuses it
  *

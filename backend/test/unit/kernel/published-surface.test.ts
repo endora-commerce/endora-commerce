@@ -525,6 +525,15 @@ const HOST_COMPOSITION_SURFACE: Readonly<Record<string, readonly string[]>> = {
   // a deployment input the root reads and hands to `buildServer`.
   'http/error-envelope.ts': ['registerErrorEnvelope'],
   'http/trusted-proxy.ts': ['parseTrustedProxy', 'TrustedProxy'],
+  // D-229. The liveness probe is the platform's own surface, so a *root* mounts
+  // it — `composeApp` and the test kit's `composeTestServer` both put
+  // `healthRoutePlugin(...)` at the head of the `modules` array they build —
+  // and `healthResponseSchema` is how a caller parses the answer. Neither is on
+  // `./http` for the reason `registerErrorEnvelope` is not: a module owns no
+  // application to register a route on. The probes factory, the registrar and
+  // the three types are host-internal; nothing outside the package builds a
+  // probe of its own.
+  'http/health.ts': ['healthResponseSchema', 'healthRoutePlugin'],
   'kernel/container.ts': [
     'createRootContainer',
     'registerOrm',

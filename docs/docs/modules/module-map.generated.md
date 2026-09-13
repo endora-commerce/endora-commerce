@@ -47,7 +47,6 @@ of the platform, not of what happens to be written.
 | `email` | _no page yet_ | @endora-commerce/mod-email |
 | [Google Analytics](./google-analytics.md) | Google Analytics 4 for the storefront — per-channel Measurement ID, Enhanced Ecommerce, a custom-events builder and optional server-side tagging | @endora-commerce/mod-google-analytics |
 | [Google Tag Manager](./google-tag-manager.md) | Google Tag Manager containers per sales channel, with a documented commerce dataLayer and an optional server-side relay | @endora-commerce/mod-google-tag-manager |
-| [health_checks](./health_checks.md) | Liveness + readiness probe | @endora-commerce/mod-health-checks |
 | [import_export](./import_export.md) | CSV import / export for bulk-edit entities | @endora-commerce/mod-import-export |
 | [Infakt](./infakt.md) | Thin Infakt adapter on the invoice ledger — credentials, VAT copy, webhooks, and optional vendor KSeF. | @endora-commerce/mod-infakt |
 | [InPost](./inpost.md) | InPost ShipX shipping (locker Geowidget + courier, PDF labels) | @endora-commerce/mod-inpost |

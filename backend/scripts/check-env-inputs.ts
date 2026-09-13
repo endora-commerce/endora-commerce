@@ -36,12 +36,16 @@
  * A read resolves against the platform's declaration, the application tree's,
  * and the **reading module's own** — never another module's
  * (`contracts/environment-inputs.md` §R2.2). That last clause is the one worth
- * stating: `MEILISEARCH_URL` is read by `search` and, independently, by
- * `health_checks`' liveness probe, which declares no dependency on `search` and
- * should not. If one module's declaration covered the other's read, a client who
- * installed `health_checks` alone would be short a variable this check had
- * reported green — and would meet it as a probe that says the platform is
- * degraded.
+ * stating, and `MEILISEARCH_URL` is what taught it: `search` read it and so,
+ * independently, did the `health_checks` module's liveness probe, which
+ * declared no dependency on `search` and should not have. If one module's
+ * declaration had covered the other's read, a client who installed that module
+ * alone would have been short a variable this check reported green — and would
+ * have met it as a probe saying the platform was degraded. D-229 has since made
+ * the probe the platform's own, so `MEILISEARCH_URL` is a platform input and
+ * the pair is history; the rule it produced is not, and
+ * `test/unit/scripts/check-env-inputs.test.ts` keeps the case over a fictional
+ * pair rather than deleting it with the module.
  *
  * The mirror of that rule is `module-declares-a-platform-input`: 7 of the 28
  * variables the module tree reads are the platform's, read by thirty modules

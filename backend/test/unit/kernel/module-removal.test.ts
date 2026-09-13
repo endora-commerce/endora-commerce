@@ -34,11 +34,27 @@ import {
  * permission in the catalogue — is archaeology. When the composer is generated
  * from a filesystem walk, removing a module is deleting its directory.
  *
- * The subject is `health_checks`: the composer owns it (it is one of the three
- * converted modules), it has fan-out 0, it owns no entity and no migration, and
- * nothing outside its directory names it. `email` is the other fan-out-0
- * candidate and is deliberately **not** the subject — see the residue ledger
- * below, which records exactly why it is not removable yet.
+ * The subject is `google_tag_manager`: the composer owns it, no manifest
+ * declares it as a dependency, it owns no entity and no migration, it is not
+ * locked, and nothing outside its directory names it.
+ *
+ * **It is the second subject.** The first was `health_checks`, and it stopped
+ * being one by being removed for real: D-229 moved the liveness probe into
+ * `@endora-commerce/platform` and dissolved the module. Every case below then
+ * passed *because its subject did not exist* — a residue scan over a deleted
+ * directory finds nothing, a composition without a module that is not in the
+ * list is the composition, and a name nobody registers is a name nobody owns.
+ * That is the vacuous pass this file exists to refuse, arriving at the file
+ * itself, and it is exactly the shape the ledger note below warns about: the
+ * merge request that frees a subject is structurally the one that cannot see it
+ * go stale, because moving a module does not edit the file that is derived
+ * about it.
+ *
+ * A live subject is therefore a requirement, and the one property the old
+ * subject had that no surviving module has is *declaring no inventory at all*.
+ * The case that rested on it is rewritten below rather than dropped: the
+ * property this file wants is that removal takes **exactly** the subject's own
+ * declarations, which is stronger than "it had none to take".
  *
  * What "removal" means here is a deletion of `src/modules/<id>/`, followed by a
  * regeneration. So the generated artefacts are excluded from the residue scan
@@ -62,7 +78,7 @@ import {
 const here = dirname(fileURLToPath(import.meta.url));
 const srcRoot = resolve(here, '../../../src');
 
-const SUBJECT = 'health_checks';
+const SUBJECT = 'google_tag_manager';
 
 /**
  * Converted modules that are **not** removable yet, and the reference that
@@ -859,14 +875,33 @@ describe('T058 — a removed module contributes to no admin inventory', () => {
   const without = (moduleId: string): ReadonlyArray<RegisteredManifestEntry> =>
     REGISTERED_MANIFESTS.filter((entry) => entry.manifest.id !== moduleId);
 
-  it(`removing ${SUBJECT} changes no inventory — it declares none`, () => {
-    expect(inventories(without(SUBJECT))).toEqual(inventories(REGISTERED_MANIFESTS));
+  it(`removing ${SUBJECT} drops exactly what its own manifest declares`, () => {
+    const entry = REGISTERED_MANIFESTS.find((e) => e.manifest.id === SUBJECT);
+    expect(entry, `${SUBJECT} should be registered`).toBeDefined();
+
+    const full = inventories(REGISTERED_MANIFESTS);
+    const reduced = inventories(without(SUBJECT));
+
+    // Its palette action and its settings group go, and nothing else moves.
+    // The previous subject declared none of the three, so this case could only
+    // assert that the inventories were unchanged — true, and equally true of a
+    // projection that had stopped reading the manifests at all.
+    expect(full.actions.filter((a) => !reduced.actions.includes(a))).toEqual(
+      (entry?.manifest.actions ?? []).map((action) => `${SUBJECT}:${action.id}`),
+    );
+    expect(full.settingsGroups.filter((g) => !reduced.settingsGroups.includes(g))).toEqual(
+      [entry?.manifest.settings?.moduleCode].filter((code) => code !== undefined),
+    );
+    expect(full.permissions.filter((c) => !reduced.permissions.includes(c))).toEqual(
+      (entry?.manifest.permissions ?? []).map((permission) => permission.code),
+    );
   });
 
   it('removing a module that declares all three drops exactly its declarations', () => {
-    // `health_checks` is the removal subject but declares nothing, so on its own
-    // it cannot tell "the inventories are manifest-derived" from "the test does
-    // not look". A module that declares all three is the witness that it does.
+    // The subject declares two of the three, so on its own it cannot tell "the
+    // inventories are manifest-derived" from "the test does not look" for the
+    // permission catalogue. A module that declares all three is the witness
+    // that it does.
     const witness = 'product_feeds';
     const entry = REGISTERED_MANIFESTS.find((e) => e.manifest.id === witness);
     expect(entry, `${witness} should be registered`).toBeDefined();
@@ -919,8 +954,8 @@ describe('T055 — the remaining module set still composes', () => {
     const container = createRootContainer();
     registerValues(container, {
       // The host values the surviving converted modules resolve. `orm` is
-      // `health_checks`' only kernel dependency and is deliberately absent —
-      // nothing left may reach for it.
+      // deliberately absent — the subject was the last composed module that
+      // resolved it from a root, and nothing left may reach for it.
       //
       // D-156.6 — `requireAdmin`, `assetReferenceRegistry` and
       // `dictionaryValidator` used to be in this list and are **not** host
@@ -943,7 +978,7 @@ describe('T055 — the remaining module set still composes', () => {
 
   it('composes the surviving modules without the removed one', () => {
     const composed = composeWithout(SUBJECT);
-    expect(composed.ownerOf('healthCheckProbes')).toBeUndefined();
+    expect(composed.ownerOf('googleTagManagerServices')).toBeUndefined();
     // The surviving modules still own their names — removal took exactly one.
     expect(composed.ownerOf('emailMailer')).toBe('email');
   });
@@ -957,6 +992,8 @@ describe('T055 — the remaining module set still composes', () => {
     );
     // Not `undefined` reaching business logic — the property `composition.ts`
     // could not offer, where a missing option-object key is simply absent.
-    expect(() => container.cradle['healthCheckProbes']).toThrow(/healthCheckProbes/);
+    expect(() => container.cradle['googleTagManagerServices']).toThrow(
+      /googleTagManagerServices/,
+    );
   });
 });

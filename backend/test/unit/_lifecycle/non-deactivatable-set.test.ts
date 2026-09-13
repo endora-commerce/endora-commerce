@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 
 /**
- * The three-way classification of every shipped module — feature 074, Phase 1.
+ * The classification of every shipped module — feature 074, Phase 1, with its
+ * third category retired by D-229.
  *
  * This file was rewritten rather than adjusted. Its previous form admitted a
  * `nonDeactivatable` declaration on one of four grounds, two of which were
@@ -61,15 +62,6 @@ const CORE_MODULES = [
   'transactional_emails',
 ] as const;
 
-/**
- * Structurally unswitchable — 1 module. It owns exactly one surface, the
- * probes, and those are exempt from gating outright through `ctx.ungatedRoutes`,
- * so neither axis has a seam left to close. It gets a test rather than a third
- * schema arm (FR-015): declaring `nonDeactivatable` here would announce a
- * hazard the route exemption has already removed (FR-014).
- */
-const STRUCTURALLY_UNSWITCHABLE = ['health_checks'] as const;
-
 /** The three feature 073 Amendment A1 moved onto an operator control. */
 const NEWLY_DEACTIVATABLE = ['admin_actions', 'delivery_methods', 'payment_methods'] as const;
 
@@ -113,24 +105,17 @@ describe('the classification partitions the discovered manifest set (FR-007, SC-
     // Asserted against the discovered set rather than a hard-coded total: a new
     // module has to be classified before this passes, which is the only way the
     // partition stays a decision instead of a snapshot.
-    const classified = [
-      ...CORE_MODULES,
-      ...controlIds,
-      ...STRUCTURALLY_UNSWITCHABLE,
-    ].sort();
+    const classified = [...CORE_MODULES, ...controlIds].sort();
     expect(new Set(classified).size).toBe(classified.length);
     expect(classified).toEqual(allIds);
   });
 
   it('operator-controlled count is the residual of the discovered set', () => {
     expect(CORE_MODULES).toHaveLength(25);
-    expect(STRUCTURALLY_UNSWITCHABLE).toHaveLength(1);
     // Residual, not a snapshot: a module joining or leaving the control set
-    // must not require a hand-edited total. The two lists above are product
-    // rulings written down; this number is derived from them.
-    expect(controlIds).toHaveLength(
-      manifests.length - CORE_MODULES.length - STRUCTURALLY_UNSWITCHABLE.length,
-    );
+    // must not require a hand-edited total. The list above is a product ruling
+    // written down; this number is derived from it.
+    expect(controlIds).toHaveLength(manifests.length - CORE_MODULES.length);
   });
 });
 
@@ -174,7 +159,6 @@ describe('operator-controlled — everything that is not core (FR-005)', () => {
   it.each(
     manifests
       .filter((m) => !(CORE_MODULES as readonly string[]).includes(m.id))
-      .filter((m) => !(STRUCTURALLY_UNSWITCHABLE as readonly string[]).includes(m.id))
       .map((m) => m.id)
       .sort(),
   )('%s declares a settings-backed control with a stated default', (id) => {
@@ -206,23 +190,43 @@ describe('operator-controlled — everything that is not core (FR-005)', () => {
   });
 });
 
-describe('structurally unswitchable — one module, on purpose (FR-013, FR-014)', () => {
-  it('health_checks is the only manifest with no activation block', () => {
-    // The reason is at the assertion, not in a backlog: this module owns
-    // exactly one surface — the liveness and readiness probes — and
-    // `ctx.ungatedRoutes` exempts it from gating outright, so an orchestrator
-    // that reports the module disabled still gets an answer from /health.
-    // There is no seam either presence axis could close, which is a different
-    // statement from "we have not got round to it" and is what retires the
-    // "No switch yet" label.
-    expect(undeclaredIds).toEqual([...STRUCTURALLY_UNSWITCHABLE]);
+describe('every registered module declares an activation block (FR-013, D-229)', () => {
+  /**
+   * This used to be a membership assertion over a one-element set — feature
+   * 074's third category, *structurally unswitchable*, whose sole member was
+   * `health_checks`. D-229 dissolved that module into the platform, and the
+   * set that is left is empty, which is the stronger invariant the pin was
+   * always reaching for and could not state while it had a member.
+   *
+   * State it as the invariant, then, and not as `toEqual([])` over a named
+   * list: **a manifest with no `activation` block is a classification its
+   * author did not make.** Feature 074 chose a test over a third schema arm
+   * (FR-015) precisely so that a second module could not join the category by
+   * omission; with the category gone, the test is what refuses the omission
+   * itself. Either arm is a decision — `nonDeactivatable` with a reason, or a
+   * settings-backed control with a default — and a new module fails here until
+   * its author has made one.
+   *
+   * There is no third answer to re-introduce, either. The one surface that
+   * genuinely could not be switched off was the liveness probe, and it is not a
+   * module any more: the platform registers `/api/v1/_health` itself, so there
+   * is nothing for a presence axis to close and nothing for a manifest to say
+   * about it.
+   */
+  it('leaves no manifest unclassified', () => {
+    expect(
+      undeclaredIds,
+      'these manifests declare no `activation` block, so neither presence axis has been ' +
+        'decided for them: declare `nonDeactivatable` with a reason, or a settings-backed ' +
+        'control with a default',
+    ).toEqual([]);
   });
 
-  it('and it does not declare nonDeactivatable either', () => {
-    // Declaring it would announce a hazard the route exemption has removed,
-    // and would take `module:disable health_checks` away from a deployment
-    // operator for nothing.
-    expect(declaringIds).not.toContain('health_checks');
+  it('and the two arms between them cover every manifest', () => {
+    // The mirror of the assertion above, from the other side: a manifest is in
+    // exactly one of the two derived sets, so neither an empty `activation: {}`
+    // nor a block carrying both arms passes unnoticed.
+    expect([...declaringIds, ...controlIds].sort()).toEqual(allIds);
   });
 });
 

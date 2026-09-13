@@ -262,14 +262,6 @@ const modules = [
   },
   {
     type: 'category',
-    label: 'health_checks',
-    link: { type: 'doc', id: 'modules/health_checks' },
-    items: [
-      'module-reference/health-checks',
-    ],
-  },
-  {
-    type: 'category',
     label: 'import_export',
     link: { type: 'doc', id: 'modules/import_export' },
     items: [
