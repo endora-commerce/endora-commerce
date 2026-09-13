@@ -77,8 +77,8 @@ describe('placeOrder — the payment row apply port, against a live transaction'
     return new OrderService(h.em, new EventBus() as OrderEventBus, undefined, undefined, undefined, {
       neighbours: { ...orderServiceNeighbours(h.em), ...over },
       resolveTaxRate: async () => 0.23,
-      paymentAdapters: adapters,
-      orderStatusRegistry: new EnumOrderStatusRegistry(),
+      paymentAdapters: () => adapters,
+      orderStatusRegistry: () => new EnumOrderStatusRegistry(),
     });
   }
 

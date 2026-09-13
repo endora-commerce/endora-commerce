@@ -298,9 +298,42 @@ export interface OrderServiceNeighbourPorts {
 export class OrderService {
   private readonly accessService: OrderAccessService;
 
-  private readonly paymentAdapters: PaymentAdapterRegistryPort | undefined;
-  private readonly orderStatusRegistry: OrderStatusRegistry | undefined;
-  private readonly shippingAdapters: ShippingAdapterRegistryPort | undefined;
+  /**
+   * The two method modules' registries and the order-status references, held
+   * as **accessors** rather than as values (D-228).
+   *
+   * All three are plain container registrations another module owns, and this
+   * module declares each `degrades-without`. Holding the resolved value meant
+   * two things at once: the container was asked while `orders`' plugin was
+   * being registered, so an owner the composition never installed threw before
+   * a request existed; and the answer was then frozen, so an operator
+   * switching `payment_methods` or `delivery_methods` off left placement
+   * dispatching through a table the module had already captured.
+   *
+   * The three getters below keep every read site unchanged — each is still
+   * `this.paymentAdapters?.get(...)` — while moving the question to the read.
+   * `null` and `undefined` mean the same thing here and both take the
+   * no-adapter path the declaration's `whenAbsent` sentence describes.
+   */
+  private readonly paymentAdaptersAccessor:
+    | (() => PaymentAdapterRegistryPort | null)
+    | undefined;
+  private readonly orderStatusRegistryAccessor: (() => OrderStatusRegistry | null) | undefined;
+  private readonly shippingAdaptersAccessor:
+    | (() => ShippingAdapterRegistryPort | null)
+    | undefined;
+
+  private get paymentAdapters(): PaymentAdapterRegistryPort | undefined {
+    return this.paymentAdaptersAccessor?.() ?? undefined;
+  }
+
+  private get orderStatusRegistry(): OrderStatusRegistry | undefined {
+    return this.orderStatusRegistryAccessor?.() ?? undefined;
+  }
+
+  private get shippingAdapters(): ShippingAdapterRegistryPort | undefined {
+    return this.shippingAdaptersAccessor?.() ?? undefined;
+  }
   private readonly mailer: EmailMailerPort | undefined;
   /**
    * The neighbouring modules' published read models (feature 075).
@@ -369,9 +402,14 @@ export class OrderService {
     private readonly creditLimit?: CreditLimitPort,
     accessService?: OrderAccessService,
     paymentDeps?: {
-      paymentAdapters?: PaymentAdapterRegistryPort;
-      orderStatusRegistry?: OrderStatusRegistry;
-      shippingAdapters?: ShippingAdapterRegistryPort;
+      /**
+       * Accessors, not values (D-228) — see the three fields above. An owner
+       * that is not effectively present answers `null`, which is the same
+       * no-adapter path an omitted accessor takes.
+       */
+      paymentAdapters?: () => PaymentAdapterRegistryPort | null;
+      orderStatusRegistry?: () => OrderStatusRegistry | null;
+      shippingAdapters?: () => ShippingAdapterRegistryPort | null;
       mailer?: EmailMailerPort;
       confirmationRenderers?: () => OrderConfirmationRenderers;
       neighbours: OrderServiceNeighbourPorts;
@@ -417,9 +455,9 @@ export class OrderService {
     this.neighbours = paymentDeps.neighbours;
     this.accessService =
       accessService ?? new OrderAccessService(paymentDeps.neighbours.customerAccountRead);
-    this.paymentAdapters = paymentDeps?.paymentAdapters;
-    this.orderStatusRegistry = paymentDeps?.orderStatusRegistry;
-    this.shippingAdapters = paymentDeps?.shippingAdapters;
+    this.paymentAdaptersAccessor = paymentDeps?.paymentAdapters;
+    this.orderStatusRegistryAccessor = paymentDeps?.orderStatusRegistry;
+    this.shippingAdaptersAccessor = paymentDeps?.shippingAdapters;
     this.mailer = paymentDeps?.mailer;
     this.confirmationRenderers = paymentDeps?.confirmationRenderers;
     this.businessId = paymentDeps?.businessId;

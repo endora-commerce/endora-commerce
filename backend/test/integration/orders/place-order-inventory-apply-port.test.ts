@@ -69,8 +69,8 @@ describe('placeOrder — the stock reservation apply port, against a live transa
     return new OrderService(h.em, new EventBus() as OrderEventBus, undefined, undefined, undefined, {
       neighbours: { ...orderServiceNeighbours(h.em), ...over },
       resolveTaxRate: async () => 0.23,
-      paymentAdapters: registry,
-      orderStatusRegistry: new EnumOrderStatusRegistry(),
+      paymentAdapters: () => registry,
+      orderStatusRegistry: () => new EnumOrderStatusRegistry(),
     });
   }
 

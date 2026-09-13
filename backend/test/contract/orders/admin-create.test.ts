@@ -65,8 +65,8 @@ describe('Admin create order on behalf (US3)', () => {
       // fallback rate, so an order it cannot price is refused rather than taxed
       // at a figure nobody configured.
       resolveTaxRate: async () => 0.23,
-      paymentAdapters: registry,
-      orderStatusRegistry: new EnumOrderStatusRegistry(),
+      paymentAdapters: () => registry,
+      orderStatusRegistry: () => new EnumOrderStatusRegistry(),
       resolveMinOrderValue: async () => 999999,
     });
 
@@ -103,8 +103,8 @@ describe('Admin create order on behalf (US3)', () => {
       // fallback rate, so an order it cannot price is refused rather than taxed
       // at a figure nobody configured.
       resolveTaxRate: async () => 0.23,
-      paymentAdapters: registry,
-      orderStatusRegistry: new EnumOrderStatusRegistry(),
+      paymentAdapters: () => registry,
+      orderStatusRegistry: () => new EnumOrderStatusRegistry(),
       resolveMinOrderValue: async (salesChannelId) => {
         seen.push(salesChannelId);
         return 0;

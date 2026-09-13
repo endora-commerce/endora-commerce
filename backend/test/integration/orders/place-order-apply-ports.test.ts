@@ -70,8 +70,8 @@ describe('placeOrder — the T048 apply ports, against a live transaction', () =
     return new OrderService(h.em, new EventBus() as OrderEventBus, undefined, undefined, undefined, {
       neighbours: { ...orderServiceNeighbours(h.em), ...over },
       resolveTaxRate: async () => 0.23,
-      paymentAdapters: registry,
-      orderStatusRegistry: new EnumOrderStatusRegistry(),
+      paymentAdapters: () => registry,
+      orderStatusRegistry: () => new EnumOrderStatusRegistry(),
     });
   }
 

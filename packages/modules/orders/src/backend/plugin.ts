@@ -231,10 +231,19 @@ export interface OrdersModuleOptions {
    * captured registration keeps answering after its owner is switched off, and
    * no manifest entry can make that untrue. An accessor is read where it is
    * used, so the answer is the one the container has then.
+   *
+   * `| null` since D-228: all three are plain registrations of another
+   * module's, so the accessor also answers the presence question the
+   * `degrades-without` declaration already promises — including for an owner a
+   * composition never installed, which throws rather than degrading. The
+   * accessor is threaded **whole** into `OrderService`; invoking it in this
+   * body would capture one answer for the life of the process, which is the
+   * fail-open D-38b refuses and which `captured-registration` cannot see,
+   * because that rail keys on the lexical read.
    */
-  paymentAdapterRegistry: () => PaymentAdapterRegistryPort;
-  shippingAdapterRegistry: () => ShippingAdapterRegistryPort;
-  paymentOrderStatusRegistry: () => OrderStatusRegistry;
+  paymentAdapterRegistry: () => PaymentAdapterRegistryPort | null;
+  shippingAdapterRegistry: () => ShippingAdapterRegistryPort | null;
+  paymentOrderStatusRegistry: () => OrderStatusRegistry | null;
   /**
    * Feature 026 — optional gate that refuses cart-line-add, place-order, and
    * RFQ-submit when the Customer's Organization is not `active`. Threaded
@@ -397,10 +406,12 @@ export function commerceModule(options: OrdersModuleOptions) {
     // their eligibility services and their routes now. `orders` still reads
     // them for placement and for the order-status references, so it takes them
     // as options rather than building them — as accessors since feature 074,
-    // read here rather than when this module's registration was constructed.
-    const paymentAdapterRegistry = options.paymentAdapterRegistry();
-    const shippingAdapterRegistry = options.shippingAdapterRegistry();
-    const orderStatusRegistry = options.paymentOrderStatusRegistry();
+    // and since D-228 passed whole into the service rather than invoked here.
+    // This body runs once, under `avvio`, while the routes are registered: the
+    // three reads that used to stand here resolved the container before any
+    // request existed, so an owner the composition never installed threw at
+    // wiring time and an owner switched off afterwards went on answering from
+    // a table this module had already captured.
 
     // Feature 036 — business Order ID generator. Adapts the composition-wired
     // prefix/suffix resolver closures (SettingsService-backed) to the
@@ -438,9 +449,9 @@ export function commerceModule(options: OrdersModuleOptions) {
       options.creditLimit,
       undefined,
       {
-        paymentAdapters: paymentAdapterRegistry,
-        orderStatusRegistry,
-        shippingAdapters: shippingAdapterRegistry,
+        paymentAdapters: options.paymentAdapterRegistry,
+        orderStatusRegistry: options.paymentOrderStatusRegistry,
+        shippingAdapters: options.shippingAdapterRegistry,
         businessId: businessIdGenerator,
         confirmationRecipients: (input) =>
           orderConfirmationService.resolveAdditional(input.organizationId, input.salesChannelId),
