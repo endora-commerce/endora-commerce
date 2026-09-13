@@ -7,13 +7,12 @@ import {
   resolveTarget,
   type ActionRecord,
 } from '../../../scripts/check-action-route-permissions.js';
-import { spawnSync } from 'node:child_process';
 import { statSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import {
   createMovedModuleTreeFixture,
+  createSplitModuleTreeFixture,
   KEPT_MODULE,
 } from '../../helpers/moved-module-tree-fixture.js';
 import { createEmittingPackageFixture } from '../../helpers/emitted-freshness-fixture.js';
@@ -21,11 +20,10 @@ import {
   checkEmittedFreshness,
   emittingPackages,
   freshnessRefusal,
+  nodeFreshnessFs,
   rootExportOf,
+  sourceOfEmitted,
 } from '../../../scripts/lib/emitted-freshness.js';
-
-const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
-const BACKEND_ROOT = join(REPO_ROOT, 'backend');
 
 /**
  * The shapes `check-action-route-permissions` claims to refuse, and the ones it
@@ -466,31 +464,58 @@ describe('check-action-route-permissions — the artefact it read (issue #113)',
     // The end-to-end half, and the measurement !1203 made three times over: the
     // check reads the *emitted* manifest, so an edit to `src/manifest.ts` was
     // invisible to it. Here it is the artefact that moves rather than the
-    // source, which is the same relative order and leaves the tree's contents
-    // untouched — the mtime is restored in `finally`.
-    const packages = emittingPackages(REPO_ROOT);
-    const subject = packages.find((pkg) => pkg.name === '@endora-commerce/mod-payu');
-    expect(subject, 'the fixture package is no longer a workspace member').toBeDefined();
-    const artefact = rootExportOf(subject!);
-    expect(artefact, 'the package declares no root export').not.toBeNull();
-    const before = statSync(artefact!);
+    // source, which is the same relative order.
+    //
+    // **The stale artefact is a fixture checkout's, never this one's**, and that
+    // is the one thing about this proof that is not incidental. It used to
+    // backdate `packages/modules/payu/dist/manifest.js` in the working tree and
+    // restore it in a `finally`, and for the seconds in between every other
+    // process reading this repository was reading a tree the estate refuses:
+    // `check-read-size.test.ts` spawns the whole check estate concurrently over
+    // the working tree, so `test:unit:fast` went red with `[stale-artefact]
+    // @endora-commerce/mod-payu` in whichever check happened to be in flight.
+    // Measured on `master` by four sessions in one day — `check-divergence` and
+    // `check-action-route-permissions` both observed as the victim, reproducing
+    // on demand when the two files run together and never when either runs
+    // alone, which is precisely the shape that teaches a reader to re-run rather
+    // than to read. A shared mutable subject is not made safe by restoring it
+    // afterwards; it has to stop being shared.
+    //
+    // Nothing about the proof is weakened to get there. `createSplitModuleTreeFixture`
+    // stages this repository's own packages — `dist` and all, with their real
+    // timestamps (FR-011) — so the check runs from the top over a real checkout
+    // and reads the same population it reads in the working tree, module
+    // manifests included. Same package, same refusal, same exit code, in a
+    // directory no other test can see.
+    //
+    // Its control is not written twice. `moved-module-tree.test.ts` spawns this
+    // same check over this same fixture untouched and requires exit 0, so the
+    // pair "clean split tree passes / one artefact backdated refuses" is
+    // complete across the two files. No mtime is restored, because the tree it
+    // belongs to is deleted.
+    const fixture = createSplitModuleTreeFixture({ packaged: [] });
     try {
-      const backdated = Math.floor(statSync(join(subject!.dir, 'src', 'manifest.ts')).mtimeMs / 1000) - 60;
-      utimesSync(artefact!, backdated, backdated);
-      const result = spawnSync(
-        join(BACKEND_ROOT, 'node_modules', '.bin', 'tsx'),
-        [join(BACKEND_ROOT, 'scripts', 'check-action-route-permissions.ts')],
-        { encoding: 'utf8', cwd: BACKEND_ROOT },
+      const subject = emittingPackages(fixture.root).find(
+        (pkg) => pkg.name === '@endora-commerce/mod-payu',
       );
-      const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
-      expect(result.status, output).toBe(2);
-      expect(output).toContain('@endora-commerce/mod-payu');
-      expect(output).toContain('build:packages');
+      expect(subject, 'the subject package is no longer a workspace member').toBeDefined();
+      const artefact = rootExportOf(subject!);
+      expect(artefact, 'the package declares no root export').not.toBeNull();
+      const source = sourceOfEmitted(subject!, artefact!, nodeFreshnessFs());
+      expect(source, 'no source under the package rootDir emits its root export').not.toBeNull();
+
+      const backdated = Math.floor(statSync(source!).mtimeMs / 1000) - 60;
+      utimesSync(artefact!, backdated, backdated);
+
+      const result = fixture.run('check-action-route-permissions.ts');
+      expect(result.status, result.output).toBe(2);
+      expect(result.output).toContain('[stale-artefact] @endora-commerce/mod-payu');
+      expect(result.output).toContain('build:packages');
       // Not exit 1, and not a warning beside a finding count: the run reports no
       // findings at all, because it could not see the tree.
-      expect(output).not.toContain('violations=');
+      expect(result.output).not.toContain('violations=');
     } finally {
-      utimesSync(artefact!, before.atime, before.mtime);
+      fixture.cleanup();
     }
   }, 120_000);
 });
