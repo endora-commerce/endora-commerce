@@ -7897,7 +7897,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
     // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
     // and none of it is somebody else's staleness. Never computed from a delta.
-    files: 8188,
+    // **`specs/110-instance-repository/` T141/T142 (A7, A8 and A9): files 8188 -> 8189 (+1).** One file: `backend/scripts/acceptance/instance-tenancy-probe.ts`, A9's own probe. Nothing was moved and nothing deleted; this merge request's other paths were already in the tree. Re-measured on the **merged** tree (`origin/master` at 2c56c52eb), in a fresh `git worktree` of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` showing no residue outside `node_modules` and `dist`, and with the resolution staged — `check-naming.sh` and `check-language.sh` take their population from the index plus untracked-and-not-ignored paths. This file's conflict was resolved wholly to the incoming side and every value here was then re-measured rather than reconciled, per `specs/conventions/check-estate.md`; the branch's own pre-merge measurement of the same five was +1 over a different base, which is why none of it is carried across as arithmetic. No band was widened and no value was computed from a delta: the run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
+    files: 8189,
     sites: null,
     sources: [],
     //
@@ -8996,7 +8997,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
     // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
     // and none of it is somebody else's staleness. Never computed from a delta.
-    files: 2500,
+    // **`specs/110-instance-repository/` T141/T142 (A7, A8 and A9): files 2500 -> 2501 (+1).** One file: `backend/scripts/acceptance/instance-tenancy-probe.ts`, A9's own probe. Nothing was moved and nothing deleted; this merge request's other paths were already in the tree. Re-measured on the **merged** tree (`origin/master` at 2c56c52eb), in a fresh `git worktree` of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` showing no residue outside `node_modules` and `dist`, and with the resolution staged — `check-naming.sh` and `check-language.sh` take their population from the index plus untracked-and-not-ignored paths. This file's conflict was resolved wholly to the incoming side and every value here was then re-measured rather than reconciled, per `specs/conventions/check-estate.md`; the branch's own pre-merge measurement of the same five was +1 over a different base, which is why none of it is carried across as arithmetic. No band was widened and no value was computed from a delta: the run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
+    files: 2501,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -11112,7 +11114,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
     // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
     // and none of it is somebody else's staleness. Never computed from a delta.
-    files: 4659,
+    // **`specs/110-instance-repository/` T141/T142 (A7, A8 and A9): files 4659 -> 4660 (+1).** One file: `backend/scripts/acceptance/instance-tenancy-probe.ts`, A9's own probe. Nothing was moved and nothing deleted; this merge request's other paths were already in the tree. Re-measured on the **merged** tree (`origin/master` at 2c56c52eb), in a fresh `git worktree` of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` showing no residue outside `node_modules` and `dist`, and with the resolution staged — `check-naming.sh` and `check-language.sh` take their population from the index plus untracked-and-not-ignored paths. This file's conflict was resolved wholly to the incoming side and every value here was then re-measured rather than reconciled, per `specs/conventions/check-estate.md`; the branch's own pre-merge measurement of the same five was +1 over a different base, which is why none of it is carried across as arithmetic. No band was widened and no value was computed from a delta: the run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
+    files: 4660,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -12032,7 +12035,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
     // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
     // and none of it is somebody else's staleness. Never computed from a delta.
-    files: 8248,
+    // **`specs/110-instance-repository/` T141/T142 (A7, A8 and A9): files 8248 -> 8249 (+1).** One file: `backend/scripts/acceptance/instance-tenancy-probe.ts`, A9's own probe. Nothing was moved and nothing deleted; this merge request's other paths were already in the tree. Re-measured on the **merged** tree (`origin/master` at 2c56c52eb), in a fresh `git worktree` of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` showing no residue outside `node_modules` and `dist`, and with the resolution staged — `check-naming.sh` and `check-language.sh` take their population from the index plus untracked-and-not-ignored paths. This file's conflict was resolved wholly to the incoming side and every value here was then re-measured rather than reconciled, per `specs/conventions/check-estate.md`; the branch's own pre-merge measurement of the same five was +1 over a different base, which is why none of it is carried across as arithmetic. No band was widened and no value was computed from a delta: the run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
+    files: 8249,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -12609,7 +12613,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
     // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
     // and none of it is somebody else's staleness. Never computed from a delta.
-    files: 6292,
+    // **`specs/110-instance-repository/` T141/T142 (A7, A8 and A9): files 6292 -> 6293 (+1).** One file: `backend/scripts/acceptance/instance-tenancy-probe.ts`, A9's own probe. Nothing was moved and nothing deleted; this merge request's other paths were already in the tree. Re-measured on the **merged** tree (`origin/master` at 2c56c52eb), in a fresh `git worktree` of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` showing no residue outside `node_modules` and `dist`, and with the resolution staged — `check-naming.sh` and `check-language.sh` take their population from the index plus untracked-and-not-ignored paths. This file's conflict was resolved wholly to the incoming side and every value here was then re-measured rather than reconciled, per `specs/conventions/check-estate.md`; the branch's own pre-merge measurement of the same five was +1 over a different base, which is why none of it is carried across as arithmetic. No band was widened and no value was computed from a delta: the run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
+    files: 6293,
     sites: null,
     sources: ['manifest-index'],
     //
