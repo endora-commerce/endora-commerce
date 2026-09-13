@@ -33,6 +33,7 @@ import {
   type DeclarationSource,
   type EnvInputFindingKind,
   type EnvSourceFile,
+  type ModuleVerdictShard,
 } from '../../../scripts/check-env-inputs.js';
 import {
   checkDocument,
@@ -653,10 +654,15 @@ function envInputFindings(
   declarations: readonly DeclarationSource[],
   sources: readonly EnvSourceFile[],
   kind: EnvInputFindingKind,
+  settingsVerdicts?: readonly ModuleVerdictShard[],
 ): number {
   return checkEnvironmentInputs({
     declarations,
     reads: collectEnvironmentReads(sources),
+    // `undefined` is a fixture that is not asking about the Settings-debt
+    // ledger, which is what every proof about some other finding wants; `[]` is
+    // a ledger that was read and holds nothing. Two states, deliberately.
+    ...(settingsVerdicts === undefined ? {} : { settingsVerdicts }),
   }).findings.filter((finding) => finding.kind === kind).length;
 }
 
@@ -668,6 +674,20 @@ const platformEnvDeclaration = (
 
 const backendEnvSource = (text: string): readonly EnvSourceFile[] => [
   { path: 'backend/src/x.ts', text, consumer: 'backend' },
+];
+
+const moduleEnvDeclaration = (
+  moduleId: string,
+  inputs: readonly EnvironmentInput[],
+): DeclarationSource => ({
+  author: { kind: 'module', moduleId },
+  file: `packages/modules/${moduleId}/src/manifest.ts`,
+  inputs,
+});
+
+/** A module's own source file, carrying the attribution the host gives one. */
+const moduleEnvSource = (moduleId: string, text: string): readonly EnvSourceFile[] => [
+  { path: `packages/modules/${moduleId}/src/backend/index.ts`, text, consumer: 'backend', module: moduleId },
 ];
 
 /** The `DATABASE_URL` read every fixture below carries, so only one thing varies. */
@@ -5271,12 +5291,20 @@ const CHECKS: readonly CheckEntry[] = [
     companionTest: 'backend/test/unit/scripts/check-env-inputs.test.ts',
     vacuousGuard: 'exit-2',
     readSize: 'reported',
-    // Its population is the three trees a running Endora is made of — the
-    // backend's sources plus the platform's, the storefront's, the admin's —
-    // and none of them is the module tree. A module's own inputs are a manifest
-    // field that lands with this feature's Phase 3, and until then the run
-    // **prints** that they are unjudged rather than passing over them.
-    residueGuard: 'not-a-module-walk',
+    // Since Phase 3 its population is the three trees a running Endora is made
+    // of **and** the module tree: every registered module contributes its own
+    // sources and its own `env` declaration. It therefore carries the shared
+    // floor — and it needs it more than most, because the three trees keep
+    // `files=` looking healthy while the module half goes to zero, and with no
+    // module read at all every module declaration reads as `unread-input` while
+    // no module read is undeclared. A report entirely about the walk, wearing a
+    // report about the tree.
+    //
+    // The floor is `refuseVacuousModulePopulation`, called before a single read
+    // is classified; what the shared fixture cannot do is *exercise* it, which
+    // is `DEFERRED_SHARED_PROOFS`' entry and not an exemption. The refusal is
+    // proven directly in the companion test, over the same helper.
+    residueGuard: 'deferred-shared-proof',
     red: {
       'undeclared-input': top(() =>
         envInputFindings(
@@ -5309,6 +5337,101 @@ const CHECKS: readonly CheckEntry[] = [
           platformEnvDeclaration([ENV_INPUT, ENV_INPUT]),
           backendEnvSource(READS_DATABASE_URL),
           'foreign-input',
+        ),
+      ),
+      // The module half (Phase 3, T3-B). A read in a module's own sources that
+      // neither the platform, the tree it runs in, nor the module itself
+      // declares — the state 24 of the tree's 71 module read sites were in
+      // before this feature, judged by nothing at all.
+      'undeclared-module-input': top(() =>
+        envInputFindings(
+          platformEnvDeclaration([ENV_INPUT]),
+          moduleEnvSource('pwa', "const s = process.env['PWA_VAPID_SUBJECT'];\n"),
+          'undeclared-module-input',
+        ),
+      ),
+      // Its sharper half: a **sibling's** declaration does not satisfy this
+      // module's read. `search` declares `MEILISEARCH_URL`; `health_checks`'
+      // probe reads it and declares no dependency on `search`, so a client
+      // installing `health_checks` alone would be short a variable a check that
+      // resolved tree-wide had reported green.
+      'undeclared-module-input-from-a-sibling': top(() =>
+        envInputFindings(
+          [
+            moduleEnvDeclaration('search', [
+              {
+                ...ENV_INPUT,
+                name: 'MEILISEARCH_URL',
+                secret: false,
+                owner: { kind: 'module', moduleId: 'search' },
+              },
+            ]),
+          ],
+          moduleEnvSource('health_checks', "const b = process.env['MEILISEARCH_URL'];\n"),
+          'undeclared-module-input',
+        ),
+      ),
+      // The mirror of the rule: 7 of the 28 variables the module tree reads are
+      // the platform's, read by thirty modules between them. A module declaring
+      // what it *reads* rather than what it *owns* puts one fact in thirty
+      // manifests with thirty descriptions (D-100).
+      'module-declares-a-platform-input': top(() =>
+        envInputFindings(
+          [
+            ...platformEnvDeclaration([{ ...ENV_INPUT, name: 'STOREFRONT_BASE_URL', secret: false }]),
+            moduleEnvDeclaration('mfa', [
+              {
+                ...ENV_INPUT,
+                name: 'STOREFRONT_BASE_URL',
+                secret: false,
+                owner: { kind: 'module', moduleId: 'mfa' },
+              },
+            ]),
+          ],
+          moduleEnvSource('mfa', "const u = process.env['STOREFRONT_BASE_URL'];\n"),
+          'module-declares-a-platform-input',
+        ),
+      ),
+      // The Settings-debt ledger (FR-004, §4). Its subject is not whether a
+      // variable is correct but whether anybody has **judged** it: a
+      // module-owned input is debt against the Settings module until somebody
+      // has written down why it is not one.
+      'module-input-without-a-settings-verdict': top(() =>
+        envInputFindings(
+          [
+            moduleEnvDeclaration('pwa', [
+              {
+                ...ENV_INPUT,
+                name: 'PWA_VAPID_SUBJECT',
+                secret: false,
+                owner: { kind: 'module', moduleId: 'pwa' },
+              },
+            ]),
+          ],
+          moduleEnvSource('pwa', "const s = process.env['PWA_VAPID_SUBJECT'];\n"),
+          'module-input-without-a-settings-verdict',
+          [],
+        ),
+      ),
+      // The other direction, which is the one a one-way ledger would let rot:
+      // the module moved its knob into Settings and the entry describing it
+      // stayed behind, claiming something about a variable that is gone.
+      'stale-settings-verdict': top(() =>
+        envInputFindings(
+          [],
+          backendEnvSource(READS_DATABASE_URL),
+          'stale-settings-verdict',
+          [
+            {
+              moduleId: 'pwa',
+              entries: {
+                PWA_VAPID_SUBJECT: {
+                  classification: 'configuration',
+                  reason: 'a per-shop contact address, read long after the store is open.',
+                },
+              },
+            },
+          ],
         ),
       ),
       'unresolvable-input-name': top(() =>
@@ -10912,7 +11035,7 @@ describe('every red proof enters at the top of the analysis', () => {
       // entering as source text. The two *discriminations* are in the companion
       // test rather than here, because this file's entries prove a check can go
       // red and a proof that it stays green over honest source cannot do that.
-      'backend/scripts/check-env-inputs.ts': 9,
+      'backend/scripts/check-env-inputs.ts': 14,
       // P1's two — a code missing in both languages and in one — plus P2's
       // three kinds (feature 082, D-127). The fourth fixture D-127 requires is
       // the discrimination one, which asserts **zero** findings and therefore
@@ -11308,6 +11431,25 @@ describe('every check refuses a vacuous pass', () => {
 const DEFERRED_SHARED_PROOFS: Readonly<
   Record<string, { readonly reason: string; readonly retiredBy: string }>
 > = {
+  'backend/scripts/check-env-inputs.ts': {
+    reason:
+      'its population is the three trees a running Endora is made of **and** the module tree, ' +
+      'and the shared fixture stages only the last: it is a backend tree plus packages, with ' +
+      'no `storefront` member and no admin shell. So this check reaches its own first and ' +
+      'ninth refusals — "the workspace declares no member named `storefront`" and "no ' +
+      'workspace member holds both App.tsx and components/AppShell.tsx" — before the module ' +
+      'floor is consulted at all. Measured on 2026-09-12: exit 2 / 2 / 2 over the moved, ' +
+      'split and half-moved trees, every one of them on a tree refusal rather than on the ' +
+      'population, and the split tree is the one supposed to answer 0. Three identical exit ' +
+      'codes over three different trees assert no discrimination at all, which is worse than ' +
+      'no proof, because it would read as a floor that works.',
+    retiredBy:
+      'the shared fixture stages a `storefront` member and an admin shell, at which point all ' +
+      'three trees reach the module floor and this check joins `CHECKS` in ' +
+      '`moved-module-tree.test.ts` as `derived-population`. It is the same staging ' +
+      '`check:admin-zones` waited for and that feature 111 FR-007 delivered for the admin-ui ' +
+      'family, two members further on.',
+  },
   'backend/scripts/check-divergence.ts': {
     reason:
       'its owner map is built from the module tree and from the **repository-resident package ' +

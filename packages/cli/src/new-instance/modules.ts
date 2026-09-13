@@ -40,6 +40,15 @@ import { InstanceHostError, InstanceInputError, type ResolvedPackage } from './h
 export interface ModuleCandidate {
   readonly id: string;
   readonly packageName: string;
+  /**
+   * The version **this package** declares about itself, and the source of the
+   * `^` range the instance's manifest carries for it.
+   *
+   * It was read here and dropped on the way to the template, which had the
+   * platform's version in scope and wrote that onto every module. That is
+   * correct only while a release moves every package together, and a release
+   * does not — see {@link PlannedModulePackage} in `template.ts`.
+   */
   readonly version: string;
   /** The manifest's own `dependencies`, which the closure walks. */
   readonly dependencies: readonly string[];

@@ -155,6 +155,48 @@ export const manifest = defineModuleManifest({
   description:
     'Per-channel Meilisearch indexes, suggest popup, and optional LLM-augmented search.',
   version: '1.0.0',
+  /**
+   * What this module needs from the environment (`specs/117-instance-bring-up/`
+   * FR-002). Only what it **owns**: its reads of platform-owned names are
+   * satisfied by `packages/platform/src/env/index.ts`.
+   *
+   * Why each of these is not a Setting is its entry in
+   * `backend/scripts/ledgers/module-environment-inputs/search.ts`.
+   */
+  env: [
+    {
+      name: 'MEILISEARCH_URL',
+      describes: {
+        en: 'Where this instance’s Meilisearch server is.',
+        pl: 'Gdzie znajduje się serwer Meilisearch tej instancji.',
+      },
+      requirement: { kind: 'required' },
+      secret: false,
+      generable: false,
+      owner: { kind: 'module', moduleId: 'search' },
+      consumers: ['backend'],
+      addressOf: null,
+    },
+    {
+      name: 'MEILISEARCH_API_KEY',
+      describes: {
+        en: 'The key this instance presents to Meilisearch.',
+        pl: 'Klucz, którym ta instancja uwierzytelnia się w Meilisearch.',
+      },
+      requirement: {
+        kind: 'optional',
+        without: {
+          en: 'Meilisearch is addressed with no key, which works only against a server that has none — and such a server can be read and rewritten by anything that can reach it.',
+          pl: 'Meilisearch jest odpytywany bez klucza, co działa tylko wobec serwera, który go nie ma — a taki serwer może odczytać i nadpisać wszystko, co zdoła się z nim połączyć.',
+        },
+      },
+      secret: true,
+      generable: false,
+      owner: { kind: 'module', moduleId: 'search' },
+      consumers: ['backend'],
+      addressOf: null,
+    },
+  ],
   // Feature 075, Phase C — `organizations` joins the five that were already
   // here. The typeahead's price resolution needs the buyer's organisation, and
   // this module used to read that row with `em.findOne(Organization, …)`; it

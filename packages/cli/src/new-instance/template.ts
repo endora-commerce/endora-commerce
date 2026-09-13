@@ -100,6 +100,36 @@ export interface PlannedFile {
   readonly content: string;
 }
 
+/**
+ * One module package the instance declares — and **its own** version beside its
+ * own name.
+ *
+ * The version travels on the same record as the name deliberately. It used to
+ * be absent, and the site that writes the `dependencies` entries had exactly one
+ * version in scope — the platform's — so every module was declared at it. That
+ * is only correct while a release moves every package together, and a release
+ * does not: of the packages this repository published on 2026-09-11, 68 moved to
+ * `0.8.0` and 15 to `0.7.1`, so a scaffolded instance asked a registry for
+ * `@endora-commerce/mod-addresses@^0.8.0` and was told the latest is `0.7.1`.
+ * Nothing in the estate makes a release uniform and nothing should: D-225 owns
+ * the series, and 15 packages genuinely had only patch-level changes.
+ *
+ * A caret range over a version a **different** package declares is not a value
+ * this command may invent (R2.5a), and it is the one such value that fails at
+ * the client's first `pnpm install` rather than in anything we run.
+ */
+export interface PlannedModulePackage {
+  /** The module id, which is what `--module` names and what orders the entries. */
+  readonly id: string;
+  /** The npm name, verbatim — this is the `dependencies` key. */
+  readonly packageName: string;
+  /**
+   * The version **this package** declares about itself, read off the manifest
+   * of the package the run resolved beside the target directory.
+   */
+  readonly version: string;
+}
+
 /** A member this run did not write, and every reason that holds (D-215 §4). */
 export interface PlannedOmission {
   readonly path: string;
@@ -124,11 +154,16 @@ export interface PlanInput {
   readonly name: string;
   readonly deployment: string;
   readonly scope: string;
+  /**
+   * The platform package's own version. It ranges the **platform** entry and
+   * nothing else — see {@link PlannedModulePackage} for what happened the last
+   * time it ranged something else.
+   */
   readonly platformVersion: string;
   readonly enginesNode: string;
   readonly packageManager: string | undefined;
-  /** The resolved module set: id -> npm name and version. */
-  readonly modules: readonly { readonly id: string; readonly packageName: string }[];
+  /** The resolved module set, each entry carrying its own version. */
+  readonly modules: readonly PlannedModulePackage[];
   /** `null` when the admin shell does not resolve at the version being installed. */
   readonly adminShellVersion: string | null;
   /** `null` when the admin design system does not resolve. §2.4's other package. */
@@ -305,9 +340,16 @@ export function planInstance(input: PlanInput): InstancePlan {
   const docs = docsMember(input);
 
   const dependencies = new Map<string, string>();
+  // Each range is `^` over the version **that package** declares about itself,
+  // and never over another package's. A release is not uniform — 68 of this
+  // repository's packages moved to `0.8.0` on 2026-09-11 and 15 to `0.7.1` —
+  // so a module ranged at the platform's version is a range no registry can
+  // satisfy, which is a failure a client meets at their first install and
+  // nothing in a checkout can see (the tarball acceptance mode overrides every
+  // one of these ranges with a `file:` path).
   dependencies.set(`${input.scope}platform`, `^${input.platformVersion}`);
   for (const module of [...input.modules].sort((a, b) => a.id.localeCompare(b.id))) {
-    dependencies.set(module.packageName, `^${input.platformVersion}`);
+    dependencies.set(module.packageName, `^${module.version}`);
   }
   // The packages the installed modules declare **optional** — and they are
   // declared **here**, at the root, rather than in the admin member that needs

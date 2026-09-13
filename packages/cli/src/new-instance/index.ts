@@ -213,9 +213,21 @@ export async function runNewInstance(
     // A module the host carries is in the set and contributes no dependency
     // entry: an instance naming it would be asking a registry for a package
     // nobody publishes (`modules.ts`' `carriedByHost`).
+    //
+    // The **version** comes with the name, off the candidate, which read it from
+    // the manifest of the package this run resolved beside the target directory
+    // — the same manifest, on the same install, that the platform will later
+    // discover and compose (`host.ts`' `readPackage`). It is not the platform's
+    // and it is not this CLI's: a release moves packages at different rates, and
+    // a range built from another package's version is one no registry can
+    // satisfy.
     modules: modules.ids
       .filter((id) => !candidates.get(id)!.carriedByHost)
-      .map((id) => ({ id, packageName: candidates.get(id)!.packageName })),
+      .map((id) => ({
+        id,
+        packageName: candidates.get(id)!.packageName,
+        version: candidates.get(id)!.version,
+      })),
     adminShellVersion: adminShell?.version ?? null,
     adminKitVersion: adminKit?.version ?? null,
     adminRanges: adminRangesOf(adminShell),

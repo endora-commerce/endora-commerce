@@ -58,6 +58,54 @@ export const manifest = defineModuleManifest({
   description:
     'Products, variants, categories, attributes, attribute sets, gallery, attachments, links, and bundles.',
   version: '1.6.0',
+  /**
+   * What this module needs from the environment (`specs/117-instance-bring-up/`
+   * FR-002). Only what it **owns**: its reads of platform-owned names are
+   * satisfied by `packages/platform/src/env/index.ts`.
+   *
+   * Why each of these is not a Setting is its entry in
+   * `backend/scripts/ledgers/module-environment-inputs/catalog.ts`.
+   */
+  env: [
+    {
+      name: 'CATALOG_SEARCH_BACKEND',
+      describes: {
+        en: 'Which engine answers product search; `meilisearch` routes queries to the search module instead of the database.',
+        pl: 'Który silnik obsługuje wyszukiwanie produktów; wartość `meilisearch` kieruje zapytania do modułu wyszukiwania zamiast do bazy danych.',
+      },
+      requirement: {
+        kind: 'optional',
+        without: {
+          en: 'Product search is answered from the database, which matches text but cannot rank results by relevance.',
+          pl: 'Wyszukiwanie produktów odpowiada z bazy danych, która dopasuje tekst, ale nie uszereguje wyników według trafności.',
+        },
+      },
+      secret: false,
+      generable: false,
+      owner: { kind: 'module', moduleId: 'catalog' },
+      consumers: ['backend'],
+      addressOf: null,
+    },
+    {
+      name: 'CATALOG_MAX_RESOLVE_IDS',
+      describes: {
+        en: 'The largest number of products one admin select-all may resolve at once.',
+        pl: 'Największa liczba produktów, jaką jedno zaznaczenie wszystkiego w panelu może rozwinąć naraz.',
+      },
+      requirement: {
+        kind: 'optional',
+        without: {
+          en: 'A select-all over a large catalogue is bounded by the platform rather than by a figure chosen for this shop.',
+          pl: 'Zaznaczenie wszystkiego w dużym katalogu jest ograniczone przez platformę, a nie przez wartość dobraną do tego sklepu.',
+        },
+      },
+      secret: false,
+      generable: false,
+      owner: { kind: 'module', moduleId: 'catalog' },
+      consumers: ['backend'],
+      addressOf: null,
+    },
+  ],
   // Feature 061 (FR-020) — product attributes are catalog extensions of
   // product-host Custom Field definitions; the lifecycle must install
   // custom_fields first and must not hard-uninstall it under a live catalog.
