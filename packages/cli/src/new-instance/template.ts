@@ -72,15 +72,20 @@
  * declared subpaths, so a reconciliation of the specifier alone passes over all
  * three errors.
  *
- * §2.3's sixth wiring file, `backend/src/cli.ts`, is a different case and is
- * **not written**. T117 has since landed and the *dispatcher* now has an
- * address — `<scope>platform/cli` carries the enumeration, the lookup and the
- * find-gate-invoke — but the entry point around it still names surface the
- * platform's `exports` map does not declare: the demo layer, which feature 113
- * Phase 0 deliberately left unpublished pending an argument of its own. So the
- * omission stands on a narrower reason than the one written here first, and
- * rendering a file against a name somebody would have had to invent for it is
- * still exactly what R2.5a refuses.
+ * §2.3's sixth wiring file, `backend/src/cli.ts`, **is** written since
+ * `specs/123-oss-install-experience/` G2, and the omission that stood in its
+ * place is deleted rather than reworded. Its reason was *"the demo layer around
+ * it is exported under no subpath"*, and what discharged it was not a wider
+ * `exports` map: `backend/src/cli/demo-command.ts` moved into
+ * `<scope>platform/demo` — where `test/unit/kernel/host-residue-partition.test.ts`
+ * had it ledgered as platform-shaped residue all along — and the dispatch around
+ * both halves became `<scope>platform/cli`'s `runCli`. So the file this command
+ * renders names nothing it had to invent, holds no copy of the 479 lines it
+ * calls (D-207), and is five lines.
+ *
+ * The cost of the omission was measured rather than aesthetic: with no CLI, a
+ * scaffolded instance could run no `admin_users create`, so the admin bundle A5
+ * and A13 prove is built and styled had nobody to log in as.
  */
 import { INSTANCE_BUILD_INPUTS, type InstanceBuildInput } from '../lib/instance-build-inputs.js';
 import { deployFiles, type Topology } from './deploy.js';
@@ -305,6 +310,49 @@ export const GENERATED_TREES = [
   'docs/.module-docs-copies.json',
 ] as const;
 
+/**
+ * The named CLI aliases an instance's manifests earn
+ * (`specs/123-oss-install-experience/` T2-D).
+ *
+ * **Derived, never written.** `cli` is the pass-through and covers every
+ * command any installed module declares; what a named alias buys on top of it
+ * is that an operator reads it in `pnpm run`, and an alias addressing a module
+ * this instance did not install would fail with `unknown module` at the one
+ * moment a client is least able to tell a missing module from a broken CLI.
+ *
+ * **There is deliberately no `demo:seed` or `demo:reset` entry**, and
+ * `specs/123-oss-install-experience/` T2-D asked for both. D-216 is more
+ * specific than the task and is the owner's: *"a client scaffolding an instance
+ * for their own trading receives no demo artefact in a tree they own: no
+ * composition, **no script**, no example and no placeholder"* — and it names
+ * where the capability does belong, which is the next-steps block. `cli` reaches
+ * both verbs anyway (`pnpm run cli demo seed`), so nothing is unavailable; what
+ * is refused is a line in a client's manifest they did not ask for.
+ */
+export function cliAliasesFor(
+  modules: readonly PlannedModulePackage[],
+): readonly (readonly [string, string])[] {
+  const installed = new Set(modules.map((module) => module.id));
+  const aliases: (readonly [string, string])[] = [];
+  for (const [alias, moduleId, command] of MODULE_CLI_ALIASES) {
+    if (installed.has(moduleId)) aliases.push([alias, `node dist/cli.js ${moduleId} ${command}`]);
+  }
+  return aliases.sort(([a], [b]) => a.localeCompare(b));
+}
+
+/**
+ * The module-declared commands an operator is given a name for.
+ *
+ * It is short on purpose and is not a mirror of every `cliCommands` entry in the
+ * estate: this command resolves package **manifests**, not their module
+ * manifests, so it cannot enumerate declarations — and a generated list of forty
+ * aliases would be forty scripts a client scrolls past to find the one that
+ * matters. `admin_users create` is the one an install cannot finish without.
+ */
+const MODULE_CLI_ALIASES: readonly (readonly [string, string, string])[] = [
+  ['admin:create', 'admin_users', 'create'],
+];
+
 /** Lines of wiring in a plan — R1.4's bound, measured rather than intended. */
 export function wiringLineCount(plan: InstancePlan): number {
   return plan.files
@@ -381,19 +429,6 @@ export function planInstance(input: PlanInput): InstancePlan {
     }
   }
 
-  // §2.3's host CLI dispatcher. Named rather than silently absent, for the
-  // same reason the admin member is: a client who does not know a file is
-  // missing spends their first hour looking for it.
-  omitted.push({
-    path: 'backend/src/cli.ts',
-    reason:
-      `the host CLI entry point names surface this build does not publish — the ` +
-      `dispatcher itself is \`${input.scope}platform/cli\`, but the demo layer around it ` +
-      `is exported under no subpath — and this command writes no file against a name it ` +
-      `would have to invent. A module's own operator command is unavailable until it ` +
-      `does; the five \`module:*\` commands are not, and are written`,
-  });
-
   if (admin.omission !== null) omitted.push({ path: 'admin/', reason: admin.omission });
   if (docs.omission !== null) omitted.push({ path: 'docs/', reason: docs.omission });
 
@@ -436,6 +471,15 @@ export function planInstance(input: PlanInput): InstancePlan {
     'module:enable': 'pnpm -C backend run module:enable',
     'module:disable': 'pnpm -C backend run module:disable',
     'module:status': 'pnpm -C backend run module:status',
+    // The operator CLI (`specs/123-oss-install-experience/` G2, T2-D). `cli` is
+    // the generic pass-through, so a module this instance installed which
+    // declares a `cliCommands` entry is addressable with no file in this tree
+    // edited; the named entries beside it are **derived** from what is
+    // installed rather than written.
+    cli: 'pnpm -C backend run cli',
+    ...Object.fromEntries(
+      cliAliasesFor(input.modules).map(([name]) => [name, `pnpm -C backend run ${name}`]),
+    ),
   };
 
   files.push({
@@ -597,6 +641,14 @@ export function planInstance(input: PlanInput): InstancePlan {
         'module:enable': 'node dist/module-commands/enable.js',
         'module:disable': 'node dist/module-commands/disable.js',
         'module:status': 'node dist/module-commands/status.js',
+        // The operator CLI (`specs/123-oss-install-experience/` G2, T2-D).
+        // `cli` is the generic pass-through, so a module this instance
+        // installed which declares a `cliCommands` entry is addressable with no
+        // file in this tree edited; the named entries below are the aliases
+        // this repository's own `backend/package.json` carries, **derived**
+        // from what is installed rather than written.
+        cli: 'node dist/cli.js',
+        ...Object.fromEntries(cliAliasesFor(input.modules)),
       },
     }),
   });
@@ -907,6 +959,24 @@ try {
 } finally {
   await orm.close(true);
 }
+`,
+  });
+
+  // §2.3's sixth wiring file — the operator CLI
+  // (`specs/123-oss-install-experience/` G2, T2-C). Five lines, because the
+  // dispatch is `<scope>platform/cli`'s: argv, the demo verbs, the system scope
+  // over the composed container and the exit code. What this file supplies is
+  // the one thing no package can derive — the directory holding `apps/` — and
+  // that is R1.4's definition of wiring.
+  files.push({
+    path: 'backend/src/cli.ts',
+    kind: 'wiring',
+    member: 'backend',
+    content: `// Your modules' operator commands. \`pnpm run cli --list\` shows every one.
+import { fileURLToPath } from 'node:url';
+import { runCli } from '${scope}platform/cli';
+
+await runCli({ deploymentRoot: fileURLToPath(new URL('../..', import.meta.url)) });
 `,
   });
 

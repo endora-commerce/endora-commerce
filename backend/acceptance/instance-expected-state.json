@@ -32,12 +32,12 @@
     "file exists to refuse. The first run with ENDORA_NPM_REGISTRY set drifts — naming every",
     "assertion it measured — which is what makes that record arrive from a measurement.",
     "",
-    "THERE ARE FOURTEEN ASSERTIONS AND THE NUMBERING IS SETTLED. `instance-repository.md`",
+    "THERE ARE FIFTEEN ASSERTIONS AND THE NUMBERING IS SETTLED. `instance-repository.md`",
     "R6.3 numbers A1…A13, its A13 being FR-023/SC-011's built-admin-stylesheet assertion;",
     "`instance-tree.md` §6 opens by declaring the criterion to be §6's UNCHANGED plus one",
     "assertion it adds, so the two share one namespace and an extension is not entitled to",
     "renumber its base. A13 stays R6.3's and the wiring bound is A14. `instance-repository.md`",
-    "R6.3a is where the list is now declared to live, and it names its one extension."
+    "R6.3a is where the list is now declared to live, and it names its extensions. A15 is the third writing and its own: `specs/123-oss-install-experience/research.md` §4.4 argues for it — a scaffolded instance accepts an administrator created by its own CLI and answers that administrator's login with a session — and it takes the next free number for the same reason A14 did, an extension not being entitled to renumber its base."
   ],
   "modes": {
     "tarball": {
@@ -98,7 +98,11 @@
         },
         "A14": {
           "status": "pass",
-          "reason": "242 lines of wiring across the 12 files the command classified as wiring, counted on disk in the created tree rather than on the plan, against R1.4's bound of 250. IT WAS 241 BEFORE T137 and the one line is `pnpm-workspace.yaml`'s third member: §2.4a's four files are all `client` or `derived` — the Docusaurus configuration and the sidebar are the client's in `admin/vite.config.ts`' and `admin/src/index.css`' sense, and the manifest is derived — so the documentation member adds no wiring of its own. 8 lines of headroom."
+          "reason": "248 lines of wiring across the 13 files the command classified as wiring, counted on disk in the created tree rather than on the plan, against R1.4's bound of 250. RE-MEASURED, NEVER ADJUSTED BY A DELTA. It was 242 over 12 files until `specs/123-oss-install-experience/` G2 added the thirteenth — `backend/src/cli.ts`, six lines, the operator CLI whose absence meant a scaffolded instance could run no command at all. Six of the eight lines of headroom that record named are now spent and **two are left**, which is the number to check before adding a fourteenth: the dispatch it calls is 479 lines and lives in `@endora-commerce/platform/cli`, so what a client's tree pays for the whole operator CLI is one `runCli({ deploymentRoot })`. IT WAS 241 BEFORE T137 and that line is `pnpm-workspace.yaml`'s third member: §2.4a's four files are all `client` or `derived` — the Docusaurus configuration and the sidebar are the client's in `admin/vite.config.ts`' and `admin/src/index.css`' sense, and the manifest is derived — so the documentation member adds no wiring of its own."
+        },
+        "A15": {
+          "status": "fail",
+          "reason": "THE HALF THIS ASSERTION WAS ADDED FOR IS GREEN AND THE HALF IT IS RED ON IS SOMEBODY ELSE'S. Recorded verbatim from the run of 2026-09-13 that added it: `A15 FAIL — the administrator was created by the instance own CLI (exit 0) and POST /api/v1/auth/admin/login answered 500 with no session cookie: {\"error\":{\"code\":\"INTERNAL\",\"message\":\"Internal server error.\",\"requestId\":\"req_9a3e2e121ce2764959d2468695ae6d06\"}}`. BEFORE `specs/123-oss-install-experience/` G2 THIS ASSERTION COULD NOT REACH ITS SECOND HALF AT ALL: `endora new instance` reported `backend/src/cli.ts` as an omission, so a scaffolded instance ran no module-declared command, had no `admin:create`, and the admin bundle A5 and A13 prove is built and styled had nobody to log in as. G2 moved `backend/src/cli/demo-command.ts` into `@endora-commerce/platform/demo` — where `test/unit/kernel/host-residue-partition.test.ts` had it ledgered as platform-shaped residue with a `retiredBy` naming exactly that move — and the dispatch around it into `@endora-commerce/platform/cli`, so the instance's entry point is five lines and holds a copy of none of it (D-207). No subpath was added: both are host-internal under D-160.14 and `check:platform-surface` is green with no ledger key moved. THE 500 IS THE REQUEST-PIPELINE DEFECT A4 ALREADY RECORDS, not a second finding: A4 names it in its own reason — *\"every other route on the booted instance answers 500 `INTERNAL` with nothing logged, `/api/v1/openapi.json` and the admin login among them\"* — and it is `specs/117-instance-bring-up/tasks.md`' open item, carried as T1-A of `specs/123-oss-install-experience/tasks.md`. This assertion goes green when that does, with nothing else moved. ONE PREMISE FAILED TO RE-DERIVE AND IS CORRECTED HERE. `specs/123-oss-install-experience/research.md` §4.3 and §4.4 name the route `POST /api/v1/admin/auth/login`, and so does A4's own reason above. Nothing registers that path. `admin_users`' `src/backend/routes.public.ts` declares `POST /api/v1/auth/admin/login`, which is what this assertion probes and what the 500 above is the answer to; a probe of the documented spelling would have measured a 404 for ever while reporting on the login."
         }
       }
     },
@@ -152,6 +156,21 @@
     "--all` exits 0 first (30 installed, 1 already installed), so the failure is the boot's and not",
     "the install's. A3's recorded reason had been describing the previous failure point since",
     "Phase 3 moved it, and is rewritten here from this run. A8's and A9's reasons drop the clauses",
-    "that waited on A3. Nothing else moved."
+    "that waited on A3. Nothing else moved.",
+    "",
+    "2026-09-13 — A15 ADDED, AND ITS FIRST HALF IS THE FIRST TIME A SCAFFOLDED INSTANCE HAS RUN",
+    "A COMMAND OF ITS OWN. `specs/123-oss-install-experience/` G2. The criterion is now fifteen",
+    "assertions: `instance-repository.md` R6.3 numbers A1…A13, `instance-tree.md` §6 adds A14, and",
+    "`research.md` §4.4 argues for this one — *\"a scaffolded instance accepts an administrator",
+    "created by its own CLI and answers its login with a session\"*, which is the difference",
+    "between \"the packages resolve\" and \"the install works\" and is the sentence the owner's",
+    "publication condition actually says.",
+    "",
+    "MEASURED, NOT PREDICTED: `pass=9 fail=2 unmeasured=4 of 15` in `tarball` mode. A15 is one of",
+    "the two reds and its two halves are apart on purpose — `admin:create` exit 0 on the created",
+    "tree, and a login the request-pipeline defect answers 500. A14 moved with it and was",
+    "re-measured rather than adjusted: **248 lines of wiring across 13 files** on disk, against",
+    "the bound of 250, the thirteenth file being the six-line `backend/src/cli.ts` this feature",
+    "renders. Nothing else moved."
   ]
 }

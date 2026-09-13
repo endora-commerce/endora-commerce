@@ -174,8 +174,13 @@ export const HOST_INTERNAL_SUBPATHS: Readonly<Record<string, string>> = {
     "that could name it could enumerate its siblings' operator commands and invoke one. A " +
     'module declares its commands in its own `manifest.ts` and receives a `ModuleContext`; ' +
     'that is the whole of the surface it is entitled to. The process around it — argv, the ' +
-    'composition, the system scope and the exit code — stays in the application at ' +
-    '`backend/src/cli.ts`.',
+    'demo verbs, the system scope over the composed container and the exit code — joined it ' +
+    'with `specs/123-oss-install-experience/` G2, because a scaffolded instance needs the same ' +
+    'one and rendering ~170 lines of it into a client tree is the copy R7.1 refuses. What ' +
+    'stays in an application is what names a path in the tree that installs the platform: its ' +
+    'generated core index, its own `composeApp`, its demo-composition probe and the directory ' +
+    'holding `apps/` — four parameters of `runCli`, three of them with defaults an instance ' +
+    'takes, which is why the file `endora new instance` renders is five lines.',
   demo:
     'the demo-data layer (feature 113 Phase 0, D-209; `specs/110-instance-repository/` T119b): ' +
     'the production refusal, the scope reasons a demo run carries, the plan of which modules ' +

@@ -60,3 +60,29 @@ export {
   type DemoCompositionResult,
 } from './runner.js';
 export { formatDemoReport } from './report.js';
+/**
+ * `host-command.ts` — the host's own `demo seed` / `demo reset`, and the shape a
+ * tree's composition loader takes (`specs/123-oss-install-experience/` G2).
+ *
+ * It was `backend/src/cli/demo-command.ts` and was ledgered as platform-shaped
+ * residue by `test/unit/kernel/host-residue-partition.test.ts`, whose
+ * `retiredBy` named exactly this move. Publishing it here is what discharged
+ * `endora new instance`'s written omission of `backend/src/cli.ts` — *"the demo
+ * layer around it is exported under no subpath"* — which had left a scaffolded
+ * instance with no way to create an administrator.
+ */
+export {
+  DEMO_HOST_COMMAND,
+  DEMO_HOST_COMMANDS,
+  demoEntriesFrom,
+  demoHelpFor,
+  formatHostCommandList,
+  isDemoInvocation,
+  NO_DEMO_COMPOSITION_NOTICE,
+  parseDemoVerb,
+  ShadowedHostCommandError,
+  type DemoCompositionInput,
+  type DemoCompositionLoader,
+  type DemoCompositionLookup,
+  type HostCommandDescriptor,
+} from './host-command.js';

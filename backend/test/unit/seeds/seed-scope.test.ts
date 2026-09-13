@@ -27,16 +27,23 @@ import {
  * A seed that quietly started producing a different database would be a worse
  * outcome than the gap it closes.
  *
- * **Its subject moved with feature 113's T226 and the assertions did not.** It
- * read `src/seeds/dev-catalog-seed.ts`, the developer seed script; that script
- * is deleted and `endora demo seed` is the entry point an operator has, so the
- * structural half reads `src/cli.ts` instead. Nothing else in the repository
- * asserts the ordering `contracts/module-demo-data-layer.md` §3.3 makes
- * contract — *"the guard first, before anything is composed, before a scope is
- * opened, and outside every `try`"* — and `backend/test/unit/cli/
- * demo-command.test.ts` deliberately does not: it holds what is decidable
- * without a database, and §3.3 is about where three statements sit relative to
- * one another.
+ * **Its subject has moved twice and the assertions did not.** It read
+ * `src/seeds/dev-catalog-seed.ts`, the developer seed script; feature 113's T226
+ * deleted that and the structural half read `src/cli.ts` instead. Since
+ * `specs/123-oss-install-experience/` G2 the ordering is
+ * `packages/platform/src/cli/dispatch.ts`', because a scaffolded instance needs
+ * the same three statements in the same order and `backend/src/cli.ts` is now
+ * four suppliers and an exit code. Nothing else in the repository asserts the
+ * ordering `contracts/module-demo-data-layer.md` §3.3 makes contract — *"the
+ * guard first, before anything is composed, before a scope is opened, and
+ * outside every `try`"* — and `packages/platform/src/demo/host-command.test.ts`
+ * deliberately does not: it holds what is decidable without a database, and §3.3
+ * is about where three statements sit relative to one another.
+ *
+ * Reading the platform's source rather than the application's is what keeps the
+ * assertion pointed at its subject: the file that used to hold the ordering no
+ * longer does, and an assertion left on it would have gone green over a file
+ * with nothing in it to be wrong.
  *
  * The file has two halves and needs both. The **structural** half pins the
  * calls the entry point makes and their order, because `check:entry-scope` is
@@ -52,8 +59,11 @@ import {
  * context and prove nothing about the seed's.
  */
 
-const BACKEND_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
-const CLI = readFileSync(join(BACKEND_ROOT, 'src/cli.ts'), 'utf8');
+const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
+const DISPATCH = readFileSync(
+  join(REPO_ROOT, 'packages/platform/src/cli/dispatch.ts'),
+  'utf8',
+);
 
 /** The call the entry point makes, run here so what it establishes can be asserted. */
 function inSeedScope<T>(run: () => Promise<T>): Promise<T> {
@@ -83,8 +93,8 @@ describe('the demo command enters the scope, and enters it around everything', (
     // One scope for the run, opened over the composition's own container, with
     // the body as its callback — so there is no path into the work that is
     // outside it and no module's demo body is its own entry point.
-    expect(CLI).toMatch(/enterSystemScope\(\s*verb === 'seed' \? DEMO_SEED_SCOPE_REASON : DEMO_RESET_SCOPE_REASON,/);
-    expect(CLI).toMatch(/\{ entryPoint: 'cli', container: composition\.container \}/);
+    expect(DISPATCH).toMatch(/enterSystemScope\(\s*verb === 'seed' \? DEMO_SEED_SCOPE_REASON : DEMO_RESET_SCOPE_REASON,/);
+    expect(DISPATCH).toMatch(/\{ entryPoint: 'cli', container: composition\.container \}/);
   });
 
   it('refuses a production or non-disposable database first, and outside every `try` (§3.3)', () => {
@@ -92,9 +102,13 @@ describe('the demo command enters the scope, and enters it around everything', (
     // the scope. A refused run composes nothing and connects to nothing (#224),
     // and it cannot be reached through a `catch` that decided to continue
     // because there is no `try` above it.
-    const body = CLI.slice(CLI.indexOf('async function runDemoCommand('));
+    const body = DISPATCH.slice(DISPATCH.indexOf('async function runDemoCommand('));
     const guardAt = body.indexOf('mustBeNonProduction();');
-    const composeAt = body.indexOf('await composeApp(');
+    // `compose()` rather than `composeApp(` since G2: the composition is a
+    // supplier the calling tree hands in — this repository's own generated one,
+    // or the platform's default in a scaffolded instance — and what §3.3 orders
+    // is when it is *invoked*, which is the call below.
+    const composeAt = body.indexOf('await compose();');
     const scopeAt = body.indexOf('enterSystemScope(');
     const tryAt = body.indexOf('try {');
     expect(guardAt, 'the demo command no longer calls the guard — rewrite this assertion').toBeGreaterThan(-1);
@@ -107,8 +121,8 @@ describe('the demo command enters the scope, and enters it around everything', (
     // T226: there is no host residue left. A `seedHostModuleResidue`-shaped
     // call here would be demo rows the manifests do not account for, which is
     // the state this feature exists to end.
-    expect(CLI).toMatch(/await runDemo\(\{/);
-    expect(CLI).not.toMatch(/HostModuleResidue/);
+    expect(DISPATCH).toMatch(/await runDemo\(\{/);
+    expect(DISPATCH).not.toMatch(/HostModuleResidue/);
   });
 });
 

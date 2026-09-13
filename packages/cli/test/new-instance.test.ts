@@ -647,6 +647,122 @@ describe('the tree (§1, §2)', () => {
     expect(wiringLineCount(planInstance(planInput()))).toBeLessThan(250);
   });
 
+  /**
+   * G2 (`specs/123-oss-install-experience/`) — the omission that left a
+   * scaffolded instance unable to create an administrator.
+   *
+   * `template.ts` carried an explicit `omitted.push` for `backend/src/cli.ts`
+   * whose reason was *"the demo layer around it is exported under no subpath"*.
+   * The consequence was measured, not theoretical: no `admin_users create`, so
+   * nobody could log in to the admin bundle A5 and A13 prove is built and
+   * styled.
+   */
+  describe('G2 — the instance runs the commands its modules declare', () => {
+    const withAdminUsers = (): PlanInput =>
+      planInput({
+        modules: [
+          { id: 'settings', packageName: `${SCOPE}mod-settings`, version: '0.4.5' },
+          { id: 'admin_users', packageName: `${SCOPE}mod-admin-users`, version: '0.4.5' },
+        ],
+      });
+
+    it('writes the entry point, and stops reporting it as an omission', () => {
+      const plan = planInstance(planInput());
+      const cli = plan.files.find((file) => file.path === 'backend/src/cli.ts');
+      expect(cli, 'a scaffolded instance still has no CLI entry point').toBeDefined();
+      expect(cli!.kind).toBe('wiring');
+      // An omission whose reason has been discharged must not survive as prose.
+      expect(plan.omitted.map((entry) => entry.path)).not.toContain('backend/src/cli.ts');
+    });
+
+    it('D-207 — it calls the dispatcher and holds no copy of it', () => {
+      const cli = planInstance(planInput()).files.find(
+        (file) => file.path === 'backend/src/cli.ts',
+      )!;
+      expect(cli.content).toContain(`from '${SCOPE}platform/cli'`);
+      expect(cli.content).toContain('runCli(');
+      // A copy would have to name these. An instance takes the platform as a
+      // dependency and receives none of the host's sources.
+      for (const copied of [
+        'collectModuleCommands',
+        'enterSystemScope',
+        'mustBeNonProduction',
+        'formatDemoReport',
+      ]) {
+        expect(cli.content, `the instance holds a copy of ${copied}`).not.toContain(copied);
+      }
+    });
+
+    it('T2-D — the backend member addresses any declared command', () => {
+      const scripts = (
+        JSON.parse(
+          planInstance(planInput()).files.find((file) => file.path === 'backend/package.json')!
+            .content,
+        ) as { scripts: Record<string, string> }
+      ).scripts;
+      // The generic pass-through: a module the instance installed which declares
+      // a `cliCommands` entry is addressable with no file in the tree edited.
+      expect(scripts['cli']).toBe('node dist/cli.js');
+      // D-216 is more specific than T2-D, which asked for `demo:seed` and
+      // `demo:reset` here: *"no composition, **no script**, no example and no
+      // placeholder"*. `cli` reaches both verbs, so nothing is unavailable.
+      expect(scripts['demo:seed']).toBeUndefined();
+      expect(scripts['demo:reset']).toBeUndefined();
+    });
+
+    it('T2-D — the named aliases are derived from the module set, not written', () => {
+      const scriptsOf = (input: PlanInput): Record<string, string> =>
+        (
+          JSON.parse(
+            planInstance(input).files.find((file) => file.path === 'backend/package.json')!
+              .content,
+          ) as { scripts: Record<string, string> }
+        ).scripts;
+      expect(scriptsOf(withAdminUsers())['admin:create']).toBe(
+        'node dist/cli.js admin_users create',
+      );
+      // The default input installs `settings` alone, so the alias would address
+      // a command no installed module declares.
+      expect(scriptsOf(planInput())['admin:create']).toBeUndefined();
+      expect(scriptsOf(planInput())['cli']).toBeDefined();
+    });
+
+    it('T2-D — the root forwards each of them with `-C`', () => {
+      const root = (
+        JSON.parse(
+          planInstance(withAdminUsers()).files.find((file) => file.path === 'package.json')!
+            .content,
+        ) as { scripts: Record<string, string> }
+      ).scripts;
+      expect(root['cli']).toBe('pnpm -C backend run cli');
+      expect(root['admin:create']).toBe('pnpm -C backend run admin:create');
+    });
+
+    it('T2-E — the next steps name the administrator, after the module install', () => {
+      const steps = nextSteps('/tmp/acme', 'default', ['settings', 'admin_users']);
+      const text = steps.join('\n');
+      expect(text).toContain('admin:create');
+      expect(
+        steps.findIndex((step) => step.includes('module:install')),
+      ).toBeLessThan(steps.findIndex((step) => step.includes('admin:create')));
+    });
+
+    it('T2-E — the demo step the docstring already claimed is there', () => {
+      // The docstring above `nextSteps()` said *"The demo step is here rather
+      // than in the tree"* while the array had none. Opt-in by the owner's
+      // ruling of 2026-09-06, so the step says so rather than running it.
+      const steps = nextSteps('/tmp/acme', 'default', ['settings', 'admin_users']);
+      expect(steps.join('\n')).toContain('cli demo seed');
+      expect(steps.join('\n')).toContain('cli demo reset');
+    });
+
+    it('T2-E — an instance with no `admin_users` is told nothing it cannot run', () => {
+      expect(nextSteps('/tmp/acme', 'default', ['settings']).join('\n')).not.toContain(
+        'admin:create',
+      );
+    });
+  });
+
   it('§2.2 — the divergence declaration is written out in full, with its doc block', () => {
     const plan = planInstance(planInput({ deployment: 'acme' }));
     const declaration = plan.files.find((f) => f.path === 'apps/acme/divergence.ts')!;

@@ -31,8 +31,12 @@
  */
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import type { EntityManager } from '@mikro-orm/postgresql';
-import type { DemoComposition } from '@endora-commerce/platform/demo';
+import {
+  NO_DEMO_COMPOSITION_NOTICE,
+  type DemoComposition,
+  type DemoCompositionInput,
+  type DemoCompositionLookup,
+} from '@endora-commerce/platform/demo';
 
 /**
  * The specifier the composition is imported at, and the two file names that
@@ -46,24 +50,15 @@ const COMPOSITION_SPECIFIER = '../seeds/demo-composition.js';
 const CANDIDATE_FILES = ['../seeds/demo-composition.ts', '../seeds/demo-composition.js'];
 
 /**
- * The one sentence §5.6 asks for. It says what is absent and what that means,
- * and enumerates nothing.
+ * The two shapes and the notice moved to `@endora-commerce/platform/demo` with
+ * `specs/123-oss-install-experience/` G2, and are imported above rather than
+ * re-exported: the **dispatcher** now takes a loader as a parameter and prints
+ * the notice when a tree supplies none, so the sentence cannot live in one
+ * tree's file. What is left here is the half that names a path, which is exactly
+ * `operator-half.md` §1.1's line — and a re-export would make this file a
+ * platform shim to `test/helpers/platform-single-copy-probe.ts`, which it is
+ * not.
  */
-export const NO_DEMO_COMPOSITION_NOTICE =
-  'No demo composition was found in this instance, so only the modules above ran. ' +
-  'A composition is the wiring that spans modules — which categories a menu mirrors, ' +
-  'which channel sells which products — and it belongs to whoever owns the instance, ' +
-  'not to the platform. An instance without one is an ordinary instance.';
-
-export interface DemoCompositionInput {
-  readonly em: EntityManager;
-  readonly isPresent: (moduleId: string) => boolean;
-}
-
-/** Present and loaded, or absent with the sentence to print. Never both. */
-export type DemoCompositionLookup =
-  | { readonly found: true; readonly composition: DemoComposition }
-  | { readonly found: false; readonly notice: string };
 
 /** The shape a composition module exports. */
 interface CompositionModule {

@@ -1,6 +1,7 @@
 /**
  * The host's side of `endora demo seed` and `endora demo reset` (feature 113
- * Phase 0, `contracts/module-demo-data-layer.md` §3.1–§3.2).
+ * Phase 0, `contracts/module-demo-data-layer.md` §3.1–§3.2), and the shape the
+ * dispatcher takes an instance's own composition in.
  *
  * ## Why it is a *host* command and not a module's
  *
@@ -11,18 +12,39 @@
  * every module that declares demo data — so it cannot be a `cliCommands` entry
  * either, which is addressed as `<module id> <command>` and runs exactly one.
  *
- * ## What is here and what is `cli.ts`'s
+ * ## Why it is in the package now, and it was the last thing keeping a
+ * scaffolded instance from running any command at all
+ *
+ * It was `backend/src/cli/demo-command.ts`, and
+ * `test/unit/kernel/host-residue-partition.test.ts` had it ledgered as
+ * *"platform-shaped — the move"*: it names no path in the tree that installs the
+ * platform, so `operator-half.md` §1.1 puts it here. The ledger's `retiredBy`
+ * named the shape this took — *"the logic in the package, a ~20-line entry point
+ * in the application"*.
+ *
+ * The cost of leaving it was measured rather than aesthetic. `endora new
+ * instance` reported `backend/src/cli.ts` as an **omission**, whose written
+ * reason was *"the demo layer around it is exported under no subpath"* — and a
+ * scaffolded instance therefore had no `admin_users create`, so nobody could log
+ * in to the admin bundle A5 and A13 prove is built and styled
+ * (`specs/123-oss-install-experience/` G2).
+ *
+ * ## What is here and what the dispatcher's
  *
  * The same split `module-commands.ts` makes: everything decidable with no
  * process and no database is here, so it can be driven from a test. The three
  * things that are **not** are the ones §3.3 orders relative to each other — the
  * production guard first, then the composition, then one system scope — and
- * their order is the entry point's property rather than a value this file could
- * return.
+ * their order is `../cli/dispatch.ts`' property rather than a value this file
+ * could return.
  */
 import type { ModuleManifest } from '@endora-commerce/contracts';
-import type { DemoManifestEntry, DemoMode } from '@endora-commerce/platform/demo';
-import { UnknownCommandError } from './module-commands.js';
+import type { EntityManager } from '@mikro-orm/postgresql';
+
+import { UnknownCommandError } from '../cli/module-commands.js';
+
+import type { DemoManifestEntry, DemoMode } from './plan.js';
+import type { DemoComposition } from './runner.js';
 
 /** The one host verb this feature adds. */
 export const DEMO_HOST_COMMAND = 'demo';
@@ -73,8 +95,8 @@ export function demoHelpFor(verb: DemoMode): string {
   return (
     `endora ${DEMO_HOST_COMMAND} ${verb}\n\n` +
     (seeding
-      ? "Creates the demo data of every module that is installed here and switched on,\n" +
-        'in the order the manifest dependency graph gives, then applies this instance\'s\n' +
+      ? 'Creates the demo data of every module that is installed here and switched on,\n' +
+        "in the order the manifest dependency graph gives, then applies this instance's\n" +
         'own composition — the wiring that spans modules. A module that is not present\n' +
         'contributes nothing and is reported as a skip, never as an error.\n'
       : "Withdraws this instance's composition and then every present module's demo\n" +
@@ -135,3 +157,44 @@ export function demoEntriesFrom(entries: readonly ManifestCarrier[]): DemoManife
     };
   });
 }
+
+/**
+ * The one sentence §5.6 asks for. It says what is absent and what that means,
+ * and enumerates nothing.
+ *
+ * It is the platform's rather than any one tree's because the **dispatcher**
+ * prints it: an instance that supplies no composition loader at all is the
+ * ordinary case (D-216 — a client scaffolding an instance for their own trading
+ * receives no demo artefact unless they ask), and the default has to say so
+ * without the instance holding a copy of the sentence.
+ */
+export const NO_DEMO_COMPOSITION_NOTICE =
+  'No demo composition was found in this instance, so only the modules above ran. ' +
+  'A composition is the wiring that spans modules — which categories a menu mirrors, ' +
+  'which channel sells which products — and it belongs to whoever owns the instance, ' +
+  'not to the platform. An instance without one is an ordinary instance.';
+
+/** What a composition loader is given. */
+export interface DemoCompositionInput {
+  readonly em: EntityManager;
+  readonly isPresent: (moduleId: string) => boolean;
+}
+
+/** Present and loaded, or absent with the sentence to print. Never both. */
+export type DemoCompositionLookup =
+  | { readonly found: true; readonly composition: DemoComposition }
+  | { readonly found: false; readonly notice: string };
+
+/**
+ * Finding a tree's demo composition — the parameter, not an implementation.
+ *
+ * **Locating one is the application's**, and that is the whole of why this is a
+ * function type rather than a function: the file lives at a path relative to the
+ * *caller's* own source, which is a path in a tree the platform cannot name
+ * (`operator-half.md` §1.1). This repository's is
+ * `backend/src/demo/composition-loader.ts`; a scaffolded instance supplies none
+ * and gets {@link NO_DEMO_COMPOSITION_NOTICE}.
+ */
+export type DemoCompositionLoader = (
+  input: DemoCompositionInput,
+) => Promise<DemoCompositionLookup>;
