@@ -696,6 +696,26 @@ const PRODUCTION_ONLY_CONSTRUCTS: Readonly<Record<string, string>> = {
   StorefrontRevalidator:
     'outbound revalidation to the storefront is never exercised, so a broken ' +
     'revalidation payload cannot fail the suite',
+  // `specs/117-instance-bring-up/` Phase 6 — and it is a divergence this ledger
+  // was **already** meant to hold and could not see. `composeApp` stamps
+  // `settings.module_reconciled` with `new Date().toISOString()` after the
+  // settings-manifest reconciliation, and `composeTestServer` performs no such
+  // reconciliation and emits no such event. That has been true since feature
+  // 109 split the two composers; it was invisible because the harness happened
+  // to build a `Date` of its own, inside the `newsletterBridge` `emitEvent`
+  // closure this phase deleted. One accidental construct of a built-in was
+  // masking a real one, which is the reading a name-keyed ledger can give and
+  // the reason it is worth writing the entry rather than deleting the
+  // assertion.
+  //
+  // The blind spot it accepts: no test observes the settings reconciliation's
+  // announcement, so a subscriber that depends on it is exercised by nothing.
+  // It retires when `composeTestServer` reconciles the settings manifests as
+  // `composeApp` does, which is a change to the test kit and not to this file.
+  Date:
+    'composeApp emits settings.module_reconciled after the settings-manifest ' +
+    'reconciliation and composeTestServer runs neither, so nothing in the suite ' +
+    'observes that announcement',
   // `WarehouseChannelReconciler` left this ledger in T143a, and its entry is
   // the clearest example of what the ledger is for. It read "the boot-time
   // reconciler never runs in tests, so a warehouse/channel drift it would

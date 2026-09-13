@@ -32,6 +32,7 @@ import type {
   CatalogQuickSearchPort,
   InventoryProductThresholdWritePort,
   SearchQueryPort,
+  SearchReindexPort,
   LanguageReadPort,
   OrganizationDetailsPort,
   ProductAvailability,
@@ -422,10 +423,7 @@ export function registerModule(ctx: ModuleContext): void {
      */
     catalogSearchReindex: ctx
       .asFunction((): CatalogCradle['catalogSearchReindex'] => {
-        const reindex = lazyPort<{ reindexAll(): Promise<{ documentCount: number }> }>(
-          ctx,
-          'searchReindexPort',
-        );
+        const reindex = lazyPort<SearchReindexPort>(ctx, 'searchReindexPort');
         return async () => {
           if (!effectiveState.isPresent('search')) return { documentCount: 0 };
           return reindex.reindexAll();

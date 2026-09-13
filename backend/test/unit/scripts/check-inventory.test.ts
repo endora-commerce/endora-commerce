@@ -1261,9 +1261,10 @@ const COMPOSE_APP_FILE = '/repo/packages/platform/src/composition/compose-app.ts
 /** A platform composer that registers something, and not the name under test. */
 const COMPOSE_APP_SUPPLIES_SOMETHING_ELSE =
   'registerValues(container, { redis, eventBus, commandBus });';
-/** The same composer, registering the name the reader asks for. */
-const COMPOSE_APP_SUPPLIES_THE_NAME =
-  'composedModules.contribute({ ordersAdminScopeResolver: fromActor });';
+// The discrimination — the same composer registering the name the reader asks
+// for, which must produce **no** finding — is asserted in the companion test
+// (`test/unit/kernel/port-dependency-check.test.ts`), because this file's `red`
+// map takes proofs that must be greater than zero.
 
 /* -------------------------------------------------------------------------- *
  * `PLATFORM_OWNED_NAMES`, as the four things being on it can be wrong about
