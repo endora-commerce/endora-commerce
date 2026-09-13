@@ -360,7 +360,10 @@ function planInput(overrides: Partial<PlanInput> = {}): PlanInput {
     platformVersion: '1.2.3',
     enginesNode: '>=22.17.0',
     packageManager: undefined,
-    modules: [{ id: 'settings', packageName: `${SCOPE}mod-settings` }],
+    // The version is the module package's **own**, and deliberately not the
+    // platform's above: a range over another package's version is one no
+    // registry can satisfy.
+    modules: [{ id: 'settings', packageName: `${SCOPE}mod-settings`, version: '0.4.5' }],
     // The admin member, written: T138 made it part of the plan, and a fixture
     // that left it omitted would reconcile a template one member short of the
     // one the command builds. Its own files name no host subpath today — and
