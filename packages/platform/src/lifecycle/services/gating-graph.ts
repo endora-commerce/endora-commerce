@@ -1,4 +1,8 @@
 import type { ModuleManifest } from '@endora-commerce/contracts';
+import {
+  provideDeclaredContributions,
+  type DeclaredContribution,
+} from '../../kernel/contribution-sinks.js';
 
 /**
  * The graph the **presence refusals** read — feature 073, FR-008, Amendment A1.
@@ -100,7 +104,13 @@ export interface NonBindingPortEdge {
  * for the reason that function exists: one declaration set, read by the check
  * and by the runtime, so the two cannot disagree about which edges exist. What
  * differs is who else reads it — an acknowledged edge reaches the graph below,
- * a non-binding one reaches nothing.
+ * and a non-binding one reaches the graph not at all.
+ *
+ * It used to reach **nothing**, which was true of all three kinds until the
+ * owner ruling of 2026-09-12. The `contributes-to` subset now reaches the
+ * container resolution through {@link declaredContributionsFrom}, so that a
+ * push into a registry this composition does not hold is dropped rather than
+ * throwing; `degrades-without` and `refuses-without` still reach nothing.
  */
 export function nonBindingPortEdgesFrom(
   manifests: readonly ModuleManifest[],
@@ -232,6 +242,12 @@ let defaultManifests: (() => readonly ModuleManifest[]) | null = null;
  */
 export function provideDefaultGatingManifests(supplier: () => readonly ModuleManifest[]): void {
   defaultManifests = supplier;
+  // The contribution declarations travel with the manifest set, in both of the
+  // places a process learns one — see `declaredContributionsFrom`. A process
+  // that has a manifest registry but never runs a presence load (a CLI, a
+  // fixture composition) still composes modules, and a contributor in it must
+  // get the same answer.
+  provideDeclaredContributions(() => declaredContributionsFrom(supplier()));
 }
 
 export function gatingGraph(): ModuleGatingGraph {
@@ -253,4 +269,31 @@ export function gatingGraph(): ModuleGatingGraph {
 /** Install the deployment's manifest set. Idempotent; called from the presence load. */
 export function installGatingGraph(manifests: readonly ModuleManifest[]): void {
   graph = new ModuleGatingGraph(manifests);
+  provideDeclaredContributions(() => declaredContributionsFrom(manifests));
+}
+
+/**
+ * The `contributes-to` edges, as the container resolution needs them (owner
+ * ruling, 2026-09-12; feature 117, A4).
+ *
+ * It is installed from **both** places this file establishes a manifest set —
+ * here and in {@link provideDefaultGatingManifests} — rather than from the
+ * presence load alone, because the question "did this module declare this
+ * contribution" has to be answerable in every process that composes modules,
+ * and those are the two points at which a process learns which manifests it
+ * has. Deriving it here rather than in the kernel is what keeps the kernel from
+ * importing a manifest: it receives a flattened pair list and knows nothing
+ * about `ModuleManifest`.
+ *
+ * The comment on {@link nonBindingPortEdgesFrom} above says a non-binding edge
+ * "reaches nothing". That was true of all three kinds until this ruling; the
+ * `contributes-to` subset now reaches the container resolution, and nothing
+ * else does.
+ */
+export function declaredContributionsFrom(
+  manifests: readonly ModuleManifest[],
+): DeclaredContribution[] {
+  return nonBindingPortEdgesFrom(manifests)
+    .filter((edge) => edge.kind === 'contributes-to')
+    .map((edge) => ({ moduleId: edge.moduleId, name: edge.name }));
 }
