@@ -135,3 +135,52 @@ describe('defineModuleManifest — env declaration (feature 117 Phase 3)', () =>
     });
   });
 });
+
+/**
+ * T3-A's own "done when": a module's `env` is readable from an **installed**
+ * package's built manifest.
+ *
+ * The declarations the estate is reconciled against are read out of source text
+ * (D-164), and that is right for a check running in this checkout. It says
+ * nothing about the thing this feature exists for, which is a module a client
+ * *installed*: such a module ships `dist` and no source at all, and its manifest
+ * reaches a client only if the field survives the build and the `exports` map.
+ *
+ * So this reaches it the way a consumer does — a **bare specifier**, resolved
+ * through the package's own `exports` map at its build output — rather than by
+ * reading a file. A relative path into `dist` would prove the compiler emitted
+ * something and leave the question of whether anybody can name it, which is the
+ * half that actually fails (`ERR_PACKAGE_PATH_NOT_EXPORTED` at the first
+ * consumer).
+ *
+ * One module, as an existence proof of the mechanism. Which modules declare what
+ * is `check:env-inputs`' question and is derived there; asserting the population
+ * here as well would be two answers waiting to disagree (D-100).
+ */
+describe('a module’s `env` survives into its published manifest', () => {
+  // Two packages rather than one, and not as belt and braces: one package's
+  // `dist` carrying the field could be a fact about how that package happens to
+  // build. Two, declaring differently — `search`'s is `required` and `pwa`'s is
+  // `optional` with a consequence — is a fact about the mechanism. It is also
+  // what keeps this file out of `check:test-ownership`'s `misplaced-test`, and
+  // correctly so: a file naming exactly one module is that module's test and
+  // belongs beside its subject, and this one is `defineModuleManifest`'s.
+  const cases = [
+    { specifier: '@endora-commerce/mod-search', moduleId: 'search', name: 'MEILISEARCH_URL' },
+    { specifier: '@endora-commerce/mod-pwa', moduleId: 'pwa', name: 'PWA_VAPID_SUBJECT' },
+  ] as const;
+
+  it.each(cases)('is readable through $specifier’s own `exports` map', async (entry) => {
+    const { manifest } = (await import(entry.specifier)) as { manifest: ModuleManifest };
+    const declared = manifest.env ?? [];
+    const found = declared.find((candidate) => candidate.name === entry.name);
+    expect(found, `${entry.moduleId} declared: ${declared.map((e) => e.name).join(', ')}`)
+      .toBeDefined();
+    expect(found?.owner).toEqual({ kind: 'module', moduleId: entry.moduleId });
+    // Both shipped languages, on the declaration itself: the first reader is a
+    // CLI on a client's machine, which loads no `_i18n` reconciler and has no
+    // settings store to ask.
+    expect(found?.describes.en.length).toBeGreaterThan(0);
+    expect(found?.describes.pl.length).toBeGreaterThan(0);
+  });
+});

@@ -144,6 +144,35 @@ export const manifest = defineModuleManifest({
   description:
     'Installability, static-asset caching, controlled service-worker updates, and provider-agnostic push notifications for the storefront and admin.',
   version: '1.0.0',
+  /**
+   * What this module needs from the environment (`specs/117-instance-bring-up/`
+   * FR-002). Only what it **owns**: its reads of platform-owned names are
+   * satisfied by `packages/platform/src/env/index.ts`.
+   *
+   * Why each of these is not a Setting is its entry in
+   * `backend/scripts/ledgers/module-environment-inputs/pwa.ts`.
+   */
+  env: [
+    {
+      name: 'PWA_VAPID_SUBJECT',
+      describes: {
+        en: 'The contact address push services are given for this shop, so a provider can reach somebody about its notifications.',
+        pl: 'Adres kontaktowy przekazywany usługom push dla tego sklepu, aby dostawca miał się z kim skontaktować w sprawie powiadomień.',
+      },
+      requirement: {
+        kind: 'optional',
+        without: {
+          en: 'Push services are given the platform’s placeholder contact rather than this shop’s, so a provider with a delivery problem has nobody to write to.',
+          pl: 'Usługi push dostają zastępczy kontakt platformy zamiast kontaktu tego sklepu, więc dostawca mający problem z doręczeniem nie ma do kogo napisać.',
+        },
+      },
+      secret: false,
+      generable: false,
+      owner: { kind: 'module', moduleId: 'pwa' },
+      consumers: ['backend'],
+      addressOf: null,
+    },
+  ],
   // `auth` owns the `requireAdmin` port the admin routes are gated by; feature
   // 072 made it a container resolution rather than a constructor argument.
   //

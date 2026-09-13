@@ -496,19 +496,35 @@ export const ESTATE: readonly EstateEntry[] = [
   {
     // `specs/117-instance-bring-up/` FR-003. **`package`, not
     // `repository-only`, and the distinction is a claim about the rule's
-    // *subject*.** The repository host reconciles the three trees a running
-    // Endora is made of; a module package is none of them **today**, and that
-    // is a fact about this build rather than about the rule — a module declares
-    // its own environment inputs in `manifest.ts` beside its permissions and
-    // its actions, on identical terms with an installed package, and that is
-    // what Phase 3 lands. Filing it `repository-only` would write "a module can
-    // never have inputs to declare" into an artefact three programs read, which
-    // is the opposite of the design. So it is `pending`, which is the verdict
-    // for a rule whose host this build has not got, and it names the phase.
+    // *subject*.** A module declares its own environment inputs in
+    // `manifest.ts` beside its permissions and its actions, on identical terms
+    // with an installed package. Filing it `repository-only` would write "a
+    // module can never have inputs to declare" into an artefact three programs
+    // read, which is the opposite of the design.
+    //
+    // **The subject now exists and this repository's host judges it** (Phase 3,
+    // T3-A and T3-B): the `env` field is on `ModuleManifestSchema` and
+    // `check:env-inputs` walks the module tree. What is still `pending` is the
+    // *package-scope* host, and the phase text says what it is waiting on rather
+    // than repeating a phase that has landed — a pending naming work that is
+    // done is worse than no pending, because it sends its reader to look for
+    // something nobody is going to do.
+    //
+    // What it waits on is one derivation, not effort. A module's read of
+    // `STOREFRONT_BASE_URL` is satisfied by the **platform's** declaration, and
+    // this check reads a declaration out of its own **source text** — which an
+    // installed `@endora-commerce/platform` does not ship, having only `dist`. A
+    // host that resolved it from the emitted module would be the first reader in
+    // this estate to do so, and whether that is right (there is no source for it
+    // to be stale against, so D-164's objection may not apply here at all) is a
+    // ruling rather than an implementation.
     id: 'check:env-inputs',
     script: 'backend/scripts/check-env-inputs.ts',
     scope: 'package',
-    host: pending('specs/117-instance-bring-up/ Phase 3 — the module manifest `env` field'),
+    host: pending(
+      'a package-scope host, which needs a ruling first: the platform declaration a module ' +
+        "read resolves against is source text here and `dist` in a client's tree",
+    ),
     subjectDeclaration: {
       kind: 'manifest-block',
       declaration: '`env` in the module manifest',

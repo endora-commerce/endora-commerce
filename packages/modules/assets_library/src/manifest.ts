@@ -112,6 +112,29 @@ export const manifest = defineModuleManifest({
   description:
     'Storage adapter registry (local / S3 / GCS), asset upload, and reference tracking.',
   version: '1.0.0',
+  /**
+   * What this module needs from the environment (`specs/117-instance-bring-up/`
+   * FR-002). Only what it **owns**: its reads of platform-owned names are
+   * satisfied by `packages/platform/src/env/index.ts`.
+   *
+   * Why each of these is not a Setting is its entry in
+   * `backend/scripts/ledgers/module-environment-inputs/assets_library.ts`.
+   */
+  env: [
+    {
+      name: 'ASSETS_LIBRARY_HMAC_KEY',
+      describes: {
+        en: 'The signing key that makes an asset download link valid, and unforgeable by anyone who has not got it.',
+        pl: 'Klucz podpisujący, dzięki któremu link do pobrania zasobu jest ważny i nie do podrobienia bez jego znajomości.',
+      },
+      requirement: { kind: 'required' },
+      secret: true,
+      generable: true,
+      owner: { kind: 'module', moduleId: 'assets_library' },
+      consumers: ['backend'],
+      addressOf: null,
+    },
+  ],
   // `auth` owns the `requireAdmin` port the admin routes are gated by; the
   // edge became real with the conversion (feature 072, T092), which also made
   // the gate non-optional.

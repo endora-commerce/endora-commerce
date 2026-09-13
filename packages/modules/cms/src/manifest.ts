@@ -102,6 +102,54 @@ export const manifest = defineModuleManifest({
   name: 'CMS',
   description: 'Pages, blocks, templates, and hooks for content management.',
   version: '1.0.0',
+  /**
+   * What this module needs from the environment (`specs/117-instance-bring-up/`
+   * FR-002). Only what it **owns**: its reads of platform-owned names are
+   * satisfied by `packages/platform/src/env/index.ts`.
+   *
+   * Why each of these is not a Setting is its entry in
+   * `backend/scripts/ledgers/module-environment-inputs/cms.ts`.
+   */
+  env: [
+    {
+      name: 'CMS_PB_BREAKPOINT_TABLET_MIN',
+      describes: {
+        en: 'The viewport width, in pixels, at which the Page Builder’s tablet preview begins.',
+        pl: 'Szerokość okna w pikselach, od której zaczyna się podgląd tabletowy w kreatorze stron.',
+      },
+      requirement: {
+        kind: 'optional',
+        without: {
+          en: 'The Page Builder previews at the platform’s breakpoints rather than this storefront theme’s, so an editor lays pages out against widths the shop does not use.',
+          pl: 'Kreator stron pokazuje podgląd przy punktach granicznych platformy, a nie motywu tego sklepu, więc redaktor układa strony dla szerokości, których sklep nie używa.',
+        },
+      },
+      secret: false,
+      generable: false,
+      owner: { kind: 'module', moduleId: 'cms' },
+      consumers: ['backend'],
+      addressOf: null,
+    },
+    {
+      name: 'CMS_PB_BREAKPOINT_DESKTOP_MIN',
+      describes: {
+        en: 'The viewport width, in pixels, at which the Page Builder’s desktop preview begins.',
+        pl: 'Szerokość okna w pikselach, od której zaczyna się podgląd desktopowy w kreatorze stron.',
+      },
+      requirement: {
+        kind: 'optional',
+        without: {
+          en: 'The Page Builder previews at the platform’s breakpoints rather than this storefront theme’s, so an editor lays pages out against widths the shop does not use.',
+          pl: 'Kreator stron pokazuje podgląd przy punktach granicznych platformy, a nie motywu tego sklepu, więc redaktor układa strony dla szerokości, których sklep nie używa.',
+        },
+      },
+      secret: false,
+      generable: false,
+      owner: { kind: 'module', moduleId: 'cms' },
+      consumers: ['backend'],
+      addressOf: null,
+    },
+  ],
   // `auth` owns the `requireAdmin` port both route files are gated by, and
   // `settings` owns the store the page-builder resolvers read and write.
   // `assets_library` owns the reference registry this module contributes its
