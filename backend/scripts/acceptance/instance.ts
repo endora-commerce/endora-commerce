@@ -1184,8 +1184,9 @@ function declaredUnmeasured(): readonly AssertionResult[] {
         'decoration to look for. Writing one into the created tree and asserting over the ' +
         'rendered report is this assertion\'s own step (T141/T142); the composed half stays ' +
         'A4\'s. Recorded as `unmeasured` because that is what it is — T138a measured that an ' +
-        'instance generates the report, over a real on-disk install in ' +
-        '`packages/cli/test/divergence.test.ts`, and measured nothing here',
+        'instance generates the report, over a real on-disk install and over this ' +
+        "criterion's own created tree kept with `KEEP_INSTANCE_ACCEPTANCE=1`, and measured " +
+        'nothing here',
     },
     {
       id: 'A9' as const,

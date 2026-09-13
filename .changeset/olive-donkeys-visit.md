@@ -19,7 +19,12 @@ and the diff is where an upgrade that changes behaviour they depended on shows u
 New exports on `lib/divergence-artefacts.js`: `renderDivergenceArtefacts`, `instanceComposition`,
 `readDivergenceDeclaration`, `seamsFromKernel`, `overlaySourcesUnder`, `walkAnalysableSources`,
 `overlayTreeSpellsASeamCall`, `INSTANCE_BOUNDARY_NOTES`, `unreadableCompositionReason`, and the
-two default artefact headers. `serializeDivergenceModule` and `renderDivergenceMarkdown` each
+two default artefact headers. `lib/port-registrations.js` gains `rootRegisteredNames`, the
+composition root's own registration spelling — `registerValues(container, { … })`,
+`container.register({ … })`, `composedModules.contribute({ … })` — which is a different
+predicate from `registeredNames` and is what tells *a root registers it* from *nobody
+registers it*. `DivergenceInput` gains two optional fields, `hostNotRecorded` and
+`declarationPath`, both defaulting to what the derivation did before. `serializeDivergenceModule` and `renderDivergenceMarkdown` each
 take an optional trailing `header` argument; both default to what they emitted before, so no
 existing call changes what it produces. `lib/module-packages.js` gains
 `scanInstalledPlatformPackage`.
