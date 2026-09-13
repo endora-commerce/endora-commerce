@@ -229,6 +229,22 @@ export function registerErrorEnvelope(app: FastifyInstance, options: ErrorEnvelo
     }
 
     if (error instanceof HttpError) {
+      // A **server fault** is logged whether or not somebody wrapped it, and the
+      // status code is what decides — not the class, and not the code.
+      //
+      // The 5xx branch used to return in silence, and that silence is what let
+      // an instance answer `500 INTERNAL` to every request for months with
+      // nothing to read: `NoSystemDefaultChannel` is an `HttpError`, so it never
+      // reached the `request.log.error` at the bottom of this handler, and the
+      // envelope's `requestId` was the entire trace. Diagnosing it needed a
+      // `console.error` patched into an installed package.
+      //
+      // A 4xx stays silent, deliberately: it is the client saying something
+      // wrong, its own envelope already says what, and logging it turns a
+      // mistyped URL into log volume.
+      if (error.statusCode >= 500) {
+        request.log.error({ err: error, statusCode: error.statusCode, code: error.code }, 'server fault');
+      }
       const envelope: ErrorEnvelope = {
         error: {
           code: error.code,

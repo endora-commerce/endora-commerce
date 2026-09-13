@@ -2535,7 +2535,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The three files are those two plus `lib/divergence-artefacts.ts` and
     // `generate/divergence.ts`, less the deleted `backend/src/overlay/divergence-report.ts`
     // and `packages/cli/test/`, which this walk does not read.
-    files: 5633,
+    // **`fix/instance-500-pipeline` (the instance 500): files 5633 -> 5635 (+2).** Two new test files, both under a root this walk reads — it covers `backend/` and `packages/` alike. The two files are `backend/test/unit/kernel/compose-app-boot-invariants.test.ts` and `packages/platform/src/http/error-envelope-server-fault-logging.test.ts`. Attributed by parking both and re-running, then by stashing the branch's three edits and re-running again on `origin/master` itself; measured on the **rebased** tree, in the quality job's shape, never by subtracting a delta.
+    files: 5635,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2915,7 +2916,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // root this walk reads for the owner map.
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    files: 2476,
+    // **`fix/instance-500-pipeline` (the instance 500): files 2476 -> 2477 (+1).** One of the two new test files is under a root this walk reads; the platform one is not. The two files are `backend/test/unit/kernel/compose-app-boot-invariants.test.ts` and `packages/platform/src/http/error-envelope-server-fault-logging.test.ts`. Attributed by parking both and re-running, then by stashing the branch's three edits and re-running again on `origin/master` itself; measured on the **rebased** tree, in the quality job's shape, never by subtracting a delta.
+    files: 2477,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -3085,7 +3087,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Its population is the documents, and `specs/121-platform-liveness-probe/tasks.md` is
     // one of them. The other +1 is `specs/session-handover-2026-09-13.md`, already on
     // `origin/master` at 702a19c9f — pristine master reads 1320, this branch 1321.
-    files: 1321,
+    // **Not this branch's: files 1321 -> 1324 (+3).** The three documentation files `master` gained in ee18ed3e9, 415b766c1 and ec9c3f514 (feature 122's three-host layer independence and feature 120's status cell), none of which re-recorded here. Measured on the rebased tree; with this branch's own five files parked and stashed the walk reads the same 1324, which is what says the move is not this branch's.
+    files: 1324,
     sites: 13,
     sources: [],
     //
@@ -4528,7 +4531,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 1626 -> 1627.**
     // The new backend unit test. Its population is `backend/test/**`, so the two
     // platform files are outside it.
-    files: 1628,
+    // **`fix/instance-500-pipeline` (the instance 500): files 1628 -> 1629 (+1).** One of the two new test files is under a root this walk reads; the platform one is not. The two files are `backend/test/unit/kernel/compose-app-boot-invariants.test.ts` and `packages/platform/src/http/error-envelope-server-fault-logging.test.ts`. Attributed by parking both and re-running, then by stashing the branch's three edits and re-running again on `origin/master` itself; measured on the **rebased** tree, in the quality job's shape, never by subtracting a delta.
+    files: 1629,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -4769,7 +4773,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 1626 -> 1627.**
     // The new backend unit test; same `backend/test/**` population as above.
     // **Not this branch's**: already standing on `9a0e8e0d0`, measured there in the `quality` shape. Phase 3 adds no file to `backend/test/**`.
-    files: 1628,
+    // **`fix/instance-500-pipeline` (the instance 500): files 1628 -> 1629 (+1).** One of the two new test files is under a root this walk reads; the platform one is not. The two files are `backend/test/unit/kernel/compose-app-boot-invariants.test.ts` and `packages/platform/src/http/error-envelope-server-fault-logging.test.ts`. Attributed by parking both and re-running, then by stashing the branch's three edits and re-running again on `origin/master` itself; measured on the **rebased** tree, in the quality job's shape, never by subtracting a delta.
+    files: 1629,
     sites: null,
     sources: [],
   },
@@ -5131,7 +5136,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fewer files than the 139 recorded against the tree before it: 140. This branch's own
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
-    sites: 150,
+    // **`fix/instance-500-pipeline` (the instance 500): sites 150 -> 151 (+1).** One outward import added to a platform root: `packages/platform/src/composition/compose-app.ts` now names `../kernel/sales-channels/default-channel-reconciler.js`, because the boot-time default-channel reconciliation moved out of the reference deployment's contribution callback and into the composition root every instance runs. `into-modules` stays 0. `files` does not move — the two files this branch adds are tests and this walk reads source roots.
+    sites: 151,
     // `platform-subpaths` is T118a's second author over rule B's population: the
     // platform's `exports` map is a different program's answer to "which directories
     // does this package have", and a published subpath naming no walked directory is a
@@ -6701,7 +6707,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **merged** tree in the quality job's shape, and attributed by the branch's own
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
-    files: 5203,
+    // **`fix/instance-500-pipeline` (the instance 500): files 5203 -> 5204 (+1).** One of the two new test files is under a root this walk reads. The two files are `backend/test/unit/kernel/compose-app-boot-invariants.test.ts` and `packages/platform/src/http/error-envelope-server-fault-logging.test.ts`. Attributed by parking both and re-running, then by stashing the branch's three edits and re-running again on `origin/master` itself; measured on the **rebased** tree, in the quality job's shape, never by subtracting a delta.
+    files: 5204,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -7718,7 +7725,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // rather than subtracted: pristine master reads 8183 against this branch's 8184.
     // Measured on a clean tree: `git clean -fX docs/docs/modules`, `docs/build` removed
     // and the module-doc copy stamp deleted. Without that the same walk reads higher again.
-    files: 8184,
+    // **`fix/instance-500-pipeline` (the instance 500): 8184 -> 8182, and only +2 of that is this branch's.** Measured in three trees rather than one, because the census printed a *fall* over a branch that adds files. On `origin/master` at 5dda3c6ec with this branch parked and stashed this walk read **8176** — the recorded 8184 was already 8 high and no clean tree reproduces it. This walk reads git-ignored files by design, and 8 is exactly the residue this convention's own worked example measured between a working checkout and a pristine worktree, so the likeliest cause is a value recorded from a tree that had been worked in; it is not identified here and it is not this branch's to claim. The rebase onto 76459b672 brings **+4**, and this branch's two new test files bring the last **+2**. A thirteenth file — the branch's own changeset — brings one more: **8183**, measured after writing it.
+    files: 8183,
     sites: null,
     sources: [],
     //
@@ -9485,7 +9493,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 1626 -> 1627.**
     // The new backend unit test; `backend/test/**` again.
     // **Not this branch's**: already standing on `9a0e8e0d0`. Phase 3 adds no file to `backend/test/**`.
-    files: 1628,
+    // **`fix/instance-500-pipeline` (the instance 500): files 1628 -> 1629 (+1).** One of the two new test files is under a root this walk reads; the platform one is not. The two files are `backend/test/unit/kernel/compose-app-boot-invariants.test.ts` and `packages/platform/src/http/error-envelope-server-fault-logging.test.ts`. Attributed by parking both and re-running, then by stashing the branch's three edits and re-running again on `origin/master` itself; measured on the **rebased** tree, in the quality job's shape, never by subtracting a delta.
+    files: 1629,
     sites: 163,
     sources: [],
   },
@@ -10052,7 +10061,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Not this branch's**: already standing on `9a0e8e0d0`. Its `sites` does not move at all, and that is worth a line: Phase 3's one test file names **two** module packages rather than one, so it is not classified as either module's test — which is correct, its subject being `defineModuleManifest` — and contributes no site.
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    files: 1761,
+    // **`fix/instance-500-pipeline` (the instance 500): files 1761 -> 1762 (+1).** One of the two new test files is under a root this walk reads. The two files are `backend/test/unit/kernel/compose-app-boot-invariants.test.ts` and `packages/platform/src/http/error-envelope-server-fault-logging.test.ts`. Attributed by parking both and re-running, then by stashing the branch's three edits and re-running again on `origin/master` itself; measured on the **rebased** tree, in the quality job's shape, never by subtracting a delta.
+    files: 1762,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -10849,7 +10859,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **merged** tree in the quality job's shape, and attributed by the branch's own
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
-    files: 4657,
+    // **`fix/instance-500-pipeline` (the instance 500): files 4657 -> 4659 (+2).** Both new test files are under a root this walk reads. The two files are `backend/test/unit/kernel/compose-app-boot-invariants.test.ts` and `packages/platform/src/http/error-envelope-server-fault-logging.test.ts`. Attributed by parking both and re-running, then by stashing the branch's three edits and re-running again on `origin/master` itself; measured on the **rebased** tree, in the quality job's shape, never by subtracting a delta.
+    files: 4659,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -11756,7 +11767,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // One file — `specs/121-platform-liveness-probe/tasks.md` — which this whole-repository
     // walk opens like any other. Pristine `origin/master` at 702a19c9f reads 8235, which is
     // the recorded value: T138a left this entry describing the tree exactly.
-    files: 8236,
+    // **`fix/instance-500-pipeline` (the instance 500): files 8236 -> 8242 (+6), of which +2 are this branch's.** The two new test files are this branch's contribution, measured by parking them and re-running (8238). The other **+4** arrived with the rebase onto 76459b672 — feature 122's and feature 120's documentation and changeset files — and were not re-recorded there. Like `check-language.sh` this walk reads the git index plus untracked-and-not-ignored paths. The branch's own changeset is a fourteenth file and brings one more: **8243**, measured after writing it.
+    files: 8243,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -12320,7 +12332,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` T138a: 6284 -> 6288.** All four are this branch's: the
     // four files `packages/cli/src` gains, less the one `backend/src` loses. The two changesets
     // are not under `docs/docs/`, so this walk does not see them.
-    files: 6288,
+    // **`fix/instance-500-pipeline` (the instance 500): files 6288 -> 6290 (+2).** Both new test files. This walk takes its population from the git index plus untracked-and-not-ignored paths, so a file counts before it is committed and after. The two files are `backend/test/unit/kernel/compose-app-boot-invariants.test.ts` and `packages/platform/src/http/error-envelope-server-fault-logging.test.ts`. Attributed by parking both and re-running, then by stashing the branch's three edits and re-running again on `origin/master` itself; measured on the **rebased** tree, in the quality job's shape, never by subtracting a delta.
+    files: 6290,
     sites: null,
     sources: ['manifest-index'],
     //
