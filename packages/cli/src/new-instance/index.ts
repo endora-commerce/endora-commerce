@@ -49,6 +49,7 @@ import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 
 import { provenanceLine, type ResolvedInput } from '../inputs/resolve.js';
 import { npmrcContent, normalizeRegistry } from '../new-storefront/npmrc.js';
+import { assertTopology, DEFAULT_TOPOLOGY, type Topology } from './deploy.js';
 import { DOCS_TOOLCHAIN } from './docs-toolchain.js';
 import {
   ADMIN_KIT_PACKAGE,
@@ -77,6 +78,15 @@ export interface NewInstanceOptions {
   readonly deployment?: string | undefined;
   /** The endpoint the instance installs from. Absent writes no `.npmrc` (R5.7). */
   readonly registry?: string | undefined;
+  /**
+   * Which machine layout the `deploy/` examples describe (D-230).
+   *
+   * A string rather than the union, because it arrives from argv: the refusal
+   * that turns it into one names the vocabulary, and a caller handing an
+   * already-narrowed value would be the type system asserting what only the
+   * operator's input can decide. Absent is `single-host`.
+   */
+  readonly topology?: string | undefined;
   /** Report every file it would write, and write nothing (R5.3). */
   readonly dryRun?: boolean | undefined;
   readonly cwd?: string | undefined;
@@ -90,6 +100,7 @@ export interface NewInstanceResult {
   readonly plan: InstancePlan;
   readonly modules: ModuleSetResolution;
   readonly deployment: string;
+  readonly topology: Topology;
   readonly dryRun: boolean;
   /** R1.4's bound, measured on the plan this run built. */
   readonly wiringLines: number;
@@ -149,6 +160,11 @@ export async function runNewInstance(
   assertWorkspaceName(name);
   const deployment = options.deployment ?? name;
   assertDeploymentName(deployment);
+  // F3 — an operator-fixable refusal, decided with the rest of them and before
+  // anything is written (R5.2). `single-host` is the default on the owner's own
+  // *"the most common scenario is probably all three layers on one machine"*.
+  const topology =
+    options.topology === undefined ? DEFAULT_TOPOLOGY : assertTopology(options.topology);
 
   // F5 — `--registry` is not a URL, or the configuration cannot be read. The
   // writer is `new-storefront/npmrc.ts` verbatim (R5.7); what changes is the
@@ -243,6 +259,7 @@ export async function runNewInstance(
     declaredRanges,
     registry,
     npmrc,
+    topology,
   });
 
   // R2.5a — the provenance line, printed on every run including a dry one. This
@@ -258,10 +275,11 @@ export async function runNewInstance(
     plan,
     modules,
     deployment,
+    topology,
     dryRun: options.dryRun === true,
     wiringLines: wiringLineCount(plan),
     provenance: provenanceLine(resolved),
-    nextSteps: nextSteps(targetDir, deployment),
+    nextSteps: nextSteps(targetDir, deployment, topology),
   };
   if (result.dryRun) return result;
 
@@ -419,7 +437,11 @@ function typescriptRangeOf(host: InstanceHost): string | undefined {
  * the part that was wrong — `start` before `build`, and no module install at
  * all (`specs/110-instance-repository/` T141).
  */
-export function nextSteps(targetDir: string, deployment: string): readonly string[] {
+export function nextSteps(
+  targetDir: string,
+  deployment: string,
+  topology: Topology = DEFAULT_TOPOLOGY,
+): readonly string[] {
   return [
     `cd ${targetDir} && pnpm install — every range in the manifest is published semver. ` +
       `Nothing in this tree is a copy of ours, so \`pnpm update\` is how a platform fix ` +
@@ -442,6 +464,15 @@ export function nextSteps(targetDir: string, deployment: string): readonly strin
     `pnpm run start — the API. \`apps/${deployment}/modules/\` is where your own overlay ` +
       `module goes when you want to change something; \`divergence.ts\` beside it is where ` +
       `you declare what you changed.`,
+    ...(topology === 'three-host'
+      ? [
+          `deploy/three-host/ — one compose example and one \`.env.example\` per machine, ` +
+            `plus \`deploy/README.md\` for the order they come up in. The three \`.env\` ` +
+            `files are not interchangeable: each carries exactly what its own compose file ` +
+            `reads, so copying one onto another host either hands it secrets it has no use ` +
+            `for or starts it with blanks.`,
+        ]
+      : []),
     `endora new storefront <dir> — the customer-facing storefront, which is its own ` +
       `repository. It shares two \`.env\` values with this one and nothing else.`,
   ];

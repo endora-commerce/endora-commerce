@@ -271,25 +271,37 @@ function planInput(overrides: Partial<PlanInput> = {}): PlanInput {
     ]),
     registry: null,
     npmrc: null,
+    // The default, and the one D-230 kept. A fixture that named the other would
+    // be asserting the three-host examples everywhere they are not the subject.
+    topology: 'single-host',
     ...overrides,
   };
 }
 
 /**
- * The plan the command really builds, in **both** registry modes.
+ * The plan the command really builds, in **every** mode that changes the file
+ * set.
  *
  * `.npmrc` is §2.1's one conditional row — written only under `--registry` —
- * so a single-mode fixture would report it as unwritten for ever. The union is
- * what the contract's manifest describes: every file the command can write.
+ * so a single-mode fixture would report it as unwritten for ever. §2.7's
+ * `deploy/` rows are that shape one axis over: `--topology` decides which of
+ * them are written, and neither topology writes all of them. The union is what
+ * the contract's manifest describes: every file the command **can** write.
+ *
+ * The union is over the flags, never over a list of paths. A third topology, or
+ * a second conditional flag, joins the array below and its files are covered
+ * with nothing here enumerated a second time.
  */
 function completePlan(): InstancePlan {
-  const bare = planInstance(planInput());
-  const withRegistry = planInstance(
-    planInput({ registry: 'https://registry.example.com', npmrc: '@endora-commerce:registry=…\n' }),
-  );
-  const byPath = new Map(bare.files.map((file) => [file.path, file] as const));
-  for (const file of withRegistry.files) byPath.set(file.path, file);
-  return { ...bare, files: [...byPath.values()] };
+  const modes: readonly Partial<PlanInput>[] = [
+    {},
+    { registry: 'https://registry.example.com', npmrc: '@endora-commerce:registry=…\n' },
+    { topology: 'three-host' },
+  ];
+  const plans = modes.map((mode) => planInstance(planInput(mode)));
+  const byPath = new Map<string, InstancePlan['files'][number]>();
+  for (const plan of plans) for (const file of plan.files) byPath.set(file.path, file);
+  return { ...plans[0]!, files: [...byPath.values()] };
 }
 
 const CONTRACT = readFileSync(contractPath(), 'utf8');

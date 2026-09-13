@@ -83,6 +83,7 @@
  * still exactly what R2.5a refuses.
  */
 import { INSTANCE_BUILD_INPUTS, type InstanceBuildInput } from '../lib/instance-build-inputs.js';
+import { deployFiles, type Topology } from './deploy.js';
 import { InstanceInputError } from './host.js';
 
 /** §1.1's three kinds, and there is no fourth. */
@@ -220,6 +221,14 @@ export interface PlanInput {
   readonly registry: string | null;
   /** The `.npmrc` text, when there is a registry. Written by `npmrc.ts` (R5.7). */
   readonly npmrc: string | null;
+  /**
+   * Which machine layout the `deploy/` examples describe (D-230).
+   *
+   * It selects and records nothing: no file this command writes carries the
+   * value, and nothing reads one back. `deploy.ts` is where the derivation and
+   * that rule both live.
+   */
+  readonly topology: Topology;
 }
 
 /**
@@ -621,6 +630,23 @@ export function planInstance(input: PlanInput): InstancePlan {
 
   // --- the documentation member (§2.4a) ------------------------------------
   for (const file of docs.files) files.push(file);
+
+  // --- the deployment examples (§2.7; layer-independence.md §3) ------------
+  //
+  // Last, because they are derived from the member decisions above and from
+  // nothing else but the topology. They belong to no member's directory: an
+  // example that deploys the admin is not the admin project's file, and a
+  // client editing one is editing the root of their own repository.
+  for (const file of deployFiles({
+    topology: input.topology,
+    admin: admin.written,
+    docs: docs.written,
+    npmrc: input.npmrc !== null,
+    enginesNode: input.enginesNode,
+    packageManager: input.packageManager,
+  })) {
+    files.push(file);
+  }
 
   return {
     files,
