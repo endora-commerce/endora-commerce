@@ -36,6 +36,9 @@ import {
   ADMIN_LOGIN_PATH,
   evaluateA5,
   evaluateA6,
+  evaluateA7,
+  evaluateA8,
+  evaluateA9,
   evaluateProcess,
   exitCodeFor,
   exitCodeForExpectation,
@@ -1030,5 +1033,234 @@ describe('the `.npmrc` the host directory installs the CLI through', () => {
 
     expect(source).toContain('hostNpmrc(');
     expect(source).not.toContain('_authToken');
+  });
+});
+
+describe('A7 — a module the instance did not install is named nowhere', () => {
+  const surfaces = (
+    overrides: Partial<Parameters<typeof evaluateA7>[0]> = {},
+  ): Parameters<typeof evaluateA7>[0] => ({
+    absent: ['blog', 'search'],
+    installed: ['catalog', 'orders'],
+    bundleNames: ['catalog', 'orders'],
+    servedRoutes: ['GET /api/v1/admin/catalog/products', 'GET /api/v1/storefront/orders/{id}'],
+    absentRoutes: new Map([
+      ['GET /api/v1/admin/blog/posts', 'blog'],
+      ['POST /api/v1/storefront/search', 'search'],
+    ]),
+    enumerated: ['catalog', 'orders', '_lifecycle'],
+    enumerationExemptions: ['_lifecycle'],
+    ...overrides,
+  });
+
+  it('passes when none of the three surfaces names an absent module', () => {
+    const result = evaluateA7(surfaces());
+    expect(result.state).toBe('pass');
+    expect(result.detail).toContain('none of the 2 module packages this instance did not install');
+  });
+
+  it('fails on an absent module whose screens are in the operator interface', () => {
+    const result = evaluateA7(surfaces({ bundleNames: ['catalog', 'orders', 'blog'] }));
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('named in the built admin bundle: blog');
+  });
+
+  /**
+   * The half that needs two authors: the expectation is what an absent
+   * package's own `./backend` registers, and the evidence is what the running
+   * instance serves. A parameterised endpoint is one identity in both
+   * spellings — `{id}` out of the OpenAPI document, `:id` off the registration
+   * — and comparing them literally would report every one of them as clean.
+   */
+  it('fails on an endpoint served that an absent module owns, in either spelling', () => {
+    const result = evaluateA7(
+      surfaces({
+        servedRoutes: ['GET /api/v1/admin/blog/posts/{id}'],
+        absentRoutes: new Map([['GET /api/v1/admin/blog/posts/:id', 'blog']]),
+      }),
+    );
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('blog');
+  });
+
+  it('fails on an absent module the storefront is told is present', () => {
+    const result = evaluateA7(surfaces({ enumerated: ['catalog', 'orders', 'search'] }));
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('enumerated: search');
+  });
+
+  /**
+   * The completeness half, and it is a different question: an id that is in no
+   * packed catalogue at all would pass every check above and is still a module
+   * the client did not install.
+   */
+  it('fails on an enumerated id that is neither installed, exempt, nor in the catalogue', () => {
+    const result = evaluateA7(surfaces({ enumerated: ['catalog', 'orders', 'mystery'] }));
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('mystery');
+  });
+
+  it('is unmeasured, not passed, when a surface could not be read', () => {
+    expect(evaluateA7(surfaces({ bundleNames: null })).state).toBe('unmeasured');
+    expect(evaluateA7(surfaces({ servedRoutes: null })).state).toBe('unmeasured');
+    const noEnumeration = evaluateA7(surfaces({ enumerated: null }));
+    expect(noEnumeration.state).toBe('unmeasured');
+    expect(noEnumeration.detail).toContain('fraction of the assertion');
+  });
+
+  it('is unmeasured when nothing is absent, or no absent package was read for routes', () => {
+    expect(evaluateA7(surfaces({ absent: [] })).state).toBe('unmeasured');
+    const noRoutes = evaluateA7(surfaces({ absentRoutes: new Map() }));
+    expect(noRoutes.state).toBe('unmeasured');
+    expect(noRoutes.detail).toContain('empty expectation');
+  });
+});
+
+describe('A8 — an overlay module is composed and its decoration is in the report', () => {
+  const overlay = (
+    overrides: Partial<Parameters<typeof evaluateA8>[0]> = {},
+  ): Parameters<typeof evaluateA8>[0] => ({
+    moduleId: 'acceptance_overlay',
+    decorated: 'someService',
+    composed: 'answered',
+    decorationApplied: true,
+    bootOutput: '',
+    entries: [
+      {
+        key: 'decoration:acceptance_overlay:someService',
+        kind: 'decoration',
+        module: 'acceptance_overlay',
+        subject: 'someService',
+        owner: null,
+        rung: 4,
+        reason: 'the deployment wrote this sentence',
+      },
+    ],
+    findings: [],
+    renderFailure: null,
+    ...overrides,
+  });
+
+  it('passes when the module answers, the wrap is live and the report records it', () => {
+    const result = evaluateA8(overlay());
+    expect(result.state).toBe('pass');
+    expect(result.detail).toContain('decoration:acceptance_overlay:someService');
+  });
+
+  it('fails when the overlay module in the tree is composed by nothing', () => {
+    const result = evaluateA8(overlay({ composed: 'refused' }));
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('composed by nothing');
+  });
+
+  /**
+   * The verdict no error message produces, and the reason the two halves are
+   * kept apart: composition succeeded, the module answers, and the wrap simply
+   * did not apply — a deployment that wrote a decoration has no way to learn it
+   * was dropped.
+   */
+  it('fails on a wrap that did not apply and said nothing', () => {
+    const result = evaluateA8(overlay({ decorationApplied: false }));
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('did not apply');
+  });
+
+  it('fails on a live decoration the report does not record, naming the findings', () => {
+    const result = evaluateA8(
+      overlay({
+        entries: [],
+        findings: ["[unowned-subject] 'someService' is registered by no module in the composition"],
+      }),
+    );
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('unowned-subject');
+  });
+
+  it('fails on a recorded divergence the deployment wrote no sentence for', () => {
+    const [entry] = overlay().entries ?? [];
+    const result = evaluateA8(overlay({ entries: [{ ...entry!, reason: '  ' }] }));
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('carries no sentence');
+  });
+
+  it('is unmeasured, not failed, when the instance never answered', () => {
+    expect(evaluateA8(overlay({ composed: 'unreachable' })).state).toBe('unmeasured');
+    const neither = evaluateA8(
+      overlay({ composed: 'unreachable', entries: null, renderFailure: 'the render threw' }),
+    );
+    expect(neither.state).toBe('unmeasured');
+    expect(neither.detail).toContain('neither half has a subject');
+  });
+
+  /**
+   * A composed module whose decoration is live and whose report is missing is a
+   * **failure**, never an absence: the artefact is the client's only record of
+   * what their deployment changed, and a run that shrugged at its absence would
+   * be the silence D-30 exists to refuse.
+   */
+  it('fails, rather than skipping, when no report was rendered at all', () => {
+    const result = evaluateA8(overlay({ entries: null, renderFailure: 'endora generate exited 1' }));
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('endora generate exited 1');
+  });
+});
+
+describe('A9 — the tenancy guard is active in the created instance', () => {
+  const tenancy = (
+    overrides: Partial<Parameters<typeof evaluateA9>[0]> = {},
+  ): Parameters<typeof evaluateA9>[0] => ({
+    inconclusive: null,
+    entity: 'OrganizationInvitation (organization_invitations)',
+    organizations: ['org-a', 'org-b'],
+    unscopedRead: 'refused',
+    refusalName: 'MissingTenantContextError',
+    systemScopeOrganizations: ['org-a', 'org-b'],
+    narrowedOrganizations: ['org-a'],
+    ...overrides,
+  });
+
+  it('passes when the unscoped read is refused and the narrowed one is one tenant', () => {
+    const result = evaluateA9(tenancy());
+    expect(result.state).toBe('pass');
+    expect(result.detail).toContain('MissingTenantContextError');
+  });
+
+  it('fails when a read with no tenant context answers', () => {
+    const result = evaluateA9(tenancy({ unscopedRead: 'returned', refusalName: null }));
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('the guard is not attached');
+  });
+
+  it('fails when something other than the tenant guard refused the read', () => {
+    const result = evaluateA9(tenancy({ refusalName: 'TypeError' }));
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('TypeError');
+  });
+
+  it('fails when the pinned read still returns another tenant rows', () => {
+    const result = evaluateA9(tenancy({ narrowedOrganizations: ['org-a', 'org-b'] }));
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('org-b');
+  });
+
+  /**
+   * The vacuous state this assertion is most likely to reach, and the reason
+   * the second leg exists: a guard that refuses a read of a table holding one
+   * tenant's rows has refused nothing that crosses a tenant boundary.
+   */
+  it('is unmeasured when the refused read would have spanned one tenant', () => {
+    const result = evaluateA9(tenancy({ systemScopeOrganizations: ['org-a'] }));
+    expect(result.state).toBe('unmeasured');
+    expect(result.detail).toContain('says nothing about crossing a tenant boundary');
+  });
+
+  it('is unmeasured when the probe could not run, and reports its own words', () => {
+    const result = evaluateA9(tenancy({ inconclusive: 'the ORM configuration did not load' }));
+    expect(result.state).toBe('unmeasured');
+    expect(result.detail).toBe('the ORM configuration did not load');
+  });
+
+  it('is unmeasured when the narrowing half was not measured', () => {
+    expect(evaluateA9(tenancy({ narrowedOrganizations: null })).state).toBe('unmeasured');
   });
 });

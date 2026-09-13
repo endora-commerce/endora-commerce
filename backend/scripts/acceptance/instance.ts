@@ -96,12 +96,18 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 
 import { ADMIN_SESSION_COOKIE_NAME } from '@endora-commerce/contracts';
 import { normalizeRegistry, parseEnvFile, writeEnvFile } from '@endora-commerce/cli';
+import { instanceComposition } from '@endora-commerce/cli/lib/divergence-artefacts.js';
+import {
+  discoverModulePackages,
+  scanInstalledPlatformPackage,
+} from '@endora-commerce/cli/lib/module-packages.js';
 
 import { resolveDatabaseTarget } from './assertions.js';
 import {
@@ -116,7 +122,13 @@ import {
   evaluateA13,
   evaluateA5,
   evaluateA6,
+  evaluateA7,
+  evaluateA8,
+  evaluateA9,
   type AdminStylesheetObservation,
+  type DivergenceReportEntry,
+  type OverlayModuleObservation,
+  type TenancyGuardObservation,
   type DocsSiteObservation,
   evaluateA14,
   evaluateA15,
@@ -145,7 +157,36 @@ const EXPECTATION_FILE = join(BACKEND_ROOT, 'acceptance', 'instance-expected-sta
 const DEFAULT_DSN = 'postgresql://b2b:b2b@localhost:5432/b2b_instance_acceptance_test';
 const HEALTH_PATH = '/api/v1/_health';
 const PRESENCE_PATH = '/api/v1/storefront/module-presence';
+const OPENAPI_PATH = '/api/v1/_openapi.json';
 const SCOPE = '@endora-commerce';
+
+/**
+ * A8's fixture: the overlay module this criterion writes into the tree the
+ * command created, and the one container name it wraps.
+ *
+ * **The decorated name is the only one a booting instance accepts**, and the
+ * two it is not are worth knowing before changing it. An overlay module may not
+ * wrap a registration an installed package owns (D-176 Q3), and in an instance
+ * every module is an installed package — measured: wrapping `price_lists`'
+ * `pricingService` dies at composition with `PackageDecorationNotOfferedError`.
+ * A name the composition root supplies is exempt from that rule (D-156.4 names
+ * `commandBus` in so many words) and dies differently: every root-supplied name
+ * is registered `asValue`, awilix marks such a resolver `isLeakSafe`, and
+ * `ctx.di.decorate` re-registers the wrapper as `asFunction(...).setLifetime(
+ * inner.lifetime ?? Lifetime.TRANSIENT)` — leaking the safety and the lifetime
+ * both, so the first singleton that resolves the name raises
+ * `AwilixResolutionError: … has a shorter lifetime than its ancestor`
+ * (measured on `commandBus` behind `catalog`, and on `storefrontBaseUrl` behind
+ * `organizations`). What is left is the module's own registration, which the
+ * ownership guard allows and whose lifetime the wrapper preserves.
+ */
+const OVERLAY_MODULE_ID = 'instance_acceptance_overlay';
+const OVERLAY_REGISTRATION = 'instanceAcceptanceOverlayService';
+const OVERLAY_MARKER = 'decorated-by-the-instance-acceptance-overlay';
+const OVERLAY_PROBE_PATH = '/api/v1/storefront/instance-acceptance-overlay/ping';
+const OVERLAY_REASON =
+  'The acceptance criterion writes this overlay module, so R6.3 A8 has an overlay module to ' +
+  'compose and a decoration to look for in the rendered report.';
 
 const notes: string[] = [];
 
@@ -825,7 +866,6 @@ async function dropDatabase(adminUrl: string, databaseName: string): Promise<voi
   }
 }
 
-/** A4 — one boot of the created instance, through its own `start` script. */
 /**
  * The administrator A15 logs in as.
  *
@@ -836,17 +876,34 @@ async function dropDatabase(adminUrl: string, databaseName: string): Promise<voi
 const ADMIN_EMAIL = 'acceptance@endora.test';
 const ADMIN_PASSWORD = 'Acceptance-Instance-1!';
 
-/** What `bootOnce` found, including A15's half of it. */
+/** Everything one boot of the created instance can be asked while it is up. */
 interface BootObservation {
-  healthStatus: number | null;
-  enumerated: number | null;
+  readonly healthStatus: number | null;
+  /** The module ids the presence route enumerated, in its own order. */
+  readonly enumerated: readonly string[] | null;
+  /** `"<METHOD> <path>"` for every endpoint the served OpenAPI document holds. */
+  readonly servedRoutes: readonly string[] | null;
+  /** One entry per extra path the caller asked for: its status and its body. */
+  readonly probes: ReadonlyMap<string, { status: number; body: unknown }>;
   /** `null` when nothing was served, or when no administrator was created. */
-  loginStatus: number | null;
-  sessionCookie: boolean;
-  loginBody: string;
-  output: string;
+  readonly loginStatus: number | null;
+  readonly sessionCookie: boolean;
+  readonly loginBody: string;
+  readonly output: string;
 }
 
+/**
+ * A4 — one boot of the created instance, through its own `start` script — and
+ * every other question a running instance is the only thing that can answer.
+ *
+ * The surfaces are read in **one** boot rather than one each, and that is not
+ * only economy: A7's whole subject is that the *same* composition that serves
+ * the API is the one that enumerates the modules and produced the bundle, and
+ * A15's own note gives the same reason for its login — a second `start` is a
+ * second process whose failure would be a different finding. `probePaths` is
+ * the caller's own list: A8's overlay module answers on a route only that
+ * assertion knows about.
+ */
 async function bootOnce(
   target: string,
   environment: NodeJS.ProcessEnv,
@@ -855,6 +912,7 @@ async function bootOnce(
    * login that could not have worked is never reported as a failing one.
    */
   withLogin: boolean,
+  probePaths: readonly string[] = [],
 ): Promise<BootObservation> {
   const port = 3400 + Math.floor(Math.random() * 300);
   const child = spawn('pnpm', ['run', 'start'], {
@@ -868,35 +926,66 @@ async function bootOnce(
   const unserved = (): BootObservation => ({
     healthStatus: null,
     enumerated: null,
+    servedRoutes: null,
+    probes: new Map(),
     loginStatus: null,
     sessionCookie: false,
     loginBody: '',
     output,
   });
+  const ask = async (path: string): Promise<{ status: number; body: unknown } | null> => {
+    try {
+      const response = await fetch(`http://127.0.0.1:${String(port)}${path}`, {
+        signal: AbortSignal.timeout(30_000),
+      });
+      const text = await response.text();
+      let body: unknown = text;
+      try {
+        body = JSON.parse(text);
+      } catch {
+        // A route that answers something other than JSON is still an answer;
+        // the status is what the caller asked about.
+      }
+      return { status: response.status, body };
+    } catch {
+      return null;
+    }
+  };
   try {
     const deadline = Date.now() + 180_000;
     for (;;) {
       if (child.exitCode !== null) return unserved();
       if (Date.now() > deadline) return unserved();
       await new Promise((wait) => setTimeout(wait, 2_000));
-      let healthStatus: number;
-      try {
-        const response = await fetch(`http://127.0.0.1:${String(port)}${HEALTH_PATH}`, {
-          signal: AbortSignal.timeout(10_000),
-        });
-        healthStatus = response.status;
-      } catch {
-        continue;
-      }
-      let enumerated: number | null = null;
-      try {
-        const presence = await fetch(`http://127.0.0.1:${String(port)}${PRESENCE_PATH}`, {
-          signal: AbortSignal.timeout(10_000),
-        });
-        const body = (await presence.json()) as { modules?: readonly unknown[] };
-        enumerated = Array.isArray(body.modules) ? body.modules.length : null;
-      } catch {
-        enumerated = null;
+      const health = await ask(HEALTH_PATH);
+      if (health === null) continue;
+
+      const presence = await ask(PRESENCE_PATH);
+      const modules = (presence?.body as { modules?: readonly unknown[] } | undefined)?.modules;
+      const enumerated = Array.isArray(modules)
+        ? modules
+            .map((entry) => (entry as { id?: unknown }).id)
+            .filter((id): id is string => typeof id === 'string')
+        : null;
+
+      // The API surface, read off the document the platform generates from the
+      // routes Fastify actually registered — never off a list of what this
+      // composition was supposed to serve.
+      const document = await ask(OPENAPI_PATH);
+      const paths = (document?.body as { paths?: Record<string, unknown> } | undefined)?.paths;
+      const servedRoutes =
+        document?.status === 200 && paths !== undefined && paths !== null
+          ? Object.entries(paths).flatMap(([path, operations]) =>
+              Object.keys(operations as Record<string, unknown>).map(
+                (method) => `${method.toUpperCase()} ${path}`,
+              ),
+            )
+          : null;
+
+      const probes = new Map<string, { status: number; body: unknown }>();
+      for (const path of probePaths) {
+        const answer = await ask(path);
+        if (answer !== null) probes.set(path, answer);
       }
       // A15's second half. It is asked on the same boot rather than on one of
       // its own for the reason A4's probe is: a second `start` is a second
@@ -924,7 +1013,16 @@ async function bootOnce(
           loginBody = thrown instanceof Error ? thrown.message : String(thrown);
         }
       }
-      return { healthStatus, enumerated, loginStatus, sessionCookie, loginBody, output };
+      return {
+        healthStatus: health.status,
+        enumerated,
+        servedRoutes,
+        probes,
+        loginStatus,
+        sessionCookie,
+        loginBody,
+        output,
+      };
     }
   } finally {
     child.kill('SIGTERM');
@@ -1259,6 +1357,411 @@ function docsSiteObservation(
 }
 
 /**
+ * A7's expectation: the module packages this run packed and the instance did
+ * **not** install, and the route identities each one's published `./backend`
+ * owns.
+ *
+ * Two authors, which is `evaluateA5`'s arrangement one surface over: the
+ * expectation is derived from the absent packages' own published layers, and
+ * the evidence is the document the running instance serves. Deriving it from
+ * the packages rather than from their **names** is what makes the assertion
+ * exact — a bare segment match reports `promotions`' own
+ * `/rule-targets/payment-methods` as the absent `payment_methods` module
+ * advertising itself, which is a red about English rather than about the
+ * instance.
+ */
+function absentModules(
+  target: string,
+  installed: readonly string[],
+): { absent: readonly string[]; routes: ReadonlyMap<string, string> } {
+  const installedIds = new Set(installed);
+  const packages = discoverModulePackages(REPO_ROOT).filter(
+    (pkg) => !installedIds.has(pkg.moduleId),
+  );
+  const scan = instanceComposition({
+    packages,
+    platform: scanInstalledPlatformPackage(target),
+  });
+  const routes = new Map<string, string>();
+  for (const [identity, owner] of scan.environment.routes) {
+    // A route the derivation could not attribute is the **platform's** own —
+    // an absent package's sources name `/api/v1/_health` in a comment and the
+    // walk reads the text, not the registration. Only an owned identity is an
+    // absent module's endpoint.
+    if (owner !== null) routes.set(identity, owner);
+  }
+  return { absent: packages.map((pkg) => pkg.moduleId).sort(), routes };
+}
+
+/**
+ * The module ids entitled to be enumerated without being an installed package.
+ *
+ * Read out of the **installed platform package**, which is the only thing that
+ * knows what modules it ships of its own: `_lifecycle` is composed by the
+ * platform and by no `pnpm add`, so a completeness check that did not know it
+ * would report the platform's own module as an intruder. `null` is the state
+ * where this run could not read it at all, which `evaluateA7` reports rather
+ * than folding into a red.
+ */
+async function platformOwnModuleIds(
+  target: string,
+  overlayModules: readonly string[],
+): Promise<readonly string[] | null> {
+  for (const root of [target, ...workspaceMemberDirectories(target)]) {
+    let resolved: string;
+    try {
+      resolved = createRequire(join(root, 'noop.js')).resolve(`${SCOPE}/platform/lifecycle`);
+    } catch {
+      continue;
+    }
+    try {
+      const loaded = (await import(pathToFileURL(resolved).href)) as {
+        manifest?: { id?: unknown };
+      };
+      const id = loaded.manifest?.id;
+      if (typeof id === 'string') return [id, ...overlayModules];
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * A8's fixture, written into the tree the command created.
+ *
+ * **TypeScript, and an instance compiles none of it.** `apps/` is outside the
+ * backend member's `rootDir`, so the overlay module's own files are read by
+ * Node's type stripping at import and by `endora generate`'s walk — and the
+ * report's derivation places a seam call only on a receiver it can see
+ * annotated `ModuleContext`, so a JavaScript overlay module renders a **clean**
+ * report over a tree full of decorations, with no finding either. That is the
+ * shape a client writing `backend.js` here would meet, and it is recorded in
+ * this run's notes rather than worked around.
+ *
+ * The declared reason is written beside the module for the same run: a derived
+ * divergence with no sentence in `divergence.ts` is itself a finding, so a
+ * fixture that omitted it would red A8 on the criterion's own omission.
+ */
+function writeOverlayModule(
+  target: string,
+  deployment: string,
+): { written: readonly string[] } | { failure: string } {
+  const moduleDir = join(target, 'apps', deployment, 'modules', OVERLAY_MODULE_ID);
+  const declarationPath = join(target, 'apps', deployment, 'divergence.ts');
+  if (!existsSync(declarationPath)) {
+    return {
+      failure:
+        `the created tree holds no \`apps/${deployment}/divergence.ts\`, so this deployment has ` +
+        'no declaration to write the overlay module\'s own sentence into',
+    };
+  }
+  const declaration = readFileSync(declarationPath, 'utf8');
+  const anchor = '  reasons: {},';
+  if (!declaration.includes(anchor)) {
+    return {
+      failure:
+        `\`apps/${deployment}/divergence.ts\` does not carry the empty \`reasons\` map the ` +
+        'command writes, so the criterion cannot declare its own divergence and the report ' +
+        'would record one with no sentence',
+    };
+  }
+  mkdirSync(moduleDir, { recursive: true });
+  writeFileSync(
+    join(moduleDir, 'manifest.ts'),
+    `// Written by \`acceptance:instance\` — R6.3 A8's own fixture.\n` +
+      `//\n` +
+      `// A literal rather than \`defineModuleManifest\`: an overlay module in an instance is\n` +
+      `// imported by Node's type stripping and by nothing else, and an instance's own manifest\n` +
+      `// declares none of the \`@endora-commerce\` packages a client would import here.\n` +
+      `export const manifest = {\n` +
+      `  id: '${OVERLAY_MODULE_ID}',\n` +
+      `  name: 'Instance acceptance overlay',\n` +
+      `  description: "The acceptance criterion's own overlay module.",\n` +
+      `  version: '1.0.0',\n` +
+      `  dependencies: [],\n` +
+      `};\n`,
+  );
+  writeFileSync(
+    join(moduleDir, 'backend.ts'),
+    `// Written by \`acceptance:instance\` — R6.3 A8's own fixture.\n` +
+      `//\n` +
+      `// One registration, one decoration of it, and one route that reports whether the wrap\n` +
+      `// applied. The route is the composed half's evidence and the decoration is the report's;\n` +
+      `// see \`OVERLAY_MODULE_ID\` in \`backend/scripts/acceptance/instance.ts\` for why the\n` +
+      `// decorated name is this module's own and not a platform or package registration.\n` +
+      `import type { ModuleContext } from '${SCOPE}/platform/kernel';\n` +
+      `\n` +
+      `const MARKER = '${OVERLAY_MARKER}';\n` +
+      `\n` +
+      `export class InstanceAcceptanceOverlayService {\n` +
+      `  greeting(): string {\n` +
+      `    return '${OVERLAY_MODULE_ID}';\n` +
+      `  }\n` +
+      `}\n` +
+      `\n` +
+      `export function registerModule(ctx: ModuleContext): void {\n` +
+      `  ctx.di.register({\n` +
+      `    ${OVERLAY_REGISTRATION}: ctx.asClass(InstanceAcceptanceOverlayService).singleton(),\n` +
+      `  });\n` +
+      `\n` +
+      `  ctx.di.decorate('${OVERLAY_REGISTRATION}', (inner: InstanceAcceptanceOverlayService) => ({\n` +
+      `    greeting: (): string => \`\${inner.greeting()}#\${MARKER}\`,\n` +
+      `  }));\n` +
+      `\n` +
+      `  ctx.routes(async (app) => {\n` +
+      `    app.get('${OVERLAY_PROBE_PATH}', async () => {\n` +
+      `      const cradle = ctx.cradle() as Record<string, InstanceAcceptanceOverlayService>;\n` +
+      `      let greeting: string | null = null;\n` +
+      `      let error: string | null = null;\n` +
+      `      try {\n` +
+      `        greeting = cradle['${OVERLAY_REGISTRATION}']?.greeting() ?? null;\n` +
+      `      } catch (thrown) {\n` +
+      `        error = thrown instanceof Error ? thrown.message : String(thrown);\n` +
+      `      }\n` +
+      `      return { module: '${OVERLAY_MODULE_ID}', greeting, error };\n` +
+      `    });\n` +
+      `  });\n` +
+      `}\n`,
+  );
+  writeFileSync(
+    declarationPath,
+    declaration.replace(
+      anchor,
+      `  reasons: {\n` +
+        `    'decoration:${OVERLAY_MODULE_ID}:${OVERLAY_REGISTRATION}':\n` +
+        `      '${OVERLAY_REASON}',\n` +
+        `    'registration:${OVERLAY_MODULE_ID}:${OVERLAY_REGISTRATION}':\n` +
+        `      '${OVERLAY_REASON}',\n` +
+        `  },`,
+    ),
+  );
+  return {
+    written: [
+      `apps/${deployment}/modules/${OVERLAY_MODULE_ID}/manifest.ts`,
+      `apps/${deployment}/modules/${OVERLAY_MODULE_ID}/backend.ts`,
+    ],
+  };
+}
+
+/** The deployments the created tree holds — one directory under `apps/`. */
+function deploymentsIn(target: string): readonly string[] {
+  const appsRoot = join(target, 'apps');
+  if (!existsSync(appsRoot)) return [];
+  return readdirSync(appsRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+    .map((entry) => entry.name)
+    .sort();
+}
+
+/**
+ * A8's other half: the report the instance's own `generate` script renders over
+ * its `apps/` tree, and the findings it printed getting there.
+ *
+ * Run through the instance's own script rather than through this checkout's
+ * renderer, which is the whole point of T138a: a client's instance renders one
+ * or it does not.
+ */
+function renderedDivergence(
+  target: string,
+  deployment: string,
+  environment: NodeJS.ProcessEnv,
+): {
+  entries: readonly DivergenceReportEntry[] | null;
+  findings: readonly string[];
+  failure: string | null;
+} {
+  const generated = run('pnpm', ['run', 'generate'], { cwd: target, env: environment });
+  const findings = generated.output
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => /^\[[a-z-]+]/.test(line));
+  const artefact = join(target, 'apps', deployment, 'divergence.generated.json');
+  if (!existsSync(artefact)) {
+    return {
+      entries: null,
+      findings,
+      failure:
+        `the instance's own \`generate\` script exited ${String(generated.code)} and wrote no ` +
+        `apps/${deployment}/divergence.generated.json: ` +
+        `${generated.output.trim().split('\n').slice(-4).join(' / ')}`,
+    };
+  }
+  try {
+    const report = JSON.parse(readFileSync(artefact, 'utf8')) as {
+      entries?: readonly DivergenceReportEntry[];
+    };
+    return { entries: report.entries ?? [], findings, failure: null };
+  } catch (error) {
+    return {
+      entries: null,
+      findings,
+      failure: `${artefact} is not readable as JSON: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+/**
+ * A8, end to end: write the overlay module, render the report, install it and
+ * boot the instance again.
+ *
+ * **A second boot, deliberately.** A4's subject is the instance as the command
+ * wrote it, and an overlay module changes what that instance is — measurably:
+ * the presence route enumerates it and the boot's i18n reconcile does not,
+ * because `defaultComposition` composes the deployment's overlay modules and
+ * passes `overlay: async () => []` to the manifest resolution beside it. Folding
+ * A8's fixture into A4's boot would move A4's own verdict on a tree the client
+ * never has, so the fixture is written after A4 has answered and the arithmetic
+ * it breaks is reported as a note.
+ */
+async function measureOverlay(
+  target: string,
+  deployment: string,
+  environment: NodeJS.ProcessEnv,
+): Promise<OverlayModuleObservation> {
+  const unreachable = (failure: string): OverlayModuleObservation => ({
+    moduleId: OVERLAY_MODULE_ID,
+    decorated: OVERLAY_REGISTRATION,
+    composed: 'unreachable',
+    decorationApplied: null,
+    bootOutput: '',
+    entries: null,
+    findings: [],
+    renderFailure: failure,
+  });
+
+  const fixture = writeOverlayModule(target, deployment);
+  if ('failure' in fixture) return unreachable(fixture.failure);
+  notes.push(
+    `wrote ${fixture.written.join(' and ')} — A8's own fixture, and the one decoration a ` +
+      `booting instance accepts: the two it refuses are recorded beside \`OVERLAY_MODULE_ID\``,
+  );
+
+  const rendered = renderedDivergence(target, deployment, environment);
+
+  // The overlay module is a module: its `module_registrations` row is written
+  // by `module:install` and by no boot (D-157.6(b)), exactly as a package's is.
+  const installed = run('pnpm', ['run', 'module:install', '--all'], {
+    cwd: target,
+    env: environment,
+  });
+  if (installed.code !== 0) {
+    notes.push(
+      `the instance's own \`module:install --all\` exited ${String(installed.code)} over the ` +
+        `tree carrying A8's overlay module: ` +
+        `${installed.output.trim().split('\n').slice(-3).join(' / ')}`,
+    );
+  }
+
+  // `withLogin: false` — A15's administrator is A4's boot's subject and was
+  // already measured there; asking again would report one fact twice and, on a
+  // second failure, as two.
+  const boot = await bootOnce(target, environment, false, [OVERLAY_PROBE_PATH]);
+  const probe = boot.probes.get(OVERLAY_PROBE_PATH);
+  const composed =
+    boot.healthStatus === null
+      ? ('unreachable' as const)
+      : probe?.status === 200
+        ? ('answered' as const)
+        : ('refused' as const);
+  const greeting = (probe?.body as { greeting?: unknown } | undefined)?.greeting;
+
+  // The arithmetic A4 asserts, re-read over the tree that now holds an overlay
+  // module. It is a note rather than a verdict because A4's subject is the
+  // other tree — and it is not silent, because a population the platform
+  // enumerates and its own reconcile has never heard of is the state
+  // `overlayModuleIdsUnder`'s own doc block says the two seams must never be in.
+  const reconcile = reconcileFigures(boot.output);
+  if (reconcile !== null && boot.enumerated !== null) {
+    const accounted = reconcile.installed + reconcile.skipped + reconcile.failed;
+    if (accounted !== boot.enumerated.length) {
+      notes.push(
+        `with one overlay module in \`apps/${deployment}/modules/\`, the boot reconcile accounts ` +
+          `for ${String(accounted)} modules and the presence route enumerates ` +
+          `${String(boot.enumerated.length)}. A4's arithmetic holds on the tree the command ` +
+          `wrote and not on one carrying an overlay module: \`defaultComposition\` composes the ` +
+          `deployment's overlay modules and passes \`overlay: async () => []\` to the manifest ` +
+          `resolution beside them, so an overlay module is in the container, in the permission ` +
+          `gate and in the presence projection, and in \`lifecycleManifestRegistry\` it is not. ` +
+          `Reported, not repaired — it belongs to \`@endora-commerce/platform\``,
+      );
+    }
+  }
+
+  return {
+    moduleId: OVERLAY_MODULE_ID,
+    decorated: OVERLAY_REGISTRATION,
+    composed,
+    decorationApplied:
+      probe === undefined
+        ? null
+        : typeof greeting === 'string'
+          ? greeting.endsWith(`#${OVERLAY_MARKER}`)
+          : false,
+    bootOutput: boot.output,
+    entries: rendered.entries,
+    findings: rendered.findings,
+    renderFailure: rendered.failure,
+  };
+}
+
+/**
+ * A9 — the tenant guard, read by a process that resolves the **instance's**
+ * packages.
+ *
+ * A separate process for `instance-probe.ts`' reason: the answer has to come
+ * from the platform the client installed, not from the one this checkout
+ * builds. Its `cwd` is the instance's backend member rather than ours, because
+ * MikroORM's own version check reads `@mikro-orm/*` relative to the working
+ * directory — from here it found this repository's copy beside the instance's
+ * and refused the pair.
+ */
+function measureTenancy(target: string, environment: NodeJS.ProcessEnv): TenancyGuardObservation {
+  const probe = join(SCRIPT_DIR, 'instance-tenancy-probe.ts');
+  const tsx = join(BACKEND_ROOT, 'node_modules', '.bin', 'tsx');
+  const inconclusive = (reason: string): TenancyGuardObservation => ({
+    inconclusive: reason,
+    entity: null,
+    organizations: [],
+    unscopedRead: null,
+    refusalName: null,
+    systemScopeOrganizations: [],
+    narrowedOrganizations: null,
+  });
+  if (!existsSync(tsx)) return inconclusive(`${tsx} is not there, so the probe cannot be run`);
+  const result = run(tsx, [probe], {
+    cwd: join(target, 'backend'),
+    env: { ...environment, ACCEPTANCE_INSTANCE_ROOT: target },
+  });
+  const line = result.output
+    .split('\n')
+    .reverse()
+    .find((candidate) => candidate.startsWith('ACCEPTANCE_JSON '));
+  if (line === undefined) {
+    return inconclusive(
+      `the tenancy probe printed no verdict (exit ${String(result.code)}): ` +
+        `${result.output.trim().split('\n').slice(-4).join(' / ')}`,
+    );
+  }
+  const payload = JSON.parse(line.slice('ACCEPTANCE_JSON '.length)) as {
+    observation?: Omit<TenancyGuardObservation, 'inconclusive'>;
+    inconclusive?: string;
+    probeError?: string;
+  };
+  if (payload.inconclusive !== undefined) return inconclusive(payload.inconclusive);
+  if (payload.probeError !== undefined) {
+    // A probe that threw where it was supposed to answer measured nothing, so
+    // it is neither colour — reporting it as red would be a criterion that
+    // fails when its own harness does.
+    return inconclusive(`the tenancy probe threw: ${payload.probeError.slice(0, 600)}`);
+  }
+  if (payload.observation === undefined) {
+    return inconclusive('the tenancy probe answered with neither an observation nor a reason');
+  }
+  return { inconclusive: null, ...payload.observation };
+}
+
+/**
  * The assertions this criterion cannot measure today, each with the contract or
  * task that retires it.
  *
@@ -1266,46 +1769,15 @@ function docsSiteObservation(
  * step that ran and found nothing is a measurement, and these have no subject
  * at all. Writing a probe against an admin member the command does not write
  * would be code that has never executed reporting a colour.
+ *
+ * **It held four and holds one** (T141/T142). A7, A8 and A9 were declared here
+ * while the instance did not boot; A4 passing gave all three a subject, and
+ * each is now a step above with a verdict from a measurement — including the
+ * reds, which is the point. A12 is the one left, and what it waits on is a
+ * published package rather than a step nobody has written.
  */
 function declaredUnmeasured(): readonly AssertionResult[] {
   return [
-    {
-      id: 'A7' as const,
-      state: 'unmeasured' as const,
-      detail:
-        'two of its three halves are the API surface and the module enumeration, and both are ' +
-        'A4\'s — the instance does not boot. The third, the built admin bundle, now has a ' +
-        'subject and is asserted in one direction by A5 (a module named and not installed is ' +
-        'A5\'s `extra`); a verdict here over that half alone would be answering a third of ' +
-        'the assertion',
-    },
-    {
-      id: 'A8' as const,
-      state: 'unmeasured' as const,
-      detail:
-        'A8 is two halves — an overlay module in the created tree is **composed**, and its ' +
-        'decoration **appears in the divergence report** — and neither is measured here yet. ' +
-        'This reason previously said the report half had no implementation anywhere: *"the ' +
-        'divergence report is not in `instance-tree.md` §2.6 and no instance generates one, ' +
-        'because its renderer is `backend/scripts/`"*. **That premise expired with T138a**, ' +
-        'which moved the derivation and the two renders into `@endora-commerce/cli` and gave ' +
-        '`endora generate` a fourth artefact family: an instance now renders ' +
-        '`apps/<deployment>/divergence.generated.{md,json}` over its own `apps/` tree, and ' +
-        '§2.6 carries the row. What stands between that and a verdict here is **this ' +
-        'criterion**, not the platform: the tree it creates has an empty ' +
-        '`apps/<deployment>/modules/`, so there is no overlay module to compose and no ' +
-        'decoration to look for. Writing one into the created tree and asserting over the ' +
-        'rendered report is this assertion\'s own step (T141/T142); the composed half stays ' +
-        'A4\'s. Recorded as `unmeasured` because that is what it is — T138a measured that an ' +
-        'instance generates the report, over a real on-disk install and over this ' +
-        "criterion's own created tree kept with `KEEP_INSTANCE_ACCEPTANCE=1`, and measured " +
-        'nothing here',
-    },
-    {
-      id: 'A9' as const,
-      state: 'unmeasured' as const,
-      detail: 'it needs a booted instance with a migrated schema to read across tenants in (A4)',
-    },
     {
       id: 'A12' as const,
       state: 'unmeasured' as const,
@@ -1484,6 +1956,10 @@ async function main(): Promise<void> {
     // (§2.5), so what the documentation site's build said is in this output and
     // the assertion that reports it sits outside the install block.
     let built: { code: number; output: string } | null = null;
+    // Declared out here for the same reason: A7 reads the boot's three surfaces
+    // and sits beside the bundle assertions rather than inside the boot block.
+    let boot: BootObservation | null = null;
+    let overlayEnvironment: NodeJS.ProcessEnv | null = null;
     const instanceVariables = declaredVariables(target);
     const installed = run('pnpm', ['install', '--no-frozen-lockfile'], {
       cwd: target,
@@ -1661,13 +2137,19 @@ async function main(): Promise<void> {
         // start script does is a separate question from what the migrate script
         // did, and a criterion that skipped it would report one defect and stop
         // where there are two.
-        const boot = await bootOnce(target, environment, created?.code === 0);
+        //
+        // **One boot answers four assertions**, and that is not economy: A7's
+        // whole subject is that the composition serving the API is the one
+        // enumerating the modules and the one behind the bundle, so a second
+        // boot would be a second composition, and A15's login says the same of
+        // itself.
+        boot = await bootOnce(target, environment, created?.code === 0);
         results.push(
           evaluateA4({
             started: true,
             healthStatus: boot.healthStatus,
             reconcile: reconcileFigures(boot.output),
-            enumerated: boot.enumerated,
+            enumerated: boot.enumerated === null ? null : boot.enumerated.length,
             output: boot.output,
           }),
         );
@@ -1679,6 +2161,32 @@ async function main(): Promise<void> {
             loginBody: boot.loginBody,
           }),
         );
+
+        // A9 needs the migrated schema and the installed platform, and no
+        // server: it reads the guard in a process of its own, inside the
+        // instance.
+        results.push(evaluateA9(measureTenancy(target, environment)));
+
+        // A8's fixture and its second boot, after A4 and A15 have answered over
+        // the tree the command wrote. See `measureOverlay`.
+        const deployment = deploymentsIn(target)[0];
+        if (deployment === undefined) {
+          results.push({
+            id: 'A8',
+            state: 'unmeasured',
+            detail:
+              'the created tree holds no directory under `apps/`, so this instance has no ' +
+              'deployment to write an overlay module into (`contracts/instance-tree.md` §2.2)',
+          });
+        } else {
+          overlayEnvironment = { ...environment, DEPLOYMENT: deployment };
+          notes.push(
+            `supplied DEPLOYMENT=${deployment} for A8's steps; the instance's own ` +
+              '`.env.example` declares it and leaves it blank, and blank is bare core — no ' +
+              'overlay module is composed at all',
+          );
+          results.push(evaluateA8(await measureOverlay(target, deployment, overlayEnvironment)));
+        }
       } else {
         results.push(
           evaluateA4({
@@ -1689,6 +2197,16 @@ async function main(): Promise<void> {
             output: '',
           }),
         );
+        results.push({
+          id: 'A8',
+          state: 'unmeasured',
+          detail: 'the instance did not migrate, so there is nothing to compose an overlay in',
+        });
+        results.push({
+          id: 'A9',
+          state: 'unmeasured',
+          detail: 'there is no migrated schema to read across tenants in',
+        });
         results.push({
           id: 'A15',
           state: 'unmeasured',
@@ -1704,13 +2222,49 @@ async function main(): Promise<void> {
       results.push({ id: 'A3', state: 'unmeasured', detail: 'there is no install to migrate' });
       results.push({ id: 'A4', state: 'unmeasured', detail: 'there is no install to boot' });
       results.push({
+        id: 'A8',
+        state: 'unmeasured',
+        detail: 'there is no install to compose an overlay module in',
+      });
+      results.push({
+        id: 'A9',
+        state: 'unmeasured',
+        detail: 'there is no install to read the tenant guard out of',
+      });
+      results.push({
         id: 'A15',
         state: 'unmeasured',
         detail: 'there is no install to create an administrator in',
       });
     }
 
-    results.push(...adminBundleAssertions(target, adminOmission));
+    const bundle = adminBundleAssertions(target, adminOmission);
+    results.push(...bundle);
+
+    // A7 — the three surfaces together, over the population this run packed and
+    // the instance did not install.
+    const installedIds = installedModules(target).map((module) => module.id);
+    const { absent, routes } = absentModules(target, installedIds);
+    results.push(
+      evaluateA7({
+        absent,
+        installed: installedIds,
+        bundleNames:
+          bundle.find((result) => result.id === 'A5')?.state === 'unmeasured'
+            ? null
+            : bundleEvidence(join(target, 'admin', 'dist')).named,
+        servedRoutes: boot?.servedRoutes ?? null,
+        absentRoutes: routes,
+        enumerated: boot?.enumerated ?? null,
+        enumerationExemptions: await platformOwnModuleIds(
+          target,
+          // The deployment's own overlay modules are entitled to be enumerated
+          // and are not installed packages — A8 wrote one of them.
+          overlayEnvironment === null ? [] : [OVERLAY_MODULE_ID],
+        ),
+      }),
+    );
+
     results.push(
       evaluateA6(
         existsSync(join(target, 'docs'))
