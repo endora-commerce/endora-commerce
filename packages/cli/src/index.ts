@@ -123,6 +123,12 @@ export {
 // so a caller that builds an `endora new storefront` command line takes the
 // derivation rather than re-deriving it — see `storefrontDeclaredInputs`.
 export { flagFor } from './inputs/resolve.js';
+// The `.env` writer, exported for the one caller outside this package that has
+// to put a value into a scaffolded tree's own configuration: the instance
+// acceptance criterion, which fills the file `endora new instance` wrote exactly
+// as a client would. A second merge implementation there would be a second set
+// of rules about quoting, blank values and the operator's own lines.
+export { parseEnvFile, renderEnvValue, writeEnvFile } from './inputs/env-file.js';
 export {
   addressVariables,
   backendAddressVariablesOf,

@@ -87,6 +87,14 @@
  * scaffolded instance could run no `admin_users create`, so the admin bundle A5
  * and A13 prove is built and styled had nobody to log in as.
  */
+import {
+  isRequiredGiven,
+  scopeToMembers,
+  type EnvironmentConsumer,
+  type EnvironmentInput,
+} from '@endora-commerce/contracts';
+
+import { writeEnvFile } from '../inputs/env-file.js';
 import { INSTANCE_BUILD_INPUTS, type InstanceBuildInput } from '../lib/instance-build-inputs.js';
 import { deployFiles, type Topology } from './deploy.js';
 import { InstanceInputError } from './host.js';
@@ -234,6 +242,36 @@ export interface PlanInput {
    * that rule both live.
    */
   readonly topology: Topology;
+  /**
+   * What this instance reads from its environment — the platform's declaration
+   * unioned with the manifests of the modules it installs
+   * (`modules.ts`' `instanceEnvironmentInputs`).
+   *
+   * It is a **parameter** rather than a constant for the reason every other
+   * version and range here is: the declaration belongs to the packages the
+   * client's machine resolved, not to this CLI, and a list compiled in here
+   * could never see a module a client installed from a registry (D-100, R2.3).
+   */
+  readonly declared: readonly EnvironmentInput[];
+  /**
+   * The text of a `.env` the operator placed in the target directory before
+   * running, or `''`.
+   *
+   * Tier 2 (`input-resolution.md` R1.2), and it reaches the plan rather than the
+   * writer so that `--dry-run` reports the file it would actually produce. What
+   * the operator wrote is merged into and never rewritten: their comments, their
+   * ordering and their own keys survive.
+   */
+  readonly existingEnv: string;
+  /**
+   * The secrets this run generated, name to value (R2.5d).
+   *
+   * They arrive already generated because the plan is pure and a plan that
+   * called `randomBytes` would render a different tree on every call — which
+   * `--dry-run`'s whole purpose is to rule out. The caller generates once and
+   * reports the names in the provenance line.
+   */
+  readonly generated: ReadonlyMap<string, string>;
 }
 
 /**
@@ -353,6 +391,61 @@ const MODULE_CLI_ALIASES: readonly (readonly [string, string, string])[] = [
   ['admin:create', 'admin_users', 'create'],
 ];
 
+/**
+ * The backend member's scripts, every one of them reading the instance's own
+ * `.env` (`specs/123-oss-install-experience/` G3).
+ *
+ * **`--env-file-if-exists=../.env`, and the `..` is the whole of it.** Every
+ * root script is `pnpm -C backend run …`, so these run with `backend/` as the
+ * working directory while the `.env` a client is told to fill in sits at the
+ * root of the tree beside `.env.example` and beside the `.env` entry in
+ * `.gitignore`. Without the prefix the file is inert: a client fills it in, runs
+ * `pnpm run migrate`, and the process reads nothing at all — which is the second
+ * half of the defect the acceptance criterion papers over by supplying the
+ * values through `process.env` instead.
+ *
+ * `-if-exists` rather than `--env-file`, because a `.env` is not obligatory: a
+ * container-hosted instance is configured entirely from its process environment,
+ * and a flag that refused to start without the file would break exactly the
+ * deployment `deploy/compose.prod.yml` describes. A value already in the
+ * environment wins over the file, which is Node's own precedence and the one an
+ * operator expects.
+ *
+ * It is one function rather than a spelling repeated ten times, so a script
+ * added later cannot be the one that silently does not read the file.
+ */
+export function backendScripts(input: PlanInput): Record<string, string> {
+  const node = 'node --env-file-if-exists=../.env';
+  return {
+    // `tsc` and `node --watch` rather than `tsx`: no manifest this run can
+    // read declares a range for `tsx`, and a range this command chose would
+    // be a value nobody reviewed (R2.5a).
+    dev: `tsc -p tsconfig.json --watch & ${node} --watch dist/index.js`,
+    build: 'tsc -p tsconfig.json',
+    start: `${node} dist/index.js`,
+    worker: `${node} dist/worker.js`,
+    migrate: `${node} dist/migrate.js`,
+    'module:install': `${node} dist/module-commands/install.js`,
+    'module:uninstall': `${node} dist/module-commands/uninstall.js`,
+    'module:enable': `${node} dist/module-commands/enable.js`,
+    'module:disable': `${node} dist/module-commands/disable.js`,
+    'module:status': `${node} dist/module-commands/status.js`,
+    // The operator CLI (`specs/123-oss-install-experience/` G2, T2-D).
+    // `cli` is the generic pass-through, so a module this instance installed
+    // which declares a `cliCommands` entry is addressable with no file in this
+    // tree edited; the named entries below are the aliases this repository's own
+    // `backend/package.json` carries, **derived** from what is installed rather
+    // than written.
+    cli: `${node} dist/cli.js`,
+    ...Object.fromEntries(
+      cliAliasesFor(input.modules).map(([name, command]) => [
+        name,
+        command.replace(/^node /, `${node} `),
+      ]),
+    ),
+  };
+}
+
 /** Lines of wiring in a plan — R1.4's bound, measured rather than intended. */
 export function wiringLineCount(plan: InstancePlan): number {
   return plan.files
@@ -364,20 +457,209 @@ function json(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
-/** `.env.example` — one entry per `INSTANCE_BUILD_INPUTS` member (§2.1). */
-export function envExample(inputs: readonly InstanceBuildInput[]): string {
+/**
+ * Which members this instance writes, as the environment declaration scopes on.
+ *
+ * `specs/118-instance-member-selection/`: an input read by no written member is
+ * **out of the population** — not declared, not asked for, not counted. The
+ * storefront is never here: under D-195 it is its own repository with its own
+ * declaration, and `endora new storefront` resolves that one.
+ */
+function writtenMembers(admin: boolean): readonly EnvironmentConsumer[] {
+  return admin ? ['backend', 'admin'] : ['backend'];
+}
+
+/**
+ * The environment inputs a client is asked to fill in, in declaration order.
+ *
+ * Two exclusions, and both are rules rather than names. A **generable secret**
+ * is written into the `.env` this command produces and appears in no
+ * `.env.example` (R2.5d), so asking for it would be asking for a value the tool
+ * has already supplied. And an input **no written member reads** is out of the
+ * population (118).
+ */
+export function declaredEnvironmentInputs(
+  declared: readonly EnvironmentInput[],
+  admin: boolean,
+): readonly EnvironmentInput[] {
+  return scopeToMembers(declared, writtenMembers(admin)).filter(
+    (input) => !(input.generable && input.secret),
+  );
+}
+
+/** The generable secrets this run owes a value for, in declaration order. */
+export function generableEnvironmentInputs(
+  declared: readonly EnvironmentInput[],
+  admin: boolean,
+): readonly EnvironmentInput[] {
+  return scopeToMembers(declared, writtenMembers(admin)).filter(
+    (input) => input.generable && input.secret,
+  );
+}
+
+/**
+ * One declaration, as an operator reads it: what it decides, then what it costs
+ * to leave unset.
+ *
+ * Both sentences are the **declaration's own**, carried across rather than
+ * rewritten. A rewrite here would be a second statement of a fact the author of
+ * the input already made, one tree away from where anybody would notice it had
+ * drifted — and an `optional` requirement carries *what is lost* precisely so
+ * that this line does not have to say the word "optional" and stop there.
+ */
+function declarationComment(input: EnvironmentInput): readonly string[] {
+  const lines = [...wrapEnvComment(input.describes.en)];
+  switch (input.requirement.kind) {
+    case 'required':
+      lines.push('# REQUIRED.');
+      break;
+    case 'requiredWhen':
+      lines.push(
+        `# REQUIRED when ${input.requirement.input}=${input.requirement.equals}.`,
+      );
+      break;
+    case 'optional':
+      // The cost on a line of its own rather than spliced into a sentence of
+      // ours. Declarations disagree about whether `without` opens with a
+      // capital, and a sentence built as `without it, <text>` reads wrong for
+      // half of them — which would be this file rewriting the author's prose to
+      // fit its own grammar, one comma at a time.
+      lines.push('# optional — what you lose:', ...wrapEnvComment(input.requirement.without.en));
+      break;
+  }
+  if (input.secret) lines.push('# SECRET: never commit this value and never print it.');
+  return lines;
+}
+
+/** One sentence, wrapped to a width a terminal and a diff both show whole. */
+function wrapEnvComment(text: string): readonly string[] {
+  const out: string[] = [];
+  let line = '';
+  for (const word of text.split(' ')) {
+    if (line.length > 0 && `${line} ${word}`.length > 84) {
+      out.push(`# ${line}`);
+      line = word;
+      continue;
+    }
+    line = line.length === 0 ? word : `${line} ${word}`;
+  }
+  if (line.length > 0) out.push(`# ${line}`);
+  return out;
+}
+
+/**
+ * `.env.example` — every input this instance actually reads (FR-010).
+ *
+ * **Two populations, and keeping them apart is the point.** The build inputs are
+ * inlined into an artefact by `docker build`; the declared inputs are read by a
+ * process on every start. An operator who conflates them rebuilds an image to
+ * change a password. They are two headed sections of one file rather than two
+ * files because a client fills in one `.env`, and a second example beside the
+ * first is a second thing to forget.
+ *
+ * Neither section is a list. The first is `INSTANCE_BUILD_INPUTS`; the second is
+ * the platform's declaration unioned with the manifests of the modules this run
+ * installed, scoped to the members it wrote. The defect it closes is the
+ * acceptance criterion's own note — *"its `.env.example` declares none of them,
+ * so a client who fills in the file the command wrote has nothing to put them
+ * in"* — and the note is deleted in the same merge request, because an
+ * instrument that reports a gap must not outlive it.
+ */
+export function envExample(
+  inputs: readonly InstanceBuildInput[],
+  declared: readonly EnvironmentInput[],
+  admin: boolean,
+): string {
   const lines = [
-    '# The per-instance build inputs. Every one is yours to set: this file is an example and',
-    '# `.env` is git-ignored, so nothing here is a value anybody but you chose.',
+    '# Everything this instance needs from its environment. Copy to `.env` and fill it in:',
+    '# `.env` is git-ignored, so nothing there is a value anybody but you chose.',
     '#',
     '# An entry with no value on the right of the `=` is one the platform has no honest',
     '# default for — the declaration says so, and the refusal belongs to whatever reads it.',
+    '',
+    '# ---------------------------------------------------------------------------',
+    '# The BUILD inputs. Two of them are inlined into a bundle by `docker build`, so',
+    '# changing one of these means rebuilding an image rather than restarting a process.',
+    '# ---------------------------------------------------------------------------',
   ];
   for (const input of inputs) {
     lines.push('', `# ${input.meaning}`, `# example: ${input.example}`);
     lines.push(`${input.name}=${input.default ?? ''}`);
   }
+  const runtime = declaredEnvironmentInputs(declared, admin);
+  if (runtime.length > 0) {
+    lines.push(
+      '',
+      '# ---------------------------------------------------------------------------',
+      '# The RUNTIME inputs, read on every start. Each sentence below is the platform\'s or',
+      '# the declaring module\'s own: this file is derived from what you installed, so a',
+      '# different module set is a different file and nothing here was written by hand.',
+      '#',
+      '# The secrets this instance signs and encrypts with are NOT here. `endora new',
+      '# instance` generated them into `.env` beside this file and named them on its own',
+      '# output; a generated secret belongs in no example and in no source file.',
+      '# ---------------------------------------------------------------------------',
+    );
+    for (const input of runtime) {
+      lines.push('', ...declarationComment(input), `${input.name}=`);
+    }
+  }
   return `${lines.join('\n')}\n`;
+}
+
+/**
+ * The `.env` this command writes — the generated secrets, and a blank for
+ * everything else the instance reads.
+ *
+ * R2.5d: a generated secret is written **where the operator can read it**,
+ * change it and copy it into a secret store. The placeholders are there so that
+ * the file a client edits is the file their instance reads: telling them to
+ * `cp .env.example .env` after this command has already written one would have
+ * them overwrite the generated secrets with empty strings, and the boot that
+ * then failed would name none of this.
+ *
+ * **Every placeholder is commented out, and that is not cosmetic.** A blank
+ * assignment is not the same state as no assignment: Node's `--env-file` reads
+ * `MEILISEARCH_URL=` as the empty string, and the platform's `??` fallbacks
+ * treat an empty string as a value. Measured on the instance acceptance
+ * criterion — a `.env` listing every optional input as a blank turned twenty
+ * "unset"s into twenty empty strings and the health route answered **503** over
+ * a search engine that was running. So the file lists what there is to fill in
+ * and changes nothing until a client removes a `#`, and {@link writeEnvFile}
+ * fills a placeholder in place rather than appending a second assignment.
+ *
+ * A `.env` the operator placed here first is **merged into, never rewritten**:
+ * their comments, their ordering and their own keys survive, and a value they
+ * already supplied is not generated over.
+ */
+export function envFile(input: PlanInput, admin: boolean): string {
+  const required: string[] = [];
+  const optional: string[] = [];
+  for (const declaration of declaredEnvironmentInputs(input.declared, admin)) {
+    (isRequiredGiven(declaration, {}) ? required : optional).push(declaration.name);
+  }
+  const seeded = [
+    '# This instance\'s own configuration. Git-ignored, and yours.',
+    '#',
+    '# `endora new instance` wrote it. The values it GENERATED are set, at the bottom; every',
+    '# other input this instance reads is listed below, commented out. Remove the `#` and',
+    '# fill one in to set it — a commented line and a line reading `NAME=` are NOT the same',
+    '# thing to the process that reads this file, and the second is an empty string.',
+    '#',
+    '# `.env.example` beside this file carries a sentence for each one saying what it',
+    '# decides and what leaving it unset costs. Do not copy it over this file.',
+    '',
+    '# Required — the instance does not start without these.',
+    ...required.map((name) => `#${name}=`),
+    '',
+    '# Optional — each has a cost stated in `.env.example`, and no default worth inventing.',
+    ...optional.map((name) => `#${name}=`),
+    '',
+  ].join('\n');
+  // The operator's file wins over the seed entirely: if they placed one, this
+  // run adds to it and re-orders nothing.
+  const base = input.existingEnv.length > 0 ? input.existingEnv : seeded;
+  return writeEnvFile(base, input.generated);
 }
 
 /**
@@ -561,7 +843,19 @@ export function planInstance(input: PlanInput): InstancePlan {
     path: '.env.example',
     kind: 'client',
     member: 'root',
-    content: envExample(INSTANCE_BUILD_INPUTS),
+    content: envExample(INSTANCE_BUILD_INPUTS, input.declared, admin.written),
+  });
+
+  // The instance's own configuration, holding whatever this run generated
+  // (R2.5d) and a blank for everything else it reads. It is `client` for the
+  // same reason `.env.example` is — it is the operator's from the moment it is
+  // written — and it is git-ignored, so it leaves this tree with nobody but
+  // them having seen it.
+  files.push({
+    path: '.env',
+    kind: 'client',
+    member: 'root',
+    content: envFile(input, admin.written),
   });
 
   files.push({
@@ -627,29 +921,7 @@ export function planInstance(input: PlanInput): InstancePlan {
       private: true,
       type: 'module',
       // No dependency of its own: the module set is the root's (§2.3, R3.6).
-      scripts: {
-        // `tsc` and `node --watch` rather than `tsx`: no manifest this run can
-        // read declares a range for `tsx`, and a range this command chose would
-        // be a value nobody reviewed (R2.5a).
-        dev: 'tsc -p tsconfig.json --watch & node --watch dist/index.js',
-        build: 'tsc -p tsconfig.json',
-        start: 'node dist/index.js',
-        worker: 'node dist/worker.js',
-        migrate: 'node dist/migrate.js',
-        'module:install': 'node dist/module-commands/install.js',
-        'module:uninstall': 'node dist/module-commands/uninstall.js',
-        'module:enable': 'node dist/module-commands/enable.js',
-        'module:disable': 'node dist/module-commands/disable.js',
-        'module:status': 'node dist/module-commands/status.js',
-        // The operator CLI (`specs/123-oss-install-experience/` G2, T2-D).
-        // `cli` is the generic pass-through, so a module this instance
-        // installed which declares a `cliCommands` entry is addressable with no
-        // file in this tree edited; the named entries below are the aliases
-        // this repository's own `backend/package.json` carries, **derived**
-        // from what is installed rather than written.
-        cli: 'node dist/cli.js',
-        ...Object.fromEntries(cliAliasesFor(input.modules)),
-      },
+      scripts: backendScripts(input),
     }),
   });
 
@@ -696,6 +968,9 @@ export function planInstance(input: PlanInput): InstancePlan {
     npmrc: input.npmrc !== null,
     enginesNode: input.enginesNode,
     packageManager: input.packageManager,
+    // The same declaration the root `.env.example` is derived from. One
+    // derivation of what this instance needs, two readers of it.
+    declared: input.declared,
   })) {
     files.push(file);
   }

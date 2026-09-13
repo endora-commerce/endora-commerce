@@ -229,6 +229,38 @@ export function scopeToMembers(
 }
 
 /**
+ * Several authors' declarations, as the one population a reader has to answer.
+ *
+ * The four authors of `EnvironmentInput` are the platform, each application and
+ * every module in its own manifest, and nothing joins them: a scaffolded
+ * instance reads the platform's declaration **and** the manifest of every module
+ * it installed, and a doctor run against that instance reads the same pair. Two
+ * programs computing that join separately is two answers waiting to disagree,
+ * which is why the join is here rather than in either of them.
+ *
+ * **First author wins, and order is the first declaration's.** A name that
+ * migrates between authors is the case that happens — feature 121 moved
+ * `MEILISEARCH_URL` out of a module and into the platform, and a module may not
+ * describe a name the platform declares — so during such a move the platform's
+ * sentence is the one an operator reads, and the module's stale copy is shadowed
+ * rather than duplicated. Callers therefore pass the platform's declaration
+ * first. Across authors a shared name is expected and is **not** a finding;
+ * `check:env-inputs` says so, and this function is that rule's consequence
+ * rather than a second opinion about it.
+ */
+export function unionEnvironmentInputs(
+  declarations: readonly (readonly EnvironmentInput[])[],
+): readonly EnvironmentInput[] {
+  const merged = new Map<string, EnvironmentInput>();
+  for (const declaration of declarations) {
+    for (const input of declaration) {
+      if (!merged.has(input.name)) merged.set(input.name, input);
+    }
+  }
+  return [...merged.values()];
+}
+
+/**
  * The variables whose value is the address of `member`, in declaration order.
  *
  * One derivation, because the two programs that ask are `endora new storefront`

@@ -232,6 +232,10 @@ describe('endora new instance, as a process', () => {
     }
     const entries = readdirSync(target).sort();
     expect(entries.filter((entry) => !declared.includes(entry))).toEqual([
+      // §2.1 — the instance's own configuration, holding the secrets this run
+      // generated (`specs/123-oss-install-experience/` T3-C). It is git-ignored
+      // and it is written, which is why it is here and `.npmrc` is not.
+      '.env',
       '.env.example',
       '.gitignore',
       'README.md',

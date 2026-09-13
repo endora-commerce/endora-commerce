@@ -24,11 +24,15 @@
  * uses and the shape an installed consumer actually has. A fixture that entered
  * below the defect could not catch it.
  */
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
+
+import type { EnvironmentInput } from '@endora-commerce/contracts';
+
+import { INSTANCE_BUILD_INPUTS } from '../src/lib/instance-build-inputs.js';
 
 import {
   InstanceHostError,
@@ -39,6 +43,7 @@ import {
 import { DEFAULT_TOPOLOGY } from '../src/new-instance/deploy.js';
 import { resolveModuleSet, type ModuleCandidate } from '../src/new-instance/modules.js';
 import {
+  declaredEnvironmentInputs,
   devDependenciesFor,
   GENERATED_ARTEFACTS,
   planInstance,
@@ -71,6 +76,8 @@ interface FixturePackage {
   readonly rootSource?: string;
   /** Overrides the whole `exports` map, for the "no root export" proof. */
   readonly exports?: unknown;
+  /** Extra files, relative to the package directory, written verbatim. */
+  readonly files?: Record<string, string>;
   readonly peerDependencies?: Record<string, string>;
   /** Which of those a consumer supplies — §2.4's whole derivation reads it. */
   readonly peerDependenciesMeta?: Record<string, { optional: boolean }>;
@@ -123,6 +130,11 @@ function installFixture(packages: readonly FixturePackage[]): string {
     } else {
       writeFileSync(join(dir, 'manifest.js'), 'export {};\n', 'utf8');
     }
+    for (const [path, content] of Object.entries(pkg.files ?? {})) {
+      const file = join(dir, path);
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, content, 'utf8');
+    }
   }
   return root;
 }
@@ -174,6 +186,7 @@ function candidate(
     required: false,
     reason: undefined,
     carriedByHost: false,
+    env: [],
     ...overrides,
   };
 }
@@ -215,6 +228,13 @@ function planInput(overrides: Partial<PlanInput> = {}): PlanInput {
     // The default, and the one D-230 kept. A fixture that named the other would
     // be asserting the three-host examples everywhere they are not the subject.
     topology: 'single-host',
+    // G3 — an instance with no declared runtime input is a real state (a
+    // platform older than feature 117 declares none), and it is the fixture
+    // that keeps every case below about its own subject. The cases that are
+    // about the declaration hand one in.
+    declared: [],
+    existingEnv: '',
+    generated: new Map(),
     ...overrides,
   };
 }
@@ -703,7 +723,7 @@ describe('the tree (§1, §2)', () => {
       ).scripts;
       // The generic pass-through: a module the instance installed which declares
       // a `cliCommands` entry is addressable with no file in the tree edited.
-      expect(scripts['cli']).toBe('node dist/cli.js');
+      expect(scripts['cli']).toBe('node --env-file-if-exists=../.env dist/cli.js');
       // D-216 is more specific than T2-D, which asked for `demo:seed` and
       // `demo:reset` here: *"no composition, **no script**, no example and no
       // placeholder"*. `cli` reaches both verbs, so nothing is unavailable.
@@ -720,7 +740,7 @@ describe('the tree (§1, §2)', () => {
           ) as { scripts: Record<string, string> }
         ).scripts;
       expect(scriptsOf(withAdminUsers())['admin:create']).toBe(
-        'node dist/cli.js admin_users create',
+        'node --env-file-if-exists=../.env dist/cli.js admin_users create',
       );
       // The default input installs `settings` alone, so the alias would address
       // a command no installed module declares.
@@ -1230,5 +1250,363 @@ describe('§2 R2.1 — each layer has a named build, and the composite is their 
       (file) => file.path === 'README.md',
     )!.content;
     expect(readmeText).toContain('deployed on its own');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G3 — `.env.example` declares what the instance actually reads
+// (`specs/123-oss-install-experience/` T3-A…T3-E; FR-010, FR-011; SC-005)
+// ---------------------------------------------------------------------------
+
+/**
+ * The defect these cases were written red against, in the acceptance run's own
+ * words: *"supplied `DATABASE_URL`, `REDIS_URL`, `SESSION_COOKIE_SECRET`,
+ * `PUBLIC_API_BASE_URL`, `NODE_ENV` to the instance's own processes; its
+ * `.env.example` declares none of them, so a client who fills in the file the
+ * command wrote has nothing to put them in"*.
+ *
+ * Every case below asserts a **derivation** rather than a string: the file's
+ * population is the platform's declaration unioned with the manifests of the
+ * modules this run installed, so a different module set is a different file and
+ * no list anywhere has to be edited for it (D-100).
+ */
+function declaredInput(
+  name: string,
+  overrides: Partial<EnvironmentInput> = {},
+): EnvironmentInput {
+  return {
+    name,
+    describes: { en: `what ${name} decides`, pl: `co decyduje ${name}` },
+    requirement: { kind: 'required' },
+    secret: false,
+    generable: false,
+    owner: { kind: 'platform' },
+    consumers: ['backend'],
+    addressOf: null,
+    ...overrides,
+  };
+}
+
+const DECLARED: readonly EnvironmentInput[] = [
+  declaredInput('DATABASE_URL', { secret: true }),
+  declaredInput('SESSION_COOKIE_SECRET', { secret: true, generable: true }),
+  declaredInput('LOG_LEVEL', {
+    requirement: {
+      kind: 'optional',
+      without: { en: 'the log carries the platform default', pl: 'dziennik ma poziom domyślny' },
+    },
+  }),
+  declaredInput('SMTP_URL', {
+    owner: { kind: 'module', moduleId: 'email' },
+    requirement: {
+      kind: 'optional',
+      without: { en: 'mail goes to a console mailer', pl: 'poczta trafia do konsoli' },
+    },
+  }),
+  declaredInput('VITE_API_BASE_URL', {
+    owner: { kind: 'application', application: 'admin' },
+    consumers: ['admin'],
+    addressOf: 'backend',
+  }),
+];
+
+/** The same plan input, with the admin member written (§2.4). */
+function withAdminMemberInput(overrides: Partial<PlanInput> = {}): PlanInput {
+  return planInput({
+    adminShellVersion: '4.5.6',
+    adminKitVersion: '4.5.6',
+    adminRanges: new Map([
+      ['react', '^19.0.0'],
+      ['react-dom', '^19.0.0'],
+      ['vite', '^7.3.2'],
+      ['@vitejs/plugin-react', '^5.2.0'],
+      ['tailwindcss', '^4.2.4'],
+      ['@tailwindcss/vite', '^4.2.4'],
+    ]),
+    adminPeers: new Map(),
+    ...overrides,
+  });
+}
+
+function envExampleOf(input: PlanInput): string {
+  return planInstance(input).files.find((file) => file.path === '.env.example')!.content;
+}
+
+function declaredNames(text: string): readonly string[] {
+  return [...text.matchAll(/^([A-Za-z_][A-Za-z0-9_]*)=/gm)].map((match) => match[1]!);
+}
+
+describe('G3 — `.env.example` declares every input the instance reads (FR-010)', () => {
+  it('T3-B — the population is the declaration, not the five build inputs', () => {
+    const names = declaredNames(envExampleOf(planInput({ declared: DECLARED })));
+    // The build inputs stay: they are a different population and both belong
+    // in the file (T3-B in its own words).
+    for (const input of INSTANCE_BUILD_INPUTS) expect(names).toContain(input.name);
+    // …and the runtime inputs the instance actually reads are there too, which
+    // is the whole of the defect.
+    expect(names).toContain('DATABASE_URL');
+    expect(names).toContain('LOG_LEVEL');
+    expect(names).toContain('SMTP_URL');
+  });
+
+  it('T3-B — a different module set is a different file, with no list edited', () => {
+    const withEmail = declaredNames(envExampleOf(planInput({ declared: DECLARED })));
+    const withoutEmail = declaredNames(
+      envExampleOf(
+        planInput({ declared: DECLARED.filter((input) => input.name !== 'SMTP_URL') }),
+      ),
+    );
+    expect(withEmail).toContain('SMTP_URL');
+    expect(withoutEmail).not.toContain('SMTP_URL');
+  });
+
+  it('the declaration\'s own sentences are carried across, never rewritten', () => {
+    const text = envExampleOf(planInput({ declared: DECLARED }));
+    expect(text).toContain('what DATABASE_URL decides');
+    // An `optional` carries **what is lost**, which is the fact an operator
+    // deciding whether to set it needs (`EnvironmentRequirementSchema`).
+    expect(text).toContain('the log carries the platform default');
+  });
+
+  it('118 — an input no written member reads is out of the population', () => {
+    // `VITE_API_BASE_URL` is the admin's. An instance with no admin member does
+    // not ask a client for it; one with an admin member does.
+    expect(declaredNames(envExampleOf(planInput({ declared: DECLARED })))).not.toContain(
+      'VITE_API_BASE_URL',
+    );
+    expect(
+      declaredNames(envExampleOf(withAdminMemberInput({ declared: DECLARED }))),
+    ).toContain('VITE_API_BASE_URL');
+  });
+
+  it('FR-011 — a generable secret is in the written `.env` and in no `.env.example`', () => {
+    const plan = planInstance(
+      planInput({
+        declared: DECLARED,
+        generated: new Map([['SESSION_COOKIE_SECRET', 'a-generated-value']]),
+      }),
+    );
+    const example = plan.files.find((file) => file.path === '.env.example')!.content;
+    expect(declaredNames(example)).not.toContain('SESSION_COOKIE_SECRET');
+    const env = plan.files.find((file) => file.path === '.env');
+    expect(env, 'the command writes a `.env` for the value it generated').toBeDefined();
+    expect(env!.content).toContain('SESSION_COOKIE_SECRET=a-generated-value');
+    // R2.5d — the value appears in no source file and no `.env.example`.
+    for (const file of plan.files) {
+      if (file.path === '.env') continue;
+      expect(file.content, file.path).not.toContain('a-generated-value');
+    }
+  });
+
+  it('the written `.env` names every input the example does, so one file is edited', () => {
+    const plan = planInstance(planInput({ declared: DECLARED }));
+    const env = plan.files.find((file) => file.path === '.env')!.content;
+    const example = plan.files.find((file) => file.path === '.env.example')!.content;
+    for (const input of declaredEnvironmentInputs(DECLARED, false)) {
+      expect(env, input.name).toContain(`#${input.name}=`);
+    }
+    // …and the build inputs are the example's alone: they are inlined by
+    // `docker build` rather than read by a process, so a blank for each in the
+    // file a client edits to start their instance would be four blanks that
+    // change nothing.
+    expect(declaredNames(example)).toContain('DEPLOYMENT');
+  });
+
+  /**
+   * The 503 this rule was written from. A `.env` listing every optional input
+   * as `NAME=` turned twenty *unset*s into twenty empty strings — Node's
+   * `--env-file` makes no distinction — and the instance acceptance criterion's
+   * health route answered 503 over a search engine that was running.
+   */
+  it('an unfilled placeholder is commented out, so writing the file changes nothing', () => {
+    const plan = planInstance(planInput({ declared: DECLARED }));
+    const env = plan.files.find((file) => file.path === '.env')!.content;
+    // Not one bare assignment: every line that assigns is a value this run
+    // actually has, and this run generated none.
+    expect(declaredNames(env)).toEqual([]);
+    expect(env).toContain('#DATABASE_URL=');
+  });
+
+  it('a generated value replaces its own placeholder rather than joining it', () => {
+    const plan = planInstance(
+      planInput({
+        declared: DECLARED,
+        generated: new Map([['SESSION_COOKIE_SECRET', 'a-generated-value']]),
+      }),
+    );
+    const env = plan.files.find((file) => file.path === '.env')!.content;
+    expect(env).toContain('SESSION_COOKIE_SECRET=a-generated-value');
+    expect(env).not.toContain('#SESSION_COOKIE_SECRET=');
+  });
+
+  it('R1.2 — a `.env` the client placed first is merged into, never rewritten', () => {
+    const plan = planInstance(
+      planInput({
+        declared: DECLARED,
+        existingEnv: '# mine\nDATABASE_URL=postgresql://me@localhost/mine\n',
+        generated: new Map([['SESSION_COOKIE_SECRET', 'a-generated-value']]),
+      }),
+    );
+    const env = plan.files.find((file) => file.path === '.env')!.content;
+    expect(env).toContain('# mine');
+    expect(env).toContain('DATABASE_URL=postgresql://me@localhost/mine');
+    expect(env).toContain('SESSION_COOKIE_SECRET=a-generated-value');
+  });
+
+  it('the written `.env` reaches the instance\'s own processes', () => {
+    // Without this the file is inert: every root script runs `pnpm -C backend`,
+    // so a `.env` at the root of the tree is read by nothing and a client who
+    // filled it in still cannot start. The acceptance criterion never caught it
+    // because it supplies the values through `process.env` instead.
+    const backend = JSON.parse(
+      planInstance(planInput({ declared: DECLARED })).files.find(
+        (file) => file.path === 'backend/package.json',
+      )!.content,
+    ) as { scripts: Record<string, string> };
+    const running = Object.entries(backend.scripts).filter(([, command]) =>
+      command.includes('node '),
+    );
+    expect(running.length).toBeGreaterThan(5);
+    for (const [name, command] of running) {
+      expect(command, `backend script \`${name}\``).toContain('--env-file-if-exists=../.env');
+    }
+  });
+
+  it('§2.6 — the written `.env` is git-ignored and the example is not', () => {
+    const plan = planInstance(planInput({ declared: DECLARED }));
+    const ignore = plan.files.find((file) => file.path === '.gitignore')!.content;
+    expect(ignore).toMatch(/^\.env$/m);
+    expect(ignore).not.toMatch(/^\.env\.example$/m);
+  });
+});
+
+describe('G3 — the declaration reaches the scaffolder from the packages it resolved (SC-005)', () => {
+  /** A fixture install whose platform and modules both declare inputs. */
+  function declaredFixture(): string {
+    return installFixture([
+      {
+        ...PLATFORM,
+        exports: {
+          '.': { default: './manifest.js' },
+          './env': { default: './env.js' },
+        },
+        rootSource: 'export {};\n',
+        files: {
+          'env.js':
+            'export const PLATFORM_ENVIRONMENT_INPUTS = ' +
+            JSON.stringify([
+              {
+                name: 'DATABASE_URL',
+                describes: { en: 'the database', pl: 'baza' },
+                requirement: { kind: 'required' },
+                secret: true,
+                generable: false,
+                owner: { kind: 'platform' },
+                consumers: ['backend'],
+                addressOf: null,
+              },
+              {
+                name: 'SESSION_COOKIE_SECRET',
+                describes: { en: 'signs session cookies', pl: 'podpisuje ciasteczka' },
+                requirement: { kind: 'required' },
+                secret: true,
+                generable: true,
+                owner: { kind: 'platform' },
+                consumers: ['backend'],
+                addressOf: null,
+              },
+            ]) +
+            ';\n',
+        },
+      },
+      modulePackage('settings', {
+        activation: { nonDeactivatable: true, reason: 'nothing runs without settings' },
+      }),
+      modulePackage('email', {
+        env: [
+          {
+            name: 'SMTP_URL',
+            describes: { en: 'where mail goes', pl: 'dokąd trafia poczta' },
+            requirement: {
+              kind: 'optional',
+              without: { en: 'nothing is delivered', pl: 'nic nie jest dostarczane' },
+            },
+            secret: false,
+            generable: false,
+            owner: { kind: 'module', moduleId: 'email' },
+            consumers: ['backend'],
+            addressOf: null,
+          },
+        ],
+      }),
+    ]);
+  }
+
+  it('T3-E — the platform\'s and each installed module\'s declaration are read', async () => {
+    const root = declaredFixture();
+    const target = join(root, 'acme-shop');
+
+    const result = await runNewInstance({
+      dir: target,
+      cwd: root,
+      modules: ['settings', 'email'],
+      dryRun: true,
+    });
+    const example = result.plan.files.find((file) => file.path === '.env.example')!.content;
+    expect(example).toContain('DATABASE_URL=');
+    expect(example).toContain('the database');
+    expect(example).toContain('SMTP_URL=');
+    expect(example).toContain('where mail goes');
+  });
+
+  it('T3-C — the generable secrets are generated, named and `defaulted` stays 0', async () => {
+    const root = declaredFixture();
+    const result = await runNewInstance({
+      dir: join(root, 'acme-shop'),
+      cwd: root,
+      modules: ['settings'],
+    });
+    // R2.5d — the class is `generable && secret`, derived from the declaration.
+    // A run that named one of them here would be the list this feature exists
+    // to delete, and it would be wrong the moment a module declares a second.
+    expect(result.wouldGenerate).toEqual([]);
+    const generated = result.resolved.filter((entry) => entry.provenance === 'generated');
+    expect(generated.map((entry) => entry.name)).toEqual(['SESSION_COOKIE_SECRET']);
+    expect(result.provenance).toContain('generated=1 (SESSION_COOKIE_SECRET)');
+    expect(result.provenance).toContain('defaulted=0');
+    // …and it is on disk, in the file the operator can read it in.
+    const written = readFileSync(join(root, 'acme-shop', '.env'), 'utf8');
+    expect(written).toContain(`SESSION_COOKIE_SECRET=${generated[0]!.value}`);
+    expect(readFileSync(join(root, 'acme-shop', '.env.example'), 'utf8')).not.toContain(
+      'SESSION_COOKIE_SECRET',
+    );
+  });
+
+  it('R2.4/R7.3 — a dry run generates nothing and names what it would have', async () => {
+    const root = declaredFixture();
+    const result = await runNewInstance({
+      dir: join(root, 'acme-shop'),
+      cwd: root,
+      modules: ['settings'],
+      dryRun: true,
+    });
+    expect(result.wouldGenerate).toEqual(['SESSION_COOKIE_SECRET']);
+    expect(result.provenance).toContain('generated=0');
+    expect(result.provenance).toContain('defaulted=0');
+    expect(existsSync(join(root, 'acme-shop', '.env'))).toBe(false);
+  });
+
+  it('R1.2 — a `.env` the operator placed first answers tier 2 and is not generated over', async () => {
+    const root = declaredFixture();
+    const target = join(root, 'acme-shop');
+    mkdirSync(target, { recursive: true });
+    writeFileSync(join(target, '.env'), 'SESSION_COOKIE_SECRET=mine-already\n', 'utf8');
+
+    const result = await runNewInstance({ dir: target, cwd: root, modules: ['settings'] });
+    expect(result.provenance).toContain('generated=0');
+    expect(result.provenance).toContain('env-file=1');
+    expect(readFileSync(join(target, '.env'), 'utf8')).toContain(
+      'SESSION_COOKIE_SECRET=mine-already',
+    );
   });
 });

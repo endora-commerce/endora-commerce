@@ -225,6 +225,13 @@ describe('the rendered instance images pass what the declaration says, and nothi
       registry: null,
       npmrc: null,
       topology: 'single-host',
+      // The environment declaration is not this file's subject: an instance
+      // whose resolved platform declares nothing renders the same images, and
+      // handing one in here would put a second population into a case that is
+      // about build inputs alone.
+      declared: [],
+      existingEnv: '',
+      generated: new Map(),
     });
     return new Map(
       plan.files

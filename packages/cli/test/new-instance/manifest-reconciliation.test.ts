@@ -274,6 +274,13 @@ function planInput(overrides: Partial<PlanInput> = {}): PlanInput {
     // The default, and the one D-230 kept. A fixture that named the other would
     // be asserting the three-host examples everywhere they are not the subject.
     topology: 'single-host',
+    // G3 — an instance with no declared runtime input is a real state (a
+    // platform older than feature 117 declares none), and it is the fixture
+    // that keeps every case below about its own subject. The cases that are
+    // about the declaration hand one in.
+    declared: [],
+    existingEnv: '',
+    generated: new Map(),
     ...overrides,
   };
 }

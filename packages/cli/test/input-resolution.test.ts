@@ -381,6 +381,32 @@ describe('the `.env` a command reads and writes', () => {
     expect(written).toBe('# mine\nA=new\n\n# keep me\nB=b\n');
   });
 
+  /**
+   * `specs/123-oss-install-experience/` G3 — the 503 this behaviour was written
+   * from. `endora new instance` writes a `.env` listing every declared input
+   * **commented out**, because Node's `--env-file` reads `NAME=` as the empty
+   * string and the platform's `??` fallbacks treat that as a value. Filling one
+   * in has to replace the placeholder rather than append below it, or the file
+   * carries two assignments of one key and a reader cannot say which won.
+   */
+  it('fills a commented-out placeholder in place, keeping the sentence above it', () => {
+    const written = writeEnvFile(
+      '# what it decides\n#A=\n\n# optional\n#B=\n',
+      new Map([['A', 'supplied']]),
+    );
+    expect(written).toBe('# what it decides\nA=supplied\n\n# optional\n#B=\n');
+  });
+
+  it('a placeholder this run has no value for stays commented, and stays unset', () => {
+    const written = writeEnvFile('#A=\n#B=\n', new Map([['A', 'x']]));
+    expect(parseEnvFile(written).has('B')).toBe(false);
+  });
+
+  it('an ordinary comment is not mistaken for a placeholder', () => {
+    const written = writeEnvFile('# see A=1 for an example\nA=old\n', new Map([['A', 'new']]));
+    expect(written).toBe('# see A=1 for an example\nA=new\n');
+  });
+
   it('quotes a value that would otherwise be truncated by a comment', () => {
     expect(renderEnvValue('plain-value')).toBe('plain-value');
     expect(renderEnvValue('has # hash')).toBe('"has # hash"');

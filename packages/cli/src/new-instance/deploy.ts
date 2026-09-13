@@ -43,6 +43,8 @@
  * fourth spelling of a build input cannot arrive here, because there is no
  * place to write one.
  */
+import type { EnvironmentInput } from '@endora-commerce/contracts';
+
 import {
   buildArgFlags,
   buildInputsFor,
@@ -98,6 +100,17 @@ export interface DeployInput {
   readonly enginesNode: string;
   /** The root manifest's `packageManager`, or `undefined`. */
   readonly packageManager: string | undefined;
+  /**
+   * What this instance reads from its environment — the platform's declaration
+   * unioned with the manifests of the modules it installs.
+   *
+   * The **same** value the root `.env.example` is derived from, threaded here
+   * rather than re-derived, so a variable an operator has to fill in has one
+   * sentence in this repository and not two
+   * (`specs/123-oss-install-experience/` G3). See {@link envExampleFor} for
+   * which of the three sources answers a given name.
+   */
+  readonly declared: readonly EnvironmentInput[];
 }
 
 /** One planned file, in `template.ts`' own shape. */
@@ -441,6 +454,24 @@ function composeDocument(
 
 interface RuntimeInput {
   readonly name: string;
+  /**
+   * What it decides — **the fallback, not the authority**.
+   *
+   * Since G3 a variable the resolved platform or an installed module declares
+   * takes the **declaration's** sentence, and {@link envExampleFor} enforces
+   * that precedence: an operator reading a rendered `.env.example` never reads
+   * the sentence below for a name anything declares.
+   *
+   * It stays required all the same, and the reason is a failure mode rather
+   * than tidiness. The declaration is read off the resolved platform package at
+   * run time, so a platform whose `./env` entry point will not import — an older
+   * release, a broken install — yields an empty one; with no fallback here the
+   * compose examples would then refuse to render at all, turning a missing
+   * sentence into a scaffold that fails. Fourteen of these names are declared
+   * somewhere in this repository and their sentences below are therefore dead
+   * prose in every real run, which
+   * `deploy-examples.test.ts`' precedence case is what keeps honest.
+   */
   readonly meaning: string;
   /** The value written on the right of the `=`. An example, never a value. */
   readonly example: string;
@@ -449,11 +480,13 @@ interface RuntimeInput {
 /**
  * What a *running* stack needs, as opposed to what a *build* needs.
  *
- * The build's inputs are `INSTANCE_BUILD_INPUTS` and are the root
- * `.env.example`'s; these are the compose files'. Keeping the two apart is
- * deliberate — one is inlined into an artefact and the other is read by a
- * container on every start, and an operator who conflates them rebuilds an
- * image to change a password.
+ * What this list is **for**, since G3: an **example value**. The sentence
+ * saying what a variable decides comes from the instance's own environment
+ * declaration wherever one covers the name, and an entry that carries a
+ * `meaning` is one no declaration does — an image path, a host port, the
+ * database container's own credentials. That split is the whole of it: a
+ * declaration deliberately carries no default (`environment-inputs.md` R1.3),
+ * and this file's whole subject is a stack an operator can paste and start.
  *
  * Every entry here is an **example**, per D-215: no real domain, no real
  * registry and no real secret. Which of them reach a given host's
@@ -614,24 +647,66 @@ const RUNTIME_INPUTS: readonly RuntimeInput[] = [
  * {@link RUNTIME_INPUTS} is a programming error and says so rather than being
  * written out with no explanation.
  */
-function envExampleFor(header: readonly string[], compose: string): string {
+function envExampleFor(
+  header: readonly string[],
+  compose: string,
+  declared: readonly EnvironmentInput[],
+): string {
   const referenced = new Set(
     [...compose.matchAll(/\$\{([A-Z0-9_]+)(?::-[^}]*)?\}/g)].map((match) => match[1]!),
   );
+  const describes = new Map(declared.map((input) => [input.name, input] as const));
   const lines = [...header];
   for (const input of RUNTIME_INPUTS) {
     if (!referenced.has(input.name)) continue;
     referenced.delete(input.name);
-    lines.push('', ...wrapComment(input.meaning), `${input.name}=${input.example}`);
+    // The declaration wins wherever one covers the name — see
+    // {@link RuntimeInput.meaning} for why the fallback below still exists.
+    const declaration = describes.get(input.name);
+    const sentence =
+      declaration === undefined ? input.meaning : declarationSentence(declaration);
+    lines.push('', ...wrapComment(sentence), `${input.name}=${input.example}`);
+  }
+  // A variable only the declaration covers. It is rendered rather than refused
+  // because the declaration is the more authoritative of the two sources: an
+  // input a module started reading arrives here with its own sentence and needs
+  // no entry written beside it. It gets no example, because a declaration
+  // deliberately carries no default (`environment-inputs.md` R1.3) and one
+  // invented here would be the seventieth home of a value nobody reviewed.
+  for (const input of declared) {
+    if (!referenced.has(input.name)) continue;
+    referenced.delete(input.name);
+    lines.push('', ...wrapComment(declarationSentence(input)), `${input.name}=`);
   }
   if (referenced.size > 0) {
     throw new Error(
       `deploy: the compose example expands ${[...referenced].sort().join(', ')}, which ` +
-        'RUNTIME_INPUTS does not declare. An operator would be handed a stack with a blank ' +
-        'where a value belongs and no sentence saying what it decides.',
+        'neither RUNTIME_INPUTS nor this instance\'s environment declaration describes. An ' +
+        'operator would be handed a stack with a blank where a value belongs and no sentence ' +
+        'saying what it decides.',
     );
   }
   return `${lines.join('\n')}\n`;
+}
+
+/**
+ * One declared input's sentence, as the operator reads it in a `.env.example`.
+ *
+ * The declaration's own words in both halves — what it decides, and what leaving
+ * it unset costs — because a rewrite here would be a second statement of the
+ * author's fact with nothing reconciling the two.
+ */
+function declarationSentence(input: EnvironmentInput): string {
+  if (input.requirement.kind === 'optional') {
+    return `${input.describes.en} Without it, ${input.requirement.without.en}`;
+  }
+  if (input.requirement.kind === 'requiredWhen') {
+    return (
+      `${input.describes.en} Required when ` +
+      `${input.requirement.input}=${input.requirement.equals}.`
+    );
+  }
+  return `${input.describes.en} Required.`;
 }
 
 /** One sentence, wrapped to a width a terminal shows whole. */
@@ -1068,12 +1143,13 @@ export function deployFiles(input: DeployInput): readonly DeployFile[] {
           '# What this stack reads on every start. Copy to `.env` beside this file and fill it',
           '# in; `.env` is git-ignored and nothing here is a value anybody but you chose.',
           '#',
-          '# These are the RUNNING stack\'s inputs. The `.env.example` at the root of this',
-          '# repository is a different set — the values two of the builds inline into a bundle',
-          '# — and changing one of those means rebuilding an image rather than restarting a',
-          '# container.',
+          '# These are the values THIS compose file expands, for a stack on a host. The',
+          '# `.env.example` at the root of this repository is the one a development machine',
+          '# reads and it is a different set: it names the database and the cache directly,',
+          '# where the services below are named by the compose network instead.',
         ],
         compose,
+        input.declared,
       ),
     );
     write('nginx.example.conf', nginxExample(input));
@@ -1094,6 +1170,7 @@ export function deployFiles(input: DeployInput): readonly DeployFile[] {
             `# \`compose.${host}.yml\` expands, and the other two hosts hold theirs.`,
           ],
           compose,
+          input.declared,
         ),
       );
     }
