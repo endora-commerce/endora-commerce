@@ -1424,7 +1424,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 2061 -> 2062.**
     // One platform source file (`kernel/contribution-sinks.ts`). It declares no action,
     // so nothing else moves.
-    files: 2062,
+    // **`specs/110-instance-repository/` T138a: -1 file.** The divergence report's two
+    // renderings moved into `@endora-commerce/cli` with the derivation that feeds them, so
+    // `backend/src/overlay/divergence-report.ts` is gone and nothing under a root this walk
+    // reads replaced it — the four files the task adds are the package's. Measured on the
+    // **merged** tree in the quality job's shape, and attributed by the branch's own
+    // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
+    // none of them under a root this walk reads, and one deleted.
+    files: 2061,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1745,7 +1752,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
     // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 2193 -> 2194.**
     // One platform source file (`kernel/contribution-sinks.ts`).
-    files: 2194,
+    // **`specs/110-instance-repository/` T138a: -1 file.** The divergence report's two
+    // renderings moved into `@endora-commerce/cli` with the derivation that feeds them, so
+    // `backend/src/overlay/divergence-report.ts` is gone and nothing under a root this walk
+    // reads replaced it — the four files the task adds are the package's. Measured on the
+    // **merged** tree in the quality job's shape, and attributed by the branch's own
+    // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
+    // none of them under a root this walk reads, and one deleted.
+    files: 2193,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2513,7 +2527,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Three: the two new platform files (source and its co-located test) and the new
     // backend unit test. Its population is the whole tree, tests included.
     // **Not this branch's: +1 was already standing on `9a0e8e0d0`**, measured there in a pristine worktree in the `quality` shape. This branch adds nothing to this walk, which excludes `backend/scripts` and so does not see the ledger shards; the one test file Phase 3 adds landed with T3-A in !1619 and is already in the base.
-    files: 5630,
+    // **`specs/110-instance-repository/` T138a: files 5630 -> 5633, sites 556 -> 558.** Both are
+    // this branch's, and they are a **population** move rather than a growth: `backend/scripts`
+    // is out of this walk and `packages/` is in it, so relocating `lib/divergence.ts` and
+    // `lib/registration-owners.ts` into `@endora-commerce/cli` brings two files that were
+    // always in the tree into the population for the first time, with whatever they spell.
+    // The three files are those two plus `lib/divergence-artefacts.ts` and
+    // `generate/divergence.ts`, less the deleted `backend/src/overlay/divergence-report.ts`
+    // and `packages/cli/test/`, which this walk does not read.
+    files: 5633,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2679,7 +2701,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // reads 587 on the merged tree, feature 120's helper edits having cancelled it.
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    sites: 556,
+    sites: 558,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -3059,11 +3081,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // NOT THIS BRANCH'S. `origin/master` already reads 1319 — the `design/117-tasks`
     // merge added a document and did not re-record. This branch adds no markdown a
     // citing document names.
-    // **D-229 (the liveness ruling): 1319 -> 1321, of which ONE is this branch's.**
-    // Its population is the documents, and `specs/121-platform-liveness-probe/tasks.md`
-    // is one of them. The other +1 was already on `origin/master` at 6eede304c —
-    // pristine master reads 1320, this branch 1321, measured rather than inferred.
-    files: 1321,
+    files: 1319,
     sites: 13,
     sources: [],
     //
@@ -3374,7 +3392,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
     // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 2193 -> 2194.**
     // One platform source file (`kernel/contribution-sinks.ts`). It declares no entity.
-    files: 2194,
+    // **`specs/110-instance-repository/` T138a: -1 file.** The divergence report's two
+    // renderings moved into `@endora-commerce/cli` with the derivation that feeds them, so
+    // `backend/src/overlay/divergence-report.ts` is gone and nothing under a root this walk
+    // reads replaced it — the four files the task adds are the package's. Measured on the
+    // **merged** tree in the quality job's shape, and attributed by the branch's own
+    // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
+    // none of them under a root this walk reads, and one deleted.
+    files: 2193,
     sites: 265,
     sources: ['manifest-index'],
   },
@@ -3675,7 +3700,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 2193 -> 2194.**
     // One platform source file. It starts no timer and registers no boot hook, so the
     // ledger stays at two entries and neither of them is new.
-    files: 2194,
+    // **`specs/110-instance-repository/` T138a: -1 file.** The divergence report's two
+    // renderings moved into `@endora-commerce/cli` with the derivation that feeds them, so
+    // `backend/src/overlay/divergence-report.ts` is gone and nothing under a root this walk
+    // reads replaced it — the four files the task adds are the package's. Measured on the
+    // **merged** tree in the quality job's shape, and attributed by the branch's own
+    // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
+    // none of them under a root this walk reads, and one deleted.
+    files: 2193,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -3973,7 +4005,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
     // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 2193 -> 2194.**
     // One platform source file. It is no entry point, so no site is added.
-    files: 2194,
+    // **`specs/110-instance-repository/` T138a: -1 file.** The divergence report's two
+    // renderings moved into `@endora-commerce/cli` with the derivation that feeds them, so
+    // `backend/src/overlay/divergence-report.ts` is gone and nothing under a root this walk
+    // reads replaced it — the four files the task adds are the package's. Measured on the
+    // **merged** tree in the quality job's shape, and attributed by the branch's own
+    // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
+    // none of them under a root this walk reads, and one deleted.
+    files: 2193,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -4214,7 +4253,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 650 -> 651.**
     // One platform source file. It reads no environment variable.
     // **`specs/117-instance-bring-up/` Phase 3 (T3-B): files 651 -> 2861, sites 68 -> 139.** Not drift and not a widened band — a **population change**, stated as one. This check's subject was the three trees a running Endora is made of; it is now those three **and the module tree**, because a module declares its own environment inputs in its `manifest.ts` and a module package ships no `.env.example`. The module walk adds 2210 files (2237 module sources minus the 27 of `_lifecycle`, whose sources are the platform's and which the backend tree's walk already opened — one file is opened once, or `files=` describes no tree) and 71 read sites, which is the whole of what this phase makes visible: 28 distinct variables in 30 of the 74 packages. Measured at `7e2465db2` against `9a0e8e0d0` measured the same way; the base agreed with the recorded 651/68, so every unit of this move is this branch's.
-    files: 2861,
+    // **`specs/110-instance-repository/` T138a: -1 file.** The divergence report's two
+    // renderings moved into `@endora-commerce/cli` with the derivation that feeds them, so
+    // `backend/src/overlay/divergence-report.ts` is gone and nothing under a root this walk
+    // reads replaced it — the four files the task adds are the package's. Measured on the
+    // **merged** tree in the quality job's shape, and attributed by the branch's own
+    // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
+    // none of them under a root this walk reads, and one deleted.
+    files: 2860,
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
     sites: 138,
@@ -5036,7 +5082,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // One platform source file (`kernel/contribution-sinks.ts`) and the one outward
     // import it adds — `lifecycle/services/gating-graph.ts` naming it, which is the
     // supply direction rule B allows. Its `.test.ts` sibling is outside this walk.
-    files: 2194,
+    // **`specs/110-instance-repository/` T138a: -1 file.** The divergence report's two
+    // renderings moved into `@endora-commerce/cli` with the derivation that feeds them, so
+    // `backend/src/overlay/divergence-report.ts` is gone and nothing under a root this walk
+    // reads replaced it — the four files the task adds are the package's. Measured on the
+    // **merged** tree in the quality job's shape, and attributed by the branch's own
+    // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
+    // none of them under a root this walk reads, and one deleted.
+    files: 2193,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -6637,7 +6690,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 5194 -> 5196.**
     // Two platform files. No module source moves at all, which is the shape of this
     // repair: the mechanism is the platform's and no contributor is edited.
-    files: 5204,
+    // **`specs/110-instance-repository/` T138a: -1 file.** The divergence report's two
+    // renderings moved into `@endora-commerce/cli` with the derivation that feeds them, so
+    // `backend/src/overlay/divergence-report.ts` is gone and nothing under a root this walk
+    // reads replaced it — the four files the task adds are the package's. Measured on the
+    // **merged** tree in the quality job's shape, and attributed by the branch's own
+    // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
+    // none of them under a root this walk reads, and one deleted.
+    files: 5203,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -7643,18 +7703,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // corroboration, `.md` being outside both.
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    // **D-229 (the liveness ruling): 8168 -> 8178, of which ONE is this branch's.**
-    // The branch adds one file, `specs/121-platform-liveness-probe/tasks.md`; this
-    // walk is the whole repository and opens it like any other. **The other nine were
-    // already standing on `origin/master`** at 6eede304c and are not this branch's:
-    // measured both ways rather than subtracted, pristine master reads 8177 against
-    // this branch's 8178. Recording the true value is still right — the record has to
-    // describe the tree — but the attribution belongs here rather than in whichever
-    // merge request reads it next and assumes a ten-file change went unreviewed.
-    // Measured on a clean tree: `git clean -fX docs/docs/modules`, `docs/build`
-    // removed and the module-doc copy stamp deleted. Without that the same walk
-    // reads higher again, which is the trap this file's header records twice.
-    files: 8178,
+    // **`specs/110-instance-repository/` T138a: 8168 -> 8175.** +6 this branch's — four source
+    // files under `packages/cli/src`, one test, two changesets, less the deleted
+    // `backend/src/overlay/divergence-report.ts` — and +1 inherited: `master` re-recorded this
+    // entry at `d2a366bff` and added a file after it. This walk is the whole repository, so it
+    // is the one that counts the changesets.
+    files: 8175,
     sites: null,
     sources: [],
     //
@@ -8234,7 +8288,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
     // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 2193 -> 2194.**
     // One platform source file. It writes no `catch`.
-    files: 2194,
+    // **`specs/110-instance-repository/` T138a: -1 file.** The divergence report's two
+    // renderings moved into `@endora-commerce/cli` with the derivation that feeds them, so
+    // `backend/src/overlay/divergence-report.ts` is gone and nothing under a root this walk
+    // reads replaced it — the four files the task adds are the package's. Measured on the
+    // **merged** tree in the quality job's shape, and attributed by the branch's own
+    // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
+    // none of them under a root this walk reads, and one deleted.
+    files: 2193,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -8714,7 +8775,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `transactional_emails` DML ledger shards (`migration-undeclared-references/` and
     // `migration-foreign-writes/`), which FR-020 removes with the statements they recorded.
     // **Phase 3 (T3-C): +10, all of it this branch's** (`9a0e8e0d0` agreed with the recorded 2496). The ten ledger shards, which its application-half walk opens like any other source under `backend/`.
-    files: 2506,
+    // **`specs/110-instance-repository/` T138a: -1 file.** The divergence report's two
+    // renderings moved into `@endora-commerce/cli` with the derivation that feeds them, so
+    // `backend/src/overlay/divergence-report.ts` is gone and nothing under a root this walk
+    // reads replaced it — the four files the task adds are the package's. Measured on the
+    // **merged** tree in the quality job's shape, and attributed by the branch's own
+    // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
+    // none of them under a root this walk reads, and one deleted.
+    files: 2505,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -9757,7 +9825,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
     // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 2193 -> 2194.**
     // One platform source file. It subscribes to nothing and builds no worker.
-    files: 2194,
+    // **`specs/110-instance-repository/` T138a: -1 file.** The divergence report's two
+    // renderings moved into `@endora-commerce/cli` with the derivation that feeds them, so
+    // `backend/src/overlay/divergence-report.ts` is gone and nothing under a root this walk
+    // reads replaced it — the four files the task adds are the package's. Measured on the
+    // **merged** tree in the quality job's shape, and attributed by the branch's own
+    // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
+    // none of them under a root this walk reads, and one deleted.
+    files: 2193,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -10307,7 +10382,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
     // **`specs/117-instance-bring-up/` A4 (the contribution-drop mechanism): files 2193 -> 2194.**
     // One platform source file. It writes no SQL.
-    files: 2194,
+    // **`specs/110-instance-repository/` T138a: -1 file.** The divergence report's two
+    // renderings moved into `@endora-commerce/cli` with the derivation that feeds them, so
+    // `backend/src/overlay/divergence-report.ts` is gone and nothing under a root this walk
+    // reads replaced it — the four files the task adds are the package's. Measured on the
+    // **merged** tree in the quality job's shape, and attributed by the branch's own
+    // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
+    // none of them under a root this walk reads, and one deleted.
+    files: 2193,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -10750,7 +10832,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **+11, of which 10 are this branch's and 1 was already standing on `9a0e8e0d0`.** The ten are the ledger shards.
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    files: 4658,
+    // **`specs/110-instance-repository/` T138a: -1 file.** The divergence report's two
+    // renderings moved into `@endora-commerce/cli` with the derivation that feeds them, so
+    // `backend/src/overlay/divergence-report.ts` is gone and nothing under a root this walk
+    // reads replaced it — the four files the task adds are the package's. Measured on the
+    // **merged** tree in the quality job's shape, and attributed by the branch's own
+    // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
+    // none of them under a root this walk reads, and one deleted.
+    files: 4657,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -11651,15 +11740,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // together and no other entry moves at all.
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    // **D-229 (the liveness ruling): 8228 -> 8230, of which ONE is this branch's.**
-    // This walk is the whole repository, so it opens a `.md` like any other file, and
-    // this branch adds exactly one: `specs/121-platform-liveness-probe/tasks.md`. The
-    // ruling and the handover edit are changes to files that already exist.
-    // The other +1 was already standing on `origin/master` at 6eede304c — measured
-    // both ways rather than inferred: pristine master reads 8229, this branch 8230.
-    // Measured after `git clean -fX docs/docs/modules`, with `docs/build` and the
-    // module-doc copy stamp removed, which is the tree shape `quality` runs in.
-    files: 8230,
+    // **`specs/110-instance-repository/` T138a: 8228 -> 8235.** +6 this branch's and +1
+    // inherited, on the same arithmetic `check-nul-bytes` records one entry over.
+    files: 8235,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -12220,7 +12303,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **+11, of which 10 are this branch's and 1 was already standing on `9a0e8e0d0`.** The ten are the ledger shards. Its population is source-code comments, so the ledger's `README.md` is not among them — that walk is `docs/docs/**`.
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    files: 6284,
+    // **`specs/110-instance-repository/` T138a: 6284 -> 6288.** All four are this branch's: the
+    // four files `packages/cli/src` gains, less the one `backend/src` loses. The two changesets
+    // are not under `docs/docs/`, so this walk does not see them.
+    files: 6288,
     sites: null,
     sources: ['manifest-index'],
     //

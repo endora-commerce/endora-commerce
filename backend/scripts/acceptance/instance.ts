@@ -1170,15 +1170,23 @@ function declaredUnmeasured(): readonly AssertionResult[] {
       id: 'A8' as const,
       state: 'unmeasured' as const,
       detail:
-        'it needs a booted instance (A4) and a divergence report, and it has neither. T137 ' +
-        'reconciled the file manifest and wrote the documentation member, which is the half ' +
-        'A6 was waiting on; the divergence report is **not** in `instance-tree.md` §2.6 and ' +
-        'no instance generates one, because its renderer is `backend/scripts/` ' +
-        '(`generate-divergence.ts` over `scripts/lib/divergence.ts`) and reads this ' +
-        'repository\'s own overlay resolver, its module layout and a port→owner map built ' +
-        'from module *sources* — none of which an instance has. Moving it is the shape T137 ' +
-        'and T138 gave the other two artefact families and is a task of its own; the boot ' +
-        'half is A4\'s, behind D-226',
+        'A8 is two halves — an overlay module in the created tree is **composed**, and its ' +
+        'decoration **appears in the divergence report** — and neither is measured here yet. ' +
+        'This reason previously said the report half had no implementation anywhere: *"the ' +
+        'divergence report is not in `instance-tree.md` §2.6 and no instance generates one, ' +
+        'because its renderer is `backend/scripts/`"*. **That premise expired with T138a**, ' +
+        'which moved the derivation and the two renders into `@endora-commerce/cli` and gave ' +
+        '`endora generate` a fourth artefact family: an instance now renders ' +
+        '`apps/<deployment>/divergence.generated.{md,json}` over its own `apps/` tree, and ' +
+        '§2.6 carries the row. What stands between that and a verdict here is **this ' +
+        'criterion**, not the platform: the tree it creates has an empty ' +
+        '`apps/<deployment>/modules/`, so there is no overlay module to compose and no ' +
+        'decoration to look for. Writing one into the created tree and asserting over the ' +
+        'rendered report is this assertion\'s own step (T141/T142); the composed half stays ' +
+        'A4\'s. Recorded as `unmeasured` because that is what it is — T138a measured that an ' +
+        'instance generates the report, over a real on-disk install and over this ' +
+        "criterion's own created tree kept with `KEEP_INSTANCE_ACCEPTANCE=1`, and measured " +
+        'nothing here',
     },
     {
       id: 'A9' as const,

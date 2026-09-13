@@ -500,9 +500,14 @@ export function planInstance(input: PlanInput): InstancePlan {
     kind: 'derived',
     member: 'root',
     content: [
-      '# The generated artefacts. An instance generates them and commits none of them:',
-      '# a different module set is a different bundle, and committing one makes this tree',
-      '# and the install disagree.',
+      '# The generated artefacts THAT ARE FACTS ABOUT THE INSTALL. `pnpm run generate`',
+      '# writes them and this tree commits none of them: a different module set is a',
+      '# different bundle, and committing one makes this tree and the install disagree.',
+      '#',
+      '# `apps/<deployment>/divergence.generated.{md,json}` is deliberately NOT here. The',
+      '# same command writes it and it is a fact about THIS repository — what your own',
+      '# overlay modules decorate, intercept and consume — so it is committed and the diff',
+      '# is the point: it is where an upgrade that changes behaviour you depended on shows up.',
       ...GENERATED_ARTEFACTS,
       '',
       '# The documentation site\'s are a population rather than a file: one copied page per',
@@ -1001,7 +1006,7 @@ copy of no part of it.
 | | |
 | --- | --- |
 | \`package.json\` | the module list. There is no other: the \`dependencies\` are what this instance composes, and the platform discovers them from \`node_modules\` at runtime |
-| \`apps/${input.deployment}/\` | your deployment — your overlay modules, and \`divergence.ts\` |
+| \`apps/${input.deployment}/\` | your deployment — your overlay modules, \`divergence.ts\` (what you declare) and \`divergence.generated.md\` (what is derived from it; commit it and read the diff) |
 | \`backend/\` | the entry points: a process that listens, a process that consumes queues, an ORM configuration and the operator commands |
 ${members.admin ? '| `admin/` | the operator interface — the admin shell, mounted over the screens your modules ship |\n' : ''}${members.docs ? '| `docs/` | the documentation site — a page per module, written by the module that ships it |\n' : ''}
 ${String(dependencyCount)} packages are declared today. Every one of them is a dependency, so a
@@ -1011,7 +1016,8 @@ fix in any of them reaches you through \`pnpm update\` with no file in this tree
 
 \`\`\`
 pnpm install
-pnpm run generate                   # the files the admin and the docs site are built from
+pnpm run generate                   # the files the admin and the docs site are built from,
+                                    # and your deployment's divergence report
 pnpm run build                      # the entry points, compiled, and every member built
 pnpm run migrate                    # the schema, in the order the manifests compute
 pnpm run module:install --all       # every module you declared, in dependency order
@@ -1030,6 +1036,12 @@ Four seams before a fork, in order of cost: the EventBus, an API interceptor, a 
 and \`ctx.di.decorate\` from your own overlay module in \`apps/${input.deployment}/modules/\`.
 Decoration is the only way an instance changes a platform behaviour — there is no file to
 shadow, because there is no file.
+
+Whatever you reach for, \`pnpm run generate\` records it in
+\`apps/${input.deployment}/divergence.generated.md\`: every seam you used, which module owns
+the thing you changed, what that seam costs on the escalation ladder, and the sentence you
+wrote about it in \`divergence.ts\`. A divergence with no sentence is reported; so is a
+sentence describing a divergence that is gone.
 
 A module you will never publish belongs in that directory. A module you intend to publish or
 install into a second instance is a package: \`pnpm pack\`, then install the tarball. A
