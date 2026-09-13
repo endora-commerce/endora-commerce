@@ -1432,7 +1432,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2061 -> 2059.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
-    files: 2059,
+    // **`specs/123-oss-install-experience/` G2: files 2059 -> 2060.** The operator CLI's dispatch moved
+    // into `@endora-commerce/platform`, so a scaffolded instance can run the commands its
+    // modules declare: `packages/platform/src/cli/dispatch.ts` and its test are new,
+    // `packages/platform/src/demo/host-command.ts` is `backend/src/cli/demo-command.ts`
+    // relocated, and `backend/test/unit/cli/demo-command.test.ts` moved to
+    // `packages/platform/src/demo/host-command.test.ts` beside its subject (T119a's
+    // convention). Measured on a clean `git worktree` of this branch with the ignored copies
+    // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
+    // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
+    // and none of it is somebody else's staleness. Never computed from a delta.
+    files: 2060,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1761,7 +1771,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2193 -> 2191.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
-    files: 2191,
+    // **`specs/123-oss-install-experience/` G2: files 2191 -> 2192.** The operator CLI's dispatch moved
+    // into `@endora-commerce/platform`, so a scaffolded instance can run the commands its
+    // modules declare: `packages/platform/src/cli/dispatch.ts` and its test are new,
+    // `packages/platform/src/demo/host-command.ts` is `backend/src/cli/demo-command.ts`
+    // relocated, and `backend/test/unit/cli/demo-command.test.ts` moved to
+    // `packages/platform/src/demo/host-command.test.ts` beside its subject (T119a's
+    // convention). Measured on a clean `git worktree` of this branch with the ignored copies
+    // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
+    // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
+    // and none of it is somebody else's staleness. Never computed from a delta.
+    files: 2192,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2542,7 +2562,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`fix/instance-500-pipeline` (the instance 500): files 5633 -> 5635 (+2).** Two new test files, both under a root this walk reads — it covers `backend/` and `packages/` alike. The two files are `backend/test/unit/kernel/compose-app-boot-invariants.test.ts` and `packages/platform/src/http/error-envelope-server-fault-logging.test.ts`. Attributed by parking both and re-running, then by stashing the branch's three edits and re-running again on `origin/master` itself; measured on the **rebased** tree, in the quality job's shape, never by subtracting a delta.
     // **Merging `origin/master` into `feat/122-p2-deployment-examples` (MR !1639): files 5635 -> 5636 (+1).** Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, which is what `specs/conventions/check-estate.md` asks for — a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit, after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming **zero** unignored residue of the kind that put a developer's local files into this record once before. **The delta is deliberately not decomposed per file.** Ten files arrive at this tree — four the branch's (`deploy.ts`, two test files and a changeset) and six `master`'s since the branch point (feature 123's three specs, the 500 fix's two tests and its changeset) — and each recorded value was measured on a tree holding some but not all of them, so an arithmetic attribution would be a reconstruction rather than a measurement. The run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 5636 -> 5635.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
-    files: 5635,
+    // **`specs/123-oss-install-experience/` G2: files 5635 -> 5637.** The operator CLI's dispatch moved
+    // into `@endora-commerce/platform`, so a scaffolded instance can run the commands its
+    // modules declare: `packages/platform/src/cli/dispatch.ts` and its test are new,
+    // `packages/platform/src/demo/host-command.ts` is `backend/src/cli/demo-command.ts`
+    // relocated, and `backend/test/unit/cli/demo-command.test.ts` moved to
+    // `packages/platform/src/demo/host-command.test.ts` beside its subject (T119a's
+    // convention). Measured on a clean `git worktree` of this branch with the ignored copies
+    // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
+    // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
+    // and none of it is somebody else's staleness. Never computed from a delta.
+    files: 5637,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2925,7 +2955,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // block above this table has the arithmetic; nothing here widened a band.
     // **`fix/instance-500-pipeline` (the instance 500): files 2476 -> 2477 (+1).** One of the two new test files is under a root this walk reads; the platform one is not. The two files are `backend/test/unit/kernel/compose-app-boot-invariants.test.ts` and `packages/platform/src/http/error-envelope-server-fault-logging.test.ts`. Attributed by parking both and re-running, then by stashing the branch's three edits and re-running again on `origin/master` itself; measured on the **rebased** tree, in the quality job's shape, never by subtracting a delta.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2477 -> 2476.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
-    files: 2476,
+    // **`specs/123-oss-install-experience/` G2: files 2476 -> 2480.** The operator CLI's dispatch moved
+    // into `@endora-commerce/platform`, so a scaffolded instance can run the commands its
+    // modules declare: `packages/platform/src/cli/dispatch.ts` and its test are new,
+    // `packages/platform/src/demo/host-command.ts` is `backend/src/cli/demo-command.ts`
+    // relocated, and `backend/test/unit/cli/demo-command.test.ts` moved to
+    // `packages/platform/src/demo/host-command.test.ts` beside its subject (T119a's
+    // convention). Measured on a clean `git worktree` of this branch with the ignored copies
+    // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
+    // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
+    // and none of it is somebody else's staleness. Never computed from a delta.
+    files: 2480,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -3417,7 +3457,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2193 -> 2191.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
-    files: 2191,
+    // **`specs/123-oss-install-experience/` G2: files 2191 -> 2192.** The operator CLI's dispatch moved
+    // into `@endora-commerce/platform`, so a scaffolded instance can run the commands its
+    // modules declare: `packages/platform/src/cli/dispatch.ts` and its test are new,
+    // `packages/platform/src/demo/host-command.ts` is `backend/src/cli/demo-command.ts`
+    // relocated, and `backend/test/unit/cli/demo-command.test.ts` moved to
+    // `packages/platform/src/demo/host-command.test.ts` beside its subject (T119a's
+    // convention). Measured on a clean `git worktree` of this branch with the ignored copies
+    // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
+    // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
+    // and none of it is somebody else's staleness. Never computed from a delta.
+    files: 2192,
     sites: 265,
     sources: ['manifest-index'],
   },
@@ -3726,7 +3776,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2193 -> 2191.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
-    files: 2191,
+    // **`specs/123-oss-install-experience/` G2: files 2191 -> 2192.** The operator CLI's dispatch moved
+    // into `@endora-commerce/platform`, so a scaffolded instance can run the commands its
+    // modules declare: `packages/platform/src/cli/dispatch.ts` and its test are new,
+    // `packages/platform/src/demo/host-command.ts` is `backend/src/cli/demo-command.ts`
+    // relocated, and `backend/test/unit/cli/demo-command.test.ts` moved to
+    // `packages/platform/src/demo/host-command.test.ts` beside its subject (T119a's
+    // convention). Measured on a clean `git worktree` of this branch with the ignored copies
+    // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
+    // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
+    // and none of it is somebody else's staleness. Never computed from a delta.
+    files: 2192,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4032,7 +4092,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2193 -> 2191.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
-    files: 2191,
+    // **`specs/123-oss-install-experience/` G2: files 2191 -> 2192.** The operator CLI's dispatch moved
+    // into `@endora-commerce/platform`, so a scaffolded instance can run the commands its
+    // modules declare: `packages/platform/src/cli/dispatch.ts` and its test are new,
+    // `packages/platform/src/demo/host-command.ts` is `backend/src/cli/demo-command.ts`
+    // relocated, and `backend/test/unit/cli/demo-command.test.ts` moved to
+    // `packages/platform/src/demo/host-command.test.ts` beside its subject (T119a's
+    // convention). Measured on a clean `git worktree` of this branch with the ignored copies
+    // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
+    // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
+    // and none of it is somebody else's staleness. Never computed from a delta.
+    files: 2192,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -4281,7 +4351,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2860 -> 2858.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
-    files: 2858,
+    // **`specs/123-oss-install-experience/` G2: files 2858 -> 2859.** The operator CLI's dispatch moved
+    // into `@endora-commerce/platform`, so a scaffolded instance can run the commands its
+    // modules declare: `packages/platform/src/cli/dispatch.ts` and its test are new,
+    // `packages/platform/src/demo/host-command.ts` is `backend/src/cli/demo-command.ts`
+    // relocated, and `backend/test/unit/cli/demo-command.test.ts` moved to
+    // `packages/platform/src/demo/host-command.test.ts` beside its subject (T119a's
+    // convention). Measured on a clean `git worktree` of this branch with the ignored copies
+    // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
+    // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
+    // and none of it is somebody else's staleness. Never computed from a delta.
+    files: 2859,
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
     sites: 138,
@@ -4546,7 +4626,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The new backend unit test. Its population is `backend/test/**`, so the two
     // platform files are outside it.
     // **`fix/instance-500-pipeline` (the instance 500): files 1628 -> 1629 (+1).** One of the two new test files is under a root this walk reads; the platform one is not. The two files are `backend/test/unit/kernel/compose-app-boot-invariants.test.ts` and `packages/platform/src/http/error-envelope-server-fault-logging.test.ts`. Attributed by parking both and re-running, then by stashing the branch's three edits and re-running again on `origin/master` itself; measured on the **rebased** tree, in the quality job's shape, never by subtracting a delta.
-    files: 1629,
+    // **`specs/123-oss-install-experience/` G2: files 1629 -> 1628.** The operator CLI's dispatch moved
+    // into `@endora-commerce/platform`, so a scaffolded instance can run the commands its
+    // modules declare: `packages/platform/src/cli/dispatch.ts` and its test are new,
+    // `packages/platform/src/demo/host-command.ts` is `backend/src/cli/demo-command.ts`
+    // relocated, and `backend/test/unit/cli/demo-command.test.ts` moved to
+    // `packages/platform/src/demo/host-command.test.ts` beside its subject (T119a's
+    // convention). Measured on a clean `git worktree` of this branch with the ignored copies
+    // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
+    // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
+    // and none of it is somebody else's staleness. Never computed from a delta.
+    files: 1628,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -4788,7 +4878,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The new backend unit test; same `backend/test/**` population as above.
     // **Not this branch's**: already standing on `9a0e8e0d0`, measured there in the `quality` shape. Phase 3 adds no file to `backend/test/**`.
     // **`fix/instance-500-pipeline` (the instance 500): files 1628 -> 1629 (+1).** One of the two new test files is under a root this walk reads; the platform one is not. The two files are `backend/test/unit/kernel/compose-app-boot-invariants.test.ts` and `packages/platform/src/http/error-envelope-server-fault-logging.test.ts`. Attributed by parking both and re-running, then by stashing the branch's three edits and re-running again on `origin/master` itself; measured on the **rebased** tree, in the quality job's shape, never by subtracting a delta.
-    files: 1629,
+    // **`specs/123-oss-install-experience/` G2: files 1629 -> 1628.** The operator CLI's dispatch moved
+    // into `@endora-commerce/platform`, so a scaffolded instance can run the commands its
+    // modules declare: `packages/platform/src/cli/dispatch.ts` and its test are new,
+    // `packages/platform/src/demo/host-command.ts` is `backend/src/cli/demo-command.ts`
+    // relocated, and `backend/test/unit/cli/demo-command.test.ts` moved to
+    // `packages/platform/src/demo/host-command.test.ts` beside its subject (T119a's
+    // convention). Measured on a clean `git worktree` of this branch with the ignored copies
+    // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
+    // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
+    // and none of it is somebody else's staleness. Never computed from a delta.
+    files: 1628,
     sites: null,
     sources: [],
   },
@@ -5113,7 +5213,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2193 -> 2191, sites 151 -> 153.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
-    files: 2191,
+    // **`specs/123-oss-install-experience/` G2: files 2191 -> 2192.** The operator CLI's dispatch moved
+    // into `@endora-commerce/platform`, so a scaffolded instance can run the commands its
+    // modules declare: `packages/platform/src/cli/dispatch.ts` and its test are new,
+    // `packages/platform/src/demo/host-command.ts` is `backend/src/cli/demo-command.ts`
+    // relocated, and `backend/test/unit/cli/demo-command.test.ts` moved to
+    // `packages/platform/src/demo/host-command.test.ts` beside its subject (T119a's
+    // convention). Measured on a clean `git worktree` of this branch with the ignored copies
+    // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
+    // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
+    // and none of it is somebody else's staleness. Never computed from a delta.
+    files: 2192,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -5152,7 +5262,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
     // **`fix/instance-500-pipeline` (the instance 500): sites 150 -> 151 (+1).** One outward import added to a platform root: `packages/platform/src/composition/compose-app.ts` now names `../kernel/sales-channels/default-channel-reconciler.js`, because the boot-time default-channel reconciliation moved out of the reference deployment's contribution callback and into the composition root every instance runs. `into-modules` stays 0. `files` does not move — the two files this branch adds are tests and this walk reads source roots.
-    sites: 153,
+    // **`specs/123-oss-install-experience/` G2: sites 153 -> 167.** The operator CLI's dispatch moved
+    // into `@endora-commerce/platform`, so a scaffolded instance can run the commands its
+    // modules declare: `packages/platform/src/cli/dispatch.ts` and its test are new,
+    // `packages/platform/src/demo/host-command.ts` is `backend/src/cli/demo-command.ts`
+    // relocated, and `backend/test/unit/cli/demo-command.test.ts` moved to
+    // `packages/platform/src/demo/host-command.test.ts` beside its subject (T119a's
+    // convention). Measured on a clean `git worktree` of this branch with the ignored copies
+    // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
+    // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
+    // and none of it is somebody else's staleness. Never computed from a delta.
+    // The fourteen sites are `dispatch.ts`' own specifiers, which rule B counts because it is
+    // a platform root: the kernel container type, `effectiveState`, `ModuleDisabledError`,
+    // `enterSystemScope`, the lifecycle, overlay and packages barrels, the six `demo/` files
+    // it orders and the `module-commands.ts` beside it. They are what the dispatch *was*
+    // reaching for from `backend/src/cli.ts` by relative path, so they moved with the file
+    // rather than being created. `into-modules` stays 0, which is what the rule is about.
+    sites: 167,
     // `platform-subpaths` is T118a's second author over rule B's population: the
     // platform's `exports` map is a different program's answer to "which directories
     // does this package have", and a published subpath naming no walked directory is a
@@ -6731,7 +6857,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // none of them under a root this walk reads, and one deleted.
     // **`fix/instance-500-pipeline` (the instance 500): files 5203 -> 5204 (+1).** One of the two new test files is under a root this walk reads. The two files are `backend/test/unit/kernel/compose-app-boot-invariants.test.ts` and `packages/platform/src/http/error-envelope-server-fault-logging.test.ts`. Attributed by parking both and re-running, then by stashing the branch's three edits and re-running again on `origin/master` itself; measured on the **rebased** tree, in the quality job's shape, never by subtracting a delta.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 5204 -> 5200, sites 12986 -> 12979.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
-    files: 5200,
+    // **`specs/123-oss-install-experience/` G2: files 5200 -> 5203.** The operator CLI's dispatch moved
+    // into `@endora-commerce/platform`, so a scaffolded instance can run the commands its
+    // modules declare: `packages/platform/src/cli/dispatch.ts` and its test are new,
+    // `packages/platform/src/demo/host-command.ts` is `backend/src/cli/demo-command.ts`
+    // relocated, and `backend/test/unit/cli/demo-command.test.ts` moved to
+    // `packages/platform/src/demo/host-command.test.ts` beside its subject (T119a's
+    // convention). Measured on a clean `git worktree` of this branch with the ignored copies
+    // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
+    // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
+    // and none of it is somebody else's staleness. Never computed from a delta.
+    files: 5203,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -7751,7 +7887,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`fix/instance-500-pipeline` (the instance 500): 8184 -> 8182, and only +2 of that is this branch's.** Measured in three trees rather than one, because the census printed a *fall* over a branch that adds files. On `origin/master` at 5dda3c6ec with this branch parked and stashed this walk read **8176** — the recorded 8184 was already 8 high and no clean tree reproduces it. This walk reads git-ignored files by design, and 8 is exactly the residue this convention's own worked example measured between a working checkout and a pristine worktree, so the likeliest cause is a value recorded from a tree that had been worked in; it is not identified here and it is not this branch's to claim. The rebase onto 76459b672 brings **+4**, and this branch's two new test files bring the last **+2**. A thirteenth file — the branch's own changeset — brings one more: **8183**, measured after writing it.
     // **Merging `origin/master` into `feat/122-p2-deployment-examples` (MR !1639): files 8183 -> 8191 (+8).** Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, which is what `specs/conventions/check-estate.md` asks for — a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit, after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming **zero** unignored residue of the kind that put a developer's local files into this record once before. **The delta is deliberately not decomposed per file.** Ten files arrive at this tree — four the branch's (`deploy.ts`, two test files and a changeset) and six `master`'s since the branch point (feature 123's three specs, the 500 fix's two tests and its changeset) — and each recorded value was measured on a tree holding some but not all of them, so an arithmetic attribution would be a reconstruction rather than a measurement. The run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 8191 -> 8185.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
-    files: 8185,
+    // **`specs/123-oss-install-experience/` G2: files 8185 -> 8188.** The operator CLI's dispatch moved
+    // into `@endora-commerce/platform`, so a scaffolded instance can run the commands its
+    // modules declare: `packages/platform/src/cli/dispatch.ts` and its test are new,
+    // `packages/platform/src/demo/host-command.ts` is `backend/src/cli/demo-command.ts`
+    // relocated, and `backend/test/unit/cli/demo-command.test.ts` moved to
+    // `packages/platform/src/demo/host-command.test.ts` beside its subject (T119a's
+    // convention). Measured on a clean `git worktree` of this branch with the ignored copies
+    // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
+    // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
+    // and none of it is somebody else's staleness. Never computed from a delta.
+    files: 8188,
     sites: null,
     sources: [],
     //
@@ -8341,7 +8487,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2193 -> 2191.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
-    files: 2191,
+    // **`specs/123-oss-install-experience/` G2: files 2191 -> 2192.** The operator CLI's dispatch moved
+    // into `@endora-commerce/platform`, so a scaffolded instance can run the commands its
+    // modules declare: `packages/platform/src/cli/dispatch.ts` and its test are new,
+    // `packages/platform/src/demo/host-command.ts` is `backend/src/cli/demo-command.ts`
+    // relocated, and `backend/test/unit/cli/demo-command.test.ts` moved to
+    // `packages/platform/src/demo/host-command.test.ts` beside its subject (T119a's
+    // convention). Measured on a clean `git worktree` of this branch with the ignored copies
+    // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
+    // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
+    // and none of it is somebody else's staleness. Never computed from a delta.
+    files: 2192,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -8830,7 +8986,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2505 -> 2501, sites 1902 -> 1901.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
-    files: 2501,
+    // **`specs/123-oss-install-experience/` G2: files 2501 -> 2500.** The operator CLI's dispatch moved
+    // into `@endora-commerce/platform`, so a scaffolded instance can run the commands its
+    // modules declare: `packages/platform/src/cli/dispatch.ts` and its test are new,
+    // `packages/platform/src/demo/host-command.ts` is `backend/src/cli/demo-command.ts`
+    // relocated, and `backend/test/unit/cli/demo-command.test.ts` moved to
+    // `packages/platform/src/demo/host-command.test.ts` beside its subject (T119a's
+    // convention). Measured on a clean `git worktree` of this branch with the ignored copies
+    // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
+    // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
+    // and none of it is somebody else's staleness. Never computed from a delta.
+    files: 2500,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -9526,7 +9692,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The new backend unit test; `backend/test/**` again.
     // **Not this branch's**: already standing on `9a0e8e0d0`. Phase 3 adds no file to `backend/test/**`.
     // **`fix/instance-500-pipeline` (the instance 500): files 1628 -> 1629 (+1).** One of the two new test files is under a root this walk reads; the platform one is not. The two files are `backend/test/unit/kernel/compose-app-boot-invariants.test.ts` and `packages/platform/src/http/error-envelope-server-fault-logging.test.ts`. Attributed by parking both and re-running, then by stashing the branch's three edits and re-running again on `origin/master` itself; measured on the **rebased** tree, in the quality job's shape, never by subtracting a delta.
-    files: 1629,
+    // **`specs/123-oss-install-experience/` G2: files 1629 -> 1628.** The operator CLI's dispatch moved
+    // into `@endora-commerce/platform`, so a scaffolded instance can run the commands its
+    // modules declare: `packages/platform/src/cli/dispatch.ts` and its test are new,
+    // `packages/platform/src/demo/host-command.ts` is `backend/src/cli/demo-command.ts`
+    // relocated, and `backend/test/unit/cli/demo-command.test.ts` moved to
+    // `packages/platform/src/demo/host-command.test.ts` beside its subject (T119a's
+    // convention). Measured on a clean `git worktree` of this branch with the ignored copies
+    // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
+    // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
+    // and none of it is somebody else's staleness. Never computed from a delta.
+    files: 1628,
     sites: 163,
     sources: [],
   },
@@ -9884,7 +10060,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2193 -> 2191.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
-    files: 2191,
+    // **`specs/123-oss-install-experience/` G2: files 2191 -> 2192.** The operator CLI's dispatch moved
+    // into `@endora-commerce/platform`, so a scaffolded instance can run the commands its
+    // modules declare: `packages/platform/src/cli/dispatch.ts` and its test are new,
+    // `packages/platform/src/demo/host-command.ts` is `backend/src/cli/demo-command.ts`
+    // relocated, and `backend/test/unit/cli/demo-command.test.ts` moved to
+    // `packages/platform/src/demo/host-command.test.ts` beside its subject (T119a's
+    // convention). Measured on a clean `git worktree` of this branch with the ignored copies
+    // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
+    // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
+    // and none of it is somebody else's staleness. Never computed from a delta.
+    files: 2192,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -10095,7 +10281,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
     // **`fix/instance-500-pipeline` (the instance 500): files 1761 -> 1762 (+1).** One of the two new test files is under a root this walk reads. The two files are `backend/test/unit/kernel/compose-app-boot-invariants.test.ts` and `packages/platform/src/http/error-envelope-server-fault-logging.test.ts`. Attributed by parking both and re-running, then by stashing the branch's three edits and re-running again on `origin/master` itself; measured on the **rebased** tree, in the quality job's shape, never by subtracting a delta.
-    files: 1762,
+    // **`specs/123-oss-install-experience/` G2: files 1762 -> 1761.** The operator CLI's dispatch moved
+    // into `@endora-commerce/platform`, so a scaffolded instance can run the commands its
+    // modules declare: `packages/platform/src/cli/dispatch.ts` and its test are new,
+    // `packages/platform/src/demo/host-command.ts` is `backend/src/cli/demo-command.ts`
+    // relocated, and `backend/test/unit/cli/demo-command.test.ts` moved to
+    // `packages/platform/src/demo/host-command.test.ts` beside its subject (T119a's
+    // convention). Measured on a clean `git worktree` of this branch with the ignored copies
+    // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
+    // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
+    // and none of it is somebody else's staleness. Never computed from a delta.
+    files: 1761,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -10444,7 +10640,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2193 -> 2191.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
-    files: 2191,
+    // **`specs/123-oss-install-experience/` G2: files 2191 -> 2192.** The operator CLI's dispatch moved
+    // into `@endora-commerce/platform`, so a scaffolded instance can run the commands its
+    // modules declare: `packages/platform/src/cli/dispatch.ts` and its test are new,
+    // `packages/platform/src/demo/host-command.ts` is `backend/src/cli/demo-command.ts`
+    // relocated, and `backend/test/unit/cli/demo-command.test.ts` moved to
+    // `packages/platform/src/demo/host-command.test.ts` beside its subject (T119a's
+    // convention). Measured on a clean `git worktree` of this branch with the ignored copies
+    // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
+    // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
+    // and none of it is somebody else's staleness. Never computed from a delta.
+    files: 2192,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -10896,7 +11102,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // none of them under a root this walk reads, and one deleted.
     // **`fix/instance-500-pipeline` (the instance 500): files 4657 -> 4659 (+2).** Both new test files are under a root this walk reads. The two files are `backend/test/unit/kernel/compose-app-boot-invariants.test.ts` and `packages/platform/src/http/error-envelope-server-fault-logging.test.ts`. Attributed by parking both and re-running, then by stashing the branch's three edits and re-running again on `origin/master` itself; measured on the **rebased** tree, in the quality job's shape, never by subtracting a delta.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 4659 -> 4657, sites 871 -> 870.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
-    files: 4657,
+    // **`specs/123-oss-install-experience/` G2: files 4657 -> 4659.** The operator CLI's dispatch moved
+    // into `@endora-commerce/platform`, so a scaffolded instance can run the commands its
+    // modules declare: `packages/platform/src/cli/dispatch.ts` and its test are new,
+    // `packages/platform/src/demo/host-command.ts` is `backend/src/cli/demo-command.ts`
+    // relocated, and `backend/test/unit/cli/demo-command.test.ts` moved to
+    // `packages/platform/src/demo/host-command.test.ts` beside its subject (T119a's
+    // convention). Measured on a clean `git worktree` of this branch with the ignored copies
+    // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
+    // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
+    // and none of it is somebody else's staleness. Never computed from a delta.
+    files: 4659,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -11806,7 +12022,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`fix/instance-500-pipeline` (the instance 500): files 8236 -> 8242 (+6), of which +2 are this branch's.** The two new test files are this branch's contribution, measured by parking them and re-running (8238). The other **+4** arrived with the rebase onto 76459b672 — feature 122's and feature 120's documentation and changeset files — and were not re-recorded there. Like `check-language.sh` this walk reads the git index plus untracked-and-not-ignored paths. The branch's own changeset is a fourteenth file and brings one more: **8243**, measured after writing it.
     // **Merging `origin/master` into `feat/122-p2-deployment-examples` (MR !1639): files 8243 -> 8251 (+8).** Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, which is what `specs/conventions/check-estate.md` asks for — a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit, after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming **zero** unignored residue of the kind that put a developer's local files into this record once before. **The delta is deliberately not decomposed per file.** Ten files arrive at this tree — four the branch's (`deploy.ts`, two test files and a changeset) and six `master`'s since the branch point (feature 123's three specs, the 500 fix's two tests and its changeset) — and each recorded value was measured on a tree holding some but not all of them, so an arithmetic attribution would be a reconstruction rather than a measurement. The run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 8251 -> 8245.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
-    files: 8245,
+    // **`specs/123-oss-install-experience/` G2: files 8245 -> 8248.** The operator CLI's dispatch moved
+    // into `@endora-commerce/platform`, so a scaffolded instance can run the commands its
+    // modules declare: `packages/platform/src/cli/dispatch.ts` and its test are new,
+    // `packages/platform/src/demo/host-command.ts` is `backend/src/cli/demo-command.ts`
+    // relocated, and `backend/test/unit/cli/demo-command.test.ts` moved to
+    // `packages/platform/src/demo/host-command.test.ts` beside its subject (T119a's
+    // convention). Measured on a clean `git worktree` of this branch with the ignored copies
+    // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
+    // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
+    // and none of it is somebody else's staleness. Never computed from a delta.
+    files: 8248,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -12373,7 +12599,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`fix/instance-500-pipeline` (the instance 500): files 6288 -> 6290 (+2).** Both new test files. This walk takes its population from the git index plus untracked-and-not-ignored paths, so a file counts before it is committed and after. The two files are `backend/test/unit/kernel/compose-app-boot-invariants.test.ts` and `packages/platform/src/http/error-envelope-server-fault-logging.test.ts`. Attributed by parking both and re-running, then by stashing the branch's three edits and re-running again on `origin/master` itself; measured on the **rebased** tree, in the quality job's shape, never by subtracting a delta.
     // **Merging `origin/master` into `feat/122-p2-deployment-examples` (MR !1639): files 6290 -> 6293 (+3).** Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, which is what `specs/conventions/check-estate.md` asks for — a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit, after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming **zero** unignored residue of the kind that put a developer's local files into this record once before. **The delta is deliberately not decomposed per file.** Ten files arrive at this tree — four the branch's (`deploy.ts`, two test files and a changeset) and six `master`'s since the branch point (feature 123's three specs, the 500 fix's two tests and its changeset) — and each recorded value was measured on a tree holding some but not all of them, so an arithmetic attribution would be a reconstruction rather than a measurement. The run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 6293 -> 6290.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
-    files: 6290,
+    // **`specs/123-oss-install-experience/` G2: files 6290 -> 6292.** The operator CLI's dispatch moved
+    // into `@endora-commerce/platform`, so a scaffolded instance can run the commands its
+    // modules declare: `packages/platform/src/cli/dispatch.ts` and its test are new,
+    // `packages/platform/src/demo/host-command.ts` is `backend/src/cli/demo-command.ts`
+    // relocated, and `backend/test/unit/cli/demo-command.test.ts` moved to
+    // `packages/platform/src/demo/host-command.test.ts` beside its subject (T119a's
+    // convention). Measured on a clean `git worktree` of this branch with the ignored copies
+    // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
+    // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
+    // and none of it is somebody else's staleness. Never computed from a delta.
+    files: 6292,
     sites: null,
     sources: ['manifest-index'],
     //
