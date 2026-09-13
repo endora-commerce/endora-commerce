@@ -44,7 +44,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const ENDORA = fileURLToPath(new URL('../dist/bin/endora.js', import.meta.url));
 
@@ -55,6 +55,23 @@ const ENDORA = fileURLToPath(new URL('../dist/bin/endora.js', import.meta.url));
  * waiting for an answer nobody can give it, which is the defect.
  */
 const TIMEOUT_MS = 60_000;
+
+/**
+ * …and vitest is told about it, because otherwise it never happens.
+ *
+ * The base configuration's `testTimeout` is **10 s** and every test in this file
+ * spawns between one and four processes, so vitest's own clock fires first and
+ * the 60 s hang detector above could never reach a verdict — the assertion this
+ * file exists to make was unreachable by construction. It is a flake under load
+ * rather than a silent pass, which is how it surfaced: three tests here timed
+ * out in a full `pnpm --filter '!backend' run test` and every one of them passed
+ * on its own seconds later.
+ *
+ * The slack is one hang's worth beyond the detector, not four: a test whose four
+ * runs all hang is red either way, and the only thing that changes is which
+ * clock says so.
+ */
+vi.setConfig({ testTimeout: TIMEOUT_MS + 10_000 });
 
 const scratch: string[] = [];
 afterEach(() => {
@@ -219,6 +236,10 @@ describe('endora new instance, as a process', () => {
       '.gitignore',
       'README.md',
       'apps',
+      // §2.7 — the example deployment files, which a scaffolded instance was
+      // handed none of until feature 122. `deploy/` is not a workspace member:
+      // an example that deploys the admin is not the admin project's file.
+      'deploy',
       'package.json',
       'pnpm-workspace.yaml',
       'tsconfig.json',
@@ -348,5 +369,92 @@ describe('endora new instance, as a process', () => {
     const result = await run(['new', 'nonsense'], root);
     expect(result.code).toBe(1);
     expect(result.stderr).toContain('new instance');
+  });
+});
+
+/**
+ * `--topology`, as a process — feature 122 T010, T011 and T017.
+ *
+ * The file beside this one asserts the rendered content; what only a spawn can
+ * answer is whether the flag reaches the renderer at all, what an unrecognised
+ * value exits with, and whether the operator is told about the files on their
+ * disk. Every assertion below is over the **tree on disk**, not over the plan:
+ * the whole gap this feature closes is that a client's `deploy/` was empty.
+ */
+describe('endora new instance --topology, as a process', () => {
+  const deployTree = (target: string): readonly string[] => {
+    const walk = (dir: string, prefix: string): readonly string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+        entry.isDirectory()
+          ? walk(join(dir, entry.name), `${prefix}${entry.name}/`)
+          : [`${prefix}${entry.name}`],
+      );
+    return [...walk(join(target, 'deploy'), '')].sort();
+  };
+
+  it('with no flag, a client gets the single-host examples on disk', async () => {
+    const root = installFixture();
+    const target = join(root, 'acme-shop');
+    const result = await run(['new', 'instance', target], root);
+    expect(result.code).toBe(0);
+    // The admin member is absent from this fixture — nothing installs the admin
+    // shell — so this is the member-derived set with no admin artefact in it.
+    expect(deployTree(target)).toEqual([
+      '.env.example',
+      'Dockerfile.backend',
+      'README.md',
+      'compose.prod.yml',
+      'nginx.example.conf',
+    ]);
+    expect(readFileSync(join(target, 'deploy', 'compose.prod.yml'), 'utf8')).toContain(
+      'services:',
+    );
+  });
+
+  it('`--topology three-host` writes three per-host compose files and their `.env`s', async () => {
+    const root = installFixture();
+    const target = join(root, 'acme-shop');
+    const result = await run(['new', 'instance', target, '--topology', 'three-host'], root);
+    expect(result.code).toBe(0);
+    expect(deployTree(target)).toEqual([
+      'Dockerfile.backend',
+      'README.md',
+      'three-host/.env.backend.example',
+      'three-host/.env.storefront.example',
+      'three-host/compose.backend.yml',
+      'three-host/compose.storefront.yml',
+    ]);
+    // T017 — the next-steps block gains the three-host line, printed to the
+    // operator rather than left to be discovered in the directory listing.
+    expect(result.stdout).toContain('deploy/three-host/');
+    expect(result.stdout).toContain('not interchangeable');
+  });
+
+  it('T011 — nothing the tooling reads back records the choice', async () => {
+    const root = installFixture();
+    const target = join(root, 'acme-shop');
+    await run(['new', 'instance', target, '--topology', 'three-host'], root);
+    for (const file of ['package.json', 'pnpm-workspace.yaml']) {
+      expect(readFileSync(join(target, file), 'utf8')).not.toMatch(/topolog/i);
+    }
+  });
+
+  it('T011 — an unrecognised value is an operator-fixable refusal naming the vocabulary', async () => {
+    const root = installFixture();
+    const target = join(root, 'acme-shop');
+    const result = await run(['new', 'instance', target, '--topology', 'two-host'], root);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('two-host');
+    expect(result.stderr).toContain('single-host | three-host');
+    // R5.2 — a run that refuses has written nothing.
+    expect(existsSync(target)).toBe(false);
+  });
+
+  it('`--help` names the flag and both values', async () => {
+    const root = installFixture();
+    const result = await run(['--help'], root);
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain('--topology');
+    expect(result.stdout).toContain('three-host');
   });
 });

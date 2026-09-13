@@ -58,6 +58,19 @@ export {
   type NewInstanceOptions,
   type NewInstanceResult,
 } from './new-instance/index.js';
+// The deployment examples' two axes. `Topology` is exported because `PlanInput`
+// carries one and a caller that cannot name the type cannot build the input;
+// `TOPOLOGIES` and `assertTopology` are exported because a caller offering the
+// flag needs the vocabulary and the refusal rather than a second copy of both.
+export {
+  assertTopology,
+  deployFiles,
+  DEFAULT_TOPOLOGY,
+  TOPOLOGIES,
+  type DeployFile,
+  type DeployInput,
+  type Topology,
+} from './new-instance/deploy.js';
 export {
   InstanceHostError,
   InstanceInputError,

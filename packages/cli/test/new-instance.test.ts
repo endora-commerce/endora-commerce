@@ -211,6 +211,9 @@ function planInput(overrides: Partial<PlanInput> = {}): PlanInput {
     ]),
     registry: null,
     npmrc: null,
+    // The default, and the one D-230 kept. A fixture that named the other would
+    // be asserting the three-host examples everywhere they are not the subject.
+    topology: 'single-host',
     ...overrides,
   };
 }
@@ -611,6 +614,32 @@ describe('the tree (§1, §2)', () => {
     );
     expect(steps.findIndex((s) => s.startsWith('pnpm run module:install'))).toBeLessThan(
       steps.findIndex((s) => s.startsWith('pnpm run start')),
+    );
+    // R3.4's own line, and the one the block has always ended on.
+    expect(text).toContain('endora new storefront <dir>');
+  });
+
+  /**
+   * Feature 122 T017 — the block gains one line under `three-host`, and gains
+   * it **only** there.
+   *
+   * A client who scaffolded three hosts has three directories of examples and
+   * no reason to look in any of them; a client who scaffolded one would be told
+   * about files their tree does not hold.
+   */
+  it('T017 — the three-host line is printed for that topology and for no other', () => {
+    const single = nextSteps('/tmp/acme', 'default').join('\n');
+    const three = nextSteps('/tmp/acme', 'default', 'three-host').join('\n');
+    expect(single).not.toContain('three-host');
+    expect(three).toContain('deploy/three-host/');
+    expect(three).toContain('not interchangeable');
+    // It is one line added to the same block, in the same place: everything the
+    // single-host run prints is still printed, and still first.
+    expect(nextSteps('/tmp/acme', 'default', 'three-host').length).toBe(
+      nextSteps('/tmp/acme', 'default').length + 1,
+    );
+    expect(three.indexOf('deploy/three-host/')).toBeLessThan(
+      three.indexOf('endora new storefront <dir>'),
     );
   });
 

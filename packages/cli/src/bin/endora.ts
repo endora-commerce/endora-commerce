@@ -58,7 +58,8 @@ const USAGE = `endora — scaffolding and conformance tooling for Endora Commerc
 
 Usage:
   endora new module <id> --name <text> --description <text> [options]
-  endora new instance <dir> [--module <id>...] [--deployment <name>] [--registry <url>] [--dry-run]
+  endora new instance <dir> [--module <id>...] [--deployment <name>] [--registry <url>]
+                            [--topology single-host|three-host] [--dry-run]
   endora new storefront <dir> [--registry <url>] [--<input> <value>...] [--dry-run]
   endora generate [--dry-run]
   endora --help
@@ -113,6 +114,13 @@ Options for \`new instance\`:
                                 \`@endora-commerce/*\` from. It writes an \`.npmrc\`
                                 naming that endpoint, with the token as an
                                 environment reference and never as a value
+  --topology <name>             which machine layout the EXAMPLE deployment files
+                                in \`deploy/\` describe: \`single-host\` (default) puts
+                                every layer on one machine, \`three-host\` writes one
+                                compose example and one \`.env.example\` per machine
+                                for a backend, a storefront and an admin that scale
+                                apart. It selects; it records nothing — no file in
+                                the tree carries the value and nothing reads it back
   --dry-run                     report every file it would write, the resolved
                                 module set with its closure, and every omission;
                                 write nothing
@@ -237,6 +245,7 @@ function parse(argv: readonly string[], declaredInputFlags: readonly string[] = 
       module: { type: 'string', multiple: true },
       deployment: { type: 'string' },
       registry: { type: 'string' },
+      topology: { type: 'string' },
       'non-interactive': { type: 'boolean' },
       'dry-run': { type: 'boolean' },
     },
@@ -498,6 +507,9 @@ async function runNewInstanceCommand(
       ...(asString(parsed.values['registry']) === undefined
         ? {}
         : { registry: asString(parsed.values['registry'])! }),
+      ...(asString(parsed.values['topology']) === undefined
+        ? {}
+        : { topology: asString(parsed.values['topology'])! }),
       dryRun: asFlag(parsed.values['dry-run']),
       cwd,
     });

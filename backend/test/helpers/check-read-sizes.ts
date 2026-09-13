@@ -2535,7 +2535,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The three files are those two plus `lib/divergence-artefacts.ts` and
     // `generate/divergence.ts`, less the deleted `backend/src/overlay/divergence-report.ts`
     // and `packages/cli/test/`, which this walk does not read.
-    files: 5633,
+    // **`specs/122-layer-deployment-independence/` Phase 2: files 5633 -> 5634, sites 558 -> 561.**
+    // One file, `packages/cli/src/new-instance/deploy.ts` — the example deployment files
+    // `endora new instance` renders. Its two test files are under `packages/cli/test/`, which
+    // this walk does not read, and neither changeset is a `.ts`. All four are this branch's:
+    // pristine `origin/master` reads the recorded 5633 / 558 in this worktree.
+    files: 5634,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2701,7 +2706,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // reads 587 on the merged tree, feature 120's helper edits having cancelled it.
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    sites: 558,
+    // **`specs/122-layer-deployment-independence/` Phase 2: sites 558 -> 561.** Three more
+    // classified expressions in the one file this branch adds to the walk; the files entry
+    // above carries the arithmetic. No new fold and no new slug builder.
+    sites: 561,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -7718,7 +7726,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // rather than subtracted: pristine master reads 8183 against this branch's 8184.
     // Measured on a clean tree: `git clean -fX docs/docs/modules`, `docs/build` removed
     // and the module-doc copy stamp deleted. Without that the same walk reads higher again.
-    files: 8184,
+    // **`specs/122-layer-deployment-independence/` Phases 1 and 2: 8184 -> 8185.** Measured in
+    // the canonical shape this header describes — `pnpm install` plus `build:packages`, no
+    // `composer:generate`, `git clean -fX docs/docs/modules` and the copy stamp gone — after
+    // both of this branch's changesets and all three of its new files were in place. **It does
+    // not move by the same nine `check-naming.sh` does**, and the difference is this walk's own
+    // property rather than an arithmetic error: it opens git-ignored files, so every package's
+    // `dist` is in its population and `packages/cli/dist/new-instance/deploy.*` arrives with
+    // the source file, while the same walk was recorded against a `master` whose ignored
+    // residue differs from the index by more than the diff does. Read three times in three
+    // build states here — 8180, 8181, 8185 — which is why the number recorded is the one read
+    // in the shape above and never a delta applied to another entry's.
+    files: 8185,
     sites: null,
     sources: [],
     //
@@ -11756,7 +11775,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // One file — `specs/121-platform-liveness-probe/tasks.md` — which this whole-repository
     // walk opens like any other. Pristine `origin/master` at 702a19c9f reads 8235, which is
     // the recorded value: T138a left this entry describing the tree exactly.
-    files: 8236,
+    // **`specs/122-layer-deployment-independence/` Phases 1 and 2: 8236 -> 8245, of which +5 is
+    // this branch's and +4 was already standing.** Measured rather than computed, in both
+    // directions: pristine `origin/master` at `76459b672` reads **8240** in this worktree, so
+    // the recorded 8236 had gone stale by four before this branch existed. The five are the two
+    // changesets and the three files `packages/cli` gains — one source file and two under
+    // `packages/cli/test/`. This walk is `git ls-files --cached --others`, so it counts a
+    // changeset and counts nothing for the eight files the branch modifies.
+    files: 8245,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -12320,7 +12346,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/110-instance-repository/` T138a: 6284 -> 6288.** All four are this branch's: the
     // four files `packages/cli/src` gains, less the one `backend/src` loses. The two changesets
     // are not under `docs/docs/`, so this walk does not see them.
-    files: 6288,
+    // **`specs/122-layer-deployment-independence/` Phase 2: 6288 -> 6291.** All three are this
+    // branch's — the one source file and the two test files `packages/cli` gains — and pristine
+    // `origin/master` reads the recorded 6288 here. Its population is source-code comments plus
+    // `docs/docs/**`, so neither changeset is in it, which is why this entry moves by three
+    // where `check-naming.sh` moves by five.
+    files: 6291,
     sites: null,
     sources: ['manifest-index'],
     //
