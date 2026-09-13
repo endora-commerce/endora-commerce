@@ -318,15 +318,21 @@ describe('the created tree is exactly §2 of instance-tree.md', () => {
   });
 
   /**
-   * §2.3's omission, asserted as the third state rather than assumed.
+   * §2.3's row, and it stopped being the omission example on
+   * `specs/123-oss-install-experience/` G2.
    *
-   * `backend/src/cli.ts` is in the contract, is not written, and is reported —
-   * so the assertion above passes for a reason a reader can check, and a
-   * command that quietly stopped printing the omission would fail it.
+   * `backend/src/cli.ts` was in the contract, was not written, and was reported
+   * — the third state, which is what let the assertion above pass for a reason a
+   * reader could check. G2 discharged the reason (the demo layer moved to
+   * `<scope>platform/demo` and the dispatch to `<scope>platform/cli`), so the row
+   * is now satisfied the ordinary way. **Asserted in both directions**: an
+   * omission whose reason has been discharged must not survive as prose, and a
+   * command that stopped writing the file would fail the first half.
    */
-  it('accounts for a contract row it does not write by printing the omission', () => {
+  it('writes §2.3\'s CLI row rather than omitting it, and reasons every omission it keeps', () => {
     const plan = completePlan();
-    expect(plan.omitted.map((entry) => entry.path)).toContain('backend/src/cli.ts');
+    expect(plan.files.map((file) => file.path)).toContain('backend/src/cli.ts');
+    expect(plan.omitted.map((entry) => entry.path)).not.toContain('backend/src/cli.ts');
     for (const omission of plan.omitted) expect(omission.reason.length).toBeGreaterThan(40);
   });
 

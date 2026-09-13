@@ -11,19 +11,24 @@
  * `<module id> <command name>` lookup, the `--list` and `--help` renderings,
  * and the find-gate-invoke that ends in the module's own `run`.
  *
- * ## What is *not* on it, and that is the shape of the move
+ * ## And the process around it, since `specs/123-oss-install-experience/` G2
  *
- * The process. `backend/src/cli.ts` reads `process.argv`, composes the
- * platform, opens one system scope over the composed container, disposes it and
- * turns the answer into an exit code — and it stays in the application because
- * every one of those is a fact about *this* deployment's entry point.
- * `specs/115-lifecycle-container-move/contracts/operator-half.md` §1.1 is the
- * partition it is judged by: *"a file belongs to `@endora-commerce/platform`
- * unless it names a path in the tree that installs the platform"*. This
- * directory names none — the resolved manifest entries and the composition's
- * own `contextFor` are both **parameters** — so it moved whole, with no
- * application binding left behind, which is the first file on this chain that
- * did (T113, T114 and T116 each split at least one).
+ * This header used to end *"the process — argv, the composition, the system
+ * scope and the exit code — stays in the application at `backend/src/cli.ts`"*,
+ * and the partition it cited is the reason it changed. `operator-half.md` §1.1:
+ * *"a file belongs to `@endora-commerce/platform` unless it names a path in the
+ * tree that installs the platform"*. The dispatch names none — the core
+ * manifests, the composition and a tree's own demo composition are all
+ * **parameters** — and the sentence was measured wrong the moment a second
+ * application existed: `endora new instance` reported `backend/src/cli.ts` as an
+ * omission, so a scaffolded instance could run **no** command its modules
+ * declared, `admin_users create` included, and nobody could log in to it.
+ *
+ * What did not move is what genuinely names a path: this repository's generated
+ * core index, its own `composeApp`, its `src/seeds/demo-composition.ts` probe,
+ * and the one directory holding `apps/`. `backend/src/cli.ts` supplies those
+ * four and is otherwise an exit code; a scaffolded instance supplies the last
+ * one and is five lines. See `dispatch.ts`' own header.
  *
  * It is also **not** the `module:*` path and must never become one. Those five
  * operate *on* the platform rather than with it, compose nothing (D-157.2/.4)
@@ -61,3 +66,12 @@ export {
   type DeclaredCommand,
   type RunModuleCommandOptions,
 } from './module-commands.js';
+
+export {
+  cliFailureExitCode,
+  CLI_USAGE,
+  dispatchCli,
+  runCli,
+  type CliComposition,
+  type RunCliOptions,
+} from './dispatch.js';

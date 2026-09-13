@@ -85,19 +85,14 @@ import {
  * the destination, not the verdict that the file did not belong in `backend/src`.
  */
 const PLATFORM_SHAPED_RESIDUE: Readonly<Record<string, { reason: string; retiredBy: string }>> = {
-  'backend/src/cli/demo-command.ts': {
-    reason:
-      "the host's side of `endora demo seed` / `endora demo reset`. It names no path in this tree " +
-      '— its three imports are two bare specifiers and the `module-commands.ts` shim beside it — ' +
-      "so `operator-half.md` §1 puts it in the platform. `research.md` §3.1 files it exactly there: " +
-      '*"`demo-command.ts` (137) arrived with `specs/113-module-owned-demo-data/` Phase 0, after ' +
-      'this row was written, and is the same class by `operator-half.md` §1.1\'s rule — T117 moved ' +
-      'its own subject and left it."*',
-    retiredBy:
-      "the move of the command body to `@endora-commerce/platform`, on the shape the five `module:*` " +
-      'verbs already take: the logic in the package, a ~20-line entry point in the application. ' +
-      '`specs/113-module-owned-demo-data/` owns the follow-up.',
-  },
+  // Empty, and that is a state rather than an omission. Its last entry was
+  // `backend/src/cli/demo-command.ts`, retired exactly as its `retiredBy`
+  // described — *"the logic in the package, a ~20-line entry point in the
+  // application"* — by `specs/123-oss-install-experience/` G2, which moved it to
+  // `packages/platform/src/demo/host-command.ts` and the dispatch around it to
+  // `packages/platform/src/cli/dispatch.ts`. The two-way check below is what
+  // makes an empty ledger mean something: an unledgered platform-shaped file is
+  // new debt and fails, so nothing has quietly taken its place.
 };
 
 /** Every file under a directory, absolute, sorted. */
@@ -403,14 +398,19 @@ describe('`backend/src` — the residue, derived', () => {
         fixture({
           files: fixtureFiles({
             'backend/src/cli/module-commands.ts': "export * from '@endora-commerce/platform/cli';\n",
-            'backend/src/cli/demo-command.ts':
+            // Synthetic, and deliberately not a path on disk since
+            // `specs/123-oss-install-experience/` G2 emptied the
+            // platform-shaped class: what is under test is the **rule**, and a
+            // fixture named after a real file would go quiet the day that file
+            // moved — which is exactly what happened to the class this proves.
+            'backend/src/cli/some-platform-shaped-file.ts':
               "import { E } from './module-commands.js';\nexport const run = (): typeof E => E;\n",
           }),
         }),
       );
       const byPath = new Map(found.files.map((file) => [file.path, file.klass]));
       expect(byPath.get('backend/src/cli/module-commands.ts')).toBe('shim');
-      expect(byPath.get('backend/src/cli/demo-command.ts')).toBe('platform-shaped');
+      expect(byPath.get('backend/src/cli/some-platform-shaped-file.ts')).toBe('platform-shaped');
     });
 
     it('a path quoted in prose is not a reach', () => {

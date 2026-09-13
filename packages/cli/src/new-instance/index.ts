@@ -279,7 +279,7 @@ export async function runNewInstance(
     dryRun: options.dryRun === true,
     wiringLines: wiringLineCount(plan),
     provenance: provenanceLine(resolved),
-    nextSteps: nextSteps(targetDir, deployment, topology),
+    nextSteps: nextSteps(targetDir, deployment, topology, modules.ids),
   };
   if (result.dryRun) return result;
 
@@ -427,7 +427,10 @@ function typescriptRangeOf(host: InstanceHost): string | undefined {
  * The demo step is here rather than in the tree, and that is D-216's own shape:
  * a scaffold writes no demo artefact unasked and the capability is discoverable
  * through this block, because *"a capability announced as a deficiency is not
- * optional"*.
+ * optional"*. **That sentence was written and the step was not**, for as long as
+ * there was no CLI to run it with; `specs/123-oss-install-experience/` T2-E is
+ * the merge request in which the docstring and the array finally say the same
+ * thing.
  */
 /**
  * What a client is told to run, in order (R3.4).
@@ -436,11 +439,17 @@ function typescriptRangeOf(host: InstanceHost): string | undefined {
  * is the only statement anywhere of the order the steps go in, and the order is
  * the part that was wrong — `start` before `build`, and no module install at
  * all (`specs/110-instance-repository/` T141).
+ *
+ * `moduleIds` is the resolved set, and it is a parameter rather than a constant
+ * for the reason `cliAliasesFor` is derived: a step naming a command this
+ * instance cannot run is worse than no step, because it fails at the one moment
+ * a client cannot tell a missing module from a broken install.
  */
 export function nextSteps(
   targetDir: string,
   deployment: string,
   topology: Topology = DEFAULT_TOPOLOGY,
+  moduleIds: readonly string[] = [],
 ): readonly string[] {
   return [
     `cd ${targetDir} && pnpm install — every range in the manifest is published semver. ` +
@@ -461,6 +470,15 @@ export function nextSteps(
       `modules arrive as installed packages, and a package is installed by this command and ` +
       `by no boot: it applies the migrations, reconciles the settings and runs the install ` +
       `hook. Until it has run, the platform refuses to start, naming the modules it requires.`,
+    ...(moduleIds.includes('admin_users')
+      ? [
+          `pnpm run admin:create -- --email=<you> --password=<secret> --first-name=<f> ` +
+            `--last-name=<l> — the administrator you will log in as. It is idempotent and it ` +
+            `bootstraps the \`platform_admin\` role on the first run, so there is nothing to ` +
+            `set up before it. Nothing else creates one: a freshly migrated instance has no ` +
+            `account at all, and the operator interface has nobody to admit.`,
+        ]
+      : []),
     `pnpm run start — the API. \`apps/${deployment}/modules/\` is where your own overlay ` +
       `module goes when you want to change something; \`divergence.ts\` beside it is where ` +
       `you declare what you changed.`,
@@ -473,6 +491,11 @@ export function nextSteps(
             `for or starts it with blanks.`,
         ]
       : []),
+    `pnpm run cli demo seed — optional, and off unless you ask: a shop's worth of example ` +
+      `data from every module that declares any, which \`pnpm run cli demo reset\` withdraws ` +
+      `again leaving your own rows alone. An instance you are going to sell from wants none ` +
+      `of it; an instance you are evaluating wants it before the first screen. It is named ` +
+      `here rather than written into your tree as a script, which is D-216's own shape.`,
     `endora new storefront <dir> — the customer-facing storefront, which is its own ` +
       `repository. It shares two \`.env\` values with this one and nothing else.`,
   ];

@@ -7,8 +7,8 @@ import {
   isDemoInvocation,
   parseDemoVerb,
   ShadowedHostCommandError,
-} from '../../../src/cli/demo-command.js';
-import { UnknownCommandError } from '../../../src/cli/module-commands.js';
+} from './host-command.js';
+import { UnknownCommandError } from '../cli/module-commands.js';
 import type { ModuleManifest } from '@endora-commerce/contracts';
 
 /**
@@ -16,10 +16,14 @@ import type { ModuleManifest } from '@endora-commerce/contracts';
  * (`contracts/module-demo-data-layer.md` §3.1, §3.2).
  *
  * Everything decidable without a database lives here so it can be driven from a
- * test, exactly as `module-commands.ts` splits itself from `cli.ts`. What is
- * **not** here is the guard call, the composition and the scope: those are the
- * entry point's, in that order, and §3.3 is about where they sit relative to
- * each other rather than about anything this file can decide.
+ * test, exactly as `module-commands.ts` splits itself from the dispatch. What is
+ * **not** here is the guard call, the composition and the scope: those are
+ * `../cli/dispatch.ts`', in that order, and §3.3 is about where they sit
+ * relative to each other rather than about anything this file can decide.
+ *
+ * It was `backend/test/unit/cli/demo-command.test.ts` and moved with its
+ * subject on `specs/123-oss-install-experience/` G2 — the convention T119a
+ * applied to this package, a test beside the source it covers.
  */
 function manifest(id: string, demo?: ModuleManifest['demo']): ModuleManifest {
   return {

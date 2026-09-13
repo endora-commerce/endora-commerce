@@ -100,6 +100,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 
+import { ADMIN_SESSION_COOKIE_NAME } from '@endora-commerce/contracts';
 import { normalizeRegistry } from '@endora-commerce/cli';
 
 import { resolveDatabaseTarget } from './assertions.js';
@@ -118,6 +119,9 @@ import {
   type AdminStylesheetObservation,
   type DocsSiteObservation,
   evaluateA14,
+  evaluateA15,
+  ADMIN_LOGIN_PATH,
+  type AdministratorObservation,
   evaluateProcess,
   exitCodeFor,
   exitCodeForExpectation,
@@ -773,10 +777,36 @@ async function dropDatabase(adminUrl: string, databaseName: string): Promise<voi
 }
 
 /** A4 — one boot of the created instance, through its own `start` script. */
+/**
+ * The administrator A15 logs in as.
+ *
+ * The password is this run's own and never leaves it: the database it is
+ * created in is created and dropped by the same run, and the only reader is the
+ * login three functions down.
+ */
+const ADMIN_EMAIL = 'acceptance@endora.test';
+const ADMIN_PASSWORD = 'Acceptance-Instance-1!';
+
+/** What `bootOnce` found, including A15's half of it. */
+interface BootObservation {
+  healthStatus: number | null;
+  enumerated: number | null;
+  /** `null` when nothing was served, or when no administrator was created. */
+  loginStatus: number | null;
+  sessionCookie: boolean;
+  loginBody: string;
+  output: string;
+}
+
 async function bootOnce(
   target: string,
   environment: NodeJS.ProcessEnv,
-): Promise<{ healthStatus: number | null; enumerated: number | null; output: string }> {
+  /**
+   * Attempt A15's login. `false` when `admin:create` did not succeed, so a
+   * login that could not have worked is never reported as a failing one.
+   */
+  withLogin: boolean,
+): Promise<BootObservation> {
   const port = 3400 + Math.floor(Math.random() * 300);
   const child = spawn('pnpm', ['run', 'start'], {
     cwd: target,
@@ -786,11 +816,19 @@ async function bootOnce(
   let output = '';
   child.stdout.on('data', (chunk: Buffer) => (output += chunk.toString('utf8')));
   child.stderr.on('data', (chunk: Buffer) => (output += chunk.toString('utf8')));
+  const unserved = (): BootObservation => ({
+    healthStatus: null,
+    enumerated: null,
+    loginStatus: null,
+    sessionCookie: false,
+    loginBody: '',
+    output,
+  });
   try {
     const deadline = Date.now() + 180_000;
     for (;;) {
-      if (child.exitCode !== null) return { healthStatus: null, enumerated: null, output };
-      if (Date.now() > deadline) return { healthStatus: null, enumerated: null, output };
+      if (child.exitCode !== null) return unserved();
+      if (Date.now() > deadline) return unserved();
       await new Promise((wait) => setTimeout(wait, 2_000));
       let healthStatus: number;
       try {
@@ -811,7 +849,33 @@ async function bootOnce(
       } catch {
         enumerated = null;
       }
-      return { healthStatus, enumerated, output };
+      // A15's second half. It is asked on the same boot rather than on one of
+      // its own for the reason A4's probe is: a second `start` is a second
+      // process whose failure would be a different finding.
+      let loginStatus: number | null = null;
+      let sessionCookie = false;
+      let loginBody = '';
+      if (withLogin) {
+        try {
+          const login = await fetch(`http://127.0.0.1:${String(port)}${ADMIN_LOGIN_PATH}`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD }),
+            signal: AbortSignal.timeout(20_000),
+          });
+          loginStatus = login.status;
+          sessionCookie = (login.headers.getSetCookie?.() ?? []).some((cookie) =>
+            cookie.startsWith(`${ADMIN_SESSION_COOKIE_NAME}=`),
+          );
+          loginBody = await login.text();
+        } catch (thrown) {
+          // Not a `catch` that decides anything: the transport failing is a
+          // measurement of its own and is reported as `loginStatus: null` with
+          // the reason in the body, never as a passing login.
+          loginBody = thrown instanceof Error ? thrown.message : String(thrown);
+        }
+      }
+      return { healthStatus, enumerated, loginStatus, sessionCookie, loginBody, output };
     }
   } finally {
     child.kill('SIGTERM');
@@ -1480,12 +1544,53 @@ async function main(): Promise<void> {
               `${installed.output.trim().split('\n').slice(-3).join(' / ')}`,
           );
         }
+        // A15's first half (`specs/123-oss-install-experience/` G2). It runs
+        // the instance's **own** root script, exactly as `migrate` and
+        // `module:install` above do: a criterion that reached past the scripts
+        // into `node dist/cli.js` would report green over a manifest whose
+        // scripts do not work, which is T141's own finding one step over.
+        //
+        // `null` distinguishes "the script does not exist" — the whole of the
+        // G2 defect — from "it ran and failed", and pnpm answers the first with
+        // exit 1 and a message naming the script, so the two are read apart
+        // from the manifest rather than from the exit code.
+        const hasAdminCreate = Object.hasOwn(
+          (JSON.parse(readFileSync(join(target, 'package.json'), 'utf8')) as {
+            scripts?: Record<string, string>;
+          }).scripts ?? {},
+          'admin:create',
+        );
+        const created = hasAdminCreate
+          ? run(
+              'pnpm',
+              [
+                'run',
+                'admin:create',
+                '--',
+                `--email=${ADMIN_EMAIL}`,
+                `--password=${ADMIN_PASSWORD}`,
+                '--first-name=Acceptance',
+                '--last-name=Run',
+              ],
+              { cwd: target, env: environment },
+            )
+          : null;
+        const administrator: AdministratorObservation = {
+          createCode: created === null ? null : created.code,
+          createOutput:
+            created === null
+              ? "the instance's root manifest declares no `admin:create` script"
+              : created.output,
+          loginStatus: null,
+          sessionCookie: false,
+          loginBody: '',
+        };
         // The boot is attempted whenever the migrate step claimed to succeed,
         // including when A3 then reported that nothing was migrated: what the
         // start script does is a separate question from what the migrate script
         // did, and a criterion that skipped it would report one defect and stop
         // where there are two.
-        const boot = await bootOnce(target, environment);
+        const boot = await bootOnce(target, environment, created?.code === 0);
         results.push(
           evaluateA4({
             started: true,
@@ -1493,6 +1598,14 @@ async function main(): Promise<void> {
             reconcile: reconcileFigures(boot.output),
             enumerated: boot.enumerated,
             output: boot.output,
+          }),
+        );
+        results.push(
+          evaluateA15({
+            ...administrator,
+            loginStatus: boot.loginStatus,
+            sessionCookie: boot.sessionCookie,
+            loginBody: boot.loginBody,
           }),
         );
       } else {
@@ -1505,6 +1618,11 @@ async function main(): Promise<void> {
             output: '',
           }),
         );
+        results.push({
+          id: 'A15',
+          state: 'unmeasured',
+          detail: 'the instance did not migrate, so there is no schema to create an administrator in',
+        });
       }
     } else {
       results.push({
@@ -1514,6 +1632,11 @@ async function main(): Promise<void> {
       });
       results.push({ id: 'A3', state: 'unmeasured', detail: 'there is no install to migrate' });
       results.push({ id: 'A4', state: 'unmeasured', detail: 'there is no install to boot' });
+      results.push({
+        id: 'A15',
+        state: 'unmeasured',
+        detail: 'there is no install to create an administrator in',
+      });
     }
 
     results.push(...adminBundleAssertions(target, adminOmission));

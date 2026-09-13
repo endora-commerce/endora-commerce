@@ -32,6 +32,8 @@ import {
   evaluateA11,
   evaluateA13,
   evaluateA14,
+  evaluateA15,
+  ADMIN_LOGIN_PATH,
   evaluateA5,
   evaluateA6,
   evaluateProcess,
@@ -592,6 +594,98 @@ describe('A14 — the wiring bound, measured on the created tree', () => {
     const result = evaluateA14({ declared: 0, files: [] });
     expect(result.state).toBe('unmeasured');
     expect(result.detail).toContain('empty set');
+  });
+});
+
+/**
+ * A15 (`specs/123-oss-install-experience/` G2, T2-F) — the assertion that closes
+ * the gap between *"the packages resolve"* and *"the install works"*.
+ *
+ * Every case below is about **which of the two halves** a verdict is about,
+ * because collapsing them is how a report says "the login failed" about an
+ * instance that had nobody to log in as.
+ */
+describe('A15 — an administrator the instance own CLI made, and the session it earns', () => {
+  const created = {
+    createCode: 0,
+    createOutput: 'created',
+    loginStatus: 200,
+    sessionCookie: true,
+    loginBody: '{"data":{"status":"authenticated"}}',
+  };
+
+  it('passes when the CLI made one and the login answered with a session', () => {
+    const result = evaluateA15(created);
+    expect(result.state).toBe('pass');
+    expect(result.detail).toContain(ADMIN_LOGIN_PATH);
+  });
+
+  it('is a FAIL, not unmeasured, when there is no `admin:create` at all', () => {
+    // The G2 defect itself. An instance with no CLI is not an instance nobody
+    // measured — it is an instance nobody can use, and recording that as
+    // `unmeasured` is how it stayed invisible for as long as it did.
+    const result = evaluateA15({
+      ...created,
+      createCode: null,
+      createOutput: 'the root manifest declares no `admin:create` script',
+      loginStatus: null,
+      sessionCookie: false,
+      loginBody: '',
+    });
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('no `admin:create`');
+  });
+
+  it('fails naming the exit code when the CLI ran and refused', () => {
+    const result = evaluateA15({
+      ...created,
+      createCode: 1,
+      createOutput: 'Missing required flag: --email=...',
+      loginStatus: null,
+      sessionCookie: false,
+      loginBody: '',
+    });
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('Missing required flag');
+  });
+
+  it("is unmeasured when the administrator exists and the instance served nothing", () => {
+    // A4's finding, not a second report of it.
+    const result = evaluateA15({ ...created, loginStatus: null, sessionCookie: false, loginBody: '' });
+    expect(result.state).toBe('unmeasured');
+    expect(result.detail).toContain('A4');
+  });
+
+  it('fails on a non-200, quoting what came back', () => {
+    const result = evaluateA15({
+      ...created,
+      loginStatus: 500,
+      sessionCookie: false,
+      loginBody: '{"error":{"code":"INTERNAL"}}',
+    });
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('500');
+    expect(result.detail).toContain('INTERNAL');
+  });
+
+  it('fails on a 200 that set no session cookie', () => {
+    // `mfaRequired` and `mfaSetupRequired` are both 200 and neither is a
+    // session, so the status alone would report a login that did not happen.
+    const result = evaluateA15({
+      ...created,
+      sessionCookie: false,
+      loginBody: '{"data":{"status":"mfaRequired"}}',
+    });
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('no session cookie');
+  });
+
+  it('probes the route that is registered, not the one three documents name', () => {
+    // `research.md` §4.3/§4.4 and A4's own reason say
+    // `/api/v1/admin/auth/login`. Nothing registers it; `admin_users`'
+    // `routes.public.ts` declares the one below. A probe of the documented
+    // spelling would have measured a 404 for ever while reporting on the login.
+    expect(ADMIN_LOGIN_PATH).toBe('/api/v1/auth/admin/login');
   });
 });
 

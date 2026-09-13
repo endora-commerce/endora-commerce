@@ -68,6 +68,20 @@ export const NO_SCOPE_NEEDED: Readonly<Record<string, string>> = {
     'composition — no query, nothing to scope. Falsified the day shutdown ' +
     'flushes anything through the EntityManager.',
 
+  'src/cli.ts:<file>:program':
+    'The operator CLI entry point. It supplies four values and exits; the scope ' +
+    'is opened one hop down, inside `@endora-commerce/platform/cli`\'s ' +
+    '`dispatchCli`, over the composed container — which is where it has to be, ' +
+    'since there is no container to open it against until `composeApp()` has ' +
+    'returned. This file did the composing itself until ' +
+    '`specs/123-oss-install-experience/` G2 moved the dispatch into the package ' +
+    'so a scaffolded instance could run the same one; what moved with it is the ' +
+    '`enterSystemScope` this check used to see here. Falsified the day this file ' +
+    'does database work of its own, or the day the dispatch stops opening a ' +
+    'scope — which `test/unit/seeds/seed-scope.test.ts` asserts structurally ' +
+    'against `packages/platform/src/cli/dispatch.ts` and behaviourally against ' +
+    'what that scope establishes.',
+
   'src/worker.ts:<file>:program':
     'The queue-consumer process root. It composes the same graph as the API and ' +
     'never listens; every consumer opens its own scope at its `new Worker(...)`, ' +
