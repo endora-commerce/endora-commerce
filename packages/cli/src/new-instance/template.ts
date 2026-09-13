@@ -389,6 +389,46 @@ export function planInstance(input: PlanInput): InstancePlan {
   if (docs.omission !== null) omitted.push({ path: 'docs/', reason: docs.omission });
 
   // --- the workspace root (§2.1) -------------------------------------------
+  //
+  // The per-layer builds, and the composite that is their conjunction
+  // (`specs/122-layer-deployment-independence/contracts/layer-independence.md`
+  // §2 R2.1, under D-230). Three layers are deployed to three hosts on three
+  // schedules, so each is built by a command of its own — and a CI job on the
+  // admin host cannot cite a command it was never told.
+  //
+  // One list, so there is one predicate. The composite used to spell the same
+  // three terms inline; deriving it from the named entries is what keeps its
+  // value byte-identical to the named parts rather than merely similar to them.
+  const layerBuilds: readonly (readonly [string, string])[] = [
+    ['build:backend', 'pnpm -C backend run build'],
+    ...(admin.written ? ([['build:admin', 'pnpm -C admin run build']] as const) : []),
+    ...(docs.written ? ([['build:docs', 'pnpm -C docs run build']] as const) : []),
+  ];
+  // `-C` and never `--filter <name>` — see the block below for what a filter
+  // cost the first end-to-end run.
+  const rootScripts: Record<string, string> = {
+    migrate: 'pnpm -C backend run migrate',
+    dev: 'pnpm -C backend run dev',
+    ...Object.fromEntries(layerBuilds),
+    // §2.5's `build` is the whole instance's, and §2.5's `generate` is the
+    // three derived artefacts — two of which are the admin member's, so
+    // both entries name a member that may not be there. An instance with
+    // no operator interface gets neither rather than a script that fails
+    // on a directory nobody wrote.
+    build: layerBuilds.map(([, command]) => command).join(' && '),
+    // One `endora generate` renders every member's artefacts, so the root
+    // script is the command itself rather than a member's. An instance with
+    // neither member gets no `generate` at all, rather than a script that
+    // fails on a directory nobody wrote.
+    ...(admin.written || docs.written ? { generate: 'endora generate' } : {}),
+    start: 'pnpm -C backend run start',
+    'module:install': 'pnpm -C backend run module:install',
+    'module:uninstall': 'pnpm -C backend run module:uninstall',
+    'module:enable': 'pnpm -C backend run module:enable',
+    'module:disable': 'pnpm -C backend run module:disable',
+    'module:status': 'pnpm -C backend run module:status',
+  };
+
   files.push({
     path: 'package.json',
     kind: 'derived',
@@ -416,31 +456,7 @@ export function planInstance(input: PlanInput): InstancePlan {
       // name filter's whole failure mode is a green nothing. `--fail-if-no-match`
       // would restore the refusal for a filter, and it is pnpm 9.5 and later
       // only; `-C` needs no version this command cannot see.
-      scripts: {
-        migrate: 'pnpm -C backend run migrate',
-        dev: 'pnpm -C backend run dev',
-        // §2.5's `build` is the whole instance's, and §2.5's `generate` is the
-        // three derived artefacts — two of which are the admin member's, so
-        // both entries name a member that may not be there. An instance with
-        // no operator interface gets neither rather than a script that fails
-        // on a directory nobody wrote.
-        build: [
-          'pnpm -C backend run build',
-          ...(admin.written ? ['pnpm -C admin run build'] : []),
-          ...(docs.written ? ['pnpm -C docs run build'] : []),
-        ].join(' && '),
-        // One `endora generate` renders every member's artefacts, so the root
-        // script is the command itself rather than a member's. An instance with
-        // neither member gets no `generate` at all, rather than a script that
-        // fails on a directory nobody wrote.
-        ...(admin.written || docs.written ? { generate: 'endora generate' } : {}),
-        start: 'pnpm -C backend run start',
-        'module:install': 'pnpm -C backend run module:install',
-        'module:uninstall': 'pnpm -C backend run module:uninstall',
-        'module:enable': 'pnpm -C backend run module:enable',
-        'module:disable': 'pnpm -C backend run module:disable',
-        'module:status': 'pnpm -C backend run module:status',
-      },
+      scripts: rootScripts,
       dependencies: Object.fromEntries([...dependencies].sort(([a], [b]) => a.localeCompare(b))),
       devDependencies: Object.fromEntries(
         devDependenciesFor(input, admin.written || docs.written),
@@ -528,7 +544,7 @@ export function planInstance(input: PlanInput): InstancePlan {
     path: 'README.md',
     kind: 'client',
     member: 'root',
-    content: readme(input, dependencies.size, {
+    content: readme(input, dependencies.size, rootScripts, {
       admin: admin.written,
       docs: docs.written,
     }),
@@ -981,6 +997,54 @@ await runOperatorCommand(${runner});
   return files;
 }
 
+/**
+ * The README's command block — every root script, in the order a client meets
+ * them, each with what it is for (feature 122 T003).
+ *
+ * The **set** is the manifest's, not this list's: a name here that the run did
+ * not declare contributes no line, and a script the run declared with no entry
+ * here is a hole the reconciliation in `test/new-instance.test.ts` reports.
+ * That is the only relationship a second enumeration may have with the first
+ * (D-100) — this one carries the *order* and the *sentence*, and nothing else.
+ *
+ * The three per-layer builds carry one sentence between them and it is the
+ * whole of D-230: the backend, the admin and the storefront are deployed to
+ * hosts of their own, so each is built by a command of its own.
+ */
+const README_COMMANDS: readonly (readonly [script: string, argument: string, note: string])[] = [
+  ['generate', '', 'the files the admin and the docs site are built from,\nand your deployment\'s divergence report'],
+  ['build', '', 'the entry points, compiled, and every member built'],
+  ['build:backend', '', 'one layer at a time. Each of the three is deployed on its own\nhost, on its own schedule, so each is built on its own too'],
+  ['build:admin', '', ''],
+  ['build:docs', '', ''],
+  ['migrate', '', 'the schema, in the order the manifests compute'],
+  ['module:install', ' --all', 'every module you declared, in dependency order'],
+  ['start', '', 'the API'],
+  ['dev', '', 'the API, rebuilt and restarted as you edit your overlay'],
+  ['module:status', '', 'what is installed, and what the operator has switched on'],
+  ['module:enable', ' <id>', 'the operator\'s switch. A module that is off behaves as\nthough it were never installed'],
+  ['module:disable', ' <id>', ''],
+  ['module:uninstall', ' <id>', 'the reverse of `module:install`'],
+];
+
+/** The block itself, aligned, over the scripts this run declared. */
+function commandBlock(scripts: Readonly<Record<string, string>>): string {
+  const rows = README_COMMANDS.filter(([script]) => scripts[script] !== undefined).map(
+    ([script, argument, note]) => [`pnpm run ${script}${argument}`, note] as const,
+  );
+  const width = Math.max(...rows.map(([invocation]) => invocation.length)) + 3;
+  return rows
+    .map(([invocation, note]) => {
+      if (note.length === 0) return invocation;
+      const [first, ...rest] = note.split('\n');
+      return [
+        `${invocation.padEnd(width)}# ${first!}`,
+        ...rest.map((line) => `${''.padEnd(width)}# ${line}`),
+      ].join('\n');
+    })
+    .join('\n');
+}
+
 /** The client's own README: what this tree is, and what maintains it. */
 /**
  * The tree's own README — the client's, written once and never read by us
@@ -990,10 +1054,18 @@ await runOperatorCommand(${runner});
  * not from a list: which members exist depends on what resolved (§2.4, §2.4a),
  * and a README naming a directory the command omitted is the first thing a
  * client would find wrong with their new tree.
+ *
+ * **The command block is the manifest's `scripts`, ordered and annotated** —
+ * feature 122 T003. It used to be six lines of prose naming five of the twelve
+ * scripts the manifest declares, so a client reading it could not learn that
+ * `dev`, `module:status` or the per-layer builds exist. Both sides are now one
+ * run's, reconciled in `test/new-instance.test.ts`: a script with no annotation
+ * below is red rather than a line a client never sees.
  */
 function readme(
   input: PlanInput,
   dependencyCount: number,
+  scripts: Readonly<Record<string, string>>,
   members: { readonly admin: boolean; readonly docs: boolean },
 ): string {
   return `# ${input.name}
@@ -1012,16 +1084,11 @@ ${members.admin ? '| `admin/` | the operator interface — the admin shell, moun
 ${String(dependencyCount)} packages are declared today. Every one of them is a dependency, so a
 fix in any of them reaches you through \`pnpm update\` with no file in this tree edited.
 
-## Two commands maintain it
+## The commands this tree declares
 
 \`\`\`
 pnpm install
-pnpm run generate                   # the files the admin and the docs site are built from,
-                                    # and your deployment's divergence report
-pnpm run build                      # the entry points, compiled, and every member built
-pnpm run migrate                    # the schema, in the order the manifests compute
-pnpm run module:install --all       # every module you declared, in dependency order
-pnpm run start                      # the API
+${commandBlock(scripts)}
 \`\`\`
 
 Your modules arrive as installed packages, and a package is installed by \`module:install\` and
