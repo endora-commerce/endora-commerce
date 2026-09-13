@@ -255,10 +255,46 @@ function receiverOf(node: ts.CallExpression): ts.Identifier | null {
 /**
  * The identifiers this file declares as a `ModuleContext`.
  *
- * A parameter annotation is how every `registerModule` in the tree is written,
- * and a `const` annotation is how a test writes one. Both are read; anything
- * else is a receiver the analysis cannot place, and refusal 3 is what keeps that
- * from reading as "this deployment uses no seam".
+ * Two ways in, and the second is not a relaxation of the first:
+ *
+ *  1. **An annotation** — a parameter or a `const` whose type node is the
+ *     identifier `ModuleContext`. That is how every overlay module in this
+ *     repository is written and how a test writes one.
+ *  2. **The first parameter of an exported `registerModule`**, whatever it is
+ *     named and whether or not it is annotated.
+ *
+ * ## Why the second exists, and why it is a contract rather than a heuristic
+ *
+ * `walkAnalysableSources` admits `.js`, and a `.js` file cannot carry a type
+ * annotation. So a client who writes their overlay module in JavaScript — which
+ * the loader accepts, `UNIT_EXTENSIONS` being `['.js', '.ts']`, and which is
+ * what a compiled deployment ships — got **a clean report over a tree full of
+ * decorations** (`specs/124-instance-customisation-gap/` FR-009). That is
+ * precisely the state refusal 3 exists to refuse, and nothing in an instance
+ * called it until FR-008.
+ *
+ * The `[NEEDS CLARIFICATION]` FR-009 carried was between *any single-parameter
+ * exported `registerModule`* and *a parameter named `ctx`*, to be settled by
+ * measuring the overlay corpus. Measured on 2026-09-13: the corpus is
+ * the two `backend.ts` files under `backend/src/apps/{acceptance,example}`, plus
+ * this package's own fixtures, and **every one of them writes
+ * `registerModule(ctx: ModuleContext)`** — so the measurement does not
+ * discriminate, and the answer comes from the loader instead. It is not a
+ * naming convention that makes the first parameter a context: it is
+ * `overlayModuleEntriesUnder`, which refuses a `backend.js`/`backend.ts` that
+ * exports no `registerModule` function and calls the one it finds with a
+ * `ModuleContext` and nothing else. The parameter's *name* is the client's
+ * choice and nothing enforces it; the parameter's *identity* is the platform's.
+ * Reading the name would be the heuristic.
+ *
+ * The **first** parameter rather than "the only one": the loader passes the
+ * context as argument 0, so a second parameter is a thing the platform never
+ * fills and says nothing about the first.
+ *
+ * A receiver reached any other way — a local the context was handed to, a field
+ * on a class — is still unplaceable, and refusal 3 (`no-seam-call-read`) is what
+ * keeps that from reading as "this deployment uses no seam". FR-008 is the floor
+ * under this widening, not an alternative to it.
  */
 function contextBindings(sf: ts.SourceFile): Set<string> {
   const names = new Set<string>();
@@ -267,6 +303,38 @@ function contextBindings(sf: ts.SourceFile): Set<string> {
     ts.isTypeReferenceNode(type) &&
     ts.isIdentifier(type.typeName) &&
     type.typeName.text === 'ModuleContext';
+
+  /** `export function registerModule(…)` / `export const registerModule = (…) =>`. */
+  const registerModuleParameter = (node: ts.Node): ts.ParameterDeclaration | null => {
+    const exported = (modifiers: ts.NodeArray<ts.ModifierLike> | undefined): boolean =>
+      modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword) === true;
+
+    if (
+      ts.isFunctionDeclaration(node) &&
+      node.name?.text === 'registerModule' &&
+      exported(node.modifiers)
+    ) {
+      return node.parameters[0] ?? null;
+    }
+    if (
+      ts.isVariableStatement(node) &&
+      exported(node.modifiers)
+    ) {
+      for (const declaration of node.declarationList.declarations) {
+        if (!ts.isIdentifier(declaration.name) || declaration.name.text !== 'registerModule') {
+          continue;
+        }
+        const initializer = declaration.initializer;
+        if (
+          initializer !== undefined &&
+          (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer))
+        ) {
+          return initializer.parameters[0] ?? null;
+        }
+      }
+    }
+    return null;
+  };
 
   const visit = (node: ts.Node): void => {
     if (ts.isParameter(node) && ts.isIdentifier(node.name) && declaresContext(node.type)) {
@@ -278,6 +346,10 @@ function contextBindings(sf: ts.SourceFile): Set<string> {
       declaresContext(node.type)
     ) {
       names.add(node.name.text);
+    }
+    const parameter = registerModuleParameter(node);
+    if (parameter !== null && ts.isIdentifier(parameter.name)) {
+      names.add(parameter.name.text);
     }
     node.forEachChild(visit);
   };
@@ -1145,8 +1217,9 @@ export function describeEntry(entry: DivergenceEntry): string {
  * question the estate already answers in one place, and answering it a second
  * time here is two answers waiting to disagree.
  *
- * The four below are this rule's own, and each names an input whose absence would
- * make a predicate vacuously clean. The dangerous silence here is **not** an
+ * The five below are this rule's own, and each names an input whose absence would
+ * make a predicate vacuously clean — or, for the fifth, a rendering whose two
+ * halves cannot both be true (`specs/124-instance-customisation-gap/` FR-010). The dangerous silence here is **not** an
  * empty walk: with two overlay modules in this repository, almost every partial
  * failure produces a small number that looks exactly like a small tree.
  *
@@ -1161,7 +1234,9 @@ export type DivergenceRefusalKind =
   /** §5.4 — an owner map that resolved no name; every subject reads as unowned. */
   | 'no-owner-resolved'
   /** §5.6 — the rung table classifies nothing, so §3.4 passes vacuously. */
-  | 'no-seam-classified';
+  | 'no-seam-classified'
+  /** §5.8 — one rendering both lists a registration and calls it unowned. */
+  | 'self-contradicting-attribution';
 
 export interface DivergenceRefusal {
   readonly kind: DivergenceRefusalKind;
@@ -1181,6 +1256,51 @@ export interface DivergenceRefusalInput {
   readonly ownersResolved: number;
   /** `ModuleContext` members the rung table classifies. */
   readonly seamsClassified: number;
+  /**
+   * Names the rendering both lists as a registration and reports as unowned —
+   * {@link selfContradictingSubjects} over the same run's result.
+   */
+  readonly selfContradictingSubjects?: readonly string[];
+}
+
+/**
+ * The names one rendering makes two incompatible statements about
+ * (`specs/124-instance-customisation-gap/` FR-010).
+ *
+ * A8 of the instance acceptance criterion printed both in one line:
+ *
+ * > 1 entries: `registration:instance_acceptance_overlay:instanceAcceptanceOverlayService`;
+ * > findings: … [unowned-subject] … `'instanceAcceptanceOverlayService'` is
+ * > registered by no module in the composition
+ *
+ * The rendering knew the overlay module registered the name — it lists the
+ * registration — and then reported a decoration of that same name as owned by
+ * nobody, over a tree that had booted. Whatever produced that, it is a finding
+ * about the **run** and not about the tree, which is what makes it a refusal
+ * rather than a tenth finding kind: the remedy `unowned-subject` prints
+ * (*"Composition throws for it at boot"*) sends its reader to fix a spelling
+ * that is not wrong.
+ *
+ * Pure over the result, so both hosts get it from the same expression and a red
+ * proof enters where a real run enters.
+ */
+export function selfContradictingSubjects(result: DivergenceResult): string[] {
+  const registered = new Set(
+    result.report.entries
+      .filter((entry) => entry.kind === 'registration')
+      .map((entry) => entry.subject),
+  );
+  const contradicted = new Set<string>();
+  for (const finding of result.findings) {
+    if (finding.kind !== 'unowned-subject') continue;
+    for (const name of registered) {
+      // The detail is the finding's own sentence — `'<name>' is registered by
+      // no module in the composition` — and the quotes are what stop
+      // `blogService` matching a finding about `blogServiceCache`.
+      if (finding.detail.includes(`'${name}'`)) contradicted.add(name);
+    }
+  }
+  return [...contradicted].sort();
 }
 
 export function divergenceRefusal(input: DivergenceRefusalInput): DivergenceRefusal | null {
@@ -1208,6 +1328,17 @@ export function divergenceRefusal(input: DivergenceRefusalInput): DivergenceRefu
         'the port→owner map resolved no container name anywhere in the tree, so every ' +
         'decoration and every consumed port would read as owned by nobody — a finding about ' +
         'the run dressed as one about the tree; refusing to report a vacuous pass',
+    };
+  }
+  const contradictions = input.selfContradictingSubjects ?? [];
+  if (contradictions.length > 0) {
+    return {
+      kind: 'self-contradicting-attribution',
+      message:
+        `one rendering lists registration(s) of ${contradictions.map((name) => `'${name}'`).join(', ')} ` +
+        'and reports the same name(s) as `unowned-subject` — a derivation contradicting itself ' +
+        'inside one file, whose remedy text ("Composition throws for it at boot") is untrue of a ' +
+        'tree that composed; refusing to report a finding about the run as one about the tree',
     };
   }
   if (input.sites <= 0 && input.overlaySpellsASeamCall) {

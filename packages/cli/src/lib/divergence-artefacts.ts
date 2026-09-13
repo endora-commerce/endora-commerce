@@ -530,7 +530,8 @@ export const INSTANCE_BOUNDARY_NOTES: ReadonlyArray<{
       "such a name is reported as a composition root's rather than as that module's. The " +
       'mapping is a judgement about a composition root, not a fact a walk produces, and this ' +
       'instance has no composition root of its own — `composeApp` is the platform’s. Every ' +
-      'name a module registers for itself is attributed to that module, which is every name ' +
+      'name a module registers for itself is attributed to that module — this deployment’s ' +
+      'own overlay modules included, from their own sources — which is every name ' +
       'an overlay module is likely to decorate',
   },
   {
@@ -707,6 +708,83 @@ export function instanceComposition(input: {
     unreadable,
     covered,
     expected,
+  };
+}
+
+/**
+ * The scan's environment, with the **deployment's own** overlay registrations
+ * merged into the owner map (`specs/124-instance-customisation-gap/` FR-005,
+ * FR-006, FR-007).
+ *
+ * ## Why it is a second step rather than a fourth input to `instanceComposition`
+ *
+ * That function is documented as *"everything one run needs that does not change
+ * between deployments"*, and the overlay claim set is **per deployment** — a
+ * report is rendered once per directory under `apps/`. The package half is where
+ * the scan's cost is (one platform walk plus one per installed package, against
+ * one small overlay tree), so hoisting it and merging here is the shape that
+ * repairs the defect without making the expensive half run once per deployment.
+ *
+ * ## Why it is a conformance repair and not a widening
+ *
+ * `contracts/divergence-report.md` §3.2 specifies the owner map as *"module
+ * sources plus each installed package's `./backend` artefact"*, and this
+ * repository's own host already obeys it: `moduleWalkRoots` contains
+ * `overlayRoot`. The instance host was the one out of conformance — it built
+ * `owners` from installed packages and `rootSupplied` from the platform walk,
+ * and the client's own overlay tree was in neither. Measured by A8 of the
+ * instance acceptance criterion: one rendering listing
+ * `registration:<overlay>:<name>` and reporting `unowned-subject` for `<name>`,
+ * whose remedy sentence — *"Composition throws for it at boot"* — was untrue of
+ * a tree that had just booted.
+ *
+ * ## The claim is keyed from `OverlaySource.moduleId`, never from `moduleOf`
+ *
+ * FR-006, and it is not a preference: `moduleOf`'s overlay branch requires
+ * `/src/apps/` in the path and an instance's overlay root is
+ * `<root>/apps/<deployment>/modules/`, so a claim placed by path would attribute
+ * nothing at all here. `overlaySourcesUnder` already carries the id, from the
+ * directory the walk descended into.
+ *
+ * The precedence is `registration-owners.ts`': the deployment's own tree is the
+ * **tree** half and overwrites, an installed package claims only what nothing
+ * above claimed. That is the right way round — a name the client registers in
+ * their own overlay module is theirs — and it is the same rule this repository's
+ * host applies to its own `backend/src/apps/` sources.
+ */
+export function withOverlayRegistrationOwners(
+  environment: DivergenceEnvironment,
+  sources: readonly OverlaySource[],
+): DivergenceEnvironment {
+  const overlayClaims: OwnerClaim[] = [];
+  for (const source of sources) {
+    for (const name of registeredNames(source.text, source.file)) {
+      overlayClaims.push({ name, moduleId: source.moduleId });
+    }
+    for (const name of providedPortNames(source.text, source.file)) {
+      overlayClaims.push({ name, moduleId: source.moduleId });
+    }
+  }
+  if (overlayClaims.length === 0) return environment;
+
+  const owners = mergeRegistrationOwners({
+    // The scan's map seeds this one, in the slot the merge rule gives to a
+    // claim already settled: the packages have been merged against each other
+    // and the question here is only what the deployment adds on top.
+    hostRegistered: Object.fromEntries(environment.owners),
+    treeClaims: overlayClaims,
+    packageClaims: [],
+  });
+  return {
+    ...environment,
+    owners,
+    // A name a module owns is not root-supplied, and the deployment's overlay
+    // module is a module: without this, a client registering a name the platform
+    // also spells would have it in both, and `deriveDivergence` reads
+    // `rootSupplied` only to decide that an absent owner is legitimate.
+    rootSupplied: new Set(
+      [...environment.rootSupplied].filter((name) => owners.get(name) === undefined),
+    ),
   };
 }
 

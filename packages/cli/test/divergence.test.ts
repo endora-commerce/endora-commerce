@@ -487,3 +487,173 @@ describe('the command writes them beside the deployment they describe', () => {
 function installedOf(root: string): readonly ModulePackage[] {
   return installedModulePackages(root);
 }
+
+/**
+ * `specs/124-instance-customisation-gap/` §5 — the report tells the truth about
+ * the client's own tree.
+ *
+ * Three joined defects, measured by A8 of the instance acceptance criterion on
+ * `origin/feat/110-t141-t142-assertions`, whose reason is a literal transcript
+ * of the first of them:
+ *
+ * > 1 entries: `registration:instance_acceptance_overlay:instanceAcceptanceOverlayService`;
+ * > findings: … [unowned-subject] …:22: `'instanceAcceptanceOverlayService'` is
+ * > registered by no module in the composition
+ *
+ * One rendering, two statements, and they contradict each other: it lists the
+ * overlay module's registration and then reports a decoration of that same name
+ * as owned by nobody — with a remedy sentence, *"Composition throws for it at
+ * boot"*, that is measurably untrue of a tree that had just booted.
+ */
+describe('the deployment’s own registrations are in the owner map', () => {
+  /** An overlay module that registers a name and then decorates it. */
+  const SELF_DECORATION = `import type { ModuleContext } from '@endora-commerce/platform/kernel';
+
+export function registerModule(ctx: ModuleContext): void {
+  ctx.di.register({ acmeOverlayService: ctx.asClass(Service).singleton() });
+  ctx.di.decorate<Service>('acmeOverlayService', (inner) => wrap(inner));
+}
+`;
+
+  const SELF_DECORATION_REASONS = `export const divergence = {
+  omittedModules: [],
+  decorationOrder: {},
+  reasons: {
+    'registration:acme_overlay:acmeOverlayService':
+      'Our own contract-pricing service, which core has no equivalent of.',
+    'decoration:acme_overlay:acmeOverlayService':
+      'We wrap our own service so the audit trail records the contract it priced against.',
+  },
+};
+`;
+
+  function selfDecoratingInstance(): string {
+    const root = instance({ overlay: false, declaration: SELF_DECORATION_REASONS });
+    write(join(root, 'apps', 'acme', 'modules', 'acme_overlay', 'backend.ts'), SELF_DECORATION);
+    return root;
+  }
+
+  it('attributes a decoration of the overlay module’s own registration to it', () => {
+    // A8's exact shape. Before the repair the entry's owner was `null` and an
+    // `unowned-subject` finding stood beside it.
+    const root = selfDecoratingInstance();
+    const [report] = renderInstanceDivergence({ root, packages: installedOf(root) });
+    const json = JSON.parse(
+      report!.renderings.find((rendering) => rendering.outputPath.endsWith('.json'))!.content,
+    ) as { entries: ReadonlyArray<{ kind: string; subject: string; owner: string | null }> };
+
+    expect(json.entries).toContainEqual(
+      expect.objectContaining({
+        kind: 'decoration',
+        subject: 'acmeOverlayService',
+        owner: 'acme_overlay',
+      }),
+    );
+  });
+
+  it('raises neither `unowned-subject` nor the `stale-reason` beside it', () => {
+    // The two findings A8 printed, and the second is why they go together: the
+    // declared reason keys to a derived entry only once the entry is derived,
+    // so removing the first removes the second.
+    const root = selfDecoratingInstance();
+    const [report] = renderInstanceDivergence({ root, packages: installedOf(root) });
+
+    expect(report?.findings).toEqual([]);
+  });
+
+  it('still lets an installed package own a name it registers', () => {
+    // The discrimination: the deployment's claims are merged over the packages'
+    // and must not take a package's own name away from it.
+    const root = instance();
+    const [report] = renderInstanceDivergence({ root, packages: installedOf(root) });
+    const json = JSON.parse(
+      report!.renderings.find((rendering) => rendering.outputPath.endsWith('.json'))!.content,
+    ) as { entries: ReadonlyArray<{ kind: string; subject: string; owner: string | null }> };
+
+    expect(json.entries.find((entry) => entry.kind === 'decoration')).toMatchObject({
+      subject: 'blogService',
+      owner: 'blog',
+    });
+  });
+
+  it('keys the claim from the overlay source’s own module id, never from a path', () => {
+    // `moduleOf`'s overlay regexp requires `/src/apps/`, which no instance has,
+    // so a claim placed by path would attribute nothing here. Proven by the
+    // module id appearing as an owner at all over an `apps/…` path.
+    const root = selfDecoratingInstance();
+    const [report] = renderInstanceDivergence({ root, packages: installedOf(root) });
+    const markdown = report!.renderings.find((r) => r.outputPath.endsWith('.md'))!.content;
+
+    expect(markdown).toContain('acme_overlay');
+    expect(markdown).not.toContain('src/apps');
+  });
+});
+
+describe('a JavaScript overlay module is analysable, and what is not is refused', () => {
+  /** The same decoration, in the dialect a client who writes no TypeScript uses. */
+  const JS_OVERLAY = `export function registerModule(ctx) {
+  ctx.di.decorate('blogService', (inner) => wrap(inner));
+}
+`;
+
+  /** A seam call the analysis genuinely cannot place: the receiver is a local. */
+  const UNREADABLE_OVERLAY = `export function registerModule(ctx) {
+  applyWraps(ctx.di);
+}
+
+function applyWraps(di) {
+  di.decorate('blogService', (inner) => wrap(inner));
+}
+`;
+
+  it('reads a decoration written in an unannotated `.js` overlay module', () => {
+    // `walkAnalysableSources` has always admitted `.js`, and `contextBindings`
+    // placed a receiver only on a parameter annotated `ModuleContext` — which a
+    // `.js` file cannot write. So a client writing JavaScript got a **clean
+    // report over a tree full of decorations**, which is the state refusal 3
+    // exists to refuse and which nothing in an instance called.
+    const root = instance({ overlay: false });
+    write(join(root, 'apps', 'acme', 'modules', 'acme_overlay', 'backend.js'), JS_OVERLAY);
+
+    const [report] = renderInstanceDivergence({ root, packages: installedOf(root) });
+    const json = JSON.parse(
+      report!.renderings.find((rendering) => rendering.outputPath.endsWith('.json'))!.content,
+    ) as { entries: ReadonlyArray<{ kind: string; subject: string; owner: string | null }> };
+
+    expect(json.entries).toContainEqual(
+      expect.objectContaining({ kind: 'decoration', subject: 'blogService', owner: 'blog' }),
+    );
+  });
+
+  it('refuses a tree whose seam calls it cannot read at all, rather than printing a clean report', async () => {
+    // FR-008 is the floor under FR-009: a shape the widened heuristic still
+    // misses must refuse. `overlayTreeSpellsASeamCall` sees `di.decorate(` in the
+    // text and the site derivation reads none, which is exactly refusal 3.
+    const root = instance({ overlay: false });
+    write(join(root, 'apps', 'acme', 'modules', 'acme_overlay', 'backend.js'), UNREADABLE_OVERLAY);
+
+    expect(() => renderInstanceDivergence({ root, packages: installedOf(root) })).toThrow(
+      DivergenceHostError,
+    );
+    // Through the command, it is the exit-2 class and never a rendered pass.
+    await expect(runGenerate({ cwd: root })).rejects.toThrow(GenerateHostError);
+  });
+
+  it('a deployment that only registers routes is still a clean report, not a refusal', async () => {
+    // The discrimination refusal 3 is written around: `sites=0` over a tree that
+    // spells no seam call is a legal overlay module, and refusing it would make
+    // the floor unusable.
+    const root = instance({
+      overlay: false,
+      declaration: `export const divergence = { omittedModules: [], decorationOrder: {}, reasons: {} };\n`,
+    });
+    write(
+      join(root, 'apps', 'acme', 'modules', 'acme_overlay', 'backend.js'),
+      `export function registerModule(ctx) {\n  ctx.routes(async (app) => { void app; });\n}\n`,
+    );
+
+    const result = await runGenerate({ cwd: root });
+    expect(result.divergence).toHaveLength(1);
+    expect(result.divergence[0]?.entries).toBe(0);
+  });
+});

@@ -66,12 +66,15 @@ import {
   instanceComposition,
   INSTANCE_BOUNDARY_NOTES,
   overlaySourcesUnder,
+  overlayTreeSpellsASeamCall,
   readDivergenceDeclaration,
   renderDivergenceArtefacts,
   unreadableCompositionReason,
+  withOverlayRegistrationOwners,
   EMPTY_DECLARATION,
   type DivergenceRendering,
 } from '../lib/divergence-artefacts.js';
+import { divergenceRefusal, selfContradictingSubjects } from '../lib/divergence.js';
 import {
   scanInstalledPlatformPackage,
   type ModulePackage,
@@ -178,10 +181,24 @@ export function renderInstanceDivergence(input: {
     );
   }
 
+  // Every committed report on disk, read from the directories rather than from
+  // the deployments the walk found: refusal 1's whole subject is the state in
+  // which those two disagree. In an instance it cannot fire — a client's report
+  // lives at `apps/<d>/divergence.generated.md`, inside the directory
+  // `instanceDeployments` counts, so an artefact implies its deployment — and
+  // the input is supplied truthfully anyway rather than stubbed, because a
+  // layout change is exactly the thing that would make a stub wrong in silence.
+  const committedDeploymentArtefacts = deployments.filter((deployment) =>
+    existsSync(join(input.root, 'apps', deployment, 'divergence.generated.md')),
+  );
+
   return deployments.map((deployment) => {
     const overlayRoot = join(input.root, 'apps', deployment, 'modules');
     const overlayModules = directoriesUnder(overlayRoot);
     const sources = overlaySourcesUnder(overlayRoot, overlayModules, input.root);
+    // FR-005/FR-006/FR-007 — the deployment's own registrations, merged per
+    // deployment because the overlay set is per deployment while the scan is not.
+    const environment = withOverlayRegistrationOwners(scan.environment, sources);
 
     const declarationPath = declarationPathFor(input.root, deployment);
     const reading =
@@ -196,11 +213,11 @@ export function renderInstanceDivergence(input: {
         overlayRoot: relative(input.root, overlayRoot).split(sep).join('/'),
         overlayModules,
         sources,
-        routes: scan.environment.routes,
-        owners: scan.environment.owners,
-        rootSupplied: scan.environment.rootSupplied,
+        routes: environment.routes,
+        owners: environment.owners,
+        rootSupplied: environment.rootSupplied,
         declaration: reading.declaration,
-        seams: scan.environment.seams,
+        seams: environment.seams,
         hostNotRecorded: INSTANCE_BOUNDARY_NOTES,
         // The file this run really read, relative to the client's own root. A
         // finding's job is to send somebody to a file, and the default is this
@@ -224,6 +241,35 @@ export function renderInstanceDivergence(input: {
         },
       ],
     );
+
+    // FR-008 — the refusals, evaluated here because `divergenceRefusal` lives in
+    // the shared library and had exactly one caller: `backend/scripts/check-divergence.ts`,
+    // which an instance does not have. Every input it needs is in hand, so an
+    // instance was the one host that could print a vacuous pass with nothing to
+    // stop it — the state refusal 3 exists for, reached by a client writing
+    // JavaScript. A refusal is an input this run could not read, which is
+    // `DivergenceHostError`'s class and the caller's exit 2, never exit 1.
+    const refusal = divergenceRefusal({
+      deployments,
+      committedDeploymentArtefacts,
+      sites: result.sites.length,
+      overlaySpellsASeamCall: overlayTreeSpellsASeamCall(sources),
+      ownersResolved: environment.owners.size,
+      // The platform's declared `ModuleContext` members. The rung table itself
+      // is a constant this package ships, so the input that can genuinely be
+      // zero in an instance is the member list — and a zero is already refused
+      // above, with a message naming the platform package. Passing the real
+      // number keeps the predicate answering over what this run read rather
+      // than over a stub that cannot go wrong.
+      seamsClassified: environment.seams.length,
+      selfContradictingSubjects: selfContradictingSubjects(result),
+    });
+    if (refusal !== null) {
+      throw new DivergenceHostError(
+        `the divergence report for \`${deployment}\` was refused rather than rendered ` +
+          `[${refusal.kind}]: ${refusal.message}`,
+      );
+    }
 
     return {
       deployment,

@@ -5,9 +5,11 @@ import {
   divergenceRefusal,
   moduleContextSeams,
   routeIdentities,
+  selfContradictingSubjects,
   SEAM_CLASSIFICATION,
   type DivergenceRefusalInput,
   type DivergenceRefusalKind,
+  type DivergenceResult,
 } from '../../../scripts/lib/divergence.js';
 import { vacuousModulePopulation } from '../../../scripts/lib/module-population.js';
 import { rootRegisteredNames as rootRegisteredNamesFromCheck } from '../../../scripts/check-port-dependencies.js';
@@ -239,6 +241,10 @@ describe('the refusals — one red proof per input whose absence is a vacuous pa
     // §5.3 — the load-bearing one: the sources spell a seam call and the walk
     // read none of them.
     ['no-seam-call-read', { sites: 0 }],
+    // §5.8 — the rendering contradicts itself: it lists a registration of a
+    // name and reports the same name as owned by nobody
+    // (`specs/124-instance-customisation-gap/` FR-010).
+    ['self-contradicting-attribution', { selfContradictingSubjects: ['blogService'] }],
   ];
 
   for (const [kind, override] of cases) {
@@ -248,6 +254,92 @@ describe('the refusals — one red proof per input whose absence is a vacuous pa
       expect(refusal?.message.length).toBeGreaterThan(0);
     });
   }
+
+  it('names the contradicted registration in the refusal, so a reader can find it', () => {
+    // Written from A8's own printed line on `origin/feat/110-t141-t142-assertions`:
+    // one rendering carrying
+    // `registration:instance_acceptance_overlay:instanceAcceptanceOverlayService`
+    // and, beside it, `[unowned-subject] … 'instanceAcceptanceOverlayService' is
+    // registered by no module in the composition`.
+    const refusal = divergenceRefusal({
+      ...SOUND,
+      selfContradictingSubjects: ['instanceAcceptanceOverlayService'],
+    });
+
+    expect(refusal?.kind).toBe('self-contradicting-attribution');
+    expect(refusal?.message).toContain('instanceAcceptanceOverlayService');
+    expect(refusal?.message).toContain('unowned-subject');
+  });
+
+  it('derives the contradiction from a result rather than being told about it', () => {
+    // The predicate is fed by `selfContradictingSubjects`, which is pure over the
+    // run's own `DivergenceResult` — so both hosts compute it from one expression
+    // and neither can be given a hand-written answer.
+    const contradicted = selfContradictingSubjects({
+      report: {
+        deployment: 'acme',
+        overlayRoot: 'backend/src/apps/acme/modules',
+        overlayModules: ['acme_overlay'],
+        generatedAt: null,
+        entries: [
+          {
+            key: 'registration:acme_overlay:acmeService',
+            kind: 'registration',
+            module: 'acme_overlay',
+            subject: 'acmeService',
+            owner: 'acme_overlay',
+            rung: 4,
+            detail: { kind: 'registration' },
+            reason: 'ours',
+          },
+        ],
+        boundary: { recorded: [], notRecorded: [] },
+      } as unknown as DivergenceResult['report'],
+      findings: [
+        {
+          kind: 'unowned-subject',
+          deployment: 'acme',
+          where: 'backend/src/apps/acme/modules/acme_overlay/backend.ts:22',
+          detail: "'acmeService' is registered by no module in the composition",
+        },
+      ],
+      sites: [],
+    });
+
+    expect(contradicted).toEqual(['acmeService']);
+  });
+
+  it('does not read a finding about a different name as a contradiction', () => {
+    // The quotes are load-bearing: `acmeService` must not match a finding about
+    // `acmeServiceCache`.
+    const contradicted = selfContradictingSubjects({
+      report: {
+        entries: [
+          {
+            key: 'registration:acme_overlay:acmeService',
+            kind: 'registration',
+            module: 'acme_overlay',
+            subject: 'acmeService',
+            owner: 'acme_overlay',
+            rung: 4,
+            detail: { kind: 'registration' },
+            reason: 'ours',
+          },
+        ],
+      } as unknown as DivergenceResult['report'],
+      findings: [
+        {
+          kind: 'unowned-subject',
+          deployment: 'acme',
+          where: 'x.ts:1',
+          detail: "'acmeServiceCache' is registered by no module in the composition",
+        },
+      ],
+      sites: [],
+    });
+
+    expect(contradicted).toEqual([]);
+  });
 
   it('does not refuse a deployment that genuinely uses no seam', () => {
     // The discrimination §5.3 turns on, and the reason the predicate takes a
