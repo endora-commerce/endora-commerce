@@ -336,9 +336,11 @@ describe('the refusals (instance-tree.md §4)', () => {
   });
 
   it('F6 — the platform version cannot be resolved, so no range can be written', async () => {
-    // A fixture with module packages and no platform: the failure is precisely
-    // that no `^<version>` has a source, and it must not be reported as an
-    // empty module set.
+    // A fixture with module packages and no platform. Two things have no source
+    // without it — the platform entry's own range, and the manifests the module
+    // set is closed over — and neither may be reported as an empty module set.
+    // A module package's *own* range is not among them: that comes off the
+    // module package, which this fixture does have.
     const root = installFixture([modulePackage('blog')]);
     const error = await runNewInstance({ dir: join(root, 'acme-shop'), cwd: root }).catch(
       (e: unknown) => e,

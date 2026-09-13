@@ -321,9 +321,8 @@ export function resolveInstanceHost(options: {
     throw new InstanceHostError(
       'F6',
       `${scope}${PLATFORM_PACKAGE} does not resolve from ${options.targetDir} or ` +
-        `${options.cwd}, so the version every \`^\` range in the instance's manifest would be ` +
-        `taken from has no source, and neither do the module manifests the module set is ` +
-        `closed over.` +
+        `${options.cwd}, so the version the instance's own platform range would be taken from ` +
+        `has no source, and neither do the module manifests the module set is closed over.` +
         (searched.length === 0
           ? ` No \`node_modules/${scope.slice(0, -1)}\` was found on the way up from either.`
           : ` Looked in: ${searched.join(', ')}.`) +

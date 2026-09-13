@@ -7558,7 +7558,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The four this branch adds are the two platform files, the backend unit test and
     // the changeset. Its population is the whole repository, so a `.md` counts.
     // **+15, of which 13 are this branch's and 2 were already standing on `9a0e8e0d0`** — measured there in a pristine worktree in the same `quality` shape, which reported 8146 against the 8144 recorded. This branch adds the ten ledger shards, the ledger's `README.md` and two changesets; it walks the whole repository, so it is the one entry that sees every one of them. The apportionment is re-derived against **this** base: before the merge it was 15 and 1, because the test file T3-A carries had not yet landed on `master`.
-    files: 8159,
+    // **`fix/instance-module-caret-ranges`: +1, and the one file is the changeset.**
+    // The branch adds no source file and deletes none — it edits four `packages/cli`
+    // sources and three of its tests — so `.changeset/instance-module-caret-ranges.md`
+    // is the whole delta. Attributed without an aside-and-back probe: this worktree
+    // measured `0 drifted, 44 agree, of 44 recorded` in the same `quality` shape
+    // **with every source edit already in place and before the changeset was
+    // written**, and reported +1 here and on `check-naming.sh` after it. The two
+    // entries that move are the two whose population is the whole repository; that
+    // `check-diacritic-folds` and `check-language.sh` do **not** move is the
+    // corroboration, `.md` being outside both.
+    files: 8160,
     sites: null,
     sources: [],
     //
@@ -11537,7 +11547,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // files, the backend unit test and the changeset; it reads `git ls-files --cached`,
     // so a committed file counts whatever its extension.
     // **+15, of which 13 are this branch's and 2 were already standing on `9a0e8e0d0`** (8206 measured there in a pristine worktree in the same shape). It reads the git **index**, so a committed or staged addition counts and a modified file does not — which is also why an attribution probe that moves a file aside answers the wrong question, and why the split above is derived from two measured trees instead.
-    files: 8219,
+    // **`fix/instance-module-caret-ranges`: +1, the changeset, on the entry above's
+    // reasoning and by the index rather than by the filesystem.** This walk is
+    // `git ls-files --cached`, so `.changeset/instance-module-caret-ranges.md`
+    // counts once committed and the branch's seven modified files count for
+    // nothing — which is why the two whole-repository entries move by exactly one
+    // together and no other entry moves at all.
+    files: 8220,
     sites: null,
     sources: ['manifest-index'],
     //
