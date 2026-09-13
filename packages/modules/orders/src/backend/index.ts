@@ -197,10 +197,20 @@ export interface OrdersCradle {
    * cradle read written into a factory body resolves when the registration is
    * constructed, and a registration another module owns must not be frozen
    * there — it is a name whose owner an operator may switch off.
+   *
+   * `NonNullable<>` because the accessor answers `null` when the owner is not
+   * effectively present (D-228), while the container name itself — when the
+   * owner did register it — resolves to the registry.
    */
-  readonly paymentAdapterRegistry: ReturnType<OrdersModuleOptions['paymentAdapterRegistry']>;
-  readonly shippingAdapterRegistry: ReturnType<OrdersModuleOptions['shippingAdapterRegistry']>;
-  readonly paymentOrderStatusRegistry: ReturnType<OrdersModuleOptions['paymentOrderStatusRegistry']>;
+  readonly paymentAdapterRegistry: NonNullable<
+    ReturnType<OrdersModuleOptions['paymentAdapterRegistry']>
+  >;
+  readonly shippingAdapterRegistry: NonNullable<
+    ReturnType<OrdersModuleOptions['shippingAdapterRegistry']>
+  >;
+  readonly paymentOrderStatusRegistry: NonNullable<
+    ReturnType<OrdersModuleOptions['paymentOrderStatusRegistry']>
+  >;
   readonly requireBoundApiKey: NonNullable<OrdersModuleOptions['requireBoundApiKey']>;
   readonly emailMailer: NonNullable<OrdersModuleOptions['mailer']>;
   readonly organizationReadPort: OrganizationReadPort;
@@ -470,11 +480,39 @@ export function registerModule(ctx: ModuleContext): void {
               ctx,
               'salesChannelMembershipPort',
             ),
-            // Accessors, not values: read where the plugin uses them rather
-            // than here, where this factory body runs once (feature 074).
-            paymentAdapterRegistry: () => cradle().paymentAdapterRegistry,
-            shippingAdapterRegistry: () => cradle().shippingAdapterRegistry,
-            paymentOrderStatusRegistry: () => cradle().paymentOrderStatusRegistry,
+            // Accessors, not values: read where the service uses them rather
+            // than here, where this factory body runs once (feature 074) — and
+            // each behind the presence probe its `degrades-without` declaration
+            // already promises (D-228).
+            //
+            // The probe is not the same question the eight `lazyPort` accessors
+            // above ask of theirs. These three names are plain
+            // `ctx.di.register` registrations, so an owner the composition
+            // never installed is not a gated 503 but an `AwilixResolutionError`
+            // at the first read — which is what killed the first scaffolded
+            // instance to reach route registration, `payment_methods` and
+            // `delivery_methods` being outside the default module set.
+            // `isPresent` collapses never-installed and switched-off into
+            // `false`, so one probe answers both axes and `order-service.ts`
+            // takes its no-adapter path either way.
+            //
+            // They stay plain container reads rather than becoming gated ports:
+            // five modules push into `paymentAdapterRegistry` and two into
+            // `shippingAdapterRegistry` from a **boot hook**, which for a gated
+            // port is `gated-port-before-first-request` — converting the
+            // registration would turn one defect into seven (D-228).
+            paymentAdapterRegistry: () =>
+              effectiveState.isPresent('payment_methods')
+                ? cradle().paymentAdapterRegistry
+                : null,
+            shippingAdapterRegistry: () =>
+              effectiveState.isPresent('delivery_methods')
+                ? cradle().shippingAdapterRegistry
+                : null,
+            paymentOrderStatusRegistry: () =>
+              effectiveState.isPresent('payment_methods')
+                ? cradle().paymentOrderStatusRegistry
+                : null,
             mailer: lazyPort<OrdersCradle['emailMailer']>(ctx, 'emailMailer'),
             confirmationRenderers,
             getTransactionalEmailSender: () => cradle().transactionalEmailSenderAccessor(),

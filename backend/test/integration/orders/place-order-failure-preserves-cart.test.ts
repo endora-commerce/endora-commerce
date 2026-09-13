@@ -60,7 +60,7 @@ describe('placeOrder — failure preserves the cart (feature 036)', () => {
       undefined,
       undefined,
       {
-      neighbours: orderServiceNeighbours(h.em), paymentAdapters: registry, orderStatusRegistry: new EnumOrderStatusRegistry() },
+      neighbours: orderServiceNeighbours(h.em), paymentAdapters: () => registry, orderStatusRegistry: () => new EnumOrderStatusRegistry() },
     );
 
     await expect(

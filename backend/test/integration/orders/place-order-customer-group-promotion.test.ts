@@ -132,8 +132,8 @@ describe('placeOrder — customer-group targeted promotion (issue #177)', () => 
       neighbours: orderServiceNeighbours(h.em),
       // Issue #124 — a rig states its own tax authority.
       resolveTaxRate: async () => 0.23,
-      paymentAdapters: registry,
-      orderStatusRegistry: new EnumOrderStatusRegistry(),
+      paymentAdapters: () => registry,
+      orderStatusRegistry: () => new EnumOrderStatusRegistry(),
       // D-94.5 split the seam in two: `promotion` is the read half
       // (`PromotionApplyPort.applyToCart`), `promotionUsageFinalizer` is the
       // redemption row written on the placement transaction. The same service

@@ -51,8 +51,8 @@ describe('B2C (personal-org) customer can transact (feature 051 US1)', () => {
       // fallback rate, so an order it cannot price is refused rather than taxed
       // at a figure nobody configured.
       resolveTaxRate: async () => 0.23,
-      paymentAdapters: registry,
-      orderStatusRegistry: new EnumOrderStatusRegistry(),
+      paymentAdapters: () => registry,
+      orderStatusRegistry: () => new EnumOrderStatusRegistry(),
       businessId: createBusinessIdGenerator({
         resolvePrefix: async () => 'ORD-',
         resolveSuffix: async () => '-2026',

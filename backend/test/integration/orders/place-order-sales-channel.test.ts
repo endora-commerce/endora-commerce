@@ -71,8 +71,8 @@ describe('placeOrder — the recorded sales channel (issue #85)', () => {
       // fallback rate, so an order it cannot price is refused rather than taxed
       // at a figure nobody configured.
       resolveTaxRate: async () => 0.23,
-      paymentAdapters: registry,
-      orderStatusRegistry: new EnumOrderStatusRegistry(),
+      paymentAdapters: () => registry,
+      orderStatusRegistry: () => new EnumOrderStatusRegistry(),
     });
   }
 
