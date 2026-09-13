@@ -107,6 +107,7 @@ import {
   composeSalesChannelsKernel,
   type SalesChannelsKernel,
 } from '../kernel/sales-channels/compose.js';
+import { DefaultChannelReconciler } from '../kernel/sales-channels/default-channel-reconciler.js';
 import { enterSystemScope } from '../kernel/scope.js';
 import { composeSettingsKernel, type SettingsKernel } from '../kernel/settings/compose.js';
 import { ManifestReconciler } from '../kernel/settings/manifest-reconciler.js';
@@ -672,6 +673,48 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     redis,
     auditLogService,
   });
+
+  // Feature 005 / `specs/117-instance-bring-up/` — and the invariant is this
+  // root's because the middleware above is.
+  //
+  // `registerSalesChannelResolverMiddleware` installs a **global `onRequest`
+  // hook** that falls back to `resolver.getSystemDefault()` for every
+  // `/api/v1/*` path except `/api/v1/_health`, and that call throws
+  // `NoSystemDefaultChannel` — an `HttpError(500, INTERNAL)`, which the error
+  // envelope answers *without logging*. So a composition that mounts the
+  // resolver and does not guarantee the flagged row serves `500 INTERNAL` to
+  // every request and writes nothing about any of them.
+  //
+  // It stood in the reference deployment's contribution callback until
+  // 2026-09-13, which made it a step only a root that *supplies* one performed.
+  // An instance supplies none (`contracts/instance-repository.md` R2.4), so
+  // every scaffolded instance answered 500 on `/api/v1/_openapi.json` — a route
+  // that touches no module and no database — from its first served request.
+  // `harness-parity.test.ts` could not see it: production and the harness both
+  // ran the reconciler, and the root that did not is the one this repository
+  // never composes.
+  //
+  // **Before `composeModules`**, for the reason the reference deployment's own
+  // comment gave: a module registration or an `ctx.onBoot` hook may read the
+  // system default (`inventory`'s warehouse/channel pairing,
+  // `mfaDefaultChannelIdResolver`), and none of them may observe the registry
+  // mid-repair.
+  //
+  // Feature 072 (T036) — boot reconcilers establish their own scope. This one
+  // ran with no ambient tenant context for a long time and survived only
+  // because the rows it touches carry no automatic filter; that was an accident
+  // of entity classification, not a guarantee.
+  const defaultChannelReconciliation = await enterSystemScope(
+    'boot: reconcile the default sales channel',
+    () => new DefaultChannelReconciler(em, auditLogService).run(),
+    { entryPoint: 'boot' },
+  );
+  if (defaultChannelReconciliation.action === 'warning' && defaultChannelReconciliation.warning) {
+    platformLogger().warn(
+      { action: defaultChannelReconciliation.action },
+      defaultChannelReconciliation.warning,
+    );
+  }
   // Feature 072 (T118) — the universal settings *reader* is kernel
   // infrastructure: almost every module calls `SettingsService.get`, so it
   // cannot be gated on whether an operator wants the settings screens.

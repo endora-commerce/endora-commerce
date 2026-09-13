@@ -211,6 +211,9 @@ function planInput(overrides: Partial<PlanInput> = {}): PlanInput {
     ]),
     registry: null,
     npmrc: null,
+    // The default, and the one D-230 kept. A fixture that named the other would
+    // be asserting the three-host examples everywhere they are not the subject.
+    topology: 'single-host',
     ...overrides,
   };
 }
@@ -560,18 +563,27 @@ describe('the tree (§1, §2)', () => {
     for (const [name, command] of Object.entries(root.scripts)) {
       expect(command).not.toContain('--filter');
       // A script that delegates must reach a member that is **in the plan**,
-      // and that member's own script of the same name. The member is read out
-      // of the `-C <dir>` token rather than assumed to be the backend, so the
-      // admin and documentation members are covered by the same assertion and
-      // a third member would be too.
-      for (const [, directory] of command.matchAll(/pnpm -C (\S+) run (\S+)/g)) {
+      // and the member script the delegation actually names. The member is read
+      // out of the `-C <dir>` token rather than assumed to be the backend, so
+      // the admin and documentation members are covered by the same assertion
+      // and a third member would be too.
+      //
+      // The **delegated** name, not the root one: they agreed by coincidence
+      // until feature 122 named the per-layer builds, and `build:backend →
+      // pnpm -C backend run build` is the first pair where they differ. What
+      // T141's red proof was about is a delegation reaching nothing, and that
+      // is what the `-C` token and the script token together answer.
+      for (const [, directory, delegated] of command.matchAll(/pnpm -C (\S+) run (\S+)/g)) {
         delegations += 1;
         const manifest = plan.files.find((file) => file.path === `${directory}/package.json`);
         expect(manifest, `${name} delegates to ${directory}, which the plan does not write`)
           .toBeDefined();
         const scripts = (JSON.parse(manifest!.content) as { scripts: Record<string, string> })
           .scripts;
-        expect(scripts[name]).toBeDefined();
+        expect(
+          scripts[delegated!],
+          `${name} delegates to \`${delegated!}\` in ${directory}, which declares no such script`,
+        ).toBeDefined();
       }
     }
     expect(delegations).toBeGreaterThan(0);
@@ -602,6 +614,32 @@ describe('the tree (§1, §2)', () => {
     );
     expect(steps.findIndex((s) => s.startsWith('pnpm run module:install'))).toBeLessThan(
       steps.findIndex((s) => s.startsWith('pnpm run start')),
+    );
+    // R3.4's own line, and the one the block has always ended on.
+    expect(text).toContain('endora new storefront <dir>');
+  });
+
+  /**
+   * Feature 122 T017 — the block gains one line under `three-host`, and gains
+   * it **only** there.
+   *
+   * A client who scaffolded three hosts has three directories of examples and
+   * no reason to look in any of them; a client who scaffolded one would be told
+   * about files their tree does not hold.
+   */
+  it('T017 — the three-host line is printed for that topology and for no other', () => {
+    const single = nextSteps('/tmp/acme', 'default').join('\n');
+    const three = nextSteps('/tmp/acme', 'default', 'three-host').join('\n');
+    expect(single).not.toContain('three-host');
+    expect(three).toContain('deploy/three-host/');
+    expect(three).toContain('not interchangeable');
+    // It is one line added to the same block, in the same place: everything the
+    // single-host run prints is still printed, and still first.
+    expect(nextSteps('/tmp/acme', 'default', 'three-host').length).toBe(
+      nextSteps('/tmp/acme', 'default').length + 1,
+    );
+    expect(three.indexOf('deploy/three-host/')).toBeLessThan(
+      three.indexOf('endora new storefront <dir>'),
     );
   });
 
@@ -949,5 +987,131 @@ describe('the command (R5.2, R5.3)', () => {
       dryRun: true,
     });
     expect(result.provenance).toContain('defaulted=0');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Feature 122 Phase 1 — the per-layer builds are named
+// (`specs/122-layer-deployment-independence/contracts/layer-independence.md`
+// §2 R2.1, under D-230)
+// ---------------------------------------------------------------------------
+
+/**
+ * A layer is deployed alone, so it must be buildable alone — and a CI job on
+ * the admin host cannot cite a command it was never told.
+ *
+ * The composite `build` keeps its present **value**; what changes is that its
+ * parts are named. So the assertion on it is byte-identical to what the
+ * command rendered before this feature, which is the half that stops a "name
+ * the parts" change from quietly re-deciding what the whole does.
+ */
+describe('§2 R2.1 — each layer has a named build, and the composite is their conjunction', () => {
+  const rootScripts = (input: PlanInput): Record<string, string> =>
+    (
+      JSON.parse(
+        planInstance(input).files.find((file) => file.path === 'package.json')!.content,
+      ) as { scripts: Record<string, string> }
+    ).scripts;
+
+  const withAdminMember = (overrides: Partial<PlanInput> = {}): PlanInput =>
+    planInput({
+      adminShellVersion: '4.5.6',
+      adminKitVersion: '4.5.6',
+      adminRanges: new Map([
+        ['react', '^19.0.0'],
+        ['react-dom', '^19.0.0'],
+        ['vite', '^7.3.2'],
+        ['@vitejs/plugin-react', '^5.2.0'],
+        ['tailwindcss', '^4.2.4'],
+        ['@tailwindcss/vite', '^4.2.4'],
+      ]),
+      adminPeers: new Map(),
+      ...overrides,
+    });
+
+  it('declares `build:backend` always — the backend member is never omitted', () => {
+    expect(rootScripts(planInput())['build:backend']).toBe('pnpm -C backend run build');
+    expect(rootScripts(withAdminMember())['build:backend']).toBe('pnpm -C backend run build');
+  });
+
+  it('declares `build:admin` and `build:docs` exactly when those members are written', () => {
+    const complete = rootScripts(withAdminMember());
+    expect(complete['build:admin']).toBe('pnpm -C admin run build');
+    expect(complete['build:docs']).toBe('pnpm -C docs run build');
+
+    // The same two predicates the composite has always used, and no third one:
+    // an admin-less instance gets no `build:admin`, rather than a script that
+    // fails on a directory nobody wrote.
+    const noAdmin = rootScripts(planInput());
+    expect(noAdmin['build:admin']).toBeUndefined();
+    expect(noAdmin['build:docs']).toBe('pnpm -C docs run build');
+
+    const neither = rootScripts(withAdminMember({ docsRanges: new Map() }));
+    expect(neither['build:docs']).toBeUndefined();
+    expect(neither['build:admin']).toBe('pnpm -C admin run build');
+
+    const backendOnly = rootScripts(planInput({ docsRanges: new Map() }));
+    expect(backendOnly['build:admin']).toBeUndefined();
+    expect(backendOnly['build:docs']).toBeUndefined();
+  });
+
+  it('the composite is the conjunction of the declared ones, in backend, admin, docs order', () => {
+    for (const input of [
+      planInput(),
+      planInput({ docsRanges: new Map() }),
+      withAdminMember(),
+      withAdminMember({ docsRanges: new Map() }),
+    ]) {
+      const scripts = rootScripts(input);
+      const parts = ['build:backend', 'build:admin', 'build:docs']
+        .filter((name) => scripts[name] !== undefined)
+        .map((name) => scripts[name]!);
+      expect(scripts['build']).toBe(parts.join(' && '));
+    }
+    // …and the value is byte-identical to what this command rendered before the
+    // parts were named. A "name the parts" change that re-decided what the
+    // whole does would pass the derivation above and fail here.
+    expect(rootScripts(withAdminMember())['build']).toBe(
+      'pnpm -C backend run build && pnpm -C admin run build && pnpm -C docs run build',
+    );
+    expect(rootScripts(planInput())['build']).toBe(
+      'pnpm -C backend run build && pnpm -C docs run build',
+    );
+    expect(rootScripts(planInput({ docsRanges: new Map() }))['build']).toBe(
+      'pnpm -C backend run build',
+    );
+  });
+
+  /**
+   * T003 — the README a client reads names every command the manifest declares,
+   * and no command it does not.
+   *
+   * Both sides are derived from the same run, so a script added to the root
+   * manifest with no line in the README is red here rather than discovered by a
+   * client who cannot find the command they were told to run.
+   */
+  it('T003 — the README names every root script, and no script the manifest lacks', () => {
+    for (const input of [planInput(), withAdminMember(), planInput({ docsRanges: new Map() })]) {
+      const plan = planInstance(input);
+      const scripts = Object.keys(
+        (
+          JSON.parse(
+            plan.files.find((file) => file.path === 'package.json')!.content,
+          ) as { scripts: Record<string, string> }
+        ).scripts,
+      ).sort();
+      const readmeText = plan.files.find((file) => file.path === 'README.md')!.content;
+      const block = /```\npnpm install\n([\s\S]*?)```/.exec(readmeText);
+      expect(block, 'the README still has one command block, and it is a block').not.toBeNull();
+      const named = [...block![1]!.matchAll(/^pnpm run (\S+)/gm)].map((match) => match[1]!).sort();
+      expect(named).toEqual(scripts);
+    }
+  });
+
+  it('T003 — the block says why a layer may be built alone: it is deployed alone', () => {
+    const readmeText = planInstance(withAdminMember()).files.find(
+      (file) => file.path === 'README.md',
+    )!.content;
+    expect(readmeText).toContain('deployed on its own');
   });
 });

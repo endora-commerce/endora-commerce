@@ -29,7 +29,6 @@ import type { ModulePlugin } from '@endora-commerce/platform/composition';
 import { initOrm, closeOrm } from './db/index.js';
 import { type TenantContext } from './tenancy/tenant-context.js';
 import { resolveTenantContext, systemTenantContext } from '@endora-commerce/platform/composition';
-import { enterSystemScope } from './kernel/scope.js';
 // Feature 072 — the generated module list. D-45 collapsed the early/late split
 // into a single pass: registration resolves nothing (`kernel/compose.ts`'s
 // `registering` guard), so the order modules register in carries no meaning,
@@ -92,7 +91,6 @@ import { effectiveState } from './kernel/lifecycle/effective-state.js';
 // Feature 046 — Returns & Complaints (Refunds, RMA).
 // Feature 047 — Invoices. No type import: T118c retired `invoicesBridge` and
 // this root contributes nothing for the module.
-import { DefaultChannelReconciler } from '@endora-commerce/platform/composition';
 // Feature 046 — Progressive Web App. No type import: T118c retired `pwaBridge`
 // and this deployment contributes nothing for the module.
 // Feature 047 — Transactional Emails.
@@ -657,25 +655,16 @@ async function contributeReferenceDeployment(
   // Feature 072 (T122) — `import_export` owns its service and routes now.
   // Feature 072 (T105) — `languages` owns its services and routes now.
 
-  // Feature 005 — Sales Channels module. The boot-time
-  // DefaultChannelReconciler runs FIRST so every other module can rely on a
-  // system-default channel existing; it must precede the modules array
-  // because catalog (and later other modules) consume
-  // `salesChannels.membershipService` in their composition. The
-  // plugin itself (resolver middleware) is pushed into `modules` below.
-  const salesChannelsReconciler = new DefaultChannelReconciler(em, auditLogService);
-  // Feature 072 (T036) — boot reconcilers establish their own scope. They ran
-  // with NO ambient tenant context before, and survived only because the rows
-  // they touch carry no automatic filter; that was an accident of entity
-  // classification, not a guarantee.
-  const salesChannelsReconciliation = await enterSystemScope(
-    'boot: reconcile the default sales channel',
-    () => salesChannelsReconciler.run(),
-    { entryPoint: 'boot' },
-  );
-  if (salesChannelsReconciliation.action === 'warning' && salesChannelsReconciliation.warning) {
-    console.warn(salesChannelsReconciliation.warning);
-  }
+  // Feature 005 — the boot-time default-channel reconciliation stood here and
+  // is `composeApp`'s since 2026-09-13. It was the last boot step a *request*
+  // depended on that only a root supplying a contribution callback performed,
+  // and an instance supplies none (R2.4): the resolver middleware the platform
+  // mounts falls back to `getSystemDefault()`, which throws an
+  // `HttpError(500, INTERNAL)` the envelope answers without logging, so every
+  // scaffolded instance served `500 INTERNAL` on every `/api/v1/*` path but
+  // `/api/v1/_health` and wrote nothing about any of them. The reconciler runs
+  // before `composeModules` there — earlier than this call did, and for the
+  // reason the comment here always gave.
 
   // Feature 010 — pair every active sales channel with a warehouse. Migration
   // 030 seeds the Default warehouse and tries to bind it to each channel, but
