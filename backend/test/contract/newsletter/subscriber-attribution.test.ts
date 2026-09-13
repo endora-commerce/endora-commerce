@@ -141,7 +141,7 @@ describe('a newsletter subscriber carries the organisation of the account that o
         cradle.settingsReadPort,
         new NewsletterTokenHelper('attribution-probe-secret'),
       ),
-      defaultChannelId: null,
+      resolveDefaultChannelId: async () => null,
       customerAccounts: cradle.customerAccountReadPort,
       links: { confirm: (t) => `confirm?${t}`, unsubscribe: (t) => `unsubscribe?${t}` },
     });

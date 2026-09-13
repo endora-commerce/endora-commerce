@@ -1,17 +1,24 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type { FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { EventBus } from '@endora-commerce/platform/events';
+import { ERROR_CODES } from '@endora-commerce/contracts';
+import { HttpError } from '@endora-commerce/platform/http';
 import type {
+  Actor,
+  AdminRolePort,
   AdminUserReadPort,
   CartWritePort,
   CatalogProductReadPort,
   CustomerAccountReadPort,
   OrderReadPort,
   OrganizationDetailsPort,
+  OrganizationTaxProfilePort,
   QuoteRequestReadPort,
   RfqCustomerPort,
   SalesChannelAttributionRegistryPort,
+  TaxServicePort,
 } from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { QuoteRequestReadService } from './services/quote-request-read-port.js';
@@ -78,10 +85,19 @@ export interface QuoteRequestsCradle {
   readonly customFieldValueService: NonNullable<
     QuoteRequestsModuleOptions['customFieldValues']
   >;
-  /** Root-shaped: production reads `request.actor`, the harness `request.testActor`. */
+  /**
+   * Defaulted by this module since `specs/117-instance-bring-up/` Phase 6 — see
+   * `registerActorResolvers` below. A root that answers differently still
+   * contributes over it; the test harness does, reading its own
+   * `request.testActor` and widening `isPlatformAdmin` on purpose.
+   */
   readonly rfqCustomerContextResolver: QuoteRequestsModuleOptions['resolveCustomerContext'];
   readonly rfqAdminContextResolver: QuoteRequestsModuleOptions['resolveAdminContext'];
-  /** Contributed: the organization's effective tax rate for a quoted line. */
+  /**
+   * The organization's effective tax rate for a quoted line, defaulted by this
+   * module since `specs/117-instance-bring-up/` Phase 6 — see
+   * `registerTaxRateResolver` below.
+   */
   readonly rfqTaxRateResolver: NonNullable<QuoteRequestsModuleOptions['resolveTaxRate']>;
   /**
    * The sales-rep assignment scope, owned by `organizations` (issue #108).
@@ -127,7 +143,147 @@ function warnOnce(condition: string, message: string): void {
   console.warn(message);
 }
 
+/**
+ * The two actor-shaped names this module reads, defaulted here
+ * (`specs/117-instance-bring-up/` Phase 6, FR-033).
+ *
+ * They were contributed by `backend/src/composition.ts` and by
+ * `backend/test/helpers/test-server.ts` and by nothing else, so a composition
+ * that is neither of those two — which is every client instance, `composeApp`
+ * being the whole of what one calls — could not resolve them. `composeApp`'s
+ * own options say what that state is: `contribute` is *"the one slot where a
+ * value a module defaults may be overwritten"*, and a name **nothing** defaults
+ * supplied through it is a required value wearing an override's clothes.
+ *
+ * Both bodies are this module's own and carry no deployment judgement. They
+ * read `request.actor`, which is the platform's decoration since T118b, and
+ * three ports this manifest already declares as binding `dependencies`:
+ * `customer_accounts`, `admin_users` and `admin_roles`. A root that wants a
+ * different answer still contributes one — the test harness does, and its
+ * divergence is deliberate — which is what the window is for.
+ */
+function registerActorResolvers(ctx: ModuleContext): void {
+  ctx.di.register({
+    /**
+     * Who is asking, in this module's shape: the account, its Organization and
+     * whether the caller administers it.
+     *
+     * The Organization guard asserts an invariant rather than describing a
+     * business state (D-178) — `customer_accounts.organization_id` is `NOT NULL`
+     * and an individual is backed by a personal organisation — so a caller
+     * reaching it is a broken invariant and not a buyer who should be told to
+     * attach something they cannot attach. It is kept rather than deleted
+     * because `Actor`'s `organizationId` is `string | null` at this seam and
+     * `CustomerContext`'s is `string`.
+     */
+    rfqCustomerContextResolver: ctx
+      .asFunction(() => {
+        const accounts = lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort');
+        return async (request: FastifyRequest) => {
+          const actor = request.actor as Actor | undefined;
+          if (actor?.kind !== 'customer') {
+            throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
+          }
+          if (!actor.organizationId) {
+            throw new HttpError(
+              500,
+              ERROR_CODES.INTERNAL,
+              'Invariant violated: a customer account has no Organization (Principle XI).',
+              { code: 'customer_account_organization_missing' },
+            );
+          }
+          const account = await accounts.findById(actor.customerAccountId);
+          return {
+            customerAccountId: actor.customerAccountId,
+            organizationId: actor.organizationId,
+            isOrgAdmin: account?.role === 'organization_admin',
+          };
+        };
+      })
+      .singleton(),
+    /**
+     * Who is administering, with the role the admin surface renders beside the
+     * RFQ and scopes its list by.
+     *
+     * `getById` rather than a nullable lookup, and it cannot 404 here:
+     * `admin_users_admin_role_fk` is `on delete restrict`, so a non-null
+     * `adminRoleId` names a row that exists.
+     */
+    rfqAdminContextResolver: ctx
+      .asFunction(() => {
+        const admins = lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort');
+        const roles = lazyPort<AdminRolePort>(ctx, 'adminRolePort');
+        return async (request: FastifyRequest) => {
+          const actor = request.actor as Actor | undefined;
+          if (actor?.kind !== 'admin') {
+            throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
+          }
+          const adminUser = await admins.findById(actor.adminUserId);
+          const role = adminUser?.adminRoleId ? await roles.getById(adminUser.adminRoleId) : null;
+          return {
+            adminUserId: actor.adminUserId,
+            isPlatformAdmin: role?.code === 'platform_admin',
+            roleLabel:
+              role?.code === 'platform_admin'
+                ? 'Platform administrator'
+                : role?.code === 'sales_representative'
+                  ? 'Sales representative'
+                  : (role?.name ?? 'Administrator'),
+          };
+        };
+      })
+      .singleton(),
+  });
+}
+
+/**
+ * The rate a quoted line is priced at (`specs/117-instance-bring-up/` Phase 6,
+ * FR-033).
+ *
+ * Two ports, both already binding `dependencies` of this manifest: the
+ * organisation's VAT status and country from `organizations`, and the rate
+ * itself from `taxes`.
+ *
+ * **No `catch`, and that is the design** (issue #84). `taxRateFor` answers
+ * "nothing applies" as a *value* — `{ source: 'none' }`, with no rate to read —
+ * so the only errors that reach this seam are a failing database and a
+ * switched-off owner, and returning 0 for either would quote a zero-VAT price
+ * on an operator's behalf and call it an answer. Both owners are
+ * `nonDeactivatable`, so neither has an off state here; the refusal is what
+ * reaches a caller if that ever changes.
+ */
+function registerTaxRateResolver(ctx: ModuleContext): void {
+  ctx.di.register({
+    rfqTaxRateResolver: ctx
+      .asFunction((): NonNullable<QuoteRequestsModuleOptions['resolveTaxRate']> => {
+        const taxProfiles = lazyPort<OrganizationTaxProfilePort>(
+          ctx,
+          'organizationTaxProfilePort',
+        );
+        const taxes = lazyPort<TaxServicePort>(ctx, 'taxService');
+        return async (organizationId: string) => {
+          const org = await taxProfiles.taxProfileOf(organizationId);
+          const vatStatus = org?.vatStatus ?? 'vat_payer';
+          if (vatStatus !== 'vat_payer') return 0;
+          const resolved = await taxes.taxRateFor({
+            country: org?.country ?? 'PL',
+            productType: 'simple',
+            vatStatus,
+          });
+          // `none` is the operator's own configuration state — `taxes` is
+          // present and holds no rule that applies and no default — so a quote
+          // is priced net and the quote view drops its VAT row rather than
+          // printing a 0% one.
+          return resolved.source === 'none' ? 0 : resolved.rate;
+        };
+      })
+      .singleton(),
+  });
+}
+
 export function registerModule(ctx: ModuleContext): void {
+  registerActorResolvers(ctx);
+  registerTaxRateResolver(ctx);
   ctx.di.register({
     quoteRequests: ctx
       .asFunction(({ emFactory, eventBus, auditLogService }: QuoteRequestsCradle) => {

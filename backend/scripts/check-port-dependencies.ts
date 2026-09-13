@@ -203,6 +203,22 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // Who an admin actor is, resolved differently by production and the harness
   // — which is exactly the difference a composition root exists to hold.
   'adminContextResolver',
+  // The calling customer's Organization, or `null`. It was a
+  // `HOST_REGISTERED_PORTS` entry owned by `auth` and is the platform's own
+  // since `specs/117-instance-bring-up/` Phase 6, where `composeApp` took it as
+  // the tenth of T118b's actor-shaped names — its value expression names no
+  // module, which is that move's criterion. Four modules read it and nothing
+  // defaulted it, so the entry was not describing a bridge that would be
+  // retired by an owner: there was no owner to retire it.
+  'customerOrganizationIdResolver',
+  // The key newsletter confirmation and unsubscribe links are signed with
+  // (`specs/117-instance-bring-up/` Phase 6, T6-B1). The platform's rather than
+  // the module's, deliberately: `NEWSLETTER_TOKEN_SECRET` is declared in
+  // `@endora-commerce/platform`'s own environment declaration and
+  // `check:env-inputs` does not judge module packages, so moving the read into
+  // `newsletter` would take it out of the judged population and leave the
+  // declaration reading as an `unread-input`.
+  'newsletterTokenSecret',
   // `configurationTypeRegistry` left this list in T143a. It read "the root
   // creates and populates it", and the second half stopped being true: each
   // configuration type is declared by the module that owns it, from that
@@ -272,15 +288,21 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // caller on an audit record.
   'inventoryAdminAuditContext',
   // Same shape for `catalog` (T142): whether this process runs the
-  // bulk-operation consumer (Principle X), how it names an acting admin on an
-  // audit record, and the three adapters that reach modules `catalog` must not
-  // read through directly — availability bands, the image placeholder, and the
-  // Meilisearch reindex production runs and the harness must not.
+  // bulk-operation consumer (Principle X), and how it names an acting admin on
+  // an audit record.
+  //
+  // The three adapters that stood beside them — `catalogExternalAvailability`,
+  // `catalogImagePlaceholderUrl` and `catalogSearchReindex` — left this list in
+  // `specs/117-instance-bring-up/` Phase 6. The entry called them *"adapters
+  // that reach modules `catalog` must not read through directly"*, which is
+  // true and is an argument for a **port**, not for a root's closure: two of
+  // them were a gated port plus the presence probe this module's manifest
+  // already obliges, and the third was two platform registrations. `catalog`
+  // registers all three itself. `catalogSearchReindex` is still contributed by
+  // the harness, which is now an override of a module default rather than the
+  // only supply there is.
   'catalogRunBulkOperationWorker',
   'catalogAdminAuditContext',
-  'catalogExternalAvailability',
-  'catalogImagePlaceholderUrl',
-  'catalogSearchReindex',
   // The storefront origin a customer-facing link points at — an invitation, a
   // set-password mail. One name, because it is one environment fact:
   // `organizations` (T138) and `customers` (T140) both send such links, and two
@@ -361,23 +383,28 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // them through a cradle accessor, which this check could not see, so nothing
   // checked that both compositions supply them.
   customerActorResolver: 'auth',
-  customerModerationActorResolver: 'auth',
+  // `customerModerationActorResolver` left this table in
+  // `specs/117-instance-bring-up/` Phase 6: `customers` registers it itself,
+  // which is this table's own one condition for an entry going.
   // The calling customer as a bare id. Root-shaped for the same reason
   // `customerContextResolver` is — production reads `request.actor`, the harness
   // `request.testActor` — and owned by `auth` in principle. Read by the four
   // payment gateways (wave 3).
   customerAccountIdResolver: 'auth',
-  // Which organizations a sales-rep admin may see (T141) — actor-shaped like
-  // the four above. Its transactional-sender twin drained in T120.
-  ordersAdminScopeResolver: 'auth',
-  // The calling customer's Organization, or `null`. The fourth member of the
-  // family above and root-shaped for the same reason, but softer than all of
-  // them on purpose: it answers `null` for anonymous traffic *and* for a
-  // Customer with no Organization, where `customerContextResolver` throws 401
-  // or 422. That difference is the point — it is read on restriction checks
-  // (T138), and catching a throw to mean "unrestricted" is how a fail-closed
-  // gate becomes fail-open.
-  customerOrganizationIdResolver: 'auth',
+  // `ordersAdminScopeResolver` left this table in
+  // `specs/117-instance-bring-up/` Phase 6 and never belonged in it: the entry
+  // called it actor-shaped and owned by `auth`, and the body decides on
+  // `admin_roles.code === 'sales_representative'` over a row it reads through
+  // `admin_users`. `orders` registers it itself.
+  //
+  // `customerOrganizationIdResolver` left it in the same phase, the other way:
+  // it *is* actor-shaped, so it went to `composeApp` beside the nine T118b
+  // moved, and this table's subject is a name a root registers on a **module's**
+  // behalf. Its softness is the reason it is its own name, and the reason is
+  // now written where the registration is — it answers `null` for anonymous
+  // traffic *and* for a Customer with no Organization, where
+  // `customerContextResolver` throws, and catching that throw to mean
+  // "unrestricted" is how a fail-closed gate becomes fail-open.
   // The admin-editable transactional sender, as a getter because
   // `transactional_emails` announces it after `organizations` composes. Same
   // shape and same owner as `inventoryTemplateEmail`; the two drain together.
@@ -412,9 +439,12 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // `quote_requests`' three composition-shaped inputs (T132): who is asking
   // (production reads `request.actor`, the harness `request.testActor`), the
   // organization's tax rate, and the subtree the RFQ admin scope rolls up over.
-  rfqCustomerContextResolver: 'auth',
-  rfqAdminContextResolver: 'auth',
-  rfqTaxRateResolver: 'taxes',
+  // `rfqCustomerContextResolver`, `rfqAdminContextResolver` and
+  // `rfqTaxRateResolver` left this table in `specs/117-instance-bring-up/`
+  // Phase 6: `quote_requests` registers all three itself, over the four ports
+  // its manifest already declared — `customerAccountReadPort`,
+  // `adminUserReadPort`, `adminRolePort` and, for the rate,
+  // `organizationTaxProfilePort` with `taxService`.
   // Inherited credit limits (feature 056). Owned by `organizations`, still
   // hand-wired; the entry goes when that module converts.
   // The composed attribute read model (feature 061). Owned by `catalog`, still
@@ -451,11 +481,19 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // registers and nothing reads is invisible to it, so a retired bridge sits
   // here describing a contribution that no longer exists. Delete the entry in
   // the merge request that retires the name; nothing else will notice.
-  // The seller's NIP, read from the invoices seller settings. A root's, because
-  // the setting belongs to `invoices` and the format handling is composition
-  // policy rather than a KSeF concern.
-  ksefSellerNipResolver: 'ksef',
-  newsletterBridge: 'newsletter',
+  // `ksefSellerNipResolver` left this table in `specs/117-instance-bring-up/`
+  // Phase 6. The entry said it was a root's *"because the setting belongs to
+  // `invoices` and the format handling is composition policy rather than a KSeF
+  // concern"*, and neither half survives reading: `ksef` declares `invoices`, so
+  // the setting is one it may read, and stripping a `PL` prefix off a NIP is a
+  // KSeF format rule and nothing else. `ksef` registers it itself.
+  //
+  // `newsletterBridge` left it in the same phase, and went entirely: nine
+  // members, each a port, a platform contribution, a platform helper or an
+  // environment input. `NEWSLETTER_TOKEN_SECRET` stays a platform-declared
+  // input, so the platform registers the resolved value as
+  // `newsletterTokenSecret` (T6-B1 route (b)) and that name is in
+  // `PLATFORM_OWNED_NAMES` above.
   searchRunWorkers: 'search',
   // Whether this composition runs the webhook delivery consumer (T143a). The
   // worker itself is `webhooks`' own now; only the deployment half — production
@@ -545,6 +583,13 @@ export const CAPTURABLE_NAMES: ReadonlySet<string> = new Set([
   // this check learned to follow in issue #90.
   'storefrontBaseUrl',
   'organizationsExposeTestProbe',
+  // The key newsletter confirmation and unsubscribe links are signed with,
+  // registered by the platform (`specs/117-instance-bring-up/` Phase 6, T6-B1)
+  // and read at construction because the token helper is built with it. Same
+  // category as the two above and as `productFeedsTokenEncryptionKey`: a string
+  // read from the environment, not a gate, so capturing one cannot outlive a
+  // module being switched off.
+  'newsletterTokenSecret',
 ]);
 
 /**

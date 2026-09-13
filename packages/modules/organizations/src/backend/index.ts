@@ -102,8 +102,10 @@ import { OrganizationWarehouseLink } from './entities/organization-warehouse-lin
  * domain knowledge). Fused, it could only be a root contribution, which is why
  * `payment_methods`, `delivery_methods` and `inventory` each declared a
  * contribution point for it. Split, neither half is a contribution point: the
- * first is a deployment input the roots register once as
- * `customerOrganizationIdResolver`, the second is
+ * first is `customerOrganizationIdResolver`, which the **platform** registers
+ * once in `composeApp` — a deployment input the roots each wrote out until
+ * `specs/117-instance-bring-up/` Phase 6, where it turned out that no
+ * composition other than those two had it at all — the second is
  * {@link OrganizationRestrictionService.allowedIdsFor} behind a gated port, and
  * each consumer composes the two itself.
  *

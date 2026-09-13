@@ -36,7 +36,7 @@ describe('newsletter suppression + events (US3/US6 edge cases)', () => {
     service = new NewsletterSubscriberService({
       emFactory: () => db.em(),
       optIn,
-      defaultChannelId: null,
+      resolveDefaultChannelId: async () => null,
       // Feature 087 Group B / D-187 — the real read port, over this
       // transaction's own `customer_accounts`. Every subscribe in this file is
       // anonymous, so the port is never asked anything; wiring the real one

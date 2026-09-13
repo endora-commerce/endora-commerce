@@ -2,8 +2,13 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
+import { ERROR_CODES } from '@endora-commerce/contracts';
+import { HttpError } from '@endora-commerce/platform/http';
 import type {
+  Actor,
   AddressReadPort,
+  AdminRolePort,
+  AdminUserReadPort,
   AuthSessionPort,
   AuthSessionReadPort,
   CartQueryPort,
@@ -23,6 +28,7 @@ import type {
   OrganizationDetailsPort,
   PersonalOrganizationPort,
   RfqCustomerPort,
+  SalesRepAssignmentPort,
   VatValidator,
 } from '@endora-commerce/contracts';
 import { CustomerAddressReadService } from './services/customer-address-read-port.js';
@@ -95,13 +101,69 @@ export interface CustomersCradle {
   readonly storefrontBaseUrl: string;
   /** Root-shaped, owner `auth`: who is asking, with a nullable organisation. */
   readonly customerActorResolver: CustomersModuleOptions['resolveCustomerActor'];
-  /** Root-shaped, owner `auth`: the moderating admin and the scope they see. */
+  /**
+   * The moderating admin and the scope they see, defaulted by this module since
+   * `specs/117-instance-bring-up/` Phase 6 — see `registerModerationActor`
+   * below. A root that answers differently still contributes over it; the test
+   * harness does.
+   */
   readonly customerModerationActorResolver: CustomersModuleOptions['resolveModerationActor'];
   readonly customers: ReturnType<typeof customersModule>;
 }
 
+/**
+ * Who is moderating, and which organizations they may act on — defaulted here
+ * (`specs/117-instance-bring-up/` Phase 6, FR-033).
+ *
+ * It was contributed by `backend/src/composition.ts` and by
+ * `backend/test/helpers/test-server.ts` and by nothing else, so a composition
+ * that is neither — which is every client instance — could not resolve it, and
+ * met that fact as a 500 on the first admin customer screen rather than at
+ * boot.
+ *
+ * The production root wrote the role lookup as `knex.raw` over `admin_users`
+ * and `admin_roles`, which is two modules' tables read on this module's
+ * `EntityManager`, outside either owner's gate. The two ports say the same
+ * thing and are already this manifest's declared `dependencies`; the test
+ * harness had been written this way since T140, so the port shape is the one
+ * with the prior art and the SQL is what goes.
+ */
+function registerModerationActor(ctx: ModuleContext): void {
+  ctx.di.register({
+    customerModerationActorResolver: ctx
+      .asFunction(() => {
+        const admins = lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort');
+        const roles = lazyPort<AdminRolePort>(ctx, 'adminRolePort');
+        const salesRepScope = lazyPort<SalesRepAssignmentPort>(
+          ctx,
+          'organizationSalesRepScopePort',
+        );
+        return async (request: FastifyRequest) => {
+          const actor = request.actor as Actor | undefined;
+          if (actor?.kind !== 'admin') {
+            throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
+          }
+          const adminUser = await admins.findById(actor.adminUserId);
+          // `getById` cannot 404 here: `admin_users_admin_role_fk` is
+          // `on delete restrict`, so a non-null `adminRoleId` names a row.
+          const role = adminUser?.adminRoleId ? await roles.getById(adminUser.adminRoleId) : null;
+          const isPlatformAdmin = role?.code !== 'sales_representative';
+          // Feature 056 — subtree-expanded when the rep holds
+          // `organizations:rollup`, which is `organizations`' decision and the
+          // reason this reads an assembled port rather than the tree.
+          const allowedOrganizationIds = isPlatformAdmin
+            ? []
+            : await salesRepScope.listAssignedOrganizationIds(actor.adminUserId);
+          return { adminUserId: actor.adminUserId, isPlatformAdmin, allowedOrganizationIds };
+        };
+      })
+      .singleton(),
+  });
+}
+
 export function registerModule(ctx: ModuleContext): void {
   const cradle = (): CustomersCradle => ctx.cradle<CustomersCradle>();
+  registerModerationActor(ctx);
 
   /**
    * This module's own settings, read against the system-default channel. Each

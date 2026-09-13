@@ -66,7 +66,7 @@ import {
   buildStaticRegistry,
   type LoadedManifestRegistry,
 } from '@endora-commerce/platform/lifecycle';
-import { ERROR_CODES, type ProductAvailability } from '@endora-commerce/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 // Feature 080 (T052) — the contract types for the seven ports that replaced
 // this root's five entity-class reads, spelled exactly as `composition.ts`
 // spells them.
@@ -78,14 +78,9 @@ import type {
   CustomerAccountReadPort,
   CustomerPasswordVerificationPort,
   CustomerRollupScopePort,
-  // T118 — `organizations` declared this and no longer does: it is the type
-  // argument of a `providePort` name, so it is a contract type. The production
-  // root spells it the same way.
-  OrganizationTaxProfilePort,
   SettingsManifestCollectionPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import { randomUUID } from 'node:crypto';
 import type { AdminI18nCradle } from '@endora-commerce/mod-i18n/backend';
 // D-54 — injected into the error envelope, exactly as `composition.ts` does it:
 // `src/http` may not name a module (D-52), a composition root may.
@@ -129,7 +124,6 @@ import type { ShoppingListService } from '../../../packages/modules/shopping_lis
 // to a `dist`-imported `CorrectiveInvoiceProvider` is TS2345 until this import
 // names the same build the runtime does.
 import type { InvoicesCradle } from '../../../packages/modules/invoices/dist/backend/index.js';
-import type { NewsletterBridge } from '../../../packages/modules/newsletter/src/backend/index.js';
 import type { CustomFieldsCradle } from '../../../packages/modules/custom_fields/src/backend/index.js';
 import type { CustomFieldDefinitionService } from '../../../packages/modules/custom_fields/src/backend/services/custom-field-definition.service.js';
 import type { CustomFieldValueService } from '../../../packages/modules/custom_fields/src/backend/services/custom-field-value.service.js';
@@ -143,7 +137,6 @@ import type { MegamenuCradle } from '@endora-commerce/mod-megamenu/backend';
 import type { BlogCradle } from '../../../packages/modules/blog/src/backend/index.js';
 import type { DictionariesCradle } from '../../../packages/modules/dictionaries/src/backend/index.js';
 import type { CustomerAccountsCradle } from '@endora-commerce/mod-customer-accounts/backend';
-import type { TaxesCradle } from '../../../packages/modules/taxes/src/backend/index.js';
 import type { PromotionsCradle } from '@endora-commerce/mod-promotions/backend';
 import type { SettingsKernel } from '@endora-commerce/platform/composition';
 import type { SettingsCradle } from '../../../packages/modules/settings/src/backend/index.js';
@@ -199,7 +192,6 @@ import type { ComparisonsCradle } from '../../../packages/modules/comparisons/sr
 // It read *"two service types"* until `specs/110-instance-repository/` T118c:
 // `CatalogQueryService` was named here only to type the cradle read this
 // harness made on `product_feeds`' behalf, and that bridge is gone.
-import { z } from 'zod';
 import type { CatalogAttributeReadService } from '../../../packages/modules/catalog/dist/backend/services/catalog-attribute-read.service.js';
 import type { PricingServiceContract } from '../../../packages/modules/price_lists/src/backend/services/pricing-service.interface.js';
 import { DefaultChannelReconciler } from '@endora-commerce/platform/composition';
@@ -944,7 +936,6 @@ export async function setupBackendServer(
   let comparisonsCradle!: ComparisonsCradle;
   let invoicesCradle!: InvoicesCradle;
   let ksefCradle!: KsefCradle;
-  let taxesCradle!: TaxesCradle;
 
   // Feature 080 (T052) — the identity, order and asset ports, mirroring
   // `composition.ts` name for name. This harness read the same five entity
@@ -988,15 +979,9 @@ export async function setupBackendServer(
       }
     ).settingsManifestCollectionPort;
 
-  // T143a — `inventory`'s availability port, mirroring `composition.ts`.
-  const inventoryCradle = (): {
-    inventoryAvailabilityPort: {
-      resolveAvailabilityBands(
-        productIds: string[],
-        salesChannelId: string,
-      ): Promise<Map<string, { band: string; inStock: boolean }>>;
-    };
-  } => container.cradle as never;
+  // `inventoryCradle` mirrored `composition.ts`' forward of `inventory`'s
+  // availability port into `catalogExternalAvailability`. Both are gone since
+  // `specs/117-instance-bring-up/` Phase 6: `catalog` resolves the port itself.
 
   // T143a — `customer_accounts`' social-login port, read lazily (see the note
   // on `mfaSocialAccountResolvers` below).
@@ -1223,6 +1208,13 @@ export async function setupBackendServer(
       customerOrganizationIdResolver: (request: FastifyRequest): string | null =>
         request.testActor?.kind === 'customer' ? (request.testActor.organizationId ?? null) : null,
       storefrontBaseUrl: 'http://localhost:3000',
+      // `specs/117-instance-bring-up/` Phase 6 — the key newsletter
+      // confirmation and unsubscribe links are signed with. Pinned here for the
+      // reason the old `newsletterBridge` pinned it: a token is signed on one
+      // request and verified on another, so a run needs one stable key.
+      // Production takes `NEWSLETTER_TOKEN_SECRET`, falling back to the session
+      // key, and `composeApp` registers the resolved value under this name.
+      newsletterTokenSecret: 'test-newsletter-secret',
       // The one composition allowed to serve `/api/v1/_test/latest-verification-token`.
       organizationsExposeTestProbe: true,
     },
@@ -1559,7 +1551,6 @@ export async function setupBackendServer(
 
       // Taxes (T128 / FR-051) + Promotions (T129 / FR-052).
       // Feature 072 (T119) — `taxes` owns its service and routes now.
-      taxesCradle = container.cradle as unknown as TaxesCradle;
       // Feature 072 (T115) — `promotions` owns its services and routes now.
       // These three stay here: the org-status gate and the Rule Builder picker
       // sources read `organizations`, `categories`, `payment_methods` and
@@ -2014,39 +2005,20 @@ export async function setupBackendServer(
             request.testActor?.kind === 'admin' ? request.testActor.adminUserId : TEST_ADMIN_ID,
           impersonatedCustomerAccountId: null,
         }),
-        catalogExternalAvailability: async (productIds: string[], salesChannelId: string) => {
-          // D-61 — the same presence probe production's contribution makes, and it
-          // has to be the same or the off-state test would assert against a
-          // composition production does not run. `catalog` declares the degrade as
-          // `degrades-without`: no `inventory`, no availability band.
-          if (!effectiveState.isPresent('inventory')) {
-            return new Map<string, ProductAvailability>();
-          }
-          return inventoryCradle().inventoryAvailabilityPort.resolveAvailabilityBands(
-            productIds,
-            salesChannelId,
-          );
-        },
-        catalogImagePlaceholderUrl: async (salesChannelCode?: string) => {
-          try {
-            const channelId =
-              (salesChannelCode ? await salesChannels.resolver.getByCode(salesChannelCode) : null)
-                ?.id ?? (await salesChannels.resolver.getSystemDefault()).id;
-            const url = await settings.settingsService.get(
-              'product_image_placeholder_url',
-              channelId,
-              z.string(),
-            );
-            const trimmed = url.trim();
-            return trimmed === '' ? null : trimmed;
-          } catch {
-            return null;
-          }
-        },
+        // `catalogExternalAvailability` and `catalogImagePlaceholderUrl` were
+        // contributed here and are `catalog`'s own since
+        // `specs/117-instance-bring-up/` Phase 6. Both bodies were reproduced
+        // in this harness byte-for-byte — including D-61's presence probe,
+        // which had to be identical or an off-state test would have asserted
+        // against a composition production does not run — which is the clearest
+        // statement there is that neither was a composition's answer to give.
+        // `catalogSearchReindex` above stays, because it genuinely is one.
       });
 
-      // Feature 072 (T141) — mirrors `composition.ts`: the sales-rep admin scope
-      // (reading this harness's own actor property) and the late-bound sender.
+      // Feature 072 (T141) — the sales-rep admin scope, reading this harness's
+      // own actor property. `orders` defaults the name itself since
+      // `specs/117-instance-bring-up/` Phase 6, so this is an override rather
+      // than the only supply, which is what `contribute` is for.
       composedModules.contribute({
         ordersAdminScopeResolver: resolveTestAdminOrdersScope,
       });
@@ -2218,27 +2190,11 @@ export async function setupBackendServer(
               role?.code === 'platform_admin' ? 'Platform administrator' : 'Sales representative',
           };
         },
-        // No `catch`, exactly as production has none since issue #84 — a harness
-        // that swallowed what production propagates would hide the 503 the
-        // fail-closed tests exist to observe.
-        // T143c — read through `organizations`' port, as production reads it.
-        rfqTaxRateResolver: async (organizationId: string) => {
-          const org = await (
-            container.cradle as never as { organizationTaxProfilePort: OrganizationTaxProfilePort }
-          ).organizationTaxProfilePort.taxProfileOf(organizationId);
-          const vatStatus = org?.vatStatus ?? 'vat_payer';
-          if (vatStatus !== 'vat_payer') return 0;
-          const country = org?.country ?? 'PL';
-          const resolved = await taxesCradle.taxService.taxRateFor({
-            country,
-            productType: 'simple',
-            vatStatus,
-          });
-          // Same narrowing production does (issue #124): `none` is "no rule and no
-          // default configured", never "no `taxes` module" — that one throws at
-          // the port gate before this line runs.
-          return resolved.source === 'none' ? 0 : resolved.rate;
-        },
+        // `rfqTaxRateResolver` was contributed here and is `quote_requests`'
+        // own since `specs/117-instance-bring-up/` Phase 6. This copy was the
+        // production closure reproduced over the same two ports, down to
+        // having no `catch` — so composing it here meant every RFQ test
+        // exercised this file's copy rather than the module's.
       });
 
       // Feature 072 (T138) — the two `organizations` contributions this harness
@@ -2365,31 +2321,9 @@ export async function setupBackendServer(
       // Feature 059 — KSeF. No redis queue in tests (submissions are processed by
       // driving `submissions.process(...)` directly); the sweep interval is off.
       // Feature 072 (T104) — `ksef` owns its services and routes now.
-      composedModules.contribute({
-        ksefSellerNipResolver: async () => {
-          try {
-            const { z: zod } = await import('zod');
-            const raw = await settings.settingsService.get(
-              'invoices.seller.tax_id',
-              null,
-              zod.string(),
-            );
-            const nip = raw.replace(/^PL/i, '').replace(/[\s-]/g, '');
-            return nip.length > 0 ? nip : null;
-          } catch {
-            return null;
-          }
-        },
-        // The harness substitutes a deterministic client, drives sweeps itself and
-        // polls three times at 5 ms. Production contributes nothing and keeps the
-        // module's own cadence against the real API.
-        ksefTestOverrides: {
-          ...(options.ksefClientFactory ? { clientFactory: options.ksefClientFactory } : {}),
-          sweepIntervalMs: 0,
-          pollAttempts: 3,
-          pollIntervalMs: 5,
-        },
-      });
+      // `ksefSellerNipResolver` was contributed here and is `ksef`'s own since
+      // `specs/117-instance-bring-up/` Phase 6 — this copy read the same
+      // setting through the same port and normalised the NIP the same way.
       ksefCradle = container.cradle as unknown as KsefCradle;
 
       // Feature 067 — Product Feed. Deliberately NO `redis` and NO `runWorkers`:
@@ -2444,31 +2378,16 @@ export async function setupBackendServer(
       });
 
 
-      // Feature 072 (T114) — `newsletter` owns its services and routes now.
-      // These stay here because they are pinned per composition rather than
-      // derived: the token secret and base URLs decide what an unsubscribe link
-      // looks like, and the harness needs that predictable.
-      composedModules.contribute({
-        newsletterBridge: {
-          tokenSecret: 'test-newsletter-secret',
-          defaultChannelId: (await salesChannels.resolver.getSystemDefault()).id,
-          resolveChannelIdByCode: async (code) =>
-            (await salesChannels.resolver.getByCode(code))?.id ?? null,
-          publicBaseUrl: 'http://localhost',
-          storefrontBaseUrl: 'http://localhost',
-          resolveCustomerAccountId: (req) =>
-            req.testActor?.kind === 'customer' ? req.testActor.customerAccountId : '',
-          loadCustomerEmail: async (customerAccountId) =>
-            (await identityPorts().customerAccountReadPort.findById(customerAccountId))?.email ?? null,
-          mailer: injectedMailer,
-          emitEvent: (name, payload) =>
-            eventBus.emit(name, {
-              eventId: randomUUID(),
-              occurredAt: new Date().toISOString(),
-              ...payload,
-            }),
-        } satisfies NewsletterBridge,
-      });
+      // Feature 072 (T114) — `newsletter` owns its services and routes now,
+      // and `newsletterBridge` is gone since `specs/117-instance-bring-up/`
+      // Phase 6: nine members, all of them ports, platform contributions or
+      // environment inputs the module reads itself. `emailMailer` above is
+      // already the injected recording mailer, `customerAccountIdResolver` is
+      // this harness's own actor read, and `storefrontBaseUrl` is in `values`.
+      // What is left to pin is the one member that genuinely has to be
+      // predictable — the signing key, because a token is signed on one request
+      // and verified on another — and it is in `values` beside the others,
+      // since nothing defaults it.
 
       // Feature 049 — Google Analytics. No redis wired here, so /collect degrades
       // to 503 (queue producer absent); config + admin CRUD are fully exercised.

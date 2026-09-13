@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Redis } from 'ioredis';
+import { z } from 'zod';
 import type { ChannelMemberEntityType } from '@endora-commerce/contracts';
 import { ERROR_CODES, type ListingPriceOrderPort, type ListingPricePort } from '@endora-commerce/contracts';
 import type { AuditReferenceRegistryPort } from '@endora-commerce/contracts';
@@ -33,6 +34,7 @@ import type {
   SearchQueryPort,
   LanguageReadPort,
   OrganizationDetailsPort,
+  ProductAvailability,
 } from '@endora-commerce/contracts';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
@@ -44,6 +46,8 @@ import { lazyPort } from '@endora-commerce/platform/kernel';
 import { effectiveState } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
+import type { SalesChannelResolutionPort } from '@endora-commerce/platform/kernel';
+import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { AttachmentType } from './entities/attachment-type.entity.js';
 import { AttributeSetAttribute } from './entities/attribute-set-attribute.entity.js';
 import { AttributeSet } from './entities/attribute-set.entity.js';
@@ -211,9 +215,20 @@ export interface CatalogCradle {
   /** Root-shaped: how this deployment names the acting admin on an audit record. */
   readonly catalogAdminAuditContext: NonNullable<CatalogModuleOptions['resolveAdminAuditContext']>;
   /**
-   * Contributed: how a stock availability band is resolved for the external
-   * catalog namespace, and the storefront image placeholder. Each reaches a
-   * module `catalog` must not read through directly.
+   * How a stock availability band is resolved for the external catalog
+   * namespace, the storefront image placeholder, and the full reindex an
+   * attribute's `searchable` flip runs.
+   *
+   * **Defaulted by this module since `specs/117-instance-bring-up/` Phase 6**
+   * (FR-033). All three were contributed by `backend/src/composition.ts` and by
+   * `backend/test/helpers/test-server.ts` and by nothing else, so a composition
+   * that is neither — which is every client instance — could resolve none of
+   * them, and `catalog` is in the default module set, so every one of the three
+   * was a 500 waiting on a storefront listing, a product image and an attribute
+   * edit. A root that answers differently still contributes over them: the test
+   * harness pins the reindex to a no-op, because a `searchable` flag flips in a
+   * good number of catalog tests and forwarding would push every product of
+   * every channel into Meilisearch each time.
    */
   readonly catalogExternalAvailability: NonNullable<
     CatalogModuleOptions['resolveExternalAvailability']
@@ -221,7 +236,6 @@ export interface CatalogCradle {
   readonly catalogImagePlaceholderUrl: NonNullable<
     CatalogModuleOptions['resolveProductImagePlaceholderUrl']
   >;
-  /** Contributed: production runs a real Meilisearch reindex; the harness must not. */
   readonly catalogSearchReindex: NonNullable<CatalogModuleOptions['reindexSearchIndexes']>;
   /**
    * Owned by `assets_library`: the registry that refuses to delete an asset a
@@ -355,7 +369,109 @@ export function registerModule(ctx: ModuleContext): void {
     return inventoryThresholds.copyProductWarehouseThresholds(input);
   };
 
+  /**
+   * The three names a composition root supplied on this module's behalf until
+   * `specs/117-instance-bring-up/` Phase 6 (FR-033).
+   *
+   * Each reaches something this module may not read directly, and each reaches
+   * it through a seam that already exists here: two gated ports whose owners
+   * this manifest declares `degrades-without`, and two platform registrations.
+   * None of the three carried a deployment judgement — the availability closure
+   * was `effectiveState.isPresent('inventory')` plus a port, which is literally
+   * the shape a module writes for itself.
+   */
   ctx.di.register({
+    /**
+     * The availability band the external catalog namespace decorates a product
+     * with. D-61: `catalog` declares `inventory` `degrades-without`, and the
+     * degrade is the empty map — availability is an indication on a catalog
+     * read, never a reason to fail one.
+     *
+     * The probe comes **before** the resolution and there is no `catch`. A
+     * closed gate throws rather than resolving to `undefined`, so optional
+     * chaining would defend against nothing, and a `catch` would swallow a
+     * genuine `inventory` failure along with the absence — which is what this
+     * closure did before D-61.
+     */
+    catalogExternalAvailability: ctx
+      .asFunction((): CatalogCradle['catalogExternalAvailability'] => {
+        const availability = lazyPort<{
+          resolveAvailabilityBands(
+            productIds: string[],
+            salesChannelId: string,
+          ): Promise<Map<string, ProductAvailability>>;
+        }>(ctx, 'inventoryAvailabilityPort');
+        return async (productIds: string[], salesChannelId: string) => {
+          if (!effectiveState.isPresent('inventory')) {
+            return new Map<string, ProductAvailability>();
+          }
+          return availability.resolveAvailabilityBands(productIds, salesChannelId);
+        };
+      })
+      .singleton(),
+
+    /**
+     * The full Meilisearch reindex an attribute's `searchable` flip runs, as a
+     * `search_reindex` bulk operation.
+     *
+     * Probed for the same reason the availability read is: with `search` off
+     * there is no index to rebuild, so "nothing was indexed" is the honest
+     * answer and 503-ing an attribute edit is not. The alternative — letting
+     * the gate throw — would make an operator's supported off-switch fail an
+     * unrelated admin write.
+     */
+    catalogSearchReindex: ctx
+      .asFunction((): CatalogCradle['catalogSearchReindex'] => {
+        const reindex = lazyPort<{ reindexAll(): Promise<{ documentCount: number }> }>(
+          ctx,
+          'searchReindexPort',
+        );
+        return async () => {
+          if (!effectiveState.isPresent('search')) return { documentCount: 0 };
+          return reindex.reindexAll();
+        };
+      })
+      .singleton(),
+
+    /**
+     * The storefront product-image placeholder
+     * (`general.product_image_placeholder_url`), resolved per channel.
+     *
+     * An unknown code falls back to the system-default channel, which always
+     * exists (D-48); the placeholder is a per-storefront property, so the
+     * default channel's value is the wanted answer and not the platform-wide
+     * one. Both names are the **platform's** registrations, so this is not a
+     * module edge and needs no manifest entry.
+     *
+     * The `catch` stays and is not a port catch: a placeholder is decoration on
+     * a product listing, and a settings hiccup must not break one.
+     */
+    catalogImagePlaceholderUrl: ctx
+      .asFunction((): CatalogCradle['catalogImagePlaceholderUrl'] => {
+        const cradle = (): {
+          salesChannelResolutionPort: SalesChannelResolutionPort;
+          settingsReadPort: SettingsReadPort;
+        } => ctx.cradle();
+        return async (salesChannelCode?: string) => {
+          try {
+            const channels = cradle().salesChannelResolutionPort;
+            const channelId =
+              (salesChannelCode ? await channels.getByCode(salesChannelCode) : null)?.id ??
+              (await channels.getSystemDefault()).id;
+            const url = await cradle().settingsReadPort.get(
+              'product_image_placeholder_url',
+              channelId,
+              z.string(),
+            );
+            const trimmed = url.trim();
+            return trimmed === '' ? null : trimmed;
+          } catch {
+            return null;
+          }
+        };
+      })
+      .singleton(),
+
     /**
      * Feature 068 — the storefront serves the category tree from a fetch cache
      * tagged `catalog:categories`, flushed on every category write so an
