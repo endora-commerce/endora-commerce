@@ -3059,7 +3059,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // NOT THIS BRANCH'S. `origin/master` already reads 1319 — the `design/117-tasks`
     // merge added a document and did not re-record. This branch adds no markdown a
     // citing document names.
-    files: 1319,
+    // **D-229 (the liveness ruling): 1319 -> 1321, of which ONE is this branch's.**
+    // Its population is the documents, and `specs/121-platform-liveness-probe/tasks.md`
+    // is one of them. The other +1 was already on `origin/master` at 6eede304c —
+    // pristine master reads 1320, this branch 1321, measured rather than inferred.
+    files: 1321,
     sites: 13,
     sources: [],
     //
@@ -7639,7 +7643,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // corroboration, `.md` being outside both.
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    files: 8168,
+    // **D-229 (the liveness ruling): 8168 -> 8178, of which ONE is this branch's.**
+    // The branch adds one file, `specs/121-platform-liveness-probe/tasks.md`; this
+    // walk is the whole repository and opens it like any other. **The other nine were
+    // already standing on `origin/master`** at 6eede304c and are not this branch's:
+    // measured both ways rather than subtracted, pristine master reads 8177 against
+    // this branch's 8178. Recording the true value is still right — the record has to
+    // describe the tree — but the attribution belongs here rather than in whichever
+    // merge request reads it next and assumes a ten-file change went unreviewed.
+    // Measured on a clean tree: `git clean -fX docs/docs/modules`, `docs/build`
+    // removed and the module-doc copy stamp deleted. Without that the same walk
+    // reads higher again, which is the trap this file's header records twice.
+    files: 8178,
     sites: null,
     sources: [],
     //
@@ -11636,7 +11651,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // together and no other entry moves at all.
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    files: 8228,
+    // **D-229 (the liveness ruling): 8228 -> 8230, of which ONE is this branch's.**
+    // This walk is the whole repository, so it opens a `.md` like any other file, and
+    // this branch adds exactly one: `specs/121-platform-liveness-probe/tasks.md`. The
+    // ruling and the handover edit are changes to files that already exist.
+    // The other +1 was already standing on `origin/master` at 6eede304c — measured
+    // both ways rather than inferred: pristine master reads 8229, this branch 8230.
+    // Measured after `git clean -fX docs/docs/modules`, with `docs/build` and the
+    // module-doc copy stamp removed, which is the tree shape `quality` runs in.
+    files: 8230,
     sites: null,
     sources: ['manifest-index'],
     //
