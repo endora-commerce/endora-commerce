@@ -1431,7 +1431,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **merged** tree in the quality job's shape, and attributed by the branch's own
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
-    files: 2061,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2061 -> 2059.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 2059,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1759,7 +1760,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **merged** tree in the quality job's shape, and attributed by the branch's own
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
-    files: 2193,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2193 -> 2191.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 2191,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1869,7 +1871,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 1751,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 1751 -> 1748.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 1748,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -2001,7 +2004,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    files: 2291,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2291 -> 2288.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 2288,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -2537,7 +2541,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and `packages/cli/test/`, which this walk does not read.
     // **`fix/instance-500-pipeline` (the instance 500): files 5633 -> 5635 (+2).** Two new test files, both under a root this walk reads — it covers `backend/` and `packages/` alike. The two files are `backend/test/unit/kernel/compose-app-boot-invariants.test.ts` and `packages/platform/src/http/error-envelope-server-fault-logging.test.ts`. Attributed by parking both and re-running, then by stashing the branch's three edits and re-running again on `origin/master` itself; measured on the **rebased** tree, in the quality job's shape, never by subtracting a delta.
     // **Merging `origin/master` into `feat/122-p2-deployment-examples` (MR !1639): files 5635 -> 5636 (+1).** Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, which is what `specs/conventions/check-estate.md` asks for — a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit, after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming **zero** unignored residue of the kind that put a developer's local files into this record once before. **The delta is deliberately not decomposed per file.** Ten files arrive at this tree — four the branch's (`deploy.ts`, two test files and a changeset) and six `master`'s since the branch point (feature 123's three specs, the 500 fix's two tests and its changeset) — and each recorded value was measured on a tree holding some but not all of them, so an arithmetic attribution would be a reconstruction rather than a measurement. The run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
-    files: 5636,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 5636 -> 5635.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 5635,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2919,7 +2924,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
     // **`fix/instance-500-pipeline` (the instance 500): files 2476 -> 2477 (+1).** One of the two new test files is under a root this walk reads; the platform one is not. The two files are `backend/test/unit/kernel/compose-app-boot-invariants.test.ts` and `packages/platform/src/http/error-envelope-server-fault-logging.test.ts`. Attributed by parking both and re-running, then by stashing the branch's three edits and re-running again on `origin/master` itself; measured on the **rebased** tree, in the quality job's shape, never by subtracting a delta.
-    files: 2477,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2477 -> 2476.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 2476,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -3091,7 +3097,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `origin/master` at 702a19c9f — pristine master reads 1320, this branch 1321.
     // **Not this branch's: files 1321 -> 1324 (+3).** The three documentation files `master` gained in ee18ed3e9, 415b766c1 and ec9c3f514 (feature 122's three-host layer independence and feature 120's status cell), none of which re-recorded here. Measured on the rebased tree; with this branch's own five files parked and stashed the walk reads the same 1324, which is what says the move is not this branch's.
     // **Merging `origin/master` into `feat/122-p2-deployment-examples` (MR !1639): files 1324 -> 1327 (+3).** Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, which is what `specs/conventions/check-estate.md` asks for — a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit, after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming **zero** unignored residue of the kind that put a developer's local files into this record once before. **The delta is deliberately not decomposed per file.** Ten files arrive at this tree — four the branch's (`deploy.ts`, two test files and a changeset) and six `master`'s since the branch point (feature 123's three specs, the 500 fix's two tests and its changeset) — and each recorded value was measured on a tree holding some but not all of them, so an arithmetic attribution would be a reconstruction rather than a measurement. The run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
-    files: 1327,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 1327 -> 1326.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 1326,
     sites: 13,
     sources: [],
     //
@@ -3409,7 +3416,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **merged** tree in the quality job's shape, and attributed by the branch's own
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
-    files: 2193,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2193 -> 2191.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 2191,
     sites: 265,
     sources: ['manifest-index'],
   },
@@ -3717,7 +3725,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **merged** tree in the quality job's shape, and attributed by the branch's own
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
-    files: 2193,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2193 -> 2191.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 2191,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4022,7 +4031,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **merged** tree in the quality job's shape, and attributed by the branch's own
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
-    files: 2193,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2193 -> 2191.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 2191,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -4270,7 +4280,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **merged** tree in the quality job's shape, and attributed by the branch's own
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
-    files: 2860,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2860 -> 2858.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 2858,
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
     sites: 138,
@@ -5101,7 +5112,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **merged** tree in the quality job's shape, and attributed by the branch's own
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
-    files: 2193,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2193 -> 2191, sites 151 -> 153.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 2191,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -5140,7 +5152,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // additions were already in that figure. Quality-job shape — the ignored copies under
     // `docs/docs/modules/` swept first. Measured on the combined tree, never summed.
     // **`fix/instance-500-pipeline` (the instance 500): sites 150 -> 151 (+1).** One outward import added to a platform root: `packages/platform/src/composition/compose-app.ts` now names `../kernel/sales-channels/default-channel-reconciler.js`, because the boot-time default-channel reconciliation moved out of the reference deployment's contribution callback and into the composition root every instance runs. `into-modules` stays 0. `files` does not move — the two files this branch adds are tests and this walk reads source roots.
-    sites: 151,
+    sites: 153,
     // `platform-subpaths` is T118a's second author over rule B's population: the
     // platform's `exports` map is a different program's answer to "which directories
     // does this package have", and a published subpath naming no walked directory is a
@@ -5212,7 +5224,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // ledger shard is exactly this check's population — one of the artefacts whose job is to
     // carry a reason — so both count and the changeset does not.
     // **Phase 3 (T3-C): +10, all of it this branch's** (`9a0e8e0d0` agreed with the recorded 310). The ten shards of the Settings-debt ledger at `backend/scripts/ledgers/module-environment-inputs/`. This check's population is the artefacts whose job is to carry a reason, ledger shards among them, so a new ledger raises it by its shard count and by nothing else.
-    files: 320,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 320 -> 318.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 318,
     // **2026-09-04: 14 -> 15.** One further named-subject lock claim.
     // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge` retired):**
     // sites 15 -> 17, files unchanged. `pwa`'s manifest gains `orders` in its
@@ -5486,7 +5499,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
 
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    files: 2829,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2829 -> 2826.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 2826,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 56 -> 66.**
     // The header block above this table has the arithmetic; nothing here
@@ -5613,7 +5627,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **T141 (the instance bring-up repairs).** Five source files under `packages/platform/src` — `db/platform-schema.ts`, `lifecycle/resident.ts` and the three co-located tests beside them — plus this merge request's own changeset, which the whole-tree walks open like any other file. Measured against a pristine `origin/master` worktree run in the same shape, which reports 0 drifted of 44: every number below moved on this branch and none of it was already stale.
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
-    files: 2151,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2151 -> 2148.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 2148,
     // The finer population, and it is the one that moves when nothing else does
     // (issues #235/#237): tree sites, unreadable sites, renderer-map sites, the
     // block declarations and the declared `(key, context)` sections. A block
@@ -5729,7 +5744,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
 
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    files: 2927,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2927 -> 2924.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 2924,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -5775,7 +5791,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 72 -> 74.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 74,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): sites 74 -> 73.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    sites: 73,
     // `manifest-index` is issue #215's shared floor over the module walk, whose
     // unit here is the module's **own directory** — `dirname(manifestPath)`, the
     // anchor the boot reconciler joins `bundlesDir` to. `shipped-languages` is
@@ -5845,7 +5862,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // entries and the map rows are untouched. Phase 3 added five migrations and touched the
     // module walk and moved this entry by nothing, which is the right answer — a migration
     // is not a documentation page.
-    sites: 261,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): sites 261 -> 259.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    sites: 259,
     // Three authors, each seeing something the others cannot. `manifest-index`
     // is issue #215's shared floor over the module walk, whose unit is the
     // module's own directory. `sidebar-entries` is the **committed artefact's**
@@ -6027,7 +6045,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: sites 35207 (+1).**
     // One literal classified, from the registry's refusal message. `files` does not move: this walk's
     // population is the module roots and the file the feature adds is the platform's.
-    files: 1763,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 1763 -> 1760, sites 35464 -> 35419.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 1760,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -6122,7 +6141,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Phase 3 (T3-C): +195, all of it this branch's** (`9a0e8e0d0` agreed with the recorded 35208). The 22 module-owned environment declarations: each carries an English and a Polish sentence, several a second pair under `optional.without`, and every one of those literals is classified and **exempt**, the enclosing property key being a shipped language. `files` does not move — the declarations went into manifests this walk already opened, which is the #235/#237 shape and the reason both numbers are recorded.
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    sites: 35464,
+    sites: 35419,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -6711,7 +6730,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
     // **`fix/instance-500-pipeline` (the instance 500): files 5203 -> 5204 (+1).** One of the two new test files is under a root this walk reads. The two files are `backend/test/unit/kernel/compose-app-boot-invariants.test.ts` and `packages/platform/src/http/error-envelope-server-fault-logging.test.ts`. Attributed by parking both and re-running, then by stashing the branch's three edits and re-running again on `origin/master` itself; measured on the **rebased** tree, in the quality job's shape, never by subtracting a delta.
-    files: 5204,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 5204 -> 5200, sites 12986 -> 12979.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 5200,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -6816,7 +6836,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // 0 and 27 -> 26.
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    sites: 12986,
+    sites: 12979,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -7730,7 +7750,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and the module-doc copy stamp deleted. Without that the same walk reads higher again.
     // **`fix/instance-500-pipeline` (the instance 500): 8184 -> 8182, and only +2 of that is this branch's.** Measured in three trees rather than one, because the census printed a *fall* over a branch that adds files. On `origin/master` at 5dda3c6ec with this branch parked and stashed this walk read **8176** — the recorded 8184 was already 8 high and no clean tree reproduces it. This walk reads git-ignored files by design, and 8 is exactly the residue this convention's own worked example measured between a working checkout and a pristine worktree, so the likeliest cause is a value recorded from a tree that had been worked in; it is not identified here and it is not this branch's to claim. The rebase onto 76459b672 brings **+4**, and this branch's two new test files bring the last **+2**. A thirteenth file — the branch's own changeset — brings one more: **8183**, measured after writing it.
     // **Merging `origin/master` into `feat/122-p2-deployment-examples` (MR !1639): files 8183 -> 8191 (+8).** Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, which is what `specs/conventions/check-estate.md` asks for — a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit, after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming **zero** unignored residue of the kind that put a developer's local files into this record once before. **The delta is deliberately not decomposed per file.** Ten files arrive at this tree — four the branch's (`deploy.ts`, two test files and a changeset) and six `master`'s since the branch point (feature 123's three specs, the 500 fix's two tests and its changeset) — and each recorded value was measured on a tree holding some but not all of them, so an arithmetic attribution would be a reconstruction rather than a measurement. The run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
-    files: 8191,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 8191 -> 8185.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 8185,
     sites: null,
     sources: [],
     //
@@ -7765,7 +7786,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 111 -> 114.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    files: 114,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 114 -> 113, sites 205 -> 203.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 113,
     // The finer population, and the one that moves when a **resolver shape** is
     // added or lost: every `expectModuleAbsent` and `withModuleOff` call the
     // walk read, both helpers, one per call however many modules the call
@@ -7782,7 +7804,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 202 -> 205.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 205,
+    sites: 203,
     // Two independent authors, so the check computes no module list and no
     // call-name list of its own. `manifest-index` is every entry the generated
     // index carries against every entry whose manifest this run could classify
@@ -7916,14 +7938,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    sites: 919,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): sites 919 -> 912, files 89 -> 88.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    sites: 912,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 86 -> 87.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 87 -> 89.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    files: 89,
+    files: 88,
     sources: [],
   },
   'backend/scripts/check-port-catches.ts': {
@@ -8317,7 +8340,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **merged** tree in the quality job's shape, and attributed by the branch's own
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
-    files: 2193,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2193 -> 2191.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 2191,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -8459,7 +8483,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2011,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2011 -> 2008, sites 1677 -> 1674.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 2008,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 1471 -> 1535.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
@@ -8488,7 +8513,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    sites: 1677,
+    sites: 1674,
     sources: ['manifest-index'],
   },
   // Two derivations, deliberately, because the check has two inputs that can be
@@ -8804,7 +8829,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **merged** tree in the quality job's shape, and attributed by the branch's own
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
-    files: 2505,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2505 -> 2501, sites 1902 -> 1901.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 2501,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -8907,7 +8933,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    sites: 1902,
+    sites: 1901,
     // count moves with the file count here because the reaches that went are exactly
     // the files that went.
     // **T119a: sites 1870 -> 1861.** The same nine files, each the single relative
@@ -9086,7 +9112,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `sales_channel_*` table. This walk does not read `.changeset/`, so the merge
     // request's own changeset is not in it — which is the cross-check: `check:naming`
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
-    files: 2112,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2112 -> 2109.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 2109,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 692 -> 721.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -9228,14 +9255,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 87 -> 89.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    files: 89,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 89 -> 88, sites 513 -> 507.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 88,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 495 -> 501.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 501 -> 513.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 513,
+    sites: 507,
     // **Feature 114 Phase 3 (FR-017, D-225): a second author, and neither count
     // moves.** `changeset-subjects` is the distinct package names the changeset
     // files name, reconciled against the members the workspace globs produce.
@@ -9855,7 +9883,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **merged** tree in the quality job's shape, and attributed by the branch's own
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
-    files: 2193,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2193 -> 2191.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 2191,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -10094,7 +10123,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `test/integration/megamenu/cross-module-targets.test.ts` becomes a site. It is
     // server-bound and multi-owner, so it stays under `backend/test` and needs no ledger
     // entry.
-    sites: 1115,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): sites 1115 -> 1114.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    sites: 1114,
     // Two independent authors. `manifest-index` is issue #215's shared floor
     // over the module walk, whose unit is the module's own directory rather than
     // a test file — 14 of the 70 packages ship no test and a floor over test
@@ -10413,7 +10443,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **merged** tree in the quality job's shape, and attributed by the branch's own
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
-    files: 2193,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2193 -> 2191.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 2191,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -10864,7 +10895,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // added/deleted list (`git diff --name-status origin/master...HEAD`): seven files added,
     // none of them under a root this walk reads, and one deleted.
     // **`fix/instance-500-pipeline` (the instance 500): files 4657 -> 4659 (+2).** Both new test files are under a root this walk reads. The two files are `backend/test/unit/kernel/compose-app-boot-invariants.test.ts` and `packages/platform/src/http/error-envelope-server-fault-logging.test.ts`. Attributed by parking both and re-running, then by stashing the branch's three edits and re-running again on `origin/master` itself; measured on the **rebased** tree, in the quality job's shape, never by subtracting a delta.
-    files: 4659,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 4659 -> 4657, sites 871 -> 870.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 4657,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -10922,7 +10954,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which resolves it out of the composed `entities` array. A helper import is no
     // reach, so 81 sites go and none arrives.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The value reaches into a package's source that the module's tests make.
-    sites: 871,
+    sites: 870,
     sources: ['manifest-index', 'entities-registry', 'tenant-chains'],
     //
     // **852 -> 851 sites, 4336 -> 4337 files, and the two have different causes.**
@@ -11773,7 +11805,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the recorded value: T138a left this entry describing the tree exactly.
     // **`fix/instance-500-pipeline` (the instance 500): files 8236 -> 8242 (+6), of which +2 are this branch's.** The two new test files are this branch's contribution, measured by parking them and re-running (8238). The other **+4** arrived with the rebase onto 76459b672 — feature 122's and feature 120's documentation and changeset files — and were not re-recorded there. Like `check-language.sh` this walk reads the git index plus untracked-and-not-ignored paths. The branch's own changeset is a fourteenth file and brings one more: **8243**, measured after writing it.
     // **Merging `origin/master` into `feat/122-p2-deployment-examples` (MR !1639): files 8243 -> 8251 (+8).** Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, which is what `specs/conventions/check-estate.md` asks for — a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit, after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming **zero** unignored residue of the kind that put a developer's local files into this record once before. **The delta is deliberately not decomposed per file.** Ten files arrive at this tree — four the branch's (`deploy.ts`, two test files and a changeset) and six `master`'s since the branch point (feature 123's three specs, the 500 fix's two tests and its changeset) — and each recorded value was measured on a tree holding some but not all of them, so an arithmetic attribution would be a reconstruction rather than a measurement. The run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
-    files: 8251,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 8251 -> 8245.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 8245,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -12339,7 +12372,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // are not under `docs/docs/`, so this walk does not see them.
     // **`fix/instance-500-pipeline` (the instance 500): files 6288 -> 6290 (+2).** Both new test files. This walk takes its population from the git index plus untracked-and-not-ignored paths, so a file counts before it is committed and after. The two files are `backend/test/unit/kernel/compose-app-boot-invariants.test.ts` and `packages/platform/src/http/error-envelope-server-fault-logging.test.ts`. Attributed by parking both and re-running, then by stashing the branch's three edits and re-running again on `origin/master` itself; measured on the **rebased** tree, in the quality job's shape, never by subtracting a delta.
     // **Merging `origin/master` into `feat/122-p2-deployment-examples` (MR !1639): files 6290 -> 6293 (+3).** Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, which is what `specs/conventions/check-estate.md` asks for — a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit, after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming **zero** unignored residue of the kind that put a developer's local files into this record once before. **The delta is deliberately not decomposed per file.** Ten files arrive at this tree — four the branch's (`deploy.ts`, two test files and a changeset) and six `master`'s since the branch point (feature 123's three specs, the 500 fix's two tests and its changeset) — and each recorded value was measured on a tree holding some but not all of them, so an arithmetic attribution would be a reconstruction rather than a measurement. The run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
-    files: 6293,
+    // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 6293 -> 6290.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
+    files: 6290,
     sites: null,
     sources: ['manifest-index'],
     //
