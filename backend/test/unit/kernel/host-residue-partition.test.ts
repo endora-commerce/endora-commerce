@@ -72,6 +72,17 @@ import {
  * tree. Both directions fail — an unledgered platform-shaped file is new debt,
  * and an entry naming a file the analysis no longer puts in that class is an
  * entry describing nothing.
+ *
+ * **A `retiredBy` is the condition as it was understood when the entry was
+ * written, and never a commitment.** `backend/src/overlay/divergence-report.ts`
+ * was ledgered here with *"the `overlay/` half of FR-013"* — a move into
+ * `@endora-commerce/platform` — and `specs/110-instance-repository/` T138a moved
+ * it into `@endora-commerce/cli` instead, with the derivation that feeds it: the
+ * report has a second host, a client's instance renders one over its own `apps/`
+ * tree, and a renderer has no runtime reader that would justify the platform —
+ * a runtime dependency of every instance — carrying it. The entry retired by
+ * being deleted, which is the only way an entry here retires; what changed was
+ * the destination, not the verdict that the file did not belong in `backend/src`.
  */
 const PLATFORM_SHAPED_RESIDUE: Readonly<Record<string, { reason: string; retiredBy: string }>> = {
   'backend/src/cli/demo-command.ts': {
@@ -86,18 +97,6 @@ const PLATFORM_SHAPED_RESIDUE: Readonly<Record<string, { reason: string; retired
       "the move of the command body to `@endora-commerce/platform`, on the shape the five `module:*` " +
       'verbs already take: the logic in the package, a ~20-line entry point in the application. ' +
       '`specs/113-module-owned-demo-data/` owns the follow-up.',
-  },
-  'backend/src/overlay/divergence-report.ts': {
-    reason:
-      'the two renderings of the divergence report. `specs/110-instance-repository/` T114a removed ' +
-      'its last application reach — `repoRoot`, imported for `repoRelativePath`, an export with no ' +
-      'caller anywhere — and its own header says so: *"It reaches for nothing outside itself … ' +
-      "Everything left is `node:path` and `@endora-commerce/contracts`.\"* The one path it emits, " +
-      '`typesImportSpecifier`, is a **parameter**, which is §1\'s own remedy rather than a reason to stay.',
-    retiredBy:
-      'the `overlay/` half of FR-013. T113 and T114 moved `resolve-overlay.ts` and ' +
-      '`overlay-runtime.ts`; this is the member of `research.md` §3.1\'s movable overlay set that ' +
-      'neither took.',
   },
 };
 

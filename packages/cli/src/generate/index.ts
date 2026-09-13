@@ -60,6 +60,11 @@ import {
   scanInstalledModulePackages,
   type SkippedInstalledPackage,
 } from '../lib/module-packages.js';
+import {
+  renderInstanceDivergence,
+  DivergenceHostError,
+  type InstanceDivergence,
+} from './divergence.js';
 
 /** A refusal the operator can act on — exit 1. */
 export class GenerateInputError extends Error {
@@ -113,6 +118,18 @@ export interface GenerateResult {
    * any more — the category's half of {@link GenerateResult.collected}.
    */
   readonly swept: readonly string[];
+  /**
+   * One divergence report per deployment this instance holds
+   * (`specs/107-override-report-and-ladder/contracts/divergence-report.md`).
+   *
+   * **Unlike the other three families these are committed**, and the predicate
+   * that decides it is §1's: an artefact is committed when its content is a fact
+   * about the tree. Which packages a client installed is a fact about the
+   * install; what their own overlay modules decorate is a fact about their
+   * repository, and it is only worth having because it turns up in the merge
+   * request that creates it.
+   */
+  readonly divergence: readonly InstanceDivergence[];
   readonly dryRun: boolean;
 }
 
@@ -248,14 +265,50 @@ export async function runGenerate(options: GenerateOptions = {}): Promise<Genera
     );
   }
 
-  // Neither member is a workspace this command has anything to do with, and a
-  // run that wrote nothing and said it succeeded is the silent green the whole
-  // estate refuses. It is a refusal the operator can act on — exit 1 — because
-  // the remedy is theirs: scaffold a member, or stop running this.
-  if (artefacts.length === 0) {
+  // --- the deployment's own (§2.2, feature 107) ---------------------------
+  //
+  // Not an `artefacts.push`, and the difference is the whole of the report
+  // contract's §1: those three are `.gitignore`d facts about *this install* and
+  // these are a committed fact about the client's own tree. Rendering them in
+  // the same run is right — one walk of `node_modules` answers both — but
+  // mixing them into one list would put a committed artefact under a header
+  // telling its reader not to commit it.
+  //
+  // A deployment tree that is not there is an omission and not a refusal, in the
+  // discipline the two members above already use: `endora new instance` writes
+  // `apps/<deployment>/`, and a client who deleted it has said something.
+  let divergence: readonly InstanceDivergence[] = [];
+  try {
+    divergence = renderInstanceDivergence({ root, packages: scan.packages });
+    if (divergence.length === 0) {
+      omitted.push(
+        `the divergence report — this instance has no \`apps/<deployment>/\` tree, so there is ` +
+          `no deployment whose divergence from core could be derived. \`endora new instance\` ` +
+          `writes one`,
+      );
+    }
+  } catch (error: unknown) {
+    if (!(error instanceof DivergenceHostError)) throw error;
+    // Exit 2, never a silent skip: the report's own §5 is one refusal per input
+    // whose absence would make a predicate vacuously clean, and every one of
+    // this half's inputs is of that kind — an unread composition reports every
+    // decoration as owned by nobody.
+    throw new GenerateHostError(error.message);
+  }
+
+  // No member and no deployment is a workspace this command has anything to do
+  // with, and a run that wrote nothing and said it succeeded is the silent green
+  // the whole estate refuses. It is a refusal the operator can act on — exit 1 —
+  // because the remedy is theirs: scaffold a member, or stop running this.
+  //
+  // The divergence half counts toward "it rendered something": a headless
+  // instance with a deployment tree is a tree this command still has an answer
+  // for, and refusing it would be the command declining to describe the one
+  // thing about that tree a client is asked to trust.
+  if (artefacts.length === 0 && divergence.length === 0) {
     throw new GenerateInputError(
-      `${root} has neither an admin project nor a documentation site, so this command has ` +
-        `nothing to render:\n${omitted.map((reason) => `  - ${reason}`).join('\n')}`,
+      `${root} has no admin project, no documentation site and no \`apps/<deployment>/\` tree, ` +
+        `so this command has nothing to render:\n${omitted.map((reason) => `  - ${reason}`).join('\n')}`,
     );
   }
 
@@ -263,6 +316,12 @@ export async function runGenerate(options: GenerateOptions = {}): Promise<Genera
     for (const artefact of artefacts) {
       mkdirSync(dirname(artefact.path), { recursive: true });
       writeFileSync(artefact.path, artefact.content, 'utf8');
+    }
+    for (const report of divergence) {
+      for (const rendering of report.renderings) {
+        mkdirSync(dirname(rendering.outputPath), { recursive: true });
+        writeFileSync(rendering.outputPath, rendering.content, 'utf8');
+      }
     }
   }
   return {
@@ -273,6 +332,7 @@ export async function runGenerate(options: GenerateOptions = {}): Promise<Genera
     omitted,
     collected,
     swept,
+    divergence,
     dryRun: options.dryRun === true,
   };
 }
@@ -289,6 +349,30 @@ export function generateReport(result: GenerateResult): readonly string[] {
       `removed ${String(result.swept.length)} module reference page(s) no installed module ` +
         `renders any more`,
     );
+  }
+  for (const report of result.divergence) {
+    for (const rendering of report.renderings) {
+      lines.push(
+        `${result.dryRun ? 'would write' : 'wrote'} ` +
+          `${relative(result.root, rendering.outputPath)} — ${rendering.label} ` +
+          `(${String(report.overlayModules.length)} overlay module(s), ` +
+          `${String(report.entries)} divergence(s)). Commit it: it is a fact about your tree`,
+      );
+    }
+    // The generator writes the artefact whatever it found, exactly as this
+    // repository's does; a finding is something the client can act on and the
+    // person running this is the person who can.
+    for (const finding of report.findings) {
+      lines.push(`  [${finding.kind}] ${finding.where}: ${finding.detail}`);
+    }
+    // Never folded into "declares nothing": an absent declaration and one this
+    // run could not read are the same answer only if you let them be.
+    for (const field of report.unresolvedDeclaration) {
+      lines.push(
+        `  [unreadable-declaration] ${report.deployment}: ${field} is not written as a literal, ` +
+          `so this report was derived as though it were absent`,
+      );
+    }
   }
   if (result.collected !== null) {
     lines.push(
