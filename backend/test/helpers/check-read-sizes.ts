@@ -3081,7 +3081,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // NOT THIS BRANCH'S. `origin/master` already reads 1319 — the `design/117-tasks`
     // merge added a document and did not re-record. This branch adds no markdown a
     // citing document names.
-    files: 1319,
+    // **D-229 (the liveness ruling): 1319 -> 1321, of which ONE is this branch's.**
+    // Its population is the documents, and `specs/121-platform-liveness-probe/tasks.md` is
+    // one of them. The other +1 is `specs/session-handover-2026-09-13.md`, already on
+    // `origin/master` at 702a19c9f — pristine master reads 1320, this branch 1321.
+    files: 1321,
     sites: 13,
     sources: [],
     //
@@ -7708,7 +7712,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/src/overlay/divergence-report.ts` — and +1 inherited: `master` re-recorded this
     // entry at `d2a366bff` and added a file after it. This walk is the whole repository, so it
     // is the one that counts the changesets.
-    files: 8175,
+    // **D-229 (the liveness ruling): 8175 -> 8184, of which ONE is this branch's.**
+    // The branch adds one file, `specs/121-platform-liveness-probe/tasks.md`. **The other
+    // eight were already standing on `origin/master`** at 702a19c9f — measured both ways
+    // rather than subtracted: pristine master reads 8183 against this branch's 8184.
+    // Measured on a clean tree: `git clean -fX docs/docs/modules`, `docs/build` removed
+    // and the module-doc copy stamp deleted. Without that the same walk reads higher again.
+    files: 8184,
     sites: null,
     sources: [],
     //
@@ -11742,7 +11752,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // block above this table has the arithmetic; nothing here widened a band.
     // **`specs/110-instance-repository/` T138a: 8228 -> 8235.** +6 this branch's and +1
     // inherited, on the same arithmetic `check-nul-bytes` records one entry over.
-    files: 8235,
+    // **D-229 (the liveness ruling): 8235 -> 8236, and all of it is this branch's.**
+    // One file — `specs/121-platform-liveness-probe/tasks.md` — which this whole-repository
+    // walk opens like any other. Pristine `origin/master` at 702a19c9f reads 8235, which is
+    // the recorded value: T138a left this entry describing the tree exactly.
+    files: 8236,
     sites: null,
     sources: ['manifest-index'],
     //
