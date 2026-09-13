@@ -500,7 +500,7 @@ describe('the topology reaches the plan, and nothing else changes with it', () =
     const outside = (plan: typeof single): readonly string[] =>
       plan.files
         .filter((file) => !file.path.startsWith('deploy/'))
-        .map((file) => `${file.path} ${file.content}`)
+        .map((file) => `${file.path}\0${file.content}`)
         .sort();
     expect(outside(three)).toEqual(outside(single));
     expect(three.members).toEqual(single.members);
