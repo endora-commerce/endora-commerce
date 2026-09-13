@@ -902,6 +902,417 @@ export function evaluateA13(observed: AdminStylesheetObservation): AssertionResu
   };
 }
 
+/**
+ * What A7 read: the modules this instance did **not** install, and the three
+ * surfaces none of them may appear on.
+ *
+ * The population is derived and never written down — every module package this
+ * run packed, minus the ones the instance resolved — so a default module set
+ * that moves moves it in the same run. Each surface carries its own `null` for
+ * "there was nothing to read", because a verdict over one or two of the three
+ * would be answering a fraction of the assertion.
+ */
+export interface AbsentModuleObservation {
+  /** Module ids this run packed and the instance did not install. */
+  readonly absent: readonly string[];
+  /** Module ids the instance did install, as packages. */
+  readonly installed: readonly string[];
+  /** Module ids the **built** admin bundle names; `null` when there is none. */
+  readonly bundleNames: readonly string[] | null;
+  /** `"<METHOD> <path>"` for every route the running instance serves; `null` when it did not answer. */
+  readonly servedRoutes: readonly string[] | null;
+  /**
+   * Route identity -> the **absent** module whose published `./backend` owns
+   * it. The expectation and the evidence therefore have two authors, which is
+   * `evaluateA5`'s arrangement one surface over.
+   */
+  readonly absentRoutes: ReadonlyMap<string, string>;
+  /** Module ids the presence route enumerated; `null` when it did not answer. */
+  readonly enumerated: readonly string[] | null;
+  /**
+   * Ids entitled to be enumerated without being an installed package — the
+   * module the **installed platform package** ships, and this deployment's own
+   * overlay modules. Read out of that package rather than listed here, and
+   * `null` when this run could not read it: an exemption set that failed to
+   * resolve would report the platform's own module as an intruder, which is a
+   * finding about the run wearing the product's colours.
+   */
+  readonly enumerationExemptions: readonly string[] | null;
+}
+
+/**
+ * A7 — a module the instance did not install is named nowhere in the built
+ * admin bundle, the API surface, or the module enumeration.
+ *
+ * **Three halves, and a verdict over fewer is not the assertion** — which is
+ * what kept this `unmeasured` while the instance did not boot, two of them
+ * being A4's. They fail differently: a bundled screen for a module that is not
+ * there is an operator interface advertising what the client cannot use (A5's
+ * `extra`, asked here of the whole catalogue rather than of the bundle's own
+ * names), a served route is an API surface the client did not buy and cannot
+ * support, and an enumerated id is the storefront being told to render a
+ * capability nothing implements.
+ *
+ * The enumeration half also asks the **completeness** question, and it is not
+ * the same one: an id that is neither an installed package, nor the platform's
+ * own module, nor one of this deployment's overlay modules is "a module the
+ * instance did not install" whatever the packed catalogue happens to hold.
+ */
+export function evaluateA7(observed: AbsentModuleObservation): AssertionResult {
+  if (observed.absent.length === 0) {
+    return {
+      id: 'A7',
+      state: 'unmeasured',
+      detail:
+        `all ${String(observed.installed.length)} module packages this run packed are installed ` +
+        'here, so "a module the instance did not install" names nothing and every surface ' +
+        'satisfies it vacuously',
+    };
+  }
+  if (observed.enumerationExemptions === null) {
+    return {
+      id: 'A7',
+      state: 'unmeasured',
+      detail:
+        'the ids entitled to be enumerated without being an installed package could not be read ' +
+        "out of the installed platform package, so this run cannot tell the platform's own " +
+        'module from a module the instance did not install',
+    };
+  }
+  const exemptions = observed.enumerationExemptions;
+  const missingSubject: string[] = [];
+  if (observed.bundleNames === null) missingSubject.push('the built admin bundle');
+  if (observed.servedRoutes === null) missingSubject.push('the API surface');
+  if (observed.enumerated === null) missingSubject.push('the module enumeration');
+  if (missingSubject.length > 0) {
+    return {
+      id: 'A7',
+      state: 'unmeasured',
+      detail:
+        `${missingSubject.join(' and ')} could not be read, and a verdict over the other ` +
+        `${String(3 - missingSubject.length)} would be answering a fraction of the assertion`,
+    };
+  }
+  if (observed.absentRoutes.size === 0) {
+    return {
+      id: 'A7',
+      state: 'unmeasured',
+      detail:
+        `none of the ${String(observed.absent.length)} absent module packages was read for the ` +
+        'routes it owns, so the API-surface half is satisfied by an empty expectation and says ' +
+        'nothing about whether one of their endpoints is being served',
+    };
+  }
+  const bundleNames = observed.bundleNames ?? [];
+  const servedRoutes = observed.servedRoutes ?? [];
+  const enumerated = observed.enumerated ?? [];
+  const inBundle = observed.absent.filter((id) => bundleNames.includes(id));
+  const served = new Set(servedRoutes.map(normalizeRouteIdentity));
+  const servedByAbsent = [...observed.absentRoutes.entries()].filter(([route]) =>
+    served.has(normalizeRouteIdentity(route)),
+  );
+  const inEnumeration = observed.absent.filter((id) => enumerated.includes(id));
+  const unexplained = enumerated.filter(
+    (id) => !observed.installed.includes(id) && !exemptions.includes(id),
+  );
+  if (
+    inBundle.length > 0 ||
+    servedByAbsent.length > 0 ||
+    inEnumeration.length > 0 ||
+    unexplained.length > 0
+  ) {
+    return {
+      id: 'A7',
+      state: 'fail',
+      detail:
+        `of the ${String(observed.absent.length)} module packages this instance did not install` +
+        (inBundle.length > 0 ? `; named in the built admin bundle: ${inBundle.join(', ')}` : '') +
+        (servedByAbsent.length > 0
+          ? `; endpoints served that an absent module owns: ${servedByAbsent
+              .slice(0, 5)
+              .map(([route, owner]) => `${route} (${owner})`)
+              .join(', ')}`
+          : '') +
+        (inEnumeration.length > 0 ? `; enumerated: ${inEnumeration.join(', ')}` : '') +
+        (unexplained.length > 0
+          ? `; enumerated and neither installed, nor the platform's own, nor this deployment's: ${unexplained.join(', ')}`
+          : ''),
+    };
+  }
+  return {
+    id: 'A7',
+    state: 'pass',
+    detail:
+      `none of the ${String(observed.absent.length)} module packages this instance did not ` +
+      `install is named in the built admin bundle, owns any of the ` +
+      `${String(servedRoutes.length)} endpoints it serves — measured against the ` +
+      `${String(observed.absentRoutes.size)} route identities their published \`./backend\` ` +
+      `layers own — or appears among the ${String(enumerated.length)} modules it ` +
+      `enumerates, every one of which is one of the ${String(observed.installed.length)} it ` +
+      `installed or is entitled to be there without being an installed package ` +
+      `(${enumerated.filter((id) => !observed.installed.includes(id)).join(', ') || 'none'})`,
+  };
+}
+
+/**
+ * `"GET /api/v1/x/{id}"` and `"GET /api/v1/x/:id"` are one identity.
+ *
+ * The served surface comes out of an OpenAPI document, where a parameter is
+ * `{id}`, and the expectation comes off a package's own route registrations,
+ * where it is `:id`. Comparing the two spellings would report every
+ * parameterised endpoint as absent from a surface that serves it.
+ */
+function normalizeRouteIdentity(identity: string): string {
+  return identity.replace(/\{[^}]*\}/g, '{}').replace(/:[A-Za-z0-9_]+/g, '{}');
+}
+
+/** One entry of a rendered divergence report, as A8 reads it. */
+export interface DivergenceReportEntry {
+  readonly key: string;
+  readonly kind: string;
+  readonly module: string;
+  readonly subject: string;
+  readonly owner: string | null;
+  /** The escalation ladder's rung, or `null` for a kind that sits on none. */
+  readonly rung: number | null;
+  readonly reason: string;
+}
+
+/** What A8 observed: the overlay module this criterion wrote, and what became of it. */
+export interface OverlayModuleObservation {
+  /** The overlay module id the criterion wrote into `apps/<deployment>/modules/`. */
+  readonly moduleId: string;
+  /** The container name it decorates. */
+  readonly decorated: string;
+  /** What the overlay's own route answered, or why the criterion never got one. */
+  readonly composed: 'answered' | 'refused' | 'unreachable';
+  /** Whether the wrap was applied, read through the container at request time. */
+  readonly decorationApplied: boolean | null;
+  /** The boot's own words, for a `composed` that is not `answered`. */
+  readonly bootOutput: string;
+  /** The rendered report's entries; `null` when no report was rendered at all. */
+  readonly entries: readonly DivergenceReportEntry[] | null;
+  /** Findings the render printed, verbatim. */
+  readonly findings: readonly string[];
+  /** Why there is no report — the render's own words. */
+  readonly renderFailure: string | null;
+}
+
+/**
+ * A8 — an overlay module in the created tree is **composed**, and its
+ * decoration **appears in the divergence report**.
+ *
+ * Two halves with two different subjects, and the criterion writes the module
+ * that carries both: composition is measured by the module's own route
+ * answering and by the wrap being live in the container behind it, and the
+ * report is measured over the artefact `endora generate` rendered.
+ *
+ * The decorated name is **not** free. An overlay module may not wrap a
+ * registration an installed package owns (D-176 Q3), and in an instance every
+ * module is an installed package; so the only decoration a booting instance
+ * accepts is of a name the composition root supplies or one of the
+ * deployment's own modules registers. Which of those the criterion chose, and
+ * what the other choices did, belong in the reason recorded beside this
+ * verdict rather than in this function.
+ */
+export function evaluateA8(observed: OverlayModuleObservation): AssertionResult {
+  if (observed.entries === null && observed.composed === 'unreachable') {
+    return {
+      id: 'A8',
+      state: 'unmeasured',
+      detail:
+        `neither half has a subject: no report was rendered (${observed.renderFailure ?? 'no reason given'}) ` +
+        `and the instance never answered on '${observed.moduleId}'s own route`,
+    };
+  }
+  if (observed.composed === 'unreachable') {
+    return {
+      id: 'A8',
+      state: 'unmeasured',
+      detail:
+        `the instance never answered at all, so whether it composed '${observed.moduleId}' is ` +
+        `not a question this run measured: ${lastLines(observed.bootOutput, 6)}`,
+    };
+  }
+  if (observed.composed === 'refused') {
+    return {
+      id: 'A8',
+      state: 'fail',
+      detail:
+        `the instance answers and '${observed.moduleId}' does not: its own route is not served, ` +
+        `so the overlay module in \`apps/\` is composed by nothing`,
+    };
+  }
+  if (observed.decorationApplied !== true) {
+    return {
+      id: 'A8',
+      state: 'fail',
+      detail:
+        `'${observed.moduleId}' is composed — its own route answers — and its wrap of ` +
+        `'${observed.decorated}' did not apply: the container resolves the undecorated value, ` +
+        `and no exception announced it`,
+    };
+  }
+  if (observed.entries === null) {
+    return {
+      id: 'A8',
+      state: 'fail',
+      detail:
+        `'${observed.moduleId}' is composed and its decoration of '${observed.decorated}' is ` +
+        `live, and the instance rendered no divergence report to record it in: ` +
+        `${observed.renderFailure ?? 'no reason given'}`,
+    };
+  }
+  const decoration = observed.entries.find(
+    (entry) =>
+      entry.kind === 'decoration' &&
+      entry.module === observed.moduleId &&
+      entry.subject === observed.decorated,
+  );
+  if (decoration === undefined) {
+    return {
+      id: 'A8',
+      state: 'fail',
+      detail:
+        `'${observed.moduleId}' is composed and its wrap of '${observed.decorated}' is live in ` +
+        `the container, and the rendered report carries no \`decoration\` entry for it — ` +
+        `${String(observed.entries.length)} entries: ` +
+        `${observed.entries.map((entry) => entry.key).join(', ') || 'none'}` +
+        (observed.findings.length > 0
+          ? `; findings: ${observed.findings.slice(0, 3).join(' | ')}`
+          : '; and no finding either'),
+    };
+  }
+  if (decoration.reason.trim().length === 0) {
+    return {
+      id: 'A8',
+      state: 'fail',
+      detail:
+        `the report records \`${decoration.key}\` and carries no sentence for it, so the ` +
+        `deployment's own declaration and its derived divergence disagree`,
+    };
+  }
+  return {
+    id: 'A8',
+    state: 'pass',
+    detail:
+      `'${observed.moduleId}' is composed — its own route answers and its wrap of ` +
+      `'${observed.decorated}' is live in the container — and the rendered report records ` +
+      `\`${decoration.key}\` at rung ${decoration.rung === null ? 'none' : String(decoration.rung)} against ` +
+      `${decoration.owner === null ? 'a composition root' : `'${decoration.owner}'`}, with the ` +
+      `deployment's own sentence`,
+  };
+}
+
+/** What A9's probe read inside the created instance. */
+export interface TenancyGuardObservation {
+  /** Why the probe measured nothing; `null` when it ran. */
+  readonly inconclusive: string | null;
+  /** The org-filtered entity it chose, named as `Class (table)`. */
+  readonly entity: string | null;
+  /** The tenants it wrote. */
+  readonly organizations: readonly string[];
+  /** What the read with no ambient context did. */
+  readonly unscopedRead: 'refused' | 'returned' | null;
+  /** The name of the error that refused it. */
+  readonly refusalName: string | null;
+  /** Distinct tenants among the rows the same read returns when widened. */
+  readonly systemScopeOrganizations: readonly string[];
+  /** Distinct tenants among the rows the derived-scope constraint leaves. */
+  readonly narrowedOrganizations: readonly string[] | null;
+}
+
+/** The refusal the tenant guard raises when a scoped read has no context. */
+const TENANT_REFUSAL = 'MissingTenantContextError';
+
+/**
+ * A9 — the tenancy guard is active: a cross-tenant read is refused in the
+ * created instance.
+ *
+ * **Three legs, and the second is what stops the first being vacuous.** A read
+ * of an `@OrgScoped` entity with no ambient context is refused fail-closed
+ * (Constitution XI); the identical read, widened through `withSystemScope`,
+ * comes back holding rows of two different organizations — so the query that
+ * was refused is demonstrably one that would have crossed a tenant boundary,
+ * rather than one over an empty table. The third narrows it to one tenant
+ * through the published derived-scope helper and asserts the other's rows are
+ * gone.
+ *
+ * A guard that refuses a read of a table holding one tenant's rows, or none,
+ * is **unmeasured**: "cross-tenant" is the half a pass would be claiming.
+ */
+export function evaluateA9(observed: TenancyGuardObservation): AssertionResult {
+  if (observed.inconclusive !== null) {
+    return { id: 'A9', state: 'unmeasured', detail: observed.inconclusive };
+  }
+  if (observed.unscopedRead === null || observed.entity === null) {
+    return {
+      id: 'A9',
+      state: 'unmeasured',
+      detail: 'the probe ran and reported no read at all, so nothing was asked of the guard',
+    };
+  }
+  if (observed.systemScopeOrganizations.length < 2) {
+    return {
+      id: 'A9',
+      state: 'unmeasured',
+      detail:
+        `the same read, widened, returns rows of ` +
+        `${String(observed.systemScopeOrganizations.length)} organization(s) in ` +
+        `${observed.entity}, so refusing it says nothing about crossing a tenant boundary`,
+    };
+  }
+  if (observed.unscopedRead === 'returned') {
+    return {
+      id: 'A9',
+      state: 'fail',
+      detail:
+        `a read of ${observed.entity} with no tenant context answered instead of refusing, ` +
+        `over rows belonging to ${String(observed.systemScopeOrganizations.length)} ` +
+        `organizations — the guard is not attached, and every scoped surface in this instance ` +
+        `is whatever its own query remembered to do`,
+    };
+  }
+  if (observed.refusalName !== TENANT_REFUSAL) {
+    return {
+      id: 'A9',
+      state: 'fail',
+      detail:
+        `the read was refused by \`${observed.refusalName ?? 'an unnamed error'}\` rather than ` +
+        `by \`${TENANT_REFUSAL}\`, so what refused it is not the tenant guard`,
+    };
+  }
+  if (observed.narrowedOrganizations === null) {
+    return {
+      id: 'A9',
+      state: 'unmeasured',
+      detail:
+        `the guard refused the unscoped read of ${observed.entity} and the narrowing half was ` +
+        'not measured, so "only this tenant\'s rows" is the half a pass would be claiming',
+    };
+  }
+  const leaked = observed.narrowedOrganizations.filter((id) => id !== observed.organizations[0]);
+  if (leaked.length > 0 || observed.narrowedOrganizations.length === 0) {
+    return {
+      id: 'A9',
+      state: 'fail',
+      detail:
+        `pinned to one organization, the same read over ${observed.entity} returned rows of ` +
+        `${String(observed.narrowedOrganizations.length)} organization(s)` +
+        (leaked.length > 0 ? `, including ${leaked.join(', ')}` : ' — its own included'),
+    };
+  }
+  return {
+    id: 'A9',
+    state: 'pass',
+    detail:
+      `a read of ${observed.entity} with no tenant context is refused by \`${TENANT_REFUSAL}\`, ` +
+      `the same read widened returns rows of ${String(observed.systemScopeOrganizations.length)} ` +
+      `organizations — so it is a read that would have crossed a tenant boundary — and pinned ` +
+      `to one it returns that one's rows alone`,
+  };
+}
+
 /** What A14 measured on the created tree: the wiring files, and their lines. */
 export interface WiringObservation {
   /** One entry per file the command classified as wiring, with its line count. */
