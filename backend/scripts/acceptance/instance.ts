@@ -101,6 +101,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 
+import { ADMIN_SESSION_COOKIE_NAME } from '@endora-commerce/contracts';
 import { normalizeRegistry } from '@endora-commerce/cli';
 import { instanceComposition } from '@endora-commerce/cli/lib/divergence-artefacts.js';
 import {
@@ -130,6 +131,9 @@ import {
   type TenancyGuardObservation,
   type DocsSiteObservation,
   evaluateA14,
+  evaluateA15,
+  ADMIN_LOGIN_PATH,
+  type AdministratorObservation,
   evaluateProcess,
   exitCodeFor,
   exitCodeForExpectation,
@@ -813,8 +817,18 @@ async function dropDatabase(adminUrl: string, databaseName: string): Promise<voi
   }
 }
 
+/**
+ * The administrator A15 logs in as.
+ *
+ * The password is this run's own and never leaves it: the database it is
+ * created in is created and dropped by the same run, and the only reader is the
+ * login three functions down.
+ */
+const ADMIN_EMAIL = 'acceptance@endora.test';
+const ADMIN_PASSWORD = 'Acceptance-Instance-1!';
+
 /** Everything one boot of the created instance can be asked while it is up. */
-interface BootObservationRaw {
+interface BootObservation {
   readonly healthStatus: number | null;
   /** The module ids the presence route enumerated, in its own order. */
   readonly enumerated: readonly string[] | null;
@@ -822,6 +836,10 @@ interface BootObservationRaw {
   readonly servedRoutes: readonly string[] | null;
   /** One entry per extra path the caller asked for: its status and its body. */
   readonly probes: ReadonlyMap<string, { status: number; body: unknown }>;
+  /** `null` when nothing was served, or when no administrator was created. */
+  readonly loginStatus: number | null;
+  readonly sessionCookie: boolean;
+  readonly loginBody: string;
   readonly output: string;
 }
 
@@ -829,18 +847,24 @@ interface BootObservationRaw {
  * A4 — one boot of the created instance, through its own `start` script — and
  * every other question a running instance is the only thing that can answer.
  *
- * The three surfaces are read in **one** boot rather than one each, and that is
- * not only economy: a criterion that booted three times would be measuring
- * three compositions, and A7's whole subject is that the *same* composition
- * that serves the API is the one that enumerates the modules and produced the
- * bundle. `probePaths` is the caller's own list — A8's overlay module answers
- * on a route only that assertion knows about.
+ * The surfaces are read in **one** boot rather than one each, and that is not
+ * only economy: A7's whole subject is that the *same* composition that serves
+ * the API is the one that enumerates the modules and produced the bundle, and
+ * A15's own note gives the same reason for its login — a second `start` is a
+ * second process whose failure would be a different finding. `probePaths` is
+ * the caller's own list: A8's overlay module answers on a route only that
+ * assertion knows about.
  */
 async function bootOnce(
   target: string,
   environment: NodeJS.ProcessEnv,
+  /**
+   * Attempt A15's login. `false` when `admin:create` did not succeed, so a
+   * login that could not have worked is never reported as a failing one.
+   */
+  withLogin: boolean,
   probePaths: readonly string[] = [],
-): Promise<BootObservationRaw> {
+): Promise<BootObservation> {
   const port = 3400 + Math.floor(Math.random() * 300);
   const child = spawn('pnpm', ['run', 'start'], {
     cwd: target,
@@ -850,11 +874,14 @@ async function bootOnce(
   let output = '';
   child.stdout.on('data', (chunk: Buffer) => (output += chunk.toString('utf8')));
   child.stderr.on('data', (chunk: Buffer) => (output += chunk.toString('utf8')));
-  const dead = (): BootObservationRaw => ({
+  const unserved = (): BootObservation => ({
     healthStatus: null,
     enumerated: null,
     servedRoutes: null,
     probes: new Map(),
+    loginStatus: null,
+    sessionCookie: false,
+    loginBody: '',
     output,
   });
   const ask = async (path: string): Promise<{ status: number; body: unknown } | null> => {
@@ -878,8 +905,8 @@ async function bootOnce(
   try {
     const deadline = Date.now() + 180_000;
     for (;;) {
-      if (child.exitCode !== null) return dead();
-      if (Date.now() > deadline) return dead();
+      if (child.exitCode !== null) return unserved();
+      if (Date.now() > deadline) return unserved();
       await new Promise((wait) => setTimeout(wait, 2_000));
       const health = await ask(HEALTH_PATH);
       if (health === null) continue;
@@ -911,7 +938,42 @@ async function bootOnce(
         const answer = await ask(path);
         if (answer !== null) probes.set(path, answer);
       }
-      return { healthStatus: health.status, enumerated, servedRoutes, probes, output };
+      // A15's second half. It is asked on the same boot rather than on one of
+      // its own for the reason A4's probe is: a second `start` is a second
+      // process whose failure would be a different finding.
+      let loginStatus: number | null = null;
+      let sessionCookie = false;
+      let loginBody = '';
+      if (withLogin) {
+        try {
+          const login = await fetch(`http://127.0.0.1:${String(port)}${ADMIN_LOGIN_PATH}`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD }),
+            signal: AbortSignal.timeout(20_000),
+          });
+          loginStatus = login.status;
+          sessionCookie = (login.headers.getSetCookie?.() ?? []).some((cookie) =>
+            cookie.startsWith(`${ADMIN_SESSION_COOKIE_NAME}=`),
+          );
+          loginBody = await login.text();
+        } catch (thrown) {
+          // Not a `catch` that decides anything: the transport failing is a
+          // measurement of its own and is reported as `loginStatus: null` with
+          // the reason in the body, never as a passing login.
+          loginBody = thrown instanceof Error ? thrown.message : String(thrown);
+        }
+      }
+      return {
+        healthStatus: health.status,
+        enumerated,
+        servedRoutes,
+        probes,
+        loginStatus,
+        sessionCookie,
+        loginBody,
+        output,
+      };
     }
   } finally {
     child.kill('SIGTERM');
@@ -1542,7 +1604,10 @@ async function measureOverlay(
     );
   }
 
-  const boot = await bootOnce(target, environment, [OVERLAY_PROBE_PATH]);
+  // `withLogin: false` — A15's administrator is A4's boot's subject and was
+  // already measured there; asking again would report one fact twice and, on a
+  // second failure, as two.
+  const boot = await bootOnce(target, environment, false, [OVERLAY_PROBE_PATH]);
   const probe = boot.probes.get(OVERLAY_PROBE_PATH);
   const composed =
     boot.healthStatus === null
@@ -1844,7 +1909,7 @@ async function main(): Promise<void> {
     let built: { code: number; output: string } | null = null;
     // Declared out here for the same reason: A7 reads the boot's three surfaces
     // and sits beside the bundle assertions rather than inside the boot block.
-    let boot: BootObservationRaw | null = null;
+    let boot: BootObservation | null = null;
     let overlayEnvironment: NodeJS.ProcessEnv | null = null;
     const instanceVariables = declaredVariables(target);
     const installed = run('pnpm', ['install', '--no-frozen-lockfile'], {
@@ -1955,17 +2020,59 @@ async function main(): Promise<void> {
               `${installed.output.trim().split('\n').slice(-3).join(' / ')}`,
           );
         }
+        // A15's first half (`specs/123-oss-install-experience/` G2). It runs
+        // the instance's **own** root script, exactly as `migrate` and
+        // `module:install` above do: a criterion that reached past the scripts
+        // into `node dist/cli.js` would report green over a manifest whose
+        // scripts do not work, which is T141's own finding one step over.
+        //
+        // `null` distinguishes "the script does not exist" — the whole of the
+        // G2 defect — from "it ran and failed", and pnpm answers the first with
+        // exit 1 and a message naming the script, so the two are read apart
+        // from the manifest rather than from the exit code.
+        const hasAdminCreate = Object.hasOwn(
+          (JSON.parse(readFileSync(join(target, 'package.json'), 'utf8')) as {
+            scripts?: Record<string, string>;
+          }).scripts ?? {},
+          'admin:create',
+        );
+        const created = hasAdminCreate
+          ? run(
+              'pnpm',
+              [
+                'run',
+                'admin:create',
+                '--',
+                `--email=${ADMIN_EMAIL}`,
+                `--password=${ADMIN_PASSWORD}`,
+                '--first-name=Acceptance',
+                '--last-name=Run',
+              ],
+              { cwd: target, env: environment },
+            )
+          : null;
+        const administrator: AdministratorObservation = {
+          createCode: created === null ? null : created.code,
+          createOutput:
+            created === null
+              ? "the instance's root manifest declares no `admin:create` script"
+              : created.output,
+          loginStatus: null,
+          sessionCookie: false,
+          loginBody: '',
+        };
         // The boot is attempted whenever the migrate step claimed to succeed,
         // including when A3 then reported that nothing was migrated: what the
         // start script does is a separate question from what the migrate script
         // did, and a criterion that skipped it would report one defect and stop
         // where there are two.
         //
-        // **One boot answers three assertions**, and that is not economy: A7's
+        // **One boot answers four assertions**, and that is not economy: A7's
         // whole subject is that the composition serving the API is the one
-        // enumerating the modules and the one behind the bundle, so three boots
-        // would be three compositions.
-        boot = await bootOnce(target, environment);
+        // enumerating the modules and the one behind the bundle, so a second
+        // boot would be a second composition, and A15's login says the same of
+        // itself.
+        boot = await bootOnce(target, environment, created?.code === 0);
         results.push(
           evaluateA4({
             started: true,
@@ -1975,14 +2082,22 @@ async function main(): Promise<void> {
             output: boot.output,
           }),
         );
+        results.push(
+          evaluateA15({
+            ...administrator,
+            loginStatus: boot.loginStatus,
+            sessionCookie: boot.sessionCookie,
+            loginBody: boot.loginBody,
+          }),
+        );
 
         // A9 needs the migrated schema and the installed platform, and no
         // server: it reads the guard in a process of its own, inside the
         // instance.
         results.push(evaluateA9(measureTenancy(target, environment)));
 
-        // A8's fixture and its second boot, after A4 has answered over the tree
-        // the command wrote. See `measureOverlay`.
+        // A8's fixture and its second boot, after A4 and A15 have answered over
+        // the tree the command wrote. See `measureOverlay`.
         const deployment = deploymentsIn(target)[0];
         if (deployment === undefined) {
           results.push({
@@ -2021,6 +2136,11 @@ async function main(): Promise<void> {
           state: 'unmeasured',
           detail: 'there is no migrated schema to read across tenants in',
         });
+        results.push({
+          id: 'A15',
+          state: 'unmeasured',
+          detail: 'the instance did not migrate, so there is no schema to create an administrator in',
+        });
       }
     } else {
       results.push({
@@ -2039,6 +2159,11 @@ async function main(): Promise<void> {
         id: 'A9',
         state: 'unmeasured',
         detail: 'there is no install to read the tenant guard out of',
+      });
+      results.push({
+        id: 'A15',
+        state: 'unmeasured',
+        detail: 'there is no install to create an administrator in',
       });
     }
 

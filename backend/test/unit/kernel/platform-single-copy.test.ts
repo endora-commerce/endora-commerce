@@ -209,9 +209,10 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     // module-declared command moved **whole**, so what `backend/src/cli/`
     // keeps is one re-export shim and no binding at all — the first file on
     // this chain that left nothing behind. Its neighbour in that directory,
-    // `demo-command.ts`, is the application's own and forwards to nothing, so
-    // the probe's forwarding filter is what keeps it out of a walk that
-    // imports what it finds.
+    // `demo-command.ts`, was the application's own and forwarded to nothing;
+    // `specs/123-oss-install-experience/` G2 moved it to
+    // `packages/platform/src/demo/host-command.ts` and the directory now holds
+    // the shim alone.
     //
     // **`./events` joined them with `specs/110-instance-repository/` T119, and
     // it is the first subpath to arrive here by *draining* rather than by never

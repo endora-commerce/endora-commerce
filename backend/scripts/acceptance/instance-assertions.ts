@@ -66,7 +66,8 @@ export type AssertionId =
   | 'A11'
   | 'A12'
   | 'A13'
-  | 'A14';
+  | 'A14'
+  | 'A15';
 
 /**
  * What each assertion is, independently of any run.
@@ -92,6 +93,7 @@ export const ASSERTION_CATALOGUE: Readonly<Record<AssertionId, string>> = {
   A12: 'a published platform patch reaches the instance through `pnpm update`, with no file in it edited',
   A13: 'the built admin stylesheet carries a utility class only an installed package declares',
   A14: 'the wiring the created tree holds is under the bound, measured on the tree rather than on the template',
+  A15: "the instance's own CLI creates an administrator, and the instance answers that administrator's login with a session",
 };
 
 export const ASSERTION_IDS = Object.keys(ASSERTION_CATALOGUE) as readonly AssertionId[];
@@ -1377,6 +1379,102 @@ export function evaluateA14(observed: WiringObservation): AssertionResult {
     detail:
       `${String(total)} lines of wiring across ${String(observed.files.length)} files on disk, ` +
       `under R1.4's bound of ${String(WIRING_LINE_BOUND)}`,
+  };
+}
+
+/**
+ * The route an administrator logs in at — **`/api/v1/auth/admin/login`**.
+ *
+ * `specs/123-oss-install-experience/research.md` §4.3 and §4.4 name it
+ * `POST /api/v1/admin/auth/login` in three places, and so does A4's own recorded
+ * reason. That path is registered by nothing: `admin_users`' own
+ * `routes.public.ts` declares the one above, and a probe of the other would have
+ * measured a 404 forever while reporting on the login. Re-derived here, not
+ * copied from the document.
+ */
+export const ADMIN_LOGIN_PATH = '/api/v1/auth/admin/login';
+
+/** What A15 measured: the administrator the CLI made, and the session it earned. */
+export interface AdministratorObservation {
+  /**
+   * The exit code of the instance's own `admin:create`, or `null` when there
+   * was no script to run — which is the state that made this assertion
+   * necessary and is a **fail**, never an `unmeasured`.
+   */
+  readonly createCode: number | null;
+  readonly createOutput: string;
+  /** `null` when the instance never served a request for this run to ask. */
+  readonly loginStatus: number | null;
+  /** Did the response set the admin session cookie? */
+  readonly sessionCookie: boolean;
+  readonly loginBody: string;
+}
+
+/**
+ * A15 — a scaffolded instance accepts an administrator created by its own CLI
+ * and answers that administrator's login with a session
+ * (`specs/123-oss-install-experience/research.md` §4.4, G2 T2-F).
+ *
+ * **It is the difference between "the packages resolve" and "the install
+ * works".** A2 proves an install, A3 a schema, A5 and A13 a built and styled
+ * admin bundle — and until this assertion existed nobody had ever logged in to
+ * one. The owner's condition for publishing is *"installing from the CLI, from
+ * packages in the private registry, works correctly"*, and an instance nobody
+ * can sign in to does not satisfy it whatever else is green.
+ *
+ * The two halves are reported apart on purpose. A `createCode` of `null` is the
+ * G2 defect itself — no module-declared CLI command at all — and is a **fail**;
+ * a login that never got asked because the instance served nothing is
+ * `unmeasured`, because the absence of a booted server is A4's finding and not
+ * a second report of it.
+ */
+export function evaluateA15(observed: AdministratorObservation): AssertionResult {
+  if (observed.createCode === null) {
+    return {
+      id: 'A15',
+      state: 'fail',
+      detail:
+        "the instance has no `admin:create` script, so its own CLI cannot create an " +
+        'administrator and there is nobody to log in as: ' +
+        observed.createOutput.trim().split('\n').slice(-3).join(' / '),
+    };
+  }
+  if (observed.createCode !== 0) {
+    return {
+      id: 'A15',
+      state: 'fail',
+      detail:
+        `the instance's own \`admin:create\` exited ${String(observed.createCode)}: ` +
+        observed.createOutput.trim().split('\n').slice(-5).join(' / '),
+    };
+  }
+  if (observed.loginStatus === null) {
+    return {
+      id: 'A15',
+      state: 'unmeasured',
+      detail:
+        'the administrator was created by the instance own CLI (exit 0) and the instance ' +
+        'served no request for this run to log in with, which is A4 finding rather than a ' +
+        'second report of it',
+    };
+  }
+  if (observed.loginStatus !== 200 || !observed.sessionCookie) {
+    return {
+      id: 'A15',
+      state: 'fail',
+      detail:
+        `the administrator was created by the instance own CLI (exit 0) and ` +
+        `POST ${ADMIN_LOGIN_PATH} answered ${String(observed.loginStatus)}` +
+        `${observed.sessionCookie ? '' : ' with no session cookie'}: ` +
+        observed.loginBody.slice(0, 400),
+    };
+  }
+  return {
+    id: 'A15',
+    state: 'pass',
+    detail:
+      `the instance own CLI created an administrator and POST ${ADMIN_LOGIN_PATH} answered ` +
+      `200 with the admin session cookie set`,
   };
 }
 

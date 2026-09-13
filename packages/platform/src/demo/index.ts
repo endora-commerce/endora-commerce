@@ -49,14 +49,37 @@
  * Nothing here imports a module, and the composition that does is a **parameter**
  * (`DemoComposition`), which is what lets the runner live in the platform at all
  * (§5.3, D-52/D-53).
+ *
+ * ## What `specs/123-oss-install-experience/` G2 took off it, and why that is
+ * the ratchet working rather than a regression
+ *
+ * Six names went — `formatDemoReport`, `unwrapDemoFailure`, `DemoManifestEntry`
+ * and `DemoMode`, and the whole of what `host-command.ts` would have added. G2
+ * moved the demo **dispatch** into `../cli/dispatch.ts`, so the files that used
+ * to import those six from outside the package — `backend/src/cli.ts` and
+ * `backend/src/cli/demo-command.ts` — either no longer name them or are in this
+ * package now. A name whose last first-party consumer outside the platform went
+ * with the move is surface parked against a future need, which is exactly what
+ * the paragraph above says a subpath is not a place for, and
+ * `test/unit/kernel/published-surface.test.ts` holds the barrel to it in both
+ * directions.
+ *
+ * `host-command.ts` is therefore reachable from outside at three names and not
+ * thirteen: the notice and the two composition-loader shapes, which
+ * `backend/src/demo/composition-loader.ts` imports because locating a tree's own
+ * composition stays that tree's (`operator-half.md` §1.1). `DEMO_HOST_COMMANDS`,
+ * `demoEntriesFrom`, `parseDemoVerb` and the rest have one consumer and it is
+ * `../cli/dispatch.ts`, one directory over inside this package, which reaches
+ * them by relative path and needs no address for them at all.
+ *
+ * Adding one back is not a breaking change and belongs to the merge request that
+ * brings it a consumer.
  */
 export { mustBeNonProduction, TEST_DATABASE_NAME_PATTERN } from './guard.js';
 export { DEMO_RESET_SCOPE_REASON, DEMO_SEED_SCOPE_REASON } from './scope.js';
-export { type DemoManifestEntry, type DemoMode } from './plan.js';
+export { runDemo, type DemoComposition, type DemoCompositionResult } from './runner.js';
 export {
-  runDemo,
-  unwrapDemoFailure,
-  type DemoComposition,
-  type DemoCompositionResult,
-} from './runner.js';
-export { formatDemoReport } from './report.js';
+  NO_DEMO_COMPOSITION_NOTICE,
+  type DemoCompositionInput,
+  type DemoCompositionLookup,
+} from './host-command.js';

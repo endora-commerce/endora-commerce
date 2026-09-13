@@ -256,8 +256,12 @@ describe('endora new instance, as a process', () => {
     expect(readdirSync(target)).not.toContain('.npmrc');
     expect(readdirSync(target)).not.toContain('storefront');
 
-    // R3.3 — none of the four backend registries.
+    // R3.3 — none of the four backend registries. `cli.ts` joined the list with
+    // `specs/123-oss-install-experience/` G2 and is the sixth wiring file §2.3
+    // always named: until then it was reported as an omission, and a scaffolded
+    // instance could run no command its modules declared.
     expect(readdirSync(join(target, 'backend/src')).sort()).toEqual([
+      'cli.ts',
       'index.ts',
       'migrate.ts',
       'mikro-orm.config.ts',
