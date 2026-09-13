@@ -140,14 +140,24 @@ const PLATFORM: FixturePackage = {
   dependencies: { ioredis: '^5.10.1' },
 };
 
+/**
+ * One module package in a fixture install.
+ *
+ * `version` is a parameter rather than the shared default because a fixture in
+ * which every package sits at one version cannot express the case that broke:
+ * a release moves packages at different rates, and a range built from another
+ * package's version is invisible until a real registry is asked for it.
+ */
 function modulePackage(
   id: string,
   manifest: Record<string, unknown> = {},
+  version?: string,
 ): FixturePackage {
   return {
     name: `mod-${id}`,
     endora: { type: 'module', id },
     manifest: { id, ...manifest },
+    ...(version === undefined ? {} : { version }),
   };
 }
 
@@ -179,7 +189,7 @@ function planInput(overrides: Partial<PlanInput> = {}): PlanInput {
     platformVersion: '1.2.3',
     enginesNode: '>=22.17.0',
     packageManager: undefined,
-    modules: [{ id: 'settings', packageName: `${SCOPE}mod-settings` }],
+    modules: [{ id: 'settings', packageName: `${SCOPE}mod-settings`, version: '0.4.5' }],
     adminShellVersion: null,
     adminKitVersion: null,
     adminRanges: new Map(),
@@ -326,9 +336,11 @@ describe('the refusals (instance-tree.md §4)', () => {
   });
 
   it('F6 — the platform version cannot be resolved, so no range can be written', async () => {
-    // A fixture with module packages and no platform: the failure is precisely
-    // that no `^<version>` has a source, and it must not be reported as an
-    // empty module set.
+    // A fixture with module packages and no platform. Two things have no source
+    // without it — the platform entry's own range, and the manifests the module
+    // set is closed over — and neither may be reported as an empty module set.
+    // A module package's *own* range is not among them: that comes off the
+    // module package, which this fixture does have.
     const root = installFixture([modulePackage('blog')]);
     const error = await runNewInstance({ dir: join(root, 'acme-shop'), cwd: root }).catch(
       (e: unknown) => e,
@@ -452,8 +464,8 @@ describe('the tree (§1, §2)', () => {
     const plan = planInstance(
       planInput({
         modules: [
-          { id: 'settings', packageName: `${SCOPE}mod-settings` },
-          { id: 'blog', packageName: `${SCOPE}mod-blog` },
+          { id: 'settings', packageName: `${SCOPE}mod-settings`, version: '0.7.1' },
+          { id: 'blog', packageName: `${SCOPE}mod-blog`, version: '0.8.0' },
         ],
       }),
     );
@@ -628,6 +640,43 @@ describe('the tree (§1, §2)', () => {
       plan.files.find((f) => f.path === 'package.json')!.content,
     ) as { devDependencies: Record<string, string> };
     expect(manifest.devDependencies['zod']).toBe('^99-from-the-platform');
+  });
+
+  /**
+   * **A release is not uniform, and the ranges have to survive that.**
+   *
+   * The three packages below sit at three versions on purpose: that is the case
+   * the fixture could not express while `PlanInput.modules` carried no version
+   * of its own, and while it could not, the site that writes the entries had
+   * exactly one version in scope — the platform's — and wrote it onto every
+   * module. Measured on the real release of 2026-09-11: 68 packages at `0.8.0`,
+   * 15 at `0.7.1`, and `ERR_PNPM_NO_MATCHING_VERSION  No matching version found
+   * for @endora-commerce/mod-addresses@^0.8.0` at the first install of a
+   * scaffolded instance.
+   *
+   * Equal versions would assert nothing here: every wrong answer agrees with
+   * the right one.
+   */
+  it('R2.3 — each package is ranged at its own version, not at the platform\'s', () => {
+    const plan = planInstance(
+      planInput({
+        platformVersion: '0.8.0',
+        modules: [
+          { id: 'addresses', packageName: `${SCOPE}mod-addresses`, version: '0.7.1' },
+          { id: 'settings', packageName: `${SCOPE}mod-settings`, version: '0.8.0' },
+        ],
+      }),
+    );
+    const manifest = JSON.parse(
+      plan.files.find((f) => f.path === 'package.json')!.content,
+    ) as { dependencies: Record<string, string> };
+    expect(manifest.dependencies[`${SCOPE}platform`]).toBe('^0.8.0');
+    expect(manifest.dependencies[`${SCOPE}mod-addresses`]).toBe('^0.7.1');
+    expect(manifest.dependencies[`${SCOPE}mod-settings`]).toBe('^0.8.0');
+    // And the plan's own map, which is what `--dry-run` reports, agrees with the
+    // file — two derivations of one set is how the report comes to describe a
+    // manifest nobody has.
+    expect(plan.dependencies.get(`${SCOPE}mod-addresses`)).toBe('^0.7.1');
   });
 
   it('R5.7 — no `.npmrc` without `--registry`, and never a token', () => {
@@ -830,13 +879,19 @@ describe('the admin member (instance-tree.md §2.4)', () => {
 });
 
 describe('the command (R5.2, R5.3)', () => {
+  // Three packages at three versions — the platform at `1.2.3` and the two
+  // modules at a version each, because a fixture in which they agree cannot
+  // tell a range built from the package it names from one built from the
+  // platform's.
   const fixture = (): string =>
     installFixture([
       PLATFORM,
-      modulePackage('settings', {
-        activation: { nonDeactivatable: true, reason: 'nothing runs without settings' },
-      }),
-      modulePackage('blog', { dependencies: ['settings'] }),
+      modulePackage(
+        'settings',
+        { activation: { nonDeactivatable: true, reason: 'nothing runs without settings' } },
+        '0.7.1',
+      ),
+      modulePackage('blog', { dependencies: ['settings'] }, '0.8.0'),
     ]);
 
   it('R5.3 — a dry run reports every file it would write, and writes nothing', async () => {
@@ -875,6 +930,14 @@ describe('the command (R5.2, R5.3)', () => {
     ]);
     // R2.3 — the range is the platform version being installed, not the CLI's.
     expect(manifest.dependencies[`${SCOPE}platform`]).toBe('^1.2.3');
+    // …and a module's is **that module package's** own, read off the manifest of
+    // the package installed beside the target directory. It was the platform's
+    // until this was asserted, which a uniform fixture could not have shown and
+    // the tarball acceptance mode cannot show at all: that mode overrides every
+    // one of these ranges with a `file:` path, so the first thing that ever
+    // resolves them is a client's install against a real registry.
+    expect(manifest.dependencies[`${SCOPE}mod-settings`]).toBe('^0.7.1');
+    expect(manifest.dependencies[`${SCOPE}mod-blog`]).toBe('^0.8.0');
     expect(result.modules.ids).toEqual(['blog', 'settings']);
   });
 

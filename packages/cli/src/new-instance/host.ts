@@ -36,6 +36,26 @@
  *
  * The **scope** is derived from the CLI's own name rather than written down, so
  * a fork publishing under another scope needs no edit here.
+ *
+ * ## Where a `^` range comes from, which is a different question
+ *
+ * **From the package being ranged, and from no other.** {@link readPackage}
+ * reads every resolved package's own `version`, so the answer is already here
+ * for each of them; what it is *not* is a property of this build, of the
+ * platform, or of the release as a whole. A release is not uniform and nothing
+ * in the estate makes it so — of the packages this repository published on
+ * 2026-09-11, 68 moved to `0.8.0` and 15 to `0.7.1` — so a range built from
+ * another package's version is a range the registry answers
+ * `ERR_PNPM_NO_MATCHING_VERSION` to, at the client's first install and nowhere
+ * earlier.
+ *
+ * That is the version the package **installed beside the target directory**
+ * declares, which is the right source for the same reason the module set is: it
+ * is the manifest the platform will read when it composes this same install, so
+ * the tree the client gets back is pinned to what they already have rather than
+ * to a second answer derived a second way (D-100). It is deliberately not a
+ * registry query — this command makes no network call and would otherwise
+ * scaffold against a version nobody had installed.
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -96,7 +116,18 @@ export interface ResolvedPackage {
 export interface InstanceHost {
   /** `@endora-commerce/`, with its trailing slash, off the CLI's own name. */
   readonly scope: string;
-  /** The CLI's own version — F8's subject, and the source of every `^` range. */
+  /**
+   * The CLI's own version — F8's subject, and the source of **this package's
+   * own** `^` range and of no other.
+   *
+   * This read *"the source of every `^` range"*, and the sentence was load-bearing
+   * in the wrong direction: it says a range is a property of the build rather
+   * than of the package being ranged, which is precisely the premise under which
+   * every module came to be declared at the platform's version. Every `^` range
+   * an instance's manifest carries is over the version of **the package it
+   * names** — this one for `@endora-commerce/cli`, {@link platformVersion} for
+   * the platform, and each module package's own for itself.
+   */
   readonly cliVersion: string;
   /** The CLI's own `engines.node`, which the instance re-declares (R2.3). */
   readonly enginesNode: string;
@@ -114,7 +145,15 @@ export interface InstanceHost {
   readonly searched: readonly string[];
   /** Every scope package this run resolved, keyed by npm name. */
   readonly packages: ReadonlyMap<string, ResolvedPackage>;
-  /** The platform's own version — F6's subject. */
+  /**
+   * The platform's own version — F6's subject, and the range of the platform
+   * entry alone.
+   *
+   * Every other `@endora-commerce/*` entry an instance declares is ranged at the
+   * version its **own** package declares, which {@link packages} carries per
+   * package. A release is not uniform and a range over the wrong package's
+   * version is one no registry can satisfy.
+   */
   readonly platformVersion: string;
 }
 
@@ -144,9 +183,11 @@ export function readOwnManifest(
         throw new InstanceHostError(
           'F8',
           `this build's own manifest at ${candidate} could not be parsed ` +
-            `(${error instanceof Error ? error.message : String(error)}), so the ` +
-            `\`^<version>\` ranges an instance installs against have no source. Nothing is ` +
-            `written: a scaffold whose ranges the tool invented is a scaffold nobody reviewed.`,
+            `(${error instanceof Error ? error.message : String(error)}), so the npm scope an ` +
+            `instance resolves and declares its packages under, the \`engines.node\` it ` +
+            `re-declares and the \`^<version>\` it installs this CLI at all have no source. ` +
+            `Nothing is written: a scaffold whose values the tool invented is a scaffold ` +
+            `nobody reviewed.`,
         );
       }
     }
@@ -155,9 +196,9 @@ export function readOwnManifest(
       throw new InstanceHostError(
         'F8',
         `this build has no \`package.json\` above ${dirname(fileURLToPath(moduleUrl))}, so it ` +
-          `cannot determine its own version and the \`^<version>\` ranges an instance installs ` +
-          `against have no source. Reinstall \`@endora-commerce/cli\` rather than running it ` +
-          `from a loose file.`,
+          `cannot determine its own version, its own npm scope or the \`engines.node\` an ` +
+          `instance re-declares — and the scope is what every package it installs is resolved ` +
+          `under. Reinstall \`@endora-commerce/cli\` rather than running it from a loose file.`,
       );
     }
     current = parent;
@@ -236,7 +277,8 @@ export function resolveInstanceHost(options: {
     throw new InstanceHostError(
       'F8',
       `this build's own manifest declares no \`name\` or no \`version\`, so the scope an ` +
-        `instance installs from and the \`^<version>\` its ranges carry both have no source.`,
+        `instance installs from and the \`^<version>\` it installs this CLI at both have no ` +
+        `source.`,
     );
   }
   const scope = scopeOfPackageName(ownName);
@@ -279,9 +321,8 @@ export function resolveInstanceHost(options: {
     throw new InstanceHostError(
       'F6',
       `${scope}${PLATFORM_PACKAGE} does not resolve from ${options.targetDir} or ` +
-        `${options.cwd}, so the version every \`^\` range in the instance's manifest would be ` +
-        `taken from has no source, and neither do the module manifests the module set is ` +
-        `closed over.` +
+        `${options.cwd}, so the version the instance's own platform range would be taken from ` +
+        `has no source, and neither do the module manifests the module set is closed over.` +
         (searched.length === 0
           ? ` No \`node_modules/${scope.slice(0, -1)}\` was found on the way up from either.`
           : ` Looked in: ${searched.join(', ')}.`) +

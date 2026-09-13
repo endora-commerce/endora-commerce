@@ -237,7 +237,11 @@ function planInput(overrides: Partial<PlanInput> = {}): PlanInput {
     platformVersion: '1.2.3',
     enginesNode: '>=22.17.0',
     packageManager: undefined,
-    modules: [{ id: 'settings', packageName: `${SCOPE}mod-settings` }],
+    // The version is the module package's **own**, and deliberately not the
+    // platform's above: a range over another package's version is one no
+    // registry can satisfy, and a fixture in which the two agree cannot tell
+    // the right derivation from the wrong one.
+    modules: [{ id: 'settings', packageName: `${SCOPE}mod-settings`, version: '0.4.5' }],
     // Every member present: §2 is the manifest of a **complete** instance, and
     // a fixture with a member omitted would report that member's rows as
     // unwritten — a finding about the fixture dressed as one about the command.
