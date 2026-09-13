@@ -202,6 +202,13 @@ export function renderInstanceDivergence(input: {
         declaration: reading.declaration,
         seams: scan.environment.seams,
         hostNotRecorded: INSTANCE_BOUNDARY_NOTES,
+        // The file this run really read, relative to the client's own root. A
+        // finding's job is to send somebody to a file, and the default is this
+        // repository's `backend/src/apps/<d>/divergence.ts`, which no instance has.
+        declarationPath:
+          declarationPath === null
+            ? join('apps', deployment, 'divergence.ts')
+            : relative(input.root, declarationPath).split(sep).join('/'),
       },
       [
         {

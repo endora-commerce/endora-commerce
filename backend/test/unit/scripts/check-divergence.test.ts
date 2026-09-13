@@ -10,6 +10,8 @@ import {
   type DivergenceRefusalKind,
 } from '../../../scripts/lib/divergence.js';
 import { vacuousModulePopulation } from '../../../scripts/lib/module-population.js';
+import { rootRegisteredNames as rootRegisteredNamesFromCheck } from '../../../scripts/check-port-dependencies.js';
+import { rootRegisteredNames as rootRegisteredNamesFromPackage } from '@endora-commerce/cli/lib/port-registrations.js';
 import {
   FIXTURE_OVERLAY,
   FIXTURE_REASONS,
@@ -413,5 +415,69 @@ describe('the route population is a union, so a file two roots both reach enters
     });
     expect(claim('/repo/gone.ts')).toBe(true);
     expect(claim('/repo/gone.ts')).toBe(false);
+  });
+});
+
+/**
+ * The root-registration predicate exists twice, and this is what keeps the two
+ * copies from going half-missing (`specs/110-instance-repository/` T138a).
+ *
+ * `check-port-dependencies.ts` has read a composition root's own spelling —
+ * `registerValues(container, { … })`, `container.register({ … })`,
+ * `composedModules.contribute({ … })` — since D-45, and the divergence report's
+ * **second host** needs the same answer: in a client's instance `composeApp` is
+ * the composition root, and `rootSuppliedNames` is what tells *"a root registers
+ * it"* from *"nobody registers it"*. Measured on a real scaffolded instance
+ * installed from tarballs, with only the module spelling read: an overlay module
+ * decorating `commandBus` was reported `unowned-subject`, which is the exact
+ * state `registration-owners.ts`' doc block says that function exists to
+ * prevent — a finding about the run dressed as one about the tree.
+ *
+ * `@endora-commerce/cli` therefore exports a copy, and a copy is the shape this
+ * estate refuses. **The end state is that this file's becomes an import of the
+ * package's**, which is one line; it is not made in the merge request that adds
+ * this because feature 117's Phase 6 holds `check-port-dependencies.ts` open.
+ * Until it is, this reconciles the two over the shapes a root really writes, so
+ * a divergence between them is red rather than silent. The fixture is source
+ * text and enters at the top of both (issue #130).
+ */
+describe('the two copies of `rootRegisteredNames` answer identically', () => {
+  const ROOT_SOURCE = `
+    import { registerValues } from '@endora-commerce/platform/kernel';
+
+    export function composeApp(options) {
+      const container = createRootContainer();
+      registerValues(container, {
+        redis: options.redis,
+        eventBus: new EventBus(),
+        'quoted-name': options.quoted,
+      });
+      container.register({ commandBus: asValue(buildCommandBus()) });
+      composedModules.contribute({ salesChannelCodeIdPort: buildChannelPort() });
+      // A spread names nothing this analysis can reason about, and both copies
+      // must agree about that too — a divergence on the *negative* side is the
+      // one a positive-only fixture would miss.
+      registerValues(container, { ...options.extras });
+      // A module's own spelling is not a root's, and neither copy reads it here.
+      ctx.di.register({ blogService: ctx.asClass(BlogService).singleton() });
+      return container;
+    }
+  `;
+
+  it('agrees over every shape a root writes, and over the two it does not', () => {
+    const fromCheck = rootRegisteredNamesFromCheck(ROOT_SOURCE, 'composition.ts');
+    const fromPackage = rootRegisteredNamesFromPackage(ROOT_SOURCE, 'composition.ts');
+    expect([...fromPackage].sort()).toEqual([...fromCheck].sort());
+    // Asserted absolutely as well as against each other: two copies that had
+    // both stopped reading `contribute` would agree perfectly and be wrong, and
+    // D-45's contribution window is where nearly every root-supplied name is.
+    expect([...fromPackage].sort()).toEqual([
+      'commandBus',
+      'eventBus',
+      'quoted-name',
+      'redis',
+      'salesChannelCodeIdPort',
+    ]);
+    expect(fromPackage).not.toContain('blogService');
   });
 });

@@ -74,7 +74,11 @@ import {
   rootSuppliedNames,
   type OwnerClaim,
 } from './registration-owners.js';
-import { providedPortNames, registeredNames } from './port-registrations.js';
+import {
+  providedPortNames,
+  registeredNames,
+  rootRegisteredNames,
+} from './port-registrations.js';
 
 /**
  * What each rung costs, in the words a reader who has never seen this repository
@@ -665,6 +669,15 @@ export function instanceComposition(input: {
       if (claimFile(file)) routeSources.push({ file, text, moduleId: null });
       for (const name of registeredNames(text, file)) platformNames.add(name);
       for (const name of providedPortNames(text, file)) platformNames.add(name);
+      // The **root** spelling as well, and it is not an optimisation: in an
+      // instance `composeApp` is the composition root and it writes
+      // `registerValues(container, { … })`, which `registeredNames` does not
+      // read. Measured on a real scaffolded instance with only the two module
+      // spellings: an overlay module decorating `commandBus` was reported
+      // `unowned-subject`, which is the exact state `rootSuppliedNames`' own doc
+      // block says it exists to prevent — a finding about the run dressed as one
+      // about the tree.
+      for (const name of rootRegisteredNames(text, file)) platformNames.add(name);
     }
     const kernel = subpathTargetOf(input.platform, './kernel');
     if (kernel !== null) seams = seamsFromKernel(kernel);

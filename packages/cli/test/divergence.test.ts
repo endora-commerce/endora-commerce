@@ -113,15 +113,24 @@ function installPlatform(root: string): void {
   write(join(dir, 'dist', 'kernel', 'index.js'), 'export {};\n');
   write(join(dir, 'dist', 'kernel', 'index.d.ts'), "export type { ModuleContext } from './module-context.js';\n");
   write(join(dir, 'dist', 'kernel', 'module-context.d.ts'), MODULE_CONTEXT_DECLARATIONS);
-  // `composeApp`'s own registrations: the names a composition root supplies in
-  // an instance, which is what stops a decoration of one reading `unowned-subject`.
+  // `composeApp`'s own registrations: the names a composition root supplies in an
+  // instance, which is what stops a decoration of one reading `unowned-subject`.
+  //
+  // **In the root's own spelling**, which is the point. A module writes
+  // `ctx.di.register({ … })` and a root writes `registerValues(container, { … })`
+  // — two different predicates — and a fixture written in the module's spelling
+  // would have passed over the defect this file measured on a real scaffolded
+  // instance: `commandBus` reported as owned by nobody.
   write(
     join(dir, 'dist', 'composition', 'index.js'),
-    `export function composeApp(ctx) {\n` +
-      `    ctx.di.register({\n` +
-      `        commandBus: ctx.asValue(buildCommandBus()),\n` +
-      `        salesChannelCodeIdPort: ctx.asValue(buildChannelPort()),\n` +
+    `export function composeApp(options) {\n` +
+      `    const container = createRootContainer();\n` +
+      `    registerValues(container, {\n` +
+      `        commandBus: buildCommandBus(),\n` +
+      `        eventBus: new EventBus(),\n` +
       `    });\n` +
+      `    composedModules.contribute({ salesChannelCodeIdPort: buildChannelPort() });\n` +
+      `    return container;\n` +
       `}\n`,
   );
 }
@@ -246,6 +255,10 @@ describe('the instance host derives what this repository derives', () => {
   });
 
   it('a name the platform’s composition root registers is a root’s, not nobody’s', () => {
+    // Measured on a real scaffolded instance installed from tarballs, before the
+    // root spelling was read: `commandBus` came out `unowned-subject`, which is
+    // the exact state `registration-owners.ts`' `rootSuppliedNames` doc block
+    // says it exists to prevent.
     const root = instance({
       declaration: `export const divergence = {
   omittedModules: [],
@@ -354,6 +367,22 @@ describe('the declaration is read as source text, and an unreadable one is never
       'apps/acme/divergence.ts',
     );
     expect(reading.unresolved).toEqual(['reasons (not an object literal)']);
+  });
+
+  it('names the file in the reader’s own tree, never this repository’s layout', async () => {
+    const root = instance({
+      declaration: `export const divergence = { omittedModules: [], decorationOrder: {}, reasons: {} };\n`,
+    });
+    const [report] = renderInstanceDivergence({ root, packages: installedOf(root) });
+    const undeclared = report!.findings.filter((f) => f.kind === 'undeclared-divergence');
+    expect(undeclared.length).toBeGreaterThan(0);
+    // SC-001's second rule. Measured on a real scaffolded instance before the
+    // path became a parameter: every one of these named
+    // `backend/src/apps/instance/divergence.ts`, a directory no client has.
+    for (const finding of undeclared) {
+      expect(finding.where).toBe('apps/acme/divergence.ts');
+      expect(finding.where).not.toContain('backend/src');
+    }
   });
 
   it('surfaces that through the command, so a client reads it rather than a clean run', async () => {

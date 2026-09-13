@@ -810,6 +810,14 @@ export interface DivergenceInput {
    * {@link divergenceBoundary}. Empty for this repository.
    */
   readonly hostNotRecorded?: ReadonlyArray<{ readonly seam: string; readonly why: string }>;
+  /**
+   * Where the declaration was read, as the reader's own tree spells it — the
+   * `where` of every declaration-keyed finding.
+   *
+   * Omitted means this repository's layout, which is what keeps
+   * `check:divergence`'s output unchanged.
+   */
+  readonly declarationPath?: string;
 }
 
 export interface DivergenceResult {
@@ -970,10 +978,21 @@ export function deriveDivergence(input: DivergenceInput): DivergenceResult {
 
   entries.sort((a, b) => a.key.localeCompare(b.key));
 
+  // Where the declaration was read, as the **reader's** tree spells it.
+  //
+  // A parameter since `specs/110-instance-repository/` T138a, and it had to
+  // become one: the default below is this repository's own layout, and a client's
+  // instance holds its deployment at `apps/<deployment>/` with no `backend/src`
+  // above it. A finding naming a directory the reader does not have is SC-001's
+  // second rule broken — *"no repository-relative paths; the reader's tree is not
+  // this one"* — and it is the finding's whole job to send someone to a file.
+  // Measured on a real scaffolded instance before the parameter existed: every
+  // `undeclared-divergence` it raised named `backend/src/apps/instance/divergence.ts`.
   const declarationPath =
-    input.deployment === 'core'
+    input.declarationPath ??
+    (input.deployment === 'core'
       ? '(no deployment)'
-      : `backend/src/apps/${input.deployment}/divergence.ts`;
+      : `backend/src/apps/${input.deployment}/divergence.ts`);
 
   // FR-004, both directions. An omission carries its reason inline, so it is
   // never `undeclared-divergence`; every other kind reads the `reasons` map.

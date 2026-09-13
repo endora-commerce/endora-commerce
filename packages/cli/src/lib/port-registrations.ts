@@ -605,3 +605,71 @@ export function resolvedNames(
   sf.forEachChild(visit);
   return found;
 }
+
+/**
+ * Every registration name a **composition root** writes into the container.
+ *
+ * A different spelling from {@link registeredNames} and that is the whole reason
+ * it exists: a module writes `ctx.di.register({ … })`, and a root writes
+ * `registerValues(container, { … })`, `container.register({ … })` or
+ * `composedModules.contribute({ … })` — D-45's contribution window as a method
+ * (issue #52). Missing the third would drop nearly every name a root supplies.
+ *
+ * ## Why the CLI needs it
+ *
+ * `specs/110-instance-repository/` T138a. The divergence report's second host is
+ * a client's instance, where `composeApp` **is** the composition root and comes
+ * out of `node_modules`, and `registration-owners.ts`' `rootSuppliedNames` is
+ * what tells *"a root registers it"* from *"nobody registers it"*. Its own doc
+ * block says what happens without it, and it was measured happening: an overlay
+ * module decorating `commandBus` in a real scaffolded instance was reported
+ * `unowned-subject` — a finding about the run dressed as one about the tree —
+ * because the platform registers it in a root spelling this file did not read.
+ *
+ * ## It is a **second copy**, knowingly, and here is the whole of that decision
+ *
+ * `backend/scripts/check-port-dependencies.ts` exports a `rootRegisteredNames`
+ * this one is taken from, unchanged. Two derivations of one predicate is the
+ * shape this estate refuses, so the copy is **not** the end state: that file's
+ * should become an import of this one, which is a one-line change and is
+ * deliberately not made in the merge request that adds this, feature 117's
+ * Phase 6 holding that file open at the time. Until it is,
+ * `backend/test/unit/scripts/check-divergence.test.ts` holds the two to each
+ * other over the shapes a root really writes — a divergence between them is red
+ * rather than silent, which is what a duplicated predicate otherwise costs.
+ *
+ * Spread elements are ignored: a name that only exists inside a spread is not a
+ * name this analysis can reason about.
+ */
+export function rootRegisteredNames(source: string, file: string): string[] {
+  const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  const names: string[] = [];
+  const collect = (literal: ts.ObjectLiteralExpression): void => {
+    for (const property of literal.properties) {
+      if (!property.name) continue;
+      if (ts.isIdentifier(property.name)) names.push(property.name.text);
+      else if (ts.isStringLiteral(property.name)) names.push(property.name.text);
+    }
+  };
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node)) {
+      const callee = ts.isIdentifier(node.expression) ? node.expression.text : calleeTail(node);
+      if (callee === 'registerValues') {
+        const [, second] = node.arguments;
+        if (second && ts.isObjectLiteralExpression(second)) collect(second);
+      }
+      if (
+        callee === 'container.register' ||
+        callee === 'register' ||
+        callee === 'contribute' ||
+        callee.endsWith('.contribute')
+      ) {
+        const [first] = node.arguments;
+        if (first && ts.isObjectLiteralExpression(first)) collect(first);
+      }
+    }
+    node.forEachChild(visit);
+  };
+  sf.forEachChild(visit);
+  return names;
+}
