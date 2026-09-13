@@ -206,19 +206,25 @@ describe('ModulesPage — the four states read differently (FR-034)', () => {
   it('reads a module that declares no control as always-on, in the locked shape (FR-016)', async () => {
     // Feature 074. This used to render "No switch yet", which announced an
     // omission: 66 of 67 modules were in this state while the conversion sweep
-    // ran, and the label named the backlog. With the sweep finished exactly one
-    // module is left here — `health_checks`, whose probes are exempt from
-    // gating outright — so the cell says *why there is no switch* instead, in
-    // the same affordance a core module's lock uses. An operator learns one
-    // rendering for "you cannot switch this"; the difference between "core" and
-    // "no seam to close" is carried by the sentence.
-    listed = [moduleItem({ id: 'health_checks', name: 'Health Checks' })];
+    // ran, and the label named the backlog. The cell says *why there is no
+    // switch* instead, in the same affordance a core module's lock uses. An
+    // operator learns one rendering for "you cannot switch this"; the
+    // difference between "core" and "no seam to close" is carried by the
+    // sentence.
+    //
+    // The subject is a fixture id and not a shipped module, because since D-229
+    // no module this repository ships is in this position — `health_checks` was
+    // the last and it is the platform's route now. This app renders whatever
+    // presence projection it is served, so the branch outlives the module that
+    // motivated it: a package from outside this repository can still arrive
+    // with no activation block.
+    listed = [moduleItem({ id: 'unclassified_module', name: 'Unclassified' })];
     presence = [
-      presenceItem({ id: 'health_checks', deactivatable: false, nonDeactivatableReason: null }),
+      presenceItem({ id: 'unclassified_module', deactivatable: false, nonDeactivatableReason: null }),
     ];
     await renderPage();
 
-    const probes = row('health_checks');
+    const probes = row('unclassified_module');
     expect(within(probes).getByText('platform.modules.activation.alwaysOn')).toBeInTheDocument();
     expect(
       within(probes).getByText('platform.modules.activation.alwaysOnReason'),
@@ -234,11 +240,11 @@ describe('ModulesPage — the four states read differently (FR-034)', () => {
   it('selects that copy on the absent declaration, never on the module id (FR-016)', async () => {
     // The property that keeps this from being the hard-coded exception list
     // Constitution XVII prohibits. A future module in the same position gets the
-    // same cell without an edit here, and `health_checks` gets an ordinary
+    // same cell without an edit here, and the other row gets an ordinary
     // control the moment its projection carries one.
     listed = [
       moduleItem({ id: 'some_future_module', name: 'Future' }),
-      moduleItem({ id: 'health_checks', name: 'Health Checks' }),
+      moduleItem({ id: 'unclassified_module', name: 'Unclassified' }),
     ];
     presence = [
       presenceItem({
@@ -246,7 +252,7 @@ describe('ModulesPage — the four states read differently (FR-034)', () => {
         deactivatable: false,
         nonDeactivatableReason: null,
       }),
-      presenceItem({ id: 'health_checks', deactivatable: true, activated: false, present: false }),
+      presenceItem({ id: 'unclassified_module', deactivatable: true, activated: false, present: false }),
     ];
     await renderPage();
 
@@ -254,10 +260,10 @@ describe('ModulesPage — the four states read differently (FR-034)', () => {
       within(row('some_future_module')).getByText('platform.modules.activation.alwaysOn'),
     ).toBeInTheDocument();
     expect(
-      within(row('health_checks')).queryByText('platform.modules.activation.alwaysOn'),
+      within(row('unclassified_module')).queryByText('platform.modules.activation.alwaysOn'),
     ).toBeNull();
     expect(
-      within(row('health_checks')).getByText('platform.modules.activation.off'),
+      within(row('unclassified_module')).getByText('platform.modules.activation.off'),
     ).toBeInTheDocument();
   });
 });

@@ -627,7 +627,7 @@ describe('the host-dependent floor (feature 080, T060)', () => {
   const declaring = [
     { moduleId: 'blog', dependsOnHost: true },
     { moduleId: 'seo', dependsOnHost: true },
-    { moduleId: 'health_checks', dependsOnHost: false },
+    { moduleId: 'analytics', dependsOnHost: false },
   ];
 
   it('expects a host reach from every package whose manifest declares the host', () => {

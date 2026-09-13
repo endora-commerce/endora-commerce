@@ -45,12 +45,17 @@
 import type { EnvironmentInput } from '@endora-commerce/contracts';
 
 /**
- * The 21 inputs the host and the platform read.
+ * The 23 inputs the host and the platform read.
  *
  * Order is the order a prompt asks in: the values without which nothing runs
  * first, then the addresses the platform composes links from, then the knobs.
  * An operator meeting this for the first time is asked for the database before
  * they are asked about proxy hops.
+ *
+ * The last two arrived with the liveness probe (D-229), which used to be the
+ * `health_checks` module and is now `http/health.ts`. Their sentences are that
+ * manifest's, carried across rather than rewritten: they were written for this
+ * probe and a rewrite would be a translation round-trip for no gain.
  */
 export const PLATFORM_ENVIRONMENT_INPUTS: readonly EnvironmentInput[] = [
   {
@@ -423,6 +428,44 @@ export const PLATFORM_ENVIRONMENT_INPUTS: readonly EnvironmentInput[] = [
     // it itself. The two are not one value two trees must agree about — they
     // are two processes, possibly on two machines — so this entry names the
     // backend alone. `REVALIDATE_SECRET` above is the contrasting case.
+    consumers: ['backend'],
+    addressOf: null,
+  },
+  {
+    name: 'MEILISEARCH_URL',
+    describes: {
+      en: 'Where the health endpoint looks for the search engine when it reports whether this instance is whole.',
+      pl: 'Gdzie punkt kontroli stanu szuka silnika wyszukiwania, gdy raportuje, czy ta instancja jest sprawna.',
+    },
+    requirement: {
+      kind: 'optional',
+      without: {
+        en: 'The probe reaches for the search engine at the platform’s own address, so a shop that runs it elsewhere is reported degraded while it is working.',
+        pl: 'Sonda szuka silnika wyszukiwania pod adresem wbudowanym w platformę, więc sklep, który uruchamia go gdzie indziej, jest raportowany jako niesprawny, choć działa.',
+      },
+    },
+    secret: false,
+    generable: false,
+    owner: { kind: 'platform' },
+    consumers: ['backend'],
+    addressOf: null,
+  },
+  {
+    name: 'npm_package_version',
+    describes: {
+      en: 'The version this instance reports in its health payload. The package manager sets it when it starts the server; an operator has nothing to choose here.',
+      pl: 'Wersja, którą ta instancja podaje w odpowiedzi kontroli stanu. Ustawia ją menedżer pakietów przy starcie serwera; operator nie ma tu nic do wyboru.',
+    },
+    requirement: {
+      kind: 'optional',
+      without: {
+        en: 'The health payload carries no usable version, so one deployment cannot be told apart from the one before it.',
+        pl: 'Odpowiedź kontroli stanu nie niesie użytecznej wersji, więc nie da się odróżnić jednego wdrożenia od poprzedniego.',
+      },
+    },
+    secret: false,
+    generable: false,
+    owner: { kind: 'platform' },
     consumers: ['backend'],
     addressOf: null,
   },

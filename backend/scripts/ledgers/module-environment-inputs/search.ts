@@ -7,15 +7,6 @@
  * file when its last entry goes.
  */
 export const entries = {
-  MEILISEARCH_URL: {
-    classification: 'bootstrap' as const,
-    reason:
-      'The address of a piece of this deployment’s infrastructure, in the class the platform ' +
-      'puts `DATABASE_URL` and `REDIS_URL` in: where a service is, is how a machine is ' +
-      'built, not how a shop is configured. Moving it into the settings store would also ' +
-      'make the search index’s address depend on the database being up, which is the ' +
-      'dependency inversion `health_checks`’ own entry describes one surface over.',
-  },
   MEILISEARCH_API_KEY: {
     classification: 'bootstrap' as const,
     reason:

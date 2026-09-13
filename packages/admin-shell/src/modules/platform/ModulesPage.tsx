@@ -83,9 +83,14 @@ type ActivationKind = 'on' | 'off' | 'locked' | 'always-on' | 'unknown';
  *
  * The selection is on the **absent declaration**, never on a module id. That is
  * what keeps this from being the hard-coded exception list Constitution XVII
- * prohibits — `health_checks` is the only module in the position today, and
- * `test/unit/_lifecycle/non-deactivatable-set.test.ts` is where that is pinned,
- * not here.
+ * prohibits. **No module this repository ships is in that position any more** —
+ * `health_checks` was the last and D-229 dissolved it into the platform, and
+ * `test/unit/_lifecycle/non-deactivatable-set.test.ts` now pins the class as
+ * empty. The branch stays regardless: this app renders whatever presence
+ * projection a deployment serves it, and a module package from outside this
+ * repository can still arrive with no activation block. A missing branch would
+ * render that module as switchable and offer an operator a control that does
+ * nothing.
  *
  * `unknown` is the remaining case and is not a decision: the presence
  * projection carried no row for this module, so this app knows nothing about

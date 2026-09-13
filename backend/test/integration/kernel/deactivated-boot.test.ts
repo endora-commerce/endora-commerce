@@ -123,17 +123,18 @@ const DEACTIVATED = [
  * *platform* axis rather than the operator's, which is what
  * `module:disable blog` produces and what an operator's own choice must survive.
  *
- * `health_checks` is here for a second reason as well: it is the one module
- * that declares no activation block at all, so with its registry row gone it is
+ * `health_checks` used to be here for a second reason: it was the one module
+ * declaring no activation block at all, so with its registry row gone it was
  * unknown to *both* axes — the tri-state's "not a module this deployment has",
- * which is a different answer from "installed and absent". Its probes answer
- * regardless, because `ctx.ungatedRoutes` exempts them, and the health-route
- * case at the bottom of this file is what shows it.
+ * which is a different answer from "installed and absent". D-229 dissolved it,
+ * and `test/unit/_lifecycle/non-deactivatable-set.test.ts` now pins that class
+ * as empty, so the case had no subject left and there is no second module to
+ * hand it to. What went with it is only the tri-state's third answer; the
+ * **health-route case at the bottom of this file survives and says more than it
+ * did**, because the route it probes is now the platform's own and answers with
+ * no module involved at all.
  */
-const PLATFORM_UNAVAILABLE = ['blog', 'health_checks'] as const;
-
-/** The only one of those with no activation declaration, hence no presence row. */
-const UNDECLARED = 'health_checks';
+const PLATFORM_UNAVAILABLE = ['blog'] as const;
 
 const ALL_MODULE_IDS = REGISTERED_MANIFESTS.map((e) => e.manifest.id);
 
@@ -307,7 +308,6 @@ describe('the production composition root boots with modules switched off', () =
 
   it('has every platform-unavailable module absent on the other axis', () => {
     for (const moduleId of PLATFORM_UNAVAILABLE) {
-      if (moduleId === UNDECLARED) continue;
       const presence = effectiveState.presence(moduleId);
       expect(presence?.platformAvailable, `${moduleId} platform axis`).toBe(false);
       // The operator never said no — `blog` ships activated by default and no
@@ -318,11 +318,6 @@ describe('the production composition root boots with modules switched off', () =
       expect(presence?.operatorActivated, `${moduleId} operator axis`).toBe(true);
       expect(effectiveState.isPresent(moduleId), `${moduleId} effective presence`).toBe(false);
     }
-  });
-
-  it('has the one module with no activation declaration unknown to both axes', () => {
-    expect(effectiveState.isPresent(UNDECLARED)).toBe(false);
-    expect(effectiveState.presence(UNDECLARED)).toBeUndefined();
   });
 
   for (const moduleId of DEACTIVATED) {
@@ -343,11 +338,14 @@ describe('the production composition root boots with modules switched off', () =
   });
 
   it('answers a request, which is what "the backend started" means', async () => {
-    // And it answers it from `health_checks`, which this boot did not install:
-    // the probes are exempt from gating through `ctx.ungatedRoutes`, which is
-    // the whole reason that module declares no activation control (feature 074,
-    // FR-013). If gating ever reached them, a deployment could lose its own
-    // liveness endpoint by withdrawing a module — and this case would say so.
+    // And it answers from the platform itself (D-229). This used to be
+    // `health_checks`' route, kept out of the gate by `ctx.ungatedRoutes` and
+    // therefore answering while its own module was withdrawn — which is what
+    // this case measured. The module is gone and the property is stronger: the
+    // probe is registered by `composeApp`, so there is no module for a
+    // withdrawal to take it away with. A boot with modules missing on both axes
+    // still answers, and if it ever stops, gating has reached a route no
+    // manifest declares.
     const health = await app!.inject({ method: 'GET', url: '/api/v1/_health' });
 
     expect(health.statusCode).toBe(200);

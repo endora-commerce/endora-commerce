@@ -278,11 +278,11 @@ describe('ModulesPage — the activation control lives here now (D-36a)', () => 
     // the "No switch yet" label with nothing in it; it is now the locked
     // affordance with its own sentence, so the button exists and is disabled.
     // What must not exist is anything that writes.
-    listed = [moduleItem({ id: 'health_checks', name: 'Health Checks' })];
-    presence = [presenceItem({ id: 'health_checks', deactivatable: false })];
+    listed = [moduleItem({ id: 'unclassified_module', name: 'Unclassified' })];
+    presence = [presenceItem({ id: 'unclassified_module', deactivatable: false })];
     await renderPage();
 
-    const control = within(row('health_checks')).getByRole('button');
+    const control = within(row('unclassified_module')).getByRole('button');
     expect(control).toBeDisabled();
     await userEvent.click(control);
     expect(setModuleActivation).not.toHaveBeenCalled();

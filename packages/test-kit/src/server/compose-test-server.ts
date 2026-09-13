@@ -64,6 +64,7 @@ import {
   createRegistrationOwnership,
   createRootContainer,
   forkScopedEm,
+  healthRoutePlugin,
   platformLogger,
   registerOrm,
   registerRequestScopeHook,
@@ -427,6 +428,12 @@ export async function composeTestServer(
     // needs finally exists. The reference application's harness pushes the
     // sales-channel plugin and a test's `extraModules` exactly there.
     const modules: ModulePlugin[] = [
+      // D-229 — the platform's liveness and readiness probe, in the position
+      // `composeApp` keeps it in. Not a module any more, and not a copy: the
+      // factory is the platform's, so the route this harness serves is the one
+      // production serves. `health_checks` existed in production and nowhere
+      // else for years because this root and that one wired it separately.
+      healthRoutePlugin({ orm, redis }),
       // Every module's route contribution, in the composer's order, ahead of
       // the root plugins for the same reason production keeps them there.
       ...composed.sink.plugins,

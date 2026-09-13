@@ -3,7 +3,6 @@
 '@endora-commerce/mod-catalog': minor
 '@endora-commerce/mod-cms': minor
 '@endora-commerce/mod-email': minor
-'@endora-commerce/mod-health-checks': minor
 '@endora-commerce/mod-inventory': minor
 '@endora-commerce/mod-ksef': minor
 '@endora-commerce/mod-mfa': minor
@@ -11,10 +10,15 @@
 '@endora-commerce/mod-search': minor
 ---
 
-Ten modules now declare the environment inputs they own, in `manifest.env`, so a
-client who installs them can be told what to put in their `.env`. Twenty-two
-declarations over twenty-one variables, each with an English and a Polish
-sentence, a requirement, and — for an `optional` one — what is lost without it.
+Nine modules now declare the environment inputs they own, in `manifest.env`, so a
+client who installs them can be told what to put in their `.env`. Each declaration
+carries an English and a Polish sentence, a requirement, and — for an `optional`
+one — what is lost without it.
+
+`health_checks` was the tenth until D-229 dissolved it into the platform; its two
+declarations went with it, and `search`'s `MEILISEARCH_URL` went with them,
+because the platform now declares that name and a module may not describe a
+platform input a second time.
 
 Nothing changes at runtime: no module reads a new variable and none changes how it
 reads an existing one. What changes is that the requirement is now on the wire, in

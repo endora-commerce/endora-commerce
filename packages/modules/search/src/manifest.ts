@@ -162,21 +162,15 @@ export const manifest = defineModuleManifest({
    *
    * Why each of these is not a Setting is its entry in
    * `backend/scripts/ledgers/module-environment-inputs/search.ts`.
+   *
+   * `MEILISEARCH_URL` is **not** here, and its absence is the rule working
+   * rather than an omission. D-229 moved the liveness probe into the platform,
+   * and the probe reads that address — so the platform declares it, and
+   * `module-declares-a-platform-input` refuses a second description of one
+   * variable (D-100). This module still reads it; a read resolves against the
+   * platform's declaration as well as its own.
    */
   env: [
-    {
-      name: 'MEILISEARCH_URL',
-      describes: {
-        en: 'Where this instance’s Meilisearch server is.',
-        pl: 'Gdzie znajduje się serwer Meilisearch tej instancji.',
-      },
-      requirement: { kind: 'required' },
-      secret: false,
-      generable: false,
-      owner: { kind: 'module', moduleId: 'search' },
-      consumers: ['backend'],
-      addressOf: null,
-    },
     {
       name: 'MEILISEARCH_API_KEY',
       describes: {

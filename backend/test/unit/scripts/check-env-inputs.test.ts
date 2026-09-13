@@ -438,11 +438,14 @@ describe('a module declares what it owns, and reads what others own', () => {
   });
 
   it('does not let a sibling module’s declaration satisfy this module’s read', () => {
-    // `MEILISEARCH_URL` is the live case: `search` declares it, and
-    // `health_checks`' liveness probe reads it while declaring no dependency on
-    // `search`. If one covered the other, a client installing `health_checks`
-    // alone would be short a variable this check had reported green — and would
-    // meet it as a probe that says the platform is degraded.
+    // `MEILISEARCH_URL` was the live case until D-229: `search` declared it,
+    // and the `health_checks` module's liveness probe read it while declaring
+    // no dependency on `search`. If one had covered the other, a client
+    // installing that module alone would have been short a variable this check
+    // had reported green — and would have met it as a probe saying the platform
+    // was degraded. The probe is the platform's own now and that pair no longer
+    // exists; the rule does, so the case keeps its shape over an arbitrary
+    // second module.
     const findings = checkEnvironmentInputs({
       declarations: [
         moduleDeclaration('search', [
@@ -455,11 +458,11 @@ describe('a module declares what it owns, and reads what others own', () => {
       ],
       reads: collectEnvironmentReads([
         moduleSource('search', "const a = process.env['MEILISEARCH_URL'];\n"),
-        moduleSource('health_checks', "const b = process.env['MEILISEARCH_URL'];\n"),
+        moduleSource('analytics', "const b = process.env['MEILISEARCH_URL'];\n"),
       ]),
     }).findings;
     expect(findings.map((finding) => finding.kind)).toEqual(['undeclared-module-input']);
-    expect(findings[0]?.where).toContain('health_checks');
+    expect(findings[0]?.where).toContain('analytics');
     // The message names the sibling, because that is the answer an author who
     // thinks this is already declared needs to read.
     expect(findings[0]?.detail).toContain('`search` declares it');
@@ -536,10 +539,10 @@ describe('a module declares what it owns, and reads what others own', () => {
       ]);
     expect(
       kindsOf(
-        [declaration('search'), declaration('health_checks')],
+        [declaration('search'), declaration('analytics')],
         [
           moduleSource('search', "const a = process.env['MEILISEARCH_URL'];\n"),
-          moduleSource('health_checks', "const b = process.env['MEILISEARCH_URL'];\n"),
+          moduleSource('analytics', "const b = process.env['MEILISEARCH_URL'];\n"),
         ],
       ),
     ).toEqual([]);
@@ -560,11 +563,11 @@ describe('a module declares what it owns, and reads what others own', () => {
             owner: { kind: 'module', moduleId: 'search' },
           }),
         ]),
-        moduleDeclaration('health_checks', [
+        moduleDeclaration('analytics', [
           input({
             name: 'MEILISEARCH_URL',
             secret: false,
-            owner: { kind: 'module', moduleId: 'health_checks' },
+            owner: { kind: 'module', moduleId: 'analytics' },
           }),
         ]),
       ],
@@ -573,7 +576,7 @@ describe('a module declares what it owns, and reads what others own', () => {
       ]),
     }).findings;
     expect(findings.map((finding) => finding.kind)).toEqual(['unread-input']);
-    expect(findings[0]?.where).toContain('health_checks');
+    expect(findings[0]?.where).toContain('analytics');
   });
 });
 
@@ -688,7 +691,7 @@ describe('the module-population floor, which this check delegates rather than ow
   it('refuses a walk that produced no source for a registered module', () => {
     expect(
       vacuousModulePopulation({
-        registered: ['search', 'health_checks'],
+        registered: ['search', 'analytics'],
         files: ['/repo/packages/modules/search/src/backend/index.ts'],
         moduleIdOf: (file) => (file.includes('/search/') ? 'search' : null),
       }),
@@ -700,12 +703,12 @@ describe('the module-population floor, which this check delegates rather than ow
     // a helper that refuses everything.
     expect(
       vacuousModulePopulation({
-        registered: ['search', 'health_checks'],
+        registered: ['search', 'analytics'],
         files: [
           '/repo/packages/modules/search/src/backend/index.ts',
-          '/repo/packages/modules/health_checks/src/backend/index.ts',
+          '/repo/packages/modules/analytics/src/backend/index.ts',
         ],
-        moduleIdOf: (file) => (file.includes('/search/') ? 'search' : 'health_checks'),
+        moduleIdOf: (file) => (file.includes('/search/') ? 'search' : 'analytics'),
       }),
     ).toBeNull();
   });

@@ -51,7 +51,10 @@ describe('the required set is derived from the manifests', () => {
     const required = requiredModulesFrom([
       manifest('settings', { nonDeactivatable: true, reason: SETTINGS_REASON }),
       manifest('blog', { settingCode: 'blog.enabled', default: true }),
-      manifest('health_checks', undefined),
+      // A manifest with no `activation` block at all. No module this repository
+      // ships is in that shape since D-229, and the type still admits it, so
+      // the derivation is asked about it here rather than nowhere.
+      manifest('unclassified_module', undefined),
     ]);
 
     expect(required.map((entry) => entry.moduleId)).toEqual(['settings']);

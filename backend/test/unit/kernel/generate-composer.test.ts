@@ -193,9 +193,12 @@ describe('T047 — the emitted list', () => {
   });
 
   it('holds wave 0 and the modules converted since', () => {
-    // The list grows with every conversion; what it may never do is lose one.
+    // The list grows with every conversion; what it may never do is lose one to
+    // a generator that stopped seeing it. A module genuinely *removed* leaves
+    // here in the same merge request that removes it — `health_checks` was the
+    // third name in this array until D-229 dissolved it into the platform.
     expect(MODULES.map((m) => m.id)).toEqual(
-      expect.arrayContaining(['blog', 'email', 'health_checks']),
+      expect.arrayContaining(['blog', 'email', 'google_tag_manager']),
     );
   });
 });

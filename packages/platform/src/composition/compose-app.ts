@@ -76,6 +76,7 @@ import { mikroOrmConfigFrom } from '../db/mikro-orm.config.js';
 import { createOrmBootstrap } from '../db/orm.js';
 import { EventBus } from '../events/bus.js';
 import { HttpError, type ErrorEnvelopeOptions } from '../http/error-envelope.js';
+import { healthRoutePlugin } from '../http/health.js';
 import { ApiInterceptorRegistry } from '../http/interceptors/index.js';
 import type { ModulePlugin } from '../http/server.js';
 import { StorefrontRevalidator } from '../http/storefront-revalidator.js';
@@ -1132,6 +1133,19 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // `options.scopedPlugins` from inside `contribute`, where the value a plugin
   // needs finally exists.
   const modules: ModulePlugin[] = [
+    // D-229 — the liveness and readiness probe, which is the platform's own
+    // surface and not a module's. It is first so that a reader looking for the
+    // one route an orchestrator polls finds it without reading the composer,
+    // and the position claims nothing about hooks: Fastify assembles a route's
+    // hook chain when the application is readied rather than when the route is
+    // registered (D-45), so the request-scope and sales-channel hooks below
+    // still see it — and both already exempt this path by name.
+    //
+    // It goes through `modules` rather than through `buildServer` because the
+    // probes close over `orm` and `redis`, which exist here and not there, and
+    // every composition root already passes `composition.modules` — including
+    // the one `endora new instance` writes. Nothing was asked of a root.
+    healthRoutePlugin({ orm, redis }),
     // Feature 072 — every module's route contribution, in the composer's order.
     //
     // They sit ahead of the root plugins, and that is not an ordering claim:

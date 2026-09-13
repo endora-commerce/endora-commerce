@@ -111,14 +111,19 @@ describe('T053 — a failure in the boot phase', () => {
     // A boot failure has to abort it before the server exists at all, which is
     // what makes a failed boot visible to an orchestrator as "down" rather than
     // as "up and answering half its routes".
+    // Some module's route, so that "the server was never built" is a claim
+    // about the build and not about an empty application. It is deliberately
+    // **not** `/api/v1/_health`: since D-229 the probe is the platform's own
+    // and `composeApp` registers it, so a module fixture wearing that path
+    // would describe an arrangement that no longer exists.
     const healthy: ModulePlugin = async (app) => {
-      app.get('/api/v1/_health', async () => ({ status: 'ok' }));
+      app.get('/api/v1/blog/posts', async () => ({ items: [] }));
     };
     const build = vi.fn(buildServer);
 
     const { run } = compose([
       {
-        id: 'health_checks',
+        id: 'blog',
         register: (ctx) => {
           ctx.routes(healthy);
         },

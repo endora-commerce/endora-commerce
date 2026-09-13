@@ -385,7 +385,7 @@ describe('formatDemoReport — §3.7', () => {
           seed: async () => ({ created: [] }),
           reset: async () => ({ removed: [] }),
         }),
-        entry('health_checks', false),
+        entry('pim_connector', false),
         entry('orders'),
       ],
       isPresent: (id) => id !== 'megamenu',
@@ -401,7 +401,7 @@ describe('formatDemoReport — §3.7', () => {
     expect(report).toContain('buyer@example.com / demo');
     // The two quiet states are counted, not listed: 57 lines saying "this
     // module has nothing to demonstrate" is a report nobody reads.
-    expect(report).not.toContain('health_checks');
+    expect(report).not.toContain('pim_connector');
     expect(report).toMatch(/1 declares none/);
     expect(report).toMatch(/1 has not decided/);
   });
