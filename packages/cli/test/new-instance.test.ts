@@ -36,6 +36,7 @@ import {
   nextSteps,
   runNewInstance,
 } from '../src/new-instance/index.js';
+import { DEFAULT_TOPOLOGY } from '../src/new-instance/deploy.js';
 import { resolveModuleSet, type ModuleCandidate } from '../src/new-instance/modules.js';
 import {
   devDependenciesFor,
@@ -739,7 +740,7 @@ describe('the tree (§1, §2)', () => {
     });
 
     it('T2-E — the next steps name the administrator, after the module install', () => {
-      const steps = nextSteps('/tmp/acme', 'default', ['settings', 'admin_users']);
+      const steps = nextSteps('/tmp/acme', 'default', DEFAULT_TOPOLOGY, ['settings', 'admin_users']);
       const text = steps.join('\n');
       expect(text).toContain('admin:create');
       expect(
@@ -751,13 +752,13 @@ describe('the tree (§1, §2)', () => {
       // The docstring above `nextSteps()` said *"The demo step is here rather
       // than in the tree"* while the array had none. Opt-in by the owner's
       // ruling of 2026-09-06, so the step says so rather than running it.
-      const steps = nextSteps('/tmp/acme', 'default', ['settings', 'admin_users']);
+      const steps = nextSteps('/tmp/acme', 'default', DEFAULT_TOPOLOGY, ['settings', 'admin_users']);
       expect(steps.join('\n')).toContain('cli demo seed');
       expect(steps.join('\n')).toContain('cli demo reset');
     });
 
     it('T2-E — an instance with no `admin_users` is told nothing it cannot run', () => {
-      expect(nextSteps('/tmp/acme', 'default', ['settings']).join('\n')).not.toContain(
+      expect(nextSteps('/tmp/acme', 'default', DEFAULT_TOPOLOGY, ['settings']).join('\n')).not.toContain(
         'admin:create',
       );
     });

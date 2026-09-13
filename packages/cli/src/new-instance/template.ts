@@ -1121,6 +1121,11 @@ const README_COMMANDS: readonly (readonly [script: string, argument: string, not
   ['module:enable', ' <id>', 'the operator\'s switch. A module that is off behaves as\nthough it were never installed'],
   ['module:disable', ' <id>', ''],
   ['module:uninstall', ' <id>', 'the reverse of `module:install`'],
+  // `specs/123-oss-install-experience/` G2. `admin:create` is conditional on
+  // `admin_users` being installed, which the filter below already handles: this
+  // table is annotations, and which of them survive is the manifest's answer.
+  ['admin:create', ' -- --email=…', 'the administrator you sign in as. Nothing else creates one'],
+  ['cli', ' --list', 'every operator command your installed modules declare.\nRun one as `pnpm run cli <module> <command>`'],
 ];
 
 /** The block itself, aligned, over the scripts this run declared. */
