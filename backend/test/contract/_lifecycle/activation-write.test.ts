@@ -259,14 +259,50 @@ describe('POST /api/v1/admin/modules/:id/activation [contract]', () => {
     },
   );
 
-  it('refuses a module that declares no activation control', async () => {
-    const undeclared = REGISTERED_MANIFESTS.find(
-      (e) => e.manifest.activation === undefined,
+  it('refuses a known module whose registry carries no activation declaration', async () => {
+    /**
+     * The subject is **constructed**, not searched for.
+     *
+     * This case used to take the first manifest with `activation === undefined`
+     * and flip it. That population had one member, `health_checks`, and D-229
+     * dissolved it into the platform: the liveness probe is the platform's own
+     * route now, so no manifest is left undeclared and
+     * `test/unit/_lifecycle/non-deactivatable-set.test.ts` asserts exactly that
+     * — `undeclaredIds` is `[]`, permanently, because a missing block is "a
+     * classification its author did not make". Searching a set another test
+     * guarantees is empty can only ever find nothing, which is why the guard
+     * beside the old `find` fired.
+     *
+     * Retiring the case was the other option and would have been wrong: the
+     * refusal is still a live branch of `assertActivationWritable`, reachable
+     * by any manifest the schema still lets omit `activation` — an overlay or
+     * an out-of-tree module package — and it is the branch that keeps a
+     * no-op apart from a refusal. So drop the declaration from the registry
+     * for the length of one request instead. That reproduces the state the
+     * branch is about without needing a module to be in it, and it pins the
+     * discrimination the old case could not: **known id with no declaration is
+     * a 409, not the 404 an unknown id gets.**
+     */
+    const saved = ALL_IDS.map((id) => registryCache.activationDeclaration(id)).filter(
+      (d): d is NonNullable<typeof d> => d !== undefined,
     );
-    expect(undeclared, 'the conversion sweep is complete — retire this case').toBeDefined();
-    const res = await flip(undeclared!.manifest.id, false);
-    expect(res.statusCode).toBe(409);
-    expect(res.json().error.code).toBe('MODULE_NOT_DEACTIVATABLE');
+    expect(saved.some((d) => d.moduleId === MODULE)).toBe(true);
+    try {
+      registryCache.setActivationDeclarations(saved.filter((d) => d.moduleId !== MODULE));
+      // The two halves of the branch's precondition: no declaration, but the
+      // platform axis still knows the module.
+      expect(registryCache.activationDeclaration(MODULE)).toBeUndefined();
+      expect(registryCache.platformStateOf(MODULE)).not.toBe('not-installed');
+
+      const res = await flip(MODULE, false);
+      expect(res.statusCode).toBe(409);
+      expect(res.json().error.code).toBe('MODULE_NOT_DEACTIVATABLE');
+      // Distinct from the `settingCode === null` arm, which answers with the
+      // module's own `nonDeactivatable` reason.
+      expect(res.json().error.message).toContain('declares no activation control');
+    } finally {
+      registryCache.setActivationDeclarations(saved);
+    }
   });
 
   it('refuses an unknown module id', async () => {
