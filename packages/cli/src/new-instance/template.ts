@@ -1255,6 +1255,16 @@ await runCli({ deploymentRoot: fileURLToPath(new URL('../..', import.meta.url)) 
 `,
   });
 
+  // The five `module:*` entry points' shared half, and it is fourteen lines
+  // rather than ninety since `fix/instance-wiring-operator-runtime`. The
+  // manifest resolution over three suppliers, the memoised `MikroORM` + `Redis`
+  // open, the system scope and the exit code are
+  // `<scope>platform/lifecycle`'s `runInstanceOperatorCommand`; what this file
+  // supplies is the two values that genuinely name a path in the tree that
+  // installs the platform — the directory holding `apps/`, and this instance's
+  // own ORM configuration — and that is R1.4's definition of wiring. The
+  // ninety-line version was more than a third of the whole 250-line budget and
+  // is what A14 refused in `registry` mode.
   files.push({
     path: 'backend/src/module-commands/runtime.ts',
     kind: 'wiring',
@@ -1262,91 +1272,19 @@ await runCli({ deploymentRoot: fileURLToPath(new URL('../..', import.meta.url)) 
     content: `// The one OperatorRuntime the five commands beside this file share.
 import { fileURLToPath } from 'node:url';
 
-import type { EntityManager } from '@mikro-orm/postgresql';
-import { MikroORM } from '@mikro-orm/postgresql';
-import { Redis } from 'ioredis';
-import { enterSystemScope } from '${scope}platform/kernel';
-import { resolveManifestEntries } from '${scope}platform/lifecycle';
-import type { OperatorResources, OperatorRuntime } from '${scope}platform/lifecycle';
-import {
-  activeOverlayModulesRoot,
-  overlayModuleIdsUnder,
-  overlayModuleManifestsUnder,
-} from '${scope}platform/overlay';
-import {
-  discoverPackageModuleManifests,
-  installedPackageModuleIdClaims,
-  nodeModulesRootsFor,
-} from '${scope}platform/packages';
+import { runInstanceOperatorCommand } from '${scope}platform/lifecycle';
+import type { OperatorRuntime } from '${scope}platform/lifecycle';
 import config from '../mikro-orm.config.js';
 
 // The directory that holds \`apps/\` — the same value \`index.ts\` hands
 // \`composeApp\`, two levels up from the compiled command rather than one.
 const deploymentRoot = fileURLToPath(new URL('../../..', import.meta.url));
 
-export async function operatorRuntime(): Promise<{
-  runtime: OperatorRuntime;
-  dispose: () => Promise<void>;
-}> {
-  let opened: OperatorResources | undefined;
-  // The manifest set is resolved first, before anything is opened: the
-  // resolution reads \`node_modules\` and may refuse a module id claimed twice,
-  // and an operator reads that refusal without a database being up.
-  //
-  // \`core\` is empty, which is what an instance is (see the ORM configuration):
-  // its modules are this deployment's overlay modules plus every Endora module
-  // package installed here.
-  const overlayRoot = activeOverlayModulesRoot(deploymentRoot, process.env);
-  // Who already claims a module id here. With no generated index the core half
-  // is empty, so it is the installed packages and nothing else — and it is
-  // computed per call rather than captured, because it reads \`node_modules\`.
-  const claims = () => installedPackageModuleIdClaims(nodeModulesRootsFor(process.env));
-  const entries = await resolveManifestEntries({
-    core: [],
-    overlay: async () =>
-      overlayRoot === null
-        ? []
-        : overlayModuleManifestsUnder(overlayRoot, overlayModuleIdsUnder(overlayRoot, claims())),
-    packages: () => discoverPackageModuleManifests(process.env),
-  });
-  return {
-    runtime: {
-      // Opened on first use: an invocation that answers out of argv or the
-      // registry alone opens no connection at all.
-      resources: async () => {
-        if (opened) return opened;
-        const orm = await MikroORM.init(await config());
-        const redis = new Redis(process.env['REDIS_URL'] ?? 'redis://localhost:6379', {
-          maxRetriesPerRequest: null,
-        });
-        opened = { orm, em: (): EntityManager => orm.em.fork(), redis };
-        return opened;
-      },
-      entries,
-      out: (line) => void process.stdout.write(line),
-      err: (line) => void process.stderr.write(line),
-    },
-    // Close only what was opened. Without this the five commands beside this
-    // file print their answer and then hang forever on a live Redis handle.
-    dispose: async () => {
-      if (!opened) return;
-      opened.redis.disconnect();
-      await opened.orm.close(true);
-    },
-  };
-}
-
 /** Build the runtime, run one command inside a system scope, close, exit. */
-export async function runOperatorCommand(
+export function runOperatorCommand(
   run: (argv: readonly string[], rt: OperatorRuntime) => Promise<number>,
 ): Promise<never> {
-  const { runtime, dispose } = await operatorRuntime();
-  const argv = process.argv.slice(2);
-  const code = await enterSystemScope('cli: operator command', () => run(argv, runtime), {
-    entryPoint: 'cli',
-  });
-  await dispose();
-  process.exit(code);
+  return runInstanceOperatorCommand({ deploymentRoot, ormConfig: config, run });
 }
 `,
   });

@@ -479,12 +479,22 @@ describe('T1 goes red, one proof per finding', () => {
     expect(result.refusals).toEqual([]);
   });
 
-  it('reproduces the `./lifecycle` name the template shipped', () => {
+  /**
+   * The subject moved with the file and the proof moved with it.
+   *
+   * It mutated `resolveManifestEntries`, which `runtime.ts` named while the
+   * file resolved the manifest set itself. It no longer does — the three
+   * suppliers are `runInstanceOperatorCommand`'s since
+   * `fix/instance-wiring-operator-runtime` — so the proof was mutating a string
+   * the fixture does not contain and asserting a finding nothing could report.
+   * It is the same `./lifecycle` claim over the symbol the file names today.
+   */
+  it('reproduces a `./lifecycle` name the template does not publish', () => {
     const files = planWith('backend/src/module-commands/runtime.ts', (content) =>
-      content.replace(/resolveManifestEntries/g, 'resolvedManifestEntries'),
+      content.replace(/runInstanceOperatorCommand/g, 'runInstanceOperatorCommands'),
     );
     const result = reconcileTemplate(files, HOST, readBarrel);
-    expect(subjects(result, 'unpublished-symbol')).toEqual(['resolvedManifestEntries']);
+    expect(subjects(result, 'unpublished-symbol')).toEqual(['runInstanceOperatorCommands']);
     expect(result.findings[0]?.message).toContain('does not publish it');
   });
 

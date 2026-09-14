@@ -100,6 +100,18 @@ export { runUninstallCommand } from './commands/uninstall.js';
 export { runEnableCommand } from './commands/enable.js';
 export { runDisableCommand } from './commands/disable.js';
 export { runStatusCommand } from './commands/status.js';
+// The entry point itself, since `fix/instance-wiring-operator-runtime`. An
+// instance's five files were five lines each over a **90-line** `runtime.ts`
+// that named nothing but platform symbols, and R1.4 bounds the wiring a client
+// maintains at 250 lines in total. What is genuinely the application's is the
+// directory holding `apps/` and its own `mikro-orm.config.js`; both are
+// parameters here, and the rendered file is fourteen lines.
+export {
+  instanceManifestEntries,
+  instanceOperatorRuntime,
+  runInstanceOperatorCommand,
+  type InstanceOperatorRuntimeOptions,
+} from './commands/operator-entry.js';
 
 // --- the module itself, as the generated artefacts name it ----------------
 // Phase 6 made this comment literally true: `composition.generated.ts` and
