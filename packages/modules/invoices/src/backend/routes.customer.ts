@@ -1,7 +1,13 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '@endora-commerce/platform/http';
-import { ERROR_CODES, type AssetReadPort, type OrderReadPort, type OrderRecord } from '@endora-commerce/contracts';
+import {
+  ERROR_CODES,
+  type AssetReadPort,
+  type ComarchXlSaleDocumentAttachmentPort,
+  type OrderReadPort,
+  type OrderRecord,
+} from '@endora-commerce/contracts';
 import { InvoiceExternalAttachment } from './entities/invoice-external-attachment.entity.js';
 import { Invoice } from './entities/invoice.entity.js';
 import type { InvoiceService } from './services/invoice-service.js';
@@ -13,6 +19,7 @@ export interface InvoicesCustomerDeps {
   /** `orders`' published read model — the ownership check (feature 075, Phase C). */
   orderReadPort: OrderReadPort;
   assetReadPort: AssetReadPort;
+  saleDocumentAttachments: ComarchXlSaleDocumentAttachmentPort;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   resolveCustomerContext: (req: FastifyRequest) => { customerAccountId: string; organizationId: string };
   invoiceService: InvoiceService;
@@ -33,6 +40,7 @@ export async function registerInvoicesCustomerRoutes(
     emFactory,
     orderReadPort,
     assetReadPort,
+    saleDocumentAttachments,
     requireCustomer,
     resolveCustomerContext,
     invoiceService,
@@ -162,8 +170,19 @@ export async function registerInvoicesCustomerRoutes(
         id: request.params.attachmentId,
         invoiceId: invoice.id,
       });
-      if (!attachment || !attachment.assetId) {
+      if (!attachment) {
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Attachment not found.');
+      }
+      if (!attachment.assetId) {
+        const ensured = await saleDocumentAttachments.ensureAttachmentBytes({
+          invoiceId: invoice.id,
+          attachmentId: attachment.id,
+          organizationId: ctx.organizationId,
+        });
+        if (!ensured) {
+          throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Attachment not found.');
+        }
+        attachment.assetId = ensured.assetId;
       }
       const asset = await assetReadPort.findById(attachment.assetId);
       if (!asset?.storageUrl) {

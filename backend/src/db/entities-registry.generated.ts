@@ -76,8 +76,8 @@ import { entities as erpConnectorEntities } from '@endora-commerce/mod-erp-conne
 import { entities as productFeedsEntities } from '@endora-commerce/mod-product-feeds/backend';
 import { entities as googleAnalyticsEntities } from '@endora-commerce/mod-google-analytics/backend';
 import { entities as inpostEntities } from '@endora-commerce/mod-inpost/backend';
-import { entities as invoiceLedgerEntities } from '@endora-commerce/mod-invoice-ledger/backend';
 import { entities as invoicesEntities } from '@endora-commerce/mod-invoices/backend';
+import { entities as invoiceLedgerEntities } from '@endora-commerce/mod-invoice-ledger/backend';
 import { entities as ksefEntities } from '@endora-commerce/mod-ksef/backend';
 import { entities as languagesEntities } from '@endora-commerce/mod-languages/backend';
 import { entities as linkedinAdsEntities } from '@endora-commerce/mod-linkedin-ads/backend';
@@ -152,8 +152,8 @@ export const ALL_ENTITIES = [
   ...(productFeedsEntities as readonly EntityClassLike[]),
   ...(googleAnalyticsEntities as readonly EntityClassLike[]),
   ...(inpostEntities as readonly EntityClassLike[]),
-  ...(invoiceLedgerEntities as readonly EntityClassLike[]),
   ...(invoicesEntities as readonly EntityClassLike[]),
+  ...(invoiceLedgerEntities as readonly EntityClassLike[]),
   ...(ksefEntities as readonly EntityClassLike[]),
   ...(languagesEntities as readonly EntityClassLike[]),
   ...(linkedinAdsEntities as readonly EntityClassLike[]),

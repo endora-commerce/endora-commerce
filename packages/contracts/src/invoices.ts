@@ -500,6 +500,26 @@ export type ErpSaleDocumentListItem = z.infer<typeof erpSaleDocumentListItemSche
  * module owns persistence; the connector owns XL identity mapping and lazy
  * attachment fetch (FR-088).
  */
+export interface ErpSaleDocumentAttachmentContext {
+  xlSaleDocumentId: string;
+  xlAttachmentId: string;
+  fileName: string;
+  contentType: string | null;
+}
+
 export interface ErpSaleDocumentWritePort {
   upsertImportedDocument(input: ErpSaleDocumentUpsertInput): Promise<ErpSaleDocumentUpsertResult>;
+  resolveAttachmentContext(input: {
+    invoiceId: string;
+    attachmentId: string;
+    organizationId: string;
+  }): Promise<ErpSaleDocumentAttachmentContext | null>;
+  /** Links fetched XL attachment bytes to an ERP-imported document (feature 119, FR-086). */
+  linkAttachmentAsset(input: {
+    invoiceId: string;
+    attachmentId: string;
+    organizationId: string;
+    assetId: string;
+    contentType?: string | null;
+  }): Promise<boolean>;
 }

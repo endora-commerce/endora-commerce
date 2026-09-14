@@ -162,7 +162,6 @@ const modules = [
       'module-reference/cms',
     ],
   },
-  { type: 'doc', id: 'modules/comarch_xl', label: 'Comarch ERP XL' },
   {
     type: 'category',
     label: 'Compare Products',

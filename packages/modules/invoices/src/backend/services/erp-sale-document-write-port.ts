@@ -59,6 +59,74 @@ export class ErpSaleDocumentWritePortService implements ErpSaleDocumentWritePort
     return { invoiceId: invoice.id, created: true };
   }
 
+  async resolveAttachmentContext(input: {
+    invoiceId: string;
+    attachmentId: string;
+    organizationId: string;
+  }): Promise<{
+    xlSaleDocumentId: string;
+    xlAttachmentId: string;
+    fileName: string;
+    contentType: string | null;
+  } | null> {
+    const em = this.emFactory();
+    const invoice = await em.findOne(Invoice, {
+      id: input.invoiceId,
+      origin: 'erp_import',
+      organizationId: input.organizationId,
+      status: 'ready',
+    });
+    if (!invoice?.externalDocumentRef?.xlSaleDocumentId) {
+      return null;
+    }
+
+    const attachment = await em.findOne(InvoiceExternalAttachment, {
+      id: input.attachmentId,
+      invoiceId: invoice.id,
+    });
+    if (!attachment) {
+      return null;
+    }
+
+    return {
+      xlSaleDocumentId: invoice.externalDocumentRef.xlSaleDocumentId,
+      xlAttachmentId: attachment.xlAttachmentId,
+      fileName: attachment.fileName,
+      contentType: attachment.contentType ?? null,
+    };
+  }
+
+  async linkAttachmentAsset(input: {
+    invoiceId: string;
+    attachmentId: string;
+    organizationId: string;
+    assetId: string;
+    contentType?: string | null;
+  }): Promise<boolean> {
+    const em = this.emFactory();
+    const invoice = await em.findOne(Invoice, {
+      id: input.invoiceId,
+      origin: 'erp_import',
+      organizationId: input.organizationId,
+      status: 'ready',
+    });
+    if (!invoice) return false;
+
+    const attachment = await em.findOne(InvoiceExternalAttachment, {
+      id: input.attachmentId,
+      invoiceId: invoice.id,
+    });
+    if (!attachment) return false;
+
+    attachment.assetId = input.assetId;
+    if (input.contentType !== undefined) {
+      attachment.contentType = input.contentType;
+    }
+    attachment.downloadedAt = new Date();
+    await em.flush();
+    return true;
+  }
+
   private async findByXlSaleDocumentId(
     em: EntityManager,
     xlSaleDocumentId: string,

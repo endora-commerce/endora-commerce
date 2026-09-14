@@ -6,6 +6,7 @@ import type {
   CorrectiveInvoicePort,
   CustomerAccountReadPort,
   EmailDefaultsRegistryPort,
+  ComarchXlSaleDocumentAttachmentPort,
   ErpSaleDocumentWritePort,
   InvoiceCopyHostPort,
   InvoiceKsefAssignmentPort,
@@ -153,6 +154,10 @@ export function registerModule(ctx: ModuleContext): void {
           // binding dependency of this manifest and the edge stays fail-closed.
           orderReadPort: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
           assetReadPort: lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
+          saleDocumentAttachments: lazyPort<ComarchXlSaleDocumentAttachmentPort>(
+            ctx,
+            'comarchXlSaleDocumentAttachmentPort',
+          ),
           eventBus,
           audit: auditLogService,
           auditLog: auditLogService,

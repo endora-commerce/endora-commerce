@@ -134,10 +134,10 @@ import * as module44 from '@endora-commerce/mod-credit-limits/backend';
 import { manifest as manifest44 } from '@endora-commerce/mod-credit-limits';
 import * as module45 from '@endora-commerce/mod-inventory/backend';
 import { manifest as manifest45 } from '@endora-commerce/mod-inventory';
-import * as module46 from '@endora-commerce/mod-comarch-xl/backend';
-import { manifest as manifest46 } from '@endora-commerce/mod-comarch-xl';
-import * as module47 from '@endora-commerce/mod-invoices/backend';
-import { manifest as manifest47 } from '@endora-commerce/mod-invoices';
+import * as module46 from '@endora-commerce/mod-invoices/backend';
+import { manifest as manifest46 } from '@endora-commerce/mod-invoices';
+import * as module47 from '@endora-commerce/mod-comarch-xl/backend';
+import { manifest as manifest47 } from '@endora-commerce/mod-comarch-xl';
 import * as module48 from '@endora-commerce/mod-infakt/backend';
 import { manifest as manifest48 } from '@endora-commerce/mod-infakt';
 import * as module49 from '@endora-commerce/mod-ksef/backend';
@@ -240,8 +240,8 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'orders', version: manifest43.version, registerModule: module43.registerModule },
   { id: 'credit_limits', version: manifest44.version, registerModule: module44.registerModule },
   { id: 'inventory', version: manifest45.version, registerModule: module45.registerModule },
-  { id: 'comarch_xl', version: manifest46.version, registerModule: module46.registerModule },
-  { id: 'invoices', version: manifest47.version, registerModule: module47.registerModule },
+  { id: 'invoices', version: manifest46.version, registerModule: module46.registerModule },
+  { id: 'comarch_xl', version: manifest47.version, registerModule: module47.registerModule },
   { id: 'infakt', version: manifest48.version, registerModule: module48.registerModule },
   { id: 'ksef', version: manifest49.version, registerModule: module49.registerModule },
   { id: 'payments', version: manifest50.version, registerModule: module50.registerModule },
