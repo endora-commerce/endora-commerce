@@ -159,6 +159,21 @@ export function registerModule(ctx: ModuleContext): void {
     kind: 'invoice' | 'correction';
     salesChannelId: string | null;
   }): Promise<void> {
+    // The buyer organization, first and outside every other read: it is the
+    // delivery row's own tenant key since the two ledger tables stopped hanging
+    // off `Invoice` (`invoice-ledger-delivery.entity.ts` has the reasoning),
+    // and a row cannot be written without one — Principle XI has no
+    // "no organization" path. The copy port is the only way this module learns
+    // anything about an invoice, and it is the same `invoiceCopyHostPort` the
+    // delivery list already reads. It returning nothing is a state with nothing
+    // to enqueue rather than a refusal to report: either `invoices` is absent,
+    // in which case it emitted no event and this function was not reached, or
+    // the invoice this event names is gone, and a work item for an invoice that
+    // is not there has nothing to deliver.
+    const copies = lazyPort<InvoiceCopyHostPort>(ctx, 'invoiceCopyHostPort');
+    const copy = await copies.getById(input.invoiceId);
+    if (copy === null) return;
+    const organizationId = copy.organizationId;
     const routing = lazyPort<InvoiceLedgerRoutingPort>(ctx, 'invoiceLedgerRoutingPort');
     const channelId = input.salesChannelId;
     const numberingMode = await routing.numberingModeFor(channelId);
@@ -172,6 +187,7 @@ export function registerModule(ctx: ModuleContext): void {
           {
             adapterId: INVOICE_LEDGER_MODULES[0].id,
             invoiceId: input.invoiceId,
+            organizationId,
             kind: input.kind,
             salesChannelId: channelId,
             credentialCode: INVOICE_LEDGER_MODULES[0].id,
@@ -196,6 +212,7 @@ export function registerModule(ctx: ModuleContext): void {
     const row = await deliveries.enqueue({
       adapterId,
       invoiceId: input.invoiceId,
+      organizationId,
       kind: input.kind,
       salesChannelId: channelId,
       credentialCode,

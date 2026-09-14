@@ -45,15 +45,21 @@ describe('the committed platform’s transitive tenancy chains', () => {
   it('walks the chains the platform actually has', () => {
     const transitive = tenantClassifications().filter((meta) => meta.scope === 'transitive');
     // The membership is asserted as a set, so a class arriving is read here
-    // rather than inherited silently by a `find`. It is four rather than two
-    // since feature 119: `invoice_ledger` hangs its delivery rows and its
-    // vendor document maps off the invoice they copy, which is the same chain
-    // `KsefSubmission` takes — and has to be, because neither table carries an
-    // organization column of its own.
+    // rather than inherited silently by a `find`.
+    //
+    // **It was four and is two again, and the sentence it used to carry is the
+    // defect.** That sentence said `invoice_ledger`'s two tables take
+    // `KsefSubmission`'s chain "and has to be, because neither table carries an
+    // organization column of its own" — true of the schema as written, and the
+    // wrong conclusion: `ksef` declares `invoices` in its manifest
+    // `dependencies` and `invoice_ledger` cannot, being `nonDeactivatable`
+    // (`module-composition.md` §4a). So an instance composing the locked set
+    // without `invoices` loaded those two classes and no `Invoice`, and the
+    // boot reconciliation refused — A3 of the instance acceptance criterion.
+    // Both tables carry the column now. The general claim is
+    // `transitive-parent-module-ownership.test.ts`'; this is the population.
     expect(transitive.map((meta) => meta.className).sort()).toEqual([
       'Invoice',
-      'InvoiceLedgerDelivery',
-      'InvoiceLedgerDocumentMap',
       'KsefSubmission',
     ]);
 
@@ -68,17 +74,9 @@ describe('the committed platform’s transitive tenancy chains', () => {
     const root = resolveTransitiveParent(middle);
     expect(root).toMatchObject({ className: 'Order', scope: 'org', key: 'organizationId' });
 
-    // The two ledger tables take the same two hops, and the walk is asserted
-    // rather than assumed: a parent name that resolves is not thereby a parent
-    // that reaches an organization column.
-    for (const className of ['InvoiceLedgerDelivery', 'InvoiceLedgerDocumentMap']) {
-      const ledgerRow = transitive.find((meta) => meta.className === className);
-      expect(ledgerRow, className).toMatchObject({ parentClassName: 'Invoice', fk: 'invoiceId' });
-      expect(resolveTransitiveParent(resolveTransitiveParent(ledgerRow!))).toMatchObject({
-        className: 'Order',
-        scope: 'org',
-        key: 'organizationId',
-      });
-    }
+    // `invoice_ledger`'s two tables are `@OrgScoped` and no longer in this
+    // population at all, which is the assertion above; that they carry a
+    // resolved organization column is `configured-entities`' classification
+    // total, and re-asserting it here would be a second answer to it.
   });
 });
