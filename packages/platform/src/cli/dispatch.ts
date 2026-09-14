@@ -43,15 +43,9 @@ import { effectiveState } from '../kernel/lifecycle/effective-state.js';
 import { ModuleDisabledError } from '../kernel/lifecycle/plugin-helpers.js';
 import { enterSystemScope } from '../kernel/scope.js';
 import {
-  resolveManifestEntries,
+  instanceManifestEntries,
   type RegisteredManifestEntry,
 } from '../lifecycle/index.js';
-import { activeOverlayModulesRoot, overlayModulesUnder } from '../overlay/index.js';
-import {
-  discoverPackageModuleManifests,
-  installedPackageModuleIdClaims,
-  nodeModulesRootsFor,
-} from '../packages/index.js';
 import {
   DEMO_HOST_COMMANDS,
   NO_DEMO_COMPOSITION_NOTICE,
@@ -137,28 +131,6 @@ export interface RunCliOptions {
   readonly out?: (chunk: string) => void;
   readonly err?: (chunk: string) => void;
   readonly env?: NodeJS.ProcessEnv;
-}
-
-/**
- * The declaration-level manifest set of a tree that ships no generated index.
- *
- * It is the instance's, and it is the same three suppliers
- * `backend/src/module-commands/runtime.ts` is rendered with — the file an
- * instance already owns for the five `module:*` verbs — so `--list` and the five
- * operator commands answer over one population rather than two.
- */
-async function instanceManifestEntries(
-  deploymentRoot: string,
-  env: NodeJS.ProcessEnv,
-): Promise<readonly RegisteredManifestEntry[]> {
-  const overlayModules = overlayModulesUnder(activeOverlayModulesRoot(deploymentRoot, env), () =>
-    installedPackageModuleIdClaims(nodeModulesRootsFor(env)),
-  );
-  return await resolveManifestEntries({
-    core: [],
-    overlay: () => overlayModules.manifests(),
-    packages: () => discoverPackageModuleManifests(env),
-  });
 }
 
 /**

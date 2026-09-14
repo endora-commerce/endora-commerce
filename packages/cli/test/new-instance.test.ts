@@ -41,6 +41,7 @@ import {
   runNewInstance,
 } from '../src/new-instance/index.js';
 import { DEFAULT_TOPOLOGY } from '../src/new-instance/deploy.js';
+import { npmrcContent } from '../src/new-storefront/npmrc.js';
 import { resolveModuleSet, type ModuleCandidate } from '../src/new-instance/modules.js';
 import {
   declaredEnvironmentInputs,
@@ -666,6 +667,52 @@ describe('the tree (§1, §2)', () => {
 
   it('R1.4 — the wiring is under the bound, measured on the plan', () => {
     expect(wiringLineCount(planInstance(planInput()))).toBeLessThan(250);
+  });
+
+  /**
+   * R1.4 again, over the plan a **complete** `--registry` run writes — which is
+   * a different plan from the one above, and was measured by nothing.
+   *
+   * Two populations the case above leaves out, and each one alone is inside the
+   * headroom it had. `planInput()` resolves no admin shell, so its plan omits
+   * the `admin/` member and the ten-line `admin/src/main.tsx` with it and
+   * writes `pnpm-workspace.yaml` one line shorter; and its `npmrc` is `null`,
+   * so the eleven-line `.npmrc` — `kind: 'wiring'` — is not in the count
+   * either. 237 lines over twelve files, against a real run's 248 over thirteen
+   * and 259 over fourteen.
+   *
+   * The criterion measures the created tree rather than this plan, and it read
+   * exactly those two numbers: A14 passed at 248 in `tarball` mode and failed
+   * at **259** in `registry` mode on pipeline 13835, from one checkout on one
+   * day. A bound a supply route decides is not a bound on the wiring a client
+   * maintains, and a fixture that is short of the plan every real run writes is
+   * how a green here and a red there came from one tree.
+   */
+  it('R1.4 — the bound holds for the complete plan, admin member and `.npmrc` included', () => {
+    const registry = 'https://registry.example.com/';
+    const npmrc = npmrcContent(registry, ['@endora-commerce']);
+    const complete = planInstance(
+      planInput({
+        adminShellVersion: '4.5.6',
+        adminKitVersion: '4.5.6',
+        adminRanges: new Map([
+          ['react', '^19.0.0'],
+          ['react-dom', '^19.0.0'],
+          ['vite', '^7.3.2'],
+          ['@vitejs/plugin-react', '^5.2.0'],
+          ['tailwindcss', '^4.2.4'],
+          ['@tailwindcss/vite', '^4.2.4'],
+        ]),
+        adminPeers: new Map(),
+        registry,
+        npmrc,
+      }),
+    );
+    // Both members are really in it, so the assertion below is over the whole
+    // population rather than over a plan that quietly omitted one again.
+    expect(complete.files.some((file) => file.path === 'admin/src/main.tsx')).toBe(true);
+    expect(complete.files.some((file) => file.path === '.npmrc')).toBe(true);
+    expect(wiringLineCount(complete)).toBeLessThan(250);
   });
 
   /**
