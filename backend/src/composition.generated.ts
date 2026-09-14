@@ -130,12 +130,12 @@ import * as module42 from '@endora-commerce/mod-comparisons/backend';
 import { manifest as manifest42 } from '@endora-commerce/mod-comparisons';
 import * as module43 from '@endora-commerce/mod-orders/backend';
 import { manifest as manifest43 } from '@endora-commerce/mod-orders';
-import * as module44 from '@endora-commerce/mod-comarch-xl/backend';
-import { manifest as manifest44 } from '@endora-commerce/mod-comarch-xl';
-import * as module45 from '@endora-commerce/mod-credit-limits/backend';
-import { manifest as manifest45 } from '@endora-commerce/mod-credit-limits';
-import * as module46 from '@endora-commerce/mod-inventory/backend';
-import { manifest as manifest46 } from '@endora-commerce/mod-inventory';
+import * as module44 from '@endora-commerce/mod-credit-limits/backend';
+import { manifest as manifest44 } from '@endora-commerce/mod-credit-limits';
+import * as module45 from '@endora-commerce/mod-inventory/backend';
+import { manifest as manifest45 } from '@endora-commerce/mod-inventory';
+import * as module46 from '@endora-commerce/mod-comarch-xl/backend';
+import { manifest as manifest46 } from '@endora-commerce/mod-comarch-xl';
 import * as module47 from '@endora-commerce/mod-invoices/backend';
 import { manifest as manifest47 } from '@endora-commerce/mod-invoices';
 import * as module48 from '@endora-commerce/mod-infakt/backend';
@@ -238,9 +238,9 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'price_lists', version: manifest41.version, registerModule: module41.registerModule },
   { id: 'comparisons', version: manifest42.version, registerModule: module42.registerModule },
   { id: 'orders', version: manifest43.version, registerModule: module43.registerModule },
-  { id: 'comarch_xl', version: manifest44.version, registerModule: module44.registerModule },
-  { id: 'credit_limits', version: manifest45.version, registerModule: module45.registerModule },
-  { id: 'inventory', version: manifest46.version, registerModule: module46.registerModule },
+  { id: 'credit_limits', version: manifest44.version, registerModule: module44.registerModule },
+  { id: 'inventory', version: manifest45.version, registerModule: module45.registerModule },
+  { id: 'comarch_xl', version: manifest46.version, registerModule: module46.registerModule },
   { id: 'invoices', version: manifest47.version, registerModule: module47.registerModule },
   { id: 'infakt', version: manifest48.version, registerModule: module48.registerModule },
   { id: 'ksef', version: manifest49.version, registerModule: module49.registerModule },

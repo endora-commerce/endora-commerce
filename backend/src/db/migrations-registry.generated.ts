@@ -106,6 +106,7 @@ import { Migration20260912T125709CmsPageBodyAssetRefIndex } from '@endora-commer
 
 // ── comarch_xl ──────────────────────────────────────────────────────────────
 import { Migration20260911T121000ComarchXlInit } from '@endora-commerce/mod-comarch-xl/migrations';
+import { Migration20260914T120000ComarchXlLastAppliedSnapshots } from '@endora-commerce/mod-comarch-xl/migrations';
 
 // ── comparisons ─────────────────────────────────────────────────────────────
 import { Migration20260501T185834ComparisonsInit } from '@endora-commerce/mod-comparisons/migrations';
@@ -443,6 +444,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── comarch_xl ──────────────────────────────────────────────────────────────
   migration('comarch_xl', Migration20260911T121000ComarchXlInit),
+  migration('comarch_xl', Migration20260914T120000ComarchXlLastAppliedSnapshots),
 
   // ── comparisons ─────────────────────────────────────────────────────────────
   migration('comparisons', Migration20260501T185834ComparisonsInit),
