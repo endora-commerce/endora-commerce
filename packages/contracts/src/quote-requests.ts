@@ -441,6 +441,10 @@ export interface QuoteRequestLineRecord {
   quantity: number;
   packagingUnitName: string | null;
   packagingUnitBaseQuantity: number | null;
+  /** Present for ERP export callers; cart conversion ignores these (FR-017). */
+  lineCurrency: string;
+  agreedUnitPrice: string | null;
+  desiredUnitPrice: string | null;
 }
 
 /**

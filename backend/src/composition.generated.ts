@@ -136,32 +136,32 @@ import * as module45 from '@endora-commerce/mod-inventory/backend';
 import { manifest as manifest45 } from '@endora-commerce/mod-inventory';
 import * as module46 from '@endora-commerce/mod-invoices/backend';
 import { manifest as manifest46 } from '@endora-commerce/mod-invoices';
-import * as module47 from '@endora-commerce/mod-comarch-xl/backend';
-import { manifest as manifest47 } from '@endora-commerce/mod-comarch-xl';
-import * as module48 from '@endora-commerce/mod-infakt/backend';
-import { manifest as manifest48 } from '@endora-commerce/mod-infakt';
-import * as module49 from '@endora-commerce/mod-ksef/backend';
-import { manifest as manifest49 } from '@endora-commerce/mod-ksef';
-import * as module50 from '@endora-commerce/mod-payments/backend';
-import { manifest as manifest50 } from '@endora-commerce/mod-payments';
-import * as module51 from '@endora-commerce/mod-pim-akeneo/backend';
-import { manifest as manifest51 } from '@endora-commerce/mod-pim-akeneo';
-import * as module52 from '@endora-commerce/mod-pim-ergonode/backend';
-import { manifest as manifest52 } from '@endora-commerce/mod-pim-ergonode';
-import * as module53 from '@endora-commerce/mod-pim-pimcore/backend';
-import { manifest as manifest53 } from '@endora-commerce/mod-pim-pimcore';
-import * as module54 from '@endora-commerce/mod-pim-unopim/backend';
-import { manifest as manifest54 } from '@endora-commerce/mod-pim-unopim';
-import * as module55 from '@endora-commerce/mod-product-feeds/backend';
-import { manifest as manifest55 } from '@endora-commerce/mod-product-feeds';
-import * as module56 from '@endora-commerce/mod-promotions/backend';
-import { manifest as manifest56 } from '@endora-commerce/mod-promotions';
-import * as module57 from '@endora-commerce/mod-pwa/backend';
-import { manifest as manifest57 } from '@endora-commerce/mod-pwa';
-import * as module58 from '@endora-commerce/mod-quote-requests/backend';
-import { manifest as manifest58 } from '@endora-commerce/mod-quote-requests';
-import * as module59 from '@endora-commerce/mod-carts/backend';
-import { manifest as manifest59 } from '@endora-commerce/mod-carts';
+import * as module47 from '@endora-commerce/mod-infakt/backend';
+import { manifest as manifest47 } from '@endora-commerce/mod-infakt';
+import * as module48 from '@endora-commerce/mod-ksef/backend';
+import { manifest as manifest48 } from '@endora-commerce/mod-ksef';
+import * as module49 from '@endora-commerce/mod-payments/backend';
+import { manifest as manifest49 } from '@endora-commerce/mod-payments';
+import * as module50 from '@endora-commerce/mod-pim-akeneo/backend';
+import { manifest as manifest50 } from '@endora-commerce/mod-pim-akeneo';
+import * as module51 from '@endora-commerce/mod-pim-ergonode/backend';
+import { manifest as manifest51 } from '@endora-commerce/mod-pim-ergonode';
+import * as module52 from '@endora-commerce/mod-pim-pimcore/backend';
+import { manifest as manifest52 } from '@endora-commerce/mod-pim-pimcore';
+import * as module53 from '@endora-commerce/mod-pim-unopim/backend';
+import { manifest as manifest53 } from '@endora-commerce/mod-pim-unopim';
+import * as module54 from '@endora-commerce/mod-product-feeds/backend';
+import { manifest as manifest54 } from '@endora-commerce/mod-product-feeds';
+import * as module55 from '@endora-commerce/mod-promotions/backend';
+import { manifest as manifest55 } from '@endora-commerce/mod-promotions';
+import * as module56 from '@endora-commerce/mod-pwa/backend';
+import { manifest as manifest56 } from '@endora-commerce/mod-pwa';
+import * as module57 from '@endora-commerce/mod-quote-requests/backend';
+import { manifest as manifest57 } from '@endora-commerce/mod-quote-requests';
+import * as module58 from '@endora-commerce/mod-carts/backend';
+import { manifest as manifest58 } from '@endora-commerce/mod-carts';
+import * as module59 from '@endora-commerce/mod-comarch-xl/backend';
+import { manifest as manifest59 } from '@endora-commerce/mod-comarch-xl';
 import * as module60 from '@endora-commerce/mod-quick-order/backend';
 import { manifest as manifest60 } from '@endora-commerce/mod-quick-order';
 import * as module61 from '@endora-commerce/mod-customers/backend';
@@ -241,19 +241,19 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'credit_limits', version: manifest44.version, registerModule: module44.registerModule },
   { id: 'inventory', version: manifest45.version, registerModule: module45.registerModule },
   { id: 'invoices', version: manifest46.version, registerModule: module46.registerModule },
-  { id: 'comarch_xl', version: manifest47.version, registerModule: module47.registerModule },
-  { id: 'infakt', version: manifest48.version, registerModule: module48.registerModule },
-  { id: 'ksef', version: manifest49.version, registerModule: module49.registerModule },
-  { id: 'payments', version: manifest50.version, registerModule: module50.registerModule },
-  { id: 'pim_akeneo', version: manifest51.version, registerModule: module51.registerModule },
-  { id: 'pim_ergonode', version: manifest52.version, registerModule: module52.registerModule },
-  { id: 'pim_pimcore', version: manifest53.version, registerModule: module53.registerModule },
-  { id: 'pim_unopim', version: manifest54.version, registerModule: module54.registerModule },
-  { id: 'product_feeds', version: manifest55.version, registerModule: module55.registerModule },
-  { id: 'promotions', version: manifest56.version, registerModule: module56.registerModule },
-  { id: 'pwa', version: manifest57.version, registerModule: module57.registerModule },
-  { id: 'quote_requests', version: manifest58.version, registerModule: module58.registerModule },
-  { id: 'carts', version: manifest59.version, registerModule: module59.registerModule },
+  { id: 'infakt', version: manifest47.version, registerModule: module47.registerModule },
+  { id: 'ksef', version: manifest48.version, registerModule: module48.registerModule },
+  { id: 'payments', version: manifest49.version, registerModule: module49.registerModule },
+  { id: 'pim_akeneo', version: manifest50.version, registerModule: module50.registerModule },
+  { id: 'pim_ergonode', version: manifest51.version, registerModule: module51.registerModule },
+  { id: 'pim_pimcore', version: manifest52.version, registerModule: module52.registerModule },
+  { id: 'pim_unopim', version: manifest53.version, registerModule: module53.registerModule },
+  { id: 'product_feeds', version: manifest54.version, registerModule: module54.registerModule },
+  { id: 'promotions', version: manifest55.version, registerModule: module55.registerModule },
+  { id: 'pwa', version: manifest56.version, registerModule: module56.registerModule },
+  { id: 'quote_requests', version: manifest57.version, registerModule: module57.registerModule },
+  { id: 'carts', version: manifest58.version, registerModule: module58.registerModule },
+  { id: 'comarch_xl', version: manifest59.version, registerModule: module59.registerModule },
   { id: 'quick_order', version: manifest60.version, registerModule: module60.registerModule },
   { id: 'customers', version: manifest61.version, registerModule: module61.registerModule },
   { id: 'newsletter', version: manifest62.version, registerModule: module62.registerModule },
