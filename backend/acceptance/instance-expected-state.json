@@ -159,63 +159,63 @@
       "assertions": {
         "A1": {
           "status": "pass",
-          "reason": "no file in the created tree names anything above its own directory. It is green on the 2026-09-11 build of the command, which is what this mode measures."
+          "reason": "no file in the created tree names anything above its own directory."
         },
         "A2": {
-          "status": "fail",
-          "reason": "`ERR_PNPM_NO_MATCHING_VERSION  No matching version found for @endora-commerce/mod-addresses@^0.8.0`, the registry's latest being `0.7.1`. **`0.7.1` is also the version this tree declares**, and no package on the registry is behind the tree: publish job 48836 (2026-09-11) published all 83 — 68 at `0.8.0`, 15 at `0.7.1` — and every one of the 82 publishable packages in the tree today carries exactly the version the registry serves, with zero differences. What is behind is the **content** of `@endora-commerce/cli@0.8.0`: the range derivation it carries writes the platform's version onto every module, which 670851a47 repaired on 2026-09-13 under an unchanged version string. Thirty-four packages are in that state and they are exactly the thirty-four an unconsumed changeset names. The repair is a **publication**, not a code change: `specs/123-oss-install-experience/tasks.md` Phase 5, under D-234."
+          "status": "pass",
+          "reason": "THE HEADLINE, AND ITS REASON IS A PUBLICATION RATHER THAN A CODE CHANGE. `pnpm install` succeeded outside the checkout, resolving the published ranges the scaffold wrote from the configured registry. It was `fail` here with `ERR_PNPM_NO_MATCHING_VERSION No matching version found for @endora-commerce/mod-addresses@^0.8.0`, and what stood between the two runs is `release/version-0.9.0`: 80 of 82 publishable packages are now served at the version this checkout declares, so the ranges the scaffolder writes resolve. The two that are not are named in this run own note — `@endora-commerce/mod-ksef` and `@endora-commerce/test-kit`, each served at `0.9.0` with an unconsumed changeset against it, which is one version string over two different programs. The scaffolder itself is unchanged, exactly as the previous entry said it should be (`specs/123-oss-install-experience/tasks.md` Phase 5, D-234)."
         },
         "A3": {
-          "status": "unmeasured",
-          "reason": "behind A2: the install that would have produced it never happened. It is the publication A2 waits on and no assertion of its own — `specs/123-oss-install-experience/tasks.md` Phase 5"
+          "status": "fail",
+          "reason": "THE BLOCKER, AND THE FIRST DEFECT A REGISTRY INSTALL HAS EVER BEEN ABLE TO SEE. The instance own migrate step exited 1 before a single migration ran: `InvoiceLedgerDelivery (fk invoiceId) is scoped through Invoice, and no classified entity of that name is registered in this platform`, and `InvoiceLedgerDocumentMap` with it, out of `assertTransitiveParentsResolve` in `platform/dist/tenancy/org-scoped.decorator.js`. `invoice_ledger` is in the module set `endora new instance` writes and `invoices` is not, so an instance loads both classes and no `Invoice`. It cannot be repaired by a manifest `dependencies` entry: `invoice_ledger` declares `activation.nonDeactivatable` and `specs/conventions/module-composition.md` §4a forbids exactly that entry, it being what would make `invoices.enabled` a dead switch. Repaired in `fix/invoice-ledger-tenancy-parent` by giving both tables their own `organization_id`; the general claim is `backend/test/unit/tenancy/transitive-parent-module-ownership.test.ts`, which reproduces this refusal with no instance and no registry. THIS ENTRY IS THE MEASUREMENT AND NOT A PREDICTION: it goes green by drifting on the next protected-branch run, which is the ratchet working."
         },
         "A4": {
           "status": "unmeasured",
-          "reason": "behind A2: the install that would have produced it never happened. It is the publication A2 waits on and no assertion of its own — `specs/123-oss-install-experience/tasks.md` Phase 5"
+          "reason": "behind A3: there was nothing built to boot. It waits on A3 and is no assertion of its own — `specs/110-instance-repository/contracts/instance-repository.md` §6."
         },
         "A5": {
-          "status": "unmeasured",
-          "reason": "the command omitted `admin/`, in the sentence `packages/cli` carried until a71344da8 — T138, 2026-09-12, which is **after** the publish this mode installs from. This tree writes the member: the same criterion in `tarball` mode reads A5 pass over 23 installed module packages and 3686 KiB of bundle. Waits on the same publication as A2 (`specs/123-oss-install-experience/tasks.md` Phase 5)."
+          "status": "pass",
+          "reason": "the built bundle names exactly the 19 installed module packages that publish an admin layer, out of 26 installed, over 3561 KiB of JavaScript. It was `unmeasured` because the published build predated T138 and omitted the `admin/` member; the release carries it."
         },
         "A6": {
-          "status": "unmeasured",
-          "reason": "the created tree holds no `docs/` member and the command printed no omission for it — the published build has no documentation member at all, that being T137 (6d43eda68, 2026-09-12), again after the publish. A build that drops a member announces it; this one has nothing to announce. This tree writes the member and `tarball` mode reads A6 pass over 72 routed pages. Waits on the same publication as A2."
+          "status": "fail",
+          "reason": "the instance own documentation build produced no site: `Broken link on source page path = /modules/catalog/attributes -> ../promotions.md`. `promotions` is not in the set `endora new instance` writes, so the relative link names a page a client tree does not hold and `onBrokenLinks: throw` refuses the whole site — the assertion working rather than an obstacle. It is `check:module-docs` `foreign-module-link`, the last entry of the `catalog` shard, and it is `../search.md` a second time (`specs/100-module-owned-documentation/`, FR-020). Repaired in `fix/instance-docs-foreign-link-catalog`, merged; this entry is what the run measured and it goes green by drifting."
         },
         "A7": {
           "status": "unmeasured",
-          "reason": "behind A2: the install that would have produced it never happened. It is the publication A2 waits on and no assertion of its own — `specs/123-oss-install-experience/tasks.md` Phase 5"
+          "reason": "the API surface and the module enumeration could not be read, and a verdict over the other 1 would be answering a fraction of the assertion. Behind A3 — `specs/110-instance-repository/contracts/instance-repository.md` §6."
         },
         "A8": {
           "status": "unmeasured",
-          "reason": "behind A2: the install that would have produced it never happened. It is the publication A2 waits on and no assertion of its own — `specs/123-oss-install-experience/tasks.md` Phase 5"
+          "reason": "the instance did not migrate, so there is nothing to compose an overlay in. Behind A3 — `specs/110-instance-repository/contracts/instance-repository.md` §6."
         },
         "A9": {
           "status": "unmeasured",
-          "reason": "behind A2: the install that would have produced it never happened. It is the publication A2 waits on and no assertion of its own — `specs/123-oss-install-experience/tasks.md` Phase 5"
+          "reason": "there is no migrated schema to read across tenants in. Behind A3 — `specs/110-instance-repository/contracts/instance-repository.md` §6."
         },
         "A10": {
           "status": "pass",
-          "reason": "exit 1, nothing written, and the refusal carries the sentence the owning manifest declares. It needs no install, which is why it is one of the three that answer here at all."
+          "reason": "exit 1, nothing written, and the refusal carries the sentence the owning manifest declares. It needs no install, which is why it answered here before the publication too."
         },
         "A11": {
-          "status": "unmeasured",
-          "reason": "behind A2: the install that would have produced it never happened. It is the publication A2 waits on and no assertion of its own — `specs/123-oss-install-experience/tasks.md` Phase 5"
+          "status": "pass",
+          "reason": "none of the 38 files the command wrote is byte-identical to any of the 1056 `@endora-commerce/platform` and `@endora-commerce/admin-shell` ship. It was `unmeasured` behind A2 and the publication is what let it run."
         },
         "A12": {
           "status": "unmeasured",
           "reason": "it needs a fixture registry to publish a platform patch into: T144, gated on F10 (`specs/071-modular-packaging/roadmap.md`). Declared unmeasured in both modes and by neither of them."
         },
         "A13": {
-          "status": "unmeasured",
-          "reason": "the same omitted `admin/` member as A5 — there is no built stylesheet to read. Waits on the same publication (`specs/123-oss-install-experience/tasks.md` Phase 5)."
+          "status": "pass",
+          "reason": "173 KiB of built stylesheet carries a class only its own package declares for each of 15 packages — the shell and 14 module admin layers. It was `unmeasured` for A5 reason, the published build having no `admin/` member."
         },
         "A14": {
-          "status": "pass",
-          "reason": "241 lines of wiring across 12 files on disk, under R1.4's bound of 250. The published build writes twelve wiring files where this tree writes thirteen; both are under the bound."
+          "status": "fail",
+          "reason": "the created tree holds 259 lines of wiring across 14 files, against R1.4 bound of 250. Largest: `backend/src/module-commands/runtime.ts` (90). THE BOUND WAS DECIDED BY THE SUPPLY ROUTE AND THAT IS THE FINDING: the identical tree measures 248 over 13 files in `tarball` mode, the difference being the 11-line `.npmrc` that only a `--registry` run writes. The bound is not raised. `fix/instance-wiring-operator-runtime` moved the 90-line operator runtime into `@endora-commerce/platform/lifecycle`, taking the wiring to 176 over 13 files and 187 with the `.npmrc`, and it has merged; this entry is what the run measured (`specs/110-instance-repository/contracts/instance-tree.md` §6)."
         },
         "A15": {
           "status": "unmeasured",
-          "reason": "behind A2: the install that would have produced it never happened. It is the publication A2 waits on and no assertion of its own — `specs/123-oss-install-experience/tasks.md` Phase 5"
+          "reason": "the instance did not migrate, so there is no schema to create an administrator in. Behind A3 — `specs/110-instance-repository/contracts/instance-repository.md` §6."
         }
       }
     }
@@ -372,6 +372,49 @@
     "`pass=14 fail=0 unmeasured=1 of 15`. What this merge request adds is the sentence the report",
     "was missing — `describeRegistrySupply`, which holds what the registry served against what this",
     "checkout declares and names the equal-version case nothing else can see. The record goes green",
-    "again the day the estate is republished, by drifting; that is the ratchet and not a defect."
+    "again the day the estate is republished, by drifting; that is the ratchet and not a defect.",
+    "",
+    "2026-09-14 — THE FIRST REGISTRY RUN OVER A PUBLISHED ESTATE, and the record it drifted from",
+    "in seven places. Pipeline 13835, `master`, mode `registry`, non-interruptible: 6 pass, 3 fail,",
+    "6 unmeasured of 15. A2 fail -> pass, A3 unmeasured -> fail, A5 unmeasured -> pass, A6",
+    "unmeasured -> fail, A11 unmeasured -> pass, A13 unmeasured -> pass, A14 pass -> fail. Every",
+    "state below is read off that job's own output; nothing is typed and nothing is predicted,",
+    "which is why three of them are recorded red with their repair named beside them.",
+    "",
+    "A2 IS THE HEADLINE AND ITS REASON IS A PUBLICATION. `release/version-0.9.0` put 80 of 82",
+    "publishable packages on the registry at the version this checkout declares, so the ranges the",
+    "scaffolder writes resolve and an install outside the checkout succeeds. That is the first half",
+    "of the owner's own gate for publishing to public npmjs — \"publication happens once we have",
+    "tested that installing from the CLI, from packages in the private registry, works correctly\".",
+    "The second half is A3.",
+    "",
+    "AND THE SAME RUN FOUND THAT THE MODULE SET AN INSTANCE COMPOSES DEPENDS ON WHERE ITS PACKAGES",
+    "CAME FROM. A5 reads 26 installed module packages here; the last `tarball` run read 30. The",
+    "four are `mod-invoices`, `mod-promotions`, `mod-inventory` and `mod-credit-limits`, and the",
+    "difference is not the product: `mod-orders` declares all four as **non-optional**",
+    "`peerDependencies` — they are `import type` reaches into `<sibling>/ports`, which survive into",
+    "its emitted declarations (D-181) — while its **manifest** declares none of them, they being",
+    "`nonBindingDependencies` that fail closed. `endora new instance` derives its set from the",
+    "manifest graph and gets 26; `pinClosure` derives the tarball stand-in from the package graph",
+    "and, because pnpm applies no override to an auto-installed peer, pins those four as real",
+    "dependencies of the instance — which puts them at the top level of `node_modules`, where",
+    "`installed-packages.ts` enumerates. A registry install leaves the same four inside `.pnpm`,",
+    "where that walk deliberately does not look, so they are installed and not composed. The two",
+    "modes therefore compose different sets, and `tarball` is the one that is wrong: it is wider",
+    "than any client tree can be. A3 and A6 are both that difference surfacing — `invoices` and",
+    "`promotions` are two of the four.",
+    "",
+    "A14 IS THE SAME SHAPE IN THE WIRING BOUND: 259 lines here against 248 in `tarball` mode, from",
+    "one checkout on one day, the whole difference being the 11-line `.npmrc` that only a",
+    "`--registry` run writes. The bound is not raised. The 90-line operator runtime moved into",
+    "`@endora-commerce/platform/lifecycle` instead (`fix/instance-wiring-operator-runtime`), which",
+    "takes the wiring to 176 and leaves the same headroom whichever route a client takes.",
+    "",
+    "THE THREE REDS BELOW ARE RECORDED RED ON PURPOSE. Their repairs are merged or in review and",
+    "none of them could be measured here: `ENDORA_NPM_REGISTRY` and `ENDORA_NPM_TOKEN` are",
+    "protected, so no merge-request pipeline and no developer machine can run this mode. Recording",
+    "the repaired state would be the prediction this file exists to refuse. The next",
+    "protected-branch run drifts green on A3, A6 and A14 and measures A4, A7, A8, A9 and A15 for",
+    "the first time; re-record it from that run."
   ]
 }
