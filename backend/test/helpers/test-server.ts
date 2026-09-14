@@ -2692,7 +2692,8 @@ function customerResolver(request: FastifyRequest): {
   };
 }
 
-export async function teardownBackendServer(h: BackendServerHandle): Promise<void> {
+export async function teardownBackendServer(h: BackendServerHandle | undefined): Promise<void> {
+  if (!h) return;
   // Feature 109 (T030) — one release sequence, the kit's. It closes the app,
   // runs every registration's disposer and drops the resolution cache, then
   // unsubscribes and drops listeners **before** disconnecting either client — a
