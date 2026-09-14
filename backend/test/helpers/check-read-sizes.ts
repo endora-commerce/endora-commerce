@@ -2739,7 +2739,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
     // **Merging `origin/master` into `feat/122-p2-deployment-examples` (MR !1639): sites 558 -> 561 (+3).** Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, which is what `specs/conventions/check-estate.md` asks for — a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit, after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming **zero** unignored residue of the kind that put a developer's local files into this record once before. **The delta is deliberately not decomposed per file.** Ten files arrive at this tree — four the branch's (`deploy.ts`, two test files and a changeset) and six `master`'s since the branch point (feature 123's three specs, the 500 fix's two tests and its changeset) — and each recorded value was measured on a tree holding some but not all of them, so an arithmetic attribution would be a reconstruction rather than a measurement. The run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
-    sites: 561,
+    // **Merging `origin/master` into `feat/123-instance-env-example`: re-measured on the
+    // merged tree, in a fresh `git worktree`, built, with the ignored copies under
+    // `docs/docs/modules/` swept and the copy stamp deleted, and with the resolution
+    // staged first. This file's conflict was resolved **wholly to the incoming side**
+    // and then re-measured, which is what `specs/conventions/check-estate.md` asks for.
+    //
+    // **Three of the four entries that moved were already stale on `origin/master`, and
+    // the two contributions are separable because both trees were measured.** Run
+    // directly on a clean worktree of `origin/master` at 5293ea907: `check-nul-bytes`
+    // **8192** against a recorded 8189, `check-naming.sh` **8252** against 8249 and
+    // `check-doc-snippets` **1329** against 1326 — the `docs/124-instance-customisation-gap`
+    // merge added three files under `specs/124-.../` and re-recorded nothing.
+    // `check-diacritic-folds` read **561** there and agreed.
+    // **`check-diacritic-folds` sites 561 -> 562: all of it this branch's**, and one
+    // site: the `.replace(pattern, x)` in `backendScripts` that splices
+    // `--env-file-if-exists=../.env` into each derived CLI alias.
+    sites: 562,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -3138,7 +3154,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Not this branch's: files 1321 -> 1324 (+3).** The three documentation files `master` gained in ee18ed3e9, 415b766c1 and ec9c3f514 (feature 122's three-host layer independence and feature 120's status cell), none of which re-recorded here. Measured on the rebased tree; with this branch's own five files parked and stashed the walk reads the same 1324, which is what says the move is not this branch's.
     // **Merging `origin/master` into `feat/122-p2-deployment-examples` (MR !1639): files 1324 -> 1327 (+3).** Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, which is what `specs/conventions/check-estate.md` asks for — a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit, after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming **zero** unignored residue of the kind that put a developer's local files into this record once before. **The delta is deliberately not decomposed per file.** Ten files arrive at this tree — four the branch's (`deploy.ts`, two test files and a changeset) and six `master`'s since the branch point (feature 123's three specs, the 500 fix's two tests and its changeset) — and each recorded value was measured on a tree holding some but not all of them, so an arithmetic attribution would be a reconstruction rather than a measurement. The run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 1327 -> 1326.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
-    files: 1326,
+    // **Merging `origin/master` into `feat/123-instance-env-example`: re-measured on the
+    // merged tree, in a fresh `git worktree`, built, with the ignored copies under
+    // `docs/docs/modules/` swept and the copy stamp deleted, and with the resolution
+    // staged first. This file's conflict was resolved **wholly to the incoming side**
+    // and then re-measured, which is what `specs/conventions/check-estate.md` asks for.
+    //
+    // **Three of the four entries that moved were already stale on `origin/master`, and
+    // the two contributions are separable because both trees were measured.** Run
+    // directly on a clean worktree of `origin/master` at 5293ea907: `check-nul-bytes`
+    // **8192** against a recorded 8189, `check-naming.sh` **8252** against 8249 and
+    // `check-doc-snippets` **1329** against 1326 — the `docs/124-instance-customisation-gap`
+    // merge added three files under `specs/124-.../` and re-recorded nothing.
+    // `check-diacritic-folds` read **561** there and agreed.
+    // **`check-doc-snippets` 1326 -> 1329: none of it this branch's.** The three
+    // `specs/124-.../` markdown files, which this walk reads and the merge that added
+    // them did not re-record.
+    files: 1329,
     sites: 13,
     sources: [],
     //
@@ -7898,7 +7930,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
     // and none of it is somebody else's staleness. Never computed from a delta.
     // **`specs/110-instance-repository/` T141/T142 (A7, A8 and A9): files 8188 -> 8189 (+1).** One file: `backend/scripts/acceptance/instance-tenancy-probe.ts`, A9's own probe. Nothing was moved and nothing deleted; this merge request's other paths were already in the tree. Re-measured on the **merged** tree (`origin/master` at 2c56c52eb), in a fresh `git worktree` of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` showing no residue outside `node_modules` and `dist`, and with the resolution staged — `check-naming.sh` and `check-language.sh` take their population from the index plus untracked-and-not-ignored paths. This file's conflict was resolved wholly to the incoming side and every value here was then re-measured rather than reconciled, per `specs/conventions/check-estate.md`; the branch's own pre-merge measurement of the same five was +1 over a different base, which is why none of it is carried across as arithmetic. No band was widened and no value was computed from a delta: the run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
-    files: 8189,
+    // **Merging `origin/master` into `feat/123-instance-env-example`: re-measured on the
+    // merged tree, in a fresh `git worktree`, built, with the ignored copies under
+    // `docs/docs/modules/` swept and the copy stamp deleted, and with the resolution
+    // staged first. This file's conflict was resolved **wholly to the incoming side**
+    // and then re-measured, which is what `specs/conventions/check-estate.md` asks for.
+    //
+    // **Three of the four entries that moved were already stale on `origin/master`, and
+    // the two contributions are separable because both trees were measured.** Run
+    // directly on a clean worktree of `origin/master` at 5293ea907: `check-nul-bytes`
+    // **8192** against a recorded 8189, `check-naming.sh` **8252** against 8249 and
+    // `check-doc-snippets` **1329** against 1326 — the `docs/124-instance-customisation-gap`
+    // merge added three files under `specs/124-.../` and re-recorded nothing.
+    // `check-diacritic-folds` read **561** there and agreed.
+    // **`check-nul-bytes` 8189 -> 8193: +3 `origin/master`'s, +1 this branch's** — the
+    // three `specs/124-.../` files and this merge request's changeset.
+    files: 8193,
     sites: null,
     sources: [],
     //
@@ -12036,7 +12083,24 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
     // and none of it is somebody else's staleness. Never computed from a delta.
     // **`specs/110-instance-repository/` T141/T142 (A7, A8 and A9): files 8248 -> 8249 (+1).** One file: `backend/scripts/acceptance/instance-tenancy-probe.ts`, A9's own probe. Nothing was moved and nothing deleted; this merge request's other paths were already in the tree. Re-measured on the **merged** tree (`origin/master` at 2c56c52eb), in a fresh `git worktree` of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` showing no residue outside `node_modules` and `dist`, and with the resolution staged — `check-naming.sh` and `check-language.sh` take their population from the index plus untracked-and-not-ignored paths. This file's conflict was resolved wholly to the incoming side and every value here was then re-measured rather than reconciled, per `specs/conventions/check-estate.md`; the branch's own pre-merge measurement of the same five was +1 over a different base, which is why none of it is carried across as arithmetic. No band was widened and no value was computed from a delta: the run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
-    files: 8249,
+    // **Merging `origin/master` into `feat/123-instance-env-example`: re-measured on the
+    // merged tree, in a fresh `git worktree`, built, with the ignored copies under
+    // `docs/docs/modules/` swept and the copy stamp deleted, and with the resolution
+    // staged first. This file's conflict was resolved **wholly to the incoming side**
+    // and then re-measured, which is what `specs/conventions/check-estate.md` asks for.
+    //
+    // **Three of the four entries that moved were already stale on `origin/master`, and
+    // the two contributions are separable because both trees were measured.** Run
+    // directly on a clean worktree of `origin/master` at 5293ea907: `check-nul-bytes`
+    // **8192** against a recorded 8189, `check-naming.sh` **8252** against 8249 and
+    // `check-doc-snippets` **1329** against 1326 — the `docs/124-instance-customisation-gap`
+    // merge added three files under `specs/124-.../` and re-recorded nothing.
+    // `check-diacritic-folds` read **561** there and agreed.
+    // **`check-naming.sh` 8249 -> 8253: +3 `origin/master`'s, +1 this branch's**, the
+    // same four files as `check-nul-bytes`. `check-language.sh` reads 6292 and agrees:
+    // its population is source-code comments and `/docs/`, and a `specs/` page and a
+    // `.changeset/*.md` are in neither.
+    files: 8253,
     sites: null,
     sources: ['manifest-index'],
     //

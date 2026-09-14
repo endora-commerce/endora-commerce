@@ -102,7 +102,7 @@ import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 
 import { ADMIN_SESSION_COOKIE_NAME } from '@endora-commerce/contracts';
-import { normalizeRegistry } from '@endora-commerce/cli';
+import { normalizeRegistry, parseEnvFile, writeEnvFile } from '@endora-commerce/cli';
 import { instanceComposition } from '@endora-commerce/cli/lib/divergence-artefacts.js';
 import {
   discoverModulePackages,
@@ -659,6 +659,49 @@ function insideInstance(
   return { ...overlay, ...supplied };
 }
 
+/**
+ * A client filling in the `.env` the command wrote, and nothing more.
+ *
+ * `writeEnvFile` is the CLI's own merge, imported rather than reimplemented:
+ * the lines the command already put there — the four generated secrets among
+ * them — survive in place, and only the names handed in are written over. A
+ * second merge here would be a second set of rules about quoting and blanks,
+ * and the file being edited is the one this criterion is trying to prove works.
+ *
+ * It also **asserts what it did not clobber**, because the interesting claim is
+ * negative: a scaffolded instance starts with a session key nobody supplied, and
+ * a run that quietly overwrote it would report `A4 PASS` about a value this
+ * criterion invented.
+ */
+function fillInInstanceEnv(target: string, values: Readonly<Record<string, string>>): void {
+  const path = join(target, '.env');
+  if (!existsSync(path)) {
+    refuse(
+      `\`endora new instance\` wrote no ${path}. It is where the secrets the command ` +
+        `generates go (\`cli-product.md\` R2.5d) and it is the file a client fills in, so ` +
+        `without it there is nothing for this run to configure and nothing for the instance ` +
+        `to read.`,
+    );
+  }
+  const before = parseEnvFile(readFileSync(path, 'utf8'));
+  const generated = [...before.keys()].filter((name) => !(name in values));
+  writeFileSync(path, writeEnvFile(readFileSync(path, 'utf8'), new Map(Object.entries(values))));
+  const after = parseEnvFile(readFileSync(path, 'utf8'));
+  for (const name of generated) {
+    if (after.get(name) !== before.get(name)) {
+      refuse(`filling in ${path} changed ${name}, which this run did not supply`);
+    }
+  }
+  notes.push(
+    `filled in the instance's own \`.env\` with ${Object.keys(values).sort().join(', ')} — ` +
+      `every one of them declared by the \`.env.example\` the command wrote — and supplied ` +
+      `nothing at all through the environment. The ${String(generated.length)} value` +
+      `${generated.length === 1 ? '' : 's'} already in that file ` +
+      `${generated.length === 1 ? 'is' : 'are'} the command's own ` +
+      `(${generated.join(', ') || 'none'}), untouched.`,
+  );
+}
+
 /** The variable names the instance's own `.env.example` declares. */
 function declaredVariables(target: string): readonly string[] {
   const path = join(target, '.env.example');
@@ -744,10 +787,16 @@ function computedMigrationOrder(
     `const module = await import(${JSON.stringify(pathToFileURL(config).href)});` +
     `const config = await module.default();` +
     `console.log(JSON.stringify((config.migrations?.migrationsList ?? []).map((e) => e.name)));`;
-  const result = run(process.execPath, ['--input-type=module', '-e', probe], {
-    cwd: backendDir,
-    env: environment,
-  });
+  // `--env-file-if-exists=../.env`, the instance's own spelling: this probe
+  // loads the instance's compiled MikroORM configuration, which reads
+  // `DATABASE_URL`, and since G3 that value lives in the `.env` a client filled
+  // in rather than in anybody's process environment. Without the flag the probe
+  // reads nothing and A3 goes `unmeasured` over a migration that ran.
+  const result = run(
+    process.execPath,
+    ['--env-file-if-exists=../.env', '--input-type=module', '-e', probe],
+    { cwd: backendDir, env: environment },
+  );
   if (result.code !== 0) return null;
   const line = result.output.trim().split('\n').pop();
   if (line === undefined) return null;
@@ -1695,7 +1744,14 @@ function measureTenancy(target: string, environment: NodeJS.ProcessEnv): Tenancy
     narrowedOrganizations: null,
   });
   if (!existsSync(tsx)) return inconclusive(`${tsx} is not there, so the probe cannot be run`);
-  const result = run(tsx, [probe], {
+  // `--env-file-if-exists=../.env`, the instance's own spelling, and the reason
+  // is `specs/123-oss-install-experience/` G3: this criterion supplies **nothing**
+  // through the environment. `DATABASE_URL` lives in the `.env` a client filled
+  // in — the file the instance's own scripts read the same way — and without the
+  // flag the probe throws `DATABASE_URL must be set` and A9 goes `unmeasured`
+  // over a schema that is right there. `cwd` is the instance's backend member,
+  // so the file is one directory up.
+  const result = run(tsx, ['--env-file-if-exists=../.env', probe], {
     cwd: join(target, 'backend'),
     env: { ...environment, ACCEPTANCE_INSTANCE_ROOT: target },
   });
@@ -1948,25 +2004,47 @@ async function main(): Promise<void> {
       );
 
       await resetDatabase(database.adminUrl, database.databaseName);
-      // The runtime values an instance needs and its own `.env.example` does
-      // not declare. Supplied explicitly and named here rather than quietly:
-      // a client who fills in the file the command wrote has none of them.
-      const runtime: Record<string, string> = {
+      // The values a client supplies, put where a client puts them: **into the
+      // instance's own `.env`**, the file `endora new instance` already wrote.
+      //
+      // They used to go into `process.env` instead, with a note saying the
+      // instance's `.env.example` declared none of them — the acceptance
+      // criterion reporting, in its own output, that step C3 of the install
+      // could not be completed (`specs/123-oss-install-experience/` §1.3(a)).
+      // G3 closed that, and the note is gone because an instrument that reports
+      // a gap must not outlive it. What replaces it is a **refusal**: every name
+      // below has to be one the instance's own `.env.example` declares, so a
+      // value this criterion smuggles past a client's file is a red run rather
+      // than a sentence at the bottom of a report.
+      //
+      // `SESSION_COOKIE_SECRET` is deliberately **not** here. The command
+      // generated one into that same `.env` under R2.5d, and this run proving it
+      // did — by starting an instance whose session key nobody supplied — is
+      // FR-011's end-to-end evidence.
+      const filledIn: Record<string, string> = {
         DATABASE_URL: database.databaseUrl,
         REDIS_URL: process.env['REDIS_URL'] ?? 'redis://localhost:6379',
-        SESSION_COOKIE_SECRET: 'instance-acceptance-secret-not-a-real-deployment',
         PUBLIC_API_BASE_URL: 'https://instance.acceptance.invalid',
         NODE_ENV: 'production',
       };
-      const undeclared = Object.keys(runtime).filter((name) => !instanceVariables.includes(name));
+      const undeclared = Object.keys(filledIn).filter(
+        (name) => !instanceVariables.includes(name),
+      );
       if (undeclared.length > 0) {
-        notes.push(
-          `supplied ${undeclared.join(', ')} to the instance's own processes; its ` +
-            `\`.env.example\` declares none of them, so a client who fills in the file the ` +
-            `command wrote has nothing to put them in`,
+        refuse(
+          `this run would supply ${undeclared.join(', ')} to the instance's own processes, ` +
+            `and its \`.env.example\` declares none of them — so a client who filled in the ` +
+            `file the command wrote would have nothing to put them in, and every assertion ` +
+            `after this one would be measuring a tree this criterion configured by hand. ` +
+            `\`specs/123-oss-install-experience/\` G3 is what closed that; a name reappearing ` +
+            `here is that gap reopening.`,
         );
       }
-      const environment = insideInstance(instanceVariables, runtime);
+      fillInInstanceEnv(target, filledIn);
+      // Nothing is handed to the instance's processes: every declared name is
+      // withheld, and what the instance reads it reads from the file a client
+      // would have edited. That is the whole claim G3 makes.
+      const environment = insideInstance(instanceVariables, {});
 
       built = run('pnpm', ['run', 'build'], { cwd: target, env: environment });
       // **The gate is the backend member's own artefact, not the root script's

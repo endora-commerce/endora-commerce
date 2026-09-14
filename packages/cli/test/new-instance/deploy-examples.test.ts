@@ -77,6 +77,13 @@ function planInput(overrides: Partial<PlanInput> = {}): PlanInput {
     registry: null,
     npmrc: null,
     topology: 'single-host',
+    // G3 — an instance with no declared runtime input is a real state (a
+    // platform older than feature 117 declares none), and it is the fixture
+    // that keeps every case below about its own subject. The cases that are
+    // about the declaration hand one in.
+    declared: [],
+    existingEnv: '',
+    generated: new Map(),
     ...overrides,
   };
 }
@@ -510,5 +517,62 @@ describe('the topology reaches the plan, and nothing else changes with it', () =
     for (const topology of TOPOLOGIES satisfies readonly Topology[]) {
       expect(deployFilesOf(withAdmin({ topology })).length).toBeGreaterThan(3);
     }
+  });
+});
+
+/**
+ * G3 — the deployment examples and the root `.env.example` read one declaration.
+ *
+ * `specs/123-oss-install-experience/`: an operator filling in a `deploy/.env`
+ * must not read a different sentence about `LOG_LEVEL` from the one their own
+ * `.env.example` gives, and the way that is guaranteed is precedence rather
+ * than deletion — `RUNTIME_INPUTS` keeps a fallback sentence so a run whose
+ * resolved platform declares nothing still renders a usable file, and the
+ * declaration wins wherever there is one. This case is what stops the fallback
+ * from quietly becoming the thing operators read again.
+ */
+describe('G3 — a declared name takes the declaration\'s sentence, not the local fallback', () => {
+  const declared = [
+    {
+      name: 'LOG_LEVEL',
+      describes: {
+        en: 'How much the backend writes to its log.',
+        pl: 'Jak dużo backend zapisuje w dzienniku.',
+      },
+      requirement: {
+        kind: 'optional' as const,
+        without: {
+          en: 'the log carries the platform default.',
+          pl: 'dziennik ma domyślny poziom platformy.',
+        },
+      },
+      secret: false,
+      generable: false,
+      owner: { kind: 'platform' as const },
+      consumers: ['backend' as const],
+      addressOf: null,
+    },
+  ];
+
+  it('the rendered sentence is the declaration\'s, and the fallback is not there', () => {
+    const text = fileAt(planInput({ declared }), 'deploy/.env.example');
+    // Asserted in fragments that survive `wrapComment`'s 84-column wrap: the
+    // sentence reaches the file, the line breaks are the renderer's.
+    expect(text).toContain('How much the backend writes to its log.');
+    expect(text).toContain('Without it, the log carries the platform');
+    // The fallback `RUNTIME_INPUTS` carries for this name.
+    expect(text).not.toContain('How much the backend says.');
+    // …and the example value is still the compose file's, which a declaration
+    // deliberately cannot carry (`environment-inputs.md` R1.3).
+    expect(text).toContain('LOG_LEVEL=info');
+  });
+
+  it('with no declaration at all the examples still render, on the fallback', () => {
+    // A platform whose `./env` entry point will not import yields an empty
+    // declaration. That is a degraded run, not a failed one: refusing here
+    // would turn a missing sentence into a scaffold that writes nothing.
+    const text = fileAt(planInput(), 'deploy/.env.example');
+    expect(text).toContain('How much the backend says.');
+    expect(text).toContain('LOG_LEVEL=info');
   });
 });

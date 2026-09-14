@@ -34,6 +34,12 @@
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import {
+  EnvironmentInputsSchema,
+  unionEnvironmentInputs,
+  type EnvironmentInput,
+} from '@endora-commerce/contracts';
+
 import { InstanceHostError, InstanceInputError, type ResolvedPackage } from './host.js';
 
 /** One module package, as this command needs it. */
@@ -70,6 +76,17 @@ export interface ModuleCandidate {
    * here and one that becomes a package stops being carried in the same run.
    */
   readonly carriedByHost: boolean;
+  /**
+   * The manifest's own `env` — what this module reads from the environment.
+   *
+   * Read here because this is the one place in the run where the **installed**
+   * manifests are in hand, and a module's declaration reaches a client's
+   * `.env.example` only through them (`specs/123-oss-install-experience/` T3-B).
+   * A manifest whose `env` is not a declaration contributes nothing rather than
+   * refusing the run: it is a published artefact of another version of the
+   * platform, and this file already reads one loosely for that reason.
+   */
+  readonly env: readonly EnvironmentInput[];
 }
 
 /** What a resolution decided, before a single file is planned. */
@@ -97,6 +114,25 @@ interface RawManifest {
   readonly id?: unknown;
   readonly dependencies?: unknown;
   readonly activation?: unknown;
+  readonly env?: unknown;
+}
+
+/**
+ * The environment inputs a manifest declares, or none.
+ *
+ * Parsed rather than trusted, and a declaration this build cannot read is
+ * **dropped rather than refused** — see {@link RawManifest}. The consequence of
+ * dropping one is a name missing from a client's `.env.example`, which is the
+ * defect this feature closes; the consequence of refusing would be an instance
+ * that cannot be scaffolded at all because one installed package ships a field
+ * shape from a newer platform. The second is worse, and `check:env-inputs`
+ * refuses a malformed declaration in the tree that authored it, which is where
+ * the finding belongs.
+ */
+function environmentInputsOf(value: unknown): readonly EnvironmentInput[] {
+  if (!Array.isArray(value)) return [];
+  const parsed = EnvironmentInputsSchema.safeParse(value);
+  return parsed.success ? parsed.data : [];
 }
 
 /**
@@ -170,22 +206,51 @@ function exportedEntriesOf(pkg: ResolvedPackage): readonly (readonly [string, st
   return entries;
 }
 
+/** What one pass over the host package's own entry points found. */
+interface HostDeclarations {
+  /** The modules the platform package itself carries, id to manifest. */
+  readonly carried: readonly (readonly [string, RawManifest])[];
+  /**
+   * The platform's own environment-input declaration.
+   *
+   * Read off the **installed** platform rather than compiled into this command,
+   * for R2.3's reason and for the reason every manifest here is read the same
+   * way: the platform being installed is a published artefact of a version this
+   * CLI may be older or newer than, and a list here could never see it. It is
+   * found by the export it carries rather than by naming a subpath, which is
+   * `exportedEntriesOf`'s own rule — a package that lays its build out
+   * differently is followed rather than missed.
+   *
+   * Empty when the resolved platform publishes none. That is not a refusal: an
+   * older platform declared nothing, and an instance scaffolded against one gets
+   * an `.env.example` holding what that platform's modules declare, which is
+   * what it actually reads.
+   */
+  readonly env: readonly EnvironmentInput[];
+}
+
 /**
- * The modules the **host package itself** carries, off its own `exports` map.
+ * What the **host package itself** declares, off its own `exports` map.
  *
  * See {@link ModuleCandidate.carriedByHost}. An entry point that will not
  * import is **F7** and never a skip: a host-carried module the run could not
  * see is a required module the set will then be missing, and the operator would
  * be sent to install a package that does not exist.
+ *
+ * One pass, two answers: every entry point is imported exactly once, and both
+ * the carried manifests and the platform's environment declaration are taken
+ * from it. Two loops would import the same modules twice.
  */
-async function hostCarriedManifests(
-  host: ResolvedPackage,
-): Promise<readonly (readonly [string, RawManifest])[]> {
+async function hostDeclarations(host: ResolvedPackage): Promise<HostDeclarations> {
   const carried: (readonly [string, RawManifest])[] = [];
+  let env: readonly EnvironmentInput[] = [];
   for (const [subpath, file] of exportedEntriesOf(host)) {
-    let loaded: { manifest?: unknown };
+    let loaded: { manifest?: unknown; PLATFORM_ENVIRONMENT_INPUTS?: unknown };
     try {
-      loaded = (await import(pathToFileURL(file).href)) as { manifest?: unknown };
+      loaded = (await import(pathToFileURL(file).href)) as {
+        manifest?: unknown;
+        PLATFORM_ENVIRONMENT_INPUTS?: unknown;
+      };
     } catch (error: unknown) {
       throw new InstanceHostError(
         'F7',
@@ -200,8 +265,9 @@ async function hostCarriedManifests(
     if (manifest !== undefined && typeof manifest.id === 'string' && manifest.id.length > 0) {
       carried.push([manifest.id, manifest]);
     }
+    if (env.length === 0) env = environmentInputsOf(loaded.PLATFORM_ENVIRONMENT_INPUTS);
   }
-  return carried;
+  return { carried, env };
 }
 
 /** One candidate, from a manifest and the package it came out of. */
@@ -222,6 +288,7 @@ function candidateFrom(
     dependencies: Array.isArray(manifest.dependencies)
       ? manifest.dependencies.filter((entry): entry is string => typeof entry === 'string')
       : [],
+    env: environmentInputsOf(manifest.env),
     required:
       activation !== undefined &&
       typeof activation === 'object' &&
@@ -229,6 +296,22 @@ function candidateFrom(
     reason: typeof activation?.reason === 'string' ? activation.reason : undefined,
     carriedByHost,
   };
+}
+
+/** What one resolution read off the packages installed beside the target. */
+export interface LoadedCandidates {
+  readonly candidates: ReadonlyMap<string, ModuleCandidate>;
+  /**
+   * The platform's own environment-input declaration, or empty.
+   *
+   * It comes back beside the candidates because it is read in the same pass
+   * over the same entry points ({@link HostDeclarations}), and because the two
+   * are the two halves of one answer: what a scaffolded instance reads from its
+   * environment is the platform's declaration unioned with the manifests of the
+   * modules it installed, and a caller holding one half without the other would
+   * write a file that is short by the other.
+   */
+  readonly platformEnv: readonly EnvironmentInput[];
 }
 
 /**
@@ -242,7 +325,7 @@ function candidateFrom(
 export async function loadModuleCandidates(
   packages: ReadonlyMap<string, ResolvedPackage>,
   host?: ResolvedPackage | undefined,
-): Promise<ReadonlyMap<string, ModuleCandidate>> {
+): Promise<LoadedCandidates> {
   const candidates = new Map<string, ModuleCandidate>();
   for (const pkg of [...packages.values()].sort((a, b) => a.name.localeCompare(b.name))) {
     if (pkg.endora?.type !== 'module') continue;
@@ -281,13 +364,32 @@ export async function loadModuleCandidates(
   // The host's own, last: a package that has been extracted out of the platform
   // wins over the copy still inside it, which is the direction that follows a
   // module *leaving* the host rather than the one that pins it there.
-  if (host !== undefined) {
-    for (const [id, manifest] of await hostCarriedManifests(host)) {
-      if (candidates.has(id)) continue;
-      candidates.set(id, candidateFrom(id, manifest, host.name, host.version, true));
-    }
+  if (host === undefined) return { candidates, platformEnv: [] };
+  const declarations = await hostDeclarations(host);
+  for (const [id, manifest] of declarations.carried) {
+    if (candidates.has(id)) continue;
+    candidates.set(id, candidateFrom(id, manifest, host.name, host.version, true));
   }
-  return candidates;
+  return { candidates, platformEnv: declarations.env };
+}
+
+/**
+ * What a scaffolded instance reads from its environment — the whole population,
+ * derived and never listed (`specs/123-oss-install-experience/` FR-010).
+ *
+ * The platform's declaration first, then each **installed** module's, in module
+ * order, so a name that has migrated between the two carries the platform's
+ * sentence (`unionEnvironmentInputs`). The set of modules is this run's, so a
+ * different `--module` set is a different population with nothing here edited.
+ */
+export function instanceEnvironmentInputs(
+  platformEnv: readonly EnvironmentInput[],
+  modules: readonly ModuleCandidate[],
+): readonly EnvironmentInput[] {
+  return unionEnvironmentInputs([
+    platformEnv,
+    ...[...modules].sort((a, b) => a.id.localeCompare(b.id)).map((module) => module.env),
+  ]);
 }
 
 /**

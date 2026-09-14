@@ -44,10 +44,17 @@
  * `packages/cli/test/new-instance-command.test.ts` proves the guarantee the only
  * way it can be proved — by spawning, with pipes on both descriptors.
  */
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 
-import { provenanceLine, type ResolvedInput } from '../inputs/resolve.js';
+import { parseEnvFile } from '../inputs/env-file.js';
+import {
+  generateSecret,
+  interactivityOf,
+  planResolution,
+  provenanceLine,
+  type ResolvedInput,
+} from '../inputs/resolve.js';
 import { npmrcContent, normalizeRegistry } from '../new-storefront/npmrc.js';
 import { assertTopology, DEFAULT_TOPOLOGY, type Topology } from './deploy.js';
 import { DOCS_TOOLCHAIN } from './docs-toolchain.js';
@@ -60,7 +67,12 @@ import {
   type InstanceHost,
   type ResolvedPackage,
 } from './host.js';
-import { loadModuleCandidates, resolveModuleSet, type ModuleSetResolution } from './modules.js';
+import {
+  instanceEnvironmentInputs,
+  loadModuleCandidates,
+  resolveModuleSet,
+  type ModuleSetResolution,
+} from './modules.js';
 import {
   assertDeploymentName,
   assertWorkspaceName,
@@ -104,8 +116,20 @@ export interface NewInstanceResult {
   readonly dryRun: boolean;
   /** R1.4's bound, measured on the plan this run built. */
   readonly wiringLines: number;
-  /** R2.5a's one line. `defaulted=` is `0` by arithmetic, over an empty set. */
+  /** R2.5a's one line. `defaulted=` is `0` by arithmetic, over the four tiers. */
   readonly provenance: string;
+  /**
+   * The values this run resolved: what the target's own `.env` already supplied
+   * and what it generated. Exported so a proof reads the partition rather than
+   * the line's text.
+   */
+  readonly resolved: readonly ResolvedInput[];
+  /**
+   * What a **dry** run would have generated, by name. Empty on a real run,
+   * where {@link resolved} carries them with their provenance instead — a dry
+   * run generates nothing, so a name here is a prediction and never a value.
+   */
+  readonly wouldGenerate: readonly string[];
   readonly nextSteps: readonly string[];
 }
 
@@ -189,7 +213,7 @@ export async function runNewInstance(
     ...(options.moduleUrl === undefined ? {} : { moduleUrl: options.moduleUrl }),
   });
   const platform = host.packages.get(`${host.scope}platform`)!;
-  const candidates = await loadModuleCandidates(host.packages, platform);
+  const { candidates, platformEnv } = await loadModuleCandidates(host.packages, platform);
   const modules = resolveModuleSet(options.modules ?? [], candidates);
 
   if (registry !== null) {
@@ -219,6 +243,57 @@ export async function runNewInstance(
 
   const adminShell = host.packages.get(`${host.scope}${ADMIN_SHELL_PACKAGE}`);
   const adminKit = host.packages.get(`${host.scope}${ADMIN_KIT_PACKAGE}`);
+
+  // What this instance reads from its environment (FR-010): the platform's own
+  // declaration and the manifest of every module this run installed. Both come
+  // off the packages resolved beside the target directory, which is R2.3 — the
+  // declaration is the **installed** platform's and the **installed** modules',
+  // not this CLI's idea of them.
+  const declared = instanceEnvironmentInputs(
+    platformEnv,
+    modules.ids.map((id) => candidates.get(id)!),
+  );
+
+  // Tier 2 — the `.env` of the **target directory**, never of the working
+  // directory and never of an ancestor (R1.2). A command run inside a checkout
+  // of ours must not silently inherit that checkout's development
+  // configuration, which is how a client's first instance would come to carry
+  // `postgresql://b2b:b2b@localhost:5432/b2b`.
+  const envPath = join(targetDir, '.env');
+  const existingEnv = existsSync(envPath) ? readFileSync(envPath, 'utf8') : '';
+
+  // R2.5b's four tiers, through the one module every command resolves with
+  // (R5.3) — and this command uses **three** of them. Tier 1 is empty: it takes
+  // no flag for a runtime value. Tier 3, the prompt, is refused structurally by
+  // `nonInteractive`, so the partition is the same whether or not a terminal is
+  // attached and this command still cannot hang (R2.5c). Tier 4, the refusal, is
+  // not this command's either: an unanswered required input is **what
+  // `.env.example` is for**, and a scaffolder that refused to write a tree until
+  // its client had a database would be refusing the only artefact that tells
+  // them which values they owe. So `missing` and `unset` are read here as the
+  // file's population rather than as a reason to stop, and `toGenerate` is the
+  // one tier that acts.
+  const resolution = planResolution({
+    declared,
+    members: adminShell !== undefined && adminKit !== undefined ? ['backend', 'admin'] : ['backend'],
+    flags: {},
+    envFile: parseEnvFile(existingEnv),
+    interactivity: { ...interactivityOf({ nonInteractive: true, dryRun: options.dryRun === true }), nonInteractive: true },
+    language: 'en',
+  });
+  // R2.5d — the one class of value this tool may invent, and it invents it
+  // **once**: the plan is pure, so a `randomBytes` call inside it would render a
+  // different tree on every evaluation and `--dry-run` would stop describing the
+  // run it previews. A dry run generates nothing at all and says so.
+  const generated: readonly ResolvedInput[] =
+    options.dryRun === true
+      ? []
+      : resolution.toGenerate.map((input) => ({
+          name: input.name,
+          value: generateSecret(),
+          provenance: 'generated' as const,
+        }));
+
   const plan = planInstance({
     name,
     deployment,
@@ -260,14 +335,17 @@ export async function runNewInstance(
     registry,
     npmrc,
     topology,
+    declared,
+    existingEnv,
+    generated: new Map(generated.map((entry) => [entry.name, entry.value] as const)),
   });
 
-  // R2.5a — the provenance line, printed on every run including a dry one. This
-  // command resolves no environment input of its own, so the set is empty and
-  // the residue is `0` by the same subtraction that makes it unfakeable
-  // anywhere else. It is printed rather than skipped: a run that said nothing
-  // about its inputs is indistinguishable from one that invented them.
-  const resolved: readonly ResolvedInput[] = [];
+  // R2.5a — the provenance line, printed on every run including a dry one. The
+  // set is what the target's own `.env` already answered plus what this run
+  // generated, and `defaulted=` is `0` by the same subtraction that makes it
+  // unfakeable anywhere else. It is printed rather than skipped: a run that said
+  // nothing about its inputs is indistinguishable from one that invented them.
+  const resolved: readonly ResolvedInput[] = [...resolution.resolved, ...generated];
 
   const result: NewInstanceResult = {
     targetDir,
@@ -279,6 +357,9 @@ export async function runNewInstance(
     dryRun: options.dryRun === true,
     wiringLines: wiringLineCount(plan),
     provenance: provenanceLine(resolved),
+    resolved,
+    wouldGenerate:
+      options.dryRun === true ? resolution.toGenerate.map((input) => input.name) : [],
     nextSteps: nextSteps(targetDir, deployment, topology, modules.ids),
   };
   if (result.dryRun) return result;
@@ -455,9 +536,11 @@ export function nextSteps(
     `cd ${targetDir} && pnpm install — every range in the manifest is published semver. ` +
       `Nothing in this tree is a copy of ours, so \`pnpm update\` is how a platform fix ` +
       `reaches you, with no file here edited.`,
-    `cp .env.example .env and fill it in. Every entry names what it decides and gives an ` +
-      `example; an entry with no value on the right of the \`=\` is one the platform has no ` +
-      `honest default for.`,
+    `open .env and fill it in — this command already wrote it, with the secrets it ` +
+      `generated filled in and everything else this instance reads left blank. Do NOT copy ` +
+      `.env.example over it: that file is the same population with no secret in it, for you ` +
+      `to commit and for your colleagues to read. Every entry in it names what it decides, ` +
+      `and an optional one names what leaving it unset costs.`,
     `pnpm run generate — the files your admin project and documentation site are built ` +
       `from, over the modules you actually installed. They are git-ignored and never ` +
       `committed: a different module set is a different bundle and a different navigation. ` +

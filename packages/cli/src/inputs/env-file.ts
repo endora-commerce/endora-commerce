@@ -82,6 +82,9 @@ export function renderEnvValue(value: string): string {
   return `"${value.replace(/(["\\])/g, '\\$1')}"`;
 }
 
+/** A commented-out assignment — `# DATABASE_URL=` — and the key it names. */
+const COMMENTED_ASSIGNMENT = /^\s*#\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/;
+
 /**
  * The file's new text: every existing line kept, in place, with the values this
  * run resolved written over the keys they name and appended where they are new.
@@ -91,6 +94,22 @@ export function renderEnvValue(value: string): string {
  * rewrote the file would silently discard all three. That is the same rule
  * `endora new storefront` applies to a directory it will not merge into, one
  * granularity down.
+ *
+ * ## A commented-out placeholder is filled in, not duplicated
+ *
+ * `endora new instance` writes its `.env` with every declared input present and
+ * **commented out**, because a blank assignment is not the same state as no
+ * assignment: Node's `--env-file` sets `MEILISEARCH_URL=` to the empty string,
+ * and the platform's `??` fallbacks read that as a value. Measured — the
+ * instance acceptance criterion's health route answered 503 over a search
+ * engine that was running, because a file listing every optional input as a
+ * blank had turned twenty "unset"s into twenty empty strings.
+ *
+ * So a value written over such a placeholder replaces the commented line rather
+ * than being appended below it, which keeps the operator's ordering and the
+ * sentence above it and leaves no second assignment of the same key for a
+ * reader to wonder about. A key the run has no value for stays commented, and
+ * therefore stays genuinely unset.
  */
 export function writeEnvFile(
   existingText: string,
@@ -100,7 +119,15 @@ export function writeEnvFile(
   const lines = existingText.length === 0 ? [] : existingText.split('\n');
   const rewritten = lines.map((line) => {
     const parsed = parseLine(line);
-    if (parsed.key === null || !remaining.has(parsed.key)) return line;
+    if (parsed.key === null) {
+      const commented = COMMENTED_ASSIGNMENT.exec(line);
+      if (commented === null || !remaining.has(commented[1]!)) return line;
+      const key = commented[1]!;
+      const value = remaining.get(key)!;
+      remaining.delete(key);
+      return `${key}=${renderEnvValue(value)}`;
+    }
+    if (!remaining.has(parsed.key)) return line;
     const value = remaining.get(parsed.key)!;
     remaining.delete(parsed.key);
     return `${parsed.key}=${renderEnvValue(value)}`;
