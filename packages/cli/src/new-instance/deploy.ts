@@ -677,6 +677,73 @@ export function developmentComposeFile(
   return { path: DEV_COMPOSE_PATH, kind: 'derived', member: 'root', content };
 }
 
+/**
+ * The defaults a rendered document carries, by name.
+ *
+ * Read off the document rather than off the catalogue that wrote it, which is
+ * the same discipline `envExampleFor` states for the production examples:
+ * *"derived from the rendered document rather than listed, so the two cannot
+ * come apart"*. A caller therefore cannot be handed a port the file does not
+ * publish.
+ */
+function inlineDefaults(document: string): ReadonlyMap<string, string> {
+  const defaults = new Map<string, string>();
+  for (const match of document.matchAll(/\$\{([A-Z0-9_]+):-([^}]*)\}/g)) {
+    if (!defaults.has(match[1]!)) defaults.set(match[1]!, match[2]!);
+  }
+  return defaults;
+}
+
+/**
+ * How a **natively running** process reaches the development stack (FR-105).
+ *
+ * One entry per input the rendered document actually answers, composed from the
+ * defaults that document carries — so a changed port or a changed credential
+ * moves the address in the same run, with no second list to edit. An entry
+ * whose composition names something the document does not carry is **not
+ * produced**: a document with no mail catcher yields no `SMTP_URL`, and nothing
+ * here has to know that `SMTP_URL` is the `email` module's input.
+ *
+ * That is the compose half of FR-105's intersection. The other half is the
+ * instance's own declaration and belongs to the caller: *"an input is derived
+ * only when the development compose provides a service for it **and** this
+ * instance declares it"*, and a caller that skipped the second test would write
+ * a value for a module nobody installed.
+ *
+ * `localhost` and not a container name, for the reason FR-104 gives: nothing in
+ * this document is an application, so every reader of these values is a process
+ * on the host reaching a published port.
+ */
+export function developmentAddresses(document: string): ReadonlyMap<string, string> {
+  const defaults = inlineDefaults(document);
+  const addresses = new Map<string, string>();
+  /** One input, composed only if the document answers every name it needs. */
+  const compose = (name: string, needs: readonly string[], build: (of: (key: string) => string) => string): void => {
+    if (!needs.every((key) => defaults.has(key))) return;
+    addresses.set(name, build((key) => defaults.get(key)!));
+  };
+  compose('DATABASE_URL', ['POSTGRES_USER', 'POSTGRES_PASSWORD', 'POSTGRES_PORT', 'POSTGRES_DB'], (of) =>
+    `postgresql://${of('POSTGRES_USER')}:${of('POSTGRES_PASSWORD')}@localhost:${of('POSTGRES_PORT')}/${of('POSTGRES_DB')}`,
+  );
+  compose('REDIS_URL', ['REDIS_PORT'], (of) => `redis://localhost:${of('REDIS_PORT')}`);
+  compose('MEILISEARCH_URL', ['MEILISEARCH_PORT'], (of) => `http://localhost:${of('MEILISEARCH_PORT')}`);
+  compose('MEILISEARCH_API_KEY', ['MEILI_MASTER_KEY'], (of) => of('MEILI_MASTER_KEY'));
+  compose('SMTP_URL', ['MAILPIT_SMTP_PORT'], (of) => `smtp://localhost:${of('MAILPIT_SMTP_PORT')}`);
+  return addresses;
+}
+
+/**
+ * Where the mail catcher's own interface is, if this document runs one.
+ *
+ * Not an environment input — nothing reads it — and therefore not in
+ * {@link developmentAddresses}. It is printed, because a client whose instance
+ * sends mail to a port has no way to learn where that mail went.
+ */
+export function developmentMailUrl(document: string): string | undefined {
+  const port = inlineDefaults(document).get('MAILPIT_UI_PORT');
+  return port === undefined ? undefined : `http://localhost:${port}`;
+}
+
 // ── the runtime inputs, and the `.env.example` derived from them ────────────
 
 interface RuntimeInput {
