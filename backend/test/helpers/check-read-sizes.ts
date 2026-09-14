@@ -2573,7 +2573,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
     // and none of it is somebody else's staleness. Never computed from a delta.
     // **`feat/124-overlay-repairs` (!1645) added two tracked files and re-recorded nothing: files 5637 -> 5638.** Its own run reported the census unmoved, which was true of the tree it measured and stopped being true at the merge — the shape `check-estate.md` warns about, arriving in the file that warns about it. Re-measured here rather than reasoned about, on a clean worktree of `origin/master` after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting **zero** unignored residue. **The attribution is derivable and is the point of recording it here**: the two files are `packages/platform/src/composition/default-composition-overlay.test.ts` and `.changeset/afraid-pandas-repair.md`, and every walk moved by exactly as many of the two as it reads — the two whole-repository walks by 2, and the five that read only source trees or only comment-bearing files by 1, seeing the `.ts` and not the `.md`. Nothing here widened a band; every entry is at 0% of its distance to either edge.
-    files: 5638,
+    // **The availability-notification acquisition gate (issue #227 / #259): +2 files.** The
+    // two new backend test files; the changeset is `.md` and out of this walk's population.
+    files: 5640,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -3173,7 +3175,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `specs/124-.../` markdown files, which this walk reads and the merge that added
     // them did not re-record.
     // **The three feature specs merged on 2026-09-14 (!1653, !1654, !1655) and their changeset: files 1329 -> 1340 (+11).** Derived, not attributed by hand: `git diff --diff-filter=A --name-only <baseline> HEAD` since the release re-record answers **12** — **11** under `specs/` and **1** changeset — so the two whole-repository walks move by 12 and `check-doc-snippets`, whose roots are `docs/docs` and `specs`, moves by the 11 it can see and not by the changeset it cannot. That arithmetic is the check on the measurement rather than a substitute for it: all three numbers were read off a run in a fresh worktree after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. **No document moved this merge request's own renumbering**, which renames two directories and adds and deletes nothing.
-    // **`fix/instance-docs-foreign-link-catalog`: files 1340 -> 1344 (+4), none of it this branch's.** **`docs(128)` (b590955b8) added four tracked files and re-recorded nothing.** `git diff --diff-filter=A --name-only d6e26effb..origin/master` answers exactly four, all under `specs/128-defect-register-shape/`, so every walk that reads `specs/` moves by four and `check-language.sh`, which does not, moves by none — that split is the check on the attribution rather than a substitute for the measurement. This walk's roots are `docs/docs` and `specs`, and it reads neither a ledger shard nor a module package's `docs/`, so the deletion and the rewritten sentence move it by nothing. Measured in this worktree after `pnpm install`, `build:packages` and with the change staged, `git status --porcelain --ignored` reporting no residue outside `node_modules` and `dist`; the run's own `[read-size drift]` census named these eight and confirmed the other 36 agree. No band was widened and no value was computed from a delta: the baseline was re-read on the same tree with the change stashed, which is how the two causes are told apart.
+    // **The availability-notification acquisition gate (issue #227 / #259): 1340 -> 1344, and
+    // none of it is this branch's.** Measured on a pristine `origin/master` worktree at 1344
+    // as well: four `.md` files landed on the default branch without the census being
+    // answered. Re-recorded here because the drift report names it, and the convention is to
+    // re-record what it names — including the entries a branch merged cleanly.
     files: 1344,
     sites: 13,
     sources: [],
@@ -4672,7 +4678,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
     // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
     // and none of it is somebody else's staleness. Never computed from a delta.
-    files: 1628,
+    // **The availability-notification acquisition gate (issue #227 / #259): +2 files.** The
+    // two new backend test files — this walk is `backend/test/**`.
+    files: 1630,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -4924,7 +4932,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
     // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
     // and none of it is somebody else's staleness. Never computed from a delta.
-    files: 1628,
+    // **The availability-notification acquisition gate (issue #227 / #259): +2 files.** The
+    // two new backend test files, each of which takes a `setupBackendServer` handle and tears
+    // it down.
+    files: 1630,
     sites: null,
     sources: [],
   },
@@ -5387,8 +5398,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // carry a reason — so both count and the changeset does not.
     // **Phase 3 (T3-C): +10, all of it this branch's** (`9a0e8e0d0` agreed with the recorded 310). The ten shards of the Settings-debt ledger at `backend/scripts/ledgers/module-environment-inputs/`. This check's population is the artefacts whose job is to carry a reason, ledger shards among them, so a new ledger raises it by its shard count and by nothing else.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 320 -> 318.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
-    // **`fix/instance-docs-foreign-link-catalog`: files 318 -> 317 (-1).** This branch deletes one tracked `.ts`: `backend/scripts/ledgers/foreign-module-links/catalog.ts`, the shard drained when `catalog/attributes.md` stopped linking `../promotions.md` so that A6 of the instance acceptance criterion can go green in `registry` mode (`specs/100-module-owned-documentation/`, FR-020). This check's population is the artefacts whose job is to carry a reason, ledger shards among them, so draining a ledger lowers it by its shard count and by nothing else. Measured in this worktree after `pnpm install`, `build:packages` and with the change staged, `git status --porcelain --ignored` reporting no residue outside `node_modules` and `dist`; the run's own `[read-size drift]` census named these eight and confirmed the other 36 agree. No band was widened and no value was computed from a delta: the baseline was re-read on the same tree with the change stashed, which is how the two causes are told apart.
-    files: 317,
+    files: 318,
     // **2026-09-04: 14 -> 15.** One further named-subject lock claim.
     // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge` retired):**
     // sites 15 -> 17, files unchanged. `pwa`'s manifest gains `orders` in its
@@ -6026,8 +6036,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // module walk and moved this entry by nothing, which is the right answer — a migration
     // is not a documentation page.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): sites 261 -> 259.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
-    // **`fix/instance-docs-foreign-link-catalog`: sites 259 -> 258 (-1), `files` unmoved at 108.** One relative link into a sibling module's page became prose — `catalog/attributes.md` -> `../promotions.md`, the last `foreign-module-link` a default instance's documentation build refuses, `promotions` not being in the set `endora new instance` writes. It is `../search.md`'s repair a second time and the shard is deleted with it, an empty one being a done signal that says nothing. 36 links -> 35; no page was written or deleted, which is why `files` does not move. Measured in this worktree after `pnpm install`, `build:packages` and with the change staged, `git status --porcelain --ignored` reporting no residue outside `node_modules` and `dist`; the run's own `[read-size drift]` census named these eight and confirmed the other 36 agree. No band was widened and no value was computed from a delta: the baseline was re-read on the same tree with the change stashed, which is how the two causes are told apart.
-    sites: 258,
+    sites: 259,
     // Three authors, each seeing something the others cannot. `manifest-index`
     // is issue #215's shared floor over the module walk, whose unit is the
     // module's own directory. `sidebar-entries` is the **committed artefact's**
@@ -6305,7 +6314,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Phase 3 (T3-C): +195, all of it this branch's** (`9a0e8e0d0` agreed with the recorded 35208). The 22 module-owned environment declarations: each carries an English and a Polish sentence, several a second pair under `optional.without`, and every one of those literals is classified and **exempt**, the enclosing property key being a shipped language. `files` does not move — the declarations went into manifests this walk already opened, which is the #235/#237 shape and the reason both numbers are recorded.
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    sites: 35419,
+    // **The availability-notification acquisition gate (issue #227 / #259): +1 site.** One
+    // prose site, in the branch's two new backend test files.
+    sites: 35420,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -7011,7 +7022,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // 0 and 27 -> 26.
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    sites: 12979,
+    // **The availability-notification acquisition gate (issue #227 / #259): sites 12979 ->
+    // 12982 (+3).** Three specifiers: the two new `@endora-commerce/platform/kernel` imports,
+    // on `inventory`'s availability service and on its composition root, plus the contracts
+    // import the service's audience gate needs. `files` does not move — no module source file
+    // is added or deleted.
+    sites: 12982,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -7955,8 +7971,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/124-overlay-repairs` (!1645) added two tracked files and re-recorded nothing: files 8193 -> 8195.** Its own run reported the census unmoved, which was true of the tree it measured and stopped being true at the merge — the shape `check-estate.md` warns about, arriving in the file that warns about it. Re-measured here rather than reasoned about, on a clean worktree of `origin/master` after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting **zero** unignored residue. **The attribution is derivable and is the point of recording it here**: the two files are `packages/platform/src/composition/default-composition-overlay.test.ts` and `.changeset/afraid-pandas-repair.md`, and every walk moved by exactly as many of the two as it reads — the two whole-repository walks by 2, and the five that read only source trees or only comment-bearing files by 1, seeing the `.ts` and not the `.md`. Nothing here widened a band; every entry is at 0% of its distance to either edge.
     // **The release of 2026-09-14 (`release/version-0.9.0`): files 8195 -> 8167 (-28).** A release consumes changesets, and both of these walk the whole repository, so both move by exactly the number consumed — **28**, derived rather than asserted: `git diff --diff-filter=D --name-only <base> HEAD -- '.changeset/*.md' | wc -l` answers 28 and the same diff adds no file at all, so the two deltas are equal and are the whole story. Measured in a **fresh detached worktree** of the release commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. That mattered here rather than in theory: the first measurement was taken in the checkout this release was cut in and read `8174` for `check-nul-bytes`, seven files high, because that walk reads git-ignored files by design and the tree had been worked in all day. Recording it would have put one developer's residue into the shared record — the failure `check-estate.md` describes and the reason it says to measure from a fresh worktree.
     // **The three feature specs merged on 2026-09-14 (!1653, !1654, !1655) and their changeset: files 8167 -> 8179 (+12).** Derived, not attributed by hand: `git diff --diff-filter=A --name-only <baseline> HEAD` since the release re-record answers **12** — **11** under `specs/` and **1** changeset — so the two whole-repository walks move by 12 and `check-doc-snippets`, whose roots are `docs/docs` and `specs`, moves by the 11 it can see and not by the changeset it cannot. That arithmetic is the check on the measurement rather than a substitute for it: all three numbers were read off a run in a fresh worktree after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. **No document moved this merge request's own renumbering**, which renames two directories and adds and deletes nothing.
-    // **`fix/instance-docs-foreign-link-catalog`: files 8179 -> 8183 (+4), and the net hides three causes.** **`docs(128)` (b590955b8) added four tracked files and re-recorded nothing.** `git diff --diff-filter=A --name-only d6e26effb..origin/master` answers exactly four, all under `specs/128-defect-register-shape/`, so every walk that reads `specs/` moves by four and `check-language.sh`, which does not, moves by none — that split is the check on the attribution rather than a substitute for the measurement. **`fix/instance-docs-foreign-link-catalog` deletes one tracked `.ts`** — `backend/scripts/ledgers/foreign-module-links/catalog.ts`, the shard drained when `catalog/attributes.md` stopped linking `../promotions.md` so that A6 of the instance acceptance criterion can go green in `registry` mode (`specs/100-module-owned-documentation/`, FR-020). This walk reads the whole repository, so it sees all four, the deletion and this branch's own changeset: +4 -1 +1. Measured in this worktree after `pnpm install`, `build:packages` and with the change staged, `git status --porcelain --ignored` reporting no residue outside `node_modules` and `dist`; the run's own `[read-size drift]` census named these eight and confirmed the other 36 agree. No band was widened and no value was computed from a delta: the baseline was re-read on the same tree with the change stashed, which is how the two causes are told apart.
-    files: 8183,
+    // **The availability-notification acquisition gate (issue #227 / #259): 8179 -> 8186, of
+    // which +3 is this branch** — its two test files and its changeset, this walk being the
+    // whole repository. The other +4 predates it: a pristine `origin/master` worktree reads
+    // 8183, so that part is the default branch's unanswered census rather than this merge
+    // request's.
+    files: 8186,
     sites: null,
     sources: [],
     //
@@ -8728,7 +8748,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    sites: 1674,
+    // **The availability-notification acquisition gate (issue #227 / #259): +1 site.** One
+    // container resolution — `inventory` now resolves `salesChannelMembershipPort`. A kernel
+    // registration, so it adds no manifest edge and no `undeclared-dependency` with it.
+    sites: 1675,
     sources: ['manifest-index'],
   },
   // Two derivations, deliberately, because the check has two inputs that can be
@@ -9056,8 +9079,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
     // and none of it is somebody else's staleness. Never computed from a delta.
     // **`specs/110-instance-repository/` T141/T142 (A7, A8 and A9): files 2500 -> 2501 (+1).** One file: `backend/scripts/acceptance/instance-tenancy-probe.ts`, A9's own probe. Nothing was moved and nothing deleted; this merge request's other paths were already in the tree. Re-measured on the **merged** tree (`origin/master` at 2c56c52eb), in a fresh `git worktree` of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` showing no residue outside `node_modules` and `dist`, and with the resolution staged — `check-naming.sh` and `check-language.sh` take their population from the index plus untracked-and-not-ignored paths. This file's conflict was resolved wholly to the incoming side and every value here was then re-measured rather than reconciled, per `specs/conventions/check-estate.md`; the branch's own pre-merge measurement of the same five was +1 over a different base, which is why none of it is carried across as arithmetic. No band was widened and no value was computed from a delta: the run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
-    // **`fix/instance-docs-foreign-link-catalog`: files 2501 -> 2500 (-1).** This branch deletes one tracked `.ts`: `backend/scripts/ledgers/foreign-module-links/catalog.ts`, the shard drained when `catalog/attributes.md` stopped linking `../promotions.md` so that A6 of the instance acceptance criterion can go green in `registry` mode (`specs/100-module-owned-documentation/`, FR-020). This walk reads source trees and not `specs/`, so `docs(128)`'s four documents move it by nothing and the deletion is the whole delta. Measured in this worktree after `pnpm install`, `build:packages` and with the change staged, `git status --porcelain --ignored` reporting no residue outside `node_modules` and `dist`; the run's own `[read-size drift]` census named these eight and confirmed the other 36 agree. No band was widened and no value was computed from a delta: the baseline was re-read on the same tree with the change stashed, which is how the two causes are told apart.
-    files: 2500,
+    files: 2501,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -9160,7 +9182,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    sites: 1901,
+    // **The availability-notification acquisition gate (issue #227 / #259): +4 sites.** The
+    // module half: `outOfRequestChannel` and `SalesChannelMembershipPort` named by
+    // `inventory`'s availability service, and the same port named by its composition root and
+    // by its plugin factory. All four are published platform surface, so the count moves and
+    // the verdict does not.
+    sites: 1905,
     // count moves with the file count here because the reaches that went are exactly
     // the files that went.
     // **T119a: sites 1870 -> 1861.** The same nine files, each the single relative
@@ -9367,7 +9394,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    sites: 806,
+    // **The availability-notification acquisition gate (issue #227 / #259): +1 site.** The
+    // same `lazyPort` resolution, seen by the port-shape walk.
+    sites: 807,
     sources: ['manifest-index', 'ports-subpaths'],
   },
   // Small on purpose: this population is the *workspace*, not a source tree —
@@ -9765,7 +9794,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
     // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
     // and none of it is somebody else's staleness. Never computed from a delta.
-    files: 1628,
+    // **The availability-notification acquisition gate (issue #227 / #259): +2 files.** The
+    // two new backend test files. Neither wipes a shared table — each creates its own products
+    // and channels — but the walk reads them.
+    files: 1630,
     sites: 163,
     sources: [],
   },
@@ -10354,7 +10386,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
     // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
     // and none of it is somebody else's staleness. Never computed from a delta.
-    files: 1761,
+    // **The availability-notification acquisition gate (issue #227 / #259): +2 files.** The
+    // two new backend test files. Both sit in `backend/test/**` rather than beside the module,
+    // because both need the composed server harness.
+    files: 1763,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -11177,8 +11212,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and none of it is somebody else's staleness. Never computed from a delta.
     // **`specs/110-instance-repository/` T141/T142 (A7, A8 and A9): files 4659 -> 4660 (+1).** One file: `backend/scripts/acceptance/instance-tenancy-probe.ts`, A9's own probe. Nothing was moved and nothing deleted; this merge request's other paths were already in the tree. Re-measured on the **merged** tree (`origin/master` at 2c56c52eb), in a fresh `git worktree` of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` showing no residue outside `node_modules` and `dist`, and with the resolution staged — `check-naming.sh` and `check-language.sh` take their population from the index plus untracked-and-not-ignored paths. This file's conflict was resolved wholly to the incoming side and every value here was then re-measured rather than reconciled, per `specs/conventions/check-estate.md`; the branch's own pre-merge measurement of the same five was +1 over a different base, which is why none of it is carried across as arithmetic. No band was widened and no value was computed from a delta: the run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
     // **`feat/124-overlay-repairs` (!1645) added two tracked files and re-recorded nothing: files 4660 -> 4661.** Its own run reported the census unmoved, which was true of the tree it measured and stopped being true at the merge — the shape `check-estate.md` warns about, arriving in the file that warns about it. Re-measured here rather than reasoned about, on a clean worktree of `origin/master` after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting **zero** unignored residue. **The attribution is derivable and is the point of recording it here**: the two files are `packages/platform/src/composition/default-composition-overlay.test.ts` and `.changeset/afraid-pandas-repair.md`, and every walk moved by exactly as many of the two as it reads — the two whole-repository walks by 2, and the five that read only source trees or only comment-bearing files by 1, seeing the `.ts` and not the `.md`. Nothing here widened a band; every entry is at 0% of its distance to either edge.
-    // **`fix/instance-docs-foreign-link-catalog`: files 4661 -> 4660 (-1).** This branch deletes one tracked `.ts`: `backend/scripts/ledgers/foreign-module-links/catalog.ts`, the shard drained when `catalog/attributes.md` stopped linking `../promotions.md` so that A6 of the instance acceptance criterion can go green in `registry` mode (`specs/100-module-owned-documentation/`, FR-020). This walk reads source trees and not `specs/`, so `docs(128)`'s four documents move it by nothing and the deletion is the whole delta. Measured in this worktree after `pnpm install`, `build:packages` and with the change staged, `git status --porcelain --ignored` reporting no residue outside `node_modules` and `dist`; the run's own `[read-size drift]` census named these eight and confirmed the other 36 agree. No band was widened and no value was computed from a delta: the baseline was re-read on the same tree with the change stashed, which is how the two causes are told apart.
-    files: 4660,
+    // **The availability-notification acquisition gate (issue #227 / #259): +2 files.** The
+    // two new backend test files.
+    files: 4663,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -12119,8 +12155,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/124-overlay-repairs` (!1645) added two tracked files and re-recorded nothing: files 8253 -> 8255.** Its own run reported the census unmoved, which was true of the tree it measured and stopped being true at the merge — the shape `check-estate.md` warns about, arriving in the file that warns about it. Re-measured here rather than reasoned about, on a clean worktree of `origin/master` after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting **zero** unignored residue. **The attribution is derivable and is the point of recording it here**: the two files are `packages/platform/src/composition/default-composition-overlay.test.ts` and `.changeset/afraid-pandas-repair.md`, and every walk moved by exactly as many of the two as it reads — the two whole-repository walks by 2, and the five that read only source trees or only comment-bearing files by 1, seeing the `.ts` and not the `.md`. Nothing here widened a band; every entry is at 0% of its distance to either edge.
     // **The release of 2026-09-14 (`release/version-0.9.0`): files 8255 -> 8227 (-28).** A release consumes changesets, and both of these walk the whole repository, so both move by exactly the number consumed — **28**, derived rather than asserted: `git diff --diff-filter=D --name-only <base> HEAD -- '.changeset/*.md' | wc -l` answers 28 and the same diff adds no file at all, so the two deltas are equal and are the whole story. Measured in a **fresh detached worktree** of the release commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. That mattered here rather than in theory: the first measurement was taken in the checkout this release was cut in and read `8174` for `check-nul-bytes`, seven files high, because that walk reads git-ignored files by design and the tree had been worked in all day. Recording it would have put one developer's residue into the shared record — the failure `check-estate.md` describes and the reason it says to measure from a fresh worktree.
     // **The three feature specs merged on 2026-09-14 (!1653, !1654, !1655) and their changeset: files 8227 -> 8239 (+12).** Derived, not attributed by hand: `git diff --diff-filter=A --name-only <baseline> HEAD` since the release re-record answers **12** — **11** under `specs/` and **1** changeset — so the two whole-repository walks move by 12 and `check-doc-snippets`, whose roots are `docs/docs` and `specs`, moves by the 11 it can see and not by the changeset it cannot. That arithmetic is the check on the measurement rather than a substitute for it: all three numbers were read off a run in a fresh worktree after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. **No document moved this merge request's own renumbering**, which renames two directories and adds and deletes nothing.
-    // **`fix/instance-docs-foreign-link-catalog`: files 8239 -> 8243 (+4), and the net hides three causes.** **`docs(128)` (b590955b8) added four tracked files and re-recorded nothing.** `git diff --diff-filter=A --name-only d6e26effb..origin/master` answers exactly four, all under `specs/128-defect-register-shape/`, so every walk that reads `specs/` moves by four and `check-language.sh`, which does not, moves by none — that split is the check on the attribution rather than a substitute for the measurement. **`fix/instance-docs-foreign-link-catalog` deletes one tracked `.ts`** — `backend/scripts/ledgers/foreign-module-links/catalog.ts`, the shard drained when `catalog/attributes.md` stopped linking `../promotions.md` so that A6 of the instance acceptance criterion can go green in `registry` mode (`specs/100-module-owned-documentation/`, FR-020). This walk reads the whole repository, so it sees all four, the deletion and this branch's own changeset: +4 -1 +1. Measured in this worktree after `pnpm install`, `build:packages` and with the change staged, `git status --porcelain --ignored` reporting no residue outside `node_modules` and `dist`; the run's own `[read-size drift]` census named these eight and confirmed the other 36 agree. No band was widened and no value was computed from a delta: the baseline was re-read on the same tree with the change stashed, which is how the two causes are told apart.
-    files: 8243,
+    // **The availability-notification acquisition gate (issue #227 / #259): 8239 -> 8246, of
+    // which +3 is this branch** — two test files and its changeset, this walk being the whole
+    // repository. The other +4 predates it: a pristine `origin/master` worktree reads 8243.
+    files: 8246,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -12699,8 +12737,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and none of it is somebody else's staleness. Never computed from a delta.
     // **`specs/110-instance-repository/` T141/T142 (A7, A8 and A9): files 6292 -> 6293 (+1).** One file: `backend/scripts/acceptance/instance-tenancy-probe.ts`, A9's own probe. Nothing was moved and nothing deleted; this merge request's other paths were already in the tree. Re-measured on the **merged** tree (`origin/master` at 2c56c52eb), in a fresh `git worktree` of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` showing no residue outside `node_modules` and `dist`, and with the resolution staged — `check-naming.sh` and `check-language.sh` take their population from the index plus untracked-and-not-ignored paths. This file's conflict was resolved wholly to the incoming side and every value here was then re-measured rather than reconciled, per `specs/conventions/check-estate.md`; the branch's own pre-merge measurement of the same five was +1 over a different base, which is why none of it is carried across as arithmetic. No band was widened and no value was computed from a delta: the run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
     // **`feat/124-overlay-repairs` (!1645) added two tracked files and re-recorded nothing: files 6293 -> 6294.** Its own run reported the census unmoved, which was true of the tree it measured and stopped being true at the merge — the shape `check-estate.md` warns about, arriving in the file that warns about it. Re-measured here rather than reasoned about, on a clean worktree of `origin/master` after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting **zero** unignored residue. **The attribution is derivable and is the point of recording it here**: the two files are `packages/platform/src/composition/default-composition-overlay.test.ts` and `.changeset/afraid-pandas-repair.md`, and every walk moved by exactly as many of the two as it reads — the two whole-repository walks by 2, and the five that read only source trees or only comment-bearing files by 1, seeing the `.ts` and not the `.md`. Nothing here widened a band; every entry is at 0% of its distance to either edge.
-    // **`fix/instance-docs-foreign-link-catalog`: files 6294 -> 6293 (-1).** This branch deletes one tracked `.ts`: `backend/scripts/ledgers/foreign-module-links/catalog.ts`, the shard drained when `catalog/attributes.md` stopped linking `../promotions.md` so that A6 of the instance acceptance criterion can go green in `registry` mode (`specs/100-module-owned-documentation/`, FR-020). It moves by the deletion alone: this walk took no part in `docs(128)`'s +4, which is what separates the two causes in the entries above. Measured in this worktree after `pnpm install`, `build:packages` and with the change staged, `git status --porcelain --ignored` reporting no residue outside `node_modules` and `dist`; the run's own `[read-size drift]` census named these eight and confirmed the other 36 agree. No band was widened and no value was computed from a delta: the baseline was re-read on the same tree with the change stashed, which is how the two causes are told apart.
-    files: 6293,
+    // **The availability-notification acquisition gate (issue #227 / #259): +2 files.** The
+    // two new backend test files. The changeset is `.md` under `.changeset/`, which this walk
+    // does not read, so it is +2 where the naming walk is +3.
+    files: 6296,
     sites: null,
     sources: ['manifest-index'],
     //

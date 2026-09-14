@@ -100,6 +100,11 @@ export async function registerInventoryRoutes(
         email: customerAccount.email,
         productId: request.params.id,
         variantId: body.variantId ?? null,
+        // Issue #227 — off the actor the auth plugin resolved rather than off
+        // the customer context above: `productAudienceOf` is the one helper the
+        // six modules that serve a product to a buyer share, so an account with
+        // no organisation cannot be answered differently here than next door.
+        audience: productAudienceOf(request),
       });
       reply.status(202);
       return {
@@ -144,6 +149,13 @@ export async function registerInventoryRoutes(
         email: body.email,
         variantId: body.variantId ?? null,
         customerAccountId,
+        // Issue #227 — and deliberately **not** derived from the `try` above.
+        // That block answers "which account owns the row", and it swallows its
+        // failure; an audience derived from it would read as anonymous for a
+        // caller the platform did in fact identify, and worse, would silently
+        // become whatever a future edit to that `catch` made it.
+        // `productAudienceOf` reads the actor and nothing else.
+        audience: productAudienceOf(request),
       });
       reply.status(202);
       return {

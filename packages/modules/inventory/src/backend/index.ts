@@ -33,6 +33,7 @@ import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { lazyPort } from '@endora-commerce/platform/kernel';
 import { effectiveState } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import type { SalesChannelResolutionPort } from '@endora-commerce/platform/kernel';
 import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { inventoryModule, type InventoryModuleOptions } from './plugin.js';
@@ -175,6 +176,13 @@ export function registerModule(ctx: ModuleContext): void {
             'catalogCategoryWritePort',
           ),
           customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+          // Issue #259 — the channel assortment gate on the notify-me seam. A
+          // kernel registration, not a module's, so there is no edge to declare
+          // in the manifest.
+          salesChannelMembership: lazyPort<SalesChannelMembershipPort>(
+            ctx,
+            'salesChannelMembershipPort',
+          ),
           mailer: lazyPort<EmailMailerPort>(ctx, 'emailMailer'),
           requireAdmin: (permission) => async (req, reply) =>
             ctx.cradle<InventoryCradle>().requireAdmin(permission)(req, reply),
