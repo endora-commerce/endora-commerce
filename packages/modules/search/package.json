@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-search",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "type": "module",
   "sideEffects": false,
   "description": "Per-channel Meilisearch indexes, suggest popup, and optional LLM-augmented search.",

@@ -1,5 +1,56 @@
 # @endora-commerce/mod-customers
 
+## 0.9.0
+
+### Minor Changes
+
+- 8e86e55: Eleven container names a module read and nothing defaulted are now defaulted by
+  the module that reads them, so a composition that contributes nothing can
+  resolve every one of them.
+
+  `@endora-commerce/platform` — `composeApp` registers two more names:
+  `customerOrganizationIdResolver`, the tenth actor-shaped name, whose value
+  expression reads `request.actor` and nothing else; and `newsletterTokenSecret`,
+  the resolved `NEWSLETTER_TOKEN_SECRET`.
+
+  `@endora-commerce/mod-newsletter` — `newsletterModule`'s `defaultChannelId`
+  option becomes `resolveDefaultChannelId: () => Promise<string | null>`. A
+  consumer composing the module through `registerModule` is unaffected; a consumer
+  calling `newsletterModule` directly passes `async () => null` where it passed
+  `null`. The `NewsletterBridge` interface is removed — the module reads its nine
+  members itself.
+
+  `mod-catalog`, `mod-customers`, `mod-ksef`, `mod-orders`, `mod-quote-requests` —
+  each registers the names it reads. No published shape changes; a composition
+  that contributes one of them still overrides the default, which is what the
+  contribution window is for.
+
+  `mod-catalog`, `mod-customers` and `mod-orders` declare new manifest edges for
+  ports they now resolve themselves: `catalog` -> `search:searchReindexPort`,
+  `customers` -> `admin_roles`, `orders` -> `admin_users` and `admin_roles`. Every
+  one of those owners declares `activation.nonDeactivatable`, so no operator loses
+  an activation control.
+
+### Patch Changes
+
+- Updated dependencies [10a17f0]
+- Updated dependencies [471defd]
+- Updated dependencies [e6f053a]
+- Updated dependencies [6c8d958]
+- Updated dependencies [30430d1]
+- Updated dependencies [6bd9ae9]
+- Updated dependencies [c1d281f]
+- Updated dependencies [bd596a9]
+- Updated dependencies [def780b]
+- Updated dependencies [97f9233]
+- Updated dependencies [8e86e55]
+- Updated dependencies [2fe0b8d]
+- Updated dependencies [ee80d6b]
+- Updated dependencies [52c2bfd]
+  - @endora-commerce/platform@0.9.0
+  - @endora-commerce/contracts@0.9.0
+  - @endora-commerce/admin-kit@0.8.1
+
 ## 0.8.0
 
 ### Minor Changes

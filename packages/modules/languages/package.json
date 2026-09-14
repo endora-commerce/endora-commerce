@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-languages",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "type": "module",
   "sideEffects": false,
   "description": "Storefront/admin language catalog and per-channel locale routing.",
