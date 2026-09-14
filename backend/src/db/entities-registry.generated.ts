@@ -72,6 +72,7 @@ import { entities as transactionalEmailsEntities } from '@endora-commerce/mod-tr
 import { entities as emailEntities } from '@endora-commerce/mod-email/backend';
 import { entities as organizationsEntities } from '@endora-commerce/mod-organizations/backend';
 import { entities as pimErgonodeEntities } from '@endora-commerce/mod-pim-ergonode/backend';
+import { entities as erpConnectorEntities } from '@endora-commerce/mod-erp-connector/backend';
 import { entities as productFeedsEntities } from '@endora-commerce/mod-product-feeds/backend';
 import { entities as googleAnalyticsEntities } from '@endora-commerce/mod-google-analytics/backend';
 import { entities as inpostEntities } from '@endora-commerce/mod-inpost/backend';
@@ -109,6 +110,7 @@ import { entities as tpayEntities } from '@endora-commerce/mod-tpay/backend';
 import { entities as i18nEntities } from '@endora-commerce/mod-i18n/backend';
 import { entities as pimUnopimEntities } from '@endora-commerce/mod-pim-unopim/backend';
 import { entities as webhooksEntities } from '@endora-commerce/mod-webhooks/backend';
+import { entities as comarchXlEntities } from '@endora-commerce/mod-comarch-xl/backend';
 
 export const ALL_ENTITIES = [
   AuditLogEntry,
@@ -146,6 +148,7 @@ export const ALL_ENTITIES = [
   ...(emailEntities as readonly EntityClassLike[]),
   ...(organizationsEntities as readonly EntityClassLike[]),
   ...(pimErgonodeEntities as readonly EntityClassLike[]),
+  ...(erpConnectorEntities as readonly EntityClassLike[]),
   ...(productFeedsEntities as readonly EntityClassLike[]),
   ...(googleAnalyticsEntities as readonly EntityClassLike[]),
   ...(inpostEntities as readonly EntityClassLike[]),
@@ -183,4 +186,5 @@ export const ALL_ENTITIES = [
   ...(i18nEntities as readonly EntityClassLike[]),
   ...(pimUnopimEntities as readonly EntityClassLike[]),
   ...(webhooksEntities as readonly EntityClassLike[]),
+  ...(comarchXlEntities as readonly EntityClassLike[]),
 ] as const;

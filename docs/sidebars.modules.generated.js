@@ -162,6 +162,7 @@ const modules = [
       'module-reference/cms',
     ],
   },
+  { type: 'doc', id: 'modules/comarch_xl', label: 'Comarch ERP XL' },
   {
     type: 'category',
     label: 'Compare Products',
@@ -244,6 +245,7 @@ const modules = [
       'module-reference/pim-ergonode',
     ],
   },
+  { type: 'doc', id: 'module-reference/erp-connector', label: 'erp_connector' },
   {
     type: 'category',
     label: 'Google Analytics',
