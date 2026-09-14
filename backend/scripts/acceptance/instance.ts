@@ -113,6 +113,7 @@ import { resolveDatabaseTarget } from './assertions.js';
 import {
   compareToExpectation,
   completeResults,
+  describeRegistrySupply,
   endoraClosure,
   evaluateA1,
   evaluateA3,
@@ -148,6 +149,7 @@ import {
   type DigestedFile,
   type PackageDependencyDeclaration,
   type ShippedFiles,
+  type SuppliedPackage,
 } from './instance-assertions.js';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
@@ -366,6 +368,57 @@ function provisionHost(
         `measure:\n${installed.output}`,
     );
   }
+}
+
+/**
+ * Every package an unconsumed changeset names — this checkout's own statement
+ * that a package holds work no publish carries.
+ *
+ * It is read rather than inferred because the case it exists for is invisible
+ * to every other instrument: a registry serving `0.8.0` and a checkout
+ * declaring `0.8.0` are indistinguishable by version, and were two different
+ * programs on 2026-09-14. `check:release-intent` judges a release by this same
+ * source, so the two answer from one place.
+ */
+function packagesWithUnconsumedChangesets(): ReadonlySet<string> {
+  const named = new Set<string>();
+  const dir = join(REPO_ROOT, '.changeset');
+  if (!existsSync(dir)) return named;
+  for (const entry of readdirSync(dir)) {
+    if (!entry.endsWith('.md') || entry === 'README.md') continue;
+    const text = readFileSync(join(dir, entry), 'utf8');
+    const front = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
+    if (front === null) continue;
+    for (const line of front[1]!.split('\n')) {
+      const match = /^\s*['"]?(@[^'"\s:]+\/[^'"\s:]+)['"]?\s*:/.exec(line);
+      if (match !== null) named.add(match[1]!);
+    }
+  }
+  return named;
+}
+
+/**
+ * What the registry served, package by package — the input to the note the
+ * `registry` mode's report opens with.
+ *
+ * The served version is read off the **installed** manifest rather than asked
+ * of the registry a second time: that is the tarball this run will actually
+ * measure, and a second query is a second answer to one question (D-100).
+ */
+function suppliedPackages(hostDir: string): readonly SuppliedPackage[] {
+  const pending = packagesWithUnconsumedChangesets();
+  const supplied: SuppliedPackage[] = [];
+  for (const pkg of publishablePackages()) {
+    const installed = join(hostDir, 'node_modules', ...pkg.name.split('/'), 'package.json');
+    if (!existsSync(installed)) continue;
+    const served = (JSON.parse(readFileSync(installed, 'utf8')) as { version?: string }).version;
+    const declared = (
+      JSON.parse(readFileSync(join(pkg.dir, 'package.json'), 'utf8')) as { version?: string }
+    ).version;
+    if (typeof served !== 'string' || typeof declared !== 'string') continue;
+    supplied.push({ name: pkg.name, served, declared, pending: pending.has(pkg.name) });
+  }
+  return supplied;
 }
 
 /**
@@ -1879,6 +1932,11 @@ async function main(): Promise<void> {
   try {
     const packed = mode === 'tarball' ? packEverything(tarballDir) : null;
     provisionHost(hostDir, packed, registry);
+    // Before anything is invoked, because it decides what every line below is
+    // *about*: in this mode the binary and the packages are the last publish's,
+    // not this checkout's, and a report that does not say so is read as a
+    // report on this tree.
+    if (mode === 'registry') notes.push(describeRegistrySupply(suppliedPackages(hostDir)));
     const binary = assertInstalledBinaryContext(hostDir, temp);
 
     const scaffold = run(
