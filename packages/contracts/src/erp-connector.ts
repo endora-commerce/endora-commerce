@@ -54,6 +54,10 @@ export interface ErpConnectorRegistryPort {
 /** Known ERP connector modules and their activation setting codes (feature 119). */
 export const ERP_CONNECTOR_MODULES = [
   { id: 'comarch_xl', activationSettingCode: 'comarch_xl.enabled' },
+  {
+    id: 'erp_incumbent_fixture',
+    activationSettingCode: 'erp_incumbent_fixture.enabled',
+  },
 ] as const;
 
 export const ERP_CONNECTOR_ALREADY_ACTIVE = 'ERP_CONNECTOR_ALREADY_ACTIVE' as const;

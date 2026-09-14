@@ -73,6 +73,16 @@ export function activationErrorMessage(
     }
   }
 
+  if (code === 'ERP_CONNECTOR_ALREADY_ACTIVE' && details && !Array.isArray(details)) {
+    const activeModuleId = (details as Record<string, unknown>)['activeModuleId'];
+    if (typeof activeModuleId === 'string' && activeModuleId.length > 0) {
+      return t('platform.modules.error.erpConnectorAlreadyActive', {
+        name: moduleName,
+        activeModuleId,
+      });
+    }
+  }
+
   const refusal = DEPENDENCY_REFUSALS[code];
   if (refusal && details && !Array.isArray(details)) {
     const named = (details as Record<string, unknown>)[refusal.field];

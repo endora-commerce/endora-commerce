@@ -72,6 +72,8 @@ bundle['core']!['platform.modules.error.dependentsPresent'] = 'blocked: {name} n
 bundle['core']!['platform.modules.error.dependenciesAbsent'] = 'missing: {name} wants {modules}';
 bundle['core']!['platform.modules.error.pimConnectorAlreadyActive'] =
   'pim blocked: {name} vs {activeModuleId}';
+bundle['core']!['platform.modules.error.erpConnectorAlreadyActive'] =
+  'erp blocked: {name} vs {activeModuleId}';
 
 function moduleItem(patch: Partial<ModuleListItem> & { id: string }): ModuleListItem {
   return {
@@ -221,6 +223,30 @@ describe('ModulesPage — the activation control lives here now (D-36a)', () => 
     );
 
     expect(await screen.findByText('blocked: Settings needs organizations')).toBeInTheDocument();
+  });
+
+  it('names the incumbent ERP connector when mutual exclusion refuses the flip (FR-006)', async () => {
+    setModuleActivation.mockRejectedValueOnce(
+      new ApiError(409, {
+        error: {
+          code: 'ERP_CONNECTOR_ALREADY_ACTIVE',
+          message: 'Another ERP connector is already active: erp_incumbent_fixture',
+          details: { activeModuleId: 'erp_incumbent_fixture' },
+          requestId: 'req_test',
+        },
+      }),
+    );
+    listed = [moduleItem({ id: 'comarch_xl', name: 'Comarch ERP XL' })];
+    presence = [presenceItem({ id: 'comarch_xl', present: false, activated: false })];
+    await renderPage();
+
+    await userEvent.click(
+      within(row('comarch_xl')).getByRole('button', { name: /platform.modules.action.enable/ }),
+    );
+
+    expect(
+      await screen.findByText('erp blocked: Comarch ERP XL vs erp_incumbent_fixture'),
+    ).toBeInTheDocument();
   });
 
   it('names the incumbent PIM connector when mutual exclusion refuses the flip (FR-003)', async () => {
