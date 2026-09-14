@@ -1988,6 +1988,17 @@ acceptance:storefront-scaffold:
     MEILISEARCH_URL: http://meilisearch:7700
     MEILISEARCH_API_KEY: devMasterKeyChangeMe
     JWT_SECRET: storefront-acceptance-secret-not-a-real-one-000000
+    # The backend this job boots composes `newsletter`, whose token helper
+    # refuses an empty secret in its constructor - it has since the module was
+    # written (39865ad27). The value is read from NEWSLETTER_TOKEN_SECRET and
+    # falls back to the session key, and this job sets neither, so the fallback
+    # chain resolves to empty and `buildServer()` dies at composition with
+    # `[newsletter] token secret must be a non-empty string` - nightly 13800 and
+    # push 13797. Declared here as a literal beside JWT_SECRET rather than
+    # borrowing SESSION_COOKIE_SECRET, because the comment below explains why
+    # this job withholds that one deliberately, and satisfying one requirement
+    # by defeating another decision is how a job ends up meaning nothing.
+    NEWSLETTER_TOKEN_SECRET: storefront-acceptance-newsletter-not-a-real-one-000
     # The **backend's**, and it stays: `packages/platform/src/env/` declares
     # NODE_ENV with `consumers: ['backend']`, and this job sets no
     # SESSION_COOKIE_SECRET, so `production` here is a backend that refuses its
