@@ -147,7 +147,7 @@ variables:
 # ---------------------------------------------------------------------------
 quality:
   stage: quality
-  image: node:22.17-slim
+  image: node:22.18-slim
   variables:
     # `tsc --noEmit` over this monorepo needs a bigger heap than Node gives
     # itself on the dedicated runner, and the reason is not the tree's size —
@@ -176,7 +176,8 @@ quality:
     # the fix is the runner's `memory`, not this file.
     #
     # **2048 -> 2560, because the backend program grew past it** (pipeline
-    # 12269, exit 134). Bracketed in this job's own image, `node:22.17-slim`
+    # 12269, exit 134). Bracketed in this job's image as it then was,
+    # `node:22.17-slim`,
     # in a 3 GB container, running `tsc -p backend/tsconfig.json --noEmit`
     # directly: 2048 is not a margin, it is the **cliff** — three of four runs
     # died with V8's named `Reached heap limit`, the fourth passed — and 2080
@@ -221,7 +222,8 @@ quality:
     # `--max-old-space-size` is a cap, not an allocation — a larger one only
     # lets V8 collect less eagerly, so the job's real footprint moves by what
     # the collector stops reclaiming, not by the 512 MB the number moved.
-    # Measured from the container's own cgroup, `node:22.17-slim` under
+    # Measured from the container's own cgroup, on the image of the day
+    # (`node:22.17-slim`), under
     # `--memory=3g`, running this job's two script lines: **2292 MB** at 2048
     # (with the typecheck dying) and **2396 MB** at 2560 (green) — **+104 MB**.
     # Over `pnpm -r run typecheck` alone the same pair is 2210 -> 2392 MB.
@@ -798,7 +800,7 @@ quality:static:
 #      explicit fetch gets the ref; the guard below exits 2 when it still is
 #      not there, matching the repository's rule that a green may never mean
 #      "did not look".
-#   2. `git` is load-bearing and node:22.17-slim does not ship it — same
+#   2. `git` is load-bearing and node:22.18-slim does not ship it — same
 #      reasoning as quality:static above.
 #
 # What it does NOT check, stated so nobody reads more into a green: the CLI
@@ -833,7 +835,7 @@ quality:static:
 # ---------------------------------------------------------------------------
 release:changeset:
   stage: quality
-  image: node:22.17-slim
+  image: node:22.18-slim
   variables:
     # Full history: `changeset status` diffs against the merge base, which a
     # shallow clone does not contain.
@@ -892,7 +894,7 @@ release:changeset:
       # rides along, as it already did.
       pnpm --filter backend run check:release-intent -- --since "origin/$base"
     # Feature 080 (T043) — the gate above, measured over real branches, against
-    # a real target branch. `node:22.17-slim` ships no git, so this job installs
+    # a real target branch. `node:22.18-slim` ships no git, so this job installs
     # it, as `test:backend:unit` does; the release-branch discriminator IS a
     # `git diff`, so the fake `git ls-files` in
     # `test/helpers/shell-check-fixture.ts` would prove only the fake. It
@@ -1085,7 +1087,7 @@ release:changeset:
 # instance. Widen the selection when a deployment ships something core does not.
 test:backend:deployment:
   stage: test
-  image: node:22.17-slim
+  image: node:22.18-slim
   services:
     - name: postgres:16-alpine
       alias: postgres
@@ -1235,7 +1237,7 @@ test:backend:deployment:
 # (1638 MB) a wide margin that 1024 would cut to ~220 MB.
 test:backend:
   stage: test
-  image: node:22.17-slim
+  image: node:22.18-slim
   parallel: 5
   # One shard at a time while the runner host is shared — see the Memory block
   # above. It is not a performance oversight; reconsider it when the suite has a
@@ -1341,7 +1343,7 @@ test:backend:
 # jobs, not of coverage. `needs: []` starts the job at pipeline creation instead
 # of after the `quality` stage — the whole value here is an answer in minutes.
 # `git` is a dependency of this suite, and it took a day to find out because
-# nothing said so. `node:22.17-slim` ships none, and the suite spawns it three
+# nothing said so. `node:22.18-slim` ships none, and the suite spawns it three
 # ways: `test/unit/release/changeset-flow.test.ts` runs the real changesets CLI
 # (which shells out to git and exits 1 on `spawn git ENOENT`), and
 # `test/unit/scripts/check-read-size.test.ts` spawns `check-naming.sh` and
@@ -1356,7 +1358,7 @@ test:backend:
 # fake is not evidence the suite needs no git, which is how this went unnoticed.
 test:backend:unit:
   stage: test
-  image: node:22.17-slim
+  image: node:22.18-slim
   needs: []
   before_script:
     - apt-get update -qq && apt-get install -y -qq --no-install-recommends git
@@ -1411,7 +1413,7 @@ test:backend:unit:
 # ---------------------------------------------------------------------------
 acceptance:package-schema:
   stage: test
-  image: node:22.17-slim
+  image: node:22.18-slim
   services:
     - name: postgres:16-alpine
       alias: postgres
@@ -1498,11 +1500,11 @@ acceptance:package-schema:
 # run on every pipeline without sharding or scoping.
 test:frontend:
   stage: test
-  image: node:22.17-slim
+  image: node:22.18-slim
   before_script:
     # `packages/cli`'s storefront-scaffold tests build a fixture **checkout**, because the
     # scaffold's copy population is `git ls-files` and a fixture that is not a repository
-    # would test a different derivation. `node:22.17-slim` ships no git, so `spawnSync`
+    # would test a different derivation. `node:22.18-slim` ships no git, so `spawnSync`
     # returns `status: null` and the failure reads `git init -q: undefined` — a message that
     # names neither git nor its absence. Four other jobs in this file install it for their
     # own reasons; this is the fifth.
@@ -1543,7 +1545,7 @@ test:frontend:
 # entity, and it composes no search.
 test:kit:
   stage: test
-  image: node:22.17-slim
+  image: node:22.18-slim
   services:
     - name: postgres:16-alpine
       alias: postgres
@@ -1653,7 +1655,7 @@ perf:backend:
   # An hour is what this job inherited when it declared nothing, and an hour is
   # what it spent. 20 minutes against a measured 6.5 — see the derivation above.
   timeout: 20m
-  image: node:22.17-slim
+  image: node:22.18-slim
   services:
     - name: postgres:16-alpine
       alias: postgres
@@ -1735,7 +1737,7 @@ perf:backend:heavy:
   stage: test
   # Assembled from the parts above, to be re-based from the first complete run.
   timeout: 4h
-  image: node:22.17-slim
+  image: node:22.18-slim
   services:
     - name: postgres:16-alpine
       alias: postgres
@@ -1876,7 +1878,7 @@ boot-gate:
 # rather than an invisible one. See `backend/scripts/pack-gate.ts`.
 pack-gate:
   stage: test
-  image: node:22.17-slim
+  image: node:22.18-slim
   before_script:
     - apt-get update -qq && apt-get install -y -qq --no-install-recommends tar
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
@@ -1964,7 +1966,7 @@ pack-gate:
 # ---------------------------------------------------------------------------
 acceptance:storefront-scaffold:
   stage: test
-  image: node:22.17-slim
+  image: node:22.18-slim
   services:
     - name: postgres:16-alpine
       alias: postgres
@@ -2104,7 +2106,7 @@ acceptance:storefront-scaffold:
 # ---------------------------------------------------------------------------
 acceptance:instance:
   stage: test
-  image: node:22.17-slim
+  image: node:22.18-slim
   services:
     - name: postgres:16-alpine
       alias: postgres
@@ -2201,7 +2203,7 @@ acceptance:instance:
 # sidebar fragment, and the generator that writes it.
 build:docs:
   stage: test
-  image: node:22.17-slim
+  image: node:22.18-slim
   before_script:
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
     - pnpm install --frozen-lockfile
@@ -2619,7 +2621,7 @@ deploy:
 # ---------------------------------------------------------------------------
 publish:packages:
   stage: deploy
-  image: node:22.17-slim
+  image: node:22.18-slim
   variables:
     # `changeset publish` tags what it publishes, so it shells out to git.
     GIT_DEPTH: 0

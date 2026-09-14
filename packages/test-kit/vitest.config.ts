@@ -12,7 +12,7 @@
 //
 // **Why there are two configurations and not one.** `pnpm run test` is what CI's
 // `test:frontend` job invokes across every non-backend member, in a
-// `node:22.17-slim` image with no service containers at all. A kit test that
+// `node:22.18-slim` image with no service containers at all. A kit test that
 // composes a real server needs a real PostgreSQL and a real Redis — the plan
 // says so in as many words, and an in-memory substitute would test a platform
 // nobody runs. So this configuration carries the tests that need nothing, and

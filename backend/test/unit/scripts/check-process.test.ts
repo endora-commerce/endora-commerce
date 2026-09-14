@@ -70,7 +70,7 @@ async function child(script: string): Promise<SpawnedCheck> {
  *
  * So there is no wrapper for which *"the count is the check's own output"*
  * holds, and asserting it pinned the shell of whoever wrote the assertion —
- * `node:22.17-slim` reported `expected 50 to be 43` on `master` from the merge
+ * `node:22.18-slim` reported `expected 50 to be 43` on `master` from the merge
  * that added it. The assertion below states what is true of every wrapper
  * instead; {@link child} keeps the exact one, where it belongs, because a
  * direct child is the whole pipe.

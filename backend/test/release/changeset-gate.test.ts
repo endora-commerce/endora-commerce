@@ -11,7 +11,7 @@ import { afterEach, describe, expect, it } from 'vitest';
  * ## Why this is not under `test/unit/`
  *
  * It needs **git**, and the backend unit suite deliberately has none: it runs in
- * `node:22.17-slim`, which ships no git, and `test/helpers/shell-check-fixture.ts`
+ * `node:22.18-slim`, which ships no git, and `test/helpers/shell-check-fixture.ts`
  * fakes `git ls-files` for exactly that reason. Faking it here would defeat the
  * file — the discriminator under test *is* a `git diff`, and a fake would prove
  * the fake. So this file sits outside every suite's default include and is run

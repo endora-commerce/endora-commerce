@@ -38,7 +38,7 @@ import { readJobs } from '../../helpers/ci-jobs.js';
  *
  * ## 2. `git` is a dependency of the backend unit suite, not a nicety
  *
- * `node:22.17-slim` ships no git. The suite spawns the changesets CLI, which
+ * `node:22.18-slim` ships no git. The suite spawns the changesets CLI, which
  * spawns git, and it spawns `check-naming.sh` and `check-language.sh`, whose
  * file list is `git ls-files` and which exit 2 rather than report a vacuous
  * green without it. Ten failures across two files said "expected 1 to be 0" and

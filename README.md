@@ -88,7 +88,7 @@ For an authoritative endpoint list, see the live OpenAPI document at `GET /api/v
 
 ## Prerequisites
 
-- **Node.js** ≥ 22.17 (LTS). Use `nvm use` or Volta; `.nvmrc` is pinned to `22`. Node 20 reached end-of-life in April 2026 and cannot run MikroORM 7.
+- **Node.js** ≥ 22.18 (LTS). Use `nvm use` or Volta; `.nvmrc` is pinned to `22`. MikroORM 7 needs 22.17; 22.18 is the first release that strips TypeScript types without a flag, which is how a deployment’s overlay module — a `.ts` file nothing compiles — is loaded at all (D-236).
 - **pnpm** ≥ 9. Enable via `corepack enable && corepack prepare pnpm@latest --activate`.
 - **Docker** + **Docker Compose v2** (for PostgreSQL, Redis, Meilisearch, Mailhog).
 - **Git**.
@@ -278,7 +278,7 @@ The platform is sized to run on a **single VPS** that meets the combined minimum
 | Disk | 20 GB free (SSD strongly preferred) | 40 GB free (NVMe SSD) |
 | OS | Linux (Ubuntu 22.04+ / Debian 12+ / Arch / Fedora), macOS 13+, Windows 11 + WSL2 | Linux |
 | Docker | Docker Engine 24+ with Docker Compose v2 | — |
-| Node.js | 22.x LTS (see `.nvmrc`) — minimum **22.17** (required by MikroORM 7) | — |
+| Node.js | 22.x LTS (see `.nvmrc`) — minimum **22.18** (MikroORM 7 needs 22.17; unflagged type stripping needs 22.18) | — |
 | pnpm | 9.x | — |
 
 Approximate resident usage with everything running (`pnpm run dev` + Docker stack + Vitest in watch mode):
@@ -303,7 +303,7 @@ Target workload: a single Supplier with a catalog of hundreds of thousands of pr
 | PostgreSQL | 16.x | — |
 | Redis | 7.x | — |
 | Meilisearch | 1.11.x | — |
-| Node.js | 22.x LTS (minimum 22.17) | — |
+| Node.js | 22.x LTS (minimum 22.18) | — |
 
 Container orchestration (Kubernetes, Docker Swarm, Nomad) is an operational choice, **not** a constitutional one. Running each service directly on the VPS via systemd + Postgres/Redis/Meilisearch from distro packages is an equally valid target.
 

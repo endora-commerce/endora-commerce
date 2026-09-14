@@ -1418,6 +1418,12 @@ and \`ctx.di.decorate\` from your own overlay module in \`apps/${input.deploymen
 Decoration is the only way an instance changes a platform behaviour — there is no file to
 shadow, because there is no file.
 
+An overlay module is TypeScript that **nothing in this tree compiles** — Node loads it and
+strips the types as it goes. So it is written in the subset stripping accepts: an \`enum\`, a
+\`namespace\` or a constructor parameter property raises
+\`ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX\` at boot, and no type-check you can run here reports it,
+because all three type-check cleanly. A union of string literals is the \`enum\` you want.
+
 Whatever you reach for, \`pnpm run generate\` records it in
 \`apps/${input.deployment}/divergence.generated.md\`: every seam you used, which module owns
 the thing you changed, what that seam costs on the escalation ladder, and the sentence you

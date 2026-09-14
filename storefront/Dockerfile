@@ -22,7 +22,7 @@
 # the value and drops the variable's name from `.next/server` entirely, and
 # `/robots.txt` is prerendered, so its `Sitemap:` line is a static file here.
 
-FROM node:22.17-slim AS base
+FROM node:22.18-slim AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate

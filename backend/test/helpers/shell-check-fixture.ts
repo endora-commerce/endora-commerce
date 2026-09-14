@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url';
  * temp directory scans that directory and nothing else — the fixture is
  * therefore hermetic with respect to the working checkout.
  *
- * **git is faked.** The backend suite runs in `node:22.17-slim`, which ships no
+ * **git is faked.** The backend suite runs in `node:22.18-slim`, which ships no
  * git; that is why `quality:static` has an image of its own. A shim on `PATH`
  * answers the three questions the scripts ask, which also makes the
  * empty-listing case a one-line fixture instead of a `.gitignore` trick.
@@ -162,7 +162,7 @@ export interface ShellCheckFixture {
   /**
    * The perl Debian actually ships, as environment rather than as a mock.
    *
-   * `perl-base` is Essential and is the only perl in `node:22.17-slim` and in
+   * `perl-base` is Essential and is the only perl in `node:22.18-slim` and in
    * `debian:bookworm-slim`; the modules split lives in `perl-modules-5.36`, so
    * `PerlIO.pm` — and with it every `:encoding(...)` layer — is **absent**
    * until something pulls the full package in. `quality:static` and
