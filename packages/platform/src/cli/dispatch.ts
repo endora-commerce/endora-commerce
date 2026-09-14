@@ -42,10 +42,8 @@ import type { KernelContainer } from '../kernel/container.js';
 import { effectiveState } from '../kernel/lifecycle/effective-state.js';
 import { ModuleDisabledError } from '../kernel/lifecycle/plugin-helpers.js';
 import { enterSystemScope } from '../kernel/scope.js';
-import {
-  instanceManifestEntries,
-  type RegisteredManifestEntry,
-} from '../lifecycle/index.js';
+import { instanceManifestEntries } from '../lifecycle/commands/operator-entry.js';
+import type { RegisteredManifestEntry } from '../lifecycle/index.js';
 import {
   DEMO_HOST_COMMANDS,
   NO_DEMO_COMPOSITION_NOTICE,

@@ -40,6 +40,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { planInstance } from '@endora-commerce/cli';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -51,7 +52,11 @@ import {
   PUBLISHED_SUBPATHS,
 } from '../../../scripts/lib/platform-surface.js';
 import { nodeWorkspaceFs, workspaceMembers } from '../../../scripts/lib/workspace-packages.js';
-import { platformSourceRootOf, platformSubpathsOf } from '../../../scripts/lib/platform-root.js';
+import {
+  platformPackageNameOf,
+  platformSourceRootOf,
+  platformSubpathsOf,
+} from '../../../scripts/lib/platform-root.js';
 
 /**
  * The platform's own sources, which since the relocation are
@@ -675,6 +680,135 @@ function firstPartySourcesOutsideThePlatform(): ReadonlyMap<string, string> {
 }
 
 /**
+ * The TypeScript files `endora new instance` **renders into a client's tree**,
+ * keyed by the path each is written to.
+ *
+ * ## Why the walk above is not the whole population
+ *
+ * A consumer of a host-internal subpath does not have to be a file somebody
+ * committed. `runInstanceOperatorCommand` arrived on the `./lifecycle` barrel in
+ * `fix/instance-wiring-operator-runtime` because the operator runtime an
+ * instance used to receive as ninety rendered lines is platform logic, and the
+ * merge request that moved it took A14's client wiring from 248 lines to 176,
+ * under R1.4's bound of 250. The name *is* imported — by
+ * `backend/src/module-commands/runtime.ts`, in every tree the command writes —
+ * and the walk above sees none of it, because that file exists in this
+ * repository only as a template literal. The ratchet read the name as parked and
+ * `master` went red over the most widely consumed symbol on the barrel.
+ *
+ * So the population is *first-party consumers outside the platform*, and a file
+ * a first-party generator writes into a client's tree is one of those. Reading
+ * it is what makes the rule's implementation match the rule's intent, and it is
+ * what stops the next symbol that exists for an instance alone from being red on
+ * the day it lands.
+ *
+ * ## It is the **rendered** tree, never the template's source text
+ *
+ * `planInstance` is called and its output is read. The tempting shortcut — grep
+ * `template.ts` for the import lines it emits — is the version of this that is
+ * satisfied by accident: that file's text is full of prose naming these symbols,
+ * of specifiers spelled `${scope}platform/…` that resolve for nobody, and of
+ * fragments no input renders. What a client receives is the render, and the
+ * render is what is read here.
+ *
+ * ## One reader, and the population is refused rather than shrunk
+ *
+ * The rendered files enter as **text**, through the same {@link subpathNamesIn}
+ * every on-disk source goes through. A second reader over the generated half
+ * would be two answers to *"what does this file import"*, and their disagreement
+ * would be invisible in precisely the direction that licenses parked surface.
+ *
+ * `planInstance` rendering nothing, or rendering a tree that names the host
+ * nowhere, would shrink the population silently and report every name on the
+ * barrel as parked — a finding about this function wearing the costume of a
+ * finding about the barrel, which is issue #113's shape. Both are refused in
+ * {@link consumerSourcesOutsideThePlatform}.
+ */
+function generatedInstanceSources(): ReadonlyMap<string, string> {
+  // The scope is the host's own name minus its last segment, so nothing here
+  // spells a scope D-161 is still renaming — and a render whose specifiers stop
+  // matching the walk is the refusal below rather than a silent shrink.
+  const hostName = platformPackageNameOf(workspaceMembers(REPO_ROOT, nodeWorkspaceFs()));
+  const scope = hostName === null ? null : `${hostName.split('/')[0] ?? ''}/`;
+  if (scope === null) return new Map();
+  // A complete instance — every member written, so every wiring file is
+  // rendered. The values are a fixture and deliberately not read off this
+  // checkout: what is asserted is which *names* the rendered wiring imports, and
+  // no version, range or module id below changes one of them.
+  const plan = planInstance({
+    name: 'acme-shop',
+    deployment: 'acme-shop',
+    scope,
+    platformVersion: '1.2.3',
+    enginesNode: '>=22.17.0',
+    packageManager: 'pnpm@9.15.0',
+    modules: [{ id: 'settings', packageName: `${scope}mod-settings`, version: '0.4.5' }],
+    adminShellVersion: '4.5.6',
+    adminKitVersion: '4.5.6',
+    adminRanges: new Map([
+      ['react', '^19.0.0'],
+      ['react-dom', '^19.0.0'],
+      ['vite', '^7.3.2'],
+      ['@vitejs/plugin-react', '^5.2.0'],
+      ['tailwindcss', '^4.2.4'],
+      ['@tailwindcss/vite', '^4.2.4'],
+    ]),
+    adminPeers: new Map(),
+    cliVersion: '1.2.3',
+    docsRanges: new Map([
+      ['@docusaurus/core', '^3.10.0'],
+      ['@docusaurus/preset-classic', '^3.10.0'],
+    ]),
+    declaredRanges: new Map([['typescript', '^5.9.3']]),
+    registry: null,
+    npmrc: null,
+    topology: 'single-host',
+    declared: [],
+    existingEnv: '',
+    generated: new Map(),
+  });
+  const out = new Map<string, string>();
+  for (const file of plan.files) {
+    if (!file.path.endsWith('.ts') && !file.path.endsWith('.tsx')) continue;
+    if (file.path.endsWith('.d.ts')) continue;
+    // Pathed so a failure message says where the text came from. No such file is
+    // on disk in this checkout, and a reader who greps for it has to be told so.
+    out.set(`<endora new instance>/${file.path}`, file.content);
+  }
+  return out;
+}
+
+/**
+ * Every first-party consumer of the host outside the platform: the sources on
+ * disk, plus the tree `endora new instance` writes.
+ *
+ * One map, because each ratchet below asks one question — *does anything outside
+ * the platform name this symbol?* — and the answer does not depend on whether a
+ * human or a generator typed the import.
+ */
+function consumerSourcesOutsideThePlatform(): ReadonlyMap<string, string> {
+  const sources = new Map(firstPartySourcesOutsideThePlatform());
+  const generated = generatedInstanceSources();
+  expect(
+    generated.size,
+    '`planInstance` rendered no TypeScript file — the generated half of the population is ' +
+      'blind rather than empty, and every name only an instance imports would read as parked',
+  ).toBeGreaterThan(0);
+  const subpaths = platformSubpathsOf(workspaceMembers(REPO_ROOT, nodeWorkspaceFs())).map(
+    (subpath) => subpath.replace(/^\.\/?/, ''),
+  );
+  expect(
+    [...generated.values()].flatMap((text) =>
+      subpaths.flatMap((subpath) => subpathNamesIn(text, subpath)),
+    ),
+    'the rendered instance tree names no host subpath at all — the scope, the specifier ' +
+      '`subpathNamesIn` reads, or the wiring itself has moved',
+  ).not.toEqual([]);
+  for (const [path, text] of generated) sources.set(path, text);
+  return sources;
+}
+
+/**
  * Every name a file **names** through `<host>/<subpath>` — imported, or
  * re-exported with `export … from`, which is the shape a binding at a kept path
  * writes (`specs/115-lifecycle-container-move/` Phase 3). Reading only the first
@@ -843,7 +977,7 @@ describe('`./composition`, the subpath no module may name (D-160.14)', () => {
    * no `tsc` run of ours.
    */
   it('carries exactly the names its consumers outside the platform import', () => {
-    const sources = firstPartySourcesOutsideThePlatform();
+    const sources = consumerSourcesOutsideThePlatform();
     expect(sources.size, 'the walk opened no first-party source').toBeGreaterThan(1000);
 
     const imported = new Map<string, string[]>();
@@ -924,7 +1058,7 @@ describe('`./lifecycle`, the operator surface no module may name (D115-4)', () =
     parseBarrel(readFileSync(join(SRC, barrel), 'utf8'), barrel);
 
   it('carries exactly the names its consumers outside the platform import', () => {
-    const sources = firstPartySourcesOutsideThePlatform();
+    const sources = consumerSourcesOutsideThePlatform();
     expect(sources.size, 'the walk opened no first-party source').toBeGreaterThan(1000);
 
     const imported = new Set<string>();
@@ -1004,7 +1138,7 @@ describe('`./demo`, the demo-data surface no module may name', () => {
     parseBarrel(readFileSync(join(SRC, barrel), 'utf8'), barrel);
 
   it('carries exactly the names its consumers outside the platform import', () => {
-    const sources = firstPartySourcesOutsideThePlatform();
+    const sources = consumerSourcesOutsideThePlatform();
     expect(sources.size, 'the walk opened no first-party source').toBeGreaterThan(1000);
 
     const imported = new Set<string>();
