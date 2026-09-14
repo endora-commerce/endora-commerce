@@ -47,6 +47,7 @@ import {
   InstanceInputError,
   runNewInstance,
 } from '../new-instance/index.js';
+import { InstallHostError, InstallInputError, runInstall } from '../install/index.js';
 import {
   generateReport,
   GenerateHostError,
@@ -61,6 +62,11 @@ Usage:
   endora new instance <dir> [--module <id>...] [--deployment <name>] [--registry <url>]
                             [--topology single-host|three-host] [--dry-run]
   endora new storefront <dir> [--registry <url>] [--<input> <value>...] [--dry-run]
+  endora install <dir> --admin-email <e> --admin-password <p> --admin-first-name <f>
+                       --admin-last-name <l> (--demo | --no-demo)
+                       [--no-services] [--no-storefront] [--storefront-dir <path>]
+                       [--module <id>...] [--deployment <name>] [--registry <url>]
+                       [--topology single-host|three-host] [--dry-run]
   endora generate [--dry-run]
   endora --help
 
@@ -124,6 +130,42 @@ Options for \`new instance\`:
   --dry-run                     report every file it would write, the resolved
                                 module set with its closure, and every omission;
                                 write nothing
+
+\`endora install\` is the one command: it writes the instance (and, from inside a
+checkout of this repository, the storefront beside it), starts the development
+services, installs, generates, builds, migrates, installs every module and creates
+the administrator — the sequence \`endora new instance\` prints and nothing else. It
+composes the two \`new\` commands and reimplements neither, it never prompts, and
+every step is echoed before it runs so an operator can reproduce any one of them by
+hand. A failing step exits with that step's own code and prints what is left.
+
+Options for \`install\`:
+  <dir>                         where the instance goes. Required; it must be empty,
+                                or hold nothing but a \`.env\` you placed there
+  --admin-email <address>       the administrator you sign in as. All four are
+  --admin-password <secret>     required: nothing else creates an account, and the
+  --admin-first-name <text>     password is never generated — it is the one value
+  --admin-last-name <text>      you have to remember
+  --demo | --no-demo            whether to seed every installed module's example
+                                data. Required, and deliberately with no default:
+                                an instance you will sell from wants none of it and
+                                one you are evaluating wants it before the first
+                                screen. Seeding runs last and a failure in it does
+                                not fail the install
+  --no-services                 do not start PostgreSQL, Redis, Meilisearch and the
+                                mail catcher, and do not write their addresses into
+                                the instance's \`.env\`. Use it when you run those
+                                services yourself
+  --no-storefront               write the instance alone. The storefront is copied
+                                out of a checkout of this repository, so a run from
+                                anywhere else needs this flag
+  --storefront-dir <path>       where the storefront goes (default: \`<dir>-storefront\`,
+                                a SIBLING — inside the instance it would be swept into
+                                that workspace and become a member of it)
+  --module, --deployment, --registry, --topology
+                                passed through to \`new instance\` unread
+  --dry-run                     report every file and every step; write nothing,
+                                start nothing and run nothing
 
 \`endora generate\` renders the two files an instance's admin project is built
 from and commits neither: the contribution registry of the module packages this
@@ -248,6 +290,19 @@ function parse(argv: readonly string[], declaredInputFlags: readonly string[] = 
       topology: { type: 'string' },
       'non-interactive': { type: 'boolean' },
       'dry-run': { type: 'boolean' },
+      // `endora install` (feature 125). `--no-*` is a flag of its own rather
+      // than a negation `parseArgs` understands: the library has no negation,
+      // and a default that is `true` needs a name to be turned off by.
+      'no-services': { type: 'boolean' },
+      'no-storefront': { type: 'boolean' },
+      'storefront-dir': { type: 'string' },
+      'admin-email': { type: 'string' },
+      'admin-password': { type: 'string' },
+      'admin-first-name': { type: 'string' },
+      'admin-last-name': { type: 'string' },
+      'revalidate-secret': { type: 'string' },
+      demo: { type: 'boolean' },
+      'no-demo': { type: 'boolean' },
     },
   });
   return { values, positionals };
@@ -561,6 +616,111 @@ async function runNewInstanceCommand(
   }
 }
 
+/**
+ * `endora install` — the argv half (feature 125, FR-140…FR-161).
+ *
+ * It decides nothing of its own. Every value is a flag, the two trees are
+ * written by the two `new` commands, and the exit code is either the refusal's
+ * class — 1 for an operator-fixable refusal, 2 for an input it could not read —
+ * or, when the pipeline ran and a step failed, **that step's own code** (FR-156).
+ */
+async function runInstallCommand(
+  parsed: Parsed,
+  rest: readonly string[],
+  cwd: string,
+): Promise<number> {
+  if (rest.length > 1) {
+    process.stderr.write(
+      `endora: \`install\` takes one directory; got ${String(rest.length)} ` +
+        `(${rest.join(', ')}).\n`,
+    );
+    return 1;
+  }
+  // `--demo` and `--no-demo` are two flags and one answer, so a run that gives
+  // both is a run whose author believes two different things. Refused rather
+  // than resolved by precedence: a precedence rule here would silently discard
+  // half of what they typed.
+  if (asFlag(parsed.values['demo']) && asFlag(parsed.values['no-demo'])) {
+    process.stderr.write(
+      'endora: `--demo` and `--no-demo` were both given, and they are the two answers to one ' +
+        'question. Pass one.\n',
+    );
+    return 1;
+  }
+  const demo = asFlag(parsed.values['demo'])
+    ? true
+    : asFlag(parsed.values['no-demo'])
+      ? false
+      : undefined;
+  try {
+    const result = await runInstall({
+      ...(rest[0] === undefined ? {} : { dir: rest[0] }),
+      cwd,
+      modules: asList(parsed.values['module']),
+      ...(asString(parsed.values['deployment']) === undefined
+        ? {}
+        : { deployment: asString(parsed.values['deployment'])! }),
+      ...(asString(parsed.values['registry']) === undefined
+        ? {}
+        : { registry: asString(parsed.values['registry'])! }),
+      ...(asString(parsed.values['topology']) === undefined
+        ? {}
+        : { topology: asString(parsed.values['topology'])! }),
+      storefront: !asFlag(parsed.values['no-storefront']),
+      ...(asString(parsed.values['storefront-dir']) === undefined
+        ? {}
+        : { storefrontDir: asString(parsed.values['storefront-dir'])! }),
+      services: !asFlag(parsed.values['no-services']),
+      ...(demo === undefined ? {} : { demo }),
+      ...(asString(parsed.values['admin-email']) === undefined
+        ? {}
+        : { adminEmail: asString(parsed.values['admin-email'])! }),
+      ...(asString(parsed.values['admin-password']) === undefined
+        ? {}
+        : { adminPassword: asString(parsed.values['admin-password'])! }),
+      ...(asString(parsed.values['admin-first-name']) === undefined
+        ? {}
+        : { adminFirstName: asString(parsed.values['admin-first-name'])! }),
+      ...(asString(parsed.values['admin-last-name']) === undefined
+        ? {}
+        : { adminLastName: asString(parsed.values['admin-last-name'])! }),
+      ...(asString(parsed.values['revalidate-secret']) === undefined
+        ? {}
+        : { revalidateSecret: asString(parsed.values['revalidate-secret'])! }),
+      dryRun: asFlag(parsed.values['dry-run']),
+      // The pipeline's own output is the operator's: every step inherits the
+      // descriptors, so what pnpm says is what they see, live.
+      echo: (line: string) => void process.stdout.write(`${line}\n`),
+    });
+    return result.exitCode;
+  } catch (error: unknown) {
+    if (error instanceof InstallInputError) {
+      process.stderr.write(`endora: ${error.message}\n`);
+      return 1;
+    }
+    if (error instanceof InstallHostError) {
+      process.stderr.write(`endora: ${error.message}\n`);
+      return 2;
+    }
+    // The two commands this one composes keep their own classes and their own
+    // codes: a refusal they make is theirs, and reporting it as this command's
+    // would lose the class `instance-tree.md` §4 assigns it.
+    if (error instanceof InstanceInputError || error instanceof StorefrontInputError) {
+      process.stderr.write(`endora: ${error.message}\n`);
+      return 1;
+    }
+    if (error instanceof InstanceHostError || error instanceof StorefrontHostError) {
+      process.stderr.write(`endora: ${error.message}\n`);
+      return 2;
+    }
+    if (error instanceof MissingInputsError) {
+      process.stderr.write(`${error.message}\n`);
+      return 1;
+    }
+    throw error;
+  }
+}
+
 export async function main(argv: readonly string[], cwd: string): Promise<number> {
   // The one thing that has to happen **before** the parse: `new storefront`
   // accepts a flag per input the reference storefront declares, and those names
@@ -599,6 +759,10 @@ export async function main(argv: readonly string[], cwd: string): Promise<number
     return runCheckCommand(parsed, [subject, ...rest].filter((v) => v !== undefined), cwd);
   }
 
+  if (command === 'install') {
+    return runInstallCommand(parsed, [subject, ...rest].filter((v) => v !== undefined), cwd);
+  }
+
   if (command === 'generate') {
     return runGenerateCommand(parsed, [subject, ...rest].filter((v) => v !== undefined), cwd);
   }
@@ -606,7 +770,7 @@ export async function main(argv: readonly string[], cwd: string): Promise<number
   if (command !== 'new') {
     process.stderr.write(
       `endora: unknown command "${command}". This build provides \`new module\`, ` +
-        `\`new instance\`, \`new storefront\`, \`generate\` and \`check\`.\n`,
+        `\`new instance\`, \`new storefront\`, \`install\`, \`generate\` and \`check\`.\n`,
     );
     return 1;
   }

@@ -266,3 +266,102 @@ describe('a run that has its values does not ask for them', () => {
     TIMEOUT_MS + 15_000,
   );
 });
+
+/**
+ * SC-106 — **including `endora install`**, which is the command with the most
+ * to hang on: it runs a package manager, a Docker daemon and a database
+ * migration, and it is the one a stranger meets first
+ * (`specs/125-first-mile-install/spec.md` §4.3, T3-A).
+ *
+ * Phase 3 of that feature is deliberately the non-interactive half — the verb
+ * asks nothing at all — so what these cases prove is that the whole of it,
+ * refusals included, is reachable with both descriptors piped and stdin closed.
+ */
+describe('`endora install` never blocks, and refuses completely', () => {
+  it(
+    'a run with no answers exits 1 naming every one of them, in one refusal',
+    async () => {
+      const { dir, parent } = target();
+      try {
+        const result = await run(['install', dir, '--no-storefront', '--no-services'], parent);
+        expect(result.timedOut, `it was still running after ${TIMEOUT_MS} ms`).toBe(false);
+        expect(result.code).toBe(1);
+        for (const flag of [
+          '--admin-email',
+          '--admin-password',
+          '--admin-first-name',
+          '--admin-last-name',
+          '--demo',
+          '--no-demo',
+        ]) {
+          expect(result.stderr, `the refusal does not name ${flag}`).toContain(flag);
+        }
+        expect(result.stderr).toContain('Nothing was written');
+        const { existsSync } = await import('node:fs');
+        expect(existsSync(dir)).toBe(false);
+      } finally {
+        rmSync(parent, { recursive: true, force: true });
+      }
+    },
+    TIMEOUT_MS + 15_000,
+  );
+
+  it(
+    'outside a checkout it refuses the storefront in advance, naming the flag that skips it',
+    async () => {
+      const { dir, parent } = target();
+      try {
+        // The finding this case records: `endora new storefront` copies the
+        // reference storefront out of a checkout of the platform repository, so
+        // an installed CLI standing in an empty directory cannot write one. The
+        // one-shot refuses **before** writing an instance rather than failing
+        // half way through the pipeline, and the refusal names the remedy.
+        const result = await run(
+          [
+            'install',
+            dir,
+            '--no-services',
+            '--no-demo',
+            '--admin-email',
+            'owner@example.com',
+            '--admin-password',
+            'a-password-they-remember',
+            '--admin-first-name',
+            'Ada',
+            '--admin-last-name',
+            'Lovelace',
+          ],
+          parent,
+        );
+        expect(result.timedOut).toBe(false);
+        expect(result.code).toBe(1);
+        expect(result.stderr).toContain('--no-storefront');
+        expect(result.stderr).toContain('Nothing was written');
+        const { existsSync } = await import('node:fs');
+        expect(existsSync(dir)).toBe(false);
+      } finally {
+        rmSync(parent, { recursive: true, force: true });
+      }
+    },
+    TIMEOUT_MS + 15_000,
+  );
+
+  it(
+    'both demo flags at once is a refusal rather than a precedence rule',
+    async () => {
+      const { dir, parent } = target();
+      try {
+        const result = await run(
+          ['install', dir, '--demo', '--no-demo', '--no-storefront'],
+          parent,
+        );
+        expect(result.timedOut).toBe(false);
+        expect(result.code).toBe(1);
+        expect(result.stderr).toContain('two answers to one question');
+      } finally {
+        rmSync(parent, { recursive: true, force: true });
+      }
+    },
+    TIMEOUT_MS + 15_000,
+  );
+});
