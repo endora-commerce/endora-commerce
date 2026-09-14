@@ -69,6 +69,11 @@ import { deploymentRoot } from './overlay/overlay-roots.js';
 
 await runCli({
   deploymentRoot: deploymentRoot(),
+  // How an operator reaches this dispatcher **here**. A scaffolded instance's
+  // is `pnpm run cli`, which is the default; this repository's members are
+  // filtered, and the usage text has to print the line that actually works in
+  // the tree it was printed from (defect F-1, feature 125 T1-F).
+  program: 'pnpm --filter backend run cli',
   resolveEntries: resolvedManifestEntries,
   compose: async () => {
     // `BACKEND_ROLE` before the composition, not after: `runWorkers` is

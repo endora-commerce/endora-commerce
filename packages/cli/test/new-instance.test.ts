@@ -624,19 +624,28 @@ describe('the tree (§1, §2)', () => {
     // A client who follows this block gets a running instance; before T141 it
     // named neither, so `start` ran a `dist` nothing had built and the boot
     // refused over every module whose registry row `module:install` writes.
+    //
+    // **The four middle steps are now one line and the property is unchanged**
+    // (`specs/125-first-mile-install/` FR-109, T1-H). `setup` IS
+    // `generate && build && migrate && module:install --all` — derived from
+    // those named entries, so the order T141 was written about is inside the
+    // script's own value and is asserted there, in
+    // `test/new-instance/first-mile-scripts.test.ts`. What this case keeps is
+    // the part that is about the block: every one of the four is still named
+    // where a client reads it, and the whole of it still comes before `start`.
     const steps = nextSteps('/tmp/acme', 'default');
     const text = steps.join('\n');
-    expect(text).toContain('pnpm run build');
-    expect(text).toContain('pnpm run module:install --all');
-    expect(steps.findIndex((s) => s.startsWith('pnpm run build'))).toBeLessThan(
-      steps.findIndex((s) => s.startsWith('pnpm run migrate')),
-    );
-    expect(steps.findIndex((s) => s.startsWith('pnpm run migrate'))).toBeLessThan(
-      steps.findIndex((s) => s.startsWith('pnpm run module:install')),
-    );
-    expect(steps.findIndex((s) => s.startsWith('pnpm run module:install'))).toBeLessThan(
-      steps.findIndex((s) => s.startsWith('pnpm run start')),
-    );
+    const setup = steps.findIndex((s) => s.startsWith('pnpm run setup'));
+    expect(setup).toBeGreaterThanOrEqual(0);
+    for (const named of ['generate', 'build', 'migrate', 'module:install --all']) {
+      expect(steps[setup], `the setup step no longer names \`${named}\``).toContain(named);
+    }
+    expect(setup).toBeLessThan(steps.findIndex((s) => s.startsWith('pnpm run start')));
+    // The services come before the schema does, which is the step this
+    // sequence gained: `migrate` against a database nobody started is the
+    // failure the first three steps of the old sequence were spent avoiding by
+    // hand.
+    expect(steps.findIndex((s) => s.startsWith('pnpm run dev:services'))).toBeLessThan(setup);
     // R3.4's own line, and the one the block has always ended on.
     expect(text).toContain('endora new storefront <dir>');
   });

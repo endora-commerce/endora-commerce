@@ -96,7 +96,13 @@ import {
 
 import { writeEnvFile } from '../inputs/env-file.js';
 import { INSTANCE_BUILD_INPUTS, type InstanceBuildInput } from '../lib/instance-build-inputs.js';
-import { deployFiles, type Topology } from './deploy.js';
+import {
+  deployFiles,
+  developmentComposeFile,
+  DEV_COMPOSE_PATH,
+  type DeployInput,
+  type Topology,
+} from './deploy.js';
 import { InstanceInputError } from './host.js';
 
 /** §1.1's three kinds, and there is no fourth. */
@@ -732,6 +738,22 @@ export function planInstance(input: PlanInput): InstancePlan {
   ];
   // `-C` and never `--filter <name>` — see the block below for what a filter
   // cost the first end-to-end run.
+  // The four steps `setup` is the conjunction of (`specs/125-first-mile-install/`
+  // FR-109), named as **root scripts** rather than spelled out as commands.
+  // That is one level up from `build`'s derivation and buys the same property
+  // for a longer sequence: a change to what `migrate` or `module:install` runs
+  // reaches the composite with nothing here edited, where an inlined
+  // `pnpm -C backend run migrate` would be a second spelling of it.
+  //
+  // `generate` is conditional on the same predicate the script itself is: an
+  // instance with neither generated member declares none, so the composite must
+  // not name one.
+  const setupSteps: readonly string[] = [
+    ...(admin.written || docs.written ? ['generate'] : []),
+    'build',
+    'migrate',
+    'module:install --all',
+  ];
   const rootScripts: Record<string, string> = {
     migrate: 'pnpm -C backend run migrate',
     dev: 'pnpm -C backend run dev',
@@ -747,7 +769,24 @@ export function planInstance(input: PlanInput): InstancePlan {
     // neither member gets no `generate` at all, rather than a script that
     // fails on a directory nobody wrote.
     ...(admin.written || docs.written ? { generate: 'endora generate' } : {}),
+    // The development stack (`specs/125-first-mile-install/` FR-108). `--wait`
+    // is not decoration: it blocks until every health check in the rendered
+    // document passes, which is what stops `migrate` racing a Postgres that is
+    // still initialising — and it is what lets `setup` run straight after this.
+    // `down` keeps the volumes, because a development database is not a scratch
+    // file and `docker compose down -v` is not a step anybody should be one
+    // typo away from.
+    'dev:services': `docker compose -f ${DEV_COMPOSE_PATH} up -d --wait`,
+    'dev:services:down': `docker compose -f ${DEV_COMPOSE_PATH} down`,
+    // FR-109 — four typed lines collapsed into one, and every named step
+    // survives beside it for the operator who wants them (§3's User Story 3).
+    setup: setupSteps.map((step) => `pnpm run ${step}`).join(' && '),
     start: 'pnpm -C backend run start',
+    // FR-110 — the admin bundle, served. Baseline step D1: `admin/package.json`
+    // has declared `preview` all along and no root script and no printed step
+    // named it, so a client who ran `build:admin` had a bundle and no way to
+    // look at it. With the member, like every other admin entry.
+    ...(admin.written ? { 'preview:admin': 'pnpm -C admin run preview' } : {}),
     'module:install': 'pnpm -C backend run module:install',
     'module:uninstall': 'pnpm -C backend run module:uninstall',
     'module:enable': 'pnpm -C backend run module:enable',
@@ -961,7 +1000,7 @@ export function planInstance(input: PlanInput): InstancePlan {
   // nothing else but the topology. They belong to no member's directory: an
   // example that deploys the admin is not the admin project's file, and a
   // client editing one is editing the root of their own repository.
-  for (const file of deployFiles({
+  const deployInput: DeployInput = {
     topology: input.topology,
     admin: admin.written,
     docs: docs.written,
@@ -971,9 +1010,17 @@ export function planInstance(input: PlanInput): InstancePlan {
     // The same declaration the root `.env.example` is derived from. One
     // derivation of what this instance needs, two readers of it.
     declared: input.declared,
-  })) {
-    files.push(file);
-  }
+  };
+  for (const file of deployFiles(deployInput)) files.push(file);
+
+  // --- the development environment (`specs/125-first-mile-install/` §4.1) ---
+  //
+  // At the **root** and not under `deploy/`, because everything in there is
+  // addressed to a person deploying to a host they own and this file is
+  // addressed to a person on a laptop (spec §5.3.1). Written unconditionally
+  // (FR-107): it is inert, it is derived from the same catalogue the examples
+  // are, and every audience the feature has wants it.
+  files.push(developmentComposeFile(deployInput));
 
   return {
     files,
@@ -1321,6 +1368,14 @@ await runOperatorCommand(${runner});
  * hosts of their own, so each is built by a command of its own.
  */
 const README_COMMANDS: readonly (readonly [script: string, argument: string, note: string])[] = [
+  // `specs/125-first-mile-install/` FR-108…FR-110, and the order is the order a
+  // client meets them: the services first, because everything under them needs
+  // one; the composite second, because it is what four of the lines below add
+  // up to; and `preview:admin` beside `start`, because a built bundle nobody
+  // can look at was baseline step D1.
+  ['dev:services', '', 'PostgreSQL, Redis, Meilisearch and a mail catcher, from\n`compose.dev.yml` beside this file. It waits for each one to\nreport healthy'],
+  ['dev:services:down', '', 'stops them, keeping their data'],
+  ['setup', '', 'generate, build, migrate and install every module — the four\nsteps below, in one line. Each still exists on its own'],
   ['generate', '', 'the files the admin and the docs site are built from,\nand your deployment\'s divergence report'],
   ['build', '', 'the entry points, compiled, and every member built'],
   ['build:backend', '', 'one layer at a time. Each of the three is deployed on its own\nhost, on its own schedule, so each is built on its own too'],
@@ -1329,6 +1384,7 @@ const README_COMMANDS: readonly (readonly [script: string, argument: string, not
   ['migrate', '', 'the schema, in the order the manifests compute'],
   ['module:install', ' --all', 'every module you declared, in dependency order'],
   ['start', '', 'the API'],
+  ['preview:admin', '', 'the admin bundle you just built, served on its own port'],
   ['dev', '', 'the API, rebuilt and restarted as you edit your overlay'],
   ['module:status', '', 'what is installed, and what the operator has switched on'],
   ['module:enable', ' <id>', 'the operator\'s switch. A module that is off behaves as\nthough it were never installed'],

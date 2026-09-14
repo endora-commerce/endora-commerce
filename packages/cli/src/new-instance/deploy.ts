@@ -42,6 +42,30 @@
  * declare, is emitted from `../lib/instance-build-inputs.js` (§2 R2.3). A
  * fourth spelling of a build input cannot arrive here, because there is no
  * place to write one.
+ *
+ * ## The development compose is the same catalogue in a second mode
+ *
+ * `specs/125-first-mile-install/spec.md` §4.1 (FR-100…FR-112). A scaffolded
+ * instance also carries `compose.dev.yml`, at its **root** and not under
+ * `deploy/`, and that file is **runnable as written** where every file under
+ * `deploy/` is an example the client has to build and push images for first. It
+ * is rendered by {@link developmentComposeFile} from the **same**
+ * {@link services} records, in `development` mode, and FR-103 is what that mode
+ * exists for: *"no second statement of what Endora needs to run may enter the
+ * tree"*. Two things differ between the modes and both are derived — where a
+ * value comes from (an operator-filled `${NAME}` against an inline-defaulted
+ * `${NAME:-…}`) and whether the service publishes a host port. The image, the
+ * healthcheck and the volume are one record's.
+ *
+ * Defect F-2 is what that requirement is measured against: this repository's own
+ * `docker-compose.yml` and the catalogue below name the same three stateful
+ * images, and they agreed by coincidence until
+ * `test/new-instance/dev-compose.test.ts` made them agree by instrument — that
+ * case reads both files and names both paths, and it is also why no image tag
+ * is written twice in this file, not even in this sentence. Writing a **third**
+ * statement of them into every client's tree is what
+ * this file would have done if the development compose had been authored rather
+ * than derived.
  */
 import type { EnvironmentInput } from '@endora-commerce/contracts';
 
@@ -134,6 +158,22 @@ interface ExampleService {
   readonly body: readonly string[];
 }
 
+/**
+ * Which rendering of the catalogue is being asked for (FR-103).
+ *
+ * `production` is what `deploy/`'s examples are: a value is a `${NAME}` the
+ * operator fills in beside them, and a backing service publishes no host port
+ * because the application reaches it over the project's own network.
+ * `development` is `compose.dev.yml`: the same records, every value
+ * inline-defaulted so the file runs in a tree whose `.env` was never opened
+ * (FR-101), and every backing service published on a host port because the
+ * application it serves runs **natively** from the workspace (FR-104).
+ *
+ * Nothing else may branch on it. A second list of services under a mode flag is
+ * the defect FR-103 exists to refuse, one indirection later.
+ */
+type ServiceMode = 'production' | 'development';
+
 const IMAGE = (member: string): string =>
   `    image: \${REGISTRY_IMAGE}/${member}:\${IMAGE_TAG:-latest}`;
 
@@ -189,8 +229,53 @@ const BACKEND_ENVIRONMENT: readonly string[] = [
   '  SMTP_FROM: ${SMTP_FROM}',
 ];
 
-/** Every service the examples can hold, with the host it belongs to (R1.4). */
-function services(input: DeployInput): readonly ExampleService[] {
+/**
+ * Every service the examples can hold, with the host it belongs to (R1.4), in
+ * the rendering the caller asked for (FR-103).
+ *
+ * `value` and `published` are the **only** two things the mode decides, and
+ * every service below reads them rather than branching: a record that tested
+ * the mode itself would be two records sharing a name, which is what
+ * *"one catalogue, two renderings"* refuses.
+ */
+function services(
+  input: DeployInput,
+  mode: ServiceMode = 'production',
+): readonly ExampleService[] {
+  /**
+   * One value, from the mode's own source.
+   *
+   * In `production` it is a `${NAME}` the operator fills in `deploy/.env` — a
+   * default there would be this file choosing a client's database password. In
+   * `development` it is the same name carrying that default inline, which is
+   * FR-101: `docker compose -f compose.dev.yml up -d --wait` has to succeed in
+   * a tree whose `.env` has never been opened, and one un-defaulted expansion
+   * anywhere defeats that whatever the rest carry.
+   */
+  const value = (name: string, development: string): string =>
+    mode === 'production' ? `\${${name}}` : `\${${name}:-${development}}`;
+  /**
+   * The host ports a backing service publishes, in `development` only.
+   *
+   * Under `deploy/` these are not published: the application is a container in
+   * the same project and reaches them by service name. On a development machine
+   * the backend, the admin and the storefront run **natively** from the
+   * workspace the same run wrote (FR-104), so the only way they reach these is
+   * a published port. Each one is overridable, because two checkouts on one
+   * machine is the ordinary case and a fixed 5432 makes the second one fail.
+   */
+  const published = (
+    ports: readonly (readonly [variable: string, host: number, container: number])[],
+  ): readonly string[] =>
+    mode === 'production'
+      ? []
+      : [
+          '    ports:',
+          ...ports.map(
+            ([variable, host, container]) =>
+              `      - '\${${variable}:-${String(host)}}:${String(container)}'`,
+          ),
+        ];
   const all: ExampleService[] = [
     {
       name: 'postgres',
@@ -200,13 +285,14 @@ function services(input: DeployInput): readonly ExampleService[] {
         '    image: postgres:16-alpine',
         '    restart: unless-stopped',
         '    environment:',
-        '      POSTGRES_USER: ${POSTGRES_USER}',
-        '      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}',
-        '      POSTGRES_DB: ${POSTGRES_DB}',
+        `      POSTGRES_USER: ${value('POSTGRES_USER', 'endora')}`,
+        `      POSTGRES_PASSWORD: ${value('POSTGRES_PASSWORD', 'endora')}`,
+        `      POSTGRES_DB: ${value('POSTGRES_DB', 'endora')}`,
         '    volumes:',
         '      - postgres-data:/var/lib/postgresql/data',
+        ...published([['POSTGRES_PORT', 5432, 5432]]),
         '    healthcheck:',
-        "      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']",
+        `      test: ['CMD-SHELL', 'pg_isready -U ${value('POSTGRES_USER', 'endora')} -d ${value('POSTGRES_DB', 'endora')}']`,
         '      interval: 5s',
         '      timeout: 5s',
         '      retries: 12',
@@ -222,6 +308,7 @@ function services(input: DeployInput): readonly ExampleService[] {
         "    command: ['redis-server', '--appendonly', 'yes']",
         '    volumes:',
         '      - redis-data:/data',
+        ...published([['REDIS_PORT', 6379, 6379]]),
         '    healthcheck:',
         "      test: ['CMD', 'redis-cli', 'ping']",
         '      interval: 5s',
@@ -237,11 +324,18 @@ function services(input: DeployInput): readonly ExampleService[] {
         '    image: getmeili/meilisearch:v1.11',
         '    restart: unless-stopped',
         '    environment:',
-        '      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}',
+        // The development default is a real key rather than a blank, and it has
+        // to be: `MEILI_ENV: production` is the same record's line in both
+        // modes, and that image refuses to start on a master key shorter than
+        // 16 bytes. A development machine with no search engine is a health
+        // route reporting the instance degraded, which is the state FR-100 is
+        // about.
+        `      MEILI_MASTER_KEY: ${value('MEILI_MASTER_KEY', 'endora-development-master-key')}`,
         '      MEILI_ENV: production',
         "      MEILI_NO_ANALYTICS: 'true'",
         '    volumes:',
         '      - meilisearch-data:/meili_data',
+        ...published([['MEILISEARCH_PORT', 7700, 7700]]),
         '    healthcheck:',
         '      # 127.0.0.1 and not localhost: the image resolves localhost to ::1',
         '      # as well and meilisearch binds IPv4 only, so busybox wget gives up',
@@ -252,6 +346,44 @@ function services(input: DeployInput): readonly ExampleService[] {
         '      retries: 12',
       ],
     },
+    // The mail catcher exists in the development rendering only, and that is
+    // the honest shape rather than an omission: production mail goes to a real
+    // SMTP relay, and a catcher there would swallow every order confirmation a
+    // client's customers are waiting for (FR-112). `axllent/mailpit` and not
+    // `mailhog/MailHog` — measured 2026-09-14 through the GitHub API, MailHog's
+    // last commit is 2024-02-13 and Mailpit's is 2026-09-06.
+    ...(mode === 'development'
+      ? [
+          {
+            name: 'mailpit',
+            host: 'backend' as HostName,
+            dependsOn: [],
+            body: [
+              '    image: axllent/mailpit:v1.31',
+              '    restart: unless-stopped',
+              '    environment:',
+              // A development SMTP_URL that carries credentials is the ordinary
+              // case — the client is pointing the same configuration at a real
+              // relay tomorrow — and this catcher accepts them rather than
+              // refusing mail nobody will read anyway. It keeps no volume: a
+              // caught message is worth exactly one session.
+              "      MP_SMTP_AUTH_ACCEPT_ANY: '1'",
+              "      MP_SMTP_AUTH_ALLOW_INSECURE: '1'",
+              ...published([
+                ['MAILPIT_SMTP_PORT', 1025, 1025],
+                ['MAILPIT_UI_PORT', 8025, 8025],
+              ]),
+              '    healthcheck:',
+              '      # The same 127.0.0.1 rule the search engine\'s check carries, for',
+              '      # the same reason: busybox wget gives up on the first refusal.',
+              "      test: ['CMD', 'wget', '--quiet', '--spider', 'http://127.0.0.1:8025/readyz']",
+              '      interval: 5s',
+              '      timeout: 3s',
+              '      retries: 12',
+            ],
+          },
+        ]
+      : []),
     {
       name: 'backend-migrate',
       host: 'backend',
@@ -448,6 +580,168 @@ function composeDocument(
     lines.push('volumes:', ...volumes.map((name) => `  ${name}:`), '');
   }
   return `${lines.join('\n').replace(/\n+$/, '')}\n`;
+}
+
+// ── the development compose (`specs/125-first-mile-install/` §4.1) ──────────
+
+/** Where the development compose is written, relative to the instance root. */
+export const DEV_COMPOSE_PATH = 'compose.dev.yml';
+
+/**
+ * The names a document expands **without** an inline default (FR-111).
+ *
+ * The guard `envExampleFor` does not give you, and the reason it is a second
+ * pattern rather than that function's constant is one character:
+ * `/\$\{([A-Z0-9_]+)(?::-[^}]*)?\}/g`'s default clause is **non-capturing**, so
+ * a match there says nothing about which of the two forms it was. Reusing it
+ * here would report every expansion as defaulted — a guard that is green on
+ * precisely the document it was written to refuse (spec §5.3.3).
+ *
+ * Sorted and de-duplicated, because the sentence this feeds is read by whoever
+ * added the record, and three occurrences of one name is one repair.
+ */
+export function undefaultedExpansions(document: string): readonly string[] {
+  const names = new Set<string>();
+  for (const match of document.matchAll(/\$\{([A-Z0-9_]+)(:-[^}]*)?\}/g)) {
+    if (match[2] === undefined) names.add(match[1]!);
+  }
+  return [...names].sort();
+}
+
+/**
+ * The header of the one file in a scaffolded tree that is meant to be **run**.
+ *
+ * It says the command, it says what the file is not, and it says where the
+ * other compose files are — because a tree holding both a production example
+ * and a development stack is a tree in which somebody will start the wrong one.
+ */
+const DEVELOPMENT_HEADER: readonly string[] = [
+  '# The backing services this instance needs on a DEVELOPMENT machine.',
+  '#',
+  '#   docker compose -f compose.dev.yml up -d --wait',
+  '#   docker compose -f compose.dev.yml down',
+  '#',
+  '# `--wait` blocks until every health check below passes, which is what stops',
+  '# `pnpm run migrate` racing a Postgres that is still initialising. Both lines',
+  '# are `pnpm run dev:services` and `pnpm run dev:services:down` in this',
+  '# repository, and this file is what they run.',
+  '#',
+  '# EVERY value below carries an inline default, so this works in a tree whose',
+  '# `.env` you have never opened. Set any of them in `.env` beside this file to',
+  '# override one — two checkouts on one machine want different host ports.',
+  '#',
+  '# IT IS NOT A DEPLOYMENT, and it is deliberately not at one of Compose\'s four',
+  '# default filenames: a bare `docker compose up` in this tree finds nothing.',
+  '# The examples for a machine you own are in `deploy/` — they pull images you',
+  '# have built and pushed, and they publish nothing on loopback by accident.',
+  '#',
+  '# There is no application service here. The backend, the admin and the',
+  '# storefront run natively from this workspace (`pnpm run start`,',
+  '# `pnpm run preview:admin`), against the ports published below.',
+];
+
+/**
+ * `compose.dev.yml`, rendered from the catalogue in `development` mode.
+ *
+ * **Which services reach it is derived rather than listed** (FR-104): every
+ * service whose image is this repository's own build — `${REGISTRY_IMAGE}/…` —
+ * is an application service and is dropped, and everything else is a backing
+ * service and is kept. So a backing service the catalogue gains appears here in
+ * the same merge request with nothing edited, and an application service it
+ * gains stays out, which is the direction both rules want. A list would have
+ * been a second statement of the partition.
+ *
+ * `extra` exists for the guard's own proof and for nothing else: it is the only
+ * way to put an expansion into this document that the catalogue cannot produce,
+ * and a test that could not do that would be asserting the throw over a
+ * document that never reaches it.
+ */
+export function developmentComposeFile(
+  input: DeployInput,
+  extra: readonly string[] = [],
+): DeployFile {
+  const backing = services(input, 'development').filter(
+    (service) => !service.body.some((line) => line.includes('${REGISTRY_IMAGE}')),
+  );
+  const content = composeDocument([...DEVELOPMENT_HEADER, ...extra], backing);
+  const blank = undefaultedExpansions(content);
+  if (blank.length > 0) {
+    throw new Error(
+      `deploy: ${DEV_COMPOSE_PATH} expands ${blank.join(', ')} with no inline default. This ` +
+        'file is the one a client starts without editing anything, so an expansion with no ' +
+        '`:-` default is a container that comes up wrong — or not at all — in a tree whose ' +
+        '`.env` has never been opened. Give the record a default, or keep the value out of ' +
+        'the development rendering.',
+    );
+  }
+  return { path: DEV_COMPOSE_PATH, kind: 'derived', member: 'root', content };
+}
+
+/**
+ * The defaults a rendered document carries, by name.
+ *
+ * Read off the document rather than off the catalogue that wrote it, which is
+ * the same discipline `envExampleFor` states for the production examples:
+ * *"derived from the rendered document rather than listed, so the two cannot
+ * come apart"*. A caller therefore cannot be handed a port the file does not
+ * publish.
+ */
+function inlineDefaults(document: string): ReadonlyMap<string, string> {
+  const defaults = new Map<string, string>();
+  for (const match of document.matchAll(/\$\{([A-Z0-9_]+):-([^}]*)\}/g)) {
+    if (!defaults.has(match[1]!)) defaults.set(match[1]!, match[2]!);
+  }
+  return defaults;
+}
+
+/**
+ * How a **natively running** process reaches the development stack (FR-105).
+ *
+ * One entry per input the rendered document actually answers, composed from the
+ * defaults that document carries — so a changed port or a changed credential
+ * moves the address in the same run, with no second list to edit. An entry
+ * whose composition names something the document does not carry is **not
+ * produced**: a document with no mail catcher yields no `SMTP_URL`, and nothing
+ * here has to know that `SMTP_URL` is the `email` module's input.
+ *
+ * That is the compose half of FR-105's intersection. The other half is the
+ * instance's own declaration and belongs to the caller: *"an input is derived
+ * only when the development compose provides a service for it **and** this
+ * instance declares it"*, and a caller that skipped the second test would write
+ * a value for a module nobody installed.
+ *
+ * `localhost` and not a container name, for the reason FR-104 gives: nothing in
+ * this document is an application, so every reader of these values is a process
+ * on the host reaching a published port.
+ */
+export function developmentAddresses(document: string): ReadonlyMap<string, string> {
+  const defaults = inlineDefaults(document);
+  const addresses = new Map<string, string>();
+  /** One input, composed only if the document answers every name it needs. */
+  const compose = (name: string, needs: readonly string[], build: (of: (key: string) => string) => string): void => {
+    if (!needs.every((key) => defaults.has(key))) return;
+    addresses.set(name, build((key) => defaults.get(key)!));
+  };
+  compose('DATABASE_URL', ['POSTGRES_USER', 'POSTGRES_PASSWORD', 'POSTGRES_PORT', 'POSTGRES_DB'], (of) =>
+    `postgresql://${of('POSTGRES_USER')}:${of('POSTGRES_PASSWORD')}@localhost:${of('POSTGRES_PORT')}/${of('POSTGRES_DB')}`,
+  );
+  compose('REDIS_URL', ['REDIS_PORT'], (of) => `redis://localhost:${of('REDIS_PORT')}`);
+  compose('MEILISEARCH_URL', ['MEILISEARCH_PORT'], (of) => `http://localhost:${of('MEILISEARCH_PORT')}`);
+  compose('MEILISEARCH_API_KEY', ['MEILI_MASTER_KEY'], (of) => of('MEILI_MASTER_KEY'));
+  compose('SMTP_URL', ['MAILPIT_SMTP_PORT'], (of) => `smtp://localhost:${of('MAILPIT_SMTP_PORT')}`);
+  return addresses;
+}
+
+/**
+ * Where the mail catcher's own interface is, if this document runs one.
+ *
+ * Not an environment input — nothing reads it — and therefore not in
+ * {@link developmentAddresses}. It is printed, because a client whose instance
+ * sends mail to a port has no way to learn where that mail went.
+ */
+export function developmentMailUrl(document: string): string | undefined {
+  const port = inlineDefaults(document).get('MAILPIT_UI_PORT');
+  return port === undefined ? undefined : `http://localhost:${port}`;
 }
 
 // ── the runtime inputs, and the `.env.example` derived from them ────────────

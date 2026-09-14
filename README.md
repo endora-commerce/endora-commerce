@@ -90,7 +90,7 @@ For an authoritative endpoint list, see the live OpenAPI document at `GET /api/v
 
 - **Node.js** ≥ 22.18 (LTS). Use `nvm use` or Volta; `.nvmrc` is pinned to `22`. MikroORM 7 needs 22.17; 22.18 is the first release that strips TypeScript types without a flag, which is how a deployment’s overlay module — a `.ts` file nothing compiles — is loaded at all (D-236).
 - **pnpm** ≥ 9. Enable via `corepack enable && corepack prepare pnpm@latest --activate`.
-- **Docker** + **Docker Compose v2** (for PostgreSQL, Redis, Meilisearch, Mailhog).
+- **Docker** + **Docker Compose v2** (for PostgreSQL, Redis, Meilisearch, Mailpit).
 - **Git**.
 
 ## Install
@@ -123,7 +123,7 @@ cp admin/.env.example         admin/.env
 
 Values in the examples are safe defaults for local development against the Docker Compose stack. **The storefront's copy is not optional**: `BACKEND_BASE_URL` and `NEXT_PUBLIC_API_BASE_URL` are required, and a storefront that has neither refuses to build and refuses to start, naming the variable and this file. It used to invent `http://localhost:3001` instead — which, for the `NEXT_PUBLIC_` one, Next bakes into the browser bundle at build time, so a shop built without it pointed every visitor at their own machine while the build reported success. Production configuration is described in [`deploy/README.md`](./deploy/README.md) (topology, secrets, TLS, the deploy pipeline); everything a first client deployment needs on top of a running stack — permission grants, module activation, business settings, backups — is in the [First Production Deployment Checklist](./docs/docs/deployment/first-deployment-checklist.md).
 
-**Transactional email (backend)** — Verification and invitation emails use the shared `Mailer` abstraction. Set **`SMTP_URL`** (for example `smtp://localhost:1025` against Mailhog, or your provider’s SMTP relay URL) so `composeApp` wires `SmtpMailer`; when unset, development uses `ConsoleMailer`. Optional: **`SMTP_FROM`** / **`MAIL_FROM`** for the visible sender address.
+**Transactional email (backend)** — Verification and invitation emails use the shared `Mailer` abstraction. Set **`SMTP_URL`** (for example `smtp://localhost:1025` against Mailpit, or your provider’s SMTP relay URL) so `composeApp` wires `SmtpMailer`; when unset, development uses `ConsoleMailer`. Optional: **`SMTP_FROM`** / **`MAIL_FROM`** for the visible sender address.
 
 **Sales Channels (backend)** — Both env vars are optional. **`DEFAULT_SALES_CHANNEL_CODE`** sets which channel the backend boot reconciles as the platform's system-default (FR-002 of feature 005); when unset, defaults to `default`. **`SALES_CHANNEL_HOST_MAP`** maps incoming HTTP `Host` headers to channel codes when no explicit `X-Sales-Channel` header is provided — comma-separated list of `host=channelCode` pairs (e.g. `serwisA.com=channel-a,serwisB.com=channel-b`); empty disables host resolution. Storefront and integration paths fall back to the system-default when no resolution succeeds; admin paths refuse with `missing_sales_channel_context`.
 
@@ -152,7 +152,7 @@ Values in the examples are safe defaults for local development against the Docke
 ## Running the stack
 
 ```bash
-# 1. Start infrastructure (PostgreSQL + Redis + Meilisearch + Mailhog).
+# 1. Start infrastructure (PostgreSQL + Redis + Meilisearch + Mailpit).
 pnpm run dev:infra
 docker compose ps           # verify all four services are healthy
 
@@ -161,7 +161,7 @@ pnpm run dev
 #   backend     → http://localhost:3001
 #   storefront  → http://localhost:3000
 #   admin       → http://localhost:3002
-#   mailhog UI  → http://localhost:8025
+#   mailpit UI  → http://localhost:8025
 ```
 
 **Optional — [Warden](https://docs.warden.dev/)** instead of Compose: one `local`
@@ -286,7 +286,7 @@ Approximate resident usage with everything running (`pnpm run dev` + Docker stac
 - PostgreSQL 16 (Alpine): ~150 MB RAM.
 - Redis 7 (Alpine): ~50 MB RAM.
 - Meilisearch 1.11: ~300 MB RAM (catalog-dependent; larger indexes require more).
-- Mailhog: ~20 MB RAM.
+- Mailpit: ~20 MB RAM.
 - Three Node.js processes under watch mode: ~500–800 MB RAM each.
 
 ### Production environment (single VPS, no container orchestration)

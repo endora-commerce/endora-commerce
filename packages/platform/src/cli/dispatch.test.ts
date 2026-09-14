@@ -1,7 +1,12 @@
 import type { ModuleManifest } from '@endora-commerce/contracts';
 import { describe, expect, it } from 'vitest';
 
-import { cliFailureExitCode, dispatchCli, type CliComposition } from './dispatch.js';
+import {
+  cliFailureExitCode,
+  cliUsage,
+  dispatchCli,
+  type CliComposition,
+} from './dispatch.js';
 
 /**
  * The operator CLI's decidable half (`specs/123-oss-install-experience/` G2,
@@ -105,11 +110,61 @@ describe('the dispatch composes nothing to answer a declaration-level question',
   it('no argument at all prints the usage and exits non-zero', async () => {
     const seen = captured();
     expect(await run([], [], seen, refuses)).toBe(1);
-    expect(seen.out.join('')).toContain('usage: endora');
+    expect(seen.out.join('')).toContain('usage: ');
     // `--help` is the same text and a success.
     const asked = captured();
     expect(await run(['--help'], [], asked, refuses)).toBe(0);
-    expect(asked.out.join('')).toContain('usage: endora');
+    expect(asked.out.join('')).toContain('usage: ');
+  });
+
+  /**
+   * Defect F-1 (`specs/125-first-mile-install/spec.md` §2.5, T1-F).
+   *
+   * This text used to open `usage: endora <module id> <command>`, and in a
+   * scaffolded instance `endora` on the path is the **scaffolder**,
+   * `@endora-commerce/cli`, whose `bin` is `endora` and which has no `demo`
+   * verb and no `<module id>` positional. So the tool's own help contradicted
+   * the tool's own next step — `nextSteps()` correctly prints `pnpm run cli …`
+   * — and a stranger following the help got an unknown-command refusal from a
+   * program they did not think they were running.
+   *
+   * The dispatcher cannot see how it was invoked, so it is **told**: the
+   * default is a scaffolded instance's own line, and this repository's entry
+   * point passes its own.
+   */
+  it('F-1 — no usage line names a binary that resolves to another program', () => {
+    for (const line of cliUsage().split('\n')) {
+      expect(line, `this line addresses the scaffolder, not the dispatcher: ${line}`).not.toMatch(
+        /^(usage:\s+)?endora\s/,
+      );
+    }
+    // What a scaffolded instance's next-steps block prints, and therefore what
+    // its own help must print too.
+    expect(cliUsage()).toContain('usage: pnpm run cli <module id> <command>');
+    expect(cliUsage()).toContain('pnpm run cli demo seed');
+  });
+
+  it('F-1 — the invoking tree names itself, and the whole text follows it', () => {
+    const own = cliUsage('pnpm --filter backend run cli');
+    expect(own).toContain('usage: pnpm --filter backend run cli <module id> <command>');
+    expect(own).toContain('pnpm --filter backend run cli --list');
+    expect(own).not.toContain('\npnpm run cli ');
+  });
+
+  it('F-1 — the refusal that quotes the usage quotes the same program', async () => {
+    const seen = captured();
+    expect(
+      await dispatchCli({
+        deploymentRoot: '/nowhere',
+        argv: ['admin_users'],
+        program: 'pnpm --filter backend run cli',
+        resolveEntries: async () => [entry('admin_users')] as never,
+        out: (chunk) => seen.out.push(chunk),
+        err: (chunk) => seen.err.push(chunk),
+        compose: refuses,
+      }),
+    ).toBe(1);
+    expect(seen.err.join('')).toContain('usage: pnpm --filter backend run cli');
   });
 
   it('`demo` with no verb refuses, and `demo <verb> --help` answers', async () => {
@@ -119,7 +174,9 @@ describe('the dispatch composes nothing to answer a declaration-level question',
 
     const helped = captured();
     expect(await run(['demo', 'reset', '--help'], [], helped, refuses)).toBe(0);
-    expect(helped.out.join('')).toContain('endora demo reset');
+    // `endora demo reset` until T1-F: this line asserted the defect, since
+    // `endora` in an instance is the scaffolder and has no demo verb.
+    expect(helped.out.join('')).toContain('pnpm run cli demo reset');
   });
 
   it('an unknown demo verb refuses rather than guessing a direction', async () => {
