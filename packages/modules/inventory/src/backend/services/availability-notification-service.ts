@@ -1,11 +1,19 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
+  ANONYMOUS_PRODUCT_AUDIENCE,
   ERROR_CODES,
+  isProductVisibleTo,
   type CatalogProductReadPort,
+  type CatalogProductRecord,
   type CustomerAccountReadPort,
   type EmailMailerPort,
+  type ProductAudience,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
+import {
+  outOfRequestChannel,
+  type SalesChannelMembershipPort,
+} from '@endora-commerce/platform/kernel';
 import { AvailabilityNotification } from '../entities/availability-notification.entity.js';
 import { StockLevel } from '../entities/stock-level.entity.js';
 import type { InventoryTemplateEmailPort } from './low-stock-alert-service.js';
@@ -15,6 +23,14 @@ export interface SubscribeInput {
   variantId?: string | null;
   email: string;
   customerAccountId?: string | null;
+  /**
+   * Who is asking (issue #227). Defaulted to the anonymous audience so a
+   * composition that has not been taught to resolve its caller refuses a
+   * restricted product rather than queueing a subscription for it — the
+   * fail-closed end, and the same default `ComparisonService.addProduct` takes
+   * for the same reason. Both storefront routes pass the real one.
+   */
+  audience?: ProductAudience;
 }
 
 export interface AdminListFilter {
@@ -121,6 +137,19 @@ export class AvailabilityNotificationService {
      * at composition time.
      */
     private readonly customerAccounts: CustomerAccountReadPort,
+    /**
+     * `salesChannelMembershipPort` — the sanctioned bridge accessor
+     * (Constitution XII), through which {@link subscribe} asks whether the
+     * request's channel publishes the product at all.
+     *
+     * Required rather than optional, and placed before the two optional
+     * transports so a construction site cannot leave it off by accident: an
+     * optional channel gate is a composition that silently answers without one,
+     * which is precisely the state this parameter was added to end. It is a
+     * kernel registration rather than a module's, so it adds no edge to this
+     * module's manifest.
+     */
+    private readonly channelMembership: SalesChannelMembershipPort,
     private readonly mailer?: EmailMailerPort,
     private readonly templateEmail?: InventoryTemplateEmailPort,
   ) {}
@@ -162,18 +191,56 @@ export class AvailabilityNotificationService {
   }
 
   /**
+   * May this caller acquire this product at all — the two filters every
+   * product acquisition seam owes (issue #227, issue #259).
+   *
+   * Both are asked through the shared machinery rather than restated here:
+   * `isProductVisibleTo` is the platform's one answer to "may this audience see
+   * this product", and {@link outOfRequestChannel} is the channel half, which
+   * that predicate says in writing it is not. The channel is read off the
+   * request scope through `salesChannelMembershipPort` — the sanctioned bridge
+   * accessor — and never re-resolved here; outside a request (a worker, a CLI,
+   * a fixture calling the service directly) there is no channel to be out of
+   * and the gate answers `false`.
+   *
+   * The caller gets **one** answer for "no", and the reason is the whole point:
+   * the three states this can refuse — the row is not there, the operator
+   * restricted it to another organisation, another channel sells it — must be
+   * one response, or an unauthenticated caller can sort product ids by reading
+   * which refusal came back. The later gates (`PRODUCT_UNMANAGED_STOCK`,
+   * `PRODUCT_IN_STOCK`) do discriminate, deliberately and harmlessly: they are
+   * reached only for a product this caller may already see in the catalogue,
+   * whose existence and stock band that catalogue answers anyway.
+   */
+  async #mayAcquire(
+    product: Pick<CatalogProductRecord, 'id' | 'visibility' | 'allowedOrganizationIds'>,
+    audience: ProductAudience | undefined,
+  ): Promise<boolean> {
+    if (!isProductVisibleTo(product, audience ?? ANONYMOUS_PRODUCT_AUDIENCE)) return false;
+    return !(await outOfRequestChannel(this.channelMembership, product.id));
+  }
+
+  /**
    * Subscribe a customer / anonymous email to a product's restock signal.
    *
-   * Refuses with 409 PRODUCT_IN_STOCK when cumulative on-hand > 0; with
-   * 409 PRODUCT_UNMANAGED_STOCK when the product opted out of stock
-   * tracking; with 409 ALREADY_SUBSCRIBED for an idempotent re-subscribe.
+   * Refuses with 404 PRODUCT_NOT_FOUND for every product this caller may not
+   * acquire — see {@link #mayAcquire}; with 422 PRODUCT_IN_STOCK when
+   * cumulative on-hand > 0; with 409 PRODUCT_UNMANAGED_STOCK when the product
+   * opted out of stock tracking; and idempotently returns the existing row on a
+   * re-subscribe.
    */
   async subscribe(input: SubscribeInput): Promise<AvailabilityNotification> {
     // command-coverage-ignore: customer back-in-stock notification opt-in — a
     // self-service subscription record, not an audited domain-state mutation.
     const em = this.emFactory();
     const product = await this.catalogProducts.findById(input.productId, { liveOnly: true });
-    if (!product) {
+    // Asking to be told when a product returns is an **acquisition**: the
+    // caller names a product id they chose, the platform stores a row against
+    // it, and answers later with an e-mail naming it. So the two gates every
+    // other acquisition seam applies are applied here, and all three states —
+    // absent, restricted, sold on another channel — leave through the one
+    // refusal below.
+    if (!product || !(await this.#mayAcquire(product, input.audience))) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }
     if (!product.manageStock) {
