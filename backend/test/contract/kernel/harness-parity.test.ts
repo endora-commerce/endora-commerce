@@ -668,6 +668,48 @@ describe('083 — both roots resolve a request language through one function', (
     const envelopeBlock = code.slice(at, code.indexOf('}),', at));
     expect(envelopeBlock).not.toContain('testActor');
   });
+
+  it('every seam BackendServerOptions declares is actually read', () => {
+    /**
+     * A declared-but-unread option is the one harness defect this file's other
+     * assertions structurally cannot see, because it makes the two roots *more*
+     * alike, not less: production contributes nothing to a test-only seam, so
+     * the harness dropping it closes a gap by every measure above while
+     * silently disarming the substitution a suite depends on.
+     *
+     * It has happened twice. `ksefTestOverrides` went in `8e86e55b5` as
+     * collateral in a commit whose subject was the `ksefSellerNipResolver`
+     * beside it, and for a day every KSeF integration test built the **real**
+     * client and drove it at production polling — four files reached `failed`
+     * with `KSEF_AUTH_REJECTED` from a live 400. `commerceMailer` went in
+     * `633538a94` and was simply never noticed, because its one caller passed
+     * the same mailer twice.
+     *
+     * Neither was a type error: `options.x` merely stops being mentioned, and
+     * the caller keeps passing a value the interface still accepts. So assert
+     * the mention. The failure is loud and the remedy is one of two edits —
+     * consume the option, or delete it and its call sites.
+     */
+    const code = codeOnly(harness);
+    const body = /export interface BackendServerOptions \{([\s\S]*?)\n\}/.exec(code)?.[1];
+    expect(body, 'BackendServerOptions is no longer declared as an interface here').toBeTruthy();
+    const declarations = body ?? '';
+    const declared = [...declarations.matchAll(/^ {2}(\w+)\??:/gm)].map((m) => m[1] ?? '');
+    // A floor, so that a regex which silently stops matching cannot pass.
+    expect(declared.length).toBeGreaterThan(15);
+
+    // The interface body itself is removed before the search: a field is
+    // "read" only if `options.<name>` appears somewhere that is not its own
+    // declaration.
+    const rest = code.replace(declarations, '');
+    const unread = declared.filter((name) => !new RegExp(`\\boptions\\.${name}\\b`).test(rest));
+    expect(
+      unread,
+      'these `BackendServerOptions` fields are declared and never read, so a test passing ' +
+        'one is silently ignored and gets the production collaborator instead: either ' +
+        'consume them in `setupBackendServer` or delete them and their call sites',
+    ).toEqual([]);
+  });
 });
 
 /**

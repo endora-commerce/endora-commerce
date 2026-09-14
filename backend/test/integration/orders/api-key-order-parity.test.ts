@@ -45,10 +45,14 @@ describe('external order intake — storefront order parity (062 / SC-004)', () 
   const mailer = new InMemoryMailer();
 
   beforeAll(async () => {
-    // The InMemoryMailer backs BOTH the legacy commerce mailer and the
-    // transactional-emails sender, so the confirmation is observable on
-    // whichever path the harness resolves (feature 047 sender when wired).
-    h = await setupBackendServer({ commerceMailer: mailer, organizationsMailer: mailer });
+    // One mailer, one seam. This used to pass the same `InMemoryMailer` as
+    // `commerceMailer` as well, from when the commerce module took a mailer of
+    // its own; since D-59 the harness resolves a single `emailMailer` over the
+    // container and `organizationsMailer` is what replaces it, so the second
+    // argument had been read by nothing since `orders` converted to the module
+    // kernel (072, T141). The confirmation is observed on the same path either
+    // way — dropping the ignored argument changes no assertion below.
+    h = await setupBackendServer({ organizationsMailer: mailer });
     const em = h.em();
     const channel = em.create(SalesChannel, {
       code: 'ext-parity',
