@@ -6,7 +6,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { hashPassword } from '@endora-commerce/platform/kernel';
-import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
+import { seedAdHocOrganization, STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
 import { TEST_ADMIN_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 
 const SALES_REP_ASSIGNER_ID = '00000000-0000-4000-8000-0000000000d5';
@@ -34,9 +34,20 @@ describe('Sales-rep assignment routes (US7)', () => {
   });
 
   it('lists no assignments on a fresh organization', async () => {
+    // A **fresh** organization, created here, rather than `TEST_ORGANIZATION_ID`.
+    // The shared stub org is not fresh: every file in a shard leases one
+    // database (`test/global-setup.ts`), and
+    // `test/integration/organizations/sales-rep-routes-split.test.ts` assigns
+    // `TEST_ADMIN_ID` to exactly this organization and keeps the assignment —
+    // it is asserting the reverse listing, so it is right to. Whichever of the
+    // two files vitest ordered second then read the other's row, and this case
+    // was the one that failed, having claimed an emptiness the id could not
+    // carry. Creating the subject makes the assertion true by construction and
+    // independent of file order, and it now tests what its name says.
+    const fresh = await seedAdHocOrganization(h.em().fork(), 'Sales-rep freshness fixture');
     const res = await h.app.inject({
       method: 'GET',
-      url: `/api/v1/admin/organizations/${TEST_ORGANIZATION_ID}/sales-reps`,
+      url: `/api/v1/admin/organizations/${fresh.id}/sales-reps`,
       cookies: { b2b_session: 'stub-admin-session' },
     });
     expect(res.statusCode).toBe(200);
