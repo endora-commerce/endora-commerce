@@ -1,5 +1,14 @@
 # @endora-commerce/mod-admin-notifications
 
+## 0.7.3
+
+### Patch Changes
+
+- Updated dependencies [08dcbd9]
+- Updated dependencies [5bfefe0]
+  - @endora-commerce/platform@0.10.0
+  - @endora-commerce/contracts@0.10.0
+
 ## 0.7.2
 
 ### Patch Changes

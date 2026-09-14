@@ -1,5 +1,17 @@
 # @endora-commerce/mod-cms
 
+## 0.9.1
+
+### Patch Changes
+
+- Updated dependencies [08dcbd9]
+- Updated dependencies [5bfefe0]
+  - @endora-commerce/platform@0.10.0
+  - @endora-commerce/contracts@0.10.0
+  - @endora-commerce/admin-kit@0.8.2
+  - @endora-commerce/page-builder-admin@0.8.2
+  - @endora-commerce/page-builder-core@0.8.2
+
 ## 0.9.0
 
 ### Minor Changes

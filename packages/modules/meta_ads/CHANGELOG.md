@@ -1,5 +1,15 @@
 # @endora-commerce/mod-meta-ads
 
+## 0.8.2
+
+### Patch Changes
+
+- Updated dependencies [08dcbd9]
+- Updated dependencies [5bfefe0]
+  - @endora-commerce/platform@0.10.0
+  - @endora-commerce/contracts@0.10.0
+  - @endora-commerce/admin-kit@0.8.2
+
 ## 0.8.1
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-pwa",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "type": "module",
   "sideEffects": false,
   "description": "Installability, static-asset caching, controlled service-worker updates, and provider-agnostic push notifications for the storefront and admin.",

@@ -1,5 +1,22 @@
 # @endora-commerce/mod-catalog
 
+## 0.9.1
+
+### Patch Changes
+
+- 7698fae: The attribute page's "See also" refers to `promotions` by name instead of
+  linking `../promotions.md`. `promotions` is not in the module set
+  `endora new instance` writes, so the relative link named a page that is not in
+  an instance's documentation tree and `onBrokenLinks: 'throw'` refused the whole
+  site. The sentence now says the same thing whether or not the reader installed
+  the sibling.
+- Updated dependencies [08dcbd9]
+- Updated dependencies [5bfefe0]
+  - @endora-commerce/platform@0.10.0
+  - @endora-commerce/contracts@0.10.0
+  - @endora-commerce/mod-custom-fields@0.8.2
+  - @endora-commerce/admin-kit@0.8.2
+
 ## 0.9.0
 
 ### Minor Changes
