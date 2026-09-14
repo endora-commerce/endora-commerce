@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-prompt-actions",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "type": "module",
   "sideEffects": false,
   "description": "Natural-language prompt mode for the admin command palette: interpret an operator instruction with an LLM, preview the plan, execute it through existing module services after explicit confirmation.",

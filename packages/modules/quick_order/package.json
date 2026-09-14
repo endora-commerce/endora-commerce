@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-quick-order",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "type": "module",
   "sideEffects": false,
   "description": "Bulk Cart / Quote Request import (CSV + Excel, with variants), quick product search, reorder, default ordering preferences, and one-click buy.",

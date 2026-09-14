@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-i18n",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "type": "module",
   "sideEffects": false,
   "description": "Per-user Admin UI language preference and module-scoped translation bundles. English is the platform-wide fallback (FR-013 / FR-016).",
