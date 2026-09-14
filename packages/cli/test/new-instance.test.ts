@@ -184,6 +184,7 @@ function candidate(
     packageName: `${SCOPE}mod-${id}`,
     version: '1.0.0',
     dependencies: [],
+    acknowledged: [],
     required: false,
     reason: undefined,
     carriedByHost: false,
@@ -310,6 +311,54 @@ describe('the refusals (instance-tree.md §4)', () => {
     expect((thrown as InstanceInputError).refusal).toBe('F2');
     expect((thrown as Error).message).toContain('blog declares a dependency on cms');
     expect((thrown as Error).message).toContain('install it beside the target directory');
+  });
+
+  /**
+   * The edge that binds and cannot be spelled `dependencies`, and the boot that
+   * refuses without it.
+   *
+   * `acknowledgedDependencies` withdraws an install **ordering** claim and
+   * nothing else — `carts` names `promotions` there only because
+   * `promotion_usages_order_fk` obliges `promotions` to declare `orders` while
+   * `carts` declares `orders` too, so `dependencies` would close a cycle. The
+   * platform makes no such distinction when it decides presence:
+   * `assertLockedModulesPresent` walks `dependencies` **and**
+   * `acknowledgedDependencies`, and a module named in either that this
+   * deployment does not ship is `ReducedDeploymentError` — the boot never
+   * listens.
+   *
+   * So a set this command derives without following those edges is a set the
+   * platform refuses. MEASURED, 2026-09-14, on the instance acceptance
+   * criterion with a registry install's discovery shape:
+   *
+   *     ReducedDeploymentError: This deployment will not boot: it composes
+   *     modules whose declarations it does not satisfy.
+   *       promotions — not shipped by this deployment, and it is needed:
+   *           carts — acknowledgedDependencies, port `promotionService`
+   *           carts — acknowledgedDependencies, port `promotionCodePort`
+   *
+   * A4 and A15 are one failure of this, not two: `pnpm run start` and the
+   * instance's own `admin:create` both compose, so both die in
+   * `loadModulePresence`.
+   */
+  it('closes the set over `acknowledgedDependencies`, which bind exactly as `dependencies` do', () => {
+    const set = candidates(
+      candidate('carts', { acknowledged: ['promotions'] }),
+      candidate('promotions'),
+    );
+    expect(resolveModuleSet(['carts'], set).ids).toEqual(['carts', 'promotions']);
+  });
+
+  it('F2 — an acknowledged edge nothing satisfies refuses, and says which kind it is', () => {
+    const set = candidates(candidate('carts', { acknowledged: ['promotions'] }));
+    let thrown: unknown;
+    try {
+      resolveModuleSet(['carts'], set);
+    } catch (error: unknown) {
+      thrown = error;
+    }
+    expect((thrown as InstanceInputError).refusal).toBe('F2');
+    expect((thrown as Error).message).toContain('carts declares a dependency on promotions');
   });
 
   it('F2 — un-locking the required module changes the refusal in the same run', () => {

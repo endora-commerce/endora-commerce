@@ -8016,7 +8016,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **The release of 2026-09-14 (`release/version-0.10.0`): files 8192 -> 8187 (-5).** The second release of the day, and the arithmetic is the same shape as the first: a release consumes changesets, both of these walk the whole repository, and both move by exactly the number consumed — **5**, derived by `git diff --diff-filter=D --name-only <base> HEAD -- '.changeset/*.md' | wc -l`, with the same diff adding no file. Measured in a fresh detached worktree of the release commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue — the trap that read seven files high in the checkout the first release was cut in.
     // **`specs/125-first-mile-install/` Phase 1 (the development compose): +2 files.** This branch adds exactly two files — `packages/cli/test/new-instance/dev-compose.test.ts` and its changeset — and moves no file and deletes none. This walk is the whole repository and opens a `.md` like any other file, so it takes both. Measured on the pristine base first, by stashing the branch and running the check: it read the recorded value exactly, so the whole of this delta is this branch's and none of it arrived with `master`.
     // **`specs/125-first-mile-install/` Phase 2 (the root scripts): +2 files.** The branch adds `packages/cli/test/new-instance/first-mile-scripts.test.ts` and its changeset, and this walk is the whole repository and opens a `.md` like any other file. Measured on this branch with the changeset written, the tree `quality` runs over; Phase 1's re-record two paragraphs up is the base this is measured against, and no value here was computed from a delta.
-    files: 8191,
+    // **`fix/instance-module-set-acknowledged-edges`: +1** for the one file this
+    // branch adds, `.changeset/instance-set-follows-acknowledged-edges.md`.
+    // Measured with it parked: this walk read the recorded value exactly without
+    // it, so the whole delta is this branch's.
+    files: 8192,
     sites: null,
     sources: [],
     //
@@ -12230,7 +12234,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **The release of 2026-09-14 (`release/version-0.10.0`): files 8252 -> 8247 (-5).** The second release of the day, and the arithmetic is the same shape as the first: a release consumes changesets, both of these walk the whole repository, and both move by exactly the number consumed — **5**, derived by `git diff --diff-filter=D --name-only <base> HEAD -- '.changeset/*.md' | wc -l`, with the same diff adding no file. Measured in a fresh detached worktree of the release commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue — the trap that read seven files high in the checkout the first release was cut in.
     // **`specs/125-first-mile-install/` Phase 1 (the development compose): +2 files.** This branch adds exactly two files — `packages/cli/test/new-instance/dev-compose.test.ts` and its changeset — and moves no file and deletes none. This walk is the whole repository and takes both, the changeset included. Measured on the pristine base first, by stashing the branch and running the check: it read the recorded value exactly, so the whole of this delta is this branch's and none of it arrived with `master`.
     // **`specs/125-first-mile-install/` Phase 2 (the root scripts): +2 files.** The branch's new test file and its changeset, both of which this whole-repository walk takes. Measured on this branch with the changeset written, the tree `quality` runs over; Phase 1's re-record two paragraphs up is the base this is measured against, and no value here was computed from a delta.
-    files: 8251,
+    // **`fix/instance-module-set-acknowledged-edges`: +1** for the one file this
+    // branch adds, `.changeset/instance-set-follows-acknowledged-edges.md`.
+    // Measured with it parked: this walk read the recorded value exactly without
+    // it, so the whole delta is this branch's.
+    files: 8252,
     sites: null,
     sources: ['manifest-index'],
     //
