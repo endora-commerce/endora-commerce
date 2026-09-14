@@ -13,8 +13,7 @@ import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { Invoice, InvoiceExternalAttachment } from '../../helpers/package-entities.js';
 
 function resolvePort(h: BackendServerHandle): ErpSaleDocumentWritePort {
-  return (h.container.cradle as { erpSaleDocumentWritePort: ErpSaleDocumentWritePort })
-    .erpSaleDocumentWritePort;
+  return h.container.resolve<ErpSaleDocumentWritePort>(ERP_SALE_DOCUMENT_WRITE_PORT);
 }
 
 describe('invoices — erpSaleDocumentWritePort [contract]', () => {

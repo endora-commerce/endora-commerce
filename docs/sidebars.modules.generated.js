@@ -252,7 +252,6 @@ const modules = [
       'module-reference/pim-ergonode',
     ],
   },
-  { type: 'doc', id: 'module-reference/erp-connector', label: 'erp_connector' },
   {
     type: 'category',
     label: 'Google Analytics',
