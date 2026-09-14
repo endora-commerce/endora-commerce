@@ -15,6 +15,14 @@ import { publicApiBaseUrl } from '../../lib/env.mjs';
  * Posts to `/api/v1/storefront/inventory/notify-when-available` directly
  * — the cart's session cookie rides along automatically when present
  * so the backend can attach the row to the customer account.
+ *
+ * `salesChannelCode` is not optional decoration, for the reason
+ * `quick-order.ts`' type-ahead gives about its own `ctx`: the backend narrows
+ * this seam to the resolved sales channel, and a browser request that names no
+ * channel is answered from the system default rather than from the one the
+ * buyer is shopping. This component posts from the browser, so nothing on the
+ * server side can stamp the header for it — the page that renders it knows the
+ * channel and hands it down.
  */
 
 const apiBase = publicApiBaseUrl();
@@ -34,6 +42,8 @@ export function NotifyWhenAvailableDialog(props: {
   productId: string;
   variantId?: string | null;
   defaultEmail?: string | null;
+  /** The channel this page was rendered for, forwarded as `X-Sales-Channel`. */
+  salesChannelCode?: string | undefined;
   labels: Labels;
 }): ReactNode {
   const [open, setOpen] = useState(false);
@@ -51,7 +61,11 @@ export function NotifyWhenAvailableDialog(props: {
       const res = await fetch(`${apiBase}/api/v1/storefront/inventory/notify-when-available`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          ...(props.salesChannelCode ? { 'X-Sales-Channel': props.salesChannelCode } : {}),
+        },
         body: JSON.stringify({
           productId: props.productId,
           email,

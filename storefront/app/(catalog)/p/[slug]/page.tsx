@@ -352,6 +352,7 @@ export default async function ProductPage({
                     <NotifyWhenAvailableDialog
                       productId={product.id}
                       defaultEmail={customerEmail}
+                      salesChannelCode={ctx.salesChannelCode}
                       labels={{
                         cta: t('product.notify.cta'),
                         dialogTitle: t('product.notify.dialogTitle'),

@@ -5,6 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import type { CatalogProductReadPort, CustomerAccountReadPort } from '@endora-commerce/contracts';
+import { SalesChannel, type SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { AvailabilityNotification, Product } from '../../helpers/package-entities.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { AvailabilityNotificationService } from '../../../../packages/modules/inventory/src/backend/services/availability-notification-service.js';
@@ -59,6 +60,22 @@ describe('an availability notification carries the organisation of the account t
     });
     await em.persistAndFlush(product);
     productId = product.id;
+
+    // Issue #259 — `subscribe` is an acquisition seam and narrows against the
+    // request's channel, so a product bound to no channel is unacquirable from
+    // any request. Production binds a new product to the default channel;
+    // `seed-catalog.ts` says the same thing about its own three products and
+    // writes the row the same way, with SQL rather than through the membership
+    // service, so the fixture produces no audit rows for this composition's
+    // audit assertions to know about.
+    const systemDefault = await em.findOneOrFail(SalesChannel, { systemDefault: true });
+    await em
+      .getConnection()
+      .execute(
+        `insert into sales_channel_products (sales_channel_id, product_id) values (?,?) ` +
+          `on conflict (sales_channel_id, product_id) do nothing`,
+        [systemDefault.id, productId],
+      );
   });
 
   afterAll(async () => {
@@ -123,11 +140,13 @@ describe('an availability notification carries the organisation of the account t
     const cradle = h.container.cradle as never as {
       catalogProductReadPort: CatalogProductReadPort;
       customerAccountReadPort: CustomerAccountReadPort;
+      salesChannelMembershipPort: SalesChannelMembershipPort;
     };
     const service = new AvailabilityNotificationService(
       h.em,
       cradle.catalogProductReadPort,
       cradle.customerAccountReadPort,
+      cradle.salesChannelMembershipPort,
     );
 
     const row = await service.subscribe({
