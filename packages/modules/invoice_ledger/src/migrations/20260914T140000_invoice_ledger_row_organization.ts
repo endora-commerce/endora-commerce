@@ -19,55 +19,120 @@ import { Migration } from '@mikro-orm/migrations';
  * still **no** foreign key to `invoices`
  * (`specs/119-infakt-integration/data-model.md` §3, unchanged).
  *
- * ## The backfill, and why it is a join and not a default
+ * ## The backfill reaches two tables this module does not own, and says so
  *
  * `invoice_ledger` shipped on 2026-09-08 and no deployment has run it, so the
  * expected row count is zero everywhere. It is written as a real backfill all
- * the same, because "there are no rows" is a claim about today: the update
- * reads the organization off `invoices` **when that table exists**, which is
- * exactly the composition where a row could have been written, and the
- * `to_regclass` guard is what keeps the statement valid in the composition
- * where it does not. A row whose invoice has since gone is deleted rather than
- * given an invented organization — Principle XI has no "no organization" path,
- * and a work item for an invoice that is not there has nothing to deliver.
+ * the same, because "there are no rows" is a claim about today.
+ *
+ * It joins `invoices` **and** `orders`, and the second hop is the same fact
+ * this migration exists for read from the other end: `invoices` carries no
+ * organization column either — `Invoice` is itself
+ * `@TransitivelyScoped('Order', 'orderId')`, so the tenant lives on `orders`.
+ * A first draft read `i."organization_id"` and PostgreSQL answered `42703`,
+ * which is the chain saying out loud that it grounds two tables away.
+ *
+ * Both are `migration-cross-module-sql.md` §4.1's R1 shape — a migration naming
+ * a table it does not own — and both are **reads inside an existence guard**,
+ * which is what makes them safe in the composition this column exists for:
+ * `to_regclass` answers `null` when the owning module was never installed, and
+ * the statement is `execute`d so its names resolve at run time rather than when
+ * the block is parsed. A row whose invoice or order has since gone is deleted
+ * rather than given an invented organization — Principle XI has no
+ * "no organization" path, and a work item for an invoice that is not there has
+ * nothing to deliver.
+ *
+ * **There is no ledger entry for them, and that is a fact about the instrument
+ * rather than a claim that they are not R1.** `check:module-boundary` attributes
+ * a migration's tables by reading SQL text, and this SQL is a single-quoted
+ * string inside a dollar-quoted `do` block, so the walk sees neither `invoices`
+ * nor `orders` here: measured on this branch, `cross-module DML` reads 43 with
+ * and without this file. The ledger is two-way, so an entry describing a finding
+ * the check does not report would fail the build as stale — an edge it cannot
+ * see cannot be recorded in it. The blind spot is real and is reported to the
+ * check's owner; this block is where a reader of *this* file learns what the
+ * ledger would otherwise have told them.
+ *
+ * The two tables are written out rather than looped for the same reason read the
+ * other way: a loop would put the table name in a template hole, and the `alter`
+ * and `create index` statements this file *does* own would become unattributable
+ * too.
  */
 export class Migration20260914T140000InvoiceLedgerRowOrganization extends Migration {
   override async up(): Promise<void> {
-    for (const table of ['invoice_ledger_deliveries', 'invoice_ledger_document_maps']) {
-      this.addSql(`alter table "${table}" add column "organization_id" uuid null;`);
-      this.addSql(`
-        do $$
-        begin
-          if to_regclass('public.invoices') is not null then
-            execute 'update "${table}" as t
-                       set "organization_id" = i."organization_id"
-                       from "invoices" as i
-                      where i."id" = t."invoice_id"';
-          end if;
-        end
-        $$;
-      `);
-      this.addSql(`delete from "${table}" where "organization_id" is null;`);
-      this.addSql(`alter table "${table}" alter column "organization_id" set not null;`);
-      this.addSql(
-        `create index "${table}_organization_id_idx" on "${table}" ("organization_id");`,
-      );
-      this.addSql(`
-        alter table "${table}"
-          add constraint "${table}_organization_id_foreign"
-          foreign key ("organization_id") references "organizations" ("id")
-          on update cascade;
-      `);
-    }
+    this.addSql(`alter table "invoice_ledger_deliveries" add column "organization_id" uuid null;`);
+    this.addSql(`
+      do $$
+      begin
+        if to_regclass('public.invoices') is not null
+           and to_regclass('public.orders') is not null then
+          execute 'update "invoice_ledger_deliveries" as t
+                      set "organization_id" = o."organization_id"
+                     from "invoices" as i
+                     join "orders" as o on o."id" = i."order_id"
+                    where i."id" = t."invoice_id"';
+        end if;
+      end
+      $$;
+    `);
+    this.addSql(`delete from "invoice_ledger_deliveries" where "organization_id" is null;`);
+    this.addSql(
+      `alter table "invoice_ledger_deliveries" alter column "organization_id" set not null;`,
+    );
+    this.addSql(
+      `create index "invoice_ledger_deliveries_organization_id_idx" on "invoice_ledger_deliveries" ("organization_id");`,
+    );
+    this.addSql(`
+      alter table "invoice_ledger_deliveries"
+        add constraint "invoice_ledger_deliveries_organization_id_foreign"
+        foreign key ("organization_id") references "organizations" ("id")
+        on update cascade;
+    `);
+
+    this.addSql(
+      `alter table "invoice_ledger_document_maps" add column "organization_id" uuid null;`,
+    );
+    this.addSql(`
+      do $$
+      begin
+        if to_regclass('public.invoices') is not null
+           and to_regclass('public.orders') is not null then
+          execute 'update "invoice_ledger_document_maps" as t
+                      set "organization_id" = o."organization_id"
+                     from "invoices" as i
+                     join "orders" as o on o."id" = i."order_id"
+                    where i."id" = t."invoice_id"';
+        end if;
+      end
+      $$;
+    `);
+    this.addSql(`delete from "invoice_ledger_document_maps" where "organization_id" is null;`);
+    this.addSql(
+      `alter table "invoice_ledger_document_maps" alter column "organization_id" set not null;`,
+    );
+    this.addSql(
+      `create index "invoice_ledger_document_maps_organization_id_idx" on "invoice_ledger_document_maps" ("organization_id");`,
+    );
+    this.addSql(`
+      alter table "invoice_ledger_document_maps"
+        add constraint "invoice_ledger_document_maps_organization_id_foreign"
+        foreign key ("organization_id") references "organizations" ("id")
+        on update cascade;
+    `);
   }
 
   override async down(): Promise<void> {
-    for (const table of ['invoice_ledger_deliveries', 'invoice_ledger_document_maps']) {
-      this.addSql(
-        `alter table "${table}" drop constraint "${table}_organization_id_foreign";`,
-      );
-      this.addSql(`drop index "${table}_organization_id_idx";`);
-      this.addSql(`alter table "${table}" drop column "organization_id";`);
-    }
+    this.addSql(`
+      alter table "invoice_ledger_deliveries"
+        drop constraint "invoice_ledger_deliveries_organization_id_foreign";
+    `);
+    this.addSql(`drop index "invoice_ledger_deliveries_organization_id_idx";`);
+    this.addSql(`alter table "invoice_ledger_deliveries" drop column "organization_id";`);
+    this.addSql(`
+      alter table "invoice_ledger_document_maps"
+        drop constraint "invoice_ledger_document_maps_organization_id_foreign";
+    `);
+    this.addSql(`drop index "invoice_ledger_document_maps_organization_id_idx";`);
+    this.addSql(`alter table "invoice_ledger_document_maps" drop column "organization_id";`);
   }
 }

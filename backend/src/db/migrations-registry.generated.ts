@@ -181,6 +181,7 @@ import { Migration20260912T125716InventoryOrganizationWarehouses } from '@endora
 
 // ── invoice_ledger ──────────────────────────────────────────────────────────
 import { Migration20260908T125013InvoiceLedgerInit } from '@endora-commerce/mod-invoice-ledger/migrations';
+import { Migration20260914T140000InvoiceLedgerRowOrganization } from '@endora-commerce/mod-invoice-ledger/migrations';
 
 // ── invoices ────────────────────────────────────────────────────────────────
 import { Migration20260629T125121InvoicesModule } from '@endora-commerce/mod-invoices/migrations';
@@ -511,6 +512,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── invoice_ledger ──────────────────────────────────────────────────────────
   migration('invoice_ledger', Migration20260908T125013InvoiceLedgerInit),
+  migration('invoice_ledger', Migration20260914T140000InvoiceLedgerRowOrganization),
 
   // ── invoices ────────────────────────────────────────────────────────────────
   migration('invoices', Migration20260629T125121InvoicesModule),

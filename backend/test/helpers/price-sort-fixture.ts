@@ -1,8 +1,9 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { Organization, PriceList, PriceListPriceBracket, PriceListProduct } from './package-entities.js';
+import { PriceList, PriceListPriceBracket, PriceListProduct } from './package-entities.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { Product } from './package-entities.js';
 import { OTHER_TEST_ORGANIZATION_ID, TEST_ORGANIZATION_ID } from './test-actors.js';
+import { seedOtherTestOrganization } from './seed-organizations.js';
 
 /**
  * The corpus feature 086's acceptance tests order.
@@ -148,23 +149,7 @@ async function seedList(
 }
 
 export async function seedPriceSortFixture(em: EntityManager): Promise<void> {
-  const existingOther = await em.findOne(Organization, { id: OTHER_TEST_ORGANIZATION_ID });
-  if (!existingOther) {
-    const other = em.create(Organization, {
-      id: OTHER_TEST_ORGANIZATION_ID,
-      name: 'Other Test Organization',
-      taxId: 'PL0000000098',
-      status: 'active',
-      vatStatus: 'vat_payer',
-      registeredAddress: {
-        street: 'ul. Testowa 98',
-        city: 'Warszawa',
-        postalCode: '00-901',
-        country: 'PL',
-      },
-    });
-    await em.persistAndFlush(other);
-  }
+  await seedOtherTestOrganization(em);
 
   const retail = await em.findOne(SalesChannel, { code: 'pl_retail' });
   if (!retail) throw new Error('the harness seeds pl_retail');

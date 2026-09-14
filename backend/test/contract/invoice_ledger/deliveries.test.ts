@@ -20,6 +20,7 @@ import {
   prepareInfaktVatCopy,
   waitForDelivery,
 } from '../../integration/invoice_ledger/helpers.js';
+import { seedOtherTestOrganization } from '../../helpers/seed-organizations.js';
 
 const LIST_URL = '/api/v1/admin/invoice-ledger/deliveries';
 const UNAVAILABLE = 'Infakt is unavailable. Try again later.';
@@ -44,6 +45,11 @@ describe('invoice_ledger — deliveries list and retry [contract]', () => {
 
     await withSystemScope('seed scoped ledger reader', async () => {
       const em = h.em();
+      // The second tenant needs a real row now that a delivery's
+      // `organization_id` is a foreign key into `organizations`. The case below
+      // seeds an order for it, and `orders` declares no such key, so the gap
+      // was invisible until the ledger row grew its own tenant column.
+      await seedOtherTestOrganization(em);
       let role = await em.findOne(AdminRole, { code: 'sales_representative' });
       if (!role) {
         role = em.create(AdminRole, {

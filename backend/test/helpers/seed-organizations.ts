@@ -6,6 +6,7 @@ import {
   TEST_CUSTOMER_EMPTY_ID,
   TEST_CUSTOMER_ID,
   TEST_CUSTOMER_RFQ_ID,
+  OTHER_TEST_ORGANIZATION_ID,
   TEST_ORGANIZATION_ID,
 } from './test-actors.js';
 
@@ -27,6 +28,42 @@ export const STUB_CUSTOMER_PASSWORD = 'stub-password-change-me-1234';
  * answers `failed` for it contradicts the fixture it is validating.
  */
 export const TEST_ORGANIZATION_TAX_ID = 'PL0000000099';
+
+/**
+ * The **second** organization, seeded on demand and only when a test needs one.
+ *
+ * `OTHER_TEST_ORGANIZATION_ID` is a constant in `test-actors.ts` and
+ * `seedTestOrganizations` does not create a row for it: a fixture that needs
+ * two tenants creates the second itself. That was invisible for as long as no
+ * table with a real foreign key carried the id — `orders` does not declare one
+ * — and it stopped being invisible the moment `invoice_ledger`'s delivery rows
+ * gained `organization_id → organizations(id)`, which is where the caller below
+ * met a `ForeignKeyConstraintViolationException` over an order whose tenant had
+ * no row behind it.
+ *
+ * Idempotent, so two fixtures in one run may both ask for it, and here rather
+ * than in a fixture so that the next caller finds it instead of writing a
+ * third spelling of the same five fields (D-100).
+ */
+export async function seedOtherTestOrganization(em: EntityManager): Promise<void> {
+  const existing = await em.findOne(Organization, { id: OTHER_TEST_ORGANIZATION_ID });
+  if (existing) return;
+  await em.persistAndFlush(
+    em.create(Organization, {
+      id: OTHER_TEST_ORGANIZATION_ID,
+      name: 'Other Test Organization',
+      taxId: 'PL0000000098',
+      status: 'active',
+      vatStatus: 'vat_payer',
+      registeredAddress: {
+        street: 'ul. Testowa 98',
+        city: 'Warszawa',
+        postalCode: '00-901',
+        country: 'PL',
+      },
+    }),
+  );
+}
 
 export async function seedTestOrganizations(em: EntityManager): Promise<void> {
   const passwordHash = await hashPassword(STUB_CUSTOMER_PASSWORD);

@@ -69,9 +69,10 @@ export const manifest = defineModuleManifest({
       moduleId: 'invoices',
       name: 'invoiceCopyHostPort',
       kind: 'degrades-without',
-      whenAbsent: 'Delivery list shows invoice ids without numbers while invoices is off.',
+      whenAbsent:
+        'Delivery list shows invoice ids without numbers while invoices is off, and no new delivery is queued.',
       reason:
-        'List reads invoice numbers through the invoices copy port. invoice_ledger is non-deactivatable, so invoices cannot be a hard dependency.',
+        'List reads invoice numbers through the invoices copy port, and the enqueue path reads the buyer organization it freezes on the delivery row through the same port — the two ledger tables carry their own tenant key rather than hanging off Invoice, because invoice_ledger is non-deactivatable and invoices cannot be a hard dependency. With invoices off nothing issues an invoice, so there is no delivery to queue and the degrade is the list alone.',
     },
   ],
   activation: {
