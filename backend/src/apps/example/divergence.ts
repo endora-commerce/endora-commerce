@@ -47,5 +47,11 @@ export const divergence: DeploymentDivergenceDeclaration = {
       'that the container’s ownership ledger has an overlay claimant to answer for. A core ' +
       'module registering `exampleOverlayService` would collide loudly, which is the property ' +
       'being demonstrated.',
+    'decoration:comarch_xl_example_overlay:comarchXlSellabilityPort':
+      'Core leaves new XL catalogue products not sellable until an overlay policy allows it ' +
+      '(004 FR-012). This reference overlay marks SKUs matching ^DEMO- as sellable and listed, ' +
+      'delegating every other SKU to the core default so a fix to `DefaultComarchXlSellabilityPort` ' +
+      'still reaches this deployment — which is the whole difference between decorating and ' +
+      'replacing (D-28).',
   },
 };
