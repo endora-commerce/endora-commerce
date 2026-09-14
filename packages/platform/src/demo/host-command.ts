@@ -89,11 +89,19 @@ export function parseDemoVerb(name: string | undefined): DemoMode {
   );
 }
 
-/** `--help`, answered from the declaration alone — before anything is composed. */
-export function demoHelpFor(verb: DemoMode): string {
+/**
+ * `--help`, answered from the declaration alone — before anything is composed.
+ *
+ * `program` is how the operator reached the dispatcher, and it is a parameter
+ * for defect F-1's reason: this line used to open `endora demo seed`, and in a
+ * scaffolded instance `endora` is the scaffolder, which has no demo verb
+ * (`specs/125-first-mile-install/spec.md` §2.5). The dispatcher is told; this
+ * function is told by the dispatcher.
+ */
+export function demoHelpFor(verb: DemoMode, program = 'pnpm run cli'): string {
   const seeding = verb === 'seed';
   return (
-    `endora ${DEMO_HOST_COMMAND} ${verb}\n\n` +
+    `${program} ${DEMO_HOST_COMMAND} ${verb}\n\n` +
     (seeding
       ? 'Creates the demo data of every module that is installed here and switched on,\n' +
         "in the order the manifest dependency graph gives, then applies this instance's\n" +

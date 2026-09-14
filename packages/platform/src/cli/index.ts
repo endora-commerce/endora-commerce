@@ -69,7 +69,8 @@ export {
 
 export {
   cliFailureExitCode,
-  CLI_USAGE,
+  cliUsage,
+  DEFAULT_CLI_PROGRAM,
   dispatchCli,
   runCli,
   type CliComposition,

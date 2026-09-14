@@ -96,7 +96,12 @@ import {
 
 import { writeEnvFile } from '../inputs/env-file.js';
 import { INSTANCE_BUILD_INPUTS, type InstanceBuildInput } from '../lib/instance-build-inputs.js';
-import { deployFiles, type Topology } from './deploy.js';
+import {
+  deployFiles,
+  developmentComposeFile,
+  type DeployInput,
+  type Topology,
+} from './deploy.js';
 import { InstanceInputError } from './host.js';
 
 /** §1.1's three kinds, and there is no fourth. */
@@ -961,7 +966,7 @@ export function planInstance(input: PlanInput): InstancePlan {
   // nothing else but the topology. They belong to no member's directory: an
   // example that deploys the admin is not the admin project's file, and a
   // client editing one is editing the root of their own repository.
-  for (const file of deployFiles({
+  const deployInput: DeployInput = {
     topology: input.topology,
     admin: admin.written,
     docs: docs.written,
@@ -971,9 +976,17 @@ export function planInstance(input: PlanInput): InstancePlan {
     // The same declaration the root `.env.example` is derived from. One
     // derivation of what this instance needs, two readers of it.
     declared: input.declared,
-  })) {
-    files.push(file);
-  }
+  };
+  for (const file of deployFiles(deployInput)) files.push(file);
+
+  // --- the development environment (`specs/125-first-mile-install/` §4.1) ---
+  //
+  // At the **root** and not under `deploy/`, because everything in there is
+  // addressed to a person deploying to a host they own and this file is
+  // addressed to a person on a laptop (spec §5.3.1). Written unconditionally
+  // (FR-107): it is inert, it is derived from the same catalogue the examples
+  // are, and every audience the feature has wants it.
+  files.push(developmentComposeFile(deployInput));
 
   return {
     files,

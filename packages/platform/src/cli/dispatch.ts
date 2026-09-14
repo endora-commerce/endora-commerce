@@ -70,10 +70,34 @@ import {
   type RunModuleCommandOptions,
 } from './module-commands.js';
 
-export const CLI_USAGE = `usage: endora <module id> <command> [args…]
-       endora <module id> <command> --help
-       endora demo seed | endora demo reset
-       endora --list
+/**
+ * How an operator reached this dispatcher, as their own shell writes it.
+ *
+ * **Defect F-1** (`specs/125-first-mile-install/spec.md` §2.5, T1-F). This text
+ * was a constant opening `usage: endora <module id> <command>`, and in a
+ * scaffolded instance `endora` on the path is a **different program**: the
+ * scaffolder, `@endora-commerce/cli`, whose `bin` is `endora` and which has no
+ * `demo` verb and no `<module id>` positional. So the tool's own help
+ * contradicted the tool's own next step — `endora new instance` correctly
+ * prints `pnpm run cli …` — and a stranger following the help got an
+ * unknown-command refusal from a program they did not think they were running.
+ *
+ * The dispatcher cannot see how it was invoked, and `process.argv[1]` is no
+ * answer: it is a path to a compiled entry point (`…/backend/dist/cli.js`),
+ * which is a worse sentence than either name. So it is **told**, and the
+ * default below is a scaffolded instance's own line, because a scaffolded
+ * instance is the audience the defect was measured on. This repository's entry
+ * point passes its own.
+ */
+export const DEFAULT_CLI_PROGRAM = 'pnpm run cli';
+
+/** The usage text, addressed to whoever is actually running it. */
+export function cliUsage(program: string = DEFAULT_CLI_PROGRAM): string {
+  const pad = ' '.repeat('usage: '.length);
+  return `usage: ${program} <module id> <command> [args…]
+${pad}${program} <module id> <command> --help
+${pad}${program} demo seed | ${program} demo reset
+${pad}${program} --list
 
 Runs an operator command a module declares in its \`manifest.ts\`. The host
 composes the platform once and hands the command its module's own context, so
@@ -87,6 +111,7 @@ dependency graph gives, and then applies this instance's composition.
   --list        every command this instance offers, including an overlay
                 module's and an installed package's
 `;
+}
 
 /**
  * The composed platform, as this file reads it.
@@ -112,6 +137,13 @@ export interface RunCliOptions {
   readonly deploymentRoot: string;
   /** Defaults to `process.argv.slice(2)`. */
   readonly argv?: readonly string[];
+  /**
+   * How this tree's operator reaches this dispatcher, for the usage text and
+   * every help sentence under it. Defaults to {@link DEFAULT_CLI_PROGRAM},
+   * which is a scaffolded instance's own line — see that constant for the
+   * defect this parameter exists for.
+   */
+  readonly program?: string;
   /**
    * The manifest set, answered **before** anything is opened.
    *
@@ -243,8 +275,10 @@ export async function dispatchCli(options: RunCliOptions): Promise<number> {
   const err = options.err ?? ((chunk: string) => void process.stderr.write(chunk));
   const compose = options.compose ?? (() => defaultCompose(options.deploymentRoot));
 
+  const program = options.program ?? DEFAULT_CLI_PROGRAM;
+
   if (argv.length === 0 || argv[0] === '--help' || argv[0] === '-h') {
-    out(CLI_USAGE);
+    out(cliUsage(program));
     return argv.length === 0 ? 1 : 0;
   }
 
@@ -272,13 +306,13 @@ export async function dispatchCli(options: RunCliOptions): Promise<number> {
     }
     const verb = parseDemoVerb(name);
     if (rest.includes('--help') || rest.includes('-h')) {
-      out(demoHelpFor(verb));
+      out(demoHelpFor(verb, program));
       return 0;
     }
     return await runDemoCommand(verb, resolved, compose, options.demoComposition, out);
   }
   if (moduleId === undefined || name === undefined) {
-    err(`${CLI_USAGE}\nerror: a command is addressed as '<module id> <command>'.\n`);
+    err(`${cliUsage(program)}\nerror: a command is addressed as '<module id> <command>'.\n`);
     return 1;
   }
   if (rest.includes('--help') || rest.includes('-h')) {
