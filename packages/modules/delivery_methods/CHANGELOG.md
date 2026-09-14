@@ -1,5 +1,101 @@
 # @endora-commerce/mod-delivery-methods
 
+## 0.9.0
+
+### Minor Changes
+
+- bd596a9: The sales-channel bridge tables are declared by the modules that own them, not by the platform.
+
+  **`@endora-commerce/platform`** — `SalesChannelMembershipService` no longer holds a map total over
+  `ChannelMemberEntityTypeSchema`. It resolves `{ table, entityIdColumn }` through a new
+  `ChannelBridgeRegistry`, which each owning module fills at compose time, and a composition root
+  contributes as the container name `salesChannelBridgeRegistry`. `composeSalesChannelsKernel` takes
+  an optional `bridgeRegistry` and returns the one it used on `SalesChannelsKernel.bridgeRegistry`.
+
+  For a consumer the visible change is at the call site: a membership call for an entity type **no
+  installed module registered** now refuses with `503 MODULE_DISABLED`, naming the entity type in
+  `error.details`, **before** it reaches the database. It previously executed SQL against the table
+  the map named, which on an instance that never installed the owning module is a relation that does
+  not exist — inside whatever transaction the caller had already opened. `ChannelMemberEntityType`
+  is unchanged and stays the published vocabulary; the registry decides which of its members are
+  live.
+
+  `SalesChannelMembershipService`'s constructor takes the registry as an optional fourth argument,
+  defaulting to the process-level one, so an existing construction site compiles and runs unchanged.
+
+  **The module packages** — each now exports `salesChannelBridges`, the bridge or bridges it owns,
+  from its `./backend` subpath, and registers them from a boot hook. `catalog` owns two (`product`
+  and `category`); the other seven own one each. The registration is a contribution and carries no
+  presence probe: the rows outlive an operator switching the module off, so the bridge stays
+  readable, exactly as the asset-reference and language-reference registries state for their own
+  contributions.
+
+  **`@endora-commerce/mod-sales-channels`** — `SalesChannelsService` held a second copy of the same
+  nine triples, read by the channel-delete sweep, justified by a circular import that had not existed
+  since the membership service moved into the kernel. It is gone; the service takes the registry as a
+  new required constructor argument, in fifth position, and the delete sweep iterates the bridges
+  that are actually registered — so a channel can be deleted on an instance that never installed
+  `cms`.
+
+- 2fe0b8d: Each sales-channel bridge table is now created by the module that owns its far side.
+
+  Under D-226 a bridge between an always-present near side and a switchable far side belongs to the
+  far side. All nine `sales_channel_*` tables move accordingly, so an instance that does not install
+  `cms` no longer carries a migration corpus naming `cms_pages`.
+
+  **Nothing is re-offered to a database you have already migrated, and no reset is required.**
+  `mikro_orm_migrations` stores the migration class **name** and no checksum — measured on
+  `@mikro-orm/migrations@6.6.13`: `MigrationStorage.ensureTable()` builds `id`, `name` and
+  `executed_at`, `logMigration` inserts `{ name }`, and `getPendingMigrations()` is `umzug.pending()`
+  over those names. No class is renamed and no stamp moves, so the two edited bodies are not pending
+  anywhere.
+
+  **`@endora-commerce/platform`** — two frozen migrations lose statements and keep their class names.
+  `Migration20260430T170044CoreSalesChannelsPromote` loses eight `create table "sales_channel_*"`
+  statements with their indexes from `up()` and the matching eight `drop table` from `down()`;
+  `Migration20260424T165847CoreFoundationInit` loses `create table "sales_channel_products"`, its
+  index and its `drop table`. Everything those migrations do to a kernel table is untouched — the
+  channel identity columns, the backfills, the one-system-default partial unique index and the
+  `quote_requests.sales_channel_id` column all stay exactly where they were. `BASELINE_MIGRATIONS` is
+  byte-identical, so no position in the frozen prefix moves.
+
+  **Each far-side module** gains one migration (`@endora-commerce/mod-catalog` gains two, for
+  `sales_channel_products` and `sales_channel_categories`). Each is a `create table if not exists`
+  carrying the frozen statement's own column list, primary key, both foreign keys and index, plus a
+  `create index if not exists`, and each drops its own table in `down()`. On a database that has
+  applied the frozen migrations every one of them is a no-op: measured on a throwaway database
+  migrated at the previous release and then upgraded, all nine relations keep their `pg_class` OID,
+  so no table is recreated and no row is touched. On a fresh database they are the creation, later in
+  the computed order than before — which is where they have to be for an instance that omits one of
+  these modules to migrate at all.
+
+  **One behaviour changes on purpose.** A hard uninstall reverts by registry `moduleId`, so
+  `module:uninstall --hard cms` now drops `sales_channel_cms_pages` along with the rest of that
+  module's schema. That is the ownership rule doing what it says, and it is what an operator would
+  expect of a table whose far side has just been removed.
+
+  The published `ChannelMemberEntityTypeSchema` vocabulary is unchanged, and no wire shape moves.
+
+### Patch Changes
+
+- Updated dependencies [10a17f0]
+- Updated dependencies [471defd]
+- Updated dependencies [e6f053a]
+- Updated dependencies [6c8d958]
+- Updated dependencies [30430d1]
+- Updated dependencies [6bd9ae9]
+- Updated dependencies [c1d281f]
+- Updated dependencies [bd596a9]
+- Updated dependencies [def780b]
+- Updated dependencies [97f9233]
+- Updated dependencies [8e86e55]
+- Updated dependencies [2fe0b8d]
+- Updated dependencies [ee80d6b]
+- Updated dependencies [52c2bfd]
+  - @endora-commerce/platform@0.9.0
+  - @endora-commerce/contracts@0.9.0
+  - @endora-commerce/admin-kit@0.8.1
+
 ## 0.8.0
 
 ### Minor Changes

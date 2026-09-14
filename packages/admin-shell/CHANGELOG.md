@@ -1,5 +1,85 @@
 # @endora-commerce/admin-shell
 
+## 0.9.0
+
+### Minor Changes
+
+- a71344d: `endora new instance` writes the admin member, and `endora generate` renders what it is built from.
+
+  **`@endora-commerce/cli`** — two new surfaces and one moved one.
+  - `endora generate` is a new command. Run anywhere inside a scaffolded instance, it renders the
+    admin contribution registry and the admin stylesheet enumeration over the module packages that
+    instance installed, and reports every candidate the discovery excluded. Programmatically:
+    `runGenerate({ cwd, dryRun })`, with `generateReport`, `findInstanceRoot`, `artefactIsCurrent`,
+    `GenerateInputError` (exit 1) and `GenerateHostError` (exit 2).
+  - `endora new instance` now writes `admin/` — `package.json`, `tsconfig.json`, `index.html`,
+    `vite.config.ts`, `src/main.tsx` and `src/index.css` — and the workspace, the root scripts and
+    the `.gitignore` follow. The member is still omitted, in the same grammar, when
+    `@endora-commerce/admin-shell` or `@endora-commerce/admin-kit` does not resolve, or when a range
+    one of them should have declared is not there; the omission now names which.
+  - `@endora-commerce/cli/lib/admin-artefacts.js` and `@endora-commerce/cli/lib/tailwind-sources.js`
+    are new module specifiers. They hold the two artefacts' renderer, which this repository's
+    `composer:generate` and a client's `endora generate` now share; the emitted bytes are unchanged.
+
+  **`@endora-commerce/admin-shell`** — `AdminRoot` is a new export: the four wrappers `App` has to be
+  mounted inside, which a project used to have to reproduce. Three of the four are this package's
+  requirements rather than the project's, `unstable_useTransitions={false}` most of all — without it
+  every module screen's URL changes and the outlet does not, with no error anywhere. `App`,
+  `AuthProvider` and `registerAdminServiceWorker` are unchanged and still exported.
+
+  The package now declares `vite`, `@vitejs/plugin-react`, `tailwindcss` and `@tailwindcss/vite` as
+  **optional** peer dependencies. Nothing is required of an existing consumer that already has them;
+  what they add is a statement, readable by a tool, of what kind of application a host that mounts
+  this shell is.
+
+  **`@endora-commerce/mod-settings`** — `ConfigurationReferenceInput` loads
+  `@endora-commerce/mod-credentials`' preview modal lazily. `credentials` is an optional peer, so an
+  admin bundle built in a tree that did not install it previously failed at build time on a named
+  import of an unresolved stub, taking every module's screens with it over one button. The render was
+  already gated on the module's presence and is unchanged.
+
+### Patch Changes
+
+- 10a17f0: The liveness and readiness probe is the platform's, and `@endora-commerce/mod-health-checks` is gone.
+
+  `GET /api/v1/_health` is now registered by `@endora-commerce/platform` itself: `composeApp`
+  puts `healthRoutePlugin({ orm, redis })` at the head of the module plugins it returns, and
+  `composeTestServer` does the same, so an instance serves the probe because it is an Endora
+  instance rather than because a module the scaffolder happened to select is installed. It was
+  not: `endora new instance` writes the closure over the modules declaring
+  `activation.nonDeactivatable`, `health_checks` declared no activation block at all, and no
+  manifest named it as a dependency — so a scaffolded instance answered 404 on the route
+  `deploy/compose.prod.yml` healthchecks, its API container never became healthy, and its
+  storefront, which waits on `service_healthy`, never started. Moving the route also closes the
+  withdrawal: `assertDeactivatable` returns early for a module with no activation block, so
+  `module:uninstall health_checks` was accepted and an operator could take the liveness endpoint
+  off a running instance with one command. Owner ruling D-229.
+
+  **What a consumer has to do.** Nothing, if the instance composes through `composeApp` or
+  `composeTestServer` — the route arrives with the platform. Remove
+  `@endora-commerce/mod-health-checks` from the instance manifest; it no longer resolves. The
+  route, its path, its payload and its status codes are unchanged.
+
+  `@endora-commerce/platform/composition` gains `healthRoutePlugin`, `registerHealthRoutes`,
+  `platformHealthProbes`, `healthResponseSchema`, `HealthDeps`, `HealthProbeSources` and
+  `HealthResponse`. No new subpath: `./http` is untouched, because no module names any of this.
+
+  `MEILISEARCH_URL` and `npm_package_version` are declared by the platform now, with the
+  sentences the dissolved manifest carried. `@endora-commerce/mod-search` therefore stops
+  declaring `MEILISEARCH_URL` — one variable may not carry two descriptions, and a module may not
+  describe a platform input — while continuing to read it and to declare
+  `MEILISEARCH_API_KEY`. **An operator-visible consequence:** the surviving declaration is
+  `optional`, where `search`'s was `required`. Both readers have always defaulted to
+  `http://localhost:7700`, so the requirement was aspirational, but a prompt built from these
+  declarations will no longer insist on the value.
+
+- Updated dependencies [10a17f0]
+- Updated dependencies [471defd]
+- Updated dependencies [c1d281f]
+- Updated dependencies [52c2bfd]
+  - @endora-commerce/contracts@0.9.0
+  - @endora-commerce/admin-kit@0.8.1
+
 ## 0.8.0
 
 ### Minor Changes

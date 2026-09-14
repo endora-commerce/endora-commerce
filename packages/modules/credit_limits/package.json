@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-credit-limits",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "type": "module",
   "sideEffects": false,
   "description": "The Credit Limits module as a package (feature 080, T040b) — the fourth module to leave backend/src/modules, and the first to publish a port interface on the type-only ./ports subpath (D-169, D-171, layout contract R8). Ships compiled output (D-164); the manifest id 'credit_limits' stays identity of record everywhere (D-142).",

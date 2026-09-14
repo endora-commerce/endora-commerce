@@ -1,5 +1,342 @@
 # @endora-commerce/cli
 
+## 0.9.0
+
+### Minor Changes
+
+- 471defd: A scaffolded instance's `.env.example` declares everything that instance reads,
+  and the `.env` beside it is the file a client actually edits.
+
+  `endora new instance` wrote a `.env.example` carrying the **five build inputs**
+  and nothing else, while the platform declared 23 runtime inputs and nine module
+  packages declared nineteen more. The instance acceptance criterion had been
+  reporting the gap in its own output for weeks — _"supplied `DATABASE_URL`,
+  `REDIS_URL`, `SESSION_COOKIE_SECRET`, `PUBLIC_API_BASE_URL`, `NODE_ENV` to the
+  instance's own processes; its `.env.example` declares none of them, so a client
+  who fills in the file the command wrote has nothing to put them in"_.
+
+  The file is now derived, never listed: the **resolved platform's**
+  `PLATFORM_ENVIRONMENT_INPUTS`, unioned with the `env` of every module manifest
+  the run installed, scoped to the members it wrote, each entry carrying that
+  declaration's own `describes` and its `requirement` sentence rather than a
+  rewrite. A different `--module` set is a different file with nothing edited.
+
+  Three further changes make the file reach the process that needs it.
+  - **A `.env` is written**, holding the secrets the run generated
+    (`cli-product.md` R2.5d — the `generable && secret` class, four of them over
+    the default module set) and a **commented-out** placeholder for every other
+    declared input. Commented, because Node's `--env-file` reads `NAME=` as the
+    empty string and the platform's `??` fallbacks treat that as a value: a file
+    of blanks turned twenty *unset*s into twenty empty strings and the acceptance
+    run's health route answered 503 over a search engine that was running. A
+    `.env` the operator placed there first is merged into, never rewritten.
+  - **Every `node` script the backend member declares carries
+    `--env-file-if-exists=../.env`.** Without it the file was inert: the root
+    scripts are `pnpm -C backend run …`, so a `.env` at the root of the tree was
+    read by nothing and a client who filled it in still could not start.
+  - The next-steps block no longer says `cp .env.example .env`, which would now
+    overwrite the generated secrets with empty strings.
+
+  New in `@endora-commerce/contracts`: `unionEnvironmentInputs`, the join over
+  several authors' declarations, first author wins. New in
+  `@endora-commerce/cli`: `instanceEnvironmentInputs`, `declaredEnvironmentInputs`,
+  `generableEnvironmentInputs`, `backendScripts`, and `parseEnvFile` /
+  `renderEnvValue` / `writeEnvFile` re-exported from the package root.
+  `ModuleCandidate` gains `env`, `PlanInput` gains `declared`, `existingEnv` and
+  `generated`, `DeployInput` gains `declared`, and `loadModuleCandidates` returns
+  `{ candidates, platformEnv }` instead of the map alone — all four are breaking
+  for a caller that constructs one of those shapes, and `major` is refused in a
+  `0.x` series (D-225).
+
+- e6f053a: An overlay module is a whole lifecycle participant, a wrapped `asValue` no longer kills the boot,
+  and the divergence report attributes the deployment's own registrations.
+
+  **`@endora-commerce/platform`**
+  - `composeApp`'s default composition — the one an instance takes, having no generated manifest
+    index — resolves overlay module **manifests** from the same root it composes overlay module
+    **entries** from. It passed `overlay: async () => []` to `resolveManifestEntries`, so a
+    deployment's overlay module reached the container, the permission gate and the presence
+    projection and never `lifecycleManifestRegistry`: no `module_registrations` row from the boot
+    reconcile, no activation Setting, and nothing for an operator to switch it off against. Both
+    seams now come off one `overlayModulesUnder(root, claims)` reader, so the id-collision claim set
+    is asserted once over one array.
+  - `ctx.di.decorate` over a registration awilix marks leak-safe and gives no lifetime — which is
+    exactly `asValue`, and exactly what a composition root's `registerValues` produces for
+    `commandBus`, `auditLogService`, `eventBus` and `emFactory` — registers the wrapper
+    `.singleton()` instead of asserting TRANSIENT. Wrapping any of those names used to boot until
+    the first singleton resolved it and then throw `AwilixResolutionError: … has a shorter lifetime
+than its ancestor`, which made D-156.4 a ruling sanctioning an operation that could not be
+    performed. Every other inner resolver keeps the lifetime it had, and a wrap reaching for a
+    genuinely scoped registration still throws.
+
+  **`@endora-commerce/cli`**
+  - `endora generate`'s owner map now includes the container names the deployment's own overlay
+    modules register, merged per deployment and keyed from each source's own module id. A client
+    decorating a name their own overlay module registered was attributed to nobody and drew an
+    `unowned-subject` finding whose remedy text — "Composition throws for it at boot" — was untrue
+    of a tree that had booted.
+  - `endora generate` evaluates the report's refusals and exits 2 on one, instead of rendering a
+    report over inputs it could not read.
+  - A seam call in an overlay module written in JavaScript, or in TypeScript with no `ModuleContext`
+    annotation, is read: the first parameter of an exported `registerModule` is a context receiver,
+    which is the loader's own contract rather than a naming convention. Such a client used to get a
+    clean report over a tree full of decorations.
+  - A new refusal: a rendering that both lists `registration:<module>:<name>` and reports
+    `unowned-subject` for `<name>` is refused rather than printed.
+
+- 9f9b1b3: `check:env-inputs` judges the module tree. Its population was the three trees a
+  running Endora is made of — the backend's sources plus the platform's, the
+  storefront's, the admin's — and every run printed the bound it could not reach:
+  `not judged: 74 module packages`. That line is gone, because the walk now answers
+  for them.
+
+  A read resolves against the platform's declaration, the application tree's, and
+  **the reading module's own** — never another module's. Two findings for the two
+  ways that goes wrong: `undeclared-module-input`, a module read nothing declares,
+  and `module-declares-a-platform-input`, a module restating a fact the platform
+  already owns.
+
+  Two more for the Settings-debt ledger (FR-004):
+  `module-input-without-a-settings-verdict` and `stale-settings-verdict`, over
+  `backend/scripts/ledgers/module-environment-inputs/`.
+
+  `evaluateManifestEnvDeclaration` and `loadModuleVerdictShards` are new exports of
+  `@endora-commerce/cli/rules/env-inputs.js`; `EnvironmentRead` and `EnvSourceFile`
+  gain an optional `module`, and `EnvInputsInput` an optional `settingsVerdicts`.
+  Every addition is optional, so an existing caller compiles unchanged.
+
+- bf58f33: `endora new instance` writes example deployment files, and takes `--topology`.
+
+  A scaffolded instance was handed **no deployment file at all** — no compose file, no nginx
+  configuration, no `.env` for a running stack and no Dockerfile — while
+  `instance-repository.md` R2.1 listed three of them as always present. A client asked for the
+  owner's three-host topology wrote three deployment files from scratch.
+
+  It now writes a `deploy/` directory derived from two axes and nothing else: the resolved
+  member set, and `--topology single-host|three-host` (default `single-host`, an unrecognised
+  value exits 1 naming the vocabulary).
+  - `single-host` — `compose.prod.yml`, `.env.example`, `nginx.example.conf`.
+  - `three-host` — `three-host/compose.{backend,storefront,admin}.yml` with one
+    `.env.<host>.example` each. Every stateful service is on the backend host; the one
+    `depends_on` edge that crosses a layer boundary is dropped rather than translated, and
+    nothing replaces it.
+  - Both — `deploy/README.md` and an example `Dockerfile` per image, whose every `--build-arg`
+    and `ARG` is emitted from `instance-build-inputs.ts` rather than written.
+
+  The admin files are written only when the admin member is. The topology is recorded in no
+  file and read back by nothing: it selects which examples are written and the machine layout
+  stays the client's.
+
+  `nextSteps` now takes an optional third argument, the topology, and prints one additional line
+  under `three-host`. `PlanInput` gains a required `topology`; `NewInstanceOptions` gains an
+  optional `topology` string.
+
+  Normative: `specs/122-layer-deployment-independence/contracts/layer-independence.md` §3, under
+  owner ruling D-230.
+
+- 6bd9ae9: A scaffolded instance runs the operator commands its modules declare, and can create the
+  administrator that logs in to it (`specs/123-oss-install-experience/` G2).
+
+  **The defect.** `endora new instance` reported `backend/src/cli.ts` as an omission, on the written
+  reason _"the demo layer around it is exported under no subpath"_. A client's instance therefore had
+  **no module-declared CLI command at all** — no `admin_users create`, no `search reindex`, no
+  `_i18n reload` — so the admin bundle acceptance assertions A5 and A13 prove is built and styled had
+  nobody to log in as. Half of that reason had already been discharged: `./demo` has been a declared
+  subpath since `specs/110-instance-repository/` T119b. What was still unpublished was
+  `backend/src/cli/demo-command.ts`, which `test/unit/kernel/host-residue-partition.test.ts` had
+  ledgered as platform-shaped residue with a `retiredBy` naming exactly this move.
+
+  **`@endora-commerce/platform`** gains the dispatch on the subpath that already carried half of it.
+  `./cli` adds `runCli`, `dispatchCli`, `cliFailureExitCode` and `CLI_USAGE`; `./demo` adds
+  `DEMO_HOST_COMMANDS`, `demoEntriesFrom`, `isDemoInvocation`, `parseDemoVerb`, `demoHelpFor`,
+  `formatHostCommandList`, `ShadowedHostCommandError`, `NO_DEMO_COMPOSITION_NOTICE` and the
+  `DemoCompositionLoader` shape. **No subpath is added and `PUBLISHED_SUBPATHS` stays at five** — both
+  are host-internal under D-160.14, a module naming either is still `host-internal-subpath`, and
+  `check:platform-surface` is green with no ledger key moved.
+
+  What did **not** move is what names a path in the tree that installs the platform, which is
+  `operator-half.md` §1.1's whole partition: a build's generated core index, its own `composeApp`, its
+  demo-composition probe and the one directory holding `apps/`. All four are parameters of `runCli`
+  with defaults an instance can take, so this repository's `backend/src/cli.ts` supplies four of them
+  and a scaffolded instance's supplies one and is five lines.
+
+  **`@endora-commerce/cli`** writes `backend/src/cli.ts` — six lines, `kind: 'wiring'` — and the
+  `omitted.push` block is deleted rather than reworded, because an omission whose reason has been
+  discharged must not survive as prose. The instance's manifests gain `cli` (the generic pass-through:
+  any installed module's declared command is addressable with no file in the tree edited) and, derived
+  from the resolved module set rather than written, `admin:create` when `admin_users` is installed.
+  `nextSteps()` gains the administrator step after `module:install --all` and the demo step its own
+  docstring has claimed was there since D-216.
+
+  **No `demo:seed` or `demo:reset` script is written**, and G2's T2-D asked for both. D-216 is the
+  owner's and is more specific than the task: _"a client scaffolding an instance for their own trading
+  receives no demo artefact in a tree they own: no composition, **no script**, no example and no
+  placeholder"_ — and it names where the capability does belong, which is the next-steps block.
+  `pnpm run cli demo seed` reaches both verbs, so nothing is unavailable.
+
+  Proved end to end rather than at plan level. On a scaffolded instance installed from tarballs into
+  `os.tmpdir()`, with no checkout of this repository anywhere and no symlink back:
+  `pnpm run cli --list` enumerates the six commands its installed modules declare plus the two host
+  demo verbs, `pnpm run admin:create` exits 0, and the row lands in `admin_users` with an argon2id
+  hash, `status=active` and a `platform_admin` role holding `["*"]`. **A15 is added to the instance
+  acceptance criterion and is green** — `POST /api/v1/auth/admin/login` answers 200 with the admin
+  session cookie set. It needed this change _and_ `fix/instance-500-pipeline`, which landed the same
+  day, and it is the only assertion that measures their conjunction. Re-measured once more after
+  feature 121 merged, the criterion reads `pass=11 fail=0 unmeasured=4 of 15` — no red at all. A15
+  also corrects a premise
+  three documents carry: the route is `/api/v1/auth/admin/login`, and `/api/v1/admin/auth/login`,
+  which `research.md` §4.3/§4.4 and A4's own reason all name, is registered by nothing.
+
+  Wiring cost, re-measured rather than computed from a delta: **237** lines over 12 files on the
+  plan without the admin member, and **248 over 13 files on the created tree** with it, against
+  R1.4's bound of 250 — two lines of headroom left.
+
+- 5b808ea: `endora new instance` names the per-layer builds in the tree it writes. The root manifest gains
+  `build:backend`, plus `build:admin` and `build:docs` for the members that were written, and the
+  composite `build` is now the conjunction of exactly those entries — same value as before, in the
+  same `backend, admin, docs` order, derived from one list rather than spelled a second time.
+
+  Under D-230 the backend, the admin and the storefront are deployed to hosts of their own, on
+  schedules of their own; a CI job on the admin host could not cite a command it had never been
+  told, because the per-member commands existed only inside the composite's value.
+
+  The emitted `README.md`'s command block is now rendered from the root manifest's own `scripts`,
+  so it names every command the tree declares and no command it does not — `dev`, `module:status`
+  and the three per-layer builds were all absent from it before.
+
+  Normative: `specs/122-layer-deployment-independence/contracts/layer-independence.md` §2 R2.1.
+
+- c63d640: `endora new instance` writes a documentation member, and `endora generate` renders its
+  artefacts.
+
+  **New exports.** `@endora-commerce/cli/lib/docs-artefacts.js` carries the documentation
+  renderers — `docsRegistryOf`, `renderDocsSidebarFrom`, `renderModuleMapFrom`,
+  `renderModuleReferencesFrom`, `collectDocsIntoSiteFrom`, `installedDocsModules` and the
+  emitters underneath them. They were `backend/scripts/generate-composer.ts`', which no client
+  can reach; the population is now a parameter and one program serves both hosts, exactly as
+  `lib/admin-artefacts.js` does for the admin pair. `lib/module-packages.js` gains
+  `publishedManifestEntryOf`, and `new-instance/docs-toolchain.js` exports `DOCS_TOOLCHAIN`.
+
+  **Changed signature.** `runGenerate` is now `async` and returns
+  `Promise<GenerateResult>`; the result gains `omitted`, `collected` and `swept`. A caller
+  awaiting it needs no other change. An instance with an admin project but no documentation site
+  — or the other way round — is now an **omission** the command names rather than a refusal; only
+  a tree with neither member exits 1.
+
+  **New behaviour.** A scaffolded instance gains a `docs/` member (four files: the manifest, a
+  Docusaurus configuration, a sidebar and an intro page), the root `generate` script becomes
+  `endora generate` rather than a forward to the admin member, and `build` reaches every member.
+  `GENERATED_TREES` names the directories a client's `.gitignore` has to cover.
+
+- ee80d6b: The divergence report can be rendered for an instance.
+
+  `@endora-commerce/cli/lib/divergence.js` and `@endora-commerce/cli/lib/divergence-artefacts.js`
+  are new subpaths carrying the derivation, the two renders and the assembly between them; they
+  were `backend/scripts/lib/divergence.ts` and `backend/src/overlay/divergence-report.ts`, which
+  no consumer outside this repository could reach.
+  `@endora-commerce/cli/lib/registration-owners.js` moved with them.
+
+  `endora generate` now renders `apps/<deployment>/divergence.generated.md` and `.json` beside
+  the three artefacts it already wrote — one per deployment the instance holds. **Unlike the
+  other three it is committed**: it is derived from the deployment's own overlay tree and its
+  `divergence.ts`, so it is a fact about the client's repository rather than about their install,
+  and the diff is where an upgrade that changes behaviour they depended on shows up.
+
+  New exports on `lib/divergence-artefacts.js`: `renderDivergenceArtefacts`, `instanceComposition`,
+  `readDivergenceDeclaration`, `seamsFromKernel`, `overlaySourcesUnder`, `walkAnalysableSources`,
+  `overlayTreeSpellsASeamCall`, `INSTANCE_BOUNDARY_NOTES`, `unreadableCompositionReason`, and the
+  two default artefact headers. `lib/port-registrations.js` gains `rootRegisteredNames`, the
+  composition root's own registration spelling — `registerValues(container, { … })`,
+  `container.register({ … })`, `composedModules.contribute({ … })` — which is a different
+  predicate from `registeredNames` and is what tells _a root registers it_ from _nobody
+  registers it_. `DivergenceInput` gains two optional fields, `hostNotRecorded` and
+  `declarationPath`, both defaulting to what the derivation did before. `serializeDivergenceModule` and `renderDivergenceMarkdown` each
+  take an optional trailing `header` argument; both default to what they emitted before, so no
+  existing call changes what it produces. `lib/module-packages.js` gains
+  `scanInstalledPlatformPackage`.
+
+  An instance's report records all nine kinds exactly as this repository's does. What it cannot
+  derive — the module behind a container name a composition root registers on that module's
+  behalf — is written into the report's own `boundary.notRecorded` rather than left silent.
+
+- a71344d: `endora new instance` writes the admin member, and `endora generate` renders what it is built from.
+
+  **`@endora-commerce/cli`** — two new surfaces and one moved one.
+  - `endora generate` is a new command. Run anywhere inside a scaffolded instance, it renders the
+    admin contribution registry and the admin stylesheet enumeration over the module packages that
+    instance installed, and reports every candidate the discovery excluded. Programmatically:
+    `runGenerate({ cwd, dryRun })`, with `generateReport`, `findInstanceRoot`, `artefactIsCurrent`,
+    `GenerateInputError` (exit 1) and `GenerateHostError` (exit 2).
+  - `endora new instance` now writes `admin/` — `package.json`, `tsconfig.json`, `index.html`,
+    `vite.config.ts`, `src/main.tsx` and `src/index.css` — and the workspace, the root scripts and
+    the `.gitignore` follow. The member is still omitted, in the same grammar, when
+    `@endora-commerce/admin-shell` or `@endora-commerce/admin-kit` does not resolve, or when a range
+    one of them should have declared is not there; the omission now names which.
+  - `@endora-commerce/cli/lib/admin-artefacts.js` and `@endora-commerce/cli/lib/tailwind-sources.js`
+    are new module specifiers. They hold the two artefacts' renderer, which this repository's
+    `composer:generate` and a client's `endora generate` now share; the emitted bytes are unchanged.
+
+  **`@endora-commerce/admin-shell`** — `AdminRoot` is a new export: the four wrappers `App` has to be
+  mounted inside, which a project used to have to reproduce. Three of the four are this package's
+  requirements rather than the project's, `unstable_useTransitions={false}` most of all — without it
+  every module screen's URL changes and the outlet does not, with no error anywhere. `App`,
+  `AuthProvider` and `registerAdminServiceWorker` are unchanged and still exported.
+
+  The package now declares `vite`, `@vitejs/plugin-react`, `tailwindcss` and `@tailwindcss/vite` as
+  **optional** peer dependencies. Nothing is required of an existing consumer that already has them;
+  what they add is a statement, readable by a tool, of what kind of application a host that mounts
+  this shell is.
+
+  **`@endora-commerce/mod-settings`** — `ConfigurationReferenceInput` loads
+  `@endora-commerce/mod-credentials`' preview modal lazily. `credentials` is an optional peer, so an
+  admin bundle built in a tree that did not install it previously failed at build time on a named
+  import of an unresolved stub, taking every module's screens with it over one button. The render was
+  already gated on the module's presence and is unchanged.
+
+- 3411727: `relativeLinksIn` now reports whether a link left the modules category.
+
+  `RelativeLink` gains `leavesCategory: boolean`. `docId === null` alone did not
+  say this: a link that climbs above the category (`../architecture/x.md`) and a
+  link that resolves to the category root both came back with no doc id, and a
+  consumer could not tell them apart. The first names a page only the host
+  repository's own site tree has and is broken in every instance; the second names
+  a page the generator writes into every instance.
+
+  Consumers reading the field: none is required to. Existing code that reads
+  `target` and `docId` is unaffected; code that constructs a `RelativeLink`
+  literal must add the field.
+
+### Patch Changes
+
+- 670851a: `endora new instance` declares each `@endora-commerce/*` package at **that package's own**
+  version, not at the platform's.
+
+  Every module entry in the scaffolded root `package.json` was written as `^<platform version>`.
+  That is correct only while a release moves every package together, and a release does not: of the
+  packages published on 2026-09-11, 68 moved to `0.8.0` and 15 to `0.7.1`. A tree scaffolded from
+  such a release asked a registry for a version that does not exist, and the first `pnpm install`
+  in it failed:
+
+  ```
+  ERR_PNPM_NO_MATCHING_VERSION  No matching version found for @endora-commerce/mod-addresses@^0.8.0
+  The latest release of @endora-commerce/mod-addresses is "0.7.1".
+  ```
+
+  The version now comes from the manifest of the package the command **resolved beside the target
+  directory** — the same manifest, on the same install, that the platform will read when it composes
+  that instance — so the tree a client gets back is pinned to what they already have. Nothing about
+  the platform entry changes: it was, and remains, `^` over the platform's own version.
+
+  **Regenerate a scaffolded instance, or edit its root `package.json`.** A tree written by an earlier
+  build carries one range per module that may name a version its package never published; the ranges
+  are the only affected file, and every other entry in the manifest is unchanged.
+
+- Updated dependencies [10a17f0]
+- Updated dependencies [471defd]
+- Updated dependencies [c1d281f]
+- Updated dependencies [52c2bfd]
+  - @endora-commerce/contracts@0.9.0
+
 ## 0.8.0
 
 ### Minor Changes

@@ -1,5 +1,80 @@
 # @endora-commerce/mod-orders
 
+## 0.9.0
+
+### Minor Changes
+
+- b9169a9: `orders` resolves the three registries it reads from `payment_methods` and
+  `delivery_methods` per read, behind the presence probe its `degrades-without`
+  declarations already promise (D-228).
+
+  `OrdersModuleOptions`' `paymentAdapterRegistry`, `shippingAdapterRegistry` and
+  `paymentOrderStatusRegistry` now return `T | null`, and `OrderService`'s
+  `paymentDeps` takes the three as accessors rather than as values. A consumer
+  composing the module through `registerModule` is unaffected; a consumer
+  constructing `OrderService` directly passes `paymentAdapters: () => registry`
+  where it passed `paymentAdapters: registry`.
+
+  The plugin body no longer invokes the accessors. It ran under `avvio` while
+  routes were being registered, so the container was asked before any request
+  existed: a composition that never installed the owner threw
+  `AwilixResolutionError` instead of degrading, and the one answer it did get was
+  frozen for the life of the process, leaving placement dispatching through a
+  table an operator had switched off.
+
+- 8e86e55: Eleven container names a module read and nothing defaulted are now defaulted by
+  the module that reads them, so a composition that contributes nothing can
+  resolve every one of them.
+
+  `@endora-commerce/platform` — `composeApp` registers two more names:
+  `customerOrganizationIdResolver`, the tenth actor-shaped name, whose value
+  expression reads `request.actor` and nothing else; and `newsletterTokenSecret`,
+  the resolved `NEWSLETTER_TOKEN_SECRET`.
+
+  `@endora-commerce/mod-newsletter` — `newsletterModule`'s `defaultChannelId`
+  option becomes `resolveDefaultChannelId: () => Promise<string | null>`. A
+  consumer composing the module through `registerModule` is unaffected; a consumer
+  calling `newsletterModule` directly passes `async () => null` where it passed
+  `null`. The `NewsletterBridge` interface is removed — the module reads its nine
+  members itself.
+
+  `mod-catalog`, `mod-customers`, `mod-ksef`, `mod-orders`, `mod-quote-requests` —
+  each registers the names it reads. No published shape changes; a composition
+  that contributes one of them still overrides the default, which is what the
+  contribution window is for.
+
+  `mod-catalog`, `mod-customers` and `mod-orders` declare new manifest edges for
+  ports they now resolve themselves: `catalog` -> `search:searchReindexPort`,
+  `customers` -> `admin_roles`, `orders` -> `admin_users` and `admin_roles`. Every
+  one of those owners declares `activation.nonDeactivatable`, so no operator loses
+  an activation control.
+
+### Patch Changes
+
+- Updated dependencies [10a17f0]
+- Updated dependencies [471defd]
+- Updated dependencies [e6f053a]
+- Updated dependencies [6c8d958]
+- Updated dependencies [30430d1]
+- Updated dependencies [6bd9ae9]
+- Updated dependencies [c1d281f]
+- Updated dependencies [02838b7]
+- Updated dependencies [bd596a9]
+- Updated dependencies [def780b]
+- Updated dependencies [97f9233]
+- Updated dependencies [8e86e55]
+- Updated dependencies [2fe0b8d]
+- Updated dependencies [ee80d6b]
+- Updated dependencies [52c2bfd]
+  - @endora-commerce/platform@0.9.0
+  - @endora-commerce/contracts@0.9.0
+  - @endora-commerce/mod-inventory@0.9.0
+  - @endora-commerce/mod-promotions@0.9.0
+  - @endora-commerce/mod-carts@0.8.1
+  - @endora-commerce/mod-credit-limits@0.8.1
+  - @endora-commerce/mod-invoices@0.8.1
+  - @endora-commerce/admin-kit@0.8.1
+
 ## 0.8.0
 
 ### Minor Changes

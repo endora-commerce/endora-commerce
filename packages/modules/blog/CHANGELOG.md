@@ -1,5 +1,30 @@
 # @endora-commerce/mod-blog
 
+## 0.8.1
+
+### Patch Changes
+
+- Updated dependencies [10a17f0]
+- Updated dependencies [471defd]
+- Updated dependencies [e6f053a]
+- Updated dependencies [6c8d958]
+- Updated dependencies [30430d1]
+- Updated dependencies [6bd9ae9]
+- Updated dependencies [c1d281f]
+- Updated dependencies [02838b7]
+- Updated dependencies [bd596a9]
+- Updated dependencies [def780b]
+- Updated dependencies [97f9233]
+- Updated dependencies [8e86e55]
+- Updated dependencies [2fe0b8d]
+- Updated dependencies [ee80d6b]
+- Updated dependencies [52c2bfd]
+  - @endora-commerce/platform@0.9.0
+  - @endora-commerce/contracts@0.9.0
+  - @endora-commerce/mod-cms@0.9.0
+  - @endora-commerce/admin-kit@0.8.1
+  - @endora-commerce/page-builder-core@0.8.1
+
 ## 0.8.0
 
 ### Minor Changes
