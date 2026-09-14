@@ -46,11 +46,7 @@ import {
   resolveManifestEntries,
   type RegisteredManifestEntry,
 } from '../lifecycle/index.js';
-import {
-  activeOverlayModulesRoot,
-  overlayModuleIdsUnder,
-  overlayModuleManifestsUnder,
-} from '../overlay/index.js';
+import { activeOverlayModulesRoot, overlayModulesUnder } from '../overlay/index.js';
 import {
   discoverPackageModuleManifests,
   installedPackageModuleIdClaims,
@@ -155,18 +151,12 @@ async function instanceManifestEntries(
   deploymentRoot: string,
   env: NodeJS.ProcessEnv,
 ): Promise<readonly RegisteredManifestEntry[]> {
-  const overlayRoot = activeOverlayModulesRoot(deploymentRoot, env);
-  const claims = (): ReturnType<typeof installedPackageModuleIdClaims> =>
-    installedPackageModuleIdClaims(nodeModulesRootsFor(env));
+  const overlayModules = overlayModulesUnder(activeOverlayModulesRoot(deploymentRoot, env), () =>
+    installedPackageModuleIdClaims(nodeModulesRootsFor(env)),
+  );
   return await resolveManifestEntries({
     core: [],
-    overlay: async () =>
-      overlayRoot === null
-        ? []
-        : await overlayModuleManifestsUnder(
-            overlayRoot,
-            overlayModuleIdsUnder(overlayRoot, claims()),
-          ),
+    overlay: () => overlayModules.manifests(),
     packages: () => discoverPackageModuleManifests(env),
   });
 }

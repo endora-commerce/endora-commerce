@@ -35,6 +35,7 @@ import {
 import {
   DIVERGENCE_REMEDIES,
   divergenceRefusal,
+  selfContradictingSubjects,
   SEAM_CLASSIFICATION,
   type DivergenceFinding,
   type DivergenceFindingKind,
@@ -119,6 +120,7 @@ async function main(): Promise<void> {
   let spellsASeamCall = false;
   let discoveredOverlayModules = 0;
   let sourcedOverlayModules = 0;
+  const contradicted = new Set<string>();
 
   for (const deployment of targets) {
     const rendered = await renderDivergence(
@@ -131,6 +133,11 @@ async function main(): Promise<void> {
     const declared = rendered.result.report.overlayModules;
     discoveredOverlayModules += declared.length;
     if (overlayTreeSpellsASeamCall(rendered.overlaySources)) spellsASeamCall = true;
+    // Refusal 8's input, per rendering: the contradiction is inside **one**
+    // file, so it is derived from that rendering's own result and accumulated
+    // rather than asked of the union (`specs/124-instance-customisation-gap/`
+    // FR-010).
+    for (const name of selfContradictingSubjects(rendered.result)) contradicted.add(name);
     const withSources = new Set(rendered.result.sites.map((site) => site.moduleId));
     for (const source of rendered.overlaySources) withSources.add(source.moduleId);
     sourcedOverlayModules += declared.filter((id) => withSources.has(id)).length;
@@ -150,7 +157,7 @@ async function main(): Promise<void> {
     }
   }
 
-  // Refusals 1, 3, 4 and 6, from the one pure predicate that decides them
+  // Refusals 1, 3, 4, 6 and 8, from the one pure predicate that decides them
   // (`lib/divergence.ts`), so a red proof enters where this run enters.
   //
   // (Refusal 2 — a discovered overlay module the walk opened no source for — is
@@ -165,6 +172,7 @@ async function main(): Promise<void> {
     overlaySpellsASeamCall: spellsASeamCall,
     ownersResolved: shared.owners.size,
     seamsClassified: Object.keys(SEAM_CLASSIFICATION).length,
+    selfContradictingSubjects: [...contradicted].sort(),
   });
   if (refusal !== null) refuse(refusal.message);
 

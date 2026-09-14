@@ -238,7 +238,26 @@ function delegatedComposerOf(
   }
 
   const dir = dirname(entry);
-  const files = sourceFilesUnder(dir, ['.ts']).sort();
+  // The composer's own source, and **not** the tests beside it.
+  //
+  // A co-located `*.test.ts` sits in this directory and is in none of the
+  // composition: `packages/platform/tsconfig.build.json` excludes exactly that
+  // pattern from the emit, so what a consumer runs is what is left after this
+  // filter. Without it the first co-located test in a composer directory
+  // reported its own fixture as production's — a `new Set(` in the test came
+  // back as a construct the composition builds, and the string
+  // `export function registerModule(ctx)` inside a fixture came back as a
+  // module factory production composes, reddening three ledgers over a file
+  // that composes nothing (`specs/124-instance-customisation-gap/` T-3).
+  //
+  // Filtered **here** rather than inside `sourceFilesUnder`: the other caller
+  // is `compositionRootsIn`, whose population deliberately includes
+  // `backend/test`, where a root that composes the generated list really does
+  // live in a test file — and excluding those narrowed that population from
+  // three to two, which is the broken-walk floor doing its job.
+  const files = sourceFilesUnder(dir, ['.ts'])
+    .filter((file) => !/\.(?:test|spec)\.[cm]?tsx?$/.test(file))
+    .sort();
   if (files.length === 0) {
     throw new Error(
       `[harness-parity] the composer directory ${relative(REPO_ROOT, dir)} holds no source.`,

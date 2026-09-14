@@ -164,21 +164,29 @@ const SCOPE = '@endora-commerce';
  * A8's fixture: the overlay module this criterion writes into the tree the
  * command created, and the one container name it wraps.
  *
- * **The decorated name is the only one a booting instance accepts**, and the
- * two it is not are worth knowing before changing it. An overlay module may not
- * wrap a registration an installed package owns (D-176 Q3), and in an instance
- * every module is an installed package — measured: wrapping `price_lists`'
- * `pricingService` dies at composition with `PackageDecorationNotOfferedError`.
+ * **Why this name and not another**, which is worth knowing before changing it.
+ * An overlay module may not wrap a registration an installed package owns
+ * (D-176 Q3), and in an instance every module is an installed package —
+ * measured: wrapping `price_lists`' `pricingService` dies at composition with
+ * `PackageDecorationNotOfferedError`.
+ *
  * A name the composition root supplies is exempt from that rule (D-156.4 names
- * `commandBus` in so many words) and dies differently: every root-supplied name
- * is registered `asValue`, awilix marks such a resolver `isLeakSafe`, and
- * `ctx.di.decorate` re-registers the wrapper as `asFunction(...).setLifetime(
- * inner.lifetime ?? Lifetime.TRANSIENT)` — leaking the safety and the lifetime
- * both, so the first singleton that resolves the name raises
- * `AwilixResolutionError: … has a shorter lifetime than its ancestor`
- * (measured on `commandBus` behind `catalog`, and on `storefrontBaseUrl` behind
- * `organizations`). What is left is the module's own registration, which the
- * ownership guard allows and whose lifetime the wrapper preserves.
+ * `commandBus` in so many words) and **used to die differently**: every
+ * root-supplied name is registered `asValue`, awilix marks such a resolver
+ * `isLeakSafe` and gives it no lifetime, and `ctx.di.decorate` re-registered the
+ * wrapper as `asFunction(...).setLifetime(inner.lifetime ?? Lifetime.TRANSIENT)`
+ * — leaking the safety and the lifetime both, so the first singleton to resolve
+ * the name raised `AwilixResolutionError: … has a shorter lifetime than its
+ * ancestor` (measured on `commandBus` behind `catalog`, and on
+ * `storefrontBaseUrl` behind `organizations`). **That is repaired**
+ * (`specs/124-instance-customisation-gap/` FR-003): the wrapper over a
+ * leak-safe, lifetime-less resolver is registered `.singleton()`, so a
+ * root-supplied name is a target this criterion could take.
+ *
+ * It has not been moved to one, deliberately. The module's own registration is
+ * the name whose *attribution* A8's second half is about, and a fixture that
+ * changes what it decorates in the same merge request that repairs the report
+ * would leave neither half comparable with what was measured before.
  */
 const OVERLAY_MODULE_ID = 'instance_acceptance_overlay';
 const OVERLAY_REGISTRATION = 'instanceAcceptanceOverlayService';
@@ -1383,12 +1391,19 @@ async function platformOwnModuleIds(
  *
  * **TypeScript, and an instance compiles none of it.** `apps/` is outside the
  * backend member's `rootDir`, so the overlay module's own files are read by
- * Node's type stripping at import and by `endora generate`'s walk — and the
- * report's derivation places a seam call only on a receiver it can see
- * annotated `ModuleContext`, so a JavaScript overlay module renders a **clean**
- * report over a tree full of decorations, with no finding either. That is the
- * shape a client writing `backend.js` here would meet, and it is recorded in
- * this run's notes rather than worked around.
+ * Node's type stripping at import and by `endora generate`'s walk. The type
+ * stripping is the part that has a floor: it is unflagged only above the
+ * `engines.node` this tree declares, which is why a run on the pinned CI image
+ * is not the same measurement as a run on a developer's Node.
+ *
+ * The derivation used to place a seam call only on a receiver it could see
+ * annotated `ModuleContext`, so a JavaScript overlay module rendered a **clean**
+ * report over a tree full of decorations, with no finding either. That is
+ * repaired (`specs/124-instance-customisation-gap/` FR-008, FR-009): the first
+ * parameter of an exported `registerModule` is a context receiver whatever its
+ * spelling, and a seam call the walk still cannot place refuses the run instead
+ * of printing a pass. A `.ts` fixture is kept because that is what both
+ * published pages instruct a client to write.
  *
  * The declared reason is written beside the module for the same run: a derived
  * divergence with no sentence in `divergence.ts` is itself a finding, so a
