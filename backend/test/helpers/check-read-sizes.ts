@@ -2572,7 +2572,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
     // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
     // and none of it is somebody else's staleness. Never computed from a delta.
-    files: 5637,
+    // **`feat/124-overlay-repairs` (!1645) added two tracked files and re-recorded nothing: files 5637 -> 5638.** Its own run reported the census unmoved, which was true of the tree it measured and stopped being true at the merge — the shape `check-estate.md` warns about, arriving in the file that warns about it. Re-measured here rather than reasoned about, on a clean worktree of `origin/master` after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting **zero** unignored residue. **The attribution is derivable and is the point of recording it here**: the two files are `packages/platform/src/composition/default-composition-overlay.test.ts` and `.changeset/afraid-pandas-repair.md`, and every walk moved by exactly as many of the two as it reads — the two whole-repository walks by 2, and the five that read only source trees or only comment-bearing files by 1, seeing the `.ts` and not the `.md`. Nothing here widened a band; every entry is at 0% of its distance to either edge.
+    files: 5638,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2981,7 +2982,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
     // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
     // and none of it is somebody else's staleness. Never computed from a delta.
-    files: 2480,
+    // **`feat/124-overlay-repairs` (!1645) added two tracked files and re-recorded nothing: files 2480 -> 2481.** Its own run reported the census unmoved, which was true of the tree it measured and stopped being true at the merge — the shape `check-estate.md` warns about, arriving in the file that warns about it. Re-measured here rather than reasoned about, on a clean worktree of `origin/master` after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting **zero** unignored residue. **The attribution is derivable and is the point of recording it here**: the two files are `packages/platform/src/composition/default-composition-overlay.test.ts` and `.changeset/afraid-pandas-repair.md`, and every walk moved by exactly as many of the two as it reads — the two whole-repository walks by 2, and the five that read only source trees or only comment-bearing files by 1, seeing the `.ts` and not the `.md`. Nothing here widened a band; every entry is at 0% of its distance to either edge.
+    files: 2481,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -6899,7 +6901,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // under `docs/docs/modules/` swept first; the same worktree at `origin/master`
     // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
     // and none of it is somebody else's staleness. Never computed from a delta.
-    files: 5203,
+    // **`feat/124-overlay-repairs` (!1645) added two tracked files and re-recorded nothing: files 5203 -> 5204.** Its own run reported the census unmoved, which was true of the tree it measured and stopped being true at the merge — the shape `check-estate.md` warns about, arriving in the file that warns about it. Re-measured here rather than reasoned about, on a clean worktree of `origin/master` after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting **zero** unignored residue. **The attribution is derivable and is the point of recording it here**: the two files are `packages/platform/src/composition/default-composition-overlay.test.ts` and `.changeset/afraid-pandas-repair.md`, and every walk moved by exactly as many of the two as it reads — the two whole-repository walks by 2, and the five that read only source trees or only comment-bearing files by 1, seeing the `.ts` and not the `.md`. Nothing here widened a band; every entry is at 0% of its distance to either edge.
+    files: 5204,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -7945,7 +7948,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `check-diacritic-folds` read **561** there and agreed.
     // **`check-nul-bytes` 8189 -> 8193: +3 `origin/master`'s, +1 this branch's** — the
     // three `specs/124-.../` files and this merge request's changeset.
-    files: 8193,
+    // **`feat/124-overlay-repairs` (!1645) added two tracked files and re-recorded nothing: files 8193 -> 8195.** Its own run reported the census unmoved, which was true of the tree it measured and stopped being true at the merge — the shape `check-estate.md` warns about, arriving in the file that warns about it. Re-measured here rather than reasoned about, on a clean worktree of `origin/master` after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting **zero** unignored residue. **The attribution is derivable and is the point of recording it here**: the two files are `packages/platform/src/composition/default-composition-overlay.test.ts` and `.changeset/afraid-pandas-repair.md`, and every walk moved by exactly as many of the two as it reads — the two whole-repository walks by 2, and the five that read only source trees or only comment-bearing files by 1, seeing the `.ts` and not the `.md`. Nothing here widened a band; every entry is at 0% of its distance to either edge.
+    files: 8195,
     sites: null,
     sources: [],
     //
@@ -11162,7 +11166,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
     // and none of it is somebody else's staleness. Never computed from a delta.
     // **`specs/110-instance-repository/` T141/T142 (A7, A8 and A9): files 4659 -> 4660 (+1).** One file: `backend/scripts/acceptance/instance-tenancy-probe.ts`, A9's own probe. Nothing was moved and nothing deleted; this merge request's other paths were already in the tree. Re-measured on the **merged** tree (`origin/master` at 2c56c52eb), in a fresh `git worktree` of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` showing no residue outside `node_modules` and `dist`, and with the resolution staged — `check-naming.sh` and `check-language.sh` take their population from the index plus untracked-and-not-ignored paths. This file's conflict was resolved wholly to the incoming side and every value here was then re-measured rather than reconciled, per `specs/conventions/check-estate.md`; the branch's own pre-merge measurement of the same five was +1 over a different base, which is why none of it is carried across as arithmetic. No band was widened and no value was computed from a delta: the run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
-    files: 4660,
+    // **`feat/124-overlay-repairs` (!1645) added two tracked files and re-recorded nothing: files 4660 -> 4661.** Its own run reported the census unmoved, which was true of the tree it measured and stopped being true at the merge — the shape `check-estate.md` warns about, arriving in the file that warns about it. Re-measured here rather than reasoned about, on a clean worktree of `origin/master` after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting **zero** unignored residue. **The attribution is derivable and is the point of recording it here**: the two files are `packages/platform/src/composition/default-composition-overlay.test.ts` and `.changeset/afraid-pandas-repair.md`, and every walk moved by exactly as many of the two as it reads — the two whole-repository walks by 2, and the five that read only source trees or only comment-bearing files by 1, seeing the `.ts` and not the `.md`. Nothing here widened a band; every entry is at 0% of its distance to either edge.
+    files: 4661,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -12100,7 +12105,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // same four files as `check-nul-bytes`. `check-language.sh` reads 6292 and agrees:
     // its population is source-code comments and `/docs/`, and a `specs/` page and a
     // `.changeset/*.md` are in neither.
-    files: 8253,
+    // **`feat/124-overlay-repairs` (!1645) added two tracked files and re-recorded nothing: files 8253 -> 8255.** Its own run reported the census unmoved, which was true of the tree it measured and stopped being true at the merge — the shape `check-estate.md` warns about, arriving in the file that warns about it. Re-measured here rather than reasoned about, on a clean worktree of `origin/master` after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting **zero** unignored residue. **The attribution is derivable and is the point of recording it here**: the two files are `packages/platform/src/composition/default-composition-overlay.test.ts` and `.changeset/afraid-pandas-repair.md`, and every walk moved by exactly as many of the two as it reads — the two whole-repository walks by 2, and the five that read only source trees or only comment-bearing files by 1, seeing the `.ts` and not the `.md`. Nothing here widened a band; every entry is at 0% of its distance to either edge.
+    files: 8255,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -12678,7 +12684,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (27974d3da) reported **0 drifted of 44**, so every figure below is this branch's own
     // and none of it is somebody else's staleness. Never computed from a delta.
     // **`specs/110-instance-repository/` T141/T142 (A7, A8 and A9): files 6292 -> 6293 (+1).** One file: `backend/scripts/acceptance/instance-tenancy-probe.ts`, A9's own probe. Nothing was moved and nothing deleted; this merge request's other paths were already in the tree. Re-measured on the **merged** tree (`origin/master` at 2c56c52eb), in a fresh `git worktree` of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` showing no residue outside `node_modules` and `dist`, and with the resolution staged — `check-naming.sh` and `check-language.sh` take their population from the index plus untracked-and-not-ignored paths. This file's conflict was resolved wholly to the incoming side and every value here was then re-measured rather than reconciled, per `specs/conventions/check-estate.md`; the branch's own pre-merge measurement of the same five was +1 over a different base, which is why none of it is carried across as arithmetic. No band was widened and no value was computed from a delta: the run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
-    files: 6293,
+    // **`feat/124-overlay-repairs` (!1645) added two tracked files and re-recorded nothing: files 6293 -> 6294.** Its own run reported the census unmoved, which was true of the tree it measured and stopped being true at the merge — the shape `check-estate.md` warns about, arriving in the file that warns about it. Re-measured here rather than reasoned about, on a clean worktree of `origin/master` after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting **zero** unignored residue. **The attribution is derivable and is the point of recording it here**: the two files are `packages/platform/src/composition/default-composition-overlay.test.ts` and `.changeset/afraid-pandas-repair.md`, and every walk moved by exactly as many of the two as it reads — the two whole-repository walks by 2, and the five that read only source trees or only comment-bearing files by 1, seeing the `.ts` and not the `.md`. Nothing here widened a band; every entry is at 0% of its distance to either edge.
+    files: 6294,
     sites: null,
     sources: ['manifest-index'],
     //
