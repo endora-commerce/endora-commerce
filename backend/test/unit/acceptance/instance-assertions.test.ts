@@ -23,6 +23,7 @@ import {
   ASSERTION_IDS,
   compareToExpectation,
   completeResults,
+  describeRegistrySupply,
   endoraClosure,
   hostNpmrc,
   evaluateA1,
@@ -1262,5 +1263,69 @@ describe('A9 — the tenancy guard is active in the created instance', () => {
 
   it('is unmeasured when the narrowing half was not measured', () => {
     expect(evaluateA9(tenancy({ narrowedOrganizations: null })).state).toBe('unmeasured');
+  });
+});
+
+/**
+ * **The `registry` mode measures the last publish, and the report has to say
+ * so.** Pipeline 13800 read `ERR_PNPM_NO_MATCHING_VERSION  No matching version
+ * found for @endora-commerce/mod-addresses@^0.8.0`, an omitted `admin/` member
+ * and an absent `docs/` one, and every one of the three was a property of
+ * `@endora-commerce/cli@0.8.0` **as published on 2026-09-11** — seventeen source
+ * commits behind `master`, at the same version string. A criterion whose report
+ * cannot separate *"the product is broken"* from *"the product on the registry
+ * is older than the product in this tree"* produces a record that is misread
+ * every time, and the equal-version case is the one nothing else can see.
+ */
+describe('describeRegistrySupply — what the registry served, against this checkout', () => {
+  it('names a package the checkout has moved past', () => {
+    const note = describeRegistrySupply([
+      { name: '@endora-commerce/platform', served: '0.8.0', declared: '0.8.0', pending: false },
+      { name: '@endora-commerce/mod-blog', served: '0.7.1', declared: '0.8.0', pending: false },
+    ]);
+    expect(note).toContain('@endora-commerce/mod-blog');
+    expect(note).toContain('0.7.1');
+    expect(note).toContain('moved past');
+  });
+
+  // The case that actually happened, and the only one no version comparison
+  // can reach: the registry serves `0.8.0`, the checkout declares `0.8.0`, and
+  // the two are different programs.
+  it('names a package served at this checkout\'s own version with a changeset against it', () => {
+    const note = describeRegistrySupply([
+      { name: '@endora-commerce/cli', served: '0.8.0', declared: '0.8.0', pending: true },
+    ]);
+    expect(note).toContain('@endora-commerce/cli');
+    expect(note).toContain('unconsumed changeset');
+    expect(note).toContain('published');
+  });
+
+  it('says so when the registry holds a version this checkout does not', () => {
+    const note = describeRegistrySupply([
+      { name: '@endora-commerce/platform', served: '0.9.0', declared: '0.8.0', pending: false },
+    ]);
+    expect(note).toContain('@endora-commerce/platform');
+    expect(note).toContain('ahead of');
+  });
+
+  // 0.10.0 > 0.9.0, and a string comparison says the opposite. D-234 puts the
+  // first public version at `0.100.0`, so this is the series the estate is
+  // about to enter rather than a hypothetical.
+  it('compares versions numerically, not as strings', () => {
+    const note = describeRegistrySupply([
+      { name: '@endora-commerce/platform', served: '0.9.0', declared: '0.100.0', pending: false },
+    ]);
+    expect(note).toContain('moved past');
+    expect(note).not.toContain('ahead of');
+  });
+
+  it('reports agreement as the finding it is', () => {
+    const note = describeRegistrySupply([
+      { name: '@endora-commerce/platform', served: '0.8.0', declared: '0.8.0', pending: false },
+      { name: '@endora-commerce/cli', served: '0.8.0', declared: '0.8.0', pending: false },
+    ]);
+    expect(note).toContain('2');
+    expect(note).toContain('this tree');
+    expect(note).not.toContain('moved past');
   });
 });

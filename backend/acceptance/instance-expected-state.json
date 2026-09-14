@@ -33,6 +33,53 @@
     "file exists to refuse. The first run with ENDORA_NPM_REGISTRY set drifts — naming every",
     "assertion it measured — which is what makes that record arrive from a measurement.",
     "",
+    "AND WHEN IT IS RUN, IT MEASURES THE LAST PUBLISH AND NOT THIS CHECKOUT. `provisionHost`",
+    "installs every publishable package at `latest` and the criterion then invokes THAT `endora`,",
+    "which is D-208 — the product is an installed binary — and is the only arrangement that answers",
+    "the owner's condition about installing from the registry. The `registry` block below is",
+    "therefore a record about the 2026-09-11 tarballs, and it is written from the run that produced",
+    "them: pipelines 13797 (push) and 13800 (schedule), both on `master` at 5293ea907, which agree",
+    "assertion for assertion — `mode=registry pass=3 fail=1 unmeasured=11 of 15`. The measurement",
+    "came from CI because `ENDORA_NPM_REGISTRY` and `ENDORA_NPM_TOKEN` are protected variables: a",
+    "merge-request pipeline resolves neither, so this mode can be run on `master` and the nightly",
+    "and nowhere else.",
+    "",
+    "THE REGISTRY IS NOT BEHIND THIS TREE IN ANY VERSION, AND THAT IS THE FINDING. Publish job",
+    "48836 (2026-09-11) published 83 packages, 68 at `0.8.0` and 15 at `0.7.1`, and it is the only",
+    "publish there has ever been. Every one of the 82 publishable packages in the tree today carries",
+    "exactly the version the registry serves — zero differences — so `mod-addresses@0.7.1` is",
+    "current rather than stale, and the `^0.8.0` A2 died on was never any package's version: it is",
+    "the platform's, written onto every module by the derivation 670851a47 repaired on 2026-09-13.",
+    "What is behind is **content under an unchanged version string**: 34 of the 82 have changed since",
+    "the publish commit 18158f2fb, and they are exactly the 34 an unconsumed changeset names.",
+    "`@endora-commerce/cli@0.8.0` is seventeen commits to `packages/cli/src` behind `master`'s own",
+    "`0.8.0` — one version string over two different programs, which no install and no",
+    "`npm view <pkg> version` can tell apart, and which is why T5-B alone would have answered \"all",
+    "present\" and told nobody anything.",
+    "",
+    "SO A5 AND A6 ARE THE SAME FACT ONE MEMBER OVER. The published build predates the admin member",
+    "(T138, a71344da8) and the documentation member (T137, 6d43eda68), both 2026-09-12. A5's",
+    "omission sentence is the one `packages/cli` carried until a71344da8 and no later build can",
+    "produce it; A6's *\"printed no omission for it\"* is a build with no documentation member to omit.",
+    "Measured on this tree the same day, from the installed binary in a directory with no workspace",
+    "above it: the scaffolded manifest carries `mod-addresses ^0.7.1` beside `platform ^0.8.0`,",
+    "seven module packages at `^0.7.1` in all, and the tree holds both members — `tarball` mode",
+    "reads A5 and A6 pass. `describeRegistrySupply` in",
+    "`../scripts/acceptance/instance-assertions.ts` is what now says this in the report, as a note",
+    "rather than an assertion: a run against a registry older than the tree is a truthful",
+    "measurement of the published product, and refusing it would take away the one thing the mode is",
+    "for. EVERY NON-PASS BELOW WAITS ON A PUBLICATION, not on a repair — D-234 is the shape it takes.",
+    "",
+    "THE VERDICT AGAINST THE OWNER'S SENTENCE, WHICH IS NOT THE ASSERTION COUNT.",
+    "*\"Publication to npmjs will happen once we have tested that installing from the CLI, from",
+    "packages in the private registry, works correctly\"* is carried by **A2 + A3 + A4 + A15** and",
+    "not by A2 alone (`specs/123-oss-install-experience/research.md` §4.3): a resolve is not an",
+    "install, and nobody has ever logged into an instance installed from the registry. None of the",
+    "four is green here, and all four are behind one publication. **Half of the condition is already",
+    "met and must not be re-earned**: the storefront scaffold's own `registry` mode is 7 of 7 in",
+    "`storefront-scaffold-expected-state.json`, pipeline 13682 on `master`, 2026-09-12 — the same",
+    "registry, after the same publish, through a command the publish did not leave behind.",
+    "",
     "THERE ARE FIFTEEN ASSERTIONS AND THE NUMBERING IS SETTLED. `instance-repository.md`",
     "R6.3 numbers A1…A13, its A13 being FR-023/SC-011's built-admin-stylesheet assertion;",
     "`instance-tree.md` §6 opens by declaring the criterion to be §6's UNCHANGED plus one",
@@ -108,8 +155,69 @@
       }
     },
     "registry": {
-      "state": "unrun",
-      "assertions": {}
+      "state": "recorded",
+      "assertions": {
+        "A1": {
+          "status": "pass",
+          "reason": "no file in the created tree names anything above its own directory. It is green on the 2026-09-11 build of the command, which is what this mode measures."
+        },
+        "A2": {
+          "status": "fail",
+          "reason": "`ERR_PNPM_NO_MATCHING_VERSION  No matching version found for @endora-commerce/mod-addresses@^0.8.0`, the registry's latest being `0.7.1`. **`0.7.1` is also the version this tree declares**, and no package on the registry is behind the tree: publish job 48836 (2026-09-11) published all 83 — 68 at `0.8.0`, 15 at `0.7.1` — and every one of the 82 publishable packages in the tree today carries exactly the version the registry serves, with zero differences. What is behind is the **content** of `@endora-commerce/cli@0.8.0`: the range derivation it carries writes the platform's version onto every module, which 670851a47 repaired on 2026-09-13 under an unchanged version string. Thirty-four packages are in that state and they are exactly the thirty-four an unconsumed changeset names. The repair is a **publication**, not a code change: `specs/123-oss-install-experience/tasks.md` Phase 5, under D-234."
+        },
+        "A3": {
+          "status": "unmeasured",
+          "reason": "behind A2: the install that would have produced it never happened. It is the publication A2 waits on and no assertion of its own — `specs/123-oss-install-experience/tasks.md` Phase 5"
+        },
+        "A4": {
+          "status": "unmeasured",
+          "reason": "behind A2: the install that would have produced it never happened. It is the publication A2 waits on and no assertion of its own — `specs/123-oss-install-experience/tasks.md` Phase 5"
+        },
+        "A5": {
+          "status": "unmeasured",
+          "reason": "the command omitted `admin/`, in the sentence `packages/cli` carried until a71344da8 — T138, 2026-09-12, which is **after** the publish this mode installs from. This tree writes the member: the same criterion in `tarball` mode reads A5 pass over 23 installed module packages and 3686 KiB of bundle. Waits on the same publication as A2 (`specs/123-oss-install-experience/tasks.md` Phase 5)."
+        },
+        "A6": {
+          "status": "unmeasured",
+          "reason": "the created tree holds no `docs/` member and the command printed no omission for it — the published build has no documentation member at all, that being T137 (6d43eda68, 2026-09-12), again after the publish. A build that drops a member announces it; this one has nothing to announce. This tree writes the member and `tarball` mode reads A6 pass over 72 routed pages. Waits on the same publication as A2."
+        },
+        "A7": {
+          "status": "unmeasured",
+          "reason": "behind A2: the install that would have produced it never happened. It is the publication A2 waits on and no assertion of its own — `specs/123-oss-install-experience/tasks.md` Phase 5"
+        },
+        "A8": {
+          "status": "unmeasured",
+          "reason": "behind A2: the install that would have produced it never happened. It is the publication A2 waits on and no assertion of its own — `specs/123-oss-install-experience/tasks.md` Phase 5"
+        },
+        "A9": {
+          "status": "unmeasured",
+          "reason": "behind A2: the install that would have produced it never happened. It is the publication A2 waits on and no assertion of its own — `specs/123-oss-install-experience/tasks.md` Phase 5"
+        },
+        "A10": {
+          "status": "pass",
+          "reason": "exit 1, nothing written, and the refusal carries the sentence the owning manifest declares. It needs no install, which is why it is one of the three that answer here at all."
+        },
+        "A11": {
+          "status": "unmeasured",
+          "reason": "behind A2: the install that would have produced it never happened. It is the publication A2 waits on and no assertion of its own — `specs/123-oss-install-experience/tasks.md` Phase 5"
+        },
+        "A12": {
+          "status": "unmeasured",
+          "reason": "it needs a fixture registry to publish a platform patch into: T144, gated on F10 (`specs/071-modular-packaging/roadmap.md`). Declared unmeasured in both modes and by neither of them."
+        },
+        "A13": {
+          "status": "unmeasured",
+          "reason": "the same omitted `admin/` member as A5 — there is no built stylesheet to read. Waits on the same publication (`specs/123-oss-install-experience/tasks.md` Phase 5)."
+        },
+        "A14": {
+          "status": "pass",
+          "reason": "241 lines of wiring across 12 files on disk, under R1.4's bound of 250. The published build writes twelve wiring files where this tree writes thirteen; both are under the bound."
+        },
+        "A15": {
+          "status": "unmeasured",
+          "reason": "behind A2: the install that would have produced it never happened. It is the publication A2 waits on and no assertion of its own — `specs/123-oss-install-experience/tasks.md` Phase 5"
+        }
+      }
     }
   },
   "history": [
@@ -245,6 +353,25 @@
     "TypeScript type stripping is unflagged, and type stripping is the only thing that runs A8's",
     "`.ts` fixture — so this green is a green on a developer's Node and the job may not compose the",
     "overlay module at all. The floor is D-236's; the repair lives there and deliberately not in the",
-    "merge request that earned this green."
+    "merge request that earned this green.",
+    "2026-09-14 — THE `registry` MODE IS RECORDED, FROM CI'S RUN, AND ITS ONE RED NAMES A",
+    "PUBLICATION RATHER THAN A DEFECT. Pipelines 13797 and 13800 agree assertion for assertion and",
+    "the fifteen states below are theirs verbatim: A1, A10 and A14 pass, A2 fail, eleven unmeasured.",
+    "The measurement is CI's because the two variables that select this mode are protected and a",
+    "merge request resolves neither. THE DIAGNOSIS IS THE VALUE OF THE ENTRY. A2 died on",
+    "`@endora-commerce/mod-addresses@^0.8.0` against a registry whose latest is `0.7.1`, and `0.7.1`",
+    "is what this tree declares too: all 82 publishable packages match the registry exactly, publish",
+    "job 48836 having shipped 83 of them on 2026-09-11 (68 at `0.8.0`, 15 at `0.7.1`) in the only",
+    "publish there has been. `^0.8.0` was the platform's version written onto a module — the",
+    "derivation 670851a47 repaired, in a build the registry does not have. 34 packages hold changes",
+    "the registry has not seen under versions it already serves, and they are exactly the 34 an",
+    "unconsumed changeset names. A5 and A6 are the same fact: the published build predates T138 and",
+    "T137. NOTHING IN THE SCAFFOLDER WAS CHANGED and nothing should be — measured from the installed",
+    "binary on this tree, the manifest carries `mod-addresses ^0.7.1` beside `platform ^0.8.0` with",
+    "both members written, and `tarball` mode re-run with this merge request in place is unmoved at",
+    "`pass=14 fail=0 unmeasured=1 of 15`. What this merge request adds is the sentence the report",
+    "was missing — `describeRegistrySupply`, which holds what the registry served against what this",
+    "checkout declares and names the equal-version case nothing else can see. The record goes green",
+    "again the day the estate is republished, by drifting; that is the ratchet and not a defect."
   ]
 }

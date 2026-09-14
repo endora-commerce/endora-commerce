@@ -1606,6 +1606,114 @@ export function exitCodeForExpectation(drift: readonly string[]): number {
   return drift.length === 0 ? 0 : 1;
 }
 
+/** One publishable package, as the registry served it and as this checkout holds it. */
+export interface SuppliedPackage {
+  readonly name: string;
+  /** The version the registry answered `latest` with, off the installed manifest. */
+  readonly served: string;
+  /** The version this checkout's own manifest declares. */
+  readonly declared: string;
+  /** Does an unconsumed changeset in this checkout name it? */
+  readonly pending: boolean;
+}
+
+/** `0.100.0 > 0.9.0`, and a string comparison says the opposite (D-234). */
+function compareVersions(left: string, right: string): number {
+  const parse = (value: string): readonly number[] =>
+    value.split('-')[0]!.split('.').map((part) => Number.parseInt(part, 10) || 0);
+  const [a, b] = [parse(left), parse(right)];
+  for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
+    const difference = (a[index] ?? 0) - (b[index] ?? 0);
+    if (difference !== 0) return difference;
+  }
+  return 0;
+}
+
+/** Eight names and a count, because a report line naming 83 is a line nobody reads. */
+function nameSome(names: readonly string[]): string {
+  const shown = names.slice(0, 8).join(', ');
+  return names.length > 8 ? `${shown} and ${String(names.length - 8)} more` : shown;
+}
+
+/**
+ * What the registry served, held against what this checkout holds — the note
+ * the `registry` mode's report opens with.
+ *
+ * **This mode measures the last publish and nothing else, and until this note
+ * existed the report never said so.** `provisionHost` installs every publishable
+ * package at `latest` and `assertInstalledBinaryContext` then invokes *that*
+ * `endora`, which is D-208's own instruction — the product is an installed
+ * binary — and is the only arrangement that answers the owner's condition about
+ * installing from the registry. What it means, and what a reader of the report
+ * has to be told, is that **no assertion below is about the code in this
+ * checkout**.
+ *
+ * Measured, on pipelines 13797 and 13800 (`master`, 2026-09-14): A2 red with
+ * `ERR_PNPM_NO_MATCHING_VERSION  No matching version found for
+ * @endora-commerce/mod-addresses@^0.8.0`, A5 unmeasured over an omitted `admin/`
+ * member, A6 unmeasured over an absent `docs/` one. All three are properties of
+ * `@endora-commerce/cli@0.8.0` **as published on 2026-09-11**, which is seventeen
+ * commits to `packages/cli/src` behind `master` — the caret-range repair
+ * (670851a47), the admin member (T138) and the documentation member (T137) all
+ * landed after it. Read without this note, each of the three is a defect in this
+ * tree; read with it, they are one publication step.
+ *
+ * **The equal-version case is the one with teeth**, and it is why a version
+ * comparison alone is not enough: the registry serves `0.8.0`, this checkout
+ * declares `0.8.0`, and the two are different programs. Nothing an install can
+ * do distinguishes them. What does is the checkout's own statement that a
+ * package has unreleased work — an unconsumed changeset naming it — which is
+ * the same source `check:release-intent` judges a release by.
+ *
+ * It is a **note and not an assertion**: A1…A15 is a settled namespace
+ * (`instance-repository.md` R6.3a) and a run against a stale registry is a
+ * truthful measurement of the published product rather than a failure of the
+ * criterion. Refusing here would take away the one thing the mode is for.
+ */
+export function describeRegistrySupply(supplied: readonly SuppliedPackage[]): string {
+  const behind: string[] = [];
+  const ahead: string[] = [];
+  const shadowed: string[] = [];
+  for (const pkg of [...supplied].sort((a, b) => a.name.localeCompare(b.name))) {
+    const order = compareVersions(pkg.served, pkg.declared);
+    if (order < 0) behind.push(`${pkg.name}@${pkg.served} (this tree: ${pkg.declared})`);
+    else if (order > 0) ahead.push(`${pkg.name}@${pkg.served} (this tree: ${pkg.declared})`);
+    else if (pkg.pending) shadowed.push(`${pkg.name}@${pkg.served}`);
+  }
+  const total = String(supplied.length);
+  if (behind.length === 0 && ahead.length === 0 && shadowed.length === 0) {
+    return (
+      `the registry served this checkout's own version of all ${total} publishable packages ` +
+      `and no unconsumed changeset names any of them, so this run measures the code in this ` +
+      `tree`
+    );
+  }
+  const clauses: string[] = [];
+  if (behind.length > 0) {
+    clauses.push(
+      `${String(behind.length)} at a version this checkout has moved past — ${nameSome(behind)}`,
+    );
+  }
+  if (ahead.length > 0) {
+    clauses.push(
+      `${String(ahead.length)} ahead of this checkout — ${nameSome(ahead)}`,
+    );
+  }
+  if (shadowed.length > 0) {
+    clauses.push(
+      `${String(shadowed.length)} served at this checkout's own version with an unconsumed ` +
+        `changeset against ${shadowed.length === 1 ? 'it' : 'them'} — ${nameSome(shadowed)} — ` +
+        `which is one version string over two different programs, and no install can tell them ` +
+        `apart`,
+    );
+  }
+  return (
+    `every assertion below is about the tarballs the registry served and not about this ` +
+    `checkout: of ${total} publishable packages, ${clauses.join('; ')}. A repair merged here ` +
+    `reaches this criterion only when the estate is published`
+  );
+}
+
 /**
  * Every assertion this criterion owes, with the ones no step answered filled in
  * as `unmeasured`.
