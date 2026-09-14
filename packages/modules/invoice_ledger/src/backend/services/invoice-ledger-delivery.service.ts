@@ -78,6 +78,7 @@ export class InvoiceLedgerDeliveryService implements InvoiceLedgerDeliveryPort {
     const row = em.create(InvoiceLedgerDelivery, {
       adapterId: input.adapterId,
       invoiceId: input.invoiceId,
+      organizationId: input.organizationId,
       kind: input.kind,
       salesChannelId: input.salesChannelId,
       credentialCode: input.credentialCode,
@@ -110,6 +111,7 @@ export class InvoiceLedgerDeliveryService implements InvoiceLedgerDeliveryPort {
     const row = em.create(InvoiceLedgerDelivery, {
       adapterId: input.adapterId,
       invoiceId: input.invoiceId,
+      organizationId: input.organizationId,
       kind: input.kind,
       salesChannelId: input.salesChannelId,
       credentialCode: input.credentialCode,
@@ -160,6 +162,12 @@ export class InvoiceLedgerDeliveryService implements InvoiceLedgerDeliveryPort {
       map = em.create(InvoiceLedgerDocumentMap, {
         adapterId: row.adapterId,
         invoiceId: row.invoiceId,
+        // The delivery froze the buyer organization at enqueue and this is its
+        // projection, so the map takes the row's value rather than resolving
+        // the invoice a second time — two reads of one fact are two answers
+        // waiting to disagree, and the second one would need `invoices` to be
+        // composed, which is what this column exists to stop needing.
+        organizationId: row.organizationId,
         originalInvoiceId,
         remoteDocumentId,
         environment: row.environment,

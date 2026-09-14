@@ -15,6 +15,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
+import { seedAdHocOrganization } from '../../helpers/seed-organizations.js';
 
 const LIST_URL = '/api/v1/admin/invoice-ledger/deliveries';
 const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
@@ -35,9 +36,14 @@ describe('invoice_ledger — historical remote id [contract]', () => {
     await activateInfakt(h);
     await withSystemScope('seed historical ledger remote id', async () => {
       const em = h.em();
+      // Both rows carry their own organization since the two ledger tables
+      // stopped hanging off `Invoice`, and the column is a real foreign key, so
+      // the fixture seeds an organization rather than inventing a UUID.
+      const org = await seedAdHocOrganization(em, 'Historical Remote Id Fixture');
       em.create(InvoiceLedgerDocumentMap, {
         adapterId: 'infakt',
         invoiceId,
+        organizationId: org.id,
         remoteDocumentId: REMOTE_ID,
         environment: 'sandbox',
         credentialCode: 'infakt',
@@ -45,6 +51,7 @@ describe('invoice_ledger — historical remote id [contract]', () => {
       em.create(InvoiceLedgerDelivery, {
         adapterId: 'infakt',
         invoiceId,
+        organizationId: org.id,
         kind: 'invoice',
         credentialCode: 'infakt',
         environment: 'sandbox',

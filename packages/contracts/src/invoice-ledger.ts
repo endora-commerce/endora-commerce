@@ -157,6 +157,17 @@ export type InvoiceLedgerDeliveryQueuedEvent = z.infer<typeof invoiceLedgerDeliv
 export interface InvoiceLedgerEnqueueInput {
   adapterId: string;
   invoiceId: string;
+  /**
+   * The buyer organization, frozen on the delivery row at enqueue.
+   *
+   * It is the row's tenant key rather than something the reader recovers by
+   * joining `invoices`: `invoice_ledger` is `nonDeactivatable` and may not
+   * declare `invoices` in its manifest `dependencies`, so an instance can
+   * compose this module with no `Invoice` entity registered at all. The caller
+   * resolves it through `invoiceCopyHostPort`, which is the only way this
+   * module learns anything about an invoice.
+   */
+  organizationId: string;
   kind: InvoiceLedgerDeliveryKind;
   salesChannelId: string | null;
   credentialCode: string;
