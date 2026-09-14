@@ -240,5 +240,5 @@ ports per Constitution I:
   `filterPosition`.
 - The `search` module's Meilisearch indexer, which consumes the
   `isSearchable` flag.
-- [Promotions](../promotions.md) — the Promotion Rule editor that
-  consumes the `isPromoRule` flag.
+- The `promotions` module's Promotion Rule editor, which consumes the
+  `isPromoRule` flag.
