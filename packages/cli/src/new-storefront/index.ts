@@ -420,6 +420,13 @@ function nextSteps(
     install,
     backendStep(),
     `pnpm run build — it runs \`themes:generate\`, \`next build\` and \`check:themes\`.`,
+    // Baseline step E4 (`specs/125-first-mile-install/spec.md` §2.3), which was
+    // printed nowhere: `storefront/package.json` has declared `start` all
+    // along, and a client who followed this block to the end had a built
+    // storefront and no command to serve it with.
+    `pnpm run start — the built storefront, served. \`pnpm run dev\` is the other one: the ` +
+      `same pages, rebuilt as you edit them, and the only one of the two that does not need a ` +
+      `build first.`,
     `this storefront is yours now. There is no kit to upgrade and no shell to keep in step: a ` +
       `fix to the platform reaches you through \`@endora-commerce/contracts\`, where a wire ` +
       `change is a compile error rather than a runtime surprise.`,

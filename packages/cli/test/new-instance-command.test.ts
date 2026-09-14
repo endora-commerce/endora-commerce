@@ -240,6 +240,12 @@ describe('endora new instance, as a process', () => {
       '.gitignore',
       'README.md',
       'apps',
+      // §2.1 — the development environment, which a scaffolded instance carried
+      // none of until feature 125. Everything under `deploy/` pulls images the
+      // client has not built yet, so a stranger provisioned PostgreSQL, Redis
+      // and a search engine by hand; this one is runnable as written, and it is
+      // at the root because a person on a laptop is not a person deploying.
+      'compose.dev.yml',
       // §2.7 — the example deployment files, which a scaffolded instance was
       // handed none of until feature 122. `deploy/` is not a workspace member:
       // an example that deploys the admin is not the admin project's file.

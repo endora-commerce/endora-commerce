@@ -47,6 +47,8 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 
+import type { EnvironmentInput } from '@endora-commerce/contracts';
+
 import { parseEnvFile } from '../inputs/env-file.js';
 import {
   generateSecret,
@@ -56,7 +58,14 @@ import {
   type ResolvedInput,
 } from '../inputs/resolve.js';
 import { npmrcContent, normalizeRegistry } from '../new-storefront/npmrc.js';
-import { assertTopology, DEFAULT_TOPOLOGY, type Topology } from './deploy.js';
+import {
+  assertTopology,
+  DEFAULT_TOPOLOGY,
+  developmentAddresses,
+  developmentMailUrl,
+  DEV_COMPOSE_PATH,
+  type Topology,
+} from './deploy.js';
 import { DOCS_TOOLCHAIN } from './docs-toolchain.js';
 import {
   ADMIN_KIT_PACKAGE,
@@ -360,7 +369,14 @@ export async function runNewInstance(
     resolved,
     wouldGenerate:
       options.dryRun === true ? resolution.toGenerate.map((input) => input.name) : [],
-    nextSteps: nextSteps(targetDir, deployment, topology, modules.ids),
+    nextSteps: nextSteps(targetDir, deployment, topology, modules.ids, {
+      admin: plan.members.includes('admin'),
+      // Read off the document **this plan holds**, never re-derived: the two
+      // cannot then disagree about a port, and a step naming an address the
+      // client's own file does not publish is worse than no step.
+      environment: developmentEnvironment(plan, declared),
+      mailUrl: developmentMailUrl(developmentDocument(plan)),
+    }),
   };
   if (result.dryRun) return result;
 
@@ -514,6 +530,64 @@ function typescriptRangeOf(host: InstanceHost): string | undefined {
  * thing.
  */
 /**
+ * The development compose **this plan holds**, as text.
+ *
+ * Read off the plan rather than rendered a second time: a second render would
+ * be a second document, and the whole property FR-105 buys is that the printed
+ * addresses and the file the client starts cannot disagree.
+ */
+function developmentDocument(plan: InstancePlan): string {
+  return plan.files.find((file) => file.path === DEV_COMPOSE_PATH)?.content ?? '';
+}
+
+/**
+ * FR-105's intersection, both halves.
+ *
+ * The **compose** half is `developmentAddresses`, which answers only for the
+ * services the rendered document runs. The **declaration** half is here: an
+ * input this instance does not declare is not this instance's, whoever else
+ * reads it — so an instance that installs neither `search` nor `email` is told
+ * about neither `MEILISEARCH_API_KEY` nor `SMTP_URL`, and neither name is
+ * written down in the deciding code. The platform's own three are always
+ * declared and therefore always survive this filter, which is why it can be
+ * stated as a rule rather than as a list.
+ */
+function developmentEnvironment(
+  plan: InstancePlan,
+  declared: readonly EnvironmentInput[],
+): ReadonlyMap<string, string> {
+  const names = new Set(declared.map((input) => input.name));
+  return new Map(
+    [...developmentAddresses(developmentDocument(plan))].filter(([name]) => names.has(name)),
+  );
+}
+
+/**
+ * What this run's own development environment adds to the block (feature 125).
+ *
+ * Both entries are **derived from the rendered `compose.dev.yml`** and from the
+ * member decisions this run took; neither is a value written down here. They
+ * are an options object rather than two more positional parameters because the
+ * block already takes four, and a fifth boolean beside a fourth array is how a
+ * call site gets them the wrong way round.
+ */
+export interface DevelopmentSteps {
+  /** The admin member was written, so there is a bundle to serve (FR-110). */
+  readonly admin?: boolean;
+  /**
+   * What a natively running process reaches the development stack at, read off
+   * the document this run rendered (`deploy.ts`' `developmentAddresses`).
+   *
+   * **Printed, not written** — writing it into `.env` is FR-105 and waits on
+   * proposed ruling PR-1(a), so until then the block carries the values and the
+   * client copies the ones they want.
+   */
+  readonly environment?: ReadonlyMap<string, string>;
+  /** Where the mail catcher's own interface is, if this stack runs one. */
+  readonly mailUrl?: string | undefined;
+}
+
+/**
  * What a client is told to run, in order (R3.4).
  *
  * Exported so a proof can read the sequence rather than a process's stdout: it
@@ -531,28 +605,50 @@ export function nextSteps(
   deployment: string,
   topology: Topology = DEFAULT_TOPOLOGY,
   moduleIds: readonly string[] = [],
+  development: DevelopmentSteps = {},
 ): readonly string[] {
+  const addresses = [...(development.environment ?? new Map())];
   return [
     `cd ${targetDir} && pnpm install — every range in the manifest is published semver. ` +
       `Nothing in this tree is a copy of ours, so \`pnpm update\` is how a platform fix ` +
       `reaches you, with no file here edited.`,
+    // `specs/125-first-mile-install/` FR-108, and it is first for a reason a
+    // client would otherwise meet as an error: `migrate` is four lines below and
+    // it needs a database. This command wrote `compose.dev.yml` beside the
+    // manifest and it runs as written — three of this sequence's steps used to
+    // be "provision PostgreSQL", "provision Redis" and "provision a search
+    // engine", and they were printed nowhere at all.
+    `pnpm run dev:services — PostgreSQL, Redis, Meilisearch and a mail catcher, from ` +
+      `\`compose.dev.yml\` beside your manifest. It waits until each one reports healthy, ` +
+      `which is what stops \`migrate\` racing a database that is still initialising. ` +
+      `\`pnpm run dev:services:down\` stops them and keeps their data.` +
+      (development.mailUrl === undefined
+        ? ''
+        : ` Mail this instance sends goes to that catcher and is read at ${development.mailUrl} ` +
+          `— nothing leaves your machine.`),
     `open .env and fill it in — this command already wrote it, with the secrets it ` +
       `generated filled in and everything else this instance reads left blank. Do NOT copy ` +
       `.env.example over it: that file is the same population with no secret in it, for you ` +
       `to commit and for your colleagues to read. Every entry in it names what it decides, ` +
-      `and an optional one names what leaving it unset costs.`,
-    `pnpm run generate — the files your admin project and documentation site are built ` +
-      `from, over the modules you actually installed. They are git-ignored and never ` +
-      `committed: a different module set is a different bundle and a different navigation. ` +
-      `\`build\` runs it for you; run it once by hand first so the first build has them.`,
-    `pnpm run build — the entry points, compiled, and every member built. \`migrate\`, ` +
-      `\`start\` and the five \`module:*\` commands all run compiled JavaScript, so this ` +
-      `comes before any of them.`,
-    `pnpm run migrate — the schema, in the order the installed manifests compute.`,
-    `pnpm run module:install --all — every module you declared, in dependency order. Your ` +
-      `modules arrive as installed packages, and a package is installed by this command and ` +
-      `by no boot: it applies the migrations, reconciles the settings and runs the install ` +
-      `hook. Until it has run, the platform refuses to start, naming the modules it requires.`,
+      `and an optional one names what leaving it unset costs.` +
+      // The values that match the file this same run rendered, printed rather
+      // than written: writing them is FR-105 and waits on a ruling. They are
+      // read off the rendered document, so a changed port moves this sentence
+      // in the same run — and they are a DEVELOPMENT machine's, which is why
+      // they are printed here and are in no `.env.example`.
+      (addresses.length === 0
+        ? ''
+        : ` For the services \`dev:services\` starts, these are the values: ` +
+          `${addresses.map(([name, value]) => `${name}=${value}`).join(', ')}. ` +
+          `They match \`compose.dev.yml\` as it stands; on a machine that is not a ` +
+          `development one, they are not what you want.`),
+    `pnpm run setup — generate, build, migrate and \`module:install --all\`, in that order. ` +
+      `Each of the four is still its own script and can be run on its own: \`generate\` ` +
+      `renders what your admin project and documentation site are built from, \`build\` ` +
+      `compiles every member, \`migrate\` applies the schema in the order the installed ` +
+      `manifests compute, and \`module:install --all\` installs every module you declared ` +
+      `in dependency order. Until that last one has run, the platform refuses to start, ` +
+      `naming the modules it requires.`,
     ...(moduleIds.includes('admin_users')
       ? [
           `pnpm run admin:create -- --email=<you> --password=<secret> --first-name=<f> ` +
@@ -565,6 +661,17 @@ export function nextSteps(
     `pnpm run start — the API. \`apps/${deployment}/modules/\` is where your own overlay ` +
       `module goes when you want to change something; \`divergence.ts\` beside it is where ` +
       `you declare what you changed.`,
+    // FR-110 — baseline step D1, which was printed nowhere: the admin member
+    // declares `preview` and nothing named it, so a client who built the bundle
+    // had no command to look at it with.
+    ...(development.admin === true
+      ? [
+          `pnpm run preview:admin — the admin bundle \`build\` produced, served. It talks to ` +
+            `the API from your browser, so \`start\` above has to be running; the origin it ` +
+            `calls was inlined at build time, which is why moving a built bundle between ` +
+            `environments is a rebuild rather than a redeploy.`,
+        ]
+      : []),
     ...(topology === 'three-host'
       ? [
           `deploy/three-host/ — one compose example and one \`.env.example\` per machine, ` +

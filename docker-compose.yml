@@ -1,7 +1,14 @@
 # Local development infrastructure for the B2B platform.
 # Covers the services required by the constitution's mandated stack
-# (Postgres, Redis, Meilisearch) plus Mailhog for capturing transactional
+# (Postgres, Redis, Meilisearch) plus Mailpit for capturing transactional
 # email in dev.
+#
+# The three stateful images are stated HERE and in the CLI's service catalogue
+# (`packages/cli/src/new-instance/deploy.ts`), which renders both a client's
+# `deploy/compose.prod.yml` and their `compose.dev.yml`. Two statements of one
+# image tag agreed by coincidence until feature 125;
+# `packages/cli/test/new-instance/dev-compose.test.ts` now reds on a tag changed
+# in one of them and not the other.
 #
 # Multi-instance support
 # ----------------------
@@ -64,13 +71,21 @@ services:
       timeout: 3s
       retries: 10
 
-  mailhog:
-    image: mailhog/mailhog:latest
+  # Mailpit, not MailHog: measured 2026-09-14 through the GitHub API,
+  # `mailhog/MailHog`'s last commit is 2024-02-13 and `axllent/mailpit`'s is
+  # 2026-09-06. Same two ports, same SMTP contract, so `SMTP_URL` does not move.
+  mailpit:
+    image: axllent/mailpit:v1.31
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: '1'
+      MP_SMTP_AUTH_ALLOW_INSECURE: '1'
     ports:
-      - '${MAILHOG_SMTP_PORT:-1025}:1025' # SMTP
-      - '${MAILHOG_UI_PORT:-8025}:8025'   # Web UI
+      - '${MAILPIT_SMTP_PORT:-1025}:1025' # SMTP
+      - '${MAILPIT_UI_PORT:-8025}:8025'   # Web UI
     healthcheck:
-      test: ['CMD-SHELL', 'wget --quiet --spider http://localhost:8025 || exit 1']
+      # 127.0.0.1 and not localhost, for the reason the search engine's check
+      # carries: busybox wget gives up on the first refusal.
+      test: ['CMD', 'wget', '--quiet', '--spider', 'http://127.0.0.1:8025/readyz']
       interval: 10s
       timeout: 3s
       retries: 5
