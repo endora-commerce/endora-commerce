@@ -705,6 +705,88 @@ describe('evaluateProcess', () => {
   });
 });
 
+/**
+ * The shape of a crash, and why the tail alone is not a diagnosis.
+ *
+ * A step this criterion runs fails in one of two ways, and they put the sentence
+ * a reader needs at opposite ends of the output. A `pnpm install`, a `tsc` or a
+ * migration prints progress and then the reason, so the reason is at the end. An
+ * **uncaught exception** prints the reason *first* — `NameError: message` — then
+ * a stack, then the interpreter banner, and pnpm adds two `ELIFECYCLE` lines on
+ * top of that. Six or eight trailing lines of that output carry frames and
+ * package-manager noise and no message at all.
+ *
+ * Measured on pipeline 13898, `registry` mode, where this cost a diagnosis:
+ * A4 reported `] / } / ] / } / Node.js v22.17.1 / ELIFECYCLE …` and A15 reported
+ * five `at …` frames. Both are fails on the default branch, whose mode a merge
+ * request cannot reproduce because the two variables that select it are
+ * protected — so the run that produced them is the only run there was, and
+ * neither said what went wrong.
+ */
+describe('a crash is reported by its message, not only by its tail', () => {
+  const crash = [
+    '> instance@0.0.0 start',
+    '> node --env-file-if-exists=../.env dist/index.js',
+    '',
+    'file:///tmp/instance/node_modules/@endora-commerce/platform/dist/kernel/scope.js:144',
+    '    throw new AwilixResolutionError(name, path);',
+    '          ^',
+    '',
+    "AwilixResolutionError: Could not resolve 'inventoryPort'.",
+    '    at Object.resolve (…/awilix/lib/container.js:451:19)',
+    '    at enterPlatformScope (…/dist/kernel/scope.js:144:12)',
+    '    at enterSystemScope (…/dist/kernel/scope.js:167:12) {',
+    "  code: 'ERESOLUTION'",
+    '}',
+    '',
+    'Node.js v22.18.0',
+    ' ELIFECYCLE  Command failed with exit code 1.',
+    ' ELIFECYCLE  Command failed with exit code 1.',
+  ].join('\n');
+
+  it('A4 names the thrown error when the instance never answered', () => {
+    const result = evaluateA4({
+      started: true,
+      healthStatus: null,
+      reconcile: null,
+      enumerated: null,
+      output: crash,
+    });
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain("AwilixResolutionError: Could not resolve 'inventoryPort'.");
+  });
+
+  it('A15 names the thrown error when `admin:create` exited non-zero', () => {
+    const result = evaluateA15({
+      createCode: 1,
+      createOutput: crash,
+      loginStatus: null,
+      sessionCookie: false,
+      loginBody: '',
+    });
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain("AwilixResolutionError: Could not resolve 'inventoryPort'.");
+  });
+
+  it('evaluateProcess names it too — migrate and module:install crash the same way', () => {
+    const result = evaluateProcess('A3', 1, crash, 'unused');
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain("AwilixResolutionError: Could not resolve 'inventoryPort'.");
+  });
+
+  it('still carries the tail, which is where a non-crashing step says why', () => {
+    const result = evaluateProcess('A2', 1, 'a\nb\nERR_PNPM_FETCH_404', 'unused');
+    expect(result.detail).toContain('ERR_PNPM_FETCH_404');
+  });
+
+  it('adds nothing when the output carries no thrown error', () => {
+    const plain = ['resolving', 'done', 'ERR_PNPM_FETCH_404'].join('\n');
+    const result = evaluateProcess('A2', 1, plain, 'unused');
+    expect(result.detail).toContain('ERR_PNPM_FETCH_404');
+    expect(result.detail).not.toContain('…');
+  });
+});
+
 describe('the exit code', () => {
   const at = (state: AssertionResult['state']): AssertionResult => ({ id: 'A1', state, detail: '' });
 
