@@ -238,11 +238,6 @@ export interface BackendServerOptions {
   extraModules?: ModulePlugin[];
   /** When set, injected into `organizationsModule` so tests can assert outbound mail (verification + invitations). */
   organizationsMailer?: Mailer;
-  /**
-   * Feature 062 — when set, injected into `commerceModule` so tests can assert
-   * the order-confirmation e-mail on placement paths (SC-004 parity).
-   */
-  commerceMailer?: Mailer;
   /** Feature 043 — scripted LLM fetch + clock/TTL seams for prompt-action tests. */
   promptActionsLlmFetch?: FetchLike;
   promptActionsNow?: () => Date;
@@ -2324,6 +2319,24 @@ export async function setupBackendServer(
       // `ksefSellerNipResolver` was contributed here and is `ksef`'s own since
       // `specs/117-instance-bring-up/` Phase 6 — this copy read the same
       // setting through the same port and normalised the NIP the same way.
+      //
+      // `ksefTestOverrides` is **not** that, and went with it by accident in
+      // Phase 6 (8e86e55b5). The module registers the name with an empty
+      // default so that production takes its own cadence against the real API;
+      // this is the only composition that fills it, and without it every KSeF
+      // integration test built the **real** client and drove it at production
+      // polling — every submission reached `failed` carrying
+      // `KSEF_AUTH_REJECTED` from a live 400, rather than the fake's outcome.
+      composedModules.contribute({
+        // The harness substitutes a deterministic client, drives sweeps itself
+        // and polls three times at 5 ms.
+        ksefTestOverrides: {
+          ...(options.ksefClientFactory ? { clientFactory: options.ksefClientFactory } : {}),
+          sweepIntervalMs: 0,
+          pollAttempts: 3,
+          pollIntervalMs: 5,
+        },
+      });
       ksefCradle = container.cradle as unknown as KsefCradle;
 
       // Feature 067 — Product Feed. Deliberately NO `redis` and NO `runWorkers`:
