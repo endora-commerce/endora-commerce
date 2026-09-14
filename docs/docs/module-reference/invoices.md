@@ -32,6 +32,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | `auth` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `customer_accounts` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `orders` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
+| `organizations` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `settings` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `transactional_emails` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `invoice_ledger` | no | degrades-without `invoiceLedgerRoutingPort` — Issuance stays Endora-numbered and ready; mode B wait is ignored. |

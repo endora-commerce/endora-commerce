@@ -6,6 +6,7 @@ import type {
   CorrectiveInvoicePort,
   CustomerAccountReadPort,
   EmailDefaultsRegistryPort,
+  ErpSaleDocumentWritePort,
   InvoiceCopyHostPort,
   InvoiceKsefAssignmentPort,
   InvoiceNumberingHostPort,
@@ -25,6 +26,7 @@ import type { FastifyRequest } from 'fastify';
 import type { InvoicePlacementApplyPort } from '../ports/index.js';
 import { invoicesModule, type InvoicesModuleOptions, type InvoicesModuleHandle } from './plugin.js';
 import { CorrectiveInvoiceProvider } from './services/corrective-invoice.js';
+import { ErpSaleDocumentWritePortService } from './services/erp-sale-document-write-port.js';
 import { InvoicePlacementApplyService } from './services/invoice-placement-apply-port.js';
 import { InvoiceCopyHostService } from './services/invoice-copy-host.service.js';
 import { InvoiceReadService, createInvoicePdfPort } from './services/invoice-read-port.js';
@@ -37,6 +39,7 @@ import {
   createRecipientEmailResolver,
 } from './services/cross-module-context.js';
 import { INVOICE_ISSUED_DEFAULT } from './email-templates/invoice-issued.default.js';
+import { InvoiceExternalAttachment } from './entities/invoice-external-attachment.entity.js';
 import { InvoiceLine } from './entities/invoice-line.entity.js';
 import { InvoiceNumberCounter } from './entities/invoice-number-counter.entity.js';
 import { InvoiceTemplate } from './entities/invoice-template.entity.js';
@@ -149,6 +152,7 @@ export function registerModule(ctx: ModuleContext): void {
           // `orders` an operator had switched off. `orders` is already a
           // binding dependency of this manifest and the edge stays fail-closed.
           orderReadPort: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
+          assetReadPort: lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
           eventBus,
           audit: auditLogService,
           auditLog: auditLogService,
@@ -248,6 +252,13 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort<InvoiceReadPort>(
     'invoiceReadPort',
     ctx.asFunction(({ emFactory }: InvoicesCradle) => new InvoiceReadService(emFactory)).singleton(),
+  );
+
+  ctx.di.providePort<ErpSaleDocumentWritePort>(
+    'erpSaleDocumentWritePort',
+    ctx
+      .asFunction(({ emFactory }: InvoicesCradle) => new ErpSaleDocumentWritePortService(emFactory))
+      .singleton(),
   );
 
   ctx.di.providePort<InvoicePdfPort>(
@@ -433,5 +444,6 @@ export const entities = [
   InvoiceLine,
   InvoiceNumberCounter,
   InvoiceTemplate,
+  InvoiceExternalAttachment,
   Invoice,
 ];

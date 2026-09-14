@@ -162,6 +162,7 @@ export const manifest = defineModuleManifest({
     'auth',
     'customer_accounts',
     'orders',
+    'organizations',
     'settings',
     'transactional_emails',
   ],

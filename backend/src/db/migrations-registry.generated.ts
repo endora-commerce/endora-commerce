@@ -195,6 +195,7 @@ import { Migration20260629T125121InvoicesModule } from '@endora-commerce/mod-inv
 import { Migration20260801T111000InvoicesGenericTemplateReseed } from '@endora-commerce/mod-invoices/migrations';
 import { Migration20260817T201110InvoicesCorrectionIdempotencyKey } from '@endora-commerce/mod-invoices/migrations';
 import { Migration20260903T101756InvoicesNamespaceBlockNames } from '@endora-commerce/mod-invoices/migrations';
+import { Migration20260914T133603InvoicesErpImportedSaleDocuments } from '@endora-commerce/mod-invoices/migrations';
 
 // ── ksef ────────────────────────────────────────────────────────────────────
 import { Migration20260722T224358KsefInit } from '@endora-commerce/mod-ksef/migrations';
@@ -533,6 +534,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('invoices', Migration20260801T111000InvoicesGenericTemplateReseed),
   migration('invoices', Migration20260817T201110InvoicesCorrectionIdempotencyKey),
   migration('invoices', Migration20260903T101756InvoicesNamespaceBlockNames),
+  migration('invoices', Migration20260914T133603InvoicesErpImportedSaleDocuments),
 
   // ── ksef ────────────────────────────────────────────────────────────────────
   migration('ksef', Migration20260722T224358KsefInit),

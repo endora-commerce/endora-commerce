@@ -89,6 +89,7 @@ export class InvoiceEmailDispatcher {
       if (!sender) return this.notSent(invoiceId, 'no_sender');
 
       const detail = await this.deps.invoiceService.buildDetail(invoiceId);
+      if (!detail.orderId) return this.notSent(invoiceId, 'invoice_not_found');
       const order = await this.deps.orderReadPort.findById(detail.orderId);
       if (!order) return this.notSent(invoiceId, 'invoice_not_found');
       const to = await this.deps.resolveRecipientEmail(order);

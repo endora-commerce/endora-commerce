@@ -19,6 +19,7 @@ export const TITLES: Record<InvoiceDetail['kind'], string> = {
   invoice: 'Faktura',
   proforma: 'Faktura proforma',
   correction: 'Faktura korygująca',
+  wz: 'Dokument WZ',
 };
 
 type Align = 'left' | 'center' | 'right';

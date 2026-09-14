@@ -1,6 +1,6 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
 import { randomUUID } from 'crypto';
-import type { InvoiceBuyer, SellerCompanyData } from '@endora-commerce/contracts';
+import type { ExternalDocumentRef, InvoiceBuyer, SellerCompanyData } from '@endora-commerce/contracts';
 import { TransitivelyScoped } from '@endora-commerce/platform/tenancy';
 
 /**
@@ -31,14 +31,29 @@ export class Invoice {
     | 'buyerSnapshot'
     | 'ksefReferenceNumber'
     | 'ksefProcessedAt'
-    | 'issuedBy';
+    | 'issuedBy'
+    | 'origin'
+    | 'organizationId'
+    | 'externalDocumentRef'
+    | 'orderId';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
 
-  @Property({ type: 'uuid' })
+  @Property({ type: 'uuid', nullable: true })
   @Index()
-  orderId!: string;
+  orderId?: string | null;
+
+  @Property({ type: 'uuid', nullable: true })
+  @Index()
+  organizationId?: string | null;
+
+  @Property({ type: 'string', length: 16 })
+  @Index()
+  origin: 'platform' | 'erp_import' = 'platform';
+
+  @Property({ type: 'json', nullable: true })
+  externalDocumentRef?: ExternalDocumentRef | null;
 
   @Property({ type: 'uuid', nullable: true })
   @Index()
@@ -46,7 +61,7 @@ export class Invoice {
 
   @Property({ type: 'string', length: 16 })
   @Index()
-  kind!: 'proforma' | 'invoice' | 'correction';
+  kind!: 'proforma' | 'invoice' | 'correction' | 'wz';
 
   @Property({ type: 'string', length: 64 })
   @Unique()

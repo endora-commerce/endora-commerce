@@ -1,7 +1,8 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '@endora-commerce/platform/http';
-import { ERROR_CODES, type OrderReadPort, type OrderRecord } from '@endora-commerce/contracts';
+import { ERROR_CODES, type AssetReadPort, type OrderReadPort, type OrderRecord } from '@endora-commerce/contracts';
+import { InvoiceExternalAttachment } from './entities/invoice-external-attachment.entity.js';
 import { Invoice } from './entities/invoice.entity.js';
 import type { InvoiceService } from './services/invoice-service.js';
 import type { InvoicePdfRenderer } from './services/invoice-pdf-renderer.js';
@@ -11,6 +12,7 @@ export interface InvoicesCustomerDeps {
   emFactory: () => EntityManager;
   /** `orders`' published read model — the ownership check (feature 075, Phase C). */
   orderReadPort: OrderReadPort;
+  assetReadPort: AssetReadPort;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   resolveCustomerContext: (req: FastifyRequest) => { customerAccountId: string; organizationId: string };
   invoiceService: InvoiceService;
@@ -27,7 +29,16 @@ export async function registerInvoicesCustomerRoutes(
   app: FastifyInstance,
   deps: InvoicesCustomerDeps,
 ): Promise<void> {
-  const { emFactory, orderReadPort, requireCustomer, resolveCustomerContext, invoiceService, pdfRenderer, templateService } = deps;
+  const {
+    emFactory,
+    orderReadPort,
+    assetReadPort,
+    requireCustomer,
+    resolveCustomerContext,
+    invoiceService,
+    pdfRenderer,
+    templateService,
+  } = deps;
 
   async function ownedOrderOr404(req: FastifyRequest, orderId: string): Promise<OrderRecord> {
     const ctx = resolveCustomerContext(req);
@@ -86,6 +97,79 @@ export async function registerInvoicesCustomerRoutes(
         .header('content-type', 'application/pdf')
         .header('content-disposition', `attachment; filename="invoice-${detail.number.replace(/\W+/g, '_')}.pdf"`);
       return reply.send(pdf);
+    },
+  );
+
+  app.get(
+    '/api/v1/account/organization/sale-documents',
+    { preHandler: requireCustomer },
+    async (request) => {
+      const ctx = resolveCustomerContext(request);
+      const em = emFactory();
+      const rows = await em.find(
+        Invoice,
+        { origin: 'erp_import', organizationId: ctx.organizationId, status: 'ready' },
+        { orderBy: { issuedAt: 'desc' } },
+      );
+      const attachmentsByInvoice = new Map<string, InvoiceExternalAttachment[]>();
+      if (rows.length > 0) {
+        const attachments = await em.find(InvoiceExternalAttachment, {
+          invoiceId: { $in: rows.map((row) => row.id) },
+        });
+        for (const attachment of attachments) {
+          const bucket = attachmentsByInvoice.get(attachment.invoiceId) ?? [];
+          bucket.push(attachment);
+          attachmentsByInvoice.set(attachment.invoiceId, bucket);
+        }
+      }
+      return {
+        data: rows.map((row) => ({
+          id: row.id,
+          kind: row.kind,
+          number: row.number,
+          documentKind: row.externalDocumentRef?.documentKind ?? 'invoice',
+          issuedAt: row.issuedAt.toISOString(),
+          currency: row.currency,
+          total: Number(row.total),
+          orderId: row.orderId ?? null,
+          attachments: (attachmentsByInvoice.get(row.id) ?? []).map((attachment) => ({
+            id: attachment.id,
+            fileName: attachment.fileName,
+            contentType: attachment.contentType ?? null,
+            downloadHref: `/api/v1/account/organization/sale-documents/${row.id}/attachments/${attachment.id}`,
+          })),
+        })),
+      };
+    },
+  );
+
+  app.get<{ Params: { invoiceId: string; attachmentId: string } }>(
+    '/api/v1/account/organization/sale-documents/:invoiceId/attachments/:attachmentId',
+    { preHandler: requireCustomer, config: { streamingResponse: true } },
+    async (request, reply) => {
+      const ctx = resolveCustomerContext(request);
+      const em = emFactory();
+      const invoice = await em.findOne(Invoice, {
+        id: request.params.invoiceId,
+        origin: 'erp_import',
+        organizationId: ctx.organizationId,
+        status: 'ready',
+      });
+      if (!invoice) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Sale document not found.');
+      }
+      const attachment = await em.findOne(InvoiceExternalAttachment, {
+        id: request.params.attachmentId,
+        invoiceId: invoice.id,
+      });
+      if (!attachment || !attachment.assetId) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Attachment not found.');
+      }
+      const asset = await assetReadPort.findById(attachment.assetId);
+      if (!asset?.storageUrl) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Attachment not found.');
+      }
+      return reply.redirect(asset.storageUrl);
     },
   );
 }
