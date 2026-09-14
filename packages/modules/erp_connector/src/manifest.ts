@@ -15,5 +15,6 @@ export const manifest = defineModuleManifest({
       'The shared ERP connector registry must stay available so operator activation of an ERP connector can be refused when another is already active.',
   },
   i18n: { bundlesDir: 'i18n' },
+  docs: false,
   errorCodes: [{ code: 'ERP_CONNECTOR_ALREADY_ACTIVE' }],
 });

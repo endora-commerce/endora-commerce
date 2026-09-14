@@ -34,7 +34,7 @@ of the platform, not of what happens to be written.
 | [carts](./carts.md) | Customer shopping cart with anonymous→logged-in merge | @endora-commerce/mod-carts |
 | [Catalog](./catalog.md) | Products, variants, categories, attributes, sales channels | @endora-commerce/mod-catalog |
 | [CMS](./cms/index.md) | Page Builder authoring surface — Pages, Blocks, Templates, Hooks — per channel + language | @endora-commerce/mod-cms |
-| `comarch_xl` | _no page yet_ | @endora-commerce/mod-comarch-xl |
+| [Comarch ERP XL](./comarch_xl.md) | Synchronise catalogue, stock, prices, orders and contractors with Comarch ERP XL / Optima over the REST connector plugin. | @endora-commerce/mod-comarch-xl |
 | [Compare Products](./comparisons.md) | Compare Products: customer-curated set with display modes, share link, and PDF export | @endora-commerce/mod-comparisons |
 | [Credentials](./credentials.md) | Reusable typed credential configurations (LLM, email adapter) referenced from settings | @endora-commerce/mod-credentials |
 | [credit_limits](./credit_limits.md) | Credit-limit grant + atomic reservation | @endora-commerce/mod-credit-limits |
