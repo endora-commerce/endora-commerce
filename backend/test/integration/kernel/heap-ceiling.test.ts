@@ -1,3 +1,4 @@
+import { createHook } from 'node:async_hooks';
 import { getHeapStatistics } from 'node:v8';
 
 import { describe, expect, it } from 'vitest';
@@ -22,7 +23,12 @@ import { SalesChannel } from '@endora-commerce/platform/kernel';
  * "every scope was disposed" is not evidence that memory was released, and a
  * leak of this shape is invisible to every other check in this repository.
  *
- * Two numbers are asserted, because they fail for different reasons:
+ * Two numbers are asserted **by the first test**, because they fail for
+ * different reasons. A second test, at the bottom of this file, asserts a third
+ * thing that neither number can see — how many libuv handles a composition
+ * leaves armed — and its own header says why a post-GC heap reading is blind to
+ * exactly the leak that ended five `test:backend` shards (issue #199).
+ *
  *
  *  1. **Retention per composition cycle.** Boot a server, drive requests
  *     through the request-scope hook, tear it down, and see what survives a
@@ -209,4 +215,132 @@ describe('Heap ceiling (feature 072)', () => {
         `"JavaScript heap out of memory". ${DIAGNOSIS}`,
     ).toBeLessThan(LIVE_SET_CEILING_MB);
   }, 180_000);
+});
+
+/**
+ * The other half of per-composition retention, and the half that actually ended
+ * the shards (issue #199).
+ *
+ * The heap number above is blind to this by construction. A libuv handle — an
+ * armed `setInterval`, an open socket — is a **GC root**, so everything its
+ * callback closes over is live data and the measurement above reports it as
+ * *legitimately retained* rather than as a leak. Two cycles inside one file
+ * share the graph such a handle pins, so the delta between them stays small
+ * while the run's live set climbs by a whole composition per test file.
+ *
+ * That is what killed `test:backend`. Measured on shard 1, three times, one
+ * process, `--max-old-space-size=2048`, post-GC live set after each file:
+ *
+ * | at file | with both repairs | without them |
+ * | --- | --- | --- |
+ * | 16 | 582 MB | 634 MB |
+ * | 46 | 640 MB | 980 MB |
+ * | 76 | 686 MB | 1424 MB |
+ * | 106 (`assets_library/admin-folders.contract.test.ts`) | **728 MB** | **1914 MB** |
+ * | 297 | 723 MB | — the fork died at 110 of 300, 190 files never ran |
+ *
+ * 1914 MB is the number CI reported as 93% of its cap after that same file.
+ *
+ * ## Why this counts what it counts
+ *
+ * `process.getActiveResourcesInfo()` cannot answer it: an `unref()`ed timer is
+ * excluded from that list, and the sweep this was written for was `unref`ed —
+ * which is exactly why it kept the process alive in no way an operator could
+ * see while pinning a composed platform in every way the heap could. So the
+ * cycle is bracketed with `async_hooks` instead, and what survives it is
+ * counted by type.
+ *
+ * `Timeout` and `TCPWRAP` are watched, and the list is short deliberately: they
+ * are the two a composition root is in a position to release, and both were
+ * leaking — `ksef`'s reconcile sweep had a `close()` that no registration
+ * disposer called, and `@endora-commerce/test-kit` opened a second ioredis
+ * client on every composition and handed it to teardown only when
+ * `exercisePubSub` was set. `WORKER` and `MESSAGEPORT` also survive a cycle,
+ * one and three per cycle, and are **not** watched here: they are somebody's
+ * worker thread, nobody has established whose, and a guard that fails on an
+ * unowned finding gets disabled rather than fixed.
+ *
+ * ## The bound
+ *
+ * Three cycles, because a leak is a *slope* and one cycle cannot show one.
+ * Measured with both repairs in place: **1 `Timeout` and 1 `TCPWRAP`** survive
+ * three cycles — a constant, the pooled connection and the timer wheel the
+ * process would hold anyway. Without the test-kit repair the same three cycles
+ * leave **4** `TCPWRAP`; a per-cycle leak of either kind reaches at least 3, so
+ * the ceiling sits at 2.
+ */
+const HANDLE_CYCLES = 3;
+
+/** Per type, over {@link HANDLE_CYCLES} cycles. See the header for both measurements. */
+const SURVIVING_HANDLE_CEILING = 2;
+
+/**
+ * The handle types a composition root owns and must give back. Kept short on
+ * purpose — see the header for what is deliberately not here, and why.
+ */
+const WATCHED_HANDLE_TYPES = ['Timeout', 'TCPWRAP'] as const;
+
+async function surviveCycles(cycles: number): Promise<ReadonlyMap<string, number>> {
+  const live = new Map<number, string>();
+  const hook = createHook({
+    init(id, type) {
+      live.set(id, type);
+    },
+    destroy(id) {
+      live.delete(id);
+    },
+  });
+
+  hook.enable();
+  try {
+    for (let cycle = 0; cycle < cycles; cycle += 1) {
+      const handle = await setupBackendServer({ seed: 'none' });
+      await teardownBackendServer(handle);
+    }
+  } finally {
+    hook.disable();
+  }
+  // `destroy` for a socket closed during teardown lands on a later tick; without
+  // this the count is of what has not been *reported* closed rather than of what
+  // is still open.
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
+  const byType = new Map<string, number>();
+  for (const type of live.values()) byType.set(type, (byType.get(type) ?? 0) + 1);
+  return byType;
+}
+
+describe('a composition gives back the handles it took (issue #199)', () => {
+  it('leaves no timer armed and no socket open per cycle', async () => {
+    // Warm-up, for the reason the measurement above has one: a first boot opens
+    // process-wide resources that are not this measurement's subject.
+    const warmUp: BackendServerHandle = await setupBackendServer({ seed: 'none' });
+    await teardownBackendServer(warmUp);
+
+    const surviving = await surviveCycles(HANDLE_CYCLES);
+    const rendered = [...surviving]
+      .sort((a, b) => b[1] - a[1])
+      .map(([type, count]) => `${type}=${String(count)}`)
+      .join(' ');
+    // Reported unconditionally: the unwatched types are the next finding, and
+    // nobody will look for them if the number is only printed on failure.
+    process.stdout.write(
+      `[heap-ceiling] handles surviving ${String(HANDLE_CYCLES)} composition cycles: ${rendered}\n`,
+    );
+
+    for (const type of WATCHED_HANDLE_TYPES) {
+      const count = surviving.get(type) ?? 0;
+      expect(
+        count,
+        `${String(count)} \`${type}\` resources survived ${String(HANDLE_CYCLES)} compose/teardown ` +
+          `cycles, over the ceiling of ${String(SURVIVING_HANDLE_CEILING)} — that is a leak of ` +
+          'roughly one per composition, and the suite composes a platform per test file in one ' +
+          'shared fork. A libuv handle is a GC root, so what its callback closes over stays live: ' +
+          'this is worth ~1.2 GB across a 300-file shard and it is what the heap assertion above ' +
+          'cannot see. Look for a registration that owns a timer, a socket or a worker and ' +
+          'declares no `.disposer`, and for a resource a composition opens unconditionally while ' +
+          `only conditionally handing it to teardown. All types: ${rendered}`,
+      ).toBeLessThanOrEqual(SURVIVING_HANDLE_CEILING);
+    }
+  }, 300_000);
 });

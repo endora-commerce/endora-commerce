@@ -310,16 +310,43 @@ export async function composeTestServer(
   // connection. A harness with one client cannot exercise that path at all, and
   // the pub/sub channel is the platform's only cross-process invalidation
   // mechanism — the EventBus is in-process and the caches converge by TTL.
-  const realSubscriber = new Redis(redisUrl, { maxRetriesPerRequest: null, lazyConnect: false });
+  //
+  // **Opened only when it is armed** (issue #199). It used to be opened on
+  // every composition while reaching `teardownTestServer` only through
+  // `pubSubArmed`, so an unarmed composition — which is nearly every
+  // composition in the suite — left a connected ioredis client behind that
+  // nothing ever closed. Measured over twelve compose/teardown cycles in one
+  // process: `process.getActiveResourcesInfo()` reported one more
+  // `TCPSocketWrap` after each, twelve in all, and none after this change.
+  // (That call is not the general instrument — it excludes an `unref`ed timer,
+  // which is how the companion leak stayed invisible — but a socket is not
+  // `unref`ed and it does show one.)
+  //
+  // An open socket is a libuv handle and therefore a GC root. That is why it is
+  // worth repairing, and it is also the honest limit of the claim: measured on
+  // a full `test:backend` shard, this one is **not** where the heap went —
+  // `ksef`'s undisposed reconcile sweep was, and a run with that repaired and
+  // this left alone reads the same live set to 0.8 MB. What this costs is one
+  // ioredis client and one connection per composition, which a developer's
+  // long-lived local Redis notices long before the heap does.
+  // `heap-ceiling.test.ts` now refuses a `TCPWRAP` that survives a cycle.
+  //
+  // Not opening it is the repair rather than closing it, because a composition
+  // that never subscribes has no use for the connection: a resource that is
+  // never created cannot be left behind by any path, including the ones that
+  // throw before they reach a disconnect.
   const pubSubArmed = options.exercisePubSub === true;
-  const redisSubscriber = pubSubArmed ? realSubscriber : inertRedisSubscriber();
+  const realSubscriber = pubSubArmed
+    ? new Redis(redisUrl, { maxRetriesPerRequest: null, lazyConnect: false })
+    : undefined;
+  const redisSubscriber = realSubscriber ?? inertRedisSubscriber();
 
   // Everything from here is disposable, and a failure between here and the
   // handle has to give it back. The re-throw is unconditional: this catch
   // releases resources and decides nothing.
   const release = async (): Promise<void> => {
     redis.disconnect();
-    realSubscriber.disconnect();
+    realSubscriber?.disconnect();
     await composition.orm.close();
   };
 
