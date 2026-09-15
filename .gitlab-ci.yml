@@ -694,6 +694,16 @@ quality:
     # so it also runs on the merge request whose only diff is that file, which
     # matches no rung of `.backend-test-rules`.
     - pnpm --filter backend run check:release-intent
+    # `specs/129-github-canonical-migration/` T012 — every top-level entry of
+    # this repository carries a recorded disposition, and one that carries none
+    # refuses (D-232's second amendment, clause (ii)). It runs here, before the
+    # filter that will consume the record exists, because the hazard is produced
+    # by ordinary merges at ordinary speed rather than by the migration: the
+    # amendment reasoned in the abstract about "entry number forty", and entry
+    # number forty arrived by an ordinary merge the same day, with no
+    # disposition and no instrument to say so. Built beside the filter it would
+    # first run against a population that had been drifting for weeks.
+    - pnpm --filter backend run check:root-dispositions
     # D-160.8 — a module reaches the platform only through what the platform
     # publishes. `host-package.md` §1 classifies all 53 platform files a module
     # reaches as published API, accidental reach or should-be-a-port, three

@@ -4762,7 +4762,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // it. **Measured, not computed from the delta**: a clean worktree of this branch
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
-    files: 1633,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T012), the disposition
+    // instrument: 1633 -> 1634 (+1).** **+1, the new test file** — this walk is `backend/test`. The branch adds four files
+    // and deletes none: `backend/scripts/check-root-dispositions.ts`,
+    // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the record
+    // itself under `specs/129-github-canonical-migration/contracts/` and one
+    // changeset. Measured on a worktree stood up for the measurement and worked
+    // in nowhere else, after `build:packages`, `git clean -fX docs/docs/modules`
+    // and deleting the copy stamp.
+    files: 1634,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -5025,7 +5033,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // it. **Measured, not computed from the delta**: a clean worktree of this branch
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
-    files: 1633,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T012), the disposition
+    // instrument: 1633 -> 1634 (+1).** **+1, the new test file** — this walk is `backend/test`. The branch adds four files
+    // and deletes none: `backend/scripts/check-root-dispositions.ts`,
+    // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the record
+    // itself under `specs/129-github-canonical-migration/contracts/` and one
+    // changeset. Measured on a worktree stood up for the measurement and worked
+    // in nowhere else, after `build:packages`, `git clean -fX docs/docs/modules`
+    // and deleting the copy stamp.
+    files: 1634,
     sites: null,
     sources: [],
   },
@@ -5499,7 +5515,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Phase 3 (T3-C): +10, all of it this branch's** (`9a0e8e0d0` agreed with the recorded 310). The ten shards of the Settings-debt ledger at `backend/scripts/ledgers/module-environment-inputs/`. This check's population is the artefacts whose job is to carry a reason, ledger shards among them, so a new ledger raises it by its shard count and by nothing else.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 320 -> 318.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
     // **`fix/instance-docs-foreign-link-catalog`: files 318 -> 317 (-1).** This branch deletes one tracked `.ts`: `backend/scripts/ledgers/foreign-module-links/catalog.ts`, the shard drained when `catalog/attributes.md` stopped linking `../promotions.md` so that A6 of the instance acceptance criterion can go green in `registry` mode (`specs/100-module-owned-documentation/`, FR-020). This check's population is the artefacts whose job is to carry a reason, ledger shards among them, so draining a ledger lowers it by its shard count and by nothing else. Re-measured on the **merged** tree (`origin/master` at c99c2cd09) in a fresh detached `git worktree` of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and the resolution staged first — `check-naming.sh` and `check-language.sh` take their population from the index. This file's conflict was resolved wholly to the incoming side and every value was then re-measured rather than reconciled, per `specs/conventions/check-estate.md`. **The attribution is the whole of it and it is one cause**: the branch's own pre-merge run named eight entries, three of which were `docs(128)`'s +4 standing on `master` unrecorded, and `fix/availability-notification-existence-oracle` re-recorded those three before this merge — so five are left and every one of them is this branch's. The branch adds one `.changeset/*.md` and deletes one tracked `.ts`, which is why the two whole-repository walks net to zero and do not appear. No band was widened and no value was computed from a delta: the run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
-    files: 317,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T012), the disposition
+    // instrument: 317 -> 318 (+1).** **+1, the new check script**: this walk's population counts the `check-*` scripts. The branch adds four files
+    // and deletes none: `backend/scripts/check-root-dispositions.ts`,
+    // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the record
+    // itself under `specs/129-github-canonical-migration/contracts/` and one
+    // changeset. Measured on a worktree stood up for the measurement and worked
+    // in nowhere else, after `build:packages`, `git clean -fX docs/docs/modules`
+    // and deleting the copy stamp.
+    files: 318,
     // **2026-09-04: 14 -> 15.** One further named-subject lock claim.
     // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge` retired):**
     // sites 15 -> 17, files unchanged. `pwa`'s manifest gains `orders` in its
@@ -8132,7 +8156,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `specs/conventions/commercial-data.md` and one changeset; its `git mv` of
     // `first-deployment-window.md` into `specs/080-f4-real-scope/` is net zero for every
     // walk here, because both the source and the destination are inside `specs/`.
-    files: 8351,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T012), the disposition
+    // instrument: 8351 -> 8355 (+4).** **+4, all four** — a whole-repository walk sees every one of them. The branch adds four files
+    // and deletes none: `backend/scripts/check-root-dispositions.ts`,
+    // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the record
+    // itself under `specs/129-github-canonical-migration/contracts/` and one
+    // changeset. Measured on a worktree stood up for the measurement and worked
+    // in nowhere else, after `build:packages`, `git clean -fX docs/docs/modules`
+    // and deleting the copy stamp.
+    files: 8355,
     sites: null,
     sources: [],
     //
@@ -9249,7 +9281,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // it. **Measured, not computed from the delta**: a clean worktree of this branch
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
-    files: 2503,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T012), the disposition
+    // instrument: 2503 -> 2504 (+1).** **+1, the new check script, attributed by withdrawal rather than by arithmetic**: `backend/scripts` is one of this walk's source roots, and with the script taken out of the tree it reads 2503 again while taking the test file out leaves it at 2504. The branch adds four files
+    // and deletes none: `backend/scripts/check-root-dispositions.ts`,
+    // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the record
+    // itself under `specs/129-github-canonical-migration/contracts/` and one
+    // changeset. Measured on a worktree stood up for the measurement and worked
+    // in nowhere else, after `build:packages`, `git clean -fX docs/docs/modules`
+    // and deleting the copy stamp.
+    files: 2504,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -9749,6 +9789,46 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // branch carrying a changeset and a tree just released are both describable.
     conditionalSources: ['changeset-subjects'],
   },
+  'backend/scripts/check-root-dispositions.ts': {
+    prefix: '[root-dispositions]',
+    run: { kind: 'tsx', path: 'scripts/check-root-dispositions.ts', args: [] },
+    // **New with `specs/129-github-canonical-migration/` Phase 1 (T012).** Both
+    // numbers were measured on a fresh worktree of this branch's tip and neither
+    // is derived from the other.
+    //
+    // `files` is every path `git ls-files --cached --others --exclude-standard`
+    // yields — the whole repository, because the population it derives is the
+    // *first segment* of every path and nothing smaller can produce it. It
+    // therefore moves with every merge that adds or deletes a tracked file,
+    // exactly as the two whole-tree walks do, and it is the same quantity they
+    // read by a different route: this one asks git's index, `check-naming.sh`
+    // asks the same index and `check-nul-bytes` walks the disk.
+    //
+    // `sites` is the finer population and is **not** the file count: it is one
+    // decision per root entry plus one per file under a `partially-public`
+    // entry. Today that is the 40 root entries plus everything under `specs/`,
+    // which is the only partially-public entry — so `sites` moves when a
+    // document lands under `specs/` and stands still when one lands under
+    // `backend/`, while `files` moves for both. That divergence is the reason
+    // both are recorded: a check that answers per decision and prints only its
+    // file count has said nothing about the decisions.
+    // **`specs/129-github-canonical-migration/` Phase 1 (T012), the disposition
+    // instrument: 8415 -> 8416 (+1).** **+1, this branch's own changeset.** This entry's first recorded value was measured before the changeset existed, so it is corrected here rather than left one low. `check-doc-snippets` does **not** move at all: the record is under `specs/`, which is one of its roots, but its walk is markdown and the record is JSON. The branch adds four files
+    // and deletes none: `backend/scripts/check-root-dispositions.ts`,
+    // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the record
+    // itself under `specs/129-github-canonical-migration/contracts/` and one
+    // changeset. Measured on a worktree stood up for the measurement and worked
+    // in nowhere else, after `build:packages`, `git clean -fX docs/docs/modules`
+    // and deleting the copy stamp.
+    files: 8416,
+    sites: 1258,
+    // `git-tree-entries` — the committed tree's own root entries, read from a
+    // different git store than the index this walk uses. Not `self-reported`:
+    // two derivations of one population by two routes is precisely the second
+    // author `read-size.ts` asks for, and a short walk here means the index and
+    // the commit disagree, which is a real state and not a hypothetical one.
+    sources: ['git-tree-entries'],
+  },
   'backend/scripts/check-rsc-discipline.ts': {
     prefix: '[rsc-discipline]',
     run: { kind: 'tsx', path: 'scripts/check-rsc-discipline.ts', args: [] },
@@ -9989,7 +10069,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // it. **Measured, not computed from the delta**: a clean worktree of this branch
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
-    files: 1633,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T012), the disposition
+    // instrument: 1633 -> 1634 (+1).** **+1, the new test file** — this walk is `backend/test`. The branch adds four files
+    // and deletes none: `backend/scripts/check-root-dispositions.ts`,
+    // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the record
+    // itself under `specs/129-github-canonical-migration/contracts/` and one
+    // changeset. Measured on a worktree stood up for the measurement and worked
+    // in nowhere else, after `build:packages`, `git clean -fX docs/docs/modules`
+    // and deleting the copy stamp.
+    files: 1634,
     sites: 163,
     sources: [],
   },
@@ -10592,7 +10680,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // it. **Measured, not computed from the delta**: a clean worktree of this branch
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
-    files: 1767,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T012), the disposition
+    // instrument: 1767 -> 1768 (+1).** **+1, the new test file.** Its population is the test files rather than everything under the root, which is why it and the three `backend/test` walks move by the same one for different reasons. The branch adds four files
+    // and deletes none: `backend/scripts/check-root-dispositions.ts`,
+    // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the record
+    // itself under `specs/129-github-canonical-migration/contracts/` and one
+    // changeset. Measured on a worktree stood up for the measurement and worked
+    // in nowhere else, after `build:packages`, `git clean -fX docs/docs/modules`
+    // and deleting the copy stamp.
+    files: 1768,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -11429,7 +11525,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // it. **Measured, not computed from the delta**: a clean worktree of this branch
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
-    files: 4669,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T012), the disposition
+    // instrument: 4669 -> 4671 (+2).** **+2, the check script and its test** — this walk reads all of `backend/`. The branch adds four files
+    // and deletes none: `backend/scripts/check-root-dispositions.ts`,
+    // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the record
+    // itself under `specs/129-github-canonical-migration/contracts/` and one
+    // changeset. Measured on a worktree stood up for the measurement and worked
+    // in nowhere else, after `build:packages`, `git clean -fX docs/docs/modules`
+    // and deleting the copy stamp.
+    files: 4671,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -12413,7 +12517,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `specs/conventions/commercial-data.md` and one changeset; its `git mv` of
     // `first-deployment-window.md` into `specs/080-f4-real-scope/` is net zero for every
     // walk here, because both the source and the destination are inside `specs/`.
-    files: 8411,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T012), the disposition
+    // instrument: 8411 -> 8415 (+4).** **+4, all four** — a whole-repository walk sees every one of them. The branch adds four files
+    // and deletes none: `backend/scripts/check-root-dispositions.ts`,
+    // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the record
+    // itself under `specs/129-github-canonical-migration/contracts/` and one
+    // changeset. Measured on a worktree stood up for the measurement and worked
+    // in nowhere else, after `build:packages`, `git clean -fX docs/docs/modules`
+    // and deleting the copy stamp.
+    files: 8415,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -13008,7 +13120,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // it. **Measured, not computed from the delta**: a clean worktree of this branch
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
-    files: 6306,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T012), the disposition
+    // instrument: 6306 -> 6308 (+2).** **+2, the two TypeScript files.** Markdown is in neither of this walk's populations, so the record and the changeset are invisible to it — the asymmetry with `check-naming.sh`, which reads the same `git ls-files` listing and takes all four. The branch adds four files
+    // and deletes none: `backend/scripts/check-root-dispositions.ts`,
+    // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the record
+    // itself under `specs/129-github-canonical-migration/contracts/` and one
+    // changeset. Measured on a worktree stood up for the measurement and worked
+    // in nowhere else, after `build:packages`, `git clean -fX docs/docs/modules`
+    // and deleting the copy stamp.
+    files: 6308,
     sites: null,
     sources: ['manifest-index'],
     //
