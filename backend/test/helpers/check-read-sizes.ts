@@ -8243,7 +8243,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // disposition instrument from the previous merge actually caught. A whole-repository walk sees it; `check-doc-snippets` does not, its roots being `docs/docs` and `specs`, and neither does `check-language.sh`, whose two populations are source extensions and `docs/docs/**`. The edits this branch makes to `CONTRIBUTING.md`, `AGENTS.md` and `specs/conventions/check-estate.md` move nothing at all: they add no file.
     // Two measurements: the parent of this merge reads 8356 in the same fresh
     // worktree and this tree reads 8357; nothing is inferred.
-    files: 8357,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T017), the changeset
+    // disclosure gate: 8357 -> 8359 (+2).** Two files, no deletions:
+    // `backend/scripts/lib/commercial-vocabulary.ts` — R3's term list, its two
+    // ruled narrowings and its clearing mechanism — and one changeset. A whole-repository walk sees both.
+    // Two measurements: the parent of this merge reads 8357 in the same fresh
+    // worktree and this tree reads 8359.
+    files: 8359,
     sites: null,
     sources: [],
     //
@@ -9375,7 +9381,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the
     // disposition record under `specs/129-github-canonical-migration/contracts/`
     // and one changeset; it deletes nothing.
-    files: 2504,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T017), the changeset
+    // disclosure gate: 2504 -> 2505 (+1).** Two files, no deletions:
+    // `backend/scripts/lib/commercial-vocabulary.ts` — R3's term list, its two
+    // ruled narrowings and its clearing mechanism — and one changeset. **+1, the new library file**: `backend/scripts` is one of this walk's source roots and the changeset is under none of them.
+    // Two measurements: the parent of this merge reads 2504 in the same fresh
+    // worktree and this tree reads 2505.
+    files: 2505,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -9916,7 +9928,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // disposition instrument from the previous merge actually caught. Its `sites` moves with it, 1258 -> **1259**, and the two are different quantities that happen to agree here: `files` is every path in the tree, `sites` is one decision per root entry plus one per file under a partially-public entry, and a new root entry adds one of each.
     // Two measurements: the parent of this merge reads 8417 in the same fresh
     // worktree and this tree reads 8418; nothing is inferred.
-    files: 8418,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T017), the changeset
+    // disclosure gate: 8418 -> 8420 (+2).** Two files, no deletions:
+    // `backend/scripts/lib/commercial-vocabulary.ts` — R3's term list, its two
+    // ruled narrowings and its clearing mechanism — and one changeset. Its `sites` does **not** move and stays 1259: neither new file is under a partially-public entry — `backend/scripts/lib/` sits under `backend`, which is public wholesale, and `.changeset/` likewise — so the two counts move apart here, which is the whole reason both are recorded.
+    // Two measurements: the parent of this merge reads 8418 in the same fresh
+    // worktree and this tree reads 8420.
+    files: 8420,
     sites: 1259,
     // `git-tree-entries` — the committed tree's own root entries, read from a
     // different git store than the index this walk uses. Not `self-reported`:
@@ -11653,7 +11671,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the
     // disposition record under `specs/129-github-canonical-migration/contracts/`
     // and one changeset; it deletes nothing.
-    files: 4672,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T017), the changeset
+    // disclosure gate: 4672 -> 4673 (+1).** Two files, no deletions:
+    // `backend/scripts/lib/commercial-vocabulary.ts` — R3's term list, its two
+    // ruled narrowings and its clearing mechanism — and one changeset. **+1, the new library file** — this walk reads all of `backend/`.
+    // Two measurements: the parent of this merge reads 4672 in the same fresh
+    // worktree and this tree reads 4673.
+    files: 4673,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -12664,7 +12688,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // disposition instrument from the previous merge actually caught. A whole-repository walk sees it; `check-doc-snippets` does not, its roots being `docs/docs` and `specs`, and neither does `check-language.sh`, whose two populations are source extensions and `docs/docs/**`. The edits this branch makes to `CONTRIBUTING.md`, `AGENTS.md` and `specs/conventions/check-estate.md` move nothing at all: they add no file.
     // Two measurements: the parent of this merge reads 8416 in the same fresh
     // worktree and this tree reads 8417; nothing is inferred.
-    files: 8417,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T017), the changeset
+    // disclosure gate: 8417 -> 8419 (+2).** Two files, no deletions:
+    // `backend/scripts/lib/commercial-vocabulary.ts` — R3's term list, its two
+    // ruled narrowings and its clearing mechanism — and one changeset. A whole-repository walk sees both.
+    // Two measurements: the parent of this merge reads 8417 in the same fresh
+    // worktree and this tree reads 8419.
+    files: 8419,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -13275,7 +13305,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the
     // disposition record under `specs/129-github-canonical-migration/contracts/`
     // and one changeset; it deletes nothing.
-    files: 6309,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T017), the changeset
+    // disclosure gate: 6309 -> 6310 (+1).** Two files, no deletions:
+    // `backend/scripts/lib/commercial-vocabulary.ts` — R3's term list, its two
+    // ruled narrowings and its clearing mechanism — and one changeset. **+1, the one TypeScript file.** The changeset is markdown and markdown is in neither of this walk's populations.
+    // Two measurements: the parent of this merge reads 6309 in the same fresh
+    // worktree and this tree reads 6310.
+    files: 6310,
     sites: null,
     sources: ['manifest-index'],
     //
