@@ -2584,6 +2584,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // two new backend test files; the changeset is `.md` and out of this walk's population.
     // **`fix/instance-wiring-operator-runtime`: files 5640 -> 5642 (+2).** **`fix/instance-wiring-operator-runtime` adds three tracked files and moves no other**: `packages/platform/src/lifecycle/commands/operator-entry.ts`, its co-located `operator-entry.test.ts`, and one `.changeset/*.md`. Every delta here is a walk seeing the share of those three it reads — the two whole-repository walks see all three, a source-and-test walk sees two, a source-only walk sees one, and `check-language.sh` sees the two comment-bearing `.ts` and not the `.md`; the two `sites` moves are the new file's outward imports and its English prose. **None of it arrived with `master`**: the branch's own earlier run over a pre-`c99c2cd09` base named the same 27 with the same deltas, and what the merge moved is three *baselines* — `check-platform-surface`, `check-singleton-identity` and `check-language.sh`, each by the tracked `.ts` the A6 branch deleted — not this branch's contribution to them. Re-measured on the **merged** tree (`origin/master` after `fix/instance-docs-foreign-link-catalog` merged) in a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and this file's conflict resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 27 and confirmed the other 17 agree.
     // **`fix/invoice-ledger-tenancy-parent`: files 5642 -> 5644 (+2).** **`fix/invoice-ledger-tenancy-parent` adds three tracked files and deletes none**: the migration `20260914T140000_invoice_ledger_row_organization.ts`, the guard test `backend/test/unit/tenancy/transitive-parent-module-ownership.test.ts`, and one `.changeset/*.md`. Every `files` delta is a walk seeing its own share — the two whole-repository walks see all three, `check-language.sh` sees the two comment-bearing `.ts`, a walk over `src` trees sees the migration alone, a walk over `backend/test` sees the test alone, and a walk over both sees two. The `sites` moves are the new artefacts' own units: a migration is a claim-bearing artefact, the enqueue path resolves one more port, and the regenerated `module-reference/invoice-ledger.md` is one more determinism site. **What the merge moved is baselines, not this branch's contribution to them**: the same 30 entries with the same deltas were measured over the pre-merge base, and the three files `fix/instance-wiring-operator-runtime` added are what shifted the starting points. Re-measured on the **merged** tree — `fix/instance-wiring-operator-runtime` merged and re-recorded 27 entries, so this file conflicted; the conflict was resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. In a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain` clean. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 30 and confirmed the other 14 agree.
+    // **`fix/lifecycle-surface-consumers`: sites 562 -> 563 (+1), and this `files` unmoved at 5644.**
+    // One more `String.prototype.replace` call, which is what this entry counts:
+    // `backend/test/unit/kernel/published-surface.test.ts` strips the leading `./` from
+    // each declared platform subpath before handing it to the import reader. Isolated
+    // rather than attributed by hand: with that one file reverted this tree reads 562.
     files: 5644,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
@@ -2767,7 +2772,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`check-diacritic-folds` sites 561 -> 562: all of it this branch's**, and one
     // site: the `.replace(pattern, x)` in `backendScripts` that splices
     // `--env-file-if-exists=../.env` into each derived CLI alias.
-    sites: 562,
+    sites: 563,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -5348,7 +5353,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // it orders and the `module-commands.ts` beside it. They are what the dispatch *was*
     // reaching for from `backend/src/cli.ts` by relative path, so they moved with the file
     // rather than being created. `into-modules` stays 0, which is what the rule is about.
-    sites: 170,
+    // **`fix/lifecycle-surface-consumers`: sites 170 -> 171 (+1), `files` unmoved at 2194.**
+    // `packages/platform/src/cli/dispatch.ts` took `instanceManifestEntries` and
+    // `RegisteredManifestEntry` from `../lifecycle/index.js` in one statement, and now
+    // names `../lifecycle/commands/operator-entry.js` for the value and the barrel for the
+    // type — two statements where there was one, and a site here is a statement. The file
+    // count is untouched because the branch adds and deletes no source file. Isolated
+    // rather than attributed by hand: with that one file reverted this tree reads 170,
+    // the recorded value exactly.
+    sites: 171,
     // `platform-subpaths` is T118a's second author over rule B's population: the
     // platform's `exports` map is a different program's answer to "which directories
     // does this package have", and a published subpath naming no walked directory is a
@@ -8016,7 +8029,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **The release of 2026-09-14 (`release/version-0.10.0`): files 8192 -> 8187 (-5).** The second release of the day, and the arithmetic is the same shape as the first: a release consumes changesets, both of these walk the whole repository, and both move by exactly the number consumed — **5**, derived by `git diff --diff-filter=D --name-only <base> HEAD -- '.changeset/*.md' | wc -l`, with the same diff adding no file. Measured in a fresh detached worktree of the release commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue — the trap that read seven files high in the checkout the first release was cut in.
     // **`specs/125-first-mile-install/` Phase 1 (the development compose): +2 files.** This branch adds exactly two files — `packages/cli/test/new-instance/dev-compose.test.ts` and its changeset — and moves no file and deletes none. This walk is the whole repository and opens a `.md` like any other file, so it takes both. Measured on the pristine base first, by stashing the branch and running the check: it read the recorded value exactly, so the whole of this delta is this branch's and none of it arrived with `master`.
     // **`specs/125-first-mile-install/` Phase 2 (the root scripts): +2 files.** The branch adds `packages/cli/test/new-instance/first-mile-scripts.test.ts` and its changeset, and this walk is the whole repository and opens a `.md` like any other file. Measured on this branch with the changeset written, the tree `quality` runs over; Phase 1's re-record two paragraphs up is the base this is measured against, and no value here was computed from a delta.
-    files: 8191,
+    // **`fix/lifecycle-surface-consumers`: files 8191 -> 8192 (+1).** The branch adds exactly one tracked file — its changeset — and deletes and moves none, so this whole-repository walk takes it and every walk over a source tree does not move at all. **`origin/master` was not drifted when the branch was cut**, and this is worth recording because a `+1` was reported against a pipeline and read as one: `git diff --diff-filter=A --name-only b1f1e9fd9 150d501c4` names no added file since the `release/version-0.10.0` re-record, and with this branch's changeset withdrawn the pre-merge tree read 8187, the recorded value exactly. A `+1` on this walk from a branch pipeline is that branch's own changeset. **Re-measured on the merged tree**: `specs/125-first-mile-install/` Phases 1 and 2 merged and re-recorded this entry, so this file conflicted; the conflict was resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`, and the incoming 8191 is what the +1 is counted from. The run's own `[read-size drift]` census named all 44 and confirmed the two entries this branch moved that merged cleanly — `check-kernel-boundary` at 171 sites and `check-diacritic-folds` at 563 — still agree on the merged tree. No band was widened and no value was computed from a delta.
+    files: 8192,
     sites: null,
     sources: [],
     //
@@ -12230,7 +12244,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **The release of 2026-09-14 (`release/version-0.10.0`): files 8252 -> 8247 (-5).** The second release of the day, and the arithmetic is the same shape as the first: a release consumes changesets, both of these walk the whole repository, and both move by exactly the number consumed — **5**, derived by `git diff --diff-filter=D --name-only <base> HEAD -- '.changeset/*.md' | wc -l`, with the same diff adding no file. Measured in a fresh detached worktree of the release commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue — the trap that read seven files high in the checkout the first release was cut in.
     // **`specs/125-first-mile-install/` Phase 1 (the development compose): +2 files.** This branch adds exactly two files — `packages/cli/test/new-instance/dev-compose.test.ts` and its changeset — and moves no file and deletes none. This walk is the whole repository and takes both, the changeset included. Measured on the pristine base first, by stashing the branch and running the check: it read the recorded value exactly, so the whole of this delta is this branch's and none of it arrived with `master`.
     // **`specs/125-first-mile-install/` Phase 2 (the root scripts): +2 files.** The branch's new test file and its changeset, both of which this whole-repository walk takes. Measured on this branch with the changeset written, the tree `quality` runs over; Phase 1's re-record two paragraphs up is the base this is measured against, and no value here was computed from a delta.
-    files: 8251,
+    // **`fix/lifecycle-surface-consumers`: files 8251 -> 8252 (+1).** The same one changeset, seen by the other walk that reads the whole repository: it opens a `.md` like any other file, which is why the source-tree walks do not move. Re-measured on the merged tree with this file's conflict resolved wholly to the incoming side and staged first, in the same sweep as the entry above; the pre-merge tree read the recorded 8247 with the changeset withdrawn.
+    files: 8252,
     sites: null,
     sources: ['manifest-index'],
     //
