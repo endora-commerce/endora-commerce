@@ -17,6 +17,13 @@ export class ErpSaleDocumentWritePortService implements ErpSaleDocumentWritePort
   async upsertImportedDocument(
     input: ErpSaleDocumentUpsertInput,
   ): Promise<ErpSaleDocumentUpsertResult> {
+    // command-coverage-ignore: projection of a sale document the ERP owns.
+    // `origin: 'erp_import'` is the whole of this port's subject — the row
+    // mirrors a document Comarch XL issued, and the decision to issue it was
+    // never taken in Endora, so there is no actor for a Command to name. The
+    // run that carried it is recorded by the caller: `comarch_xl` writes an
+    // `xl_sync_job_events` row per applied change. An Endora-issued invoice
+    // never reaches this method; `InvoiceService` owns that path and audits it.
     if (!isOrgInScope(input.organizationId)) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
     }
@@ -103,6 +110,9 @@ export class ErpSaleDocumentWritePortService implements ErpSaleDocumentWritePort
     assetId: string;
     contentType?: string | null;
   }): Promise<boolean> {
+    // command-coverage-ignore: idempotent stamp of the asset id for an
+    // attachment this port already imported. It records where the file was
+    // stored, not that it should exist — the import above decided that.
     const em = this.emFactory();
     const invoice = await em.findOne(Invoice, {
       id: input.invoiceId,
@@ -167,6 +177,9 @@ export class ErpSaleDocumentWritePortService implements ErpSaleDocumentWritePort
     invoice: Invoice,
     attachments: readonly ErpSaleDocumentAttachmentInput[],
   ): Promise<void> {
+    // command-coverage-ignore: the attachment half of `upsertImportedDocument`,
+    // which carries the decision and the exemption's reason. Split out for
+    // readability only; it is never called from anywhere else.
     if (attachments.length === 0) return;
 
     const existing = await em.find(InvoiceExternalAttachment, { invoiceId: invoice.id });
