@@ -52,6 +52,21 @@
  * the declared set are disclosed in a note: a module package arriving as a peer
  * is composed by the platform's runtime discovery exactly as a declared one is.
  *
+ * ## …and the module packages among them are taken back off the top level
+ *
+ * That last sentence is the defect and not a curiosity. Until 2026-09-15 this
+ * mode installed **30** module packages where `registry` installed **27**, the
+ * difference being non-optional peers of `mod-orders` that no manifest declares
+ * — and the tarball tree was the only tree almost every result had been
+ * measured on. The pin cannot become an override (measured again that day under
+ * pnpm 9.15.0 and 10.28.2, in `pnpm-workspace.yaml`, in `package.json` and in
+ * both), so {@link pruneStandInLinks} removes the module packages among the
+ * extras from the **top level** of `node_modules` once the install has
+ * succeeded, leaving them where a registry install leaves them — inside
+ * `.pnpm`, linked into their dependent's own directory. {@link evaluateA16} is
+ * the assertion over the result, and it needs neither mode to know about the
+ * other.
+ *
  * ## It runs the instance's own scripts, and that is deliberate
  *
  * `instance-tree.md` §2.5 is the contract for what `migrate`, `build` and
@@ -87,6 +102,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import {
   appendFileSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -126,6 +142,7 @@ import {
   evaluateA7,
   evaluateA8,
   evaluateA9,
+  evaluateA16,
   type AdminStylesheetObservation,
   type DivergenceReportEntry,
   type OverlayModuleObservation,
@@ -144,6 +161,7 @@ import {
   hostNpmrc,
   instanceEnvValues,
   reconcileFigures,
+  standInLinksToRemove,
   type AcceptanceExpectation,
   type AcceptanceMode,
   type AppliedMigrations,
@@ -660,9 +678,12 @@ function pinClosure(
       `the instance's install pulls in ${String(closure.extras.length)} ${SCOPE} packages its ` +
         `own manifest does not name, as non-optional peers of packages it does: ` +
         `${closure.extras.join(', ')}. They are pinned as dependencies because pnpm does not ` +
-        `apply an override to an auto-installed peer — and a module package arriving this way ` +
-        `is composed by the platform's runtime discovery exactly as a declared one is, so the ` +
-        `set this instance runs is wider than the set it declares.`,
+        `apply an override to an auto-installed peer — which puts each of them at the top level ` +
+        `of \`node_modules\`, where a module package is composed by the platform's runtime ` +
+        `discovery exactly as a declared one is. That is an artefact of the stand-in and of ` +
+        `nothing about the product: \`pruneStandInLinks\` takes the module packages among them ` +
+        `back off the top level once the install has succeeded, and A16 is the assertion over ` +
+        `what is left.`,
     );
   }
   notes.push(
@@ -1866,6 +1887,63 @@ function declaredUnmeasured(): readonly AssertionResult[] {
 }
 
 /**
+ * The **module** packages among the ones the created workspace declares.
+ *
+ * A16's expectation half, and it is read before this run pins anything: the
+ * tarball mode's stand-in adds packages to the very manifest this reads, so a
+ * reading taken afterwards would be comparing the pin with itself.
+ *
+ * Which declared name is a module package is answered by the checkout's own
+ * catalogue rather than by the string `mod-`, which is `absentModules`'
+ * arrangement one surface over — a package's claim to be a module is
+ * `endora.id` and never its name (D-142).
+ *
+ * In `registry` mode that catalogue is this checkout's and the declaration is
+ * the registry's, so a published module package this tree does not have would
+ * be left out of the expectation and reported as installed-and-undeclared. That
+ * direction is deliberate: it is a **red**, and a module in a client's install
+ * that this checkout has never heard of is a finding either way.
+ */
+function declaredModulePackages(declared: readonly string[]): readonly string[] {
+  const modules = new Set(discoverModulePackages(REPO_ROOT).map((pkg) => pkg.name));
+  return declared.filter((name) => modules.has(name)).sort();
+}
+
+/**
+ * Remove the top-level links publication would never have created.
+ *
+ * The tarball stand-in has to pin the instance's whole **package** closure as
+ * real dependencies — {@link pinClosure} says why, and the measurement is in
+ * `standInLinksToRemove` — and a real dependency lands at the top level of
+ * `node_modules`, which is precisely and only where the platform's package
+ * discovery enumerates. A registry install leaves the same package inside
+ * `.pnpm`, linked into its **dependent's** own directory, where an
+ * auto-installed peer lives; so the link at the top level is an artefact of the
+ * stand-in and of nothing about the product.
+ *
+ * Removing it leaves the rest of the install untouched: the package is still
+ * where its dependent resolves it from, and the root no longer resolves it at
+ * all — which is exactly a client's tree. What this run removed is returned and
+ * reported, never done silently: A16 prints it in its own verdict.
+ */
+function pruneStandInLinks(target: string, extras: readonly string[]): readonly string[] {
+  const names = standInLinksToRemove(
+    extras,
+    installedModules(target).map((module) => module.packageName),
+  );
+  for (const name of names) {
+    const path = join(target, 'node_modules', ...name.split('/'));
+    // `lstat`, so a symlink is unlinked rather than followed: pnpm's top-level
+    // entry points into `.pnpm`, and following it would delete the store copy
+    // the dependent still resolves through.
+    if (!existsSync(path)) continue;
+    if (lstatSync(path).isSymbolicLink()) rmSync(path, { force: true });
+    else rmSync(path, { recursive: true, force: true });
+  }
+  return names;
+}
+
+/**
  * A5 and A13, over the tree the instance's own `build` script produced — or the
  * reason there is nothing to read.
  *
@@ -2012,9 +2090,18 @@ async function main(): Promise<void> {
     results.push(await measureRefusal(binary, hostDir, join(temp, 'refused')));
 
     const declared = declaredPackages(target);
+    // A16's expectation half, read **before** the stand-in touches the manifest
+    // it is read from. Everything below this line may add packages to that
+    // file; nothing below it may add a module to what the command wrote.
+    const declaredModules = declaredModulePackages(declared);
+    // What the stand-in pinned beyond the declared set, so the install can
+    // succeed, and which therefore has to be taken back off the top level once
+    // it has. Empty in `registry` mode, which pins nothing.
+    let standInExtras: readonly string[] = [];
     if (mode === 'tarball') {
       const closure = endoraClosure(declared, dependencyDeclarations(hostDir));
       pinClosure(target, packed!, closure);
+      standInExtras = closure.extras;
     } else {
       assertRegistryNpmrc(target, declared);
     }
@@ -2059,6 +2146,30 @@ async function main(): Promise<void> {
     );
 
     if (installed.code === 0) {
+      // **Before anything reads this tree.** The stand-in's extras are at the
+      // top level of `node_modules` the moment the install ends, and the top
+      // level is where the platform's package discovery enumerates — so a
+      // `generate`, a `build` or a boot that ran first would compose a module
+      // set no client's install can produce, which is the whole finding this
+      // step exists to close.
+      const pruned = pruneStandInLinks(target, standInExtras);
+      if (pruned.length > 0) {
+        notes.push(
+          `removed ${String(pruned.length)} top-level link${pruned.length === 1 ? '' : 's'} the ` +
+            `tarball stand-in created and publication would not: ${pruned.join(', ')}. Each is a ` +
+            `non-optional peer of a package this instance declares, pinned as a real dependency ` +
+            `because pnpm applies no override to an auto-installed peer; the package stays where ` +
+            `a registry install leaves it, inside its dependent's own directory under \`.pnpm\`. ` +
+            `A16 is the assertion over what is left.`,
+        );
+      }
+      results.push(
+        evaluateA16({
+          declared: declaredModules,
+          installed: installedModules(target).map((module) => module.packageName),
+          pruned,
+        }),
+      );
       results.push(
         evaluateA11(digestTree(target, new Set(['node_modules', 'dist', '.env'])), shippedBy(target)),
       );
@@ -2316,6 +2427,7 @@ async function main(): Promise<void> {
         state: 'unmeasured',
         detail: 'there is no install to create an administrator in',
       });
+      results.push(evaluateA16({ declared: declaredModules, installed: null, pruned: [] }));
     }
 
     const bundle = adminBundleAssertions(target, adminOmission);
