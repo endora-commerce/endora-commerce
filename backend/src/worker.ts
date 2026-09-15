@@ -14,7 +14,7 @@
 //     them from double-processing.
 
 import { buildServer } from '@endora-commerce/platform/composition';
-import { composeApp } from './composition.js';
+import { composeApp, resolveSessionCookieSecret } from './composition.js';
 import { deploymentRoot } from './overlay/overlay-roots.js';
 
 async function main(): Promise<void> {
@@ -24,9 +24,9 @@ async function main(): Promise<void> {
     process.env['BACKEND_ROLE'] = 'worker';
   }
 
-  const sessionCookieSecret =
-    process.env['SESSION_COOKIE_SECRET'] ??
-    (process.env['NODE_ENV'] === 'production' ? '' : 'dev-secret-change-me');
+  // One statement of the development default, shared with `index.ts` — and
+  // resolved into the environment, where the composition below reads it.
+  const sessionCookieSecret = resolveSessionCookieSecret();
   if (!sessionCookieSecret) {
     console.error('SESSION_COOKIE_SECRET must be set in production');
     process.exit(1);
