@@ -105,6 +105,37 @@ removing it from the walk. This is the same failure as the two above wearing a t
 **a number measured in a tree whose shape is not the one CI will see** — and the three together
 are why a read size is re-measured rather than reasoned about.
 
+**This record conflicts on nearly every long-lived branch, and the cause is co-movement rather
+than co-location — so sharding it one file per check would not help.** The practice is settled: a
+conflict here is never reconciled, because read sizes are measurements — resolve wholly to the
+incoming side, re-measure on the merged tree in a commit afterwards, and re-measure even the
+entries that merged cleanly. What was *not* settled was why the conflict keeps happening, and the
+standing assumption — that one file holding forty-four independent measurements makes any two
+branches collide even when the entries they move are disjoint — is **false**, measured twice on
+2026-09-15. First, forty-four throwaway commits were built per world, each re-recording exactly one
+check the way a real re-record is written (a dated narrative, then the number), and every pair
+merged with `git merge-tree --write-tree`: **0 of 946 disjoint pairs conflict** on `master`, and 0
+with the record sharded. Entries are hundreds of lines long, so two edits are never inside git's
+context window. Second, every merge in the last 400 on `master` where *both* sides had touched the
+record — 28 of them — was three-way merged as one file and again per entry: **233 conflicting
+entries as one file against 224 sharded**, identical in 20 of the 28, better by one to four in six
+of them, and two that were already clean. The conflicts are concentrated instead:
+`scripts/check-naming.sh` and `check-nul-bytes.ts` conflict in **25 of 28**, `check-language.sh` in
+18, `check-diacritic-folds.ts` in 15. Those are the whole-repository walks, whose `files` is
+literally how many files the repository has, so **every** branch that adds or deletes one file
+moves them — and two branches that genuinely move the same entry conflict whatever shape the record
+has. A hot entry cannot be sharded apart from itself. If this is ever attacked again, attack the
+co-movement (a merge driver performing the resolution that is already mechanical, with the
+`[read-size drift]` census promoted from a report to an assertion so nothing lands stale) rather
+than the file layout — and note that `specs/114-release-shape-gate/contracts/verify-landing.mjs`
+declares `backend/test/helpers/check-read-sizes.ts` as a **prefix** in its `BRANCH_ARTEFACTS` list,
+which stops matching the moment the record becomes a directory. That verifier is pinned to a past
+release commit and is wired to no job, and it fails closed — assertion 6 names each unexplained
+path — so it is not a defect today and is deliberately not on `specs/deferred-defects.md`, whose
+criterion is about postponing the repair of a *module* defect and which would have it fixed now
+rather than filed. It is written here because here is where the person who would trip it is
+reading.
+
 **How many checks that is is not written here**: this sentence read
 *"all twenty-seven"* while `RECORDED_READ_SIZES` — the list the test actually spawns — held
 **34**, a count of a derived fact going stale by seven inside the paragraph whose entire
