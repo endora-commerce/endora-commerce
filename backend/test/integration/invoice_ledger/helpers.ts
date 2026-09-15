@@ -211,6 +211,7 @@ export async function prepareWfirmaVatCopy(
   );
   await activateWfirma(h);
   await saveWfirmaConnection(h);
+  await setLedgerNumberingMode(h, 'vendor');
   return channelId;
 }
 
@@ -271,5 +272,20 @@ export async function setLedgerKsefRouting(
   });
   if (res.statusCode !== 200) {
     throw new Error(`Ledger KSeF routing write failed: ${res.statusCode} ${res.body}`);
+  }
+}
+
+export async function setLedgerNumberingMode(
+  h: BackendServerHandle,
+  numberingMode: 'endora' | 'vendor',
+): Promise<void> {
+  const res = await h.app.inject({
+    method: 'PUT',
+    url: '/api/v1/admin/invoice-ledger/routing',
+    ...ADMIN,
+    payload: { numberingMode, confirm: true },
+  });
+  if (res.statusCode !== 200) {
+    throw new Error(`Ledger numbering mode write failed: ${res.statusCode} ${res.body}`);
   }
 }
