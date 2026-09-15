@@ -6,9 +6,11 @@
  *
  * §3.2: with no `--module` the command writes **the smallest set that
  * composes** — the modules declaring `activation.nonDeactivatable`, closed over
- * the manifests' `dependencies`. The number is derived on every run and appears
- * in no source file (D-100): un-locking a module changes the default in the
- * same run, and nothing here has to be edited for it.
+ * the manifests' `dependencies` **and their `acknowledgedDependencies`**, which
+ * bind exactly as hard and which {@link ModuleCandidate.acknowledged} explains.
+ * The number is derived on every run and appears in no source file (D-100):
+ * un-locking a module changes the default in the same run, and nothing here has
+ * to be edited for it.
  *
  * ## Where the manifests come from
  *
@@ -58,6 +60,42 @@ export interface ModuleCandidate {
   readonly version: string;
   /** The manifest's own `dependencies`, which the closure walks. */
   readonly dependencies: readonly string[];
+  /**
+   * The module ids of the manifest's `acknowledgedDependencies`, which the
+   * closure walks **exactly as** `dependencies` — because the platform does.
+   *
+   * The two spellings differ in one thing only: `acknowledgedDependencies`
+   * withdraws the *install ordering* a `dependencies` entry claims, for an edge
+   * whose ordering would close a cycle. `carts` names `promotions` there for
+   * that reason and no other, and its own manifest says the edge *"is a real
+   * bind: a cart that cannot resolve its discount must not quote a figure it
+   * cannot justify"*. `assertLockedModulesPresent` agrees and makes no
+   * distinction: a module named in **either** array that the deployment does
+   * not ship is `ReducedDeploymentError`, thrown out of `loadModulePresence`
+   * before anything listens.
+   *
+   * So a set derived over `dependencies` alone is a set the platform refuses
+   * to boot, and that is not a hypothesis — it is what the instance acceptance
+   * criterion's A4 and A15 were, measured on 2026-09-14 with a registry
+   * install's discovery shape: *"promotions — not shipped by this deployment,
+   * and it is needed: carts — acknowledgedDependencies, port
+   * `promotionService`"*. Both assertions are the same failure, because
+   * `pnpm run start` and the instance's own `admin:create` both compose.
+   *
+   * **Why it was invisible until an instance installed from a registry.** The
+   * criterion's `tarball` mode pins every auto-installed peer as a real
+   * dependency of the instance — `mod-promotions` among them, because
+   * `mod-carts` peer-depends on it — which puts it at the top level of
+   * `node_modules`, where the platform's package discovery looks. A registry
+   * install leaves it inside `.pnpm`, where that walk deliberately does not.
+   * The tarball tree is therefore wider than any client's, and it was the only
+   * tree this had ever been measured on.
+   *
+   * It stays a separate field rather than being folded into `dependencies` so
+   * the ordering the manifest withdrew is still withdrawn here, and so the F2
+   * refusal can keep naming the module that asked.
+   */
+  readonly acknowledged: readonly string[];
   /** `activation.nonDeactivatable` — the required predicate's subject. */
   readonly required: boolean;
   /** The manifest's `activation.reason`, which the refusal prints (§3.3). */
@@ -113,6 +151,7 @@ export interface ModuleSetResolution {
 interface RawManifest {
   readonly id?: unknown;
   readonly dependencies?: unknown;
+  readonly acknowledgedDependencies?: unknown;
   readonly activation?: unknown;
   readonly env?: unknown;
 }
@@ -288,6 +327,24 @@ function candidateFrom(
     dependencies: Array.isArray(manifest.dependencies)
       ? manifest.dependencies.filter((entry): entry is string => typeof entry === 'string')
       : [],
+    // Read as loosely as everything else here: this manifest is a published
+    // artefact of another version of the platform, and an entry whose shape
+    // this build cannot read is dropped rather than refused (see
+    // {@link RawManifest}). One id per entry, de-duplicated, because `carts`
+    // names `promotions` once per port.
+    acknowledged: Array.isArray(manifest.acknowledgedDependencies)
+      ? [
+          ...new Set(
+            manifest.acknowledgedDependencies
+              .map((entry) =>
+                typeof entry === 'object' && entry !== null
+                  ? (entry as { readonly moduleId?: unknown }).moduleId
+                  : undefined,
+              )
+              .filter((id): id is string => typeof id === 'string'),
+          ),
+        ]
+      : [],
     env: environmentInputsOf(manifest.env),
     required:
       activation !== undefined &&
@@ -431,8 +488,11 @@ export function resolveModuleSet(
     );
   }
 
-  // The closure over the manifests' own `dependencies`, and the F2 refusal for
-  // an edge nothing satisfies. Breadth-first so the refusal can name the module
+  // The closure over the manifests' own `dependencies` **and**
+  // `acknowledgedDependencies` — see {@link ModuleCandidate.acknowledged} for
+  // why the two are one population here and for the boot this walk used to
+  // write a set the platform refused. The F2 refusal for an edge nothing
+  // satisfies is unchanged. Breadth-first so the refusal can name the module
   // that asked, which is the fact the operator can act on.
   const chosen = new Set<string>();
   const queue = [...seed];
@@ -441,7 +501,8 @@ export function resolveModuleSet(
     const id = queue.shift()!;
     if (chosen.has(id)) continue;
     chosen.add(id);
-    for (const dependency of candidates.get(id)!.dependencies) {
+    const candidate = candidates.get(id)!;
+    for (const dependency of [...candidate.dependencies, ...candidate.acknowledged]) {
       if (chosen.has(dependency)) continue;
       if (!candidates.has(dependency)) {
         unsatisfied.push({ from: id, to: dependency });
