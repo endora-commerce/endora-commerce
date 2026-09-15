@@ -109,7 +109,7 @@ const MIGRATED_MODULES: readonly string[] = [
   'catalog',
   'cms',
   // The Comarch ERP XL connector and the shared ERP layer beneath it
-  // (`specs/119-comarch-xl-sync/`). Both mint every one of their codes rather
+  // (`specs/130-comarch-xl-sync/`). Both mint every one of their codes rather
   // than receiving any, so the reference side that makes these two entries
   // answerable is the minting half alone: eleven `MINTED_ERROR_CODES` entries,
   // and nothing in the frozen capture.

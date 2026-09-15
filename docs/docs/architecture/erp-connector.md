@@ -118,4 +118,4 @@ pnpm --filter backend exec vitest run test/unit/erp_connector test/contract/erp_
 - [Comarch ERP XL connector](./comarch-xl.md) — OpenAPI client, sync pipeline, apply logic
 - [Overlay pattern](./overlay-pattern.md) — per-deployment client rules via ports and decorations
 - Operator guide: [Comarch ERP XL](../modules/comarch_xl.md)
-- Feature artifacts: `specs/119-comarch-xl-sync/`
+- Feature artifacts: `specs/130-comarch-xl-sync/`

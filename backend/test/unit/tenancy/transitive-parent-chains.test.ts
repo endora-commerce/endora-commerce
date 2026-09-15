@@ -58,7 +58,7 @@ describe('the committed platform’s transitive tenancy chains', () => {
     // boot reconciliation refused — A3 of the instance acceptance criterion.
     // Both tables carry the column now. The general claim is
     // `transitive-parent-module-ownership.test.ts`'; this is the population.
-    // **A third since `specs/119-comarch-xl-sync/`.**
+    // **A third since `specs/130-comarch-xl-sync/`.**
     // `InvoiceExternalAttachment` holds the metadata for a file attached to an
     // ERP-imported sale document and takes `Invoice`'s chain — the same shape
     // as `KsefSubmission`, one link further out, and owned by the module that

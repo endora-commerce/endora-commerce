@@ -36,7 +36,7 @@ import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifest
 /**
  * Core — 26 modules, each declaring `nonDeactivatable` with its own reason.
  *
- * `erp_connector` joined with `specs/119-comarch-xl-sync/`, and it is the third
+ * `erp_connector` joined with `specs/130-comarch-xl-sync/`, and it is the third
  * of one family rather than a new kind: `invoice_ledger` and `pim_connector`
  * are already here on the same ground — a shared layer beneath vendor adapters
  * that holds the vocabulary and the mutual exclusion, so that switching the

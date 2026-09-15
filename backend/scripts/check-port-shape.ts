@@ -142,7 +142,7 @@ export const PORTS_WITHOUT_A_REGISTRATION: Readonly<Record<string, string>> = {}
  * publishes a name, which is signal 2's subject and the owner's call.
  */
 export const RESOLUTIONS_OF_UNPUBLISHED_NAMES: Readonly<Record<string, string>> = {
-  // `orders:creditLimitService` stood here until `specs/119-comarch-xl-sync/`.
+  // `orders:creditLimitService` stood here until `specs/130-comarch-xl-sync/`.
   // It went not because D-94.5's seam changed — `orders` still resolves the
   // `EntityManager`-carrying `CreditLimitPort`, and its `permanent: true`
   // entry in `orders`' cross-module-imports shard still says why — but because

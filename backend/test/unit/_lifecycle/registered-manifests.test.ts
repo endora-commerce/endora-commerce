@@ -300,7 +300,7 @@ describe('resolvedManifestEntries — the deployment-resolved set, discovered at
     const bareCore = await resolvedManifestEntries({} as NodeJS.ProcessEnv);
     // Derived, never written down: `example` shipped exactly one overlay module
     // when this was written and ships three since
-    // `specs/119-comarch-xl-sync/`, so a literal here measures the fixture's
+    // `specs/130-comarch-xl-sync/`, so a literal here measures the fixture's
     // size rather than the property (D-100).
     const overlayModules = listOverlayModuleDirs(join(BACKEND_SRC, 'apps', 'example', 'modules'));
     expect(overlayModules.length).toBeGreaterThan(0);

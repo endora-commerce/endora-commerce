@@ -41,7 +41,7 @@ export const ERP_CONNECTOR_REGISTRY_PORT = 'erpConnectorRegistryPort' as const;
  * Container name: `erpConnectorRegistryPort`. Owner: `erp_connector`.
  *
  * Mutual-exclusion registry among ERP connectors — see
- * `specs/119-comarch-xl-sync/contracts/erp-connector-shared.md`.
+ * `specs/130-comarch-xl-sync/contracts/erp-connector-shared.md`.
  */
 export interface ErpConnectorRegistryPort {
   /** Refuses when another ERP connector's activation Setting is true. */
