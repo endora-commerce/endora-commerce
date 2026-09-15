@@ -1855,6 +1855,58 @@ export interface PackageDependencyDeclaration {
  *   registry line at all, every fetch there being a `file:` specifier.
  * @param scope the one scope the host installs, e.g. `@endora-commerce`.
  */
+/**
+ * What this run fills into the instance's own `.env` — the values a client
+ * supplies, in the file a client supplies them in.
+ *
+ * ## Why it is a function here rather than a literal at the call site
+ *
+ * It was a literal, and one name was missing from it: `MEILISEARCH_URL`. The
+ * composed platform's health probe reads that variable and falls back to
+ * `http://localhost:7700`; `acceptance:instance` runs Meilisearch as a service
+ * container at `http://meilisearch:7700` and declares the value in its own
+ * `variables:` block — and handed it to the instance nowhere. So the probe
+ * reached nothing, `/api/v1/_health` answered `degraded` with **503**, and A4
+ * failed over a service that was running the whole time.
+ *
+ * **The instance was right and the harness was not.** The platform's own
+ * declaration of this input says precisely what would happen: *"The probe
+ * reaches for the search engine at the platform's own address, so a shop that
+ * runs it elsewhere is reported degraded while it is working."* A client whose
+ * Meilisearch is not on the instance's own host fills this in, exactly as they
+ * fill in `DATABASE_URL`; a run that does not is measuring a tree no client has.
+ *
+ * It was invisible locally because a developer's box usually has something on
+ * `localhost:7700` — this repository's own dev container publishes it — so
+ * every local `tarball` run was green. Measured 2026-09-14: pipeline 13909, an
+ * unrelated branch, `A4 FAIL — the health route answered 503, not 200`.
+ *
+ * ## What it may and may not carry
+ *
+ * Every name has to be one the instance's own `.env.example` declares; the
+ * caller refuses otherwise, and that refusal is
+ * `specs/123-oss-install-experience/` G3's guard against this criterion
+ * configuring by hand what a client's file could not. `SESSION_COOKIE_SECRET`
+ * is deliberately absent: the command generated one into that same file under
+ * R2.5d, and an instance starting with a session key nobody supplied is
+ * FR-011's end-to-end evidence.
+ *
+ * The fallbacks are the platform's own, not this file's opinion. A different
+ * address here would configure a probe at somewhere the platform never looks.
+ */
+export function instanceEnvValues(input: {
+  readonly databaseUrl: string;
+  readonly env: Readonly<Record<string, string | undefined>>;
+}): Record<string, string> {
+  return {
+    DATABASE_URL: input.databaseUrl,
+    REDIS_URL: input.env['REDIS_URL'] ?? 'redis://localhost:6379',
+    MEILISEARCH_URL: input.env['MEILISEARCH_URL'] ?? 'http://localhost:7700',
+    PUBLIC_API_BASE_URL: 'https://instance.acceptance.invalid',
+    NODE_ENV: 'production',
+  };
+}
+
 export function hostNpmrc(registry: string | null, scope: string): string {
   const lines = [
     // The host must not be adopted by a workspace above the temporary

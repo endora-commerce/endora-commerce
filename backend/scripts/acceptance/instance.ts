@@ -141,6 +141,7 @@ import {
   expectationRefusals,
   formatReport,
   hostNpmrc,
+  instanceEnvValues,
   reconcileFigures,
   type AcceptanceExpectation,
   type AcceptanceMode,
@@ -2075,16 +2076,14 @@ async function main(): Promise<void> {
       // value this criterion smuggles past a client's file is a red run rather
       // than a sentence at the bottom of a report.
       //
-      // `SESSION_COOKIE_SECRET` is deliberately **not** here. The command
-      // generated one into that same `.env` under R2.5d, and this run proving it
-      // did — by starting an instance whose session key nobody supplied — is
-      // FR-011's end-to-end evidence.
-      const filledIn: Record<string, string> = {
-        DATABASE_URL: database.databaseUrl,
-        REDIS_URL: process.env['REDIS_URL'] ?? 'redis://localhost:6379',
-        PUBLIC_API_BASE_URL: 'https://instance.acceptance.invalid',
-        NODE_ENV: 'production',
-      };
+      // The set itself is `instanceEnvValues`, which carries what may be in it
+      // and what may not — `SESSION_COOKIE_SECRET` deliberately not, and
+      // `MEILISEARCH_URL` deliberately yes since A4 spent a pipeline reporting
+      // a 503 about a search engine that was running.
+      const filledIn = instanceEnvValues({
+        databaseUrl: database.databaseUrl,
+        env: process.env,
+      });
       const undeclared = Object.keys(filledIn).filter(
         (name) => !instanceVariables.includes(name),
       );

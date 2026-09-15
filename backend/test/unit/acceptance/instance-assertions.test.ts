@@ -26,6 +26,7 @@ import {
   describeRegistrySupply,
   endoraClosure,
   hostNpmrc,
+  instanceEnvValues,
   evaluateA1,
   evaluateA3,
   evaluateA4,
@@ -960,6 +961,54 @@ describe('formatReport', () => {
     expect(report).toContain('A1 PASS — fine');
     expect(report).toContain('note: a note');
     expect(report).toContain('mode=registry pass=1 fail=1 unmeasured=0 of 2');
+  });
+});
+
+/**
+ * What the run puts in the instance's own `.env`, and the one name whose
+ * absence made A4 a measurement of the harness.
+ *
+ * Every value here has to be a name the instance's own `.env.example` declares
+ * — the runner refuses otherwise, which is `specs/123-oss-install-experience/`
+ * G3's guard — and the set has to cover what the composed platform actually
+ * reads, or the run configures an instance a client would not have.
+ *
+ * `MEILISEARCH_URL` was not in it. The platform's health probe reads it and
+ * falls back to `http://localhost:7700`; the acceptance job runs Meilisearch as
+ * a service container at `http://meilisearch:7700`, so the probe reached
+ * nothing, `/api/v1/_health` answered `degraded` with 503, and A4 failed. The
+ * platform's own declaration of that input says exactly this would happen —
+ * *"a shop that runs it elsewhere is reported degraded while it is working"* —
+ * so the instance was right and the harness had not configured it. On a
+ * developer's box `localhost:7700` is usually a running container, which is why
+ * every local `tarball` run was green: the third green-on-a-developer's-box in
+ * this criterion.
+ *
+ * Measured 2026-09-14: pipeline 13909, an unrelated branch on `master`'s base,
+ * `A4 FAIL — the health route answered 503, not 200`, and 13910 the same.
+ */
+describe('the values the run fills into the instance `.env`', () => {
+  it('names every service the composed platform reaches for, Meilisearch included', () => {
+    const filled = instanceEnvValues({
+      databaseUrl: 'postgresql://b2b:b2b@localhost:5432/b2b_instance_acceptance_test',
+      env: { MEILISEARCH_URL: 'http://meilisearch:7700', REDIS_URL: 'redis://redis:6379' },
+    });
+    expect(filled['MEILISEARCH_URL']).toBe('http://meilisearch:7700');
+    expect(filled['REDIS_URL']).toBe('redis://redis:6379');
+  });
+
+  it('falls back to the platform own address, so a run with no service variables still starts', () => {
+    const filled = instanceEnvValues({ databaseUrl: 'postgresql://x/y', env: {} });
+    // The same address `packages/platform/src/http/health.ts` defaults to. A
+    // different one here would make the run configure a probe at an address the
+    // platform never looks at.
+    expect(filled['MEILISEARCH_URL']).toBe('http://localhost:7700');
+    expect(filled['REDIS_URL']).toBe('redis://localhost:6379');
+  });
+
+  it('withholds `SESSION_COOKIE_SECRET`, which the command generated and this run must not', () => {
+    const filled = instanceEnvValues({ databaseUrl: 'postgresql://x/y', env: {} });
+    expect(Object.keys(filled)).not.toContain('SESSION_COOKIE_SECRET');
   });
 });
 
