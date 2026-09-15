@@ -3231,7 +3231,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // as well: four `.md` files landed on the default branch without the census being
     // answered. Re-recorded here because the drift report names it, and the convention is to
     // re-record what it names — including the entries a branch merged cleanly.
-    files: 1344,
+    // **Not this branch's: files 1344 -> 1346.** This merge request edits `.gitlab-ci.yml` and adds no tracked file, so none of this delta is its. The two files are `specs/129-github-canonical-migration/`'s `spec.md` and `tasks.md`, merged with `docs/oss-direction` — a documentation merge request, which is the class that never re-records because its author has no reason to think it moved anything. Every walk that reads `specs/` moves by two and the whole-repository walks move by two; `check-doc-snippets` sees them because its roots are `docs/docs` and `specs`. Recorded here rather than left, because the next author to add one file would have inherited a delta of three and had to work out which part was theirs. Measured in this worktree after `pnpm install` and `build:packages`, with `git clean -fX docs/docs/modules` and the copy stamp deleted.
+    files: 1346,
     sites: 13,
     sources: [],
     //
@@ -8106,7 +8107,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // sides for all three walks. `check-language.sh` did **not** move (6306 both
     // sides): `.changeset/` is outside its population, which is a measurement and
     // not an inference from the other two.
-    files: 8347,
+    // **Not this branch's: files 8347 -> 8349.** This merge request edits `.gitlab-ci.yml` and adds no tracked file, so none of this delta is its. The two files are `specs/129-github-canonical-migration/`'s `spec.md` and `tasks.md`, merged with `docs/oss-direction` — a documentation merge request, which is the class that never re-records because its author has no reason to think it moved anything. Every walk that reads `specs/` moves by two and the whole-repository walks move by two; `check-doc-snippets` sees them because its roots are `docs/docs` and `specs`. Recorded here rather than left, because the next author to add one file would have inherited a delta of three and had to work out which part was theirs. Measured in this worktree after `pnpm install` and `build:packages`, with `git clean -fX docs/docs/modules` and the copy stamp deleted.
+    files: 8349,
     sites: null,
     sources: [],
     //
@@ -12376,7 +12378,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // baseline reported 8407 for a tree that did not contain it; that is the third
     // costume of the one trap this record's guidance names, and the reason both
     // numbers here come from `origin/master` in a worktree of its own.
-    files: 8407,
+    // **Not this branch's: files 8407 -> 8409.** This merge request edits `.gitlab-ci.yml` and adds no tracked file, so none of this delta is its. The two files are `specs/129-github-canonical-migration/`'s `spec.md` and `tasks.md`, merged with `docs/oss-direction` — a documentation merge request, which is the class that never re-records because its author has no reason to think it moved anything. Every walk that reads `specs/` moves by two and the whole-repository walks move by two; `check-doc-snippets` sees them because its roots are `docs/docs` and `specs`. Recorded here rather than left, because the next author to add one file would have inherited a delta of three and had to work out which part was theirs. Measured in this worktree after `pnpm install` and `build:packages`, with `git clean -fX docs/docs/modules` and the copy stamp deleted.
+    files: 8409,
     sites: null,
     sources: ['manifest-index'],
     //
