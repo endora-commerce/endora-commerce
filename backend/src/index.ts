@@ -7,13 +7,17 @@
 
 import { buildServer } from '@endora-commerce/platform/composition';
 import { parseTrustedProxy, type TrustedProxy } from '@endora-commerce/platform/composition';
-import { composeApp } from './composition.js';
+import { composeApp, resolveSessionCookieSecret } from './composition.js';
 import { deploymentRoot } from './overlay/overlay-roots.js';
 
 async function main(): Promise<void> {
   const port = Number(process.env['PORT'] ?? 3001);
-  const sessionCookieSecret =
-    process.env['SESSION_COOKIE_SECRET'] ?? (process.env['NODE_ENV'] === 'production' ? '' : 'dev-secret-change-me');
+  // The development default this line used to compute lived in this `const` and
+  // nowhere else, so the platform's composition — which reads the same variable
+  // to sign newsletter links with — could not see it. It is resolved into the
+  // environment now; see `composition.ts`. What this file does with
+  // the value is unchanged, including refusing to start without one.
+  const sessionCookieSecret = resolveSessionCookieSecret();
 
   if (!sessionCookieSecret) {
     console.error('SESSION_COOKIE_SECRET must be set in production');
