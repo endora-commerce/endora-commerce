@@ -2657,7 +2657,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 5647 -> 5648.** **+1, this branch's.** Pristine `origin/master` reproduces the recorded 5647 exactly, so the whole of it is The one file this branch adds, `backend/test/unit/kernel/session-cookie-secret.test.ts`. It changes `backend/src` not at all — the resolution it covers is a function of `composition.ts`, which already existed.
-    files: 5648,
+    // **`test/declared-absence`, 2026-09-15: 5648 -> 5651.** **+3, and the whole of it is this branch's.** A pristine detached worktree of `origin/master` (`eebd2d92e`), after `pnpm install --frozen-lockfile` and `build:packages`, reproduced every one of the nine values this branch moves exactly, including this one at 5648 — so nothing here is inherited. The branch adds five tracked files and no more: `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, `backend/test/unit/harness/declared-absence.test.ts`, `backend/test/unit/harness/generable-secrets.test.ts` and its changeset. It edits three that already exist — `vitest.config.base.ts`, `backend/test/global-setup.ts` and `packages/cli/test/install.test.ts` — and deletes and moves nothing. This walk takes the three under `backend/test` and neither the root script nor the changeset — **measured**, by removing `scripts/declared-absence.ts` from the index *and* the working tree and re-reading the same 5651, rather than inferred from the size of the delta.
+    files: 5651,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -4785,7 +4786,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 1633 -> 1634.** **+1, this branch's**, its root being `backend/test`. The one file this branch adds, `backend/test/unit/kernel/session-cookie-secret.test.ts`. It changes `backend/src` not at all — the resolution it covers is a function of `composition.ts`, which already existed.
-    files: 1634,
+    // **`test/declared-absence`, 2026-09-15: 1634 -> 1637.** **+3, and the whole of it is this branch's.** A pristine detached worktree of `origin/master` (`eebd2d92e`), after `pnpm install --frozen-lockfile` and `build:packages`, reproduced every one of the nine values this branch moves exactly, including this one at 1634 — so nothing here is inherited. The branch adds five tracked files and no more: `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, `backend/test/unit/harness/declared-absence.test.ts`, `backend/test/unit/harness/generable-secrets.test.ts` and its changeset. It edits three that already exist — `vitest.config.base.ts`, `backend/test/global-setup.ts` and `packages/cli/test/install.test.ts` — and deletes and moves nothing. Its root is `backend/test`, so it takes exactly the three files this branch adds there.
+    files: 1637,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -5049,7 +5051,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 1633 -> 1634.** **+1, this branch's**, its root being `backend/test`. The one file this branch adds, `backend/test/unit/kernel/session-cookie-secret.test.ts`. It changes `backend/src` not at all — the resolution it covers is a function of `composition.ts`, which already existed.
-    files: 1634,
+    // **`test/declared-absence`, 2026-09-15: 1634 -> 1637.** **+3, and the whole of it is this branch's.** A pristine detached worktree of `origin/master` (`eebd2d92e`), after `pnpm install --frozen-lockfile` and `build:packages`, reproduced every one of the nine values this branch moves exactly, including this one at 1634 — so nothing here is inherited. The branch adds five tracked files and no more: `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, `backend/test/unit/harness/declared-absence.test.ts`, `backend/test/unit/harness/generable-secrets.test.ts` and its changeset. It edits three that already exist — `vitest.config.base.ts`, `backend/test/global-setup.ts` and `packages/cli/test/install.test.ts` — and deletes and moves nothing. Its root is `backend/test`, so it takes exactly the three files this branch adds there.
+    files: 1637,
     sites: null,
     sources: [],
   },
@@ -8147,7 +8150,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // not an inference from the other two.
     // **Not this branch's: files 8347 -> 8349.** This merge request edits `.gitlab-ci.yml` and adds no tracked file, so none of this delta is its. The two files are `specs/129-github-canonical-migration/`'s `spec.md` and `tasks.md`, merged with `docs/oss-direction` — a documentation merge request, which is the class that never re-records because its author has no reason to think it moved anything. Every walk that reads `specs/` moves by two and the whole-repository walks move by two; `check-doc-snippets` sees them because its roots are `docs/docs` and `specs`. Recorded here rather than left, because the next author to add one file would have inherited a delta of three and had to work out which part was theirs. Measured in this worktree after `pnpm install` and `build:packages`, with `git clean -fX docs/docs/modules` and the copy stamp deleted.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 8349 -> 8350.** **+1, and it is this branch's whole contribution to this entry.** The baseline above is `master`'s own, re-recorded by the merge request that inherited it and re-measured here rather than trusted: a pristine detached worktree of `origin/master` reads 8349. The one file is `backend/test/unit/kernel/session-cookie-secret.test.ts`; `backend/src` gains none, the resolution this branch adds being a function of `composition.ts`, which already existed.
-    files: 8350,
+    // **`test/declared-absence`, 2026-09-15: 8350 -> 8355.** **+5, and the whole of it is this branch's.** A pristine detached worktree of `origin/master` (`eebd2d92e`), after `pnpm install --frozen-lockfile` and `build:packages`, reproduced every one of the nine values this branch moves exactly, including this one at 8350 — so nothing here is inherited. The branch adds five tracked files and no more: `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, `backend/test/unit/harness/declared-absence.test.ts`, `backend/test/unit/harness/generable-secrets.test.ts` and its changeset. It edits three that already exist — `vitest.config.base.ts`, `backend/test/global-setup.ts` and `packages/cli/test/install.test.ts` — and deletes and moves nothing. A whole-repository walk: all five, the changeset and the root script included — **measured** on both, each removed from the index and the working tree in turn, each re-reading 8354.
+    files: 8355,
     sites: null,
     sources: [],
     //
@@ -10005,7 +10009,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 1633 -> 1634.** **+1, this branch's**, its root being `backend/test`. The one file this branch adds, `backend/test/unit/kernel/session-cookie-secret.test.ts`. It changes `backend/src` not at all — the resolution it covers is a function of `composition.ts`, which already existed.
-    files: 1634,
+    // **`test/declared-absence`, 2026-09-15: 1634 -> 1637.** **+3, and the whole of it is this branch's.** A pristine detached worktree of `origin/master` (`eebd2d92e`), after `pnpm install --frozen-lockfile` and `build:packages`, reproduced every one of the nine values this branch moves exactly, including this one at 1634 — so nothing here is inherited. The branch adds five tracked files and no more: `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, `backend/test/unit/harness/declared-absence.test.ts`, `backend/test/unit/harness/generable-secrets.test.ts` and its changeset. It edits three that already exist — `vitest.config.base.ts`, `backend/test/global-setup.ts` and `packages/cli/test/install.test.ts` — and deletes and moves nothing. Its root is `backend/test`, so it takes exactly the three files this branch adds there.
+    files: 1637,
     sites: 163,
     sources: [],
   },
@@ -10609,7 +10614,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 1767 -> 1768.** **+1, this branch's**. This population is the test files rather than everything under `backend/test`, and the one file added is a test. The one file this branch adds, `backend/test/unit/kernel/session-cookie-secret.test.ts`. It changes `backend/src` not at all — the resolution it covers is a function of `composition.ts`, which already existed.
-    files: 1768,
+    // **`test/declared-absence`, 2026-09-15: 1768 -> 1770.** **+2, and the whole of it is this branch's.** A pristine detached worktree of `origin/master` (`eebd2d92e`), after `pnpm install --frozen-lockfile` and `build:packages`, reproduced every one of the nine values this branch moves exactly, including this one at 1768 — so nothing here is inherited. The branch adds five tracked files and no more: `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, `backend/test/unit/harness/declared-absence.test.ts`, `backend/test/unit/harness/generable-secrets.test.ts` and its changeset. It edits three that already exist — `vitest.config.base.ts`, `backend/test/global-setup.ts` and `packages/cli/test/install.test.ts` — and deletes and moves nothing. This population is the test files rather than everything under `backend/test`, and two of the three files added there are tests — **measured**: with `scripts/declared-absence.ts` removed from the index and the working tree it still reads 1770.
+    files: 1770,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -11447,7 +11453,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 4669 -> 4670.** **+1, this branch's**, the new file being under a walked root. The one file this branch adds, `backend/test/unit/kernel/session-cookie-secret.test.ts`. It changes `backend/src` not at all — the resolution it covers is a function of `composition.ts`, which already existed.
-    files: 4670,
+    // **`test/declared-absence`, 2026-09-15: 4670 -> 4673.** **+3, and the whole of it is this branch's.** A pristine detached worktree of `origin/master` (`eebd2d92e`), after `pnpm install --frozen-lockfile` and `build:packages`, reproduced every one of the nine values this branch moves exactly, including this one at 4670 — so nothing here is inherited. The branch adds five tracked files and no more: `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, `backend/test/unit/harness/declared-absence.test.ts`, `backend/test/unit/harness/generable-secrets.test.ts` and its changeset. It edits three that already exist — `vitest.config.base.ts`, `backend/test/global-setup.ts` and `packages/cli/test/install.test.ts` — and deletes and moves nothing. This walk takes the three under `backend/test` and neither the root script nor the changeset — **measured**, by removing `scripts/declared-absence.ts` from the index *and* the working tree and re-reading the same 4673, rather than inferred from the size of the delta.
+    files: 4673,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -12422,7 +12429,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // numbers here come from `origin/master` in a worktree of its own.
     // **Not this branch's: files 8407 -> 8409.** This merge request edits `.gitlab-ci.yml` and adds no tracked file, so none of this delta is its. The two files are `specs/129-github-canonical-migration/`'s `spec.md` and `tasks.md`, merged with `docs/oss-direction` — a documentation merge request, which is the class that never re-records because its author has no reason to think it moved anything. Every walk that reads `specs/` moves by two and the whole-repository walks move by two; `check-doc-snippets` sees them because its roots are `docs/docs` and `specs`. Recorded here rather than left, because the next author to add one file would have inherited a delta of three and had to work out which part was theirs. Measured in this worktree after `pnpm install` and `build:packages`, with `git clean -fX docs/docs/modules` and the copy stamp deleted.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 8409 -> 8410.** **+1, and it is this branch's whole contribution to this entry.** The baseline above is `master`'s own, re-recorded by the merge request that inherited it and re-measured here rather than trusted: a pristine detached worktree of `origin/master` reads 8409. The one file is `backend/test/unit/kernel/session-cookie-secret.test.ts`; `backend/src` gains none, the resolution this branch adds being a function of `composition.ts`, which already existed. This walk takes its population from `git ls-files --cached`, so the file was staged before the number was read.
-    files: 8410,
+    // **`test/declared-absence`, 2026-09-15: 8410 -> 8415.** **+5, and the whole of it is this branch's.** A pristine detached worktree of `origin/master` (`eebd2d92e`), after `pnpm install --frozen-lockfile` and `build:packages`, reproduced every one of the nine values this branch moves exactly, including this one at 8410 — so nothing here is inherited. The branch adds five tracked files and no more: `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, `backend/test/unit/harness/declared-absence.test.ts`, `backend/test/unit/harness/generable-secrets.test.ts` and its changeset. It edits three that already exist — `vitest.config.base.ts`, `backend/test/global-setup.ts` and `packages/cli/test/install.test.ts` — and deletes and moves nothing. All five. This walk takes its population from `git ls-files --cached`, so every file was staged before the number was read, and the root script and the changeset were each removed from the index *and* the working tree to measure their membership — 8414 apiece.
+    files: 8415,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -13018,7 +13026,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 6306 -> 6307.** **+1, this branch's.** Pristine `origin/master` reproduces the recorded 6306, which is the measurement that separates this entry from the two whole-tree walks above: they inherited two files from `master` and this one inherited none, because its population is source extensions and `docs/docs/**` rather than everything the index lists.
-    files: 6307,
+    // **`test/declared-absence`, 2026-09-15: 6307 -> 6311.** **+4, and the whole of it is this branch's.** A pristine detached worktree of `origin/master` (`eebd2d92e`), after `pnpm install --frozen-lockfile` and `build:packages`, reproduced every one of the nine values this branch moves exactly, including this one at 6307 — so nothing here is inherited. The branch adds five tracked files and no more: `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, `backend/test/unit/harness/declared-absence.test.ts`, `backend/test/unit/harness/generable-secrets.test.ts` and its changeset. It edits three that already exist — `vitest.config.base.ts`, `backend/test/global-setup.ts` and `packages/cli/test/install.test.ts` — and deletes and moves nothing. Four of the five: the root script and the three under `backend/test`, and **not** the changeset — which is this entry's own recorded measurement from `fix/environment-dependent-tests` above, reproduced here by removing the `.md` from the index and the working tree and re-reading the same 6311.
+    files: 6311,
     sites: null,
     sources: ['manifest-index'],
     //
