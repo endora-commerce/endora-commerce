@@ -1503,7 +1503,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and none of it is somebody else's staleness. Never computed from a delta.
     // **`fix/instance-wiring-operator-runtime`: files 2060 -> 2061 (+1).** **`fix/instance-wiring-operator-runtime` adds three tracked files and moves no other**: `packages/platform/src/lifecycle/commands/operator-entry.ts`, its co-located `operator-entry.test.ts`, and one `.changeset/*.md`. Every delta here is a walk seeing the share of those three it reads — the two whole-repository walks see all three, a source-and-test walk sees two, a source-only walk sees one, and `check-language.sh` sees the two comment-bearing `.ts` and not the `.md`; the two `sites` moves are the new file's outward imports and its English prose. **None of it arrived with `master`**: the branch's own earlier run over a pre-`c99c2cd09` base named the same 27 with the same deltas, and what the merge moved is three *baselines* — `check-platform-surface`, `check-singleton-identity` and `check-language.sh`, each by the tracked `.ts` the A6 branch deleted — not this branch's contribution to them. Re-measured on the **merged** tree (`origin/master` after `fix/instance-docs-foreign-link-catalog` merged) in a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and this file's conflict resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 27 and confirmed the other 17 agree.
     // **`fix/invoice-ledger-tenancy-parent`: files 2061 -> 2062 (+1).** **`fix/invoice-ledger-tenancy-parent` adds three tracked files and deletes none**: the migration `20260914T140000_invoice_ledger_row_organization.ts`, the guard test `backend/test/unit/tenancy/transitive-parent-module-ownership.test.ts`, and one `.changeset/*.md`. Every `files` delta is a walk seeing its own share — the two whole-repository walks see all three, `check-language.sh` sees the two comment-bearing `.ts`, a walk over `src` trees sees the migration alone, a walk over `backend/test` sees the test alone, and a walk over both sees two. The `sites` moves are the new artefacts' own units: a migration is a claim-bearing artefact, the enqueue path resolves one more port, and the regenerated `module-reference/invoice-ledger.md` is one more determinism site. **What the merge moved is baselines, not this branch's contribution to them**: the same 30 entries with the same deltas were measured over the pre-merge base, and the three files `fix/instance-wiring-operator-runtime` added are what shifted the starting points. Re-measured on the **merged** tree — `fix/instance-wiring-operator-runtime` merged and re-recorded 27 entries, so this file conflicted; the conflict was resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. In a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain` clean. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 30 and confirmed the other 14 agree.
-    files: 2062,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 2062 -> 2141 (+79) and `sites` 90 -> 91 (+1). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 2141,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1522,7 +1530,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 88 -> 90.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 90,
+    sites: 91,
     // `emitted-manifests` is this check saying which artefact its manifest half
     // came from: the manifests are imported rather than walked, and a packaged
     // module's resolves at its build output. It is the disclosure half of the
@@ -1844,7 +1852,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and none of it is somebody else's staleness. Never computed from a delta.
     // **`fix/instance-wiring-operator-runtime`: files 2192 -> 2193 (+1).** **`fix/instance-wiring-operator-runtime` adds three tracked files and moves no other**: `packages/platform/src/lifecycle/commands/operator-entry.ts`, its co-located `operator-entry.test.ts`, and one `.changeset/*.md`. Every delta here is a walk seeing the share of those three it reads — the two whole-repository walks see all three, a source-and-test walk sees two, a source-only walk sees one, and `check-language.sh` sees the two comment-bearing `.ts` and not the `.md`; the two `sites` moves are the new file's outward imports and its English prose. **None of it arrived with `master`**: the branch's own earlier run over a pre-`c99c2cd09` base named the same 27 with the same deltas, and what the merge moved is three *baselines* — `check-platform-surface`, `check-singleton-identity` and `check-language.sh`, each by the tracked `.ts` the A6 branch deleted — not this branch's contribution to them. Re-measured on the **merged** tree (`origin/master` after `fix/instance-docs-foreign-link-catalog` merged) in a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and this file's conflict resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 27 and confirmed the other 17 agree.
     // **`fix/invoice-ledger-tenancy-parent`: files 2193 -> 2194 (+1).** **`fix/invoice-ledger-tenancy-parent` adds three tracked files and deletes none**: the migration `20260914T140000_invoice_ledger_row_organization.ts`, the guard test `backend/test/unit/tenancy/transitive-parent-module-ownership.test.ts`, and one `.changeset/*.md`. Every `files` delta is a walk seeing its own share — the two whole-repository walks see all three, `check-language.sh` sees the two comment-bearing `.ts`, a walk over `src` trees sees the migration alone, a walk over `backend/test` sees the test alone, and a walk over both sees two. The `sites` moves are the new artefacts' own units: a migration is a claim-bearing artefact, the enqueue path resolves one more port, and the regenerated `module-reference/invoice-ledger.md` is one more determinism site. **What the merge moved is baselines, not this branch's contribution to them**: the same 30 entries with the same deltas were measured over the pre-merge base, and the three files `fix/instance-wiring-operator-runtime` added are what shifted the starting points. Re-measured on the **merged** tree — `fix/instance-wiring-operator-runtime` merged and re-recorded 27 entries, so this file conflicted; the conflict was resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. In a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain` clean. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 30 and confirmed the other 14 agree.
-    files: 2194,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 2194 -> 2279 (+85). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 2279,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1956,7 +1972,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 1751 -> 1748.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
     // **`fix/instance-wiring-operator-runtime`: files 1748 -> 1749 (+1).** **`fix/instance-wiring-operator-runtime` adds three tracked files and moves no other**: `packages/platform/src/lifecycle/commands/operator-entry.ts`, its co-located `operator-entry.test.ts`, and one `.changeset/*.md`. Every delta here is a walk seeing the share of those three it reads — the two whole-repository walks see all three, a source-and-test walk sees two, a source-only walk sees one, and `check-language.sh` sees the two comment-bearing `.ts` and not the `.md`; the two `sites` moves are the new file's outward imports and its English prose. **None of it arrived with `master`**: the branch's own earlier run over a pre-`c99c2cd09` base named the same 27 with the same deltas, and what the merge moved is three *baselines* — `check-platform-surface`, `check-singleton-identity` and `check-language.sh`, each by the tracked `.ts` the A6 branch deleted — not this branch's contribution to them. Re-measured on the **merged** tree (`origin/master` after `fix/instance-docs-foreign-link-catalog` merged) in a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and this file's conflict resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 27 and confirmed the other 17 agree.
-    files: 1749,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 1749 -> 1827 (+78). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 1827,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -2091,7 +2115,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2291 -> 2288.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
     // **`fix/instance-wiring-operator-runtime`: files 2288 -> 2290 (+2).** **`fix/instance-wiring-operator-runtime` adds three tracked files and moves no other**: `packages/platform/src/lifecycle/commands/operator-entry.ts`, its co-located `operator-entry.test.ts`, and one `.changeset/*.md`. Every delta here is a walk seeing the share of those three it reads — the two whole-repository walks see all three, a source-and-test walk sees two, a source-only walk sees one, and `check-language.sh` sees the two comment-bearing `.ts` and not the `.md`; the two `sites` moves are the new file's outward imports and its English prose. **None of it arrived with `master`**: the branch's own earlier run over a pre-`c99c2cd09` base named the same 27 with the same deltas, and what the merge moved is three *baselines* — `check-platform-surface`, `check-singleton-identity` and `check-language.sh`, each by the tracked `.ts` the A6 branch deleted — not this branch's contribution to them. Re-measured on the **merged** tree (`origin/master` after `fix/instance-docs-foreign-link-catalog` merged) in a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and this file's conflict resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 27 and confirmed the other 17 agree.
     // **`fix/invoice-ledger-tenancy-parent`: files 2290 -> 2291 (+1).** **`fix/invoice-ledger-tenancy-parent` adds three tracked files and deletes none**: the migration `20260914T140000_invoice_ledger_row_organization.ts`, the guard test `backend/test/unit/tenancy/transitive-parent-module-ownership.test.ts`, and one `.changeset/*.md`. Every `files` delta is a walk seeing its own share — the two whole-repository walks see all three, `check-language.sh` sees the two comment-bearing `.ts`, a walk over `src` trees sees the migration alone, a walk over `backend/test` sees the test alone, and a walk over both sees two. The `sites` moves are the new artefacts' own units: a migration is a claim-bearing artefact, the enqueue path resolves one more port, and the regenerated `module-reference/invoice-ledger.md` is one more determinism site. **What the merge moved is baselines, not this branch's contribution to them**: the same 30 entries with the same deltas were measured over the pre-merge base, and the three files `fix/instance-wiring-operator-runtime` added are what shifted the starting points. Re-measured on the **merged** tree — `fix/instance-wiring-operator-runtime` merged and re-recorded 27 entries, so this file conflicted; the conflict was resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. In a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain` clean. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 30 and confirmed the other 14 agree.
-    files: 2291,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 2291 -> 2389 (+98). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 2389,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -2657,7 +2689,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 5647 -> 5648.** **+1, this branch's.** Pristine `origin/master` reproduces the recorded 5647 exactly, so the whole of it is The one file this branch adds, `backend/test/unit/kernel/session-cookie-secret.test.ts`. It changes `backend/src` not at all — the resolution it covers is a function of `composition.ts`, which already existed.
-    files: 5648,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 5648 -> 5793 (+145) and `sites` 566 -> 573 (+7). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 5793,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2842,7 +2882,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `--env-file-if-exists=../.env` into each derived CLI alias.
     // **`endora install`, the first mile's Phase 3 (!1672), re-measured after merging `origin/master`: sites 563 -> 564.** The branch adds **three** tracked files — `packages/cli/src/install/index.ts`, `packages/cli/test/install.test.ts` and its changeset — and every walk moves by as many of the three as it reads: the two whole-repository walks by **3**, `check-language.sh` by **2** (the two `.ts`, not the `.md`), `check-diacritic-folds` by **1** file and **1** site, because it reads `packages/*/src` and not a package's tests. That the other forty entries agree is the check on this attribution. Conflict resolved wholly to the incoming side, whole record re-measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 564 -> 566.** **+2, this branch's**, and not a file count: the two `.replace()` calls in the new test's `code()` helper, which strips block and line comments before asserting on source — a mention of a call in prose is not a call. Neither is a slug construction and neither is a violation; they are two more expressions in the population this check examines.
-    sites: 566,
+    sites: 573,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -3071,13 +3111,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/124-overlay-repairs` (!1645) added two tracked files and re-recorded nothing: files 2480 -> 2481.** Its own run reported the census unmoved, which was true of the tree it measured and stopped being true at the merge — the shape `check-estate.md` warns about, arriving in the file that warns about it. Re-measured here rather than reasoned about, on a clean worktree of `origin/master` after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting **zero** unignored residue. **The attribution is derivable and is the point of recording it here**: the two files are `packages/platform/src/composition/default-composition-overlay.test.ts` and `.changeset/afraid-pandas-repair.md`, and every walk moved by exactly as many of the two as it reads — the two whole-repository walks by 2, and the five that read only source trees or only comment-bearing files by 1, seeing the `.ts` and not the `.md`. Nothing here widened a band; every entry is at 0% of its distance to either edge.
     // **`fix/instance-wiring-operator-runtime`: files 2481 -> 2483 (+2).** **`fix/instance-wiring-operator-runtime` adds three tracked files and moves no other**: `packages/platform/src/lifecycle/commands/operator-entry.ts`, its co-located `operator-entry.test.ts`, and one `.changeset/*.md`. Every delta here is a walk seeing the share of those three it reads — the two whole-repository walks see all three, a source-and-test walk sees two, a source-only walk sees one, and `check-language.sh` sees the two comment-bearing `.ts` and not the `.md`; the two `sites` moves are the new file's outward imports and its English prose. **None of it arrived with `master`**: the branch's own earlier run over a pre-`c99c2cd09` base named the same 27 with the same deltas, and what the merge moved is three *baselines* — `check-platform-surface`, `check-singleton-identity` and `check-language.sh`, each by the tracked `.ts` the A6 branch deleted — not this branch's contribution to them. Re-measured on the **merged** tree (`origin/master` after `fix/instance-docs-foreign-link-catalog` merged) in a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and this file's conflict resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 27 and confirmed the other 17 agree.
     // **`fix/invoice-ledger-tenancy-parent`: files 2483 -> 2484 (+1).** **`fix/invoice-ledger-tenancy-parent` adds three tracked files and deletes none**: the migration `20260914T140000_invoice_ledger_row_organization.ts`, the guard test `backend/test/unit/tenancy/transitive-parent-module-ownership.test.ts`, and one `.changeset/*.md`. Every `files` delta is a walk seeing its own share — the two whole-repository walks see all three, `check-language.sh` sees the two comment-bearing `.ts`, a walk over `src` trees sees the migration alone, a walk over `backend/test` sees the test alone, and a walk over both sees two. The `sites` moves are the new artefacts' own units: a migration is a claim-bearing artefact, the enqueue path resolves one more port, and the regenerated `module-reference/invoice-ledger.md` is one more determinism site. **What the merge moved is baselines, not this branch's contribution to them**: the same 30 entries with the same deltas were measured over the pre-merge base, and the three files `fix/instance-wiring-operator-runtime` added are what shifted the starting points. Re-measured on the **merged** tree — `fix/instance-wiring-operator-runtime` merged and re-recorded 27 entries, so this file conflicted; the conflict was resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. In a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain` clean. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 30 and confirmed the other 14 agree.
-    files: 2484,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 2484 -> 2586 (+102) and `sites` 4 -> 5 (+1). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 2586,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
     // move with the overlay tree at all — 2160 of the 2162 files are the owner
     // map's.
-    sites: 4,
+    sites: 5,
     // Three independent authors, none of them the check's own count.
     // `overlay-modules` is `resolveOverlay()`'s directory walk against the
     // modules the walk actually opened a source for, so a discovered overlay
@@ -3267,7 +3315,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // answered. Re-recorded here because the drift report names it, and the convention is to
     // re-record what it names — including the entries a branch merged cleanly.
     // **Not this branch's: files 1344 -> 1346.** This merge request edits `.gitlab-ci.yml` and adds no tracked file, so none of this delta is its. The two files are `specs/129-github-canonical-migration/`'s `spec.md` and `tasks.md`, merged with `docs/oss-direction` — a documentation merge request, which is the class that never re-records because its author has no reason to think it moved anything. Every walk that reads `specs/` moves by two and the whole-repository walks move by two; `check-doc-snippets` sees them because its roots are `docs/docs` and `specs`. Recorded here rather than left, because the next author to add one file would have inherited a delta of three and had to work out which part was theirs. Measured in this worktree after `pnpm install` and `build:packages`, with `git clean -fX docs/docs/modules` and the copy stamp deleted.
-    files: 1346,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 1346 -> 1361 (+15). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 1361,
     sites: 13,
     sources: [],
     //
@@ -3598,8 +3654,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and none of it is somebody else's staleness. Never computed from a delta.
     // **`fix/instance-wiring-operator-runtime`: files 2192 -> 2193 (+1).** **`fix/instance-wiring-operator-runtime` adds three tracked files and moves no other**: `packages/platform/src/lifecycle/commands/operator-entry.ts`, its co-located `operator-entry.test.ts`, and one `.changeset/*.md`. Every delta here is a walk seeing the share of those three it reads — the two whole-repository walks see all three, a source-and-test walk sees two, a source-only walk sees one, and `check-language.sh` sees the two comment-bearing `.ts` and not the `.md`; the two `sites` moves are the new file's outward imports and its English prose. **None of it arrived with `master`**: the branch's own earlier run over a pre-`c99c2cd09` base named the same 27 with the same deltas, and what the merge moved is three *baselines* — `check-platform-surface`, `check-singleton-identity` and `check-language.sh`, each by the tracked `.ts` the A6 branch deleted — not this branch's contribution to them. Re-measured on the **merged** tree (`origin/master` after `fix/instance-docs-foreign-link-catalog` merged) in a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and this file's conflict resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 27 and confirmed the other 17 agree.
     // **`fix/invoice-ledger-tenancy-parent`: files 2193 -> 2194 (+1).** **`fix/invoice-ledger-tenancy-parent` adds three tracked files and deletes none**: the migration `20260914T140000_invoice_ledger_row_organization.ts`, the guard test `backend/test/unit/tenancy/transitive-parent-module-ownership.test.ts`, and one `.changeset/*.md`. Every `files` delta is a walk seeing its own share — the two whole-repository walks see all three, `check-language.sh` sees the two comment-bearing `.ts`, a walk over `src` trees sees the migration alone, a walk over `backend/test` sees the test alone, and a walk over both sees two. The `sites` moves are the new artefacts' own units: a migration is a claim-bearing artefact, the enqueue path resolves one more port, and the regenerated `module-reference/invoice-ledger.md` is one more determinism site. **What the merge moved is baselines, not this branch's contribution to them**: the same 30 entries with the same deltas were measured over the pre-merge base, and the three files `fix/instance-wiring-operator-runtime` added are what shifted the starting points. Re-measured on the **merged** tree — `fix/instance-wiring-operator-runtime` merged and re-recorded 27 entries, so this file conflicted; the conflict was resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. In a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain` clean. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 30 and confirmed the other 14 agree.
-    files: 2194,
-    sites: 265,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 2194 -> 2279 (+85) and `sites` 265 -> 279 (+14). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 2279,
+    sites: 279,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-entry-presence.ts': {
@@ -3919,7 +3983,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and none of it is somebody else's staleness. Never computed from a delta.
     // **`fix/instance-wiring-operator-runtime`: files 2192 -> 2193 (+1).** **`fix/instance-wiring-operator-runtime` adds three tracked files and moves no other**: `packages/platform/src/lifecycle/commands/operator-entry.ts`, its co-located `operator-entry.test.ts`, and one `.changeset/*.md`. Every delta here is a walk seeing the share of those three it reads — the two whole-repository walks see all three, a source-and-test walk sees two, a source-only walk sees one, and `check-language.sh` sees the two comment-bearing `.ts` and not the `.md`; the two `sites` moves are the new file's outward imports and its English prose. **None of it arrived with `master`**: the branch's own earlier run over a pre-`c99c2cd09` base named the same 27 with the same deltas, and what the merge moved is three *baselines* — `check-platform-surface`, `check-singleton-identity` and `check-language.sh`, each by the tracked `.ts` the A6 branch deleted — not this branch's contribution to them. Re-measured on the **merged** tree (`origin/master` after `fix/instance-docs-foreign-link-catalog` merged) in a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and this file's conflict resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 27 and confirmed the other 17 agree.
     // **`fix/invoice-ledger-tenancy-parent`: files 2193 -> 2194 (+1).** **`fix/invoice-ledger-tenancy-parent` adds three tracked files and deletes none**: the migration `20260914T140000_invoice_ledger_row_organization.ts`, the guard test `backend/test/unit/tenancy/transitive-parent-module-ownership.test.ts`, and one `.changeset/*.md`. Every `files` delta is a walk seeing its own share — the two whole-repository walks see all three, `check-language.sh` sees the two comment-bearing `.ts`, a walk over `src` trees sees the migration alone, a walk over `backend/test` sees the test alone, and a walk over both sees two. The `sites` moves are the new artefacts' own units: a migration is a claim-bearing artefact, the enqueue path resolves one more port, and the regenerated `module-reference/invoice-ledger.md` is one more determinism site. **What the merge moved is baselines, not this branch's contribution to them**: the same 30 entries with the same deltas were measured over the pre-merge base, and the three files `fix/instance-wiring-operator-runtime` added are what shifted the starting points. Re-measured on the **merged** tree — `fix/instance-wiring-operator-runtime` merged and re-recorded 27 entries, so this file conflicted; the conflict was resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. In a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain` clean. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 30 and confirmed the other 14 agree.
-    files: 2194,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 2194 -> 2279 (+85). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 2279,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4237,7 +4309,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and none of it is somebody else's staleness. Never computed from a delta.
     // **`fix/instance-wiring-operator-runtime`: files 2192 -> 2193 (+1).** **`fix/instance-wiring-operator-runtime` adds three tracked files and moves no other**: `packages/platform/src/lifecycle/commands/operator-entry.ts`, its co-located `operator-entry.test.ts`, and one `.changeset/*.md`. Every delta here is a walk seeing the share of those three it reads — the two whole-repository walks see all three, a source-and-test walk sees two, a source-only walk sees one, and `check-language.sh` sees the two comment-bearing `.ts` and not the `.md`; the two `sites` moves are the new file's outward imports and its English prose. **None of it arrived with `master`**: the branch's own earlier run over a pre-`c99c2cd09` base named the same 27 with the same deltas, and what the merge moved is three *baselines* — `check-platform-surface`, `check-singleton-identity` and `check-language.sh`, each by the tracked `.ts` the A6 branch deleted — not this branch's contribution to them. Re-measured on the **merged** tree (`origin/master` after `fix/instance-docs-foreign-link-catalog` merged) in a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and this file's conflict resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 27 and confirmed the other 17 agree.
     // **`fix/invoice-ledger-tenancy-parent`: files 2193 -> 2194 (+1).** **`fix/invoice-ledger-tenancy-parent` adds three tracked files and deletes none**: the migration `20260914T140000_invoice_ledger_row_organization.ts`, the guard test `backend/test/unit/tenancy/transitive-parent-module-ownership.test.ts`, and one `.changeset/*.md`. Every `files` delta is a walk seeing its own share — the two whole-repository walks see all three, `check-language.sh` sees the two comment-bearing `.ts`, a walk over `src` trees sees the migration alone, a walk over `backend/test` sees the test alone, and a walk over both sees two. The `sites` moves are the new artefacts' own units: a migration is a claim-bearing artefact, the enqueue path resolves one more port, and the regenerated `module-reference/invoice-ledger.md` is one more determinism site. **What the merge moved is baselines, not this branch's contribution to them**: the same 30 entries with the same deltas were measured over the pre-merge base, and the three files `fix/instance-wiring-operator-runtime` added are what shifted the starting points. Re-measured on the **merged** tree — `fix/instance-wiring-operator-runtime` merged and re-recorded 27 entries, so this file conflicted; the conflict was resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. In a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain` clean. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 30 and confirmed the other 14 agree.
-    files: 2194,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 2194 -> 2279 (+85) and `sites` 45 -> 46 (+1). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 2279,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -4282,7 +4362,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 44 -> 45.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 45,
+    sites: 46,
     sources: ['manifest-index', 'package-scripts'],
   },
   'backend/scripts/check-env-inputs.ts': {
@@ -4498,11 +4578,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and none of it is somebody else's staleness. Never computed from a delta.
     // **`fix/instance-wiring-operator-runtime`: files 2859 -> 2860 (+1).** **`fix/instance-wiring-operator-runtime` adds three tracked files and moves no other**: `packages/platform/src/lifecycle/commands/operator-entry.ts`, its co-located `operator-entry.test.ts`, and one `.changeset/*.md`. Every delta here is a walk seeing the share of those three it reads — the two whole-repository walks see all three, a source-and-test walk sees two, a source-only walk sees one, and `check-language.sh` sees the two comment-bearing `.ts` and not the `.md`; the two `sites` moves are the new file's outward imports and its English prose. **None of it arrived with `master`**: the branch's own earlier run over a pre-`c99c2cd09` base named the same 27 with the same deltas, and what the merge moved is three *baselines* — `check-platform-surface`, `check-singleton-identity` and `check-language.sh`, each by the tracked `.ts` the A6 branch deleted — not this branch's contribution to them. Re-measured on the **merged** tree (`origin/master` after `fix/instance-docs-foreign-link-catalog` merged) in a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and this file's conflict resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 27 and confirmed the other 17 agree.
     // **`fix/invoice-ledger-tenancy-parent`: files 2860 -> 2861 (+1).** **`fix/invoice-ledger-tenancy-parent` adds three tracked files and deletes none**: the migration `20260914T140000_invoice_ledger_row_organization.ts`, the guard test `backend/test/unit/tenancy/transitive-parent-module-ownership.test.ts`, and one `.changeset/*.md`. Every `files` delta is a walk seeing its own share — the two whole-repository walks see all three, `check-language.sh` sees the two comment-bearing `.ts`, a walk over `src` trees sees the migration alone, a walk over `backend/test` sees the test alone, and a walk over both sees two. The `sites` moves are the new artefacts' own units: a migration is a claim-bearing artefact, the enqueue path resolves one more port, and the regenerated `module-reference/invoice-ledger.md` is one more determinism site. **What the merge moved is baselines, not this branch's contribution to them**: the same 30 entries with the same deltas were measured over the pre-merge base, and the three files `fix/instance-wiring-operator-runtime` added are what shifted the starting points. Re-measured on the **merged** tree — `fix/instance-wiring-operator-runtime` merged and re-recorded 27 entries, so this file conflicted; the conflict was resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. In a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain` clean. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 30 and confirmed the other 14 agree.
-    files: 2861,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 2861 -> 2949 (+88) and `sites` 137 -> 141 (+4). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 2949,
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 138 -> 137.** **One fewer `process.env` read, and it is the subject of the change rather than a side effect of it.** `index.ts` and `worker.ts` each read `SESSION_COOKIE_SECRET` and `NODE_ENV` — four reads over two entry points — and the one resolution they now share is three reads in `composition.ts`. `files` does not move: the resolution landed in a file this walk already read, and the test beside it is out of the population by `NOT_RUNTIME`. `specs/117-instance-bring-up/` Phase 6 recorded the identical shape, 139 -> 138, when the deployment root's `NEWSLETTER_TOKEN_SECRET` chain moved into `composeApp` — which is the read this branch exists to make reachable.
-    sites: 137,
+    sites: 141,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
     // anything a declaration does. A consumer counts as covered only when it
@@ -4531,7 +4619,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 130 -> 134.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    files: 134,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 134 -> 138 (+4) and `sites` 905 -> 938 (+33). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 138,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 867 -> 883.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -4544,7 +4640,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 888 -> 905.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 905,
+    sites: 938,
     // Feature 080's T010, and feature 090's Phase 4 for the second entry.
     // `manifest-index` expects the module directories that declare a code:
     // every id the generated index registers, less the ones whose manifest
@@ -4785,7 +4881,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 1633 -> 1634.** **+1, this branch's**, its root being `backend/test`. The one file this branch adds, `backend/test/unit/kernel/session-cookie-secret.test.ts`. It changes `backend/src` not at all — the resolution it covers is a function of `composition.ts`, which already existed.
-    files: 1634,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 1634 -> 1674 (+40) and `sites` 589 -> 606 (+17). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 1674,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -4845,7 +4949,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // receiver. Measured, that spelling's count in the file goes 1 -> 0 and `files` does not
     // move.
     // **+1 site, this branch's; +1 file, already standing on `9a0e8e0d0`.** The site is in `test/unit/scripts/check-env-inputs.test.ts`, which this branch extends; the file is the base's own and not Phase 3's.
-    sites: 589,
+    sites: 606,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -5049,7 +5153,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 1633 -> 1634.** **+1, this branch's**, its root being `backend/test`. The one file this branch adds, `backend/test/unit/kernel/session-cookie-secret.test.ts`. It changes `backend/src` not at all — the resolution it covers is a function of `composition.ts`, which already existed.
-    files: 1634,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 1634 -> 1674 (+40). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 1674,
     sites: null,
     sources: [],
   },
@@ -5386,7 +5498,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and none of it is somebody else's staleness. Never computed from a delta.
     // **`fix/instance-wiring-operator-runtime`: sites 167 -> 170 (+3), files 2192 -> 2193 (+1).** **`fix/instance-wiring-operator-runtime` adds three tracked files and moves no other**: `packages/platform/src/lifecycle/commands/operator-entry.ts`, its co-located `operator-entry.test.ts`, and one `.changeset/*.md`. Every delta here is a walk seeing the share of those three it reads — the two whole-repository walks see all three, a source-and-test walk sees two, a source-only walk sees one, and `check-language.sh` sees the two comment-bearing `.ts` and not the `.md`; the two `sites` moves are the new file's outward imports and its English prose. **None of it arrived with `master`**: the branch's own earlier run over a pre-`c99c2cd09` base named the same 27 with the same deltas, and what the merge moved is three *baselines* — `check-platform-surface`, `check-singleton-identity` and `check-language.sh`, each by the tracked `.ts` the A6 branch deleted — not this branch's contribution to them. Re-measured on the **merged** tree (`origin/master` after `fix/instance-docs-foreign-link-catalog` merged) in a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and this file's conflict resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 27 and confirmed the other 17 agree.
     // **`fix/invoice-ledger-tenancy-parent`: files 2193 -> 2194 (+1).** **`fix/invoice-ledger-tenancy-parent` adds three tracked files and deletes none**: the migration `20260914T140000_invoice_ledger_row_organization.ts`, the guard test `backend/test/unit/tenancy/transitive-parent-module-ownership.test.ts`, and one `.changeset/*.md`. Every `files` delta is a walk seeing its own share — the two whole-repository walks see all three, `check-language.sh` sees the two comment-bearing `.ts`, a walk over `src` trees sees the migration alone, a walk over `backend/test` sees the test alone, and a walk over both sees two. The `sites` moves are the new artefacts' own units: a migration is a claim-bearing artefact, the enqueue path resolves one more port, and the regenerated `module-reference/invoice-ledger.md` is one more determinism site. **What the merge moved is baselines, not this branch's contribution to them**: the same 30 entries with the same deltas were measured over the pre-merge base, and the three files `fix/instance-wiring-operator-runtime` added are what shifted the starting points. Re-measured on the **merged** tree — `fix/instance-wiring-operator-runtime` merged and re-recorded 27 entries, so this file conflicted; the conflict was resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. In a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain` clean. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 30 and confirmed the other 14 agree.
-    files: 2194,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 2194 -> 2279 (+85) and `sites` 171 -> 173 (+2). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 2279,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -5449,7 +5569,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // count is untouched because the branch adds and deletes no source file. Isolated
     // rather than attributed by hand: with that one file reverted this tree reads 170,
     // the recorded value exactly.
-    sites: 171,
+    sites: 173,
     // `platform-subpaths` is T118a's second author over rule B's population: the
     // platform's `exports` map is a different program's answer to "which directories
     // does this package have", and a published subpath naming no walked directory is a
@@ -5523,7 +5643,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Phase 3 (T3-C): +10, all of it this branch's** (`9a0e8e0d0` agreed with the recorded 310). The ten shards of the Settings-debt ledger at `backend/scripts/ledgers/module-environment-inputs/`. This check's population is the artefacts whose job is to carry a reason, ledger shards among them, so a new ledger raises it by its shard count and by nothing else.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 320 -> 318.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
     // **`fix/instance-docs-foreign-link-catalog`: files 318 -> 317 (-1).** This branch deletes one tracked `.ts`: `backend/scripts/ledgers/foreign-module-links/catalog.ts`, the shard drained when `catalog/attributes.md` stopped linking `../promotions.md` so that A6 of the instance acceptance criterion can go green in `registry` mode (`specs/100-module-owned-documentation/`, FR-020). This check's population is the artefacts whose job is to carry a reason, ledger shards among them, so draining a ledger lowers it by its shard count and by nothing else. Re-measured on the **merged** tree (`origin/master` at c99c2cd09) in a fresh detached `git worktree` of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and the resolution staged first — `check-naming.sh` and `check-language.sh` take their population from the index. This file's conflict was resolved wholly to the incoming side and every value was then re-measured rather than reconciled, per `specs/conventions/check-estate.md`. **The attribution is the whole of it and it is one cause**: the branch's own pre-merge run named eight entries, three of which were `docs(128)`'s +4 standing on `master` unrecorded, and `fix/availability-notification-existence-oracle` re-recorded those three before this merge — so five are left and every one of them is this branch's. The branch adds one `.changeset/*.md` and deletes one tracked `.ts`, which is why the two whole-repository walks net to zero and do not appear. No band was widened and no value was computed from a delta: the run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
-    files: 317,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 317 -> 324 (+7). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 324,
     // **2026-09-04: 14 -> 15.** One further named-subject lock claim.
     // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge` retired):**
     // sites 15 -> 17, files unchanged. `pwa`'s manifest gains `orders` in its
@@ -5801,7 +5929,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2829 -> 2826.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
     // **`fix/instance-wiring-operator-runtime`: files 2826 -> 2828 (+2).** **`fix/instance-wiring-operator-runtime` adds three tracked files and moves no other**: `packages/platform/src/lifecycle/commands/operator-entry.ts`, its co-located `operator-entry.test.ts`, and one `.changeset/*.md`. Every delta here is a walk seeing the share of those three it reads — the two whole-repository walks see all three, a source-and-test walk sees two, a source-only walk sees one, and `check-language.sh` sees the two comment-bearing `.ts` and not the `.md`; the two `sites` moves are the new file's outward imports and its English prose. **None of it arrived with `master`**: the branch's own earlier run over a pre-`c99c2cd09` base named the same 27 with the same deltas, and what the merge moved is three *baselines* — `check-platform-surface`, `check-singleton-identity` and `check-language.sh`, each by the tracked `.ts` the A6 branch deleted — not this branch's contribution to them. Re-measured on the **merged** tree (`origin/master` after `fix/instance-docs-foreign-link-catalog` merged) in a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and this file's conflict resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 27 and confirmed the other 17 agree.
     // **`fix/invoice-ledger-tenancy-parent`: files 2828 -> 2829 (+1).** **`fix/invoice-ledger-tenancy-parent` adds three tracked files and deletes none**: the migration `20260914T140000_invoice_ledger_row_organization.ts`, the guard test `backend/test/unit/tenancy/transitive-parent-module-ownership.test.ts`, and one `.changeset/*.md`. Every `files` delta is a walk seeing its own share — the two whole-repository walks see all three, `check-language.sh` sees the two comment-bearing `.ts`, a walk over `src` trees sees the migration alone, a walk over `backend/test` sees the test alone, and a walk over both sees two. The `sites` moves are the new artefacts' own units: a migration is a claim-bearing artefact, the enqueue path resolves one more port, and the regenerated `module-reference/invoice-ledger.md` is one more determinism site. **What the merge moved is baselines, not this branch's contribution to them**: the same 30 entries with the same deltas were measured over the pre-merge base, and the three files `fix/instance-wiring-operator-runtime` added are what shifted the starting points. Re-measured on the **merged** tree — `fix/instance-wiring-operator-runtime` merged and re-recorded 27 entries, so this file conflicted; the conflict was resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. In a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain` clean. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 30 and confirmed the other 14 agree.
-    files: 2829,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 2829 -> 2932 (+103). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 2932,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 56 -> 66.**
     // The header block above this table has the arithmetic; nothing here
@@ -5930,7 +6066,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Merged with `origin/master` at 3a5616b7d, and re-measured rather than reconciled.** Feature 119 landed two module packages while this branch was open, so its number describes a tree without this branch's files and this branch's number describes a tree without feature 119's. Neither describes the union, and there is no arithmetic that would: the number below is a fresh measurement on the merged tree, taken in a clean worktree in the `quality` job's shape.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2151 -> 2148.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
     // **`fix/instance-wiring-operator-runtime`: files 2148 -> 2149 (+1).** **`fix/instance-wiring-operator-runtime` adds three tracked files and moves no other**: `packages/platform/src/lifecycle/commands/operator-entry.ts`, its co-located `operator-entry.test.ts`, and one `.changeset/*.md`. Every delta here is a walk seeing the share of those three it reads — the two whole-repository walks see all three, a source-and-test walk sees two, a source-only walk sees one, and `check-language.sh` sees the two comment-bearing `.ts` and not the `.md`; the two `sites` moves are the new file's outward imports and its English prose. **None of it arrived with `master`**: the branch's own earlier run over a pre-`c99c2cd09` base named the same 27 with the same deltas, and what the merge moved is three *baselines* — `check-platform-surface`, `check-singleton-identity` and `check-language.sh`, each by the tracked `.ts` the A6 branch deleted — not this branch's contribution to them. Re-measured on the **merged** tree (`origin/master` after `fix/instance-docs-foreign-link-catalog` merged) in a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and this file's conflict resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 27 and confirmed the other 17 agree.
-    files: 2149,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 2149 -> 2232 (+83). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 2232,
     // The finer population, and it is the one that moves when nothing else does
     // (issues #235/#237): tree sites, unreadable sites, renderer-map sites, the
     // block declarations and the declared `(key, context)` sections. A block
@@ -6049,7 +6193,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2927 -> 2924.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
     // **`fix/instance-wiring-operator-runtime`: files 2924 -> 2926 (+2).** **`fix/instance-wiring-operator-runtime` adds three tracked files and moves no other**: `packages/platform/src/lifecycle/commands/operator-entry.ts`, its co-located `operator-entry.test.ts`, and one `.changeset/*.md`. Every delta here is a walk seeing the share of those three it reads — the two whole-repository walks see all three, a source-and-test walk sees two, a source-only walk sees one, and `check-language.sh` sees the two comment-bearing `.ts` and not the `.md`; the two `sites` moves are the new file's outward imports and its English prose. **None of it arrived with `master`**: the branch's own earlier run over a pre-`c99c2cd09` base named the same 27 with the same deltas, and what the merge moved is three *baselines* — `check-platform-surface`, `check-singleton-identity` and `check-language.sh`, each by the tracked `.ts` the A6 branch deleted — not this branch's contribution to them. Re-measured on the **merged** tree (`origin/master` after `fix/instance-docs-foreign-link-catalog` merged) in a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and this file's conflict resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 27 and confirmed the other 17 agree.
     // **`fix/invoice-ledger-tenancy-parent`: files 2926 -> 2927 (+1).** **`fix/invoice-ledger-tenancy-parent` adds three tracked files and deletes none**: the migration `20260914T140000_invoice_ledger_row_organization.ts`, the guard test `backend/test/unit/tenancy/transitive-parent-module-ownership.test.ts`, and one `.changeset/*.md`. Every `files` delta is a walk seeing its own share — the two whole-repository walks see all three, `check-language.sh` sees the two comment-bearing `.ts`, a walk over `src` trees sees the migration alone, a walk over `backend/test` sees the test alone, and a walk over both sees two. The `sites` moves are the new artefacts' own units: a migration is a claim-bearing artefact, the enqueue path resolves one more port, and the regenerated `module-reference/invoice-ledger.md` is one more determinism site. **What the merge moved is baselines, not this branch's contribution to them**: the same 30 entries with the same deltas were measured over the pre-merge base, and the three files `fix/instance-wiring-operator-runtime` added are what shifted the starting points. Re-measured on the **merged** tree — `fix/instance-wiring-operator-runtime` merged and re-recorded 27 entries, so this file conflicted; the conflict was resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. In a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain` clean. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 30 and confirmed the other 14 agree.
-    files: 2927,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 2927 -> 3030 (+103) and `sites` 5433 -> 5500 (+67). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 3030,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -6058,7 +6210,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 5397 -> 5433.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 5433,
+    sites: 5500,
     // `manifest-index` is issue #215's shared floor over the module half of the
     // render walk. `design-system` is the `exports` maps' own answer to *"which
     // packages publish `./theme.css`"* against the stylesheets this run opened,
@@ -6085,7 +6237,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 130 -> 134.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    files: 134,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 134 -> 138 (+4) and `sites` 73 -> 75 (+2). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 138,
     // Every registered module, shipping or not. It moves only with the module
     // set, so a run whose `sites` fell while `files` held is a module that left
     // the index rather than a translation that left a package.
@@ -6096,7 +6256,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): sites 74 -> 73.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
-    sites: 73,
+    sites: 75,
     // `manifest-index` is issue #215's shared floor over the module walk, whose
     // unit here is the module's **own directory** — `dirname(manifestPath)`, the
     // anchor the boot reconciler joins `bundlesDir` to. `shipped-languages` is
@@ -6121,7 +6281,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 106 -> 108.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    files: 108,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 108 -> 111 (+3) and `sites` 258 -> 261 (+3). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 111,
     // The finer population, and it answers a different question: the navigation
     // entries the committed sidebar names, the rows the committed map carries,
     // and the relative links a module-owned page writes (R3.7). A page added and
@@ -6168,7 +6336,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // is not a documentation page.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): sites 261 -> 259.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
     // **`fix/instance-docs-foreign-link-catalog`: sites 259 -> 258 (-1), `files` unmoved at 108.** One relative link into a sibling module's page became prose — `catalog/attributes.md` -> `../promotions.md`, the last `foreign-module-link` a default instance's documentation build refuses, `promotions` not being in the set `endora new instance` writes. It is `../search.md`'s repair a second time and the shard is deleted with it, an empty one being a done signal that says nothing. 36 links -> 35; no page was written or deleted, which is why `files` does not move. Re-measured on the **merged** tree (`origin/master` at c99c2cd09) in a fresh detached `git worktree` of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and the resolution staged first — `check-naming.sh` and `check-language.sh` take their population from the index. This file's conflict was resolved wholly to the incoming side and every value was then re-measured rather than reconciled, per `specs/conventions/check-estate.md`. **The attribution is the whole of it and it is one cause**: the branch's own pre-merge run named eight entries, three of which were `docs(128)`'s +4 standing on `master` unrecorded, and `fix/availability-notification-existence-oracle` re-recorded those three before this merge — so five are left and every one of them is this branch's. The branch adds one `.changeset/*.md` and deletes one tracked `.ts`, which is why the two whole-repository walks net to zero and do not appear. No band was widened and no value was computed from a delta: the run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
-    sites: 258,
+    sites: 261,
     // Three authors, each seeing something the others cannot. `manifest-index`
     // is issue #215's shared floor over the module walk, whose unit is the
     // module's own directory. `sidebar-entries` is the **committed artefact's**
@@ -6352,7 +6520,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // population is the module roots and the file the feature adds is the platform's.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 1763 -> 1760, sites 35464 -> 35419.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
     // **`fix/instance-wiring-operator-runtime`: sites 35420 -> 35424 (+4), files 1760 -> 1761 (+1).** **`fix/instance-wiring-operator-runtime` adds three tracked files and moves no other**: `packages/platform/src/lifecycle/commands/operator-entry.ts`, its co-located `operator-entry.test.ts`, and one `.changeset/*.md`. Every delta here is a walk seeing the share of those three it reads — the two whole-repository walks see all three, a source-and-test walk sees two, a source-only walk sees one, and `check-language.sh` sees the two comment-bearing `.ts` and not the `.md`; the two `sites` moves are the new file's outward imports and its English prose. **None of it arrived with `master`**: the branch's own earlier run over a pre-`c99c2cd09` base named the same 27 with the same deltas, and what the merge moved is three *baselines* — `check-platform-surface`, `check-singleton-identity` and `check-language.sh`, each by the tracked `.ts` the A6 branch deleted — not this branch's contribution to them. Re-measured on the **merged** tree (`origin/master` after `fix/instance-docs-foreign-link-catalog` merged) in a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and this file's conflict resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 27 and confirmed the other 17 agree.
-    files: 1761,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 1761 -> 1839 (+78) and `sites` 35425 -> 36434 (+1009). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 1839,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -6450,7 +6626,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **The availability-notification acquisition gate (issue #227 / #259): +1 site.** One
     // prose site, in the branch's two new backend test files.
     // **`fix/invoice-ledger-tenancy-parent`: sites 35424 -> 35425 (+1).** **`fix/invoice-ledger-tenancy-parent` adds three tracked files and deletes none**: the migration `20260914T140000_invoice_ledger_row_organization.ts`, the guard test `backend/test/unit/tenancy/transitive-parent-module-ownership.test.ts`, and one `.changeset/*.md`. Every `files` delta is a walk seeing its own share — the two whole-repository walks see all three, `check-language.sh` sees the two comment-bearing `.ts`, a walk over `src` trees sees the migration alone, a walk over `backend/test` sees the test alone, and a walk over both sees two. The `sites` moves are the new artefacts' own units: a migration is a claim-bearing artefact, the enqueue path resolves one more port, and the regenerated `module-reference/invoice-ledger.md` is one more determinism site. **What the merge moved is baselines, not this branch's contribution to them**: the same 30 entries with the same deltas were measured over the pre-merge base, and the three files `fix/instance-wiring-operator-runtime` added are what shifted the starting points. Re-measured on the **merged** tree — `fix/instance-wiring-operator-runtime` merged and re-recorded 27 entries, so this file conflicted; the conflict was resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. In a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain` clean. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 30 and confirmed the other 14 agree.
-    sites: 35425,
+    sites: 36434,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -6641,7 +6817,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 403 -> 417.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    files: 417,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 417 -> 424 (+7) and `sites` 2296 -> 2345 (+49). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 424,
     // **Batch 13 (feature 091, Phase 4): 2361 -> 2305, and the cause is the move's
     // spelling rather than its size.** A published-symbol reach is counted per
     // import statement, and the twenty-four moved screens rewrote thirty `@/…`
@@ -6686,7 +6870,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 2239 -> 2296.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 2296,
+    sites: 2345,
     // **Three** derivations since Phase 5's T3, none of them the walk counting
     // itself: the generated manifest index for the modules a walked file is
     // attributed to; the kit's own `exports` map against the barrels on disk —
@@ -7053,7 +7237,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/124-overlay-repairs` (!1645) added two tracked files and re-recorded nothing: files 5203 -> 5204.** Its own run reported the census unmoved, which was true of the tree it measured and stopped being true at the merge — the shape `check-estate.md` warns about, arriving in the file that warns about it. Re-measured here rather than reasoned about, on a clean worktree of `origin/master` after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting **zero** unignored residue. **The attribution is derivable and is the point of recording it here**: the two files are `packages/platform/src/composition/default-composition-overlay.test.ts` and `.changeset/afraid-pandas-repair.md`, and every walk moved by exactly as many of the two as it reads — the two whole-repository walks by 2, and the five that read only source trees or only comment-bearing files by 1, seeing the `.ts` and not the `.md`. Nothing here widened a band; every entry is at 0% of its distance to either edge.
     // **`fix/instance-wiring-operator-runtime`: files 5204 -> 5208 (+4).** **`fix/instance-wiring-operator-runtime` adds three tracked files and moves no other**: `packages/platform/src/lifecycle/commands/operator-entry.ts`, its co-located `operator-entry.test.ts`, and one `.changeset/*.md`. Every delta here is a walk seeing the share of those three it reads — the two whole-repository walks see all three, a source-and-test walk sees two, a source-only walk sees one, and `check-language.sh` sees the two comment-bearing `.ts` and not the `.md`; the two `sites` moves are the new file's outward imports and its English prose. **None of it arrived with `master`**: the branch's own earlier run over a pre-`c99c2cd09` base named the same 27 with the same deltas, and what the merge moved is three *baselines* — `check-platform-surface`, `check-singleton-identity` and `check-language.sh`, each by the tracked `.ts` the A6 branch deleted — not this branch's contribution to them. Re-measured on the **merged** tree (`origin/master` after `fix/instance-docs-foreign-link-catalog` merged) in a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and this file's conflict resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 27 and confirmed the other 17 agree.
     // **`fix/invoice-ledger-tenancy-parent`: sites 12982 -> 12986 (+4), files 5208 -> 5210 (+2).** **`fix/invoice-ledger-tenancy-parent` adds three tracked files and deletes none**: the migration `20260914T140000_invoice_ledger_row_organization.ts`, the guard test `backend/test/unit/tenancy/transitive-parent-module-ownership.test.ts`, and one `.changeset/*.md`. Every `files` delta is a walk seeing its own share — the two whole-repository walks see all three, `check-language.sh` sees the two comment-bearing `.ts`, a walk over `src` trees sees the migration alone, a walk over `backend/test` sees the test alone, and a walk over both sees two. The `sites` moves are the new artefacts' own units: a migration is a claim-bearing artefact, the enqueue path resolves one more port, and the regenerated `module-reference/invoice-ledger.md` is one more determinism site. **What the merge moved is baselines, not this branch's contribution to them**: the same 30 entries with the same deltas were measured over the pre-merge base, and the three files `fix/instance-wiring-operator-runtime` added are what shifted the starting points. The four `sites` are the migration statements this walk can attribute — its `alter`, `create index` and `delete` over tables `invoice_ledger` owns. The two reads of `invoices` and `orders` are **not** among them: they sit in a single-quoted string inside a dollar-quoted `do` block, which this walk does not parse, so `cross-module DML` reads 43 with and without this file. That blind spot is reported rather than papered over — the migration's own doc block says so, because the two-way ledger cannot hold an entry for a finding the check does not report. Re-measured on the **merged** tree — `fix/instance-wiring-operator-runtime` merged and re-recorded 27 entries, so this file conflicted; the conflict was resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. In a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain` clean. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 30 and confirmed the other 14 agree.
-    files: 5210,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 5210 -> 5411 (+201) and `sites` 12986 -> 13452 (+466). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 5411,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -7163,7 +7355,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // on `inventory`'s availability service and on its composition root, plus the contracts
     // import the service's audience gate needs. `files` does not move — no module source file
     // is added or deleted.
-    sites: 12986,
+    sites: 13452,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -8147,7 +8339,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // not an inference from the other two.
     // **Not this branch's: files 8347 -> 8349.** This merge request edits `.gitlab-ci.yml` and adds no tracked file, so none of this delta is its. The two files are `specs/129-github-canonical-migration/`'s `spec.md` and `tasks.md`, merged with `docs/oss-direction` — a documentation merge request, which is the class that never re-records because its author has no reason to think it moved anything. Every walk that reads `specs/` moves by two and the whole-repository walks move by two; `check-doc-snippets` sees them because its roots are `docs/docs` and `specs`. Recorded here rather than left, because the next author to add one file would have inherited a delta of three and had to work out which part was theirs. Measured in this worktree after `pnpm install` and `build:packages`, with `git clean -fX docs/docs/modules` and the copy stamp deleted.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 8349 -> 8350.** **+1, and it is this branch's whole contribution to this entry.** The baseline above is `master`'s own, re-recorded by the merge request that inherited it and re-measured here rather than trusted: a pristine detached worktree of `origin/master` reads 8349. The one file is `backend/test/unit/kernel/session-cookie-secret.test.ts`; `backend/src` gains none, the resolution this branch adds being a function of `composition.ts`, which already existed.
-    files: 8350,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 8350 -> 8537 (+187). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 8537,
     sites: null,
     sources: [],
     //
@@ -8183,7 +8383,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 114 -> 113, sites 205 -> 203.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
-    files: 113,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 113 -> 114 (+1) and `sites` 203 -> 204 (+1). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 114,
     // The finer population, and the one that moves when a **resolver shape** is
     // added or lost: every `expectModuleAbsent` and `withModuleOff` call the
     // walk read, both helpers, one per call however many modules the call
@@ -8200,7 +8408,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 202 -> 205.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 203,
+    sites: 204,
     // Two independent authors, so the check computes no module list and no
     // call-name list of its own. `manifest-index` is every entry the generated
     // index carries against every entry whose manifest this run could classify
@@ -8336,14 +8544,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and `check-nul-bytes`, which do, moved by ten over the same commit.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): sites 919 -> 912, files 89 -> 88.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
     // **`fix/invoice-ledger-tenancy-parent`: sites 912 -> 913 (+1).** **`fix/invoice-ledger-tenancy-parent` adds three tracked files and deletes none**: the migration `20260914T140000_invoice_ledger_row_organization.ts`, the guard test `backend/test/unit/tenancy/transitive-parent-module-ownership.test.ts`, and one `.changeset/*.md`. Every `files` delta is a walk seeing its own share — the two whole-repository walks see all three, `check-language.sh` sees the two comment-bearing `.ts`, a walk over `src` trees sees the migration alone, a walk over `backend/test` sees the test alone, and a walk over both sees two. The `sites` moves are the new artefacts' own units: a migration is a claim-bearing artefact, the enqueue path resolves one more port, and the regenerated `module-reference/invoice-ledger.md` is one more determinism site. **What the merge moved is baselines, not this branch's contribution to them**: the same 30 entries with the same deltas were measured over the pre-merge base, and the three files `fix/instance-wiring-operator-runtime` added are what shifted the starting points. Re-measured on the **merged** tree — `fix/instance-wiring-operator-runtime` merged and re-recorded 27 entries, so this file conflicted; the conflict was resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. In a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain` clean. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 30 and confirmed the other 14 agree.
-    sites: 913,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 88 -> 89 (+1) and `sites` 913 -> 932 (+19). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    sites: 932,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 86 -> 87.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 87 -> 89.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    files: 88,
+    files: 89,
     sources: [],
   },
   'backend/scripts/check-port-catches.ts': {
@@ -8660,7 +8876,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `assetReadPort` through a local accessor rather than an alias.
     // **`specs/120-migration-closure-bridge-ownership/` Phase 4: files 2178 -> 2179.**
     // The one platform source the feature adds. It is reached through no `catch`.
-    sites: 227,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 2194 -> 2279 (+85) and `sites` 227 -> 228 (+1). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    sites: 228,
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 2138 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
@@ -8750,7 +8974,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and none of it is somebody else's staleness. Never computed from a delta.
     // **`fix/instance-wiring-operator-runtime`: files 2192 -> 2193 (+1).** **`fix/instance-wiring-operator-runtime` adds three tracked files and moves no other**: `packages/platform/src/lifecycle/commands/operator-entry.ts`, its co-located `operator-entry.test.ts`, and one `.changeset/*.md`. Every delta here is a walk seeing the share of those three it reads — the two whole-repository walks see all three, a source-and-test walk sees two, a source-only walk sees one, and `check-language.sh` sees the two comment-bearing `.ts` and not the `.md`; the two `sites` moves are the new file's outward imports and its English prose. **None of it arrived with `master`**: the branch's own earlier run over a pre-`c99c2cd09` base named the same 27 with the same deltas, and what the merge moved is three *baselines* — `check-platform-surface`, `check-singleton-identity` and `check-language.sh`, each by the tracked `.ts` the A6 branch deleted — not this branch's contribution to them. Re-measured on the **merged** tree (`origin/master` after `fix/instance-docs-foreign-link-catalog` merged) in a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and this file's conflict resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 27 and confirmed the other 17 agree.
     // **`fix/invoice-ledger-tenancy-parent`: files 2193 -> 2194 (+1).** **`fix/invoice-ledger-tenancy-parent` adds three tracked files and deletes none**: the migration `20260914T140000_invoice_ledger_row_organization.ts`, the guard test `backend/test/unit/tenancy/transitive-parent-module-ownership.test.ts`, and one `.changeset/*.md`. Every `files` delta is a walk seeing its own share — the two whole-repository walks see all three, `check-language.sh` sees the two comment-bearing `.ts`, a walk over `src` trees sees the migration alone, a walk over `backend/test` sees the test alone, and a walk over both sees two. The `sites` moves are the new artefacts' own units: a migration is a claim-bearing artefact, the enqueue path resolves one more port, and the regenerated `module-reference/invoice-ledger.md` is one more determinism site. **What the merge moved is baselines, not this branch's contribution to them**: the same 30 entries with the same deltas were measured over the pre-merge base, and the three files `fix/instance-wiring-operator-runtime` added are what shifted the starting points. Re-measured on the **merged** tree — `fix/instance-wiring-operator-runtime` merged and re-recorded 27 entries, so this file conflicted; the conflict was resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. In a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain` clean. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 30 and confirmed the other 14 agree.
-    files: 2194,
+    files: 2279,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -8895,7 +9119,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2011 -> 2008, sites 1677 -> 1674.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
     // **`fix/instance-wiring-operator-runtime`: files 2008 -> 2009 (+1).** **`fix/instance-wiring-operator-runtime` adds three tracked files and moves no other**: `packages/platform/src/lifecycle/commands/operator-entry.ts`, its co-located `operator-entry.test.ts`, and one `.changeset/*.md`. Every delta here is a walk seeing the share of those three it reads — the two whole-repository walks see all three, a source-and-test walk sees two, a source-only walk sees one, and `check-language.sh` sees the two comment-bearing `.ts` and not the `.md`; the two `sites` moves are the new file's outward imports and its English prose. **None of it arrived with `master`**: the branch's own earlier run over a pre-`c99c2cd09` base named the same 27 with the same deltas, and what the merge moved is three *baselines* — `check-platform-surface`, `check-singleton-identity` and `check-language.sh`, each by the tracked `.ts` the A6 branch deleted — not this branch's contribution to them. Re-measured on the **merged** tree (`origin/master` after `fix/instance-docs-foreign-link-catalog` merged) in a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and this file's conflict resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 27 and confirmed the other 17 agree.
     // **`fix/invoice-ledger-tenancy-parent`: sites 1675 -> 1676 (+1), files 2009 -> 2010 (+1).** **`fix/invoice-ledger-tenancy-parent` adds three tracked files and deletes none**: the migration `20260914T140000_invoice_ledger_row_organization.ts`, the guard test `backend/test/unit/tenancy/transitive-parent-module-ownership.test.ts`, and one `.changeset/*.md`. Every `files` delta is a walk seeing its own share — the two whole-repository walks see all three, `check-language.sh` sees the two comment-bearing `.ts`, a walk over `src` trees sees the migration alone, a walk over `backend/test` sees the test alone, and a walk over both sees two. The `sites` moves are the new artefacts' own units: a migration is a claim-bearing artefact, the enqueue path resolves one more port, and the regenerated `module-reference/invoice-ledger.md` is one more determinism site. **What the merge moved is baselines, not this branch's contribution to them**: the same 30 entries with the same deltas were measured over the pre-merge base, and the three files `fix/instance-wiring-operator-runtime` added are what shifted the starting points. Re-measured on the **merged** tree — `fix/instance-wiring-operator-runtime` merged and re-recorded 27 entries, so this file conflicted; the conflict was resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. In a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain` clean. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 30 and confirmed the other 14 agree.
-    files: 2010,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 2010 -> 2095 (+85) and `sites` 1676 -> 1743 (+67). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 2095,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 1471 -> 1535.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
@@ -8927,7 +9159,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **The availability-notification acquisition gate (issue #227 / #259): +1 site.** One
     // container resolution — `inventory` now resolves `salesChannelMembershipPort`. A kernel
     // registration, so it adds no manifest edge and no `undeclared-dependency` with it.
-    sites: 1676,
+    sites: 1743,
     sources: ['manifest-index'],
   },
   // Two derivations, deliberately, because the check has two inputs that can be
@@ -9264,7 +9496,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // it. **Measured, not computed from the delta**: a clean worktree of this branch
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
-    files: 2503,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 2503 -> 2592 (+89) and `sites` 1905 -> 1970 (+65). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 2592,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -9372,7 +9612,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `inventory`'s availability service, and the same port named by its composition root and
     // by its plugin factory. All four are published platform surface, so the count moves and
     // the verdict does not.
-    sites: 1905,
+    sites: 1970,
     // count moves with the file count here because the reaches that went are exactly
     // the files that went.
     // **T119a: sites 1870 -> 1861.** The same nine files, each the single relative
@@ -9554,7 +9794,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 2112 -> 2109.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
     // **`fix/instance-wiring-operator-runtime`: files 2109 -> 2110 (+1).** **`fix/instance-wiring-operator-runtime` adds three tracked files and moves no other**: `packages/platform/src/lifecycle/commands/operator-entry.ts`, its co-located `operator-entry.test.ts`, and one `.changeset/*.md`. Every delta here is a walk seeing the share of those three it reads — the two whole-repository walks see all three, a source-and-test walk sees two, a source-only walk sees one, and `check-language.sh` sees the two comment-bearing `.ts` and not the `.md`; the two `sites` moves are the new file's outward imports and its English prose. **None of it arrived with `master`**: the branch's own earlier run over a pre-`c99c2cd09` base named the same 27 with the same deltas, and what the merge moved is three *baselines* — `check-platform-surface`, `check-singleton-identity` and `check-language.sh`, each by the tracked `.ts` the A6 branch deleted — not this branch's contribution to them. Re-measured on the **merged** tree (`origin/master` after `fix/instance-docs-foreign-link-catalog` merged) in a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and this file's conflict resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 27 and confirmed the other 17 agree.
     // **`fix/invoice-ledger-tenancy-parent`: sites 807 -> 808 (+1), files 2110 -> 2111 (+1).** **`fix/invoice-ledger-tenancy-parent` adds three tracked files and deletes none**: the migration `20260914T140000_invoice_ledger_row_organization.ts`, the guard test `backend/test/unit/tenancy/transitive-parent-module-ownership.test.ts`, and one `.changeset/*.md`. Every `files` delta is a walk seeing its own share — the two whole-repository walks see all three, `check-language.sh` sees the two comment-bearing `.ts`, a walk over `src` trees sees the migration alone, a walk over `backend/test` sees the test alone, and a walk over both sees two. The `sites` moves are the new artefacts' own units: a migration is a claim-bearing artefact, the enqueue path resolves one more port, and the regenerated `module-reference/invoice-ledger.md` is one more determinism site. **What the merge moved is baselines, not this branch's contribution to them**: the same 30 entries with the same deltas were measured over the pre-merge base, and the three files `fix/instance-wiring-operator-runtime` added are what shifted the starting points. Re-measured on the **merged** tree — `fix/instance-wiring-operator-runtime` merged and re-recorded 27 entries, so this file conflicted; the conflict was resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. In a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain` clean. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 30 and confirmed the other 14 agree.
-    files: 2111,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 2111 -> 2198 (+87) and `sites` 808 -> 843 (+35). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 2198,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 692 -> 721.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -9583,7 +9831,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // block above this table has the arithmetic; nothing here widened a band.
     // **The availability-notification acquisition gate (issue #227 / #259): +1 site.** The
     // same `lazyPort` resolution, seen by the port-shape walk.
-    sites: 808,
+    sites: 843,
     sources: ['manifest-index', 'ports-subpaths'],
   },
   // Small on purpose: this population is the *workspace*, not a source tree —
@@ -9699,14 +9947,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 89 -> 88, sites 513 -> 507.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
-    files: 88,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 88 -> 90 (+2) and `sites` 507 -> 519 (+12). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 90,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 495 -> 501.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 501 -> 513.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 507,
+    sites: 519,
     // **Feature 114 Phase 3 (FR-017, D-225): a second author, and neither count
     // moves.** `changeset-subjects` is the distinct package names the changeset
     // files name, reconciled against the members the workspace globs produce.
@@ -10005,7 +10261,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 1633 -> 1634.** **+1, this branch's**, its root being `backend/test`. The one file this branch adds, `backend/test/unit/kernel/session-cookie-secret.test.ts`. It changes `backend/src` not at all — the resolution it covers is a function of `composition.ts`, which already existed.
-    files: 1634,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 1634 -> 1674 (+40). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 1674,
     sites: 163,
     sources: [],
   },
@@ -10375,7 +10639,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and none of it is somebody else's staleness. Never computed from a delta.
     // **`fix/instance-wiring-operator-runtime`: files 2192 -> 2193 (+1).** **`fix/instance-wiring-operator-runtime` adds three tracked files and moves no other**: `packages/platform/src/lifecycle/commands/operator-entry.ts`, its co-located `operator-entry.test.ts`, and one `.changeset/*.md`. Every delta here is a walk seeing the share of those three it reads — the two whole-repository walks see all three, a source-and-test walk sees two, a source-only walk sees one, and `check-language.sh` sees the two comment-bearing `.ts` and not the `.md`; the two `sites` moves are the new file's outward imports and its English prose. **None of it arrived with `master`**: the branch's own earlier run over a pre-`c99c2cd09` base named the same 27 with the same deltas, and what the merge moved is three *baselines* — `check-platform-surface`, `check-singleton-identity` and `check-language.sh`, each by the tracked `.ts` the A6 branch deleted — not this branch's contribution to them. Re-measured on the **merged** tree (`origin/master` after `fix/instance-docs-foreign-link-catalog` merged) in a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and this file's conflict resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 27 and confirmed the other 17 agree.
     // **`fix/invoice-ledger-tenancy-parent`: files 2193 -> 2194 (+1).** **`fix/invoice-ledger-tenancy-parent` adds three tracked files and deletes none**: the migration `20260914T140000_invoice_ledger_row_organization.ts`, the guard test `backend/test/unit/tenancy/transitive-parent-module-ownership.test.ts`, and one `.changeset/*.md`. Every `files` delta is a walk seeing its own share — the two whole-repository walks see all three, `check-language.sh` sees the two comment-bearing `.ts`, a walk over `src` trees sees the migration alone, a walk over `backend/test` sees the test alone, and a walk over both sees two. The `sites` moves are the new artefacts' own units: a migration is a claim-bearing artefact, the enqueue path resolves one more port, and the regenerated `module-reference/invoice-ledger.md` is one more determinism site. **What the merge moved is baselines, not this branch's contribution to them**: the same 30 entries with the same deltas were measured over the pre-merge base, and the three files `fix/instance-wiring-operator-runtime` added are what shifted the starting points. Re-measured on the **merged** tree — `fix/instance-wiring-operator-runtime` merged and re-recorded 27 entries, so this file conflicted; the conflict was resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. In a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain` clean. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 30 and confirmed the other 14 agree.
-    files: 2194,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 2194 -> 2279 (+85). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 2279,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -10609,7 +10881,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 1767 -> 1768.** **+1, this branch's**. This population is the test files rather than everything under `backend/test`, and the one file added is a test. The one file this branch adds, `backend/test/unit/kernel/session-cookie-secret.test.ts`. It changes `backend/src` not at all — the resolution it covers is a function of `composition.ts`, which already existed.
-    files: 1768,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 1768 -> 1818 (+50) and `sites` 1114 -> 1141 (+27). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 1818,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -10638,7 +10918,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // server-bound and multi-owner, so it stays under `backend/test` and needs no ledger
     // entry.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): sites 1115 -> 1114.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
-    sites: 1114,
+    sites: 1141,
     // Two independent authors. `manifest-index` is issue #215's shared floor
     // over the module walk, whose unit is the module's own directory rather than
     // a test file — 14 of the 70 packages ship no test and a floor over test
@@ -10970,7 +11250,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and none of it is somebody else's staleness. Never computed from a delta.
     // **`fix/instance-wiring-operator-runtime`: files 2192 -> 2193 (+1).** **`fix/instance-wiring-operator-runtime` adds three tracked files and moves no other**: `packages/platform/src/lifecycle/commands/operator-entry.ts`, its co-located `operator-entry.test.ts`, and one `.changeset/*.md`. Every delta here is a walk seeing the share of those three it reads — the two whole-repository walks see all three, a source-and-test walk sees two, a source-only walk sees one, and `check-language.sh` sees the two comment-bearing `.ts` and not the `.md`; the two `sites` moves are the new file's outward imports and its English prose. **None of it arrived with `master`**: the branch's own earlier run over a pre-`c99c2cd09` base named the same 27 with the same deltas, and what the merge moved is three *baselines* — `check-platform-surface`, `check-singleton-identity` and `check-language.sh`, each by the tracked `.ts` the A6 branch deleted — not this branch's contribution to them. Re-measured on the **merged** tree (`origin/master` after `fix/instance-docs-foreign-link-catalog` merged) in a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and this file's conflict resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 27 and confirmed the other 17 agree.
     // **`fix/invoice-ledger-tenancy-parent`: files 2193 -> 2194 (+1).** **`fix/invoice-ledger-tenancy-parent` adds three tracked files and deletes none**: the migration `20260914T140000_invoice_ledger_row_organization.ts`, the guard test `backend/test/unit/tenancy/transitive-parent-module-ownership.test.ts`, and one `.changeset/*.md`. Every `files` delta is a walk seeing its own share — the two whole-repository walks see all three, `check-language.sh` sees the two comment-bearing `.ts`, a walk over `src` trees sees the migration alone, a walk over `backend/test` sees the test alone, and a walk over both sees two. The `sites` moves are the new artefacts' own units: a migration is a claim-bearing artefact, the enqueue path resolves one more port, and the regenerated `module-reference/invoice-ledger.md` is one more determinism site. **What the merge moved is baselines, not this branch's contribution to them**: the same 30 entries with the same deltas were measured over the pre-merge base, and the three files `fix/instance-wiring-operator-runtime` added are what shifted the starting points. Re-measured on the **merged** tree — `fix/instance-wiring-operator-runtime` merged and re-recorded 27 entries, so this file conflicted; the conflict was resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. In a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain` clean. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 30 and confirmed the other 14 agree.
-    files: 2194,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 2194 -> 2279 (+85). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 2279,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -11447,7 +11735,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 4669 -> 4670.** **+1, this branch's**, the new file being under a walked root. The one file this branch adds, `backend/test/unit/kernel/session-cookie-secret.test.ts`. It changes `backend/src` not at all — the resolution it covers is a function of `composition.ts`, which already existed.
-    files: 4670,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 4670 -> 4814 (+144) and `sites` 870 -> 873 (+3). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 4814,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -11505,7 +11801,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which resolves it out of the composed `entities` array. A helper import is no
     // reach, so 81 sites go and none arrives.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The value reaches into a package's source that the module's tests make.
-    sites: 870,
+    sites: 873,
     sources: ['manifest-index', 'entities-registry', 'tenant-chains'],
     //
     // **852 -> 851 sites, 4336 -> 4337 files, and the two have different causes.**
@@ -11573,7 +11869,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `quality` job's shape, against `origin/master` at 15b866da3 measured the same way,
     // so nothing below folds in a number that was already stale.
 
-    files: 437,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 437 -> 442 (+5). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 442,
     sites: null,
     // `admin-ui` is the workspace manifests' own answer to "how many packages
     // ship a tree of admin UI", reconciled against how many of them the walk
@@ -12422,7 +12726,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // numbers here come from `origin/master` in a worktree of its own.
     // **Not this branch's: files 8407 -> 8409.** This merge request edits `.gitlab-ci.yml` and adds no tracked file, so none of this delta is its. The two files are `specs/129-github-canonical-migration/`'s `spec.md` and `tasks.md`, merged with `docs/oss-direction` — a documentation merge request, which is the class that never re-records because its author has no reason to think it moved anything. Every walk that reads `specs/` moves by two and the whole-repository walks move by two; `check-doc-snippets` sees them because its roots are `docs/docs` and `specs`. Recorded here rather than left, because the next author to add one file would have inherited a delta of three and had to work out which part was theirs. Measured in this worktree after `pnpm install` and `build:packages`, with `git clean -fX docs/docs/modules` and the copy stamp deleted.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 8409 -> 8410.** **+1, and it is this branch's whole contribution to this entry.** The baseline above is `master`'s own, re-recorded by the merge request that inherited it and re-measured here rather than trusted: a pristine detached worktree of `origin/master` reads 8409. The one file is `backend/test/unit/kernel/session-cookie-secret.test.ts`; `backend/src` gains none, the resolution this branch adds being a function of `composition.ts`, which already existed. This walk takes its population from `git ls-files --cached`, so the file was staged before the number was read.
-    files: 8410,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 8410 -> 8597 (+187). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 8597,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -13018,7 +13330,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 6306 -> 6307.** **+1, this branch's.** Pristine `origin/master` reproduces the recorded 6306, which is the measurement that separates this entry from the two whole-tree walks above: they inherited two files from `master` and this one inherited none, because its population is source extensions and `docs/docs/**` rather than everything the index lists.
-    files: 6307,
+    // **`specs/119-comarch-xl-sync/`: the Comarch ERP XL connector and the shared ERP
+    // connector layer arrive as two module packages.** `files` 6307 -> 6459 (+152). Two packages, ~100 source
+    // files, their i18n bundles, docs and migrations, plus this repository's own repairs
+    // on top of them — every walk that reads `packages/modules` or the whole tree moves,
+    // and none of the deltas is computed: re-measured in a **pristine** `git worktree` of
+    // the merged tree after `pnpm run build:packages`, with no `docs/docs/modules` copies,
+    // no `.tsbuildinfo` and no `.env`, which is the shape `quality` runs in. Measuring in
+    // the checkout the work was done in would have put its residue into the shared record.
+    files: 6459,
     sites: null,
     sources: ['manifest-index'],
     //
