@@ -3,7 +3,7 @@
   "version": "0.10.0",
   "type": "module",
   "sideEffects": false,
-  "description": "The Quote Requests (RFQ) module as a package (feature 080, T040b) — the second module to leave backend/src/modules, and the first with a migration chain and an event subscriber. Ships compiled output (D-164); the manifest id 'quote_requests' stays identity of record everywhere (D-142).",
+  "description": "Customer-initiated RFQ workflow with admin pricing, approvals, and expiry.",
   "license": "MIT",
   "endora": {
     "type": "module",

@@ -54,6 +54,10 @@ import {
   nodeManifestFs,
   renderModulePackageManifests,
 } from './lib/module-package-manifest.js';
+import {
+  PackageIdentityError,
+  renderPackageIdentityFiles,
+} from './lib/package-identity-files.js';
 import { AdminLayoutUnresolvableError } from './lib/admin-surfaces.js';
 import { UnreadableSubpathError } from './lib/module-package-subpaths.js';
 import { TailwindSourceError } from './lib/tailwind-sources.js';
@@ -72,10 +76,23 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
-  const run = renderModulePackageManifests(
+  const fs = nodeManifestFs();
+  const run = renderModulePackageManifests(repoRoot, fs, findManifestIndex(repoRoot));
+  // The two files npm force-includes into every tarball, for every publishable
+  // member rather than for the module packages alone (T6-B/T6-C,
+  // `specs/123-oss-install-experience/`). They are rendered from the manifests
+  // **this run is about to write** and not from the ones on disk, so a single
+  // regeneration can never leave a README a generation behind the `package.json`
+  // it describes — the idempotence the manifest test asserts holds in one pass.
+  const identity = renderPackageIdentityFiles(
     repoRoot,
-    nodeManifestFs(),
-    findManifestIndex(repoRoot),
+    fs,
+    new Map(
+      [...run.rendered, ...run.familyRendered].map((artefact) => [
+        dirname(artefact.outputPath),
+        artefact.content,
+      ]),
+    ),
   );
 
   const check = process.argv.includes('--check');
@@ -112,6 +129,12 @@ async function main(): Promise<void> {
     ...run.applicationRendered,
     ...run.familyRendered,
     ...run.stylesheets,
+    // `LICENSE` and `README.md` write and `--check` through this same loop for
+    // the reason the stylesheets do: they are what a published package shows a
+    // stranger, and a gate that verified the manifest while leaving them to a
+    // human is a gate over two thirds of the tarball.
+    ...identity.licenses,
+    ...identity.readmes,
   ]) {
     const onDisk = existsSync(artefact.outputPath)
       ? readFileSync(artefact.outputPath, 'utf8')
@@ -147,9 +170,21 @@ async function main(): Promise<void> {
   const renderedNames = new Set(run.rendered.map((artefact) => artefact.packageName));
   reportReadSize({
     prefix: PREFIX,
-    files: run.filesRead,
+    files: run.filesRead + identity.filesRead,
     sites: run.specifierSites,
     coverage: [
+      // Every publishable member owes a `LICENSE`; the ones that do not appear
+      // are the ones declaring a licence of their own, which is a state this
+      // run has to be able to report rather than fail on. A walk that rendered
+      // neither file for a member found by the workspace globs is the short
+      // walk issue #215 is about, and it is invisible in the manifest counts
+      // below — those are a statement about module packages, and 10 of the 82
+      // are not one.
+      {
+        source: 'publishable-members',
+        expected: identity.memberNames.length,
+        covered: identity.licenses.length + identity.ownLicenceMembers.length,
+      },
       {
         source: 'manifest-index',
         expected: run.registeredPackageNames.length,
@@ -180,6 +215,14 @@ async function main(): Promise<void> {
       },
     ],
   });
+
+  process.stdout.write(
+    `${PREFIX} identity: licenses=${identity.licenses.length} ` +
+      `readmes=${identity.readmes.length} ` +
+      `hand-written-readmes=${identity.handWrittenReadmes.length} ` +
+      `own-licence=${identity.ownLicenceMembers.length} of ${identity.memberNames.length} ` +
+      `publishable member(s)\n`,
+  );
 
   if (stale) process.exit(1);
   if (check) {
@@ -212,7 +255,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       // subject. Ambiguity is refused there rather than resolved, for the
       // reason `lib/admin-surfaces.ts` gives — picking one of two members
       // narrows every admin derivation to it without saying so.
-      error instanceof AdminLayoutUnresolvableError
+      error instanceof AdminLayoutUnresolvableError ||
+      // A fifth: the root `LICENSE` is unreadable, a publishable member
+      // declares no licence or no description, or a module publishes a subpath
+      // the README renderer has no meaning for. Each is a tree this command
+      // will not guess its way through, and guessing is the one thing a
+      // licence renderer must never do.
+      error instanceof PackageIdentityError
     ) {
       process.stderr.write(`${PREFIX} ${error.message}\n`);
       process.exit(2);
