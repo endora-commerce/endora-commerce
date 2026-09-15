@@ -2,9 +2,10 @@
  * Vitest globalSetup — runs once per test invocation (parent process), before
  * any worker fork. Responsibilities:
  *
- *   0. Apply the deterministic cipher keys every run needs, database or not.
- *      A run that declares `BACKEND_TEST_SERVICES=none` (issue #211) stops
- *      here, after pointing every service URL at an unreachable port.
+ *   0. Take the declared generable secrets out of the machine's hands: pin the
+ *      two the ciphers need, delete the rest. A run that declares
+ *      `BACKEND_TEST_SERVICES=none` (issue #211) stops here, after pointing
+ *      every service URL at an unreachable port.
  *   1. Give this invocation its **own** database and its own Redis logical
  *      database, so two concurrent `vitest run`s cannot corrupt each other
  *      (issue #189). The migrated template is built under an advisory lock and
@@ -50,6 +51,7 @@ import {
   SERVICES_DECLARATION_ENV,
   UNREACHABLE_SERVICE_URLS,
 } from './declared-services.js';
+import { applyGenerableSecretEnv } from './generable-secrets.js';
 
 const DEFAULT_TEST_DATABASE_URL = 'postgresql://b2b:b2b@localhost:5432/b2b_test';
 
@@ -89,32 +91,36 @@ async function configuredMigrationNames(): Promise<readonly string[]> {
 }
 
 /**
- * The env every backend test run gets, database or not: deterministic keys for
- * the two ciphers that refuse to construct without one. They are not database
- * state, so they are applied before the run branches — a fast unit run that
- * constructs `HmacSigner.fromEnv()` must see the same key the complete run does.
+ * The env every backend test run gets, database or not.
+ *
+ * The **whole declared population** of generable secrets, not the two this
+ * function used to name. `secret && generable` is a fact the platform and every
+ * module manifest declare; `@endora-commerce/cli` already derives it to write a
+ * scaffolded instance's `.env`; a third statement kept in step by hand was
+ * D-100's shape and was already three entries short of five, one of which
+ * (`NEWSLETTER_TOKEN_SECRET`) was found by a boot instead. Two members are
+ * pinned to deterministic values — *unconditionally*, so the developer's shell
+ * cannot supply them either — and the rest are **deleted**, so the run meets
+ * the state a fresh clone and every job meets. `generable-secrets.ts` carries
+ * the dispositions and why each exception is one.
+ *
+ * Applied before the run branches, because they are not database state: a fast
+ * unit run that constructs `HmacSigner.fromEnv()` must see the same key the
+ * complete run does, and neither may see the machine's.
  */
-function applyDeterministicTestEnv(): void {
-  // Feature 013 — the Assets Library's HMAC signer demands an env key. Tests
-  // do not load backend/.env; supply a deterministic key so signing tests
-  // stay reproducible and routes that touch the signer work.
-  if (!process.env['ASSETS_LIBRARY_HMAC_KEY']) {
-    process.env['ASSETS_LIBRARY_HMAC_KEY'] =
-      '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff';
-  }
-  // Feature 042 — the MFA module's SecretCipher needs a base64 32-byte AES key
-  // to encrypt TOTP secrets. Supply a deterministic test key so enrolment
-  // routes work without loading backend/.env.
-  if (!process.env['MFA_SECRET_ENCRYPTION_KEY']) {
-    process.env['MFA_SECRET_ENCRYPTION_KEY'] = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
-  }
+async function applyDeterministicTestEnv(): Promise<void> {
+  const applied = await applyGenerableSecretEnv();
+  process.stdout.write(
+    `[test-setup] generable secrets: pinned=${applied.pinned.length} ` +
+      `withheld=${applied.withheld.length} (${applied.withheld.join(', ')})\n`,
+  );
 }
 
 /** Vitest calls what a globalSetup returns once the whole invocation is over. */
 type Teardown = () => Promise<void>;
 
 export default async function globalSetup(): Promise<Teardown | void> {
-  applyDeterministicTestEnv();
+  await applyDeterministicTestEnv();
 
   // Issue #211 — the run may declare that it has no services, and then this
   // setup has no database to create or migrate. The declaration is read from

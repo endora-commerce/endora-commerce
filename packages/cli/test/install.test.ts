@@ -292,6 +292,31 @@ describe('FR-157 — it refuses its preconditions before it writes anything', ()
     await runInstall(options(root, { services: false, dockerReachable: false, run }));
     expect(steps.map((step) => step.id)).not.toContain('services');
   });
+
+  /**
+   * The instrument rather than the behaviour: a case that supplies **no**
+   * answer asks the machine, and this run's machine has no daemon to be asked,
+   * because `vitest.config.base.ts` declared it absent — see
+   * `scripts/declared-absence.ts`.
+   *
+   * That declaration is what the six cases above needed and did not have. They
+   * omitted `dockerReachable` from the day this file landed, so they asserted a
+   * step list on a developer's laptop and a Docker refusal in
+   * `node:22.18-slim`: one defect, and only a job could see it. This is the one
+   * place in the file where omitting the answer is deliberate, and on a machine
+   * with a live daemon it goes red the moment the seam stops applying — which
+   * is the property no other case here can have.
+   *
+   * It weakens nothing. The refusal it asserts is the command's correct
+   * behaviour, asserted a second time from the other side of the probe.
+   */
+  it('a case that answers nothing gets no daemon — this run declared it absent', async () => {
+    expect(process.env['DOCKER_HOST']).toBe('unix:///nonexistent/endora-declared-absence.sock');
+    const root = host();
+    await expect(
+      runInstall(options(root, { services: true, dockerReachable: undefined })),
+    ).rejects.toThrow(/--no-services/);
+  });
 });
 
 describe('FR-155 / FR-156 — the pipeline is the printed sequence, and every step is echoed', () => {
