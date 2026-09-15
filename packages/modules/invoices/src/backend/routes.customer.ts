@@ -3,7 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '@endora-commerce/platform/http';
 import {
   ERROR_CODES,
-  type AssetReadPort,
+  type AssetsLibraryPort,
   type ComarchXlSaleDocumentAttachmentPort,
   type OrderReadPort,
   type OrderRecord,
@@ -18,7 +18,8 @@ export interface InvoicesCustomerDeps {
   emFactory: () => EntityManager;
   /** `orders`' published read model — the ownership check (feature 075, Phase C). */
   orderReadPort: OrderReadPort;
-  assetReadPort: AssetReadPort;
+  /** `assets_library` — resolves signed URLs for private attachment bytes. */
+  assetsLibrary: AssetsLibraryPort;
   saleDocumentAttachments: ComarchXlSaleDocumentAttachmentPort;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   resolveCustomerContext: (req: FastifyRequest) => { customerAccountId: string; organizationId: string };
@@ -39,7 +40,7 @@ export async function registerInvoicesCustomerRoutes(
   const {
     emFactory,
     orderReadPort,
-    assetReadPort,
+    assetsLibrary,
     saleDocumentAttachments,
     requireCustomer,
     resolveCustomerContext,
@@ -184,11 +185,8 @@ export async function registerInvoicesCustomerRoutes(
         }
         attachment.assetId = ensured.assetId;
       }
-      const asset = await assetReadPort.findById(attachment.assetId);
-      if (!asset?.storageUrl) {
-        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Attachment not found.');
-      }
-      return reply.redirect(asset.storageUrl);
+      const asset = await assetsLibrary.getAsset(attachment.assetId);
+      return reply.redirect(asset.url);
     },
   );
 }

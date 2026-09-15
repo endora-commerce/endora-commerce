@@ -3,6 +3,7 @@ import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { EventBus } from '@endora-commerce/platform/events';
 import type {
   AssetReadPort,
+  AssetsLibraryPort,
   CorrectiveInvoicePort,
   CustomerAccountReadPort,
   EmailDefaultsRegistryPort,
@@ -154,6 +155,7 @@ export function registerModule(ctx: ModuleContext): void {
           // binding dependency of this manifest and the edge stays fail-closed.
           orderReadPort: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
           assetReadPort: lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
+          assetsLibrary: lazyPort<AssetsLibraryPort>(ctx, 'assetsLibraryPort'),
           saleDocumentAttachments: lazyPort<ComarchXlSaleDocumentAttachmentPort>(
             ctx,
             'comarchXlSaleDocumentAttachmentPort',

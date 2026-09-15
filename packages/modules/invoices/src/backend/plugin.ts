@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   AssetReadPort,
+  AssetsLibraryPort,
   ComarchXlSaleDocumentAttachmentPort,
   OrderReadPort,
   OrderRecord,
@@ -53,6 +54,7 @@ export interface InvoicesModuleOptions {
    */
   orderReadPort: OrderReadPort;
   assetReadPort: AssetReadPort;
+  assetsLibrary: AssetsLibraryPort;
   saleDocumentAttachments: ComarchXlSaleDocumentAttachmentPort;
   requireAdmin: RequireAdminFactory;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
@@ -197,7 +199,7 @@ export function invoicesModule(options: InvoicesModuleOptions): {
     await registerInvoicesCustomerRoutes(app, {
       emFactory: options.emFactory,
       orderReadPort: options.orderReadPort,
-      assetReadPort: options.assetReadPort,
+      assetsLibrary: options.assetsLibrary,
       saleDocumentAttachments: options.saleDocumentAttachments,
       requireCustomer: options.requireCustomer,
       resolveCustomerContext: options.resolveCustomerContext,

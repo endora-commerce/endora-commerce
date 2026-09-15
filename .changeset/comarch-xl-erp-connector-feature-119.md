@@ -2,6 +2,9 @@
 '@endora-commerce/contracts': minor
 '@endora-commerce/mod-erp-connector': minor
 '@endora-commerce/mod-comarch-xl': minor
+'@endora-commerce/mod-invoices': minor
+'@endora-commerce/mod-inventory': minor
+'@endora-commerce/mod-catalog': patch
 ---
 
 Comarch ERP XL integration (feature 119): shared ERP connector layer and Comarch XL adapter.
@@ -18,6 +21,16 @@ vocabulary. Subpaths: `.`, `./backend`, `./migrations`.
 REST client, identity mapping, BullMQ detect/sync pipeline, domain apply services, admin UI,
 and documented overlay ports. Subpaths: `.`, `./backend`, `./migrations`, `./admin`. Ships
 `i18n/` and operator documentation under `docs/`.
+
+**`@endora-commerce/mod-invoices`** extends the module with `erpSaleDocumentWritePort`,
+ERP-imported sale document entities, B2B customer routes, and attachment handling for XL
+sale documents.
+
+**`@endora-commerce/mod-inventory`** extends `inventoryStockImportPort` for Comarch XL stock
+apply wiring (warehouse snapshot import).
+
+**`@endora-commerce/mod-catalog`** honours `createProduct` request `status` instead of
+always defaulting new products to `draft`.
 
 Activation is gated by `comarch_xl.enabled` (default off). Only one `erpConnector: true`
 module may be operator-active at a time.
