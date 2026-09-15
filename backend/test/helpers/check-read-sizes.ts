@@ -2657,7 +2657,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 5647 -> 5648.** **+1, this branch's.** Pristine `origin/master` reproduces the recorded 5647 exactly, so the whole of it is The one file this branch adds, `backend/test/unit/kernel/session-cookie-secret.test.ts`. It changes `backend/src` not at all — the resolution it covers is a function of `composition.ts`, which already existed.
-    files: 5648,
+    // **`test/declared-absence` (!1698), re-measured after merging `origin/master`: files 5648 -> 5651.** The branch adds **five** tracked files — `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, two unit tests under `backend/test/unit/harness/` and its changeset — and every walk moves by as many of the five as it reads. The two whole-repository walks and `check-root-dispositions` move by **5**; `check-language.sh` by **4**, seeing the four `.ts` and not the `.md`; the four that read only `backend/test` by **3** or **2**, by which of those roots they walk. Conflict resolved wholly to the incoming side and the whole record re-measured — **not reconciled and not reconstructed** — in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. That the other thirty-five entries agree is the check on this attribution.
+    files: 5651,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -4815,7 +4816,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the
     // disposition record under `specs/129-github-canonical-migration/contracts/`
     // and one changeset; it deletes nothing.
-    files: 1635,
+    // **`test/declared-absence` (!1698), re-measured after merging `origin/master`: files 1635 -> 1638.** The branch adds **five** tracked files — `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, two unit tests under `backend/test/unit/harness/` and its changeset — and every walk moves by as many of the five as it reads. The two whole-repository walks and `check-root-dispositions` move by **5**; `check-language.sh` by **4**, seeing the four `.ts` and not the `.md`; the four that read only `backend/test` by **3** or **2**, by which of those roots they walk. Conflict resolved wholly to the incoming side and the whole record re-measured — **not reconciled and not reconstructed** — in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. That the other thirty-five entries agree is the check on this attribution.
+    files: 1638,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -5094,7 +5096,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the
     // disposition record under `specs/129-github-canonical-migration/contracts/`
     // and one changeset; it deletes nothing.
-    files: 1635,
+    // **`test/declared-absence` (!1698), re-measured after merging `origin/master`: files 1635 -> 1638.** The branch adds **five** tracked files — `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, two unit tests under `backend/test/unit/harness/` and its changeset — and every walk moves by as many of the five as it reads. The two whole-repository walks and `check-root-dispositions` move by **5**; `check-language.sh` by **4**, seeing the four `.ts` and not the `.md`; the four that read only `backend/test` by **3** or **2**, by which of those roots they walk. Conflict resolved wholly to the incoming side and the whole record re-measured — **not reconciled and not reconstructed** — in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. That the other thirty-five entries agree is the check on this attribution.
+    files: 1638,
     sites: null,
     sources: [],
   },
@@ -8249,7 +8252,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // ruled narrowings and its clearing mechanism — and one changeset. A whole-repository walk sees both.
     // Two measurements: the parent of this merge reads 8357 in the same fresh
     // worktree and this tree reads 8359.
-    files: 8359,
+    // **`test/declared-absence` (!1698), re-measured after merging `origin/master`: files 8359 -> 8364.** The branch adds **five** tracked files — `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, two unit tests under `backend/test/unit/harness/` and its changeset — and every walk moves by as many of the five as it reads. The two whole-repository walks and `check-root-dispositions` move by **5**; `check-language.sh` by **4**, seeing the four `.ts` and not the `.md`; the four that read only `backend/test` by **3** or **2**, by which of those roots they walk. Conflict resolved wholly to the incoming side and the whole record re-measured — **not reconciled and not reconstructed** — in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. That the other thirty-five entries agree is the check on this attribution.
+    files: 8364,
     sites: null,
     sources: [],
     //
@@ -9934,7 +9938,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // ruled narrowings and its clearing mechanism — and one changeset. Its `sites` does **not** move and stays 1259: neither new file is under a partially-public entry — `backend/scripts/lib/` sits under `backend`, which is public wholesale, and `.changeset/` likewise — so the two counts move apart here, which is the whole reason both are recorded.
     // Two measurements: the parent of this merge reads 8418 in the same fresh
     // worktree and this tree reads 8420.
-    files: 8420,
+    // **`test/declared-absence` (!1698), re-measured after merging `origin/master`: files 8420 -> 8425.** The branch adds **five** tracked files — `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, two unit tests under `backend/test/unit/harness/` and its changeset — and every walk moves by as many of the five as it reads. The two whole-repository walks and `check-root-dispositions` move by **5**; `check-language.sh` by **4**, seeing the four `.ts` and not the `.md`; the four that read only `backend/test` by **3** or **2**, by which of those roots they walk. Conflict resolved wholly to the incoming side and the whole record re-measured — **not reconciled and not reconstructed** — in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. That the other thirty-five entries agree is the check on this attribution.
+    files: 8425,
     sites: 1259,
     // `git-tree-entries` — the committed tree's own root entries, read from a
     // different git store than the index this walk uses. Not `self-reported`:
@@ -10199,7 +10204,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the
     // disposition record under `specs/129-github-canonical-migration/contracts/`
     // and one changeset; it deletes nothing.
-    files: 1635,
+    // **`test/declared-absence` (!1698), re-measured after merging `origin/master`: files 1635 -> 1638.** The branch adds **five** tracked files — `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, two unit tests under `backend/test/unit/harness/` and its changeset — and every walk moves by as many of the five as it reads. The two whole-repository walks and `check-root-dispositions` move by **5**; `check-language.sh` by **4**, seeing the four `.ts` and not the `.md`; the four that read only `backend/test` by **3** or **2**, by which of those roots they walk. Conflict resolved wholly to the incoming side and the whole record re-measured — **not reconciled and not reconstructed** — in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. That the other thirty-five entries agree is the check on this attribution.
+    files: 1638,
     sites: 163,
     sources: [],
   },
@@ -10818,7 +10824,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the
     // disposition record under `specs/129-github-canonical-migration/contracts/`
     // and one changeset; it deletes nothing.
-    files: 1769,
+    // **`test/declared-absence` (!1698), re-measured after merging `origin/master`: files 1769 -> 1771.** The branch adds **five** tracked files — `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, two unit tests under `backend/test/unit/harness/` and its changeset — and every walk moves by as many of the five as it reads. The two whole-repository walks and `check-root-dispositions` move by **5**; `check-language.sh` by **4**, seeing the four `.ts` and not the `.md`; the four that read only `backend/test` by **3** or **2**, by which of those roots they walk. Conflict resolved wholly to the incoming side and the whole record re-measured — **not reconciled and not reconstructed** — in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. That the other thirty-five entries agree is the check on this attribution.
+    files: 1771,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -11677,7 +11684,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // ruled narrowings and its clearing mechanism — and one changeset. **+1, the new library file** — this walk reads all of `backend/`.
     // Two measurements: the parent of this merge reads 4672 in the same fresh
     // worktree and this tree reads 4673.
-    files: 4673,
+    // **`test/declared-absence` (!1698), re-measured after merging `origin/master`: files 4673 -> 4676.** The branch adds **five** tracked files — `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, two unit tests under `backend/test/unit/harness/` and its changeset — and every walk moves by as many of the five as it reads. The two whole-repository walks and `check-root-dispositions` move by **5**; `check-language.sh` by **4**, seeing the four `.ts` and not the `.md`; the four that read only `backend/test` by **3** or **2**, by which of those roots they walk. Conflict resolved wholly to the incoming side and the whole record re-measured — **not reconciled and not reconstructed** — in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. That the other thirty-five entries agree is the check on this attribution.
+    files: 4676,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -12694,7 +12702,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // ruled narrowings and its clearing mechanism — and one changeset. A whole-repository walk sees both.
     // Two measurements: the parent of this merge reads 8417 in the same fresh
     // worktree and this tree reads 8419.
-    files: 8419,
+    // **`test/declared-absence` (!1698), re-measured after merging `origin/master`: files 8419 -> 8424.** The branch adds **five** tracked files — `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, two unit tests under `backend/test/unit/harness/` and its changeset — and every walk moves by as many of the five as it reads. The two whole-repository walks and `check-root-dispositions` move by **5**; `check-language.sh` by **4**, seeing the four `.ts` and not the `.md`; the four that read only `backend/test` by **3** or **2**, by which of those roots they walk. Conflict resolved wholly to the incoming side and the whole record re-measured — **not reconciled and not reconstructed** — in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. That the other thirty-five entries agree is the check on this attribution.
+    files: 8424,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -13311,7 +13320,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // ruled narrowings and its clearing mechanism — and one changeset. **+1, the one TypeScript file.** The changeset is markdown and markdown is in neither of this walk's populations.
     // Two measurements: the parent of this merge reads 6309 in the same fresh
     // worktree and this tree reads 6310.
-    files: 6310,
+    // **`test/declared-absence` (!1698), re-measured after merging `origin/master`: files 6310 -> 6314.** The branch adds **five** tracked files — `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, two unit tests under `backend/test/unit/harness/` and its changeset — and every walk moves by as many of the five as it reads. The two whole-repository walks and `check-root-dispositions` move by **5**; `check-language.sh` by **4**, seeing the four `.ts` and not the `.md`; the four that read only `backend/test` by **3** or **2**, by which of those roots they walk. Conflict resolved wholly to the incoming side and the whole record re-measured — **not reconciled and not reconstructed** — in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. That the other thirty-five entries agree is the check on this attribution.
+    files: 6314,
     sites: null,
     sources: ['manifest-index'],
     //
