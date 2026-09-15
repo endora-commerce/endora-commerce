@@ -182,8 +182,9 @@ export function evaluateA1(outward: readonly OutwardReference[]): AssertionResul
  * The generic "a process this criterion ran either worked or did not" verdict.
  *
  * `storefront-scaffold-assertions.ts`' `evaluateProcess`, with the id typed to
- * this criterion's own set. The last lines of the output rather than the first:
- * a failing install, build or migration says what went wrong at the end.
+ * this criterion's own set. The last lines of the output **and**, when there is
+ * one, the thrown error's own first line — see {@link failureExcerpt} for why
+ * the tail alone was not enough.
  */
 export function evaluateProcess(
   id: AssertionId,
@@ -195,8 +196,63 @@ export function evaluateProcess(
   return {
     id,
     state: 'fail',
-    detail: `exit ${String(code)}: ${lastLines(output, 6)}`,
+    detail: `exit ${String(code)}: ${failureExcerpt(output, 6)}`,
   };
+}
+
+/**
+ * The line a thrown error puts at the top, when the output carries one.
+ *
+ * A step this criterion runs fails in two shapes and they put the sentence a
+ * reader needs at opposite ends. An install, a build or a migration prints
+ * progress and then the reason, so the reason is last — which is what
+ * {@link lastLines} was written for and still the right answer for those. An
+ * **uncaught exception** is the other shape: Node prints the message first, then
+ * the stack, then its own version banner, and pnpm adds two `ELIFECYCLE` lines
+ * after that. Six trailing lines of *that* are frames and package-manager noise
+ * with no message in them.
+ *
+ * **Measured, on the run this cost.** Pipeline 13898, `registry` mode, is the
+ * only run that has ever reached A4 and A15 on a registry install, and a merge
+ * request cannot reproduce it: `ENDORA_NPM_REGISTRY` and `ENDORA_NPM_TOKEN` are
+ * protected, so the mode exists on the default branch and nowhere else. Both
+ * assertions failed. A4 reported `] / } / ] / } / Node.js v22.17.1 / ELIFECYCLE
+ * …` and A15 reported five `at …` frames off `enterSystemScope`. Neither named
+ * an error. A report whose one occurrence cannot be re-run has to be readable
+ * the first time.
+ *
+ * The scan is deliberately narrow: the **first** line that looks like a thrown
+ * error's own first line, by the grammar Node and V8 print — `Name: message`,
+ * optionally with V8's `[CODE]` bracket. Nothing is invented when there is no
+ * match, so a step that merely exited non-zero reads exactly as it did before.
+ */
+function thrownErrorLine(output: string): string | null {
+  for (const raw of output.replace(/\[[0-9;]*m/g, '').split('\n')) {
+    const line = raw.trim();
+    // `at …` first: a frame naming a module called `…Error.js` would otherwise
+    // match the banner grammar below.
+    if (line.startsWith('at ')) continue;
+    if (/^(?:[A-Za-z_$][\w$]*\.)*[A-Za-z_$][\w$]*(?:Error|Exception)(?:\s\[[^\]]+\])?:\s\S/.test(line)) {
+      return line;
+    }
+  }
+  return null;
+}
+
+/**
+ * What a failing step is reported as: its thrown error's first line, when it has
+ * one, then the tail.
+ *
+ * Both, never one or the other. The head is where a crash says what happened;
+ * the tail is where a process that exited non-zero without throwing does, and a
+ * crash's tail still carries the `code:` property and the interpreter version,
+ * which are worth having beside the message.
+ */
+export function failureExcerpt(output: string, tail: number): string {
+  const headline = thrownErrorLine(output);
+  const rest = lastLines(output, tail);
+  if (headline === null) return rest;
+  return rest.includes(headline) ? rest : `${headline} … ${rest}`;
 }
 
 function lastLines(output: string, count: number): string {
@@ -379,7 +435,9 @@ export function evaluateA4(observed: BootObservation): AssertionResult {
     return {
       id: 'A4',
       state: 'fail',
-      detail: `the instance never answered on its health route: ${lastLines(observed.output, 8)}`,
+      detail:
+        'the instance never answered on its health route: ' +
+        failureExcerpt(observed.output, 8),
     };
   }
   if (observed.healthStatus !== 200) {
@@ -1436,7 +1494,7 @@ export function evaluateA15(observed: AdministratorObservation): AssertionResult
       detail:
         "the instance has no `admin:create` script, so its own CLI cannot create an " +
         'administrator and there is nobody to log in as: ' +
-        observed.createOutput.trim().split('\n').slice(-3).join(' / '),
+        failureExcerpt(observed.createOutput, 3),
     };
   }
   if (observed.createCode !== 0) {
@@ -1445,7 +1503,7 @@ export function evaluateA15(observed: AdministratorObservation): AssertionResult
       state: 'fail',
       detail:
         `the instance's own \`admin:create\` exited ${String(observed.createCode)}: ` +
-        observed.createOutput.trim().split('\n').slice(-5).join(' / '),
+        failureExcerpt(observed.createOutput, 5),
     };
   }
   if (observed.loginStatus === null) {

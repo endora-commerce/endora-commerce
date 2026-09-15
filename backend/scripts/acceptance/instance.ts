@@ -138,6 +138,7 @@ import {
   evaluateProcess,
   exitCodeFor,
   exitCodeForExpectation,
+  failureExcerpt,
   expectationRefusals,
   formatReport,
   hostNpmrc,
@@ -1718,7 +1719,7 @@ async function measureOverlay(
     notes.push(
       `the instance's own \`module:install --all\` exited ${String(installed.code)} over the ` +
         `tree carrying A8's overlay module: ` +
-        `${installed.output.trim().split('\n').slice(-3).join(' / ')}`,
+        failureExcerpt(installed.output, 3),
     );
   }
 
@@ -2144,7 +2145,7 @@ async function main(): Promise<void> {
         notes.push(
           `the instance's own \`build\` script exited ${String(built.code)}; it reaches every ` +
             `member, and the assertion for each member reports its own half: ` +
-            `${built.output.trim().split('\n').slice(-3).join(' / ')}`,
+            failureExcerpt(built.output, 3),
         );
       }
 
@@ -2167,7 +2168,7 @@ async function main(): Promise<void> {
           notes.push(
             `the instance's own \`module:install --all\` exited ${String(installed.code)}, so ` +
               `A4 reports whatever the boot then does rather than a clean start: ` +
-              `${installed.output.trim().split('\n').slice(-3).join(' / ')}`,
+              failureExcerpt(installed.output, 3),
           );
         }
         // A15's first half (`specs/123-oss-install-experience/` G2). It runs
