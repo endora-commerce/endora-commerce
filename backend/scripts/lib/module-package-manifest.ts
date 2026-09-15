@@ -2623,14 +2623,19 @@ export function rootLicense(repoRoot: string, fs: ManifestFs): string {
  * `export const packageLicense = 'SEE LICENSE IN LICENSE.md';` — which is where
  * `installHook`, `uninstallHook` and `cliCommands` already live: facts about a
  * module that the tooling reads from `manifest.ts` and that are deliberately
- * not fields of the runtime manifest. It is **not** the manifest's own
- * `license` field, and that is a decision rather than an oversight: that field
- * is `ModuleLicenseTierSchema` (`'core' | 'pro' | 'enterprise'`), the dead
- * entitlement mechanism D-194 rules should be deleted, and it is published
- * contract surface on `ModuleListItem`. Repurposing it would put two meanings
- * on one name in one file, and deleting it now costs a `major` on
- * `@endora-commerce/contracts` that D-194 priced while every package was still
- * private. Both are the owner's call and neither is this generator's.
+ * not fields of the runtime manifest.
+ *
+ * It is **not** the runtime manifest's own `license` field, and since
+ * `@endora-commerce/contracts@0.8.0` there is no such field to confuse it with:
+ * `ModuleLicenseTierSchema` (`'core' | 'pro' | 'enterprise'`), the
+ * `ModuleLicenseTier` type and `ModuleListItem.license` are deleted, which is
+ * what D-194 ruled should happen to the edition mechanism whose meta-packages it
+ * withdrew. This paragraph used to price that deletion at a `major` on
+ * `@endora-commerce/contracts` *"while every package was still private"* and to
+ * leave it as the owner's call; both halves expired — no package is private, the
+ * deletion landed, and D-225 translates a `major` to a `minor` for as long as a
+ * package is in `0.x`. Nothing here is waiting on a ruling any more, and the
+ * named export above is simply where a module's own licence is declared.
  *
  * Read as a **literal AST node**, so a computed value is refused rather than
  * guessed at: a licence this derivation cannot read must not be reported as
