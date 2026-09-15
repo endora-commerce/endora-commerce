@@ -167,33 +167,37 @@
         },
         "A3": {
           "status": "pass",
-          "reason": "101 migrations applied, in the order the instance own configuration computed over the manifests it installed",
+          "reason": "105 migrations applied, in the order the instance own configuration computed over the manifests it installed",
           "previousStatus": "fail",
           "previousReason": "THE BLOCKER, AND THE FIRST DEFECT A REGISTRY INSTALL HAS EVER BEEN ABLE TO SEE. The instance own migrate step exited 1 before a single migration ran: `InvoiceLedgerDelivery (fk invoiceId) is scoped through Invoice, and no classified entity of that name is registered in this platform`, and `InvoiceLedgerDocumentMap` with it, out of `assertTransitiveParentsResolve` in `platform/dist/tenancy/org-scoped.decorator.js`. `invoice_ledger` is in the module set `endora new instance` writes and `invoices` is not, so an instance loads both classes and no `Invoice`. It cannot be repaired by a manifest `dependencies` entry: `invoice_ledger` declares `activation.nonDeactivatable` and `specs/conventions/module-composition.md` §4a forbids exactly that entry, it being what would make `invoices.enabled` a dead switch. Repaired in `fix/invoice-ledger-tenancy-parent` by giving both tables their own `organization_id`; the general claim is `backend/test/unit/tenancy/transitive-parent-module-ownership.test.ts`, which reproduces this refusal with no instance and no registry. THIS ENTRY IS THE MEASUREMENT AND NOT A PREDICTION: it goes green by drifting on the next protected-branch run, which is the ratchet working."
         },
         "A4": {
-          "status": "fail",
-          "reason": "the instance never answered on its health route:       ] /     } /   ] / } / Node.js v22.17.1 /  ELIFECYCLE  Command failed with exit code 1. /  WARN   Local package.json exists, but node_modules missing, did you mean to install? /  ELIFECYCLE  Command failed with exit code 1.",
-          "previousStatus": "unmeasured",
-          "previousReason": "behind A3: there was nothing built to boot. It waits on A3 and is no assertion of its own — `specs/110-instance-repository/contracts/instance-repository.md` §6."
+          "status": "pass",
+          "reason": "health 200 and the boot reconcile accounts for all 28 modules the presence route enumerates (installed=24 skipped=4)",
+          "previousStatus": "fail",
+          "previousReason": "the instance never answered on its health route:       ] /     } /   ] / } / Node.js v22.17.1 /  ELIFECYCLE  Command failed with exit code 1. /  WARN   Local package.json exists, but node_modules missing, did you mean to install? /  ELIFECYCLE  Command failed with exit code 1."
         },
         "A5": {
           "status": "pass",
-          "reason": "the built bundle names exactly the 19 installed module packages that publish an admin layer, out of 26 installed, over 3561 KiB of JavaScript"
+          "reason": "the built bundle names exactly the 20 installed module packages that publish an admin layer, out of 27 installed, over 3597 KiB of JavaScript"
         },
         "A6": {
           "status": "pass",
-          "reason": "the built site serves 64 pages and its navigation names a routed page for exactly the 23 installed module packages that ship a documentation layer",
+          "reason": "the built site serves 66 pages and its navigation names a routed page for exactly the 24 installed module packages that ship a documentation layer",
           "previousStatus": "fail",
           "previousReason": "the instance own documentation build produced no site: `Broken link on source page path = /modules/catalog/attributes -> ../promotions.md`. `promotions` is not in the set `endora new instance` writes, so the relative link names a page a client tree does not hold and `onBrokenLinks: throw` refuses the whole site — the assertion working rather than an obstacle. It is `check:module-docs` `foreign-module-link`, the last entry of the `catalog` shard, and it is `../search.md` a second time (`specs/100-module-owned-documentation/`, FR-020). Repaired in `fix/instance-docs-foreign-link-catalog`, merged; this entry is what the run measured and it goes green by drifting."
         },
         "A7": {
-          "status": "unmeasured",
-          "reason": "the API surface and the module enumeration could not be read, and a verdict over the other 1 would be answering a fraction of the assertion"
+          "status": "pass",
+          "reason": "none of the 45 module packages this instance did not install is named in the built admin bundle, owns any of the 418 endpoints it serves — measured against the 520 route identities their published `./backend` layers own — or appears among the 28 modules it enumerates, every one of which is one of the 27 it installed or is entitled to be there without being an installed package (_lifecycle)",
+          "previousStatus": "unmeasured",
+          "previousReason": "the API surface and the module enumeration could not be read, and a verdict over the other 1 would be answering a fraction of the assertion"
         },
         "A8": {
-          "status": "unmeasured",
-          "reason": "the instance never answered at all, so whether it composed 'instance_acceptance_overlay' is not a question this run measured:   code: 'ERR_UNKNOWN_FILE_EXTENSION' / } / Node.js v22.17.1 /  ELIFECYCLE  Command failed with exit code 1. /  WARN   Local package.json exists, but node_modules missing, did you mean to install? /  ELIFECYCLE  Command failed with exit code 1."
+          "status": "pass",
+          "reason": "'instance_acceptance_overlay' is composed — its own route answers and its wrap of 'instanceAcceptanceOverlayService' is live in the container — and the rendered report records `decoration:instance_acceptance_overlay:instanceAcceptanceOverlayService` at rung 4 against 'instance_acceptance_overlay', with the deployment's own sentence",
+          "previousStatus": "unmeasured",
+          "previousReason": "the instance never answered at all, so whether it composed 'instance_acceptance_overlay' is not a question this run measured:   code: 'ERR_UNKNOWN_FILE_EXTENSION' / } / Node.js v22.17.1 /  ELIFECYCLE  Command failed with exit code 1. /  WARN   Local package.json exists, but node_modules missing, did you mean to install? /  ELIFECYCLE  Command failed with exit code 1."
         },
         "A9": {
           "status": "pass",
@@ -203,11 +207,11 @@
         },
         "A10": {
           "status": "pass",
-          "reason": "exit 1, nothing written, and the refusal carries the sentence the owning manifest declares: \"Every B2B document — order, invoice, shipment — is addressed; there is no transa…\""
+          "reason": "exit 1, nothing written, and the refusal carries the sentence the owning manifest declares: \"The basket every ordering path assembles — checkout, quick order and the quote f…\""
         },
         "A11": {
           "status": "pass",
-          "reason": "none of the 38 files the command wrote is byte-identical to any of the 1060 @endora-commerce/platform and @endora-commerce/admin-shell ships"
+          "reason": "none of the 39 files the command wrote is byte-identical to any of the 1060 @endora-commerce/platform and @endora-commerce/admin-shell ships"
         },
         "A12": {
           "status": "unmeasured",
@@ -215,7 +219,7 @@
         },
         "A13": {
           "status": "pass",
-          "reason": "173 KiB of built stylesheet carries a class only its own package declares for each of 15 packages, the shell and 14 module admin layers among them — @endora-commerce/admin-shell: .animate-spin, @endora-commerce/mod-admin-users: .scroll-mt-24"
+          "reason": "173 KiB of built stylesheet carries a class only its own package declares for each of 16 packages, the shell and 15 module admin layers among them — @endora-commerce/admin-shell: .animate-spin, @endora-commerce/mod-admin-users: .scroll-mt-24"
         },
         "A14": {
           "status": "pass",
@@ -224,10 +228,10 @@
           "previousReason": "the created tree holds 259 lines of wiring across 14 files, against R1.4 bound of 250. Largest: `backend/src/module-commands/runtime.ts` (90). THE BOUND WAS DECIDED BY THE SUPPLY ROUTE AND THAT IS THE FINDING: the identical tree measures 248 over 13 files in `tarball` mode, the difference being the 11-line `.npmrc` that only a `--registry` run writes. The bound is not raised. `fix/instance-wiring-operator-runtime` moved the 90-line operator runtime into `@endora-commerce/platform/lifecycle`, taking the wiring to 176 over 13 files and 187 with the `.npmrc`, and it has merged; this entry is what the run measured (`specs/110-instance-repository/contracts/instance-tree.md` §6)."
         },
         "A15": {
-          "status": "fail",
-          "reason": "the instance's own `admin:create` exited 1:     at file:///tmp/endora-instance-acceptance-aJxmwN/instance/node_modules/.pnpm/@endora-commerce+platform@0.10.0_@fastify+swagger@9.8.1_@mikro-orm+core@6.6.16_@mikro-orm+mig_i6l774rmypzu7fjjt6aumnvgqu/node_modules/@endora-commerce/platform/dist/kernel/scope.js:144:66 /     at AsyncLocalStorage.run (node:internal/async_local_storage/async_hooks:91:14) /     at runWithTenantContext (file:///tmp/endora-instance-acceptance-aJxmwN/instance/node_modules/.pnpm/@endora-commerce+platform@0.10.0_@fastify+swagger@9.8.1_@mikro-orm+core@6.6.16_@mikro-orm+mig_i6l774rmypzu7fjjt6aumnvgqu/node_modules/@endora-commerce/platform/dist/tenancy/tenant-context.js:35:20) /     at enterPlatformScope (file:///tmp/endora-instance-acceptance-aJxmwN/instance/node_modules/.pnpm/@endora-commerce+platform@0.10.0_@fastify+swagger@9.8.1_@mikro-orm+core@6.6.16_@mikro-orm+mig_i6l774rmypzu7fjjt6aumnvgqu/node_modules/@endora-commerce/platform/dist/kernel/scope.js:144:12) /     at enterSystemScope (file:///tmp/endora-instance-acceptance-aJxmwN/instance/node_modules/.pnpm/@endora-commerce+platform@0.10.0_@fastify+swagger@9.8.1_@mikro-orm+core@6.6.16_@mikro-orm+mig_i6l774rmypzu7fjjt6aumnvgqu/node_modules/@endora-commerce/platform/dist/kernel/scope.js:167:12)",
-          "previousStatus": "unmeasured",
-          "previousReason": "the instance did not migrate, so there is no schema to create an administrator in. Behind A3 — `specs/110-instance-repository/contracts/instance-repository.md` §6."
+          "status": "pass",
+          "reason": "the instance own CLI created an administrator and POST /api/v1/auth/admin/login answered 200 with the admin session cookie set",
+          "previousStatus": "fail",
+          "previousReason": "the instance's own `admin:create` exited 1:     at file:///tmp/endora-instance-acceptance-aJxmwN/instance/node_modules/.pnpm/@endora-commerce+platform@0.10.0_@fastify+swagger@9.8.1_@mikro-orm+core@6.6.16_@mikro-orm+mig_i6l774rmypzu7fjjt6aumnvgqu/node_modules/@endora-commerce/platform/dist/kernel/scope.js:144:66 /     at AsyncLocalStorage.run (node:internal/async_local_storage/async_hooks:91:14) /     at runWithTenantContext (file:///tmp/endora-instance-acceptance-aJxmwN/instance/node_modules/.pnpm/@endora-commerce+platform@0.10.0_@fastify+swagger@9.8.1_@mikro-orm+core@6.6.16_@mikro-orm+mig_i6l774rmypzu7fjjt6aumnvgqu/node_modules/@endora-commerce/platform/dist/tenancy/tenant-context.js:35:20) /     at enterPlatformScope (file:///tmp/endora-instance-acceptance-aJxmwN/instance/node_modules/.pnpm/@endora-commerce+platform@0.10.0_@fastify+swagger@9.8.1_@mikro-orm+core@6.6.16_@mikro-orm+mig_i6l774rmypzu7fjjt6aumnvgqu/node_modules/@endora-commerce/platform/dist/kernel/scope.js:144:12) /     at enterSystemScope (file:///tmp/endora-instance-acceptance-aJxmwN/instance/node_modules/.pnpm/@endora-commerce+platform@0.10.0_@fastify+swagger@9.8.1_@mikro-orm+core@6.6.16_@mikro-orm+mig_i6l774rmypzu7fjjt6aumnvgqu/node_modules/@endora-commerce/platform/dist/kernel/scope.js:167:12)"
         }
       }
     }
