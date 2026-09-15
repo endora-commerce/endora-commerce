@@ -416,6 +416,23 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       + 'when its HMAC signature is missing or does not verify against the stored secret. The '
       + 'noun is the Infakt ingress, which `infakt` owns.',
   },
+  // ---- Minted with the wFirma adapter (`specs/129-wfirma-integration/`).
+  WFIRMA_CONNECTION_FAILED: {
+    to: 'wfirma',
+    reason:
+      'Minted with the wFirma adapter (`specs/129-wfirma-integration/`) for the failure an '
+      + 'operator meets when the company probe cannot be answered with the stored access, '
+      + 'secret and application keys. The noun is the wFirma connection, which `wfirma` owns '
+      + '— the twin of `INFAKT_CONNECTION_FAILED` above, and homed the same way.',
+  },
+  WFIRMA_WEBHOOK_NOT_FOUND: {
+    to: 'wfirma',
+    reason:
+      'Minted with the wFirma adapter (`specs/129-wfirma-integration/`) for the refusal a '
+      + 'webhook delivery meets when its path token names no connection. The noun is the '
+      + 'wFirma ingress, which `wfirma` owns. It is a 404 rather than a 401 deliberately: '
+      + 'the token is the address, so an unknown one has nothing to authenticate against.',
+  },
 };
 
 /**
