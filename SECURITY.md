@@ -1,19 +1,14 @@
 # Security policy
 
-> **This file is not finished, and the two things missing are the two that only the project's
-> owner can supply.** They are marked `TO BE SUPPLIED` below and nothing else is waiting on
-> anything:
+> **The reporting channel is GitHub's private vulnerability reporting, from the day this
+> repository is public — and there is deliberately no e-mail address.** A published mailbox is a
+> mailbox somebody has to keep watching, and one nobody is watching is worse than none at all.
 >
-> 1. **The private reporting address** — either an e-mail address the maintainers read, or the
->    decision to use GitHub's private vulnerability reporting (the repository's *Security* tab),
->    which has to be **enabled on the repository** before it exists as a route. Both are
->    legitimate; neither has been chosen, and an invented address is worse than a missing one
->    because a report sent to it is a report nobody receives.
-> 2. **The response window** — the time within which a reporter is told their report was
->    received. A number nobody committed to is a promise the project breaks on its first report.
->
-> Until both are filled in, **please do not file a suspected vulnerability anywhere public.**
-> Contact the maintainers privately through whatever route you already have and wait for a reply.
+> **This file ships before that switch is flipped.** Private vulnerability reporting has to be
+> **enabled on the repository**, which happens with the migration, so until then the *Security*
+> tab this file points at does not exist yet. If it is not there when you look: **do not file a
+> suspected vulnerability anywhere public.** Contact the maintainers privately through whatever
+> route you already have and wait for a reply.
 
 ## Reporting a vulnerability
 
@@ -21,7 +16,15 @@
 vulnerability.** A public report is a disclosure, and it is a disclosure made before anybody
 running this software has had a chance to update.
 
-Report privately, to `TO BE SUPPLIED`.
+**Use GitHub's private vulnerability reporting**: the repository's **Security** tab →
+*Report a vulnerability*. It opens a private advisory that only you and the maintainers can read,
+it keeps the whole conversation and the eventual fix in one place, and it needs no address from
+either of us — which is the point. There is **no security e-mail address for this project**, and
+that is a decision rather than an omission: an address is a mailbox somebody has to keep watching,
+and a published one that nobody watches is worse than none.
+
+**If the Security tab does not offer it**, the switch has not been flipped yet — see the note at
+the top of this file. Do not report publicly in the meantime.
 
 **What to include**, in as much of this shape as you have:
 
@@ -38,8 +41,9 @@ sure about is still worth sending.
 
 **What happens next.**
 
-1. **Acknowledgement** within `TO BE SUPPLIED`. This is a receipt, not a verdict: it confirms a
-   human has the report, and nothing more.
+1. **Acknowledgement within 72 hours.** This is a **receipt, not a verdict**: it confirms a human
+   has your report and is reading it, and nothing more. It is the one number in this file you can
+   hold us to, and it is deliberately the only one.
 2. **Assessment.** We reproduce it, decide whether it is a vulnerability, and tell you which way
    it went and why. A report judged not to be a vulnerability gets that answer in writing rather
    than silence.
@@ -47,6 +51,12 @@ sure about is still worth sending.
    rule every other change in this repository is held to (Principle III).
 4. **Release and disclosure.** The fix ships, and the advisory follows. You are credited unless
    you ask not to be.
+
+**There is no committed remediation timeline, and the absence is deliberate.** Nobody has decided
+one, and a number invented to fill the gap would be the same error as an invented address: a
+promise made by whoever wrote the file rather than by whoever has to keep it. What you are owed is
+the 72-hour receipt and an assessment in writing; after that you are told what is happening and
+when, in the advisory thread, by a human who knows.
 
 ## Scope
 
@@ -86,5 +96,6 @@ entry: every comparable project routes security off its public tracker, and an e
 other.
 
 So this file is the one route, and the register's security class has nowhere else to go. That is
-also why the two blanks above matter more than their size suggests: a route with no address is
-not a route.
+why enabling private vulnerability reporting is a **precondition of this repository being public**
+rather than a setting somebody gets to later: a route that is not switched on is not a route, and
+this file is a promise somebody has to keep.

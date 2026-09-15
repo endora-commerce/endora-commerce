@@ -850,6 +850,21 @@ describe('T076 — the drift between the roots is an exact ledger', () => {
    * and left only the call in the boot step;
    * `packages/platform/src/lifecycle/services/locked-modules-present.test.ts` is its proof, and it
    * runs because it needs no composition at all.
+   *
+   * **What this population cannot see, stated so a green is not read as more
+   * than it is**: `bootSteps` keeps only the calls whose name a root
+   * *imported*, so a boot step a root declares in its own file is out of scope
+   * by construction — not ledgered, not reported, not a divergence this test
+   * has an opinion about. There is one live instance, and it is worth naming
+   * because it is a divergence: `composeApp` resolves `SESSION_COOKIE_SECRET`
+   * into `process.env` before it composes, through a function
+   * `src/composition.ts` declares itself, and the harness reads the deployment
+   * environment nowhere — it pins `newsletterTokenSecret` and its own cookie
+   * secret by hand. That is why the chain resolving to the empty string was
+   * invisible to 900-odd harness-rooted files and was found by
+   * `test/integration/kernel/production-boot.test.ts` instead. Teaching the walk
+   * to follow local declarations would widen the population past what the ledger
+   * was written to hold; recording the blind spot is the honest half of it.
    */
   const PRODUCTION_ONLY_BOOT_STEPS: Readonly<Record<string, string>> = {
     assertPublicApiBaseUrlConfigured:
