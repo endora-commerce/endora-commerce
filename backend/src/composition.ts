@@ -316,6 +316,63 @@ function anyLabel(name: unknown): string {
 }
 
 /**
+ * The key this repository's development and test processes sign with.
+ *
+ * Public by construction — it is in a public repository, which is exactly why
+ * {@link resolveSessionCookieSecret} may not reach it under
+ * `NODE_ENV=production`. `index.ts` has carried this literal since the
+ * beginning; what changes is that it is stated once, and readable from the
+ * environment, rather than restated in two entry points and visible to neither
+ * the platform nor anything else that composes.
+ *
+ * It lives in this file rather than in one of its own because a self-contained
+ * file in `backend/src` naming no path of this tree is what
+ * `test/unit/kernel/host-residue-partition.test.ts` derives as
+ * **platform-shaped** — code a client must never edit, sitting in the tree
+ * SC-007 says holds no such thing. A development default for *this*
+ * repository's signing key is the opposite of platform-shaped: it is what the
+ * docblock below calls "what only this deployment knows", and an instance's own
+ * entry point deliberately has no fallback at all.
+ */
+export const DEVELOPMENT_SESSION_COOKIE_SECRET = 'dev-secret-change-me';
+
+/**
+ * Resolve `SESSION_COOKIE_SECRET`, publishing this deployment's development
+ * default **into `process.env`**, so that every later reader of that variable
+ * sees what was resolved.
+ *
+ * There are two readers and only one of them is an entry point. `index.ts` and
+ * `worker.ts` hand the value to `buildServer` to sign cookies with; the
+ * platform's `composeApp` reads the same variable as the last link of
+ * `NEWSLETTER_TOKEN_SECRET ?? SESSION_COOKIE_SECRET ?? ''`, which is what
+ * newsletter confirmation and unsubscribe links are signed with. The second
+ * reader is why publishing it matters: a default computed into a `const` is
+ * invisible to it, `NewsletterTokenHelper` refuses an empty string, and a tree
+ * with no `backend/.env` therefore composed no modules at all — while naming a
+ * module nobody had touched.
+ *
+ * **A scaffolded instance already works this way.** `NEWSLETTER_TOKEN_SECRET`
+ * is declared `secret` and `generable`, so `endora new instance` generates it
+ * into the instance's `.env` and the instance's processes read it from the
+ * environment like any other input. The reference deployment was the odd one
+ * out.
+ *
+ * Returns the empty string when a production deployment has not been given a
+ * key: under `NODE_ENV=production` nothing is invented and nothing is written.
+ * The callers refuse to start on it, which is the behaviour they have always
+ * had; this function does not exit a process it does not own.
+ */
+export function resolveSessionCookieSecret(): string {
+  const supplied = process.env['SESSION_COOKIE_SECRET'];
+  // An empty value is the same state as no value at all, which is the rule
+  // `@endora-commerce/cli`'s `inputs/env-file.ts` states for the instance side.
+  if (supplied !== undefined && supplied !== '') return supplied;
+  if (process.env['NODE_ENV'] === 'production') return '';
+  process.env['SESSION_COOKIE_SECRET'] = DEVELOPMENT_SESSION_COOKIE_SECRET;
+  return DEVELOPMENT_SESSION_COOKIE_SECRET;
+}
+
+/**
  * The reference deployment's composition root.
  *
  * `specs/110-instance-repository/` T118 moved the **assembly** into
@@ -337,6 +394,18 @@ function anyLabel(name: unknown): string {
  */
 export async function composeApp(options: ComposeAppOptions): Promise<ComposeAppHandle> {
   const { deploymentRoot } = options;
+
+  // This deployment's environment, before anything reads it. `SESSION_COOKIE_SECRET`
+  // is the last link of the platform's `NEWSLETTER_TOKEN_SECRET ?? SESSION_COOKIE_SECRET
+  // ?? ''`, and `NewsletterTokenHelper` refuses the empty string — so a tree with no
+  // `backend/.env` composed nothing at all and blamed a module nobody had touched.
+  // Resolved **here** rather than in `index.ts` because `index.ts` is not the only
+  // caller: `cli.ts` composes for every `module:*` and `admin:create` invocation, and
+  // `test/integration/kernel/production-boot.test.ts` composes to prove this root
+  // boots. A default that only one of the three applies is a default two of them
+  // cannot see. The return value is the callers' business; what this line is for is
+  // the environment it publishes. The function is above, with its reasoning.
+  resolveSessionCookieSecret();
 
   // Feature 057 — resolve the per-deployment overlay once. For a bare-core
   // build (no DEPLOYMENT / no overlay dir) all of these are empty and the
