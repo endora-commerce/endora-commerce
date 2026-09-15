@@ -6,7 +6,7 @@
 // It is its own config for one reason: **git**. The files under `test/release/`
 // measure `changeset status --since` and the diff-shaped release-branch
 // discriminator over real branches, and every other backend job runs in
-// `node:22.17-slim`, which ships no git — `test/helpers/shell-check-fixture.ts`
+// `node:22.18-slim`, which ships no git — `test/helpers/shell-check-fixture.ts`
 // fakes `git ls-files` for exactly that reason. Faking it here would prove the
 // fake, since the discriminator under test *is* a `git diff`. So this root is
 // excluded from `vitest.config.ts` and included here, and the job that runs it

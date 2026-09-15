@@ -29,7 +29,7 @@
 # listed, because its directory is not there to be walked. That is the correct answer: its
 # sources will not arrive either.
 #
-# Needs GNU `cp --parents`, which both callers have: the images are `node:22.17-slim` and the
+# Needs GNU `cp --parents`, which both callers have: the images are `node:22.18-slim` and the
 # test that runs this script runs on Linux.
 set -eu
 

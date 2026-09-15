@@ -1186,7 +1186,7 @@ describe('check-release-intent — what it reads, beside what it finds', () => {
 describe('the release-gate suite is still run by something', () => {
   /**
    * `backend/test/release/` is excluded from both backend vitest configs
-   * because it needs **git**, which `node:22.17-slim` does not ship — so its
+   * because it needs **git**, which `node:22.18-slim` does not ship — so its
    * one caller is a line in `release:changeset`. A root nothing runs is a test
    * file that has quietly stopped being a gate, and it would look exactly like
    * a green pipeline. This is the two-way link, in a suite that runs on every

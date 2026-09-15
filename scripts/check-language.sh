@@ -195,7 +195,7 @@ prose_scanner='
   #
   # `binmode(STDOUT, ":encoding(UTF-8)")` would be the obvious spelling and it
   # cannot be used: the layer loads `PerlIO`, which lives in the Debian
-  # `perl-modules` package, and the only perl in `node:22.17-slim` — the image
+  # `perl-modules` package, and the only perl in `node:22.18-slim` — the image
   # every backend CI job runs — is the Essential `perl-base`. The scanner aborted
   # at BEGIN there, every non-zero exit was read as a finding, and ten cases went
   # red in CI while passing on every developer machine. `quality:static` never

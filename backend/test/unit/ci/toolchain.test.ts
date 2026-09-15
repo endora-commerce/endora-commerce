@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
  * Pipeline 11475's `test:backend:unit` reported twenty-two assertion failures
  * across five files. Ten of them were `expected 1 to be 0`, two were "printed
  * no read line", eight were `changeset version` exiting 1 — and every one of
- * them had the same cause, which none of them said: **`node:22.17-slim` ships
+ * them had the same cause, which none of them said: **`node:22.18-slim` ships
  * no git**. The suite spawns it three ways and never by that name, so the
  * message a reader needed was not in the log:
  *
@@ -46,7 +46,7 @@ describe('the programs this suite spawns are on PATH', () => {
     const seen = probe('git', ['--version']);
     expect(
       seen.ok,
-      'no usable git. `node:22.17-slim` ships none, so a CI job running this suite has to ' +
+      'no usable git. `node:22.18-slim` ships none, so a CI job running this suite has to ' +
         'install it; `test:backend:unit` is the job. Without it `changeset version` exits 1 on ' +
         '`spawn git ENOENT`, and check-naming.sh / check-language.sh exit 2 refusing to report ' +
         `a verdict over a file list they could not get. ${seen.detail}`,
