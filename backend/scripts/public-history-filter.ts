@@ -1095,7 +1095,7 @@ function main(): void {
     .map(([oldSha, newSha]) => `${oldSha} ${newSha}`)
     .join('\n');
   const deterministic = previous === null ? null : previous.trimEnd() === serialised;
-  if (deterministic === false) {
+  if (previous !== null && !deterministic) {
     findings.push({
       kind: 'non-deterministic-map',
       subject: mapPath,
@@ -1103,6 +1103,10 @@ function main(): void {
         'two runs over an unchanged tree produced different commit maps. The published SHAs ' +
         "are the final dry run's (FR-013), so this has to be understood before the push",
     });
+    // Keep the disagreeing pair. Overwriting the earlier map would leave a
+    // finding whose evidence the same line had just deleted, on the one
+    // property nobody can re-derive afterwards.
+    writeFileSync(join(out, 'commit-map.previous'), previous, 'utf8');
   }
   writeFileSync(mapPath, `${serialised}\n`, 'utf8');
 
