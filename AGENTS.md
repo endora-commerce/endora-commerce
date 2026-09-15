@@ -242,6 +242,12 @@ thing it is about.
   run.
 - **Read before writing** — the module you are changing, the closest prior feature's spec
   directory, the relevant contracts, and the routed document for what you are about to do.
+  **After the cut line (D-247), the closest prior feature directory may be one you cannot
+  open.** Pre-migration `specs/NNN-slug/` stays in the private historical repository and reaches
+  you only as a citation; directories written from the migration onward are in the canonical
+  repository. A citation you cannot open is a footnote and not a broken link — it is left in
+  place deliberately, as provenance — and what a change is actually judged against is
+  `specs/conventions/` and the constitution, both of which travel.
 - **English only** in code, comments, identifiers, specs, docs and commit messages
   (Principle VIII).
 - **Commits**: never add `Co-Authored-By: Claude` or any other AI/LLM trailer. Branch off

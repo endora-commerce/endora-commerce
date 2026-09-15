@@ -8164,7 +8164,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changeset. Measured on a worktree stood up for the measurement and worked
     // in nowhere else, after `build:packages`, `git clean -fX docs/docs/modules`
     // and deleting the copy stamp.
-    files: 8355,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T013/T014), the
+    // contributor-facing documents: 8355 -> 8356 (+1).** One file, `SECURITY.md`
+    // at the repository root — entry number forty-one, and the first one the
+    // disposition instrument from the previous commit actually caught. A whole-repository walk sees it; `check-doc-snippets` does not, its roots being `docs/docs` and `specs`, and neither does `check-language.sh`, whose two populations are source extensions and `docs/docs/**`.
+    files: 8356,
     sites: null,
     sources: [],
     //
@@ -9820,8 +9824,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changeset. Measured on a worktree stood up for the measurement and worked
     // in nowhere else, after `build:packages`, `git clean -fX docs/docs/modules`
     // and deleting the copy stamp.
-    files: 8416,
-    sites: 1258,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T013/T014), the
+    // contributor-facing documents: 8416 -> 8417 (+1).** One file, `SECURITY.md`
+    // at the repository root — entry number forty-one, and the first one the
+    // disposition instrument from the previous commit actually caught. Its `sites` moves with it, 1258 -> **1259**, and the two are different quantities that happen to move together here: `files` is every path in the tree, `sites` is one disposition decision per root entry plus one per file under a partially-public entry, and `SECURITY.md` adds one of each.
+    files: 8417,
+    sites: 1259,
     // `git-tree-entries` — the committed tree's own root entries, read from a
     // different git store than the index this walk uses. Not `self-reported`:
     // two derivations of one population by two routes is precisely the second
@@ -12525,7 +12533,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changeset. Measured on a worktree stood up for the measurement and worked
     // in nowhere else, after `build:packages`, `git clean -fX docs/docs/modules`
     // and deleting the copy stamp.
-    files: 8415,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T013/T014), the
+    // contributor-facing documents: 8415 -> 8416 (+1).** One file, `SECURITY.md`
+    // at the repository root — entry number forty-one, and the first one the
+    // disposition instrument from the previous commit actually caught. A whole-repository walk sees it; `check-doc-snippets` does not, its roots being `docs/docs` and `specs`, and neither does `check-language.sh`, whose two populations are source extensions and `docs/docs/**`.
+    files: 8416,
     sites: null,
     sources: ['manifest-index'],
     //
