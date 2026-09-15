@@ -1,4 +1,5 @@
 {
   "erp_connector.nav.label": "ERP connectors",
-  "erp_connector.nav.description": "Shared ERP connector infrastructure"
+  "erp_connector.nav.description": "Shared ERP connector infrastructure",
+  "errors.ERP_CONNECTOR_ALREADY_ACTIVE": "Another ERP connector is already active ({activeModuleId}). Switch it off first."
 }
