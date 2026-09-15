@@ -5,7 +5,7 @@
   "type": "module",
   "description": "B2B platform backend — Fastify API server. Owns every business module, migrations, and tests.",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.18.0"
   },
   "scripts": {
     "acceptance:instance": "tsx scripts/acceptance/instance.ts",

@@ -481,7 +481,7 @@ describe('check-language.sh', () => {
   /**
    * The prose scan has to run on the perl this repository's CI images have.
    *
-   * `perl-base` is the only perl in `node:22.17-slim` and in
+   * `perl-base` is the only perl in `node:22.18-slim` and in
    * `debian:bookworm-slim`, and it ships no `PerlIO.pm` — so an
    * `:encoding(UTF-8)` layer aborts the scanner at `BEGIN`. The script guarded
    * `command -v perl`, which `perl-base` satisfies, and then used a layer it

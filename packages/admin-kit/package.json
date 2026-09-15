@@ -54,7 +54,7 @@
     "theme.css"
   ],
   "engines": {
-    "node": ">=22.17.0"
+    "node": ">=22.18.0"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

@@ -4,7 +4,7 @@
   "private": true,
   "description": "B2B platform documentation site — Docusaurus. Authored for both developers and Product Owners per the constitution's Documentation Requirements.",
   "engines": {
-    "node": ">=22.17.0"
+    "node": ">=22.18.0"
   },
   "scripts": {
     "dev": "pnpm --filter backend run docs:collect && node --env-file-if-exists=.env node_modules/@docusaurus/core/bin/docusaurus.mjs start",

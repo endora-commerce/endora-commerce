@@ -26,6 +26,7 @@ import {
   describeRegistrySupply,
   endoraClosure,
   hostNpmrc,
+  instanceEnvValues,
   evaluateA1,
   evaluateA3,
   evaluateA4,
@@ -705,6 +706,88 @@ describe('evaluateProcess', () => {
   });
 });
 
+/**
+ * The shape of a crash, and why the tail alone is not a diagnosis.
+ *
+ * A step this criterion runs fails in one of two ways, and they put the sentence
+ * a reader needs at opposite ends of the output. A `pnpm install`, a `tsc` or a
+ * migration prints progress and then the reason, so the reason is at the end. An
+ * **uncaught exception** prints the reason *first* — `NameError: message` — then
+ * a stack, then the interpreter banner, and pnpm adds two `ELIFECYCLE` lines on
+ * top of that. Six or eight trailing lines of that output carry frames and
+ * package-manager noise and no message at all.
+ *
+ * Measured on pipeline 13898, `registry` mode, where this cost a diagnosis:
+ * A4 reported `] / } / ] / } / Node.js v22.17.1 / ELIFECYCLE …` and A15 reported
+ * five `at …` frames. Both are fails on the default branch, whose mode a merge
+ * request cannot reproduce because the two variables that select it are
+ * protected — so the run that produced them is the only run there was, and
+ * neither said what went wrong.
+ */
+describe('a crash is reported by its message, not only by its tail', () => {
+  const crash = [
+    '> instance@0.0.0 start',
+    '> node --env-file-if-exists=../.env dist/index.js',
+    '',
+    'file:///tmp/instance/node_modules/@endora-commerce/platform/dist/kernel/scope.js:144',
+    '    throw new AwilixResolutionError(name, path);',
+    '          ^',
+    '',
+    "AwilixResolutionError: Could not resolve 'inventoryPort'.",
+    '    at Object.resolve (…/awilix/lib/container.js:451:19)',
+    '    at enterPlatformScope (…/dist/kernel/scope.js:144:12)',
+    '    at enterSystemScope (…/dist/kernel/scope.js:167:12) {',
+    "  code: 'ERESOLUTION'",
+    '}',
+    '',
+    'Node.js v22.18.0',
+    ' ELIFECYCLE  Command failed with exit code 1.',
+    ' ELIFECYCLE  Command failed with exit code 1.',
+  ].join('\n');
+
+  it('A4 names the thrown error when the instance never answered', () => {
+    const result = evaluateA4({
+      started: true,
+      healthStatus: null,
+      reconcile: null,
+      enumerated: null,
+      output: crash,
+    });
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain("AwilixResolutionError: Could not resolve 'inventoryPort'.");
+  });
+
+  it('A15 names the thrown error when `admin:create` exited non-zero', () => {
+    const result = evaluateA15({
+      createCode: 1,
+      createOutput: crash,
+      loginStatus: null,
+      sessionCookie: false,
+      loginBody: '',
+    });
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain("AwilixResolutionError: Could not resolve 'inventoryPort'.");
+  });
+
+  it('evaluateProcess names it too — migrate and module:install crash the same way', () => {
+    const result = evaluateProcess('A3', 1, crash, 'unused');
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain("AwilixResolutionError: Could not resolve 'inventoryPort'.");
+  });
+
+  it('still carries the tail, which is where a non-crashing step says why', () => {
+    const result = evaluateProcess('A2', 1, 'a\nb\nERR_PNPM_FETCH_404', 'unused');
+    expect(result.detail).toContain('ERR_PNPM_FETCH_404');
+  });
+
+  it('adds nothing when the output carries no thrown error', () => {
+    const plain = ['resolving', 'done', 'ERR_PNPM_FETCH_404'].join('\n');
+    const result = evaluateProcess('A2', 1, plain, 'unused');
+    expect(result.detail).toContain('ERR_PNPM_FETCH_404');
+    expect(result.detail).not.toContain('…');
+  });
+});
+
 describe('the exit code', () => {
   const at = (state: AssertionResult['state']): AssertionResult => ({ id: 'A1', state, detail: '' });
 
@@ -960,6 +1043,54 @@ describe('formatReport', () => {
     expect(report).toContain('A1 PASS — fine');
     expect(report).toContain('note: a note');
     expect(report).toContain('mode=registry pass=1 fail=1 unmeasured=0 of 2');
+  });
+});
+
+/**
+ * What the run puts in the instance's own `.env`, and the one name whose
+ * absence made A4 a measurement of the harness.
+ *
+ * Every value here has to be a name the instance's own `.env.example` declares
+ * — the runner refuses otherwise, which is `specs/123-oss-install-experience/`
+ * G3's guard — and the set has to cover what the composed platform actually
+ * reads, or the run configures an instance a client would not have.
+ *
+ * `MEILISEARCH_URL` was not in it. The platform's health probe reads it and
+ * falls back to `http://localhost:7700`; the acceptance job runs Meilisearch as
+ * a service container at `http://meilisearch:7700`, so the probe reached
+ * nothing, `/api/v1/_health` answered `degraded` with 503, and A4 failed. The
+ * platform's own declaration of that input says exactly this would happen —
+ * *"a shop that runs it elsewhere is reported degraded while it is working"* —
+ * so the instance was right and the harness had not configured it. On a
+ * developer's box `localhost:7700` is usually a running container, which is why
+ * every local `tarball` run was green: the third green-on-a-developer's-box in
+ * this criterion.
+ *
+ * Measured 2026-09-14: pipeline 13909, an unrelated branch on `master`'s base,
+ * `A4 FAIL — the health route answered 503, not 200`, and 13910 the same.
+ */
+describe('the values the run fills into the instance `.env`', () => {
+  it('names every service the composed platform reaches for, Meilisearch included', () => {
+    const filled = instanceEnvValues({
+      databaseUrl: 'postgresql://b2b:b2b@localhost:5432/b2b_instance_acceptance_test',
+      env: { MEILISEARCH_URL: 'http://meilisearch:7700', REDIS_URL: 'redis://redis:6379' },
+    });
+    expect(filled['MEILISEARCH_URL']).toBe('http://meilisearch:7700');
+    expect(filled['REDIS_URL']).toBe('redis://redis:6379');
+  });
+
+  it('falls back to the platform own address, so a run with no service variables still starts', () => {
+    const filled = instanceEnvValues({ databaseUrl: 'postgresql://x/y', env: {} });
+    // The same address `packages/platform/src/http/health.ts` defaults to. A
+    // different one here would make the run configure a probe at an address the
+    // platform never looks at.
+    expect(filled['MEILISEARCH_URL']).toBe('http://localhost:7700');
+    expect(filled['REDIS_URL']).toBe('redis://localhost:6379');
+  });
+
+  it('withholds `SESSION_COOKIE_SECRET`, which the command generated and this run must not', () => {
+    const filled = instanceEnvValues({ databaseUrl: 'postgresql://x/y', env: {} });
+    expect(Object.keys(filled)).not.toContain('SESSION_COOKIE_SECRET');
   });
 });
 
