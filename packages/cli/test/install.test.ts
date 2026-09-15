@@ -159,7 +159,21 @@ const ADMIN = {
   adminLastName: 'Lovelace',
 } as const;
 
-/** Every answer supplied, nothing asked, nothing run. */
+/**
+ * Every answer supplied, nothing asked, nothing run.
+ *
+ * **`dockerReachable` is one of those answers, and omitting it was a defect in
+ * this helper rather than in the command.** `runInstall` reads
+ * `options.dockerReachable ?? dockerIsReachable()`, so a case that wants the
+ * services step and supplies no answer runs `docker info` against whichever
+ * machine the suite is on. On a developer's laptop that is green; on
+ * `node:22.18-slim` with no socket, every `services: true` case in this file —
+ * six of them — fails with the command's refusal instead of asserting the step
+ * list it was written to assert. That refusal is correct and is not weakened
+ * here: it keeps its own case below, which supplies `false` deliberately. This
+ * line is what finally makes the file's opening claim true — *"without a
+ * package manager, a Docker daemon or a database anywhere near the test"*.
+ */
 function options(
   root: string,
   overrides: Record<string, unknown> = {},
@@ -169,6 +183,7 @@ function options(
     cwd: root,
     storefront: false,
     services: false,
+    dockerReachable: true,
     demo: false,
     ...ADMIN,
     ...overrides,

@@ -8094,7 +8094,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`CONTRIBUTING.md` at the repository root: 8345 -> 8346.** One file, and this
     // walk opens a `.md` like any other. Measured on a clean worktree carrying the
     // change, not computed from the delta.
-    files: 8346,
+    // **`fix/environment-dependent-tests`, 2026-09-15: 8346 -> 8347.** One file — the
+    // empty changeset recording that a test-only repair in `packages/cli` carries no
+    // release meaning, which this walk opens like any other `.md`. The repair edits
+    // one existing test file and adds none. Measured in two throwaway detached
+    // `git worktree`s: `origin/master` reproduced 8346 exactly and this branch's tip
+    // read 8347. The first attempt was taken in the tree the work was done in, with
+    // the changeset parked on disk — which `specs/conventions/check-estate.md` says
+    // cannot work for the two `git ls-files --cached` entries, a parked file still
+    // being in the index — so the census is stated from a fresh worktree on both
+    // sides for all three walks. `check-language.sh` did **not** move (6306 both
+    // sides): `.changeset/` is outside its population, which is a measurement and
+    // not an inference from the other two.
+    files: 8347,
     sites: null,
     sources: [],
     //
@@ -12356,7 +12368,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`CONTRIBUTING.md` at the repository root: 8405 -> 8406.** One file, and this
     // walk opens a `.md` like any other. Measured on a clean worktree carrying the
     // change, not computed from the delta.
-    files: 8406,
+    // **`fix/environment-dependent-tests`, 2026-09-15: 8406 -> 8407.** The same one
+    // file as `check-nul-bytes` above — the empty changeset for a test-only repair in
+    // `packages/cli` — and the same two throwaway worktrees: `origin/master` read
+    // 8406, this branch's tip 8407. This is one of the two entries that take their
+    // population from the **index**, so parking the file on disk to measure the
+    // baseline reported 8407 for a tree that did not contain it; that is the third
+    // costume of the one trap this record's guidance names, and the reason both
+    // numbers here come from `origin/master` in a worktree of its own.
+    files: 8407,
     sites: null,
     sources: ['manifest-index'],
     //
