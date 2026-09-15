@@ -79,6 +79,18 @@ export async function saveWfirmaConnection(h: BackendServerHandle): Promise<void
   }
 }
 
+export async function deactivateWfirma(h: BackendServerHandle): Promise<void> {
+  const res = await h.app.inject({
+    method: 'POST',
+    url: '/api/v1/admin/modules/wfirma/activation',
+    ...ADMIN,
+    payload: { active: false },
+  });
+  if (res.statusCode !== 200) {
+    throw new Error(`wFirma deactivation failed: ${res.statusCode} ${res.body}`);
+  }
+}
+
 export async function deactivateInfakt(h: BackendServerHandle): Promise<void> {
   const res = await h.app.inject({
     method: 'POST',

@@ -203,7 +203,15 @@ export interface InvoiceLedgerDeliveryPort {
     error: string,
     opts?: { dead?: boolean },
   ): Promise<LedgerDeliveryRecord>;
-  markAwaitingRemote(id: string, asyncTaskId: string): Promise<void>;
+  markAwaitingRemote(
+    id: string,
+    asyncTaskId: string,
+    opts?: {
+      remoteDocumentId?: string;
+      originalInvoiceId?: string | null;
+      remoteVendorNumber?: string | null;
+    },
+  ): Promise<void>;
   markSucceeded(
     id: string,
     remoteDocumentId: string,

@@ -144,7 +144,15 @@ export class InvoiceLedgerDeliveryService implements InvoiceLedgerDeliveryPort {
     return toRecord(row);
   }
 
-  async markAwaitingRemote(id: string, asyncTaskId: string): Promise<void> {
+  async markAwaitingRemote(
+    id: string,
+    asyncTaskId: string,
+    opts?: {
+      remoteDocumentId?: string;
+      originalInvoiceId?: string | null;
+      remoteVendorNumber?: string | null;
+    },
+  ): Promise<void> {
     // command-coverage-ignore: Infakt worker queue stamp — parks the delivery
     // on the vendor async-task id until the webhook or poll completes.
     const em = this.emFactory();
@@ -152,7 +160,36 @@ export class InvoiceLedgerDeliveryService implements InvoiceLedgerDeliveryPort {
     if (!row) return;
     row.asyncTaskId = asyncTaskId;
     row.status = 'awaiting_remote';
-    appendAttempt(row, 'awaiting_remote', null);
+    appendAttempt(row, 'awaiting_remote', null, {
+      remoteVendorNumber: opts?.remoteVendorNumber ?? null,
+    });
+
+    const remoteDocumentId = opts?.remoteDocumentId;
+    if (remoteDocumentId) {
+      row.remoteDocumentId = remoteDocumentId;
+      let map = await em.findOne(InvoiceLedgerDocumentMap, {
+        adapterId: row.adapterId,
+        invoiceId: row.invoiceId,
+      });
+      const originalInvoiceId = opts?.originalInvoiceId ?? null;
+      if (map === null) {
+        map = em.create(InvoiceLedgerDocumentMap, {
+          adapterId: row.adapterId,
+          invoiceId: row.invoiceId,
+          organizationId: row.organizationId,
+          originalInvoiceId,
+          remoteDocumentId,
+          environment: row.environment,
+          credentialCode: row.credentialCode,
+        });
+      } else {
+        map.remoteDocumentId = remoteDocumentId;
+        map.environment = row.environment;
+        map.credentialCode = row.credentialCode;
+        if (originalInvoiceId) map.originalInvoiceId = originalInvoiceId;
+      }
+    }
+
     await em.flush();
   }
 
