@@ -201,7 +201,7 @@ const MIGRATED_MODULES: readonly string[] = [
   'shopping_lists',
   'transactional_emails',
   'webhooks',
-  // The wFirma adapter (`specs/129-wfirma-integration/`). Both of its codes are
+  // The wFirma adapter (`specs/131-wfirma-integration/`). Both of its codes are
   // minted rather than received — the frozen capture routes nothing to it — so
   // the reference side that makes this entry answerable is the minting half
   // alone, exactly as `infakt`'s is.

@@ -4,7 +4,7 @@
 '@endora-commerce/mod-wfirma': minor
 ---
 
-wFirma invoice-ledger adapter (`specs/129-wfirma-integration/`): a second vendor on the
+wFirma invoice-ledger adapter (`specs/131-wfirma-integration/`): a second vendor on the
 existing ledger, with no schema of its own.
 
 **`@endora-commerce/mod-wfirma`** is a new switchable module package — connection screen and
