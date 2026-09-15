@@ -446,6 +446,11 @@ import { readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import {
+  perClassToken,
+  scanCommercialVocabulary,
+  type VocabularyScan,
+} from './lib/commercial-vocabulary.js';
 import { readSizeRefusal, reportReadSize, type ReadCoverage } from './lib/read-size.js';
 import {
   classifyWorkspaceMembers,
@@ -552,7 +557,9 @@ export type ReleaseIntentFindingKind =
   | 'vacuous-release'
   | 'manifest-changed-beyond-version'
   | 'unattributed-package-change'
-  | 'unattributed-published-change';
+  | 'unattributed-published-change'
+  | 'commercial-disclosure-in-changeset'
+  | 'stale-disclosure-clearance';
 
 export interface ReleaseIntentFinding {
   readonly kind: ReleaseIntentFindingKind;
@@ -649,6 +656,18 @@ export interface ChangesetDocument {
   /** The non-blank lines inside the block, parsed or not. */
   readonly frontMatterLines: number;
   readonly releases: readonly ChangesetRelease[];
+  /**
+   * The summary below the closing delimiter — the prose R3 reads.
+   *
+   * It is kept because **this is the surface with the leak**: a changeset body
+   * is written by an author who thinks they are writing to the team, and
+   * `changeset version` renders it into a CHANGELOG that ships. The one real
+   * commercial disclosure this estate found in a published artefact came
+   * through here, and nothing stood between the author and the render. The
+   * front-matter reader above deliberately stops at the delimiter; this field
+   * is what is on the other side of it.
+   */
+  readonly body: string;
 }
 
 /**
@@ -661,10 +680,19 @@ export interface ChangesetDocument {
  */
 export function readChangesetDocument(file: string, source: string): ChangesetDocument {
   const open = /^---[ \t]*\r?\n/.exec(source);
-  if (open === null) return { file, hasFrontMatter: false, frontMatterLines: 0, releases: [] };
+  // A file with no front matter still has prose, and R3 reads prose: the whole
+  // source is the body in that case rather than nothing. `hasFrontMatter` is a
+  // separate question with its own refusal (FR-017) and the two must not be
+  // collapsed — a file the front-matter reader cannot parse is exactly the one
+  // whose prose nobody has looked at.
+  if (open === null) {
+    return { file, hasFrontMatter: false, frontMatterLines: 0, releases: [], body: source };
+  }
   const rest = source.slice(open[0].length);
   const close = /^---[ \t]*\r?$/m.exec(rest);
-  if (close === null) return { file, hasFrontMatter: false, frontMatterLines: 0, releases: [] };
+  if (close === null) {
+    return { file, hasFrontMatter: false, frontMatterLines: 0, releases: [], body: source };
+  }
 
   const releases: ChangesetRelease[] = [];
   let frontMatterLines = 0;
@@ -678,7 +706,13 @@ export function readChangesetDocument(file: string, source: string): ChangesetDo
     if (packageName === undefined || bump === undefined) continue;
     releases.push({ file, packageName, bump });
   }
-  return { file, hasFrontMatter: true, frontMatterLines, releases };
+  return {
+    file,
+    hasFrontMatter: true,
+    frontMatterLines,
+    releases,
+    body: rest.slice(close.index + close[0].length),
+  };
 }
 
 /** {@link readChangesetDocument}'s entries, for a caller that wants only those. */
@@ -1401,6 +1435,62 @@ export function analyzeReleaseIntent(inputs: ReleaseIntentInputs): readonly Rele
     });
   }
 
+  findings.push(...scanChangesetProse(inputs.documents));
+
+  return findings;
+}
+
+/**
+ * **R3 over the changeset bodies** — the gate on the surface that had none
+ * (`specs/129-github-canonical-migration/` T017 / FR-031; 126's FR-020).
+ *
+ * This is the *only* pre-existing instrument in this estate whose subject
+ * survives the migration to a canonical public repository. R1 and R2 — the
+ * population and the projection — stop having a subject the moment there is one
+ * tree; newly written prose does not. So it is here, in the gate a merge request
+ * already has to pass, rather than in a check of its own that would run over an
+ * artefact nobody writes.
+ *
+ * The rule's weakness is stated where it belongs, in
+ * `backend/scripts/lib/commercial-vocabulary.ts` and in this check's inventory
+ * row: precision ≈ 28 %, **recall unknown**. It is a tripwire on prose, not a
+ * structural gate, and a green from it guarantees nothing.
+ */
+function scanChangesetProse(
+  documents: readonly ChangesetDocument[],
+): readonly ReleaseIntentFinding[] {
+  const findings: ReleaseIntentFinding[] = [];
+  for (const document of documents) {
+    if (document.file === 'README.md') continue;
+    const scan = scanCommercialVocabulary(document.body);
+    for (const hit of scan.hits) {
+      findings.push({
+        kind: 'commercial-disclosure-in-changeset',
+        subject: `${document.file}:${hit.line}`,
+        message:
+          `\`${hit.term}\` (${hit.klass}) — "${hit.text.slice(0, 120)}". A changeset body is ` +
+          'rendered into a `CHANGELOG.md` that ships, and the one real commercial disclosure ' +
+          'this estate found in a published artefact came through this surface. Judge it ' +
+          'against `specs/conventions/commercial-data.md` §1 rather than against the word ' +
+          'that matched: §4(b) and §4(c) narrow this rule sharply, and its measured precision ' +
+          'is about 28 %. If it is a false positive, clear it **in the changeset body** with ' +
+          '`<!-- commercial-data: cleared `' +
+          hit.term +
+          '` — why -->` and a reason somebody can disagree with. Do not widen the term list: ' +
+          'that silently stops the rule refusing a real finding somewhere else.',
+      });
+    }
+    for (const stale of scan.staleClearances) {
+      findings.push({
+        kind: 'stale-disclosure-clearance',
+        subject: `${document.file}:${stale.line}`,
+        message:
+          `clears \`${stale.term}\`, and the body no longer contains it. Remove the ` +
+          'annotation, so that every clearance left is one somebody still has to agree with — ' +
+          'the same direction every other ledger in this estate is held to.',
+      });
+    }
+  }
   return findings;
 }
 
@@ -2706,9 +2796,39 @@ function main(): void {
     coverage: result.coverage,
   });
   const versionable = result.inputs.members.filter((member) => member.family).length;
+  // R3's own census, printed **per class including the zeros** — §4(d) of
+  // `specs/conventions/commercial-data.md` is a rule, not advice: a class a
+  // measurement did not scan for is reported as a zero indistinguishable from a
+  // real one, so a report that printed only the classes with a hit would be the
+  // exact failure that rule exists about. `prose-lines` is what the scan read
+  // and belongs on the same line for the same reason `files=` does.
+  //
+  // It is deliberately **not** folded into `sites`: the changeset population
+  // follows the release cycle rather than the tree, and a ±band cannot bound a
+  // quantity that oscillates in both directions (!966's measurement, over this
+  // very population).
+  const prose = result.inputs.documents
+    .filter((document) => document.file !== 'README.md')
+    .map((document) => scanCommercialVocabulary(document.body));
+  const proseLines = prose.reduce((sum, scan) => sum + scan.lines, 0);
+  const clearedCount = prose.reduce((sum, scan) => sum + scan.cleared.length, 0);
+  const merged: VocabularyScan = {
+    hits: prose.flatMap((scan) => scan.hits),
+    cleared: prose.flatMap((scan) => scan.cleared),
+    staleClearances: prose.flatMap((scan) => scan.staleClearances),
+    lines: proseLines,
+    perClass: {
+      C1: prose.reduce((sum, scan) => sum + scan.perClass.C1, 0),
+      C2: prose.reduce((sum, scan) => sum + scan.perClass.C2, 0),
+      C3: prose.reduce((sum, scan) => sum + scan.perClass.C3, 0),
+      C4: prose.reduce((sum, scan) => sum + scan.perClass.C4, 0),
+    },
+  };
   console.log(
     `${PREFIX} versionable=${versionable} ignored=${result.inputs.members.length - versionable} ` +
-      `changesets=${result.inputs.changesets.length} violations=${result.findings.length}`,
+      `changesets=${result.inputs.changesets.length} prose-lines=${proseLines} ` +
+      `${perClassToken(merged)} cleared=${clearedCount} ` +
+      `violations=${result.findings.length}`,
   );
 
   if (result.findings.length > 0) {

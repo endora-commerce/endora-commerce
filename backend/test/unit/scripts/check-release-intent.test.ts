@@ -24,6 +24,7 @@ import {
   type ReleaseIntentFindingKind,
 } from '../../../scripts/check-release-intent.js';
 import { nodeWorkspaceFs } from '../../../scripts/lib/workspace-packages.js';
+import { scanCommercialVocabulary } from '../../../scripts/lib/commercial-vocabulary.js';
 import {
   branch,
   checkout,
@@ -810,12 +811,21 @@ describe('check-release-intent — the series stays in `0.x` (D-225)', () => {
       hasFrontMatter: true,
       frontMatterLines: 0,
       releases: [],
+      // The closing `---` is matched without its newline, so the body starts
+      // with it. Recorded as it is rather than trimmed: what R3 reads is the
+      // text, and a reader of this assertion should see the same bytes.
+      body: '\n\nbody\n',
     });
+    // The body of a file with no delimiters is the whole source — R3 reads
+    // prose, and a file the front-matter reader cannot parse is exactly the one
+    // whose prose nobody has looked at. The two questions stay apart:
+    // `hasFrontMatter` is still `false` and still carries its own refusal.
     expect(readChangesetDocument('prose.md', 'just a summary, no delimiters\n')).toEqual({
       file: 'prose.md',
       hasFrontMatter: false,
       frontMatterLines: 0,
       releases: [],
+      body: 'just a summary, no delimiters\n',
     });
   });
 
@@ -1969,5 +1979,127 @@ describe('check-release-intent --since — the release shape (D-212)', () => {
       '0.7.0',
       '1.2.3-rc.1',
     ]);
+  });
+});
+
+/**
+ * **R3 — the vocabulary rule over changeset prose** (129 T017 / FR-031).
+ *
+ * The rule is a term list and it is the weakest instrument in this estate:
+ * precision ≈ 28 % and **recall unknown**. These tests exist to hold the two
+ * things that make it usable anyway — the two ruled narrowings, which are what
+ * keep its false-positive rate tolerable — and the clearing mechanism, which is
+ * the only sanctioned way to answer a false positive. Widening the term list is
+ * not clearing, and no test here may be made to pass by doing it.
+ */
+describe('R3 over changeset prose', () => {
+  it('finds a counterparty, a cost, a money figure and a strategy line, and says which class', () => {
+    const scan = scanCommercialVocabulary(
+      'Bumped for the pilot, whose contract lands before the sales event.\n' +
+        'The work is 3–5 person-days and the margin on it is thin.\n',
+    );
+    expect(scan.perClass).toEqual({ C1: 2, C2: 1, C3: 1, C4: 1 });
+    expect(scan.hits.map((h) => h.term).sort()).toEqual([
+      'day-range',
+      'margin',
+      'person-day',
+      'pilot',
+      'sales-event',
+    ]);
+  });
+
+  /**
+   * §4(d) is a rule, not a reporting preference: a class a measurement did not
+   * scan for is reported as a zero indistinguishable from a real one. So the
+   * per-class record carries **every** class, and a clean text is four zeros
+   * rather than an empty object.
+   */
+  it('reports every class including the zeros, over a clean text', () => {
+    const scan = scanCommercialVocabulary('Adds a product-list block to the page builder.\n');
+    expect(scan.perClass).toEqual({ C1: 0, C2: 0, C3: 0, C4: 0 });
+    expect(scan.hits).toEqual([]);
+  });
+
+  /** §4(b): effort *measured* is not effort *priced*. */
+  it('does not flag a backward observation of effort', () => {
+    expect(scanCommercialVocabulary('The sweep took two person-days.\n').hits).toEqual([]);
+  });
+
+  it('still flags a forward commitment of the same effort', () => {
+    expect(
+      scanCommercialVocabulary('The sweep is two person-days.\n').hits.map((h) => h.term),
+    ).toEqual(['person-day']);
+  });
+
+  /**
+   * §4(b) narrows **C1 alone**. A counterparty named in the past tense is still
+   * a counterparty named, and a rule that suppressed it would have cleared the
+   * one real disclosure this estate found — which was written in the present
+   * tense about a party, not about an effort.
+   */
+  it('narrows C1 only — a counterparty in the past tense still fires', () => {
+    expect(
+      scanCommercialVocabulary('We measured this against the pilot.\n').hits.map((h) => h.klass),
+    ).toEqual(['C2']);
+  });
+
+  /**
+   * §4(c): product prices are the domain this software is about. There is no
+   * amount regex at all, and this test is what stops one being added.
+   */
+  it('does not flag a currency code, an amount or a credit limit', () => {
+    expect(
+      scanCommercialVocabulary(
+        "Channel default currency 'PLN'; the fixture grants 50 000.00 PLN of credit at 12,50 PLN.\n",
+      ).hits,
+    ).toEqual([]);
+  });
+
+  it('clears a hit by annotation, and counts the clearance rather than hiding it', () => {
+    const scan = scanCommercialVocabulary(
+      'Adds the pilot-programme module.\n' +
+        '<!-- commercial-data: cleared `pilot` — the module is named pilot, no party is -->\n',
+    );
+    expect(scan.hits).toEqual([]);
+    expect(scan.cleared.map((h) => h.term)).toEqual(['pilot']);
+  });
+
+  it('refuses a clearance with no reason worth reading', () => {
+    const scan = scanCommercialVocabulary(
+      'Adds the pilot-programme module.\n<!-- commercial-data: cleared `pilot` — ok -->\n',
+    );
+    expect(scan.hits.map((h) => h.term)).toEqual(['pilot']);
+  });
+
+  /** The ledger's other direction: a clearance that has stopped clearing anything. */
+  it('reports a clearance naming a term the body no longer contains', () => {
+    const scan = scanCommercialVocabulary(
+      'An ordinary change.\n' +
+        '<!-- commercial-data: cleared `pilot` — the module is named pilot, no party is -->\n',
+    );
+    expect(scan.staleClearances.map((c) => c.term)).toEqual(['pilot']);
+  });
+});
+
+describe('a changeset document keeps the prose R3 reads', () => {
+  it('splits the front matter from the body at the closing delimiter', () => {
+    const document = readChangesetDocument(
+      'x.md',
+      "---\n'@endora-commerce/contracts': patch\n---\n\nThe summary, with a --- inside it.\n",
+    );
+    expect(document.hasFrontMatter).toBe(true);
+    expect(document.releases.map((r) => r.bump)).toEqual(['patch']);
+    expect(document.body.trim()).toBe('The summary, with a --- inside it.');
+  });
+
+  /**
+   * A file the front-matter reader cannot parse is exactly the one whose prose
+   * nobody has looked at, so its body is the whole source rather than nothing.
+   * The two questions stay apart: `hasFrontMatter` keeps its own refusal.
+   */
+  it('reads the whole source as the body when there is no front matter', () => {
+    const document = readChangesetDocument('x.md', 'Just prose about the pilot.\n');
+    expect(document.hasFrontMatter).toBe(false);
+    expect(document.body).toBe('Just prose about the pilot.\n');
   });
 });

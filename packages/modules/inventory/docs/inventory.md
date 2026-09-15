@@ -86,7 +86,7 @@ warehouse from a sales channel; and whoever could read orders could enumerate
 every warehouse and the address on it. Neither code names the data being
 touched, which is the discriminator
 `specs/080-f4-real-scope/payments-permission-ownership.md` §7.2 sets and
-`specs/first-deployment-window.md` §2 applies per route rather than per module.
+`specs/080-f4-real-scope/first-deployment-window.md` §2 applies per route rather than per module.
 
 There is **no data migration**: a role that reached these screens through
 `catalog:write` or `orders:read` is granted the new codes explicitly, on

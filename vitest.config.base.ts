@@ -3,6 +3,7 @@
 // across backend + frontend + packages (Principle IV — one configuration, not three).
 
 import { defineConfig } from 'vitest/config';
+import { applyDeclaredDockerAbsence } from './scripts/declared-absence.js';
 import { assertWorkspacePackagesAreLocal } from './scripts/workspace-resolution.js';
 
 // Issue #255 — refuse a run whose `@endora-commerce/*` source comes from another checkout.
@@ -29,6 +30,16 @@ import { assertWorkspacePackagesAreLocal } from './scripts/workspace-resolution.
 // member that invokes vitest with no configuration, and one whose configuration
 // does not import this file.
 assertWorkspacePackagesAreLocal();
+
+// The Docker daemon is declared absent, for the same reason and at the same
+// seam. Nothing under vitest may consult one, and a run that asks the machine
+// is a run whose verdict is the machine's: six cases of
+// `packages/cli/test/install.test.ts` asked, were green on a laptop and were
+// six refusals in a job with no socket. Pointing `DOCKER_HOST` at an address
+// that cannot answer makes the laptop and the job agree in the same second.
+// `scripts/declared-absence.ts` carries why the default is inverted from
+// `BACKEND_TEST_SERVICES`' and how a run that genuinely wants a daemon says so.
+applyDeclaredDockerAbsence();
 
 export default defineConfig({
   test: {

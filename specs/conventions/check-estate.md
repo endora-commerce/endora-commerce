@@ -79,6 +79,21 @@ census (`3 drifted, 32 agree, 0 not measured, of 35 recorded`), printed even whe
 drifted, because a silent report cannot be told from one that did not run; an entry the run
 could not measure is named as *not measured* and never counted as agreeing.
 
+**And if a tool wrote your check for you, grep the file for a raw NUL before you trust the diff.**
+This is an *authoring* hazard rather than a measurement one, and it is here because the person it
+catches is the person reading this page. An agent writing a source file through a tool whose
+payload is JSON has its string escapes decoded on the way in, so a `\u0000` **intended as source
+text** — the obvious separator for a composite map key, `` `${a}\u0000${b}` `` — arrives as the
+actual byte. Git then classifies the file **binary**, every diff of it reads *"Binary files
+differ"*, and the file stops being reviewable; that is issue #190's shape, and it is how five of
+them survived every review of every commit that touched them. `check:nul-bytes` catches it and did
+so on 2026-09-15, in a check being written to meet the obligations on this page — which is the
+only reason it is written down rather than merged. Two remedies, and prefer the second: spell the
+byte as `\0`, which no JSON payload decodes; or **have no separator to choose**, which is what a
+nested `Map<string, Set<string>>` buys over a composite string key. Choosing a separator that
+cannot occur in either half means choosing a byte, and the bytes that qualify are exactly the ones
+that break a diff.
+
 **Measure a read size in a tree with the shape CI has, and that means a *clean* one.** Two
 things make a working checkout read high, and only the first is widely known. `composer:generate`
 places ~62–80 copies under `docs/docs/modules/` that no `quality` job has placed when the check

@@ -7,7 +7,13 @@ modules published as npm packages. It is MIT-licensed, and so is every contribut
 This project is unusual in two ways that will save you time to know up front.
 
 1. **It is spec-driven.** A feature starts as a document in `specs/NNN-slug/` and the code
-   follows it. The documents are in the repository and are meant to be read.
+   follows it. Feature directories written from the migration to this repository onward are
+   **here, and are meant to be read**. The design record from before then — including the
+   `specs/NNN-slug/` and `D-nnn` citations you will meet throughout the code and the comments —
+   is kept in the project's private historical repository. **Those citations are left in place
+   deliberately, as provenance: they are footnotes, not broken links.** The documents a change is
+   actually judged against are `specs/conventions/` and `.specify/memory/constitution.md`, and
+   both are here.
 2. **Most of its rules are instruments, not conventions.** A large static-check estate runs on
    every change and reports by name. You are unlikely to break a rule silently — but you are
    also unlikely to talk a check out of a finding, so it is cheaper to read the rule first.
@@ -55,9 +61,14 @@ artefacts rather than how they were typed:
 
 ### What this asks of a contribution
 
-**Read the closest prior spec directory before you implement.** For most changes there is one,
-and it will tell you why the code looks the way it does. `specs/` is large; the fastest route
-in is to find the module you are touching and grep `specs/` for its id.
+**Read the closest prior spec directory before you implement — and if there is not one you can
+open, read the convention.** For a change in the ground this repository has already covered, the
+closest prior feature directory is in the private historical repository and you will meet it only
+as a citation. That is not a gap you have to work around: `specs/conventions/` is the operational
+half of the record and it is here in full, one document per subject, and it is what a change is
+judged against. Where a public feature directory does exist, it will tell you why the code looks
+the way it does; the fastest route in is to find the module you are touching and grep `specs/`
+for its id.
 
 **A feature's `tasks.md` is ticked in the same merge request as its code.** A row marked done
 in a later change is a status nobody can trust afterwards, and the whole point of the file is
@@ -228,22 +239,23 @@ repository declares `MIT` — and nothing in it affects a contribution.
 
 ---
 
-## Where to send a change, and what is not decided yet
+## Where to send a change
 
-This section is deliberately honest about a gap rather than guessing at it.
+**This repository is canonical.** Issues, pull requests and releases all live here, and every
+gate described above runs here. **Pull requests are accepted** — a pull request opened here is
+reviewed and merged like any other change, and nothing has to carry it anywhere else.
 
-**The canonical repository is the project's self-hosted GitLab**, and every gate described above
-runs there. A public mirror and the contribution path that goes with it — which host takes a
-patch, which takes a bug report, and how a change reaches the canonical branch from outside —
-are **an open decision at the time of writing**, tracked as
-`specs/123-oss-install-experience/` T6a-E. Until it is settled and written here, ask before
-investing effort in a large change: a well-built feature that arrives through a route nobody
-has agreed on is a bad outcome for everybody.
+Endora Commerce was built on the project's own self-hosted GitLab, which is kept as the
+**historical repository**: reachable by the team, not written to. That is where the `specs/`
+and `D-nnn` citations in the code resolve, and it is why they are left in place rather than
+stripped. **If you are reading this file inside that GitLab repository, the migration has not
+completed yet** — the paragraph above is the decided destination rather than today's address, so
+ask before investing effort in a large change.
 
-**There is no security disclosure address yet.** `SECURITY.md` is a known gap, tracked in the
-same feature. Until it exists, please do **not** file a suspected vulnerability anywhere public
-— contact the maintainers privately and wait for a reply.
+**A suspected vulnerability does not go in an issue or a pull request.** `SECURITY.md` is the
+route, and it is the only one: the security class is kept off the public tracker deliberately.
+Read that file before reporting — it is not finished, and it says exactly what is missing.
 
 **What is safe to start on right now:** a bug fix with a failing test, a documentation
-correction, a missing test for existing behaviour, or a small repair a check reported. Those
-are reviewable on their own terms whatever the routing turns out to be.
+correction, a missing test for existing behaviour, or a small repair a check reported. Those are
+reviewable on their own terms.
