@@ -8168,7 +8168,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // contributor-facing documents: 8355 -> 8356 (+1).** One file, `SECURITY.md`
     // at the repository root — entry number forty-one, and the first one the
     // disposition instrument from the previous commit actually caught. A whole-repository walk sees it; `check-doc-snippets` does not, its roots being `docs/docs` and `specs`, and neither does `check-language.sh`, whose two populations are source extensions and `docs/docs/**`.
-    files: 8356,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T017), the changeset
+    // disclosure gate: 8356 -> 8358 (+2).** Two files, no deletions:
+    // `backend/scripts/lib/commercial-vocabulary.ts` — R3's term list, its two
+    // ruled narrowings and its clearing mechanism — and one changeset. A whole-repository walk sees both.
+    files: 8358,
     sites: null,
     sources: [],
     //
@@ -9293,7 +9297,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changeset. Measured on a worktree stood up for the measurement and worked
     // in nowhere else, after `build:packages`, `git clean -fX docs/docs/modules`
     // and deleting the copy stamp.
-    files: 2504,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T017), the changeset
+    // disclosure gate: 2504 -> 2505 (+1).** Two files, no deletions:
+    // `backend/scripts/lib/commercial-vocabulary.ts` — R3's term list, its two
+    // ruled narrowings and its clearing mechanism — and one changeset. **+1, the new library file**: `backend/scripts` is one of this walk's source roots and the changeset is not under any of them.
+    files: 2505,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -9828,7 +9836,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // contributor-facing documents: 8416 -> 8417 (+1).** One file, `SECURITY.md`
     // at the repository root — entry number forty-one, and the first one the
     // disposition instrument from the previous commit actually caught. Its `sites` moves with it, 1258 -> **1259**, and the two are different quantities that happen to move together here: `files` is every path in the tree, `sites` is one disposition decision per root entry plus one per file under a partially-public entry, and `SECURITY.md` adds one of each.
-    files: 8417,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T017), the changeset
+    // disclosure gate: 8417 -> 8419 (+2).** Two files, no deletions:
+    // `backend/scripts/lib/commercial-vocabulary.ts` — R3's term list, its two
+    // ruled narrowings and its clearing mechanism — and one changeset. Its `sites` does **not** move and stays 1259: neither new file is under a partially-public entry — `backend/scripts/lib/` sits under `backend`, which is public wholesale, and `.changeset/` likewise — so the two counts move apart here, which is the whole reason both are recorded.
+    files: 8419,
     sites: 1259,
     // `git-tree-entries` — the committed tree's own root entries, read from a
     // different git store than the index this walk uses. Not `self-reported`:
@@ -11541,7 +11553,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changeset. Measured on a worktree stood up for the measurement and worked
     // in nowhere else, after `build:packages`, `git clean -fX docs/docs/modules`
     // and deleting the copy stamp.
-    files: 4671,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T017), the changeset
+    // disclosure gate: 4671 -> 4672 (+1).** Two files, no deletions:
+    // `backend/scripts/lib/commercial-vocabulary.ts` — R3's term list, its two
+    // ruled narrowings and its clearing mechanism — and one changeset. **+1, the new library file** — this walk reads all of `backend/`.
+    files: 4672,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -12537,7 +12553,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // contributor-facing documents: 8415 -> 8416 (+1).** One file, `SECURITY.md`
     // at the repository root — entry number forty-one, and the first one the
     // disposition instrument from the previous commit actually caught. A whole-repository walk sees it; `check-doc-snippets` does not, its roots being `docs/docs` and `specs`, and neither does `check-language.sh`, whose two populations are source extensions and `docs/docs/**`.
-    files: 8416,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T017), the changeset
+    // disclosure gate: 8416 -> 8418 (+2).** Two files, no deletions:
+    // `backend/scripts/lib/commercial-vocabulary.ts` — R3's term list, its two
+    // ruled narrowings and its clearing mechanism — and one changeset. A whole-repository walk sees both.
+    files: 8418,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -13140,7 +13160,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // changeset. Measured on a worktree stood up for the measurement and worked
     // in nowhere else, after `build:packages`, `git clean -fX docs/docs/modules`
     // and deleting the copy stamp.
-    files: 6308,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T017), the changeset
+    // disclosure gate: 6308 -> 6309 (+1).** Two files, no deletions:
+    // `backend/scripts/lib/commercial-vocabulary.ts` — R3's term list, its two
+    // ruled narrowings and its clearing mechanism — and one changeset. **+1, the one TypeScript file.** The changeset is markdown and markdown is in neither of this walk's populations.
+    files: 6309,
     sites: null,
     sources: ['manifest-index'],
     //
