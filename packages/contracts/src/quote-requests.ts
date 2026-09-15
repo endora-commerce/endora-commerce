@@ -479,6 +479,15 @@ export interface QuoteRequestReadPort {
    * switched off.
    */
   listItems(quoteRequestId: string): Promise<QuoteRequestLineRecord[]>;
+  /**
+   * The quote carrying this human-facing business id, or `null`.
+   *
+   * Added in `comarch_xl`'s cut: an ERP offer names the quote it answers by
+   * the reference a person read off the document, never by the uuid, and the
+   * connector had been reading `quote_requests` with a raw statement to
+   * resolve it.
+   */
+  findByBusinessId(businessId: string): Promise<QuoteRequestRecord | null>;
 }
 
 /** Who is asking, on a customer-facing quote path. */

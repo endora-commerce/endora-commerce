@@ -27,6 +27,16 @@ export class QuoteRequestReadService implements QuoteRequestReadPort {
     return quote ? toQuoteRequestRecord(quote) : null;
   }
 
+  /**
+   * The business id is unique by construction (`QR-<uuid>` unless a caller
+   * passes one) and the column carries a unique index, so `findOne` is the
+   * whole of the lookup.
+   */
+  async findByBusinessId(businessId: string): Promise<QuoteRequestRecord | null> {
+    const quote = await this.emFactory().findOne(QuoteRequest, { businessId });
+    return quote ? toQuoteRequestRecord(quote) : null;
+  }
+
   async listOpenForOrganizations(
     organizationIds: readonly string[],
   ): Promise<QuoteRequestRecord[]> {
