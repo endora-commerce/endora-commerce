@@ -8091,7 +8091,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // not computed from the delta**: on a clean `git worktree` of this branch with the
     // change staged, against a clean worktree of `origin/master` that reproduced the
     // recorded value above exactly.
-    files: 8345,
+    // **`CONTRIBUTING.md` at the repository root: 8345 -> 8346.** One file, and this
+    // walk opens a `.md` like any other. Measured on a clean worktree carrying the
+    // change, not computed from the delta.
+    files: 8346,
     sites: null,
     sources: [],
     //
@@ -12350,7 +12353,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // not computed from the delta**: on a clean `git worktree` of this branch with the
     // change staged, against a clean worktree of `origin/master` that reproduced the
     // recorded value above exactly.
-    files: 8405,
+    // **`CONTRIBUTING.md` at the repository root: 8405 -> 8406.** One file, and this
+    // walk opens a `.md` like any other. Measured on a clean worktree carrying the
+    // change, not computed from the delta.
+    files: 8406,
     sites: null,
     sources: ['manifest-index'],
     //
