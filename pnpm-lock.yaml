@@ -573,6 +573,9 @@ importers:
       '@endora-commerce/mod-webhooks':
         specifier: workspace:*
         version: link:../packages/modules/webhooks
+      '@endora-commerce/mod-wfirma':
+        specifier: workspace:*
+        version: link:../packages/modules/wfirma
       '@endora-commerce/page-builder-core':
         specifier: workspace:^
         version: link:../packages/page-builder-core
@@ -4321,6 +4324,15 @@ importers:
       '@types/react':
         specifier: ^19.2.14
         version: 19.2.14
+      bullmq:
+        specifier: ^5.76.1
+        version: 5.76.1
+      fastify:
+        specifier: ^5.8.5
+        version: 5.8.5
+      ioredis:
+        specifier: ^5.10.1
+        version: 5.10.1
       react:
         specifier: ^19.2.5
         version: 19.2.5

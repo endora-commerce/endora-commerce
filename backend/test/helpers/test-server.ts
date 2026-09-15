@@ -163,6 +163,7 @@ import type {
   InfaktHttpPort,
   InvoiceLedgerRegistryPort,
   PimConnectorRegistryPort,
+  WfirmaHttpPort,
 } from '@endora-commerce/contracts';
 import type { LedgerActivationPresenceReader } from '../../../packages/modules/invoice_ledger/src/backend/services/invoice-ledger-registry.service.js';
 import type { ErgonodeClientPort } from '../../../packages/modules/pim_ergonode/src/backend/services/ergonode-client.port.js';
@@ -293,10 +294,14 @@ export interface BackendServerOptions {
    */
   infaktHttp?: InfaktHttpPort;
   /**
+   * Feature 129 — wFirma HTTP. Defaults to the module's refusing port. US1
+   * connection-test scripts pass a stub that answers company probes.
+   */
+  wfirmaHttp?: WfirmaHttpPort;
+  /**
    * Feature 119 / US10 — extra invoice-ledger vendor ids for the mutex
-   * registry. Production `INVOICE_LEDGER_MODULES` stays Infakt-only; a
-   * second production vendor is a later spec. Mutex contract tests inject
-   * `ledger_fixture` here.
+   * registry. Production `INVOICE_LEDGER_MODULES` lists Infakt and wFirma;
+   * mutex contract tests may still inject `ledger_fixture` here.
    */
   invoiceLedgerVendorModules?: readonly { id: string }[];
   /**
@@ -400,6 +405,8 @@ export interface BackendServerHandle {
   ksef: KsefCradle['ksef']['handle'];
   /** Feature 119 — drive the Infakt delivery processor (no BullMQ in this harness). */
   infakt: { processDelivery: (deliveryId: string) => Promise<void> };
+  /** Feature 129 — drive the wFirma delivery processor (no BullMQ in this harness). */
+  wfirma: { processDelivery: (deliveryId: string) => Promise<void> };
   /** Feature 119 — shared invoice-ledger vendor mutex port. */
   invoiceLedgerRegistry: InvoiceLedgerRegistryPort;
   /** Feature 067 — Product Feed handle (feeds, generation, runs, token cache). */
@@ -1944,9 +1951,11 @@ export async function setupBackendServer(
           taxonomySourceFetcher: options.taxonomySourceFetcher ?? refusingTaxonomyFetcher(),
           deliveryAdapters: options.feedDeliveryAdapters ?? refusingDeliveryAdapters(),
         },
-        // Feature 119 — `invoice_ledger` and `infakt` compose through MODULES.
-        // This contribution only replaces Infakt HTTP when a test scripts it.
+        // Feature 119 / 129 — `invoice_ledger`, `infakt` and `wfirma` compose
+        // through MODULES. These contributions only replace vendor HTTP when a
+        // test scripts it.
         ...(options.infaktHttp ? { infaktHttp: options.infaktHttp } : {}),
+        ...(options.wfirmaHttp ? { wfirmaHttp: options.wfirmaHttp } : {}),
         // US10 — mutex extras stay off the production table. Tests that need
         // a sibling inject it here (`ledger_fixture` / `other_ledger_vendor`).
         ...(options.invoiceLedgerPresence
@@ -2551,6 +2560,14 @@ export async function setupBackendServer(
             infaktDeliveryProcessor: { process: (id: string) => Promise<void> };
           }
         ).infaktDeliveryProcessor.process(deliveryId),
+    },
+    wfirma: {
+      processDelivery: (deliveryId: string) =>
+        (
+          container.cradle as unknown as {
+            wfirmaDeliveryProcessor: { process: (id: string) => Promise<void> };
+          }
+        ).wfirmaDeliveryProcessor.process(deliveryId),
     },
     invoiceLedgerRegistry: (
       container.cradle as unknown as { invoiceLedgerRegistryPort: InvoiceLedgerRegistryPort }

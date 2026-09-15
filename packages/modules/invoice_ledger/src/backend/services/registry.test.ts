@@ -115,4 +115,36 @@ describe('invoice_ledger registry', () => {
       return true;
     });
   });
+
+  it('refuses wFirma when Infakt is operator-active (production table)', async () => {
+    const service = new InvoiceLedgerRegistryService(unusedEmFactory, {
+      isOperatorActivated: (moduleId) => moduleId === 'infakt',
+    });
+
+    await expect(service.assertCanActivate('wfirma')).rejects.toSatisfy((error: unknown) => {
+      expect(error).toBeInstanceOf(HttpError);
+      const httpError = error as HttpError;
+      expect(httpError.statusCode).toBe(409);
+      expect(httpError.code).toBe(ERROR_CODES.INVOICE_LEDGER_VENDOR_ALREADY_ACTIVE);
+      expect(httpError.details).toEqual({ activeModuleId: 'infakt' });
+      expect(httpError.details).not.toHaveProperty('salesChannelId');
+      return true;
+    });
+  });
+
+  it('refuses Infakt when wFirma is operator-active (production table)', async () => {
+    const service = new InvoiceLedgerRegistryService(unusedEmFactory, {
+      isOperatorActivated: (moduleId) => moduleId === 'wfirma',
+    });
+
+    await expect(service.assertCanActivate('infakt')).rejects.toSatisfy((error: unknown) => {
+      expect(error).toBeInstanceOf(HttpError);
+      const httpError = error as HttpError;
+      expect(httpError.statusCode).toBe(409);
+      expect(httpError.code).toBe(ERROR_CODES.INVOICE_LEDGER_VENDOR_ALREADY_ACTIVE);
+      expect(httpError.details).toEqual({ activeModuleId: 'wfirma' });
+      expect(httpError.details).not.toHaveProperty('salesChannelId');
+      return true;
+    });
+  });
 });
