@@ -64,9 +64,17 @@
  * produced it. A filter that silently walks nothing produces a beautiful empty
  * report, and that is the failure this estate exists against.
  *
- * Usage:
+ * Usage — **through the package script**, which is the spelling that keeps the
+ * exit code:
  *
- *   `tsx scripts/public-history-filter.ts [--ref <rev>] [--out <dir>] [--apply]`
+ *   `pnpm --filter backend run history:filter -- [--ref <rev>] [--out <dir>] [--apply]`
+ *
+ * Measured, because the difference is invisible until it matters:
+ * `pnpm --filter backend run` propagates this script's **2** and
+ * `pnpm --filter backend exec` collapses it to its own **1**. A tool whose
+ * whole refusal vocabulary is an exit code may not be run through a wrapper
+ * that flattens it, so the script exists in `package.json` for that reason and
+ * not for convenience.
  *
  * `--out` defaults to `<git-dir>/endora-public-history`, which is inside `.git`
  * on purpose and for two reasons. Every whole-tree walk in this repository
