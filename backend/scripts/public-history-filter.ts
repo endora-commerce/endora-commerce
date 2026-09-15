@@ -509,6 +509,31 @@ export function composeCommitMaps(
   return composed;
 }
 
+/**
+ * Which of the two shapes the second pass's `commit-map` is in, answered by
+ * reading it rather than by trusting a paragraph.
+ *
+ * `git-filter-repo` keeps a **cumulative** map when it is run twice on the same
+ * repository: the second run's file is still keyed by the **original** ids, not
+ * by the first pass's. Composing that again looks up a first-pass id in a map
+ * keyed by originals, misses, and falls through to the first-pass id — which
+ * exists in no repository anybody will ever hold, and FR-013's published
+ * mapping is then wrong for exactly the commits the exclusion touched.
+ *
+ * **This was measured rather than reasoned about**: the first end-to-end run
+ * with a non-empty exclusion list reconciled 2676 of 4275 surviving commits,
+ * and {@link vacuousReason}'s reconciliation guard is what refused it. The
+ * detection is kept in both directions because the behaviour is somebody
+ * else's program's and may change; the guard stays the backstop either way.
+ */
+export function commitMapAfterSecondPass(
+  first: ReadonlyMap<string, string>,
+  second: ReadonlyMap<string, string>,
+): Map<string, string> {
+  const cumulative = first.size > 0 && [...first.keys()].every((sha) => second.has(sha));
+  return cumulative ? new Map(second) : composeCommitMaps(first, second);
+}
+
 // --- the assertions about the projected tree (SC-004) ----------------------
 
 /**
@@ -1034,7 +1059,7 @@ function main(): void {
       ],
       { cwd: projectionDir, stdio: 'inherit' },
     );
-    commitMap = composeCommitMaps(
+    commitMap = commitMapAfterSecondPass(
       commitMap,
       parseCommitMap(
         readFileSync(join(projectionDir, '.git', 'filter-repo', 'commit-map'), 'utf8'),
