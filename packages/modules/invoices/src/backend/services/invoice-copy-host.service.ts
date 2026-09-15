@@ -29,7 +29,7 @@ export class InvoiceCopyHostService implements InvoiceCopyHostPort {
     const em = this.emFactory();
     const invoice = await em.findOne(Invoice, { id: invoiceId });
     if (!invoice) return null;
-    const order = await this.orders.findById(invoice.orderId);
+    const order = invoice.orderId ? await this.orders.findById(invoice.orderId) : null;
     const lineRows = await em.find(
       InvoiceLineEntity,
       { invoiceId },
@@ -47,7 +47,7 @@ export class InvoiceCopyHostService implements InvoiceCopyHostPort {
     }));
     return {
       invoiceId: invoice.id,
-      organizationId: order?.organizationId ?? '',
+      organizationId: order?.organizationId ?? invoice.organizationId ?? '',
       number: invoice.number,
       kind: invoice.kind,
       salesChannelId: invoice.salesChannelId ?? null,
