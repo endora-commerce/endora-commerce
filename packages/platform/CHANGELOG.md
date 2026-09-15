@@ -1,5 +1,63 @@
 # @endora-commerce/platform
 
+## 0.11.0
+
+### Minor Changes
+
+- c7b3512: A scaffolded instance now carries a **runnable** development environment, and the operator CLI
+  stops printing a command line that resolves to a different program.
+
+  **`@endora-commerce/cli`** — `endora new instance` writes `compose.dev.yml` at the instance
+  root: PostgreSQL, Redis, Meilisearch and Mailpit, started with
+  `docker compose -f compose.dev.yml up -d --wait` in a tree whose `.env` has never been opened.
+  Everything under `deploy/` pulls images the client has not built yet, so those three services
+  were theirs to provision by hand. The new file is rendered from the **same** service catalogue
+  the production examples are rendered from, so no second statement of what Endora needs to run
+  enters a client's tree. Two new exports on `new-instance/deploy.js`: `developmentComposeFile`
+  and `undefaultedExpansions`, plus `DEV_COMPOSE_PATH`.
+
+  **`@endora-commerce/platform`** — `./cli` replaces the `CLI_USAGE` constant with
+  `cliUsage(program?)` and `DEFAULT_CLI_PROGRAM`, and `dispatchCli`/`runCli` take a `program`
+  option. The constant opened `usage: endora <module id> <command>`, and in a scaffolded instance
+  `endora` on the path is the scaffolder — a different program, with no `demo` verb and no
+  `<module id>` positional. The default is now `pnpm run cli`, which is what an instance's own
+  next-steps block prints. `demoHelpFor(verb, program?)` takes the same parameter.
+
+- c9a64de: `@endora-commerce/platform/lifecycle` carries `runInstanceOperatorCommand` and
+  no longer carries `instanceOperatorRuntime`, `instanceManifestEntries` or
+  `InstanceOperatorRuntimeOptions`.
+
+  The one an instance imports is `runInstanceOperatorCommand`, which is what the
+  `backend/src/module-commands/runtime.ts` that `endora new instance` renders
+  calls, and it is unchanged. The other three were published in the same release
+  and no consumer outside the platform ever named one: they remain exported from
+  `lifecycle/commands/operator-entry.js` for the platform's own use, and a merge
+  request that gives one of them a consumer out here puts it back on the barrel in
+  the same breath. A client who imported one directly — nobody does, the symbols
+  are one release old — takes `runInstanceOperatorCommand` instead, which builds
+  the runtime, runs the body under a system scope, disposes and exits.
+
+- 0eeb9b5: Require Node >= 22.18.0.
+
+  The previous floor was 22.17.0, which MikroORM 7 sets. 22.18.0 is the first release that
+  strips TypeScript types without a flag, and that is what loads a deployment's overlay module:
+  in a scaffolded instance `apps/` is outside every compiled member, so the unit the platform
+  `import()`s is the client's own `.ts`. On 22.17.x that import throws
+  `ERR_UNKNOWN_FILE_EXTENSION` and the process dies before it listens. Emitting a `.js` beside
+  the client's source was measured and refused — the overlay loader resolves `.js` before `.ts`
+  while the divergence derivation admits both, so the sibling doubles every seam site in the
+  report.
+
+  Derived by probing 22.17.0, 22.17.1, 22.18.0 and 22.19.0 against a `.ts` module imported with
+  no flag; 22.18.0 is the lowest that loads it.
+
+  If you run 22.17.x, upgrade to 22.18 or later. Nothing else in these packages changed.
+
+### Patch Changes
+
+- Updated dependencies [0eeb9b5]
+  - @endora-commerce/contracts@0.11.0
+
 ## 0.10.0
 
 ### Minor Changes

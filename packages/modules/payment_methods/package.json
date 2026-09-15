@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-payment-methods",
-  "version": "0.9.1",
+  "version": "0.10.0",
   "type": "module",
   "sideEffects": false,
   "description": "Payment method definitions and per-channel availability.",

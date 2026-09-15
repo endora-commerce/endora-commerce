@@ -1,5 +1,104 @@
 # @endora-commerce/cli
 
+## 0.10.0
+
+### Minor Changes
+
+- c7b3512: A scaffolded instance now carries a **runnable** development environment, and the operator CLI
+  stops printing a command line that resolves to a different program.
+
+  **`@endora-commerce/cli`** — `endora new instance` writes `compose.dev.yml` at the instance
+  root: PostgreSQL, Redis, Meilisearch and Mailpit, started with
+  `docker compose -f compose.dev.yml up -d --wait` in a tree whose `.env` has never been opened.
+  Everything under `deploy/` pulls images the client has not built yet, so those three services
+  were theirs to provision by hand. The new file is rendered from the **same** service catalogue
+  the production examples are rendered from, so no second statement of what Endora needs to run
+  enters a client's tree. Two new exports on `new-instance/deploy.js`: `developmentComposeFile`
+  and `undefaultedExpansions`, plus `DEV_COMPOSE_PATH`.
+
+  **`@endora-commerce/platform`** — `./cli` replaces the `CLI_USAGE` constant with
+  `cliUsage(program?)` and `DEFAULT_CLI_PROGRAM`, and `dispatchCli`/`runCli` take a `program`
+  option. The constant opened `usage: endora <module id> <command>`, and in a scaffolded instance
+  `endora` on the path is the scaffolder — a different program, with no `demo` verb and no
+  `<module id>` positional. The default is now `pnpm run cli`, which is what an instance's own
+  next-steps block prints. `demoHelpFor(verb, program?)` takes the same parameter.
+
+- 040617b: `endora install <dir>` — one command from nothing to an installed Endora Commerce.
+
+  It composes `endora new instance` and `endora new storefront` and reimplements neither: it
+  writes the instance, writes the storefront beside it as a sibling, derives the instance's
+  `.env` from the `compose.dev.yml` the same run rendered, and then runs the sequence that block
+  prints — `pnpm install`, `dev:services`, `setup`, `admin:create` and, when asked, `cli demo
+seed`. Every step is echoed before it runs, a failing step exits with **its own** code and
+  prints the remaining steps as a resumable list, and the seeding is the one step whose failure
+  does not fail the install.
+
+  **It never prompts**, and that is the whole reason this half could ship now: a command that
+  asks nothing is under `cli-product.md` R2.5c's ceiling by construction, so the pipeline needed
+  no amendment. The wizard is a later phase.
+
+  Preconditions are decided completely before anything is written and reported in one refusal:
+  the target directory, Node's version, a package-manager runner (`pnpm` on `PATH`, then
+  `corepack pnpm@latest` — never `corepack enable`), a reachable Docker daemon unless
+  `--no-services`, a reference storefront unless `--no-storefront`, all four administrator
+  answers and the demo answer, which has deliberately no default.
+
+  `REVALIDATE_SECRET` is generated **once** and written into both trees — the one value no
+  sequence of the two existing commands can agree on.
+
+- e647ea4: The root scripts that drive the development environment, and a next-steps block that is four
+  lines shorter than the sequence it replaces.
+
+  `endora new instance` now declares `dev:services` and `dev:services:down` (the `compose.dev.yml`
+  this command writes, with `--wait` so `migrate` cannot race an initialising Postgres), the
+  composite `setup` — `generate && build && migrate && module:install --all`, derived from those
+  named root scripts rather than spelled out, so a change to one of them reaches it with nothing
+  edited — and `preview:admin` with the admin member, which serves the bundle `build:admin`
+  produced and which no root script and no printed step had ever named.
+
+  `nextSteps()` takes a fifth argument, an options object carrying whether the admin member was
+  written, the addresses read off the rendered `compose.dev.yml` and the mail catcher's URL. The
+  block prints the services step first, names what `setup` runs so any step can still be taken by
+  hand, and prints the development addresses rather than writing them — writing them into `.env`
+  is FR-105 and waits on a ruling. `endora new storefront`'s block gains `pnpm run start`, which
+  that manifest has declared all along and which was printed nowhere.
+
+- d18aaaa: `endora new instance` closes its module set over `acknowledgedDependencies` as well as
+  `dependencies`.
+
+  The two spellings differ in one thing only — `acknowledgedDependencies` withdraws the install
+  **ordering** a `dependencies` entry claims, for an edge whose ordering would close a cycle.
+  `assertLockedModulesPresent` makes no such distinction: a module named in either array that the
+  deployment does not ship raises `ReducedDeploymentError` out of `loadModulePresence`, before
+  anything listens. So a scaffolded instance could be written with a set the platform then refused
+  to boot, and was: `carts` names `promotions` through two ports, `promotions` was not in the
+  derived set, and neither `pnpm run start` nor `pnpm run admin:create` got as far as a database.
+
+  If you scaffolded an instance before this and it refuses to boot with `ReducedDeploymentError`,
+  `pnpm add` the module the message names and run `pnpm run migrate && pnpm run module:install
+--all`. A new instance needs nothing: the set it writes now contains it.
+
+- 0eeb9b5: Require Node >= 22.18.0.
+
+  The previous floor was 22.17.0, which MikroORM 7 sets. 22.18.0 is the first release that
+  strips TypeScript types without a flag, and that is what loads a deployment's overlay module:
+  in a scaffolded instance `apps/` is outside every compiled member, so the unit the platform
+  `import()`s is the client's own `.ts`. On 22.17.x that import throws
+  `ERR_UNKNOWN_FILE_EXTENSION` and the process dies before it listens. Emitting a `.js` beside
+  the client's source was measured and refused — the overlay loader resolves `.js` before `.ts`
+  while the divergence derivation admits both, so the sibling doubles every seam site in the
+  report.
+
+  Derived by probing 22.17.0, 22.17.1, 22.18.0 and 22.19.0 against a `.ts` module imported with
+  no flag; 22.18.0 is the lowest that loads it.
+
+  If you run 22.17.x, upgrade to 22.18 or later. Nothing else in these packages changed.
+
+### Patch Changes
+
+- Updated dependencies [0eeb9b5]
+  - @endora-commerce/contracts@0.11.0
+
 ## 0.9.1
 
 ### Patch Changes
