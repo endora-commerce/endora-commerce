@@ -578,6 +578,14 @@ const modules = [
       'module-reference/webhooks',
     ],
   },
+  {
+    type: 'category',
+    label: 'wFirma',
+    link: { type: 'doc', id: 'modules/wfirma' },
+    items: [
+      'module-reference/wfirma',
+    ],
+  },
 ];
 
 module.exports = modules;

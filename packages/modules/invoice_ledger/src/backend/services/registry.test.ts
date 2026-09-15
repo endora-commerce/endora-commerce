@@ -4,10 +4,11 @@ import { HttpError } from '@endora-commerce/platform/http';
 import { InvoiceLedgerRegistryService } from './invoice-ledger-registry.service.js';
 
 /**
- * T078 / T080 / SC-008. Production `INVOICE_LEDGER_MODULES` stays Infakt-only.
- * A second production vendor is a later spec. These cases inject
- * `other_ledger_vendor` / `ledger_fixture` through the presence reader and the
- * registry constructor's extra table, never by editing that production list.
+ * T078 / T080 / SC-008. Production `INVOICE_LEDGER_MODULES` lists Infakt and
+ * wFirma (feature 129). Full mutex tests for sibling refusal both directions
+ * land in Phase 2 (T012) / US10. These cases inject `other_ledger_vendor` /
+ * `ledger_fixture` through the presence reader and the registry constructor's
+ * extra table, never by editing that production list beyond T004.
  */
 const OTHER_VENDOR = { id: 'other_ledger_vendor', activationSettingCode: 'other.activation' };
 const LEDGER_FIXTURE = {
@@ -21,9 +22,10 @@ function unusedEmFactory(): never {
 }
 
 describe('invoice_ledger registry', () => {
-  it('production INVOICE_LEDGER_MODULES lists only Infakt', () => {
+  it('production INVOICE_LEDGER_MODULES lists Infakt and wFirma', () => {
     expect([...INVOICE_LEDGER_MODULES]).toEqual([
       { id: 'infakt', activationSettingCode: 'infakt.activation' },
+      { id: 'wfirma', activationSettingCode: 'wfirma.activation' },
     ]);
   });
 

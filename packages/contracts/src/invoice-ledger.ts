@@ -82,10 +82,11 @@ export interface InvoiceLedgerVendorFreezeRegistryPort {
 
 /**
  * Known invoice-ledger vendor modules and their activation setting codes.
- * Consumed by the mutex registry. Production second vendors arrive in a later spec.
+ * Consumed by the mutex registry.
  */
 export const INVOICE_LEDGER_MODULES = [
   { id: 'infakt', activationSettingCode: 'infakt.activation' },
+  { id: 'wfirma', activationSettingCode: 'wfirma.activation' },
 ] as const;
 
 /**
