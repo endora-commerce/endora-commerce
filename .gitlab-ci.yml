@@ -1238,6 +1238,33 @@ test:backend:deployment:
 test:backend:
   stage: test
   image: node:22.18-slim
+  # Two hours, raised from the project default of one on 2026-09-15 — and the
+  # reason is that a repair made this job honest rather than that it got slower.
+  #
+  # Until `fix/backend-suite-heap-retention` landed, every shard died partway
+  # through: a retention leak drove the live set to the headroom guard's ceiling
+  # and the fork disappeared, leaving files silently unrun — shard 1 stopped at
+  # 110 of 300. A shard that abandons two thirds of its work finishes inside an
+  # hour comfortably. Now they run whole, and on pipeline 13931 shards 2, 3 and 5
+  # were killed at 59, 60 and 60 minutes with **one** failing test in the whole
+  # pipeline (5561 cases): the jobs did not fail, they ran out of time.
+  #
+  # Two hours rather than a tighter figure because the true duration is not known
+  # — each of those three was cut off, so 60 minutes is a floor and not a
+  # measurement. Re-measure once a shard completes and tighten this if it is
+  # generous; a timeout well above the real duration reports nothing, which is
+  # the state a timeout at the real duration would also reach, one flaky run at a
+  # time.
+  #
+  # The runner sets no `maximum_timeout` (verified 2026-09-15: its only timeout
+  # is `[session_server] session_timeout`, which governs the web terminal and not
+  # job execution), so this value is the one that applies. `perf:backend:heavy`
+  # is the precedent for a job-level timeout here.
+  #
+  # Note what this does NOT buy: the shards serialise on `resource_group` below,
+  # so the wall-clock ceiling for the five is now 10h rather than 5h. That is a
+  # scheduling fact for the nightly window, not a regression.
+  timeout: 2h
   parallel: 5
   # One shard at a time while the runner host is shared — see the Memory block
   # above. It is not a performance oversight; reconsider it when the suite has a
