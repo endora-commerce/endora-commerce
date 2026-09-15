@@ -3231,7 +3231,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // as well: four `.md` files landed on the default branch without the census being
     // answered. Re-recorded here because the drift report names it, and the convention is to
     // re-record what it names — including the entries a branch merged cleanly.
-    files: 1344,
+    // **`specs/129-github-canonical-migration/` Phase 1, the commercial-data relocation:
+    // 1344 -> 1347 (+3), of which **+1 is this branch and +2 was already standing on
+    // `master`.** This walk's roots are `docs/docs` and `specs`, so it takes the one new
+    // document and **not** the branch's changeset, which the two whole-repository walks do.
+    // Measured in a worktree stood up for the measurement and worked in nowhere else,
+    // after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and
+    // deleting the copy stamp; then measured again in the same worktree detached at
+    // `origin/master` (62667f48d), which read **1346** — so the attribution is two
+    // measurements rather than a subtraction. This branch adds two files,
+    // `specs/conventions/commercial-data.md` and one changeset; its `git mv` of
+    // `first-deployment-window.md` into `specs/080-f4-real-scope/` is net zero for every
+    // walk here, because both the source and the destination are inside `specs/`.
+    // `sites` does **not** move and stays **13**: the new document carries no
+    // `verbatim-from:` marker, so it is scanned and enrols nothing — the case this
+    // entry's own history says has to be stated rather than inferred from `files`.
+    files: 1347,
     sites: 13,
     sources: [],
     //
@@ -8106,7 +8121,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // sides for all three walks. `check-language.sh` did **not** move (6306 both
     // sides): `.changeset/` is outside its population, which is a measurement and
     // not an inference from the other two.
-    files: 8347,
+    // **`specs/129-github-canonical-migration/` Phase 1, the commercial-data relocation:
+    // 8347 -> 8351 (+4), of which **+2 is this branch and +2 was already standing on
+    // `master`.** The branch's two are `specs/conventions/commercial-data.md` and its
+    // changeset; a whole-repository walk sees both. Measured in a worktree stood up for the measurement and worked in nowhere
+    // else, after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and
+    // deleting the copy stamp; then measured again in the same worktree detached at
+    // `origin/master` (62667f48d), which read **8349** — so the attribution is two
+    // measurements rather than a subtraction. This branch adds two files,
+    // `specs/conventions/commercial-data.md` and one changeset; its `git mv` of
+    // `first-deployment-window.md` into `specs/080-f4-real-scope/` is net zero for every
+    // walk here, because both the source and the destination are inside `specs/`.
+    files: 8351,
     sites: null,
     sources: [],
     //
@@ -12376,7 +12402,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // baseline reported 8407 for a tree that did not contain it; that is the third
     // costume of the one trap this record's guidance names, and the reason both
     // numbers here come from `origin/master` in a worktree of its own.
-    files: 8407,
+    // **`specs/129-github-canonical-migration/` Phase 1, the commercial-data relocation:
+    // 8407 -> 8411 (+4), of which **+2 is this branch and +2 was already standing on
+    // `master`.** The branch's two are `specs/conventions/commercial-data.md` and its
+    // changeset; a whole-repository walk sees both. Measured in a worktree stood up for the measurement and worked in nowhere
+    // else, after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and
+    // deleting the copy stamp; then measured again in the same worktree detached at
+    // `origin/master` (62667f48d), which read **8409** — so the attribution is two
+    // measurements rather than a subtraction. This branch adds two files,
+    // `specs/conventions/commercial-data.md` and one changeset; its `git mv` of
+    // `first-deployment-window.md` into `specs/080-f4-real-scope/` is net zero for every
+    // walk here, because both the source and the destination are inside `specs/`.
+    files: 8411,
     sites: null,
     sources: ['manifest-index'],
     //

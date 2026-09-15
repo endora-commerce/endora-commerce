@@ -29,7 +29,7 @@ import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
  * enforce a code somebody else owns: nine reads on `orders:read` and twelve
  * writes on `catalog:write`. Neither names the data touched, which is the
  * discriminator `specs/080-f4-real-scope/payments-permission-ownership.md` §7.2
- * sets and `specs/first-deployment-window.md` §2 applies per route rather than
+ * sets and `specs/080-f4-real-scope/first-deployment-window.md` §2 applies per route rather than
  * per module. A warehouse is a physical location with an address, not catalogue
  * data; a channel↔warehouse assignment is fulfilment routing, deciding which
  * stock a channel may sell; a stock level, a display-band threshold, a CSV
