@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import { ErpConnectorRegistryService } from '../../../../packages/modules/erp_connector/src/backend/services/erp-connector-registry.service.js';
+import { ErpConnectorRegistryService } from './erp-connector-registry.service.js';
 
 describe('erp_connector registry', () => {
   it('assertCanActivate refuses when another erpConnector activation Setting is true', async () => {
