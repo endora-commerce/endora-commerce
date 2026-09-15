@@ -88,8 +88,12 @@ export interface ModuleCandidate {
    * `mod-carts` peer-depends on it — which puts it at the top level of
    * `node_modules`, where the platform's package discovery looks. A registry
    * install leaves it inside `.pnpm`, where that walk deliberately does not.
-   * The tarball tree is therefore wider than any client's, and it was the only
-   * tree this had ever been measured on.
+   * The tarball tree was therefore wider than any client's, and it was the only
+   * tree this had ever been measured on. **Since 2026-09-15 it is not**: the
+   * criterion still has to pin those peers for the install to resolve at all,
+   * and it takes the module packages among them back off the top level once it
+   * has, so the tree it measures is the tree a registry install produces. Its
+   * A16 is the assertion over that, in either supply mode.
    *
    * It stays a separate field rather than being folded into `dependencies` so
    * the ordering the manifest withdrew is still withdrawn here, and so the F2

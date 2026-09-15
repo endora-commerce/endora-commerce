@@ -41,12 +41,14 @@ import {
   evaluateA7,
   evaluateA8,
   evaluateA9,
+  evaluateA16,
   evaluateProcess,
   exitCodeFor,
   exitCodeForExpectation,
   expectationRefusals,
   formatReport,
   reconcileFigures,
+  standInLinksToRemove,
   WIRING_LINE_BOUND,
   type AcceptanceExpectation,
   type AssertionResult,
@@ -1458,5 +1460,82 @@ describe('describeRegistrySupply — what the registry served, against this chec
     expect(note).toContain('2');
     expect(note).toContain('this tree');
     expect(note).not.toContain('moved past');
+  });
+});
+
+describe('A16 — the instance composes the module set its own manifests declare', () => {
+  const declared = ['@endora-commerce/mod-catalog', '@endora-commerce/mod-orders'];
+
+  it('passes when the installed module packages are exactly the declared ones', () => {
+    const result = evaluateA16({ declared, installed: [...declared], pruned: [] });
+    expect(result.state).toBe('pass');
+    expect(result.detail).toContain('2');
+  });
+
+  // The finding this assertion was written from: the tarball mode pinned four
+  // module packages the command never declared, and the platform's package
+  // discovery composed every one of them.
+  it('fails when the install carries a module package the command did not declare', () => {
+    const result = evaluateA16({
+      declared,
+      installed: [...declared, '@endora-commerce/mod-invoices'],
+      pruned: [],
+    });
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('@endora-commerce/mod-invoices');
+    expect(result.detail).toContain('wider');
+  });
+
+  it('fails in the other direction too, which is the same defect mirrored', () => {
+    const result = evaluateA16({
+      declared,
+      installed: ['@endora-commerce/mod-catalog'],
+      pruned: [],
+    });
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('@endora-commerce/mod-orders');
+    expect(result.detail).toContain('narrower');
+  });
+
+  // A pass must not be silent about the surgery that earned it: the stand-in
+  // pins an auto-installed peer as a real dependency, and the run removes the
+  // top-level link publication would never have created.
+  it('names the stand-in links the run removed', () => {
+    const result = evaluateA16({
+      declared,
+      installed: [...declared],
+      pruned: ['@endora-commerce/mod-invoices'],
+    });
+    expect(result.state).toBe('pass');
+    expect(result.detail).toContain('@endora-commerce/mod-invoices');
+  });
+
+  it('is unmeasured, never green, when the install did not happen', () => {
+    expect(evaluateA16({ declared, installed: null, pruned: [] }).state).toBe('unmeasured');
+  });
+
+  it('is unmeasured when the created tree declared no module package at all', () => {
+    expect(evaluateA16({ declared: [], installed: [], pruned: [] }).state).toBe('unmeasured');
+  });
+});
+
+describe('standInLinksToRemove — only what changes what the platform composes', () => {
+  const modules = ['@endora-commerce/mod-invoices', '@endora-commerce/mod-inventory'];
+
+  it('takes the module packages the stand-in pinned beyond the declared set', () => {
+    expect(
+      standInLinksToRemove(
+        ['@endora-commerce/mod-invoices', '@endora-commerce/email-components'],
+        modules,
+      ),
+    ).toEqual(['@endora-commerce/mod-invoices']);
+  });
+
+  it('leaves a package that is not a module where the install put it', () => {
+    expect(standInLinksToRemove(['@endora-commerce/admin-kit'], modules)).toEqual([]);
+  });
+
+  it('removes nothing when the stand-in pinned nothing beyond the declared set', () => {
+    expect(standInLinksToRemove([], modules)).toEqual([]);
   });
 });

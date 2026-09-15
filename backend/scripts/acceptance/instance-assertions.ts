@@ -67,7 +67,8 @@ export type AssertionId =
   | 'A12'
   | 'A13'
   | 'A14'
-  | 'A15';
+  | 'A15'
+  | 'A16';
 
 /**
  * What each assertion is, independently of any run.
@@ -94,6 +95,7 @@ export const ASSERTION_CATALOGUE: Readonly<Record<AssertionId, string>> = {
   A13: 'the built admin stylesheet carries a utility class only an installed package declares',
   A14: 'the wiring the created tree holds is under the bound, measured on the tree rather than on the template',
   A15: "the instance's own CLI creates an administrator, and the instance answers that administrator's login with a session",
+  A16: 'the module packages the instance installs are exactly the ones its own manifests declare, whichever supply route it took',
 };
 
 export const ASSERTION_IDS = Object.keys(ASSERTION_CATALOGUE) as readonly AssertionId[];
@@ -1867,6 +1869,139 @@ export interface PackageDependencyDeclaration {
   readonly dependencies: readonly string[];
   /** Peers pnpm's `auto-install-peers` would fetch — the non-optional ones. */
   readonly requiredPeers: readonly string[];
+}
+
+/**
+ * What A16 read: the module packages the command wrote, and the ones installed.
+ *
+ * The two are read from different authors on purpose — `declared` off the
+ * manifests `endora new instance` wrote, **before** this run pins anything, and
+ * `installed` off the top level of the created tree's `node_modules` after the
+ * install, which is precisely and only where
+ * `packages/platform/src/packages/installed-packages.ts` enumerates. Comparing
+ * a set the criterion computed with itself would be the vacuous shape every
+ * assertion in this file is arranged to avoid.
+ */
+export interface SupplyParityObservation {
+  /** Module package names the created tree's own manifests declare. */
+  readonly declared: readonly string[];
+  /**
+   * Module package names at the instance root's top level after the install, or
+   * `null` when there was no install to read.
+   */
+  readonly installed: readonly string[] | null;
+  /**
+   * The stand-in links this run removed, so a pass is not silent about them.
+   *
+   * Empty in `registry` mode, which pins nothing. See
+   * {@link standInLinksToRemove}.
+   */
+  readonly pruned: readonly string[];
+}
+
+/**
+ * A16 — the instance composes the module set its own manifests declare.
+ *
+ * **It exists because the difference stopped announcing itself.** Until
+ * 2026-09-15 the two supply routes composed different module sets and it showed
+ * as A3 and A6 failing in `registry` mode and passing in `tarball`: the
+ * `tarball` mode pinned every non-optional `@endora-commerce/*` peer as a real
+ * dependency of the instance — which puts it at the top level of
+ * `node_modules`, where package discovery looks — while a registry install
+ * leaves the same package inside `.pnpm`, where that walk deliberately does
+ * not. Those two reds were repaired at their own source, and the repair took
+ * the symptom with it: two modes composing different sets, both green, and
+ * nothing saying so. This is what says so.
+ *
+ * **Both directions are the same defect.** A tree wider than a client's makes
+ * every other assertion here a measurement of a shop no client can install; a
+ * tree narrower than a client's hides whatever only the full set does. Neither
+ * is a pass, and the report names which of the two it found.
+ */
+export function evaluateA16(observed: SupplyParityObservation): AssertionResult {
+  if (observed.installed === null) {
+    return {
+      id: 'A16',
+      state: 'unmeasured',
+      detail:
+        'the install left no `node_modules` to enumerate, so what this instance would compose ' +
+        'was never on disk — which is A2 finding rather than a second report of it',
+    };
+  }
+  if (observed.declared.length === 0) {
+    return {
+      id: 'A16',
+      state: 'unmeasured',
+      detail:
+        'the created tree declares no module package at all, so "the set its own manifests ' +
+        'declare" names nothing and any install satisfies it vacuously',
+    };
+  }
+  const declared = new Set(observed.declared);
+  const installed = new Set(observed.installed);
+  const surplus = [...installed].filter((name) => !declared.has(name)).sort();
+  const shortfall = [...declared].filter((name) => !installed.has(name)).sort();
+  if (surplus.length > 0 || shortfall.length > 0) {
+    return {
+      id: 'A16',
+      state: 'fail',
+      detail:
+        `the ${String(installed.size)} module packages installed here are not the ` +
+        `${String(declared.size)} this instance own manifests declare` +
+        (surplus.length > 0
+          ? `; installed and declared by nothing, so this tree is wider than any client can ` +
+            `be: ${surplus.join(', ')}`
+          : '') +
+        (shortfall.length > 0
+          ? `; declared and not installed, so this tree is narrower than a client's: ` +
+            `${shortfall.join(', ')}`
+          : ''),
+    };
+  }
+  return {
+    id: 'A16',
+    state: 'pass',
+    detail:
+      `the ${String(installed.size)} module packages at this instance top level are exactly ` +
+      `the ones its own manifests declare, so what it composes is what a client installing the ` +
+      `same set composes` +
+      (observed.pruned.length > 0
+        ? ` — after removing the ${String(observed.pruned.length)} top-level link` +
+          `${observed.pruned.length === 1 ? '' : 's'} publication would never have created and ` +
+          `this run's tarball stand-in did: ${observed.pruned.join(', ')}`
+        : ''),
+  };
+}
+
+/**
+ * The stand-in's top-level links to remove after a `tarball` install.
+ *
+ * `pinClosure` pins the instance's whole **package** closure, extras included,
+ * because pnpm applies no override to an auto-installed peer and a peer nobody
+ * declared would otherwise be fetched from a registry that has never heard of
+ * it — measured again on 2026-09-15 under pnpm 9.15.0 and 10.28.2, with the
+ * override in `pnpm-workspace.yaml`, in `package.json`, and in both. So the
+ * extras have to be real dependencies for the install to succeed, and a real
+ * dependency lands at the top level, which is the one place discovery reads.
+ *
+ * Removing the link afterwards leaves the package exactly where a registry
+ * install leaves it: pnpm has already linked it into the *dependent's* own
+ * store directory (`.pnpm/<dependent>/node_modules/<peer>`), which is where an
+ * auto-installed peer lives and where the dependent's emitted declarations
+ * resolve it from. Measured on a two-package fixture: with the top-level link
+ * gone, the dependent still resolves its peer, and the root no longer does.
+ *
+ * **Only module packages are removed**, because only they change what the
+ * platform composes — `installed-packages.ts` classifies on `endora.type` — and
+ * an emulation that also unlinked a design system or a component library would
+ * be trading a measured defect for an unmeasured build failure.
+ */
+export function standInLinksToRemove(
+  extras: readonly string[],
+  moduleNames: readonly string[],
+): readonly string[] {
+  const modules = new Set(moduleNames);
+  return [...new Set(extras.filter((name) => modules.has(name)))].sort();
 }
 
 /**
