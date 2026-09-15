@@ -38,7 +38,7 @@
 # build failed 40 lines deep in a migration with `Property 'addSql' does not exist`. The
 # `manifests` stage below derives the set instead; see its own comment.
 
-FROM node:22.17-slim AS base
+FROM node:22.18-slim AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH="$PNPM_HOME:$PATH"
 # argon2 ships a native addon; these cover the case where no prebuilt binary

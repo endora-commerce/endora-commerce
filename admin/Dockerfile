@@ -8,7 +8,7 @@
 # VITE_API_BASE_URL is inlined into the bundle at BUILD time (host only, no
 # /api/v1 suffix — the api-client appends the path).
 
-FROM node:22.17-slim AS base
+FROM node:22.18-slim AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
