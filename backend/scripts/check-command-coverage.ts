@@ -88,6 +88,7 @@ export const MIGRATED_MODULES: readonly string[] = [
   'pim_pimcore',
   'invoice_ledger',
   'infakt',
+  'wfirma',
 ];
 
 /**
