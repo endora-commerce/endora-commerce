@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-admin-actions",
-  "version": "0.7.3",
+  "version": "0.8.0",
   "type": "module",
   "sideEffects": false,
   "description": "Module-contributed action registry that surfaces declared actions in the admin command palette.",

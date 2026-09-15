@@ -1,5 +1,35 @@
 # @endora-commerce/mod-settings
 
+## 0.9.0
+
+### Minor Changes
+
+- 0eeb9b5: Require Node >= 22.18.0.
+
+  The previous floor was 22.17.0, which MikroORM 7 sets. 22.18.0 is the first release that
+  strips TypeScript types without a flag, and that is what loads a deployment's overlay module:
+  in a scaffolded instance `apps/` is outside every compiled member, so the unit the platform
+  `import()`s is the client's own `.ts`. On 22.17.x that import throws
+  `ERR_UNKNOWN_FILE_EXTENSION` and the process dies before it listens. Emitting a `.js` beside
+  the client's source was measured and refused — the overlay loader resolves `.js` before `.ts`
+  while the divergence derivation admits both, so the sibling doubles every seam site in the
+  report.
+
+  Derived by probing 22.17.0, 22.17.1, 22.18.0 and 22.19.0 against a `.ts` module imported with
+  no flag; 22.18.0 is the lowest that loads it.
+
+  If you run 22.17.x, upgrade to 22.18 or later. Nothing else in these packages changed.
+
+### Patch Changes
+
+- Updated dependencies [c7b3512]
+- Updated dependencies [c9a64de]
+- Updated dependencies [0eeb9b5]
+  - @endora-commerce/platform@0.11.0
+  - @endora-commerce/admin-kit@0.9.0
+  - @endora-commerce/contracts@0.11.0
+  - @endora-commerce/mod-credentials@0.9.0
+
 ## 0.8.2
 
 ### Patch Changes

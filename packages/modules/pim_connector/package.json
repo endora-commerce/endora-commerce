@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-pim-connector",
-  "version": "0.7.3",
+  "version": "0.8.0",
   "type": "module",
   "sideEffects": false,
   "description": "Shared operator behaviours for PIM connectors: mutual exclusion, run/issue vocabulary and field-protection path grammar.",
