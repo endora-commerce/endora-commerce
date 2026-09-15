@@ -1,4 +1,8 @@
-import { WFIRMA_DELIVERY_MESSAGES } from '@endora-commerce/contracts';
+import {
+  INVOICE_LEDGER_SETTING_CODES,
+  invoiceLedgerNumberingModeSchema,
+  WFIRMA_DELIVERY_MESSAGES,
+} from '@endora-commerce/contracts';
 import { InvoiceLedgerDelivery } from '../../helpers/package-entities.js';
 import type { InvoiceLedgerDelivery as InvoiceLedgerDeliveryRow } from '../../../../packages/modules/invoice_ledger/src/backend/entities/invoice-ledger-delivery.entity.js';
 import { CorrectiveInvoiceProvider } from '../../../../packages/modules/invoices/dist/backend/services/corrective-invoice.js';
@@ -131,6 +135,15 @@ export async function issueCorrection(
     () => h.invoices.numberGenerator,
     h.auditLogService,
     h.eventBus,
+    {
+      numberingModeFor: async (salesChannelId) =>
+        h.settings.settingsService.get(
+          INVOICE_LEDGER_SETTING_CODES.NUMBERING_MODE,
+          salesChannelId,
+          invoiceLedgerNumberingModeSchema,
+        ),
+      activeVendorModuleId: () => h.invoiceLedgerRegistry.getActiveModuleId(),
+    },
   );
   const amount = input.amount ?? 1107;
   const result = await withSystemScope('issue ledger correction', () =>
