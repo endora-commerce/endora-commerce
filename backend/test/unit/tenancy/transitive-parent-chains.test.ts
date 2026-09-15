@@ -58,15 +58,26 @@ describe('the committed platform’s transitive tenancy chains', () => {
     // boot reconciliation refused — A3 of the instance acceptance criterion.
     // Both tables carry the column now. The general claim is
     // `transitive-parent-module-ownership.test.ts`'; this is the population.
+    // **A third since `specs/119-comarch-xl-sync/`.**
+    // `InvoiceExternalAttachment` holds the metadata for a file attached to an
+    // ERP-imported sale document and takes `Invoice`'s chain — the same shape
+    // as `KsefSubmission`, one link further out, and owned by the module that
+    // owns its parent rather than by a dependant, so it does not repeat the
+    // defect the paragraph above records.
     expect(transitive.map((meta) => meta.className).sort()).toEqual([
       'Invoice',
+      'InvoiceExternalAttachment',
       'KsefSubmission',
     ]);
 
     const invoice = transitive.find((meta) => meta.className === 'Invoice');
     const submission = transitive.find((meta) => meta.className === 'KsefSubmission');
+    const attachment = transitive.find(
+      (meta) => meta.className === 'InvoiceExternalAttachment',
+    );
     expect(invoice).toMatchObject({ parentClassName: 'Order', fk: 'orderId' });
     expect(submission).toMatchObject({ parentClassName: 'Invoice', fk: 'invoiceId' });
+    expect(attachment).toMatchObject({ parentClassName: 'Invoice', fk: 'invoiceId' });
 
     // KsefSubmission -> Invoice -> Order, and Order carries the org column.
     const middle = resolveTransitiveParent(submission!);
