@@ -29,7 +29,7 @@ in one public payload and reads the currency half over `currencyReadPort`.
 
 The four admin language routes above enforce `catalog:write`. That is a
 neighbourhood claim of the same kind, has not been repaired, and is recorded in
-`specs/first-deployment-window.md` §2 rather than here.
+`specs/080-f4-real-scope/first-deployment-window.md` §2 rather than here.
 
 ## Defaults
 

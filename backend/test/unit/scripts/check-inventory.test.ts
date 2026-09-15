@@ -75,6 +75,8 @@ import {
   type WipeKind,
 } from '../../../scripts/check-shared-table-wipes.js';
 import { checkHarnessTeardown } from '../../../scripts/check-harness-teardown.js';
+import { analyseDispositions } from '../../../scripts/check-root-dispositions.js';
+import { scanCommercialVocabulary } from '../../../scripts/lib/commercial-vocabulary.js';
 import {
   analyzeClosure,
   analyzePlatformImports,
@@ -10667,6 +10669,142 @@ const CHECKS: readonly CheckEntry[] = [
           'contained' in contained && contained.contained.includes('already contained');
         return refusesTheForkPoint && answersTheMergedBranch ? 1 : 0;
       }),
+      // R3 over the changeset bodies (129 T017 / FR-031). The proof enters at
+      // the rule rather than at the gate, because the rule is the part that can
+      // go blind: the gate's own wiring is one call, and a term list that
+      // stopped matching would print the same cheerful `C1=0 C2=0 C3=0 C4=0`
+      // that a clean tree prints.
+      'commercial-disclosure-in-changeset': top(
+        () =>
+          scanCommercialVocabulary(
+            'Bumped for the pilot, whose contract lands before the sales event.',
+          ).hits.length,
+      ),
+      // The ledger's other direction, and it is not the same finding: a
+      // clearance that has stopped clearing anything accumulates silently, and
+      // a file of dead annotations reads exactly like a file of live ones.
+      'stale-disclosure-clearance': top(
+        () =>
+          scanCommercialVocabulary(
+            'An ordinary change.\n<!-- commercial-data: cleared `pilot` — no party is named -->',
+          ).staleClearances.length,
+      ),
+    },
+  },
+  {
+    // Six shapes, and the two that matter most are the *absences*: an entry the
+    // tree holds and the record does not name, and a file under a
+    // partially-public entry that matches no path rule. A check of this shape
+    // is trivially green over a complete record — and green is exactly what it
+    // printed the morning entry number forty landed without a disposition,
+    // because it did not exist. The other four are the ratchet's second
+    // direction (a row or a rule that has stopped describing the tree) and the
+    // record's own well-formedness, without which a row can be present and
+    // resolve nothing.
+    //
+    // The two-way half is deliberate and is the same shape as every other
+    // ledger here: a record that only ever grows accretes rows answering
+    // questions nobody asks, and a reader cannot then tell a live decision from
+    // a fossil.
+    script: 'backend/scripts/check-root-dispositions.ts',
+    npmScript: 'check:root-dispositions',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-root-dispositions.test.ts',
+    vacuousGuard: 'exit-2',
+    // Its population is the repository's own paths, and its second author is
+    // the committed tree's root entries — a different git store answering the
+    // same question, which is what makes `sources=` a reconciliation rather
+    // than the same number printed twice.
+    readSize: 'reported',
+    // Walks the whole repository, not the module tree; a module contributes
+    // paths under `packages/` and never a root entry of its own.
+    residueGuard: 'not-a-module-walk',
+    red: {
+      'undisposed-root-entry': top(
+        () =>
+          analyseDispositions({
+            paths: ['CONTRIBUTING.md'],
+            document: { version: 1, entries: [] },
+          }).findings.length,
+      ),
+      'undisposed-path': top(
+        () =>
+          analyseDispositions({
+            paths: ['specs/a-new-standing-document.md'],
+            document: {
+              version: 1,
+              entries: [
+                {
+                  entry: 'specs',
+                  disposition: 'partially-public',
+                  reason: 'split',
+                  paths: [
+                    { match: 'specs/conventions/**', disposition: 'public', reason: 'operational' },
+                  ],
+                },
+              ],
+            },
+          }).findings.filter((f) => f.kind === 'undisposed-path').length,
+      ),
+      'stale-disposition': top(
+        () =>
+          analyseDispositions({
+            paths: ['backend/a.ts'],
+            document: {
+              version: 1,
+              entries: [
+                { entry: 'backend', disposition: 'public', reason: 'source' },
+                { entry: 'gone', disposition: 'public', reason: 'was here' },
+              ],
+            },
+          }).findings.filter((f) => f.kind === 'stale-disposition').length,
+      ),
+      'unreachable-path-rule': top(
+        () =>
+          analyseDispositions({
+            paths: ['specs/conventions/a.md'],
+            document: {
+              version: 1,
+              entries: [
+                {
+                  entry: 'specs',
+                  disposition: 'partially-public',
+                  reason: 'split',
+                  paths: [
+                    { match: 'specs/conventions/**', disposition: 'public', reason: 'operational' },
+                    { match: 'specs/gone.md', disposition: 'private', reason: 'moved away' },
+                  ],
+                },
+              ],
+            },
+          }).findings.filter((f) => f.kind === 'unreachable-path-rule').length,
+      ),
+      'duplicate-disposition': top(
+        () =>
+          analyseDispositions({
+            paths: ['backend/a.ts'],
+            document: {
+              version: 1,
+              entries: [
+                { entry: 'backend', disposition: 'public', reason: 'source' },
+                { entry: 'backend', disposition: 'private', reason: 'no' },
+              ],
+            },
+          }).findings.filter((f) => f.kind === 'duplicate-disposition').length,
+      ),
+      // A reason is not decoration: without one a disposition is a vote, and
+      // the whole value of the record is that the next reader can disagree with
+      // a named decision.
+      'invalid-disposition': top(
+        () =>
+          analyseDispositions({
+            paths: ['backend/a.ts'],
+            document: {
+              version: 1,
+              entries: [{ entry: 'backend', disposition: 'public', reason: '  ' }],
+            },
+          }).findings.filter((f) => f.kind === 'invalid-disposition').length,
+      ),
     },
   },
   {
@@ -11273,7 +11411,19 @@ describe('every red proof enters at the top of the analysis', () => {
       // the check must **not** refuse, so it belongs beside the reds in the
       // companion test rather than in a map whose every entry must come back
       // non-zero.
-      'backend/scripts/check-release-intent.ts': 34,
+      // **34 -> 36 with `specs/129-github-canonical-migration/` T017**: R3 over
+      // the changeset bodies, and the other direction of its clearing ledger.
+      // The gate on the one surface that had none — a changeset is written to
+      // the team and rendered into a file that ships — and the only
+      // pre-existing instrument in this estate whose *subject* survives the
+      // move to a canonical public repository.
+      'backend/scripts/check-release-intent.ts': 36,
+      // Two absences — an undisposed root entry and an undisposed path under a
+      // partially-public one — plus the ratchet's two stale directions and the
+      // record's two well-formedness refusals. The absences are the rule; the
+      // other four exist so that a record which has stopped describing the tree
+      // cannot go on reporting a clean one.
+      'backend/scripts/check-root-dispositions.ts': 6,
       // Two findings — the centre and the undecidable gate — plus the ledger's
       // three directions and the three refusals `vacuousReason` answers. The
       // fourth refusal is `readSizeRefusal`'s `short-walk` over the

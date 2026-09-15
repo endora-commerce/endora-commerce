@@ -2582,7 +2582,7 @@ placedByCustomerAccountId }, { fields: ['salesChannelId'] })` from inside the `c
   (D-108), and at `0.0.0` a `workspace:^` peer range is out of range after any bump — so those two
   will have their `version` fields advanced while staying private and unpublished. That is correct
   and needs no repair. And the private registry's version history is independent of npmjs': a
-  version a deployment consumes privately is not thereby taken on the public registry, and
+  version published privately is not thereby taken on the public registry, and
   `changeset publish` replays no history — it publishes the current version of each package or
   nothing.
 

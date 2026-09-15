@@ -180,6 +180,7 @@ names this file used to carry.
 | Adding or changing a `check-*` script, re-recording a read size, or meeting a check's obligations | Static checks and their escape hatches | `specs/conventions/check-estate.md` |
 | A check has reported against you, or you want to know whether a rule has an instrument | The full inventory | `specs/conventions/check-inventory.md` |
 | Changing anything a package publishes, or cutting a release | Release intent — changesets | `specs/conventions/release-intent.md` |
+| Judging whether something may be published, or reviewing a file, a changeset body or a commit message against the disclosure gate | Commercial data | `specs/conventions/commercial-data.md` |
 | Writing or changing anything under `backend/src/apps/<deployment>/` | Overlay modules | `specs/conventions/overlay-modules.md` |
 | Touching a package's build configuration, or a type-check and a test run disagreeing about a file | Building the packages | `specs/conventions/building-packages.md` |
 | Running or changing anything in `backend/test/`, or a suite result needing to mean something | Which backend test command to use | `specs/conventions/backend-test-suite.md` |
@@ -241,6 +242,12 @@ thing it is about.
   run.
 - **Read before writing** — the module you are changing, the closest prior feature's spec
   directory, the relevant contracts, and the routed document for what you are about to do.
+  **After the cut line (D-247), the closest prior feature directory may be one you cannot
+  open.** Pre-migration `specs/NNN-slug/` stays in the private historical repository and reaches
+  you only as a citation; directories written from the migration onward are in the canonical
+  repository. A citation you cannot open is a footnote and not a broken link — it is left in
+  place deliberately, as provenance — and what a change is actually judged against is
+  `specs/conventions/` and the constitution, both of which travel.
 - **English only** in code, comments, identifiers, specs, docs and commit messages
   (Principle VIII).
 - **Commits**: never add `Co-Authored-By: Claude` or any other AI/LLM trailer. Branch off
