@@ -271,6 +271,14 @@ is a declaration and never a probe — a setup that skipped itself because Postg
 unreachable would hand back a suite that is green because it never ran. See
 `test/declared-services.ts`.
 
+Two things that are **not** services are declared absent the same way, in both configs and on
+every machine, because a run whose verdict depends on what the host happens to carry is a run
+that reports on the host. The **Docker daemon** — `scripts/declared-absence.ts`, applied by
+`vitest.config.base.ts`, so it covers every workspace's run and not only the backend's — and
+the **generable secrets**, which `test/generable-secrets.ts` derives from the platform's and
+the modules' own `secret && generable` declarations rather than listing, pinning two and
+deleting the rest. Each file carries why; neither rule is restated here.
+
 The fast config differs from the complete one in exactly one setting: `singleFork` is off.
 `singleFork` exists there because contract and integration files share one database and would
 race on truncate+seed; nothing in the fast run has a database to race on, and one process is

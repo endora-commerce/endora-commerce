@@ -28,7 +28,7 @@ import { SALES_REPRESENTATIVE_PERMISSIONS } from '@endora-commerce/mod-admin-rol
  * `specs/080-f4-real-scope/payments-permission-ownership.md` §7.2 sets. That
  * sweep classified `inventory` as *"writing stock and reading orders"* and left
  * it; the classification was made per **module** and authority is exercised per
- * **route**, which is `specs/first-deployment-window.md` §2's correction. None
+ * **route**, which is `specs/080-f4-real-scope/first-deployment-window.md` §2's correction. None
  * of the 21 routes reads or writes a product, a price or an order. The one
  * place this module genuinely touches another's table is the roster's
  * `products` join inside `StockLevelService` — a boundary *reach*, ledgered as

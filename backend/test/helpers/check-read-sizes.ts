@@ -1170,6 +1170,39 @@ export interface RecordedReadSize {
  * two, and the census over the merged tree then reported exactly those two as
  * drifted and nothing else — a prediction and its measurement, in that order.
  * Neither number is a sum of the two sides' deltas; both were read off the run.
+ *
+ * ## `fix/reference-deployment-session-secret`, 2026-09-15 — 11 entries, one file
+ *
+ * The branch adds **one tracked file**,
+ * `backend/test/unit/kernel/session-cookie-secret.test.ts`, and edits four that
+ * exist: `src/composition.ts`, `src/index.ts`, `src/worker.ts` and
+ * `test/contract/kernel/harness-parity.test.ts`. `backend/src` gains no file —
+ * the resolution it adds is a function of the composition root, deliberately,
+ * because a self-contained file there naming no path of this tree is what
+ * `test/unit/kernel/host-residue-partition.test.ts` derives as platform-shaped
+ * debt. So every `files` delta below is +1 where the walk reaches
+ * `backend/test`, and nothing where it does not, and the one `sites` pair that
+ * moves is named at its entry.
+ *
+ * **The baseline is measured, and it moved twice while this branch was open.**
+ * `origin/master` at `62667f48d` was stood up in a pristine detached worktree
+ * with `pnpm install --frozen-lockfile` and `build:packages`, and read
+ * `check-nul-bytes` **8349** against a then-recorded 8347, `check-naming.sh`
+ * **8409** against 8407 and `check-doc-snippets` **1346** against 1344 — two
+ * documents that had arrived with `docs/oss-direction` and been re-recorded by
+ * nobody. `ci/backend-suite-timeout` then recorded exactly those three, with
+ * the files named, and this branch was rebased onto it: the conflict in the
+ * three entries was resolved to `master`'s narrative with this branch's **+1**
+ * appended, which is the only part of any of them that is this branch's. The
+ * measurement is what says so rather than the arithmetic — 8349 and 8409 were
+ * read off a pristine worktree of `master` **before** that merge recorded them,
+ * and they agree.
+ *
+ * **Measured, never computed from a delta.** Every other entry below reproduced
+ * its recorded value on that worktree, which is what makes the rest
+ * attributable. `check-naming.sh` and `check-language.sh` take their population
+ * from `git ls-files --cached`, so the new file was staged before either was
+ * read.
  */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
@@ -2623,7 +2656,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // it. **Measured, not computed from the delta**: a clean worktree of this branch
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
-    files: 5647,
+    // **`fix/reference-deployment-session-secret`, 2026-09-15: 5647 -> 5648.** **+1, this branch's.** Pristine `origin/master` reproduces the recorded 5647 exactly, so the whole of it is The one file this branch adds, `backend/test/unit/kernel/session-cookie-secret.test.ts`. It changes `backend/src` not at all — the resolution it covers is a function of `composition.ts`, which already existed.
+    // **`test/declared-absence` (!1698), re-measured after merging `origin/master`: files 5648 -> 5651.** The branch adds **five** tracked files — `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, two unit tests under `backend/test/unit/harness/` and its changeset — and every walk moves by as many of the five as it reads. The two whole-repository walks and `check-root-dispositions` move by **5**; `check-language.sh` by **4**, seeing the four `.ts` and not the `.md`; the four that read only `backend/test` by **3** or **2**, by which of those roots they walk. Conflict resolved wholly to the incoming side and the whole record re-measured — **not reconciled and not reconstructed** — in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. That the other thirty-five entries agree is the check on this attribution.
+    files: 5651,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2807,7 +2842,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // site: the `.replace(pattern, x)` in `backendScripts` that splices
     // `--env-file-if-exists=../.env` into each derived CLI alias.
     // **`endora install`, the first mile's Phase 3 (!1672), re-measured after merging `origin/master`: sites 563 -> 564.** The branch adds **three** tracked files — `packages/cli/src/install/index.ts`, `packages/cli/test/install.test.ts` and its changeset — and every walk moves by as many of the three as it reads: the two whole-repository walks by **3**, `check-language.sh` by **2** (the two `.ts`, not the `.md`), `check-diacritic-folds` by **1** file and **1** site, because it reads `packages/*/src` and not a package's tests. That the other forty entries agree is the check on this attribution. Conflict resolved wholly to the incoming side, whole record re-measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue.
-    sites: 564,
+    // **`fix/reference-deployment-session-secret`, 2026-09-15: 564 -> 566.** **+2, this branch's**, and not a file count: the two `.replace()` calls in the new test's `code()` helper, which strips block and line comments before asserting on source — a mention of a call in prose is not a call. Neither is a slug construction and neither is a violation; they are two more expressions in the population this check examines.
+    sites: 566,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -3232,7 +3268,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // answered. Re-recorded here because the drift report names it, and the convention is to
     // re-record what it names — including the entries a branch merged cleanly.
     // **Not this branch's: files 1344 -> 1346.** This merge request edits `.gitlab-ci.yml` and adds no tracked file, so none of this delta is its. The two files are `specs/129-github-canonical-migration/`'s `spec.md` and `tasks.md`, merged with `docs/oss-direction` — a documentation merge request, which is the class that never re-records because its author has no reason to think it moved anything. Every walk that reads `specs/` moves by two and the whole-repository walks move by two; `check-doc-snippets` sees them because its roots are `docs/docs` and `specs`. Recorded here rather than left, because the next author to add one file would have inherited a delta of three and had to work out which part was theirs. Measured in this worktree after `pnpm install` and `build:packages`, with `git clean -fX docs/docs/modules` and the copy stamp deleted.
-    files: 1346,
+    // **Re-measured on the merged tree, after `origin/master` at `eebd2d92e` was
+    // merged in and this record was resolved wholly to the incoming side:
+    // 1346 -> 1347 (+1).** The whole of that delta is this branch's, and it is
+    // **two measurements rather than one subtraction**: the same worktree,
+    // detached at `eebd2d92e`, reads **1346** — so `master`'s own re-record
+    // describes `master`'s tree exactly, and what is left over is the two files
+    // this branch adds. The changeset is invisible here — this walk's roots are `docs/docs` and `specs`, so it takes `specs/conventions/commercial-data.md` and nothing else; `sites` stays 13 because the new document carries no `verbatim-from:` marker.
+    //
+    // The arithmetic that would have produced a different answer is the reason
+    // the resolution is wholesale. Before the merge this branch had recorded
+    // 1347 against a base of 1344, and `master`'s `ci/backend-suite-timeout`
+    // had recorded 1346 for the **same** drift this branch had already found and
+    // attributed to `master`. Adding the two deltas would double-count it. The
+    // record is not mergeable because a three-way merge of two measurements
+    // yields a number that was never read off a tree.
+    files: 1347,
     sites: 13,
     sources: [],
     //
@@ -4466,7 +4517,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     files: 2861,
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
-    sites: 138,
+    // **`fix/reference-deployment-session-secret`, 2026-09-15: 138 -> 137.** **One fewer `process.env` read, and it is the subject of the change rather than a side effect of it.** `index.ts` and `worker.ts` each read `SESSION_COOKIE_SECRET` and `NODE_ENV` — four reads over two entry points — and the one resolution they now share is three reads in `composition.ts`. `files` does not move: the resolution landed in a file this walk already read, and the test beside it is out of the population by `NOT_RUNTIME`. `specs/117-instance-bring-up/` Phase 6 recorded the identical shape, 139 -> 138, when the deployment root's `NEWSLETTER_TOKEN_SECRET` chain moved into `composeApp` — which is the read this branch exists to make reachable.
+    sites: 137,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
     // anything a declaration does. A consumer counts as covered only when it
@@ -4748,7 +4800,24 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // it. **Measured, not computed from the delta**: a clean worktree of this branch
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
-    files: 1633,
+    // **`fix/reference-deployment-session-secret`, 2026-09-15: 1633 -> 1634.** **+1, this branch's**, its root being `backend/test`. The one file this branch adds, `backend/test/unit/kernel/session-cookie-secret.test.ts`. It changes `backend/src` not at all — the resolution it covers is a function of `composition.ts`, which already existed.
+    // **`specs/129-github-canonical-migration/` Phase 1 (T012), the disposition
+    // instrument, measured on the tree that already carries `origin/master` at
+    // `eebd2d92e`: 1634 -> 1635 (+1).** **+1, the new test file** — this walk is `backend/test`.
+    //
+    // **Two measurements, not a subtraction.** The parent of this merge — the
+    // commercial-data relocation, itself merged with `master` — was measured in
+    // the same fresh worktree and reads 1634; this tree reads 1635; the
+    // remainder is this branch's four files and nothing else. The deltas either
+    // side of that merge are **not additive** and were not summed: `master` and
+    // the parent branch had both re-recorded the same drift, so arithmetic over
+    // the two would have double-counted it. The branch adds
+    // `backend/scripts/check-root-dispositions.ts`,
+    // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the
+    // disposition record under `specs/129-github-canonical-migration/contracts/`
+    // and one changeset; it deletes nothing.
+    // **`test/declared-absence` (!1698), re-measured after merging `origin/master`: files 1635 -> 1638.** The branch adds **five** tracked files — `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, two unit tests under `backend/test/unit/harness/` and its changeset — and every walk moves by as many of the five as it reads. The two whole-repository walks and `check-root-dispositions` move by **5**; `check-language.sh` by **4**, seeing the four `.ts` and not the `.md`; the four that read only `backend/test` by **3** or **2**, by which of those roots they walk. Conflict resolved wholly to the incoming side and the whole record re-measured — **not reconciled and not reconstructed** — in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. That the other thirty-five entries agree is the check on this attribution.
+    files: 1638,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -5011,7 +5080,24 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // it. **Measured, not computed from the delta**: a clean worktree of this branch
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
-    files: 1633,
+    // **`fix/reference-deployment-session-secret`, 2026-09-15: 1633 -> 1634.** **+1, this branch's**, its root being `backend/test`. The one file this branch adds, `backend/test/unit/kernel/session-cookie-secret.test.ts`. It changes `backend/src` not at all — the resolution it covers is a function of `composition.ts`, which already existed.
+    // **`specs/129-github-canonical-migration/` Phase 1 (T012), the disposition
+    // instrument, measured on the tree that already carries `origin/master` at
+    // `eebd2d92e`: 1634 -> 1635 (+1).** **+1, the new test file** — this walk is `backend/test`.
+    //
+    // **Two measurements, not a subtraction.** The parent of this merge — the
+    // commercial-data relocation, itself merged with `master` — was measured in
+    // the same fresh worktree and reads 1634; this tree reads 1635; the
+    // remainder is this branch's four files and nothing else. The deltas either
+    // side of that merge are **not additive** and were not summed: `master` and
+    // the parent branch had both re-recorded the same drift, so arithmetic over
+    // the two would have double-counted it. The branch adds
+    // `backend/scripts/check-root-dispositions.ts`,
+    // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the
+    // disposition record under `specs/129-github-canonical-migration/contracts/`
+    // and one changeset; it deletes nothing.
+    // **`test/declared-absence` (!1698), re-measured after merging `origin/master`: files 1635 -> 1638.** The branch adds **five** tracked files — `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, two unit tests under `backend/test/unit/harness/` and its changeset — and every walk moves by as many of the five as it reads. The two whole-repository walks and `check-root-dispositions` move by **5**; `check-language.sh` by **4**, seeing the four `.ts` and not the `.md`; the four that read only `backend/test` by **3** or **2**, by which of those roots they walk. Conflict resolved wholly to the incoming side and the whole record re-measured — **not reconciled and not reconstructed** — in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. That the other thirty-five entries agree is the check on this attribution.
+    files: 1638,
     sites: null,
     sources: [],
   },
@@ -5485,7 +5571,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Phase 3 (T3-C): +10, all of it this branch's** (`9a0e8e0d0` agreed with the recorded 310). The ten shards of the Settings-debt ledger at `backend/scripts/ledgers/module-environment-inputs/`. This check's population is the artefacts whose job is to carry a reason, ledger shards among them, so a new ledger raises it by its shard count and by nothing else.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): files 320 -> 318.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
     // **`fix/instance-docs-foreign-link-catalog`: files 318 -> 317 (-1).** This branch deletes one tracked `.ts`: `backend/scripts/ledgers/foreign-module-links/catalog.ts`, the shard drained when `catalog/attributes.md` stopped linking `../promotions.md` so that A6 of the instance acceptance criterion can go green in `registry` mode (`specs/100-module-owned-documentation/`, FR-020). This check's population is the artefacts whose job is to carry a reason, ledger shards among them, so draining a ledger lowers it by its shard count and by nothing else. Re-measured on the **merged** tree (`origin/master` at c99c2cd09) in a fresh detached `git worktree` of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and the resolution staged first — `check-naming.sh` and `check-language.sh` take their population from the index. This file's conflict was resolved wholly to the incoming side and every value was then re-measured rather than reconciled, per `specs/conventions/check-estate.md`. **The attribution is the whole of it and it is one cause**: the branch's own pre-merge run named eight entries, three of which were `docs(128)`'s +4 standing on `master` unrecorded, and `fix/availability-notification-existence-oracle` re-recorded those three before this merge — so five are left and every one of them is this branch's. The branch adds one `.changeset/*.md` and deletes one tracked `.ts`, which is why the two whole-repository walks net to zero and do not appear. No band was widened and no value was computed from a delta: the run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
-    files: 317,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T012), the disposition
+    // instrument, measured on the tree that already carries `origin/master` at
+    // `eebd2d92e`: 317 -> 318 (+1).** **+1, the new check script**: this walk's population counts the `check-*` scripts.
+    //
+    // **Two measurements, not a subtraction.** The parent of this merge — the
+    // commercial-data relocation, itself merged with `master` — was measured in
+    // the same fresh worktree and reads 317; this tree reads 318; the
+    // remainder is this branch's four files and nothing else. The deltas either
+    // side of that merge are **not additive** and were not summed: `master` and
+    // the parent branch had both re-recorded the same drift, so arithmetic over
+    // the two would have double-counted it. The branch adds
+    // `backend/scripts/check-root-dispositions.ts`,
+    // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the
+    // disposition record under `specs/129-github-canonical-migration/contracts/`
+    // and one changeset; it deletes nothing.
+    files: 318,
     // **2026-09-04: 14 -> 15.** One further named-subject lock claim.
     // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge` retired):**
     // sites 15 -> 17, files unchanged. `pwa`'s manifest gains `orders` in its
@@ -8108,7 +8209,51 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // sides): `.changeset/` is outside its population, which is a measurement and
     // not an inference from the other two.
     // **Not this branch's: files 8347 -> 8349.** This merge request edits `.gitlab-ci.yml` and adds no tracked file, so none of this delta is its. The two files are `specs/129-github-canonical-migration/`'s `spec.md` and `tasks.md`, merged with `docs/oss-direction` — a documentation merge request, which is the class that never re-records because its author has no reason to think it moved anything. Every walk that reads `specs/` moves by two and the whole-repository walks move by two; `check-doc-snippets` sees them because its roots are `docs/docs` and `specs`. Recorded here rather than left, because the next author to add one file would have inherited a delta of three and had to work out which part was theirs. Measured in this worktree after `pnpm install` and `build:packages`, with `git clean -fX docs/docs/modules` and the copy stamp deleted.
-    files: 8349,
+    // **`fix/reference-deployment-session-secret`, 2026-09-15: 8349 -> 8350.** **+1, and it is this branch's whole contribution to this entry.** The baseline above is `master`'s own, re-recorded by the merge request that inherited it and re-measured here rather than trusted: a pristine detached worktree of `origin/master` reads 8349. The one file is `backend/test/unit/kernel/session-cookie-secret.test.ts`; `backend/src` gains none, the resolution this branch adds being a function of `composition.ts`, which already existed.
+    // **Re-measured on the merged tree, after `origin/master` at `eebd2d92e` was
+    // merged in and this record was resolved wholly to the incoming side:
+    // 8350 -> 8352 (+2).** The whole of that delta is this branch's, and it is
+    // **two measurements rather than one subtraction**: the same worktree,
+    // detached at `eebd2d92e`, reads **8350** — so `master`'s own re-record
+    // describes `master`'s tree exactly, and what is left over is the two files
+    // this branch adds. A whole-repository walk sees both of this branch's files, the convention document and its changeset.
+    //
+    // The arithmetic that would have produced a different answer is the reason
+    // the resolution is wholesale. Before the merge this branch had recorded
+    // 8351 against a base of 8347, and `master`'s `ci/backend-suite-timeout`
+    // had recorded 8350 for the **same** drift this branch had already found and
+    // attributed to `master`. Adding the two deltas would double-count it. The
+    // record is not mergeable because a three-way merge of two measurements
+    // yields a number that was never read off a tree.
+    // **`specs/129-github-canonical-migration/` Phase 1 (T012), the disposition
+    // instrument, measured on the tree that already carries `origin/master` at
+    // `eebd2d92e`: 8352 -> 8356 (+4).** **+4, all four** — a whole-repository walk sees every one of them.
+    //
+    // **Two measurements, not a subtraction.** The parent of this merge — the
+    // commercial-data relocation, itself merged with `master` — was measured in
+    // the same fresh worktree and reads 8352; this tree reads 8356; the
+    // remainder is this branch's four files and nothing else. The deltas either
+    // side of that merge are **not additive** and were not summed: `master` and
+    // the parent branch had both re-recorded the same drift, so arithmetic over
+    // the two would have double-counted it. The branch adds
+    // `backend/scripts/check-root-dispositions.ts`,
+    // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the
+    // disposition record under `specs/129-github-canonical-migration/contracts/`
+    // and one changeset; it deletes nothing.
+    // **`specs/129-github-canonical-migration/` Phase 1 (T013/T014), the
+    // contributor-facing documents: 8356 -> 8357 (+1).** One file, `SECURITY.md`
+    // at the repository root — entry number forty-one, and the first one the
+    // disposition instrument from the previous merge actually caught. A whole-repository walk sees it; `check-doc-snippets` does not, its roots being `docs/docs` and `specs`, and neither does `check-language.sh`, whose two populations are source extensions and `docs/docs/**`. The edits this branch makes to `CONTRIBUTING.md`, `AGENTS.md` and `specs/conventions/check-estate.md` move nothing at all: they add no file.
+    // Two measurements: the parent of this merge reads 8356 in the same fresh
+    // worktree and this tree reads 8357; nothing is inferred.
+    // **`specs/129-github-canonical-migration/` Phase 1 (T017), the changeset
+    // disclosure gate: 8357 -> 8359 (+2).** Two files, no deletions:
+    // `backend/scripts/lib/commercial-vocabulary.ts` — R3's term list, its two
+    // ruled narrowings and its clearing mechanism — and one changeset. A whole-repository walk sees both.
+    // Two measurements: the parent of this merge reads 8357 in the same fresh
+    // worktree and this tree reads 8359.
+    // **`test/declared-absence` (!1698), re-measured after merging `origin/master`: files 8359 -> 8364.** The branch adds **five** tracked files — `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, two unit tests under `backend/test/unit/harness/` and its changeset — and every walk moves by as many of the five as it reads. The two whole-repository walks and `check-root-dispositions` move by **5**; `check-language.sh` by **4**, seeing the four `.ts` and not the `.md`; the four that read only `backend/test` by **3** or **2**, by which of those roots they walk. Conflict resolved wholly to the incoming side and the whole record re-measured — **not reconciled and not reconstructed** — in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. That the other thirty-five entries agree is the check on this attribution.
+    files: 8364,
     sites: null,
     sources: [],
     //
@@ -9225,7 +9370,28 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // it. **Measured, not computed from the delta**: a clean worktree of this branch
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
-    files: 2503,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T012), the disposition
+    // instrument, measured on the tree that already carries `origin/master` at
+    // `eebd2d92e`: 2503 -> 2504 (+1).** **+1, the new check script, attributed by withdrawal rather than by arithmetic**: `backend/scripts` is one of this walk's source roots, and with the script taken out of the tree it reads 2503 again while taking the test file out leaves it at 2504.
+    //
+    // **Two measurements, not a subtraction.** The parent of this merge — the
+    // commercial-data relocation, itself merged with `master` — was measured in
+    // the same fresh worktree and reads 2503; this tree reads 2504; the
+    // remainder is this branch's four files and nothing else. The deltas either
+    // side of that merge are **not additive** and were not summed: `master` and
+    // the parent branch had both re-recorded the same drift, so arithmetic over
+    // the two would have double-counted it. The branch adds
+    // `backend/scripts/check-root-dispositions.ts`,
+    // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the
+    // disposition record under `specs/129-github-canonical-migration/contracts/`
+    // and one changeset; it deletes nothing.
+    // **`specs/129-github-canonical-migration/` Phase 1 (T017), the changeset
+    // disclosure gate: 2504 -> 2505 (+1).** Two files, no deletions:
+    // `backend/scripts/lib/commercial-vocabulary.ts` — R3's term list, its two
+    // ruled narrowings and its clearing mechanism — and one changeset. **+1, the new library file**: `backend/scripts` is one of this walk's source roots and the changeset is under none of them.
+    // Two measurements: the parent of this merge reads 2504 in the same fresh
+    // worktree and this tree reads 2505.
+    files: 2505,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -9725,6 +9891,63 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // branch carrying a changeset and a tree just released are both describable.
     conditionalSources: ['changeset-subjects'],
   },
+  'backend/scripts/check-root-dispositions.ts': {
+    prefix: '[root-dispositions]',
+    run: { kind: 'tsx', path: 'scripts/check-root-dispositions.ts', args: [] },
+    // **New with `specs/129-github-canonical-migration/` Phase 1 (T012).** Both
+    // numbers were measured on a fresh worktree of this branch's tip and neither
+    // is derived from the other.
+    //
+    // `files` is every path `git ls-files --cached --others --exclude-standard`
+    // yields — the whole repository, because the population it derives is the
+    // *first segment* of every path and nothing smaller can produce it. It
+    // therefore moves with every merge that adds or deletes a tracked file,
+    // exactly as the two whole-tree walks do, and it is the same quantity they
+    // read by a different route: this one asks git's index, `check-naming.sh`
+    // asks the same index and `check-nul-bytes` walks the disk.
+    //
+    // `sites` is the finer population and is **not** the file count: it is one
+    // decision per root entry plus one per file under a `partially-public`
+    // entry. Today that is the 40 root entries plus everything under `specs/`,
+    // which is the only partially-public entry — so `sites` moves when a
+    // document lands under `specs/` and stands still when one lands under
+    // `backend/`, while `files` moves for both. That divergence is the reason
+    // both are recorded: a check that answers per decision and prints only its
+    // file count has said nothing about the decisions.
+    // **The values below are the *merged* tree's**, and this entry's first
+    // recorded pair was thrown away rather than carried across the merge with
+    // `origin/master` at `eebd2d92e`. That is the same wholesale resolution the
+    // rest of this record took, applied to an entry only one side had: the
+    // entry itself is new content and survives, its numbers are measurements and
+    // were taken against a base that no longer exists.
+    // Measured on the merged tree, in a worktree stood up for it and worked in
+    // nowhere else. `files` is the whole repository by the index; `sites` is the
+    // 40 root entries plus every file under `specs/`, the one partially-public
+    // entry. `check-doc-snippets` does **not** move for the disposition record
+    // even though `specs/` is one of its two roots: its walk is markdown and the
+    // record is JSON.
+    // **`specs/129-github-canonical-migration/` Phase 1 (T013/T014), the
+    // contributor-facing documents: 8417 -> 8418 (+1).** One file, `SECURITY.md`
+    // at the repository root — entry number forty-one, and the first one the
+    // disposition instrument from the previous merge actually caught. Its `sites` moves with it, 1258 -> **1259**, and the two are different quantities that happen to agree here: `files` is every path in the tree, `sites` is one decision per root entry plus one per file under a partially-public entry, and a new root entry adds one of each.
+    // Two measurements: the parent of this merge reads 8417 in the same fresh
+    // worktree and this tree reads 8418; nothing is inferred.
+    // **`specs/129-github-canonical-migration/` Phase 1 (T017), the changeset
+    // disclosure gate: 8418 -> 8420 (+2).** Two files, no deletions:
+    // `backend/scripts/lib/commercial-vocabulary.ts` — R3's term list, its two
+    // ruled narrowings and its clearing mechanism — and one changeset. Its `sites` does **not** move and stays 1259: neither new file is under a partially-public entry — `backend/scripts/lib/` sits under `backend`, which is public wholesale, and `.changeset/` likewise — so the two counts move apart here, which is the whole reason both are recorded.
+    // Two measurements: the parent of this merge reads 8418 in the same fresh
+    // worktree and this tree reads 8420.
+    // **`test/declared-absence` (!1698), re-measured after merging `origin/master`: files 8420 -> 8425.** The branch adds **five** tracked files — `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, two unit tests under `backend/test/unit/harness/` and its changeset — and every walk moves by as many of the five as it reads. The two whole-repository walks and `check-root-dispositions` move by **5**; `check-language.sh` by **4**, seeing the four `.ts` and not the `.md`; the four that read only `backend/test` by **3** or **2**, by which of those roots they walk. Conflict resolved wholly to the incoming side and the whole record re-measured — **not reconciled and not reconstructed** — in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. That the other thirty-five entries agree is the check on this attribution.
+    files: 8425,
+    sites: 1259,
+    // `git-tree-entries` — the committed tree's own root entries, read from a
+    // different git store than the index this walk uses. Not `self-reported`:
+    // two derivations of one population by two routes is precisely the second
+    // author `read-size.ts` asks for, and a short walk here means the index and
+    // the commit disagree, which is a real state and not a hypothetical one.
+    sources: ['git-tree-entries'],
+  },
   'backend/scripts/check-rsc-discipline.ts': {
     prefix: '[rsc-discipline]',
     run: { kind: 'tsx', path: 'scripts/check-rsc-discipline.ts', args: [] },
@@ -9965,7 +10188,24 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // it. **Measured, not computed from the delta**: a clean worktree of this branch
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
-    files: 1633,
+    // **`fix/reference-deployment-session-secret`, 2026-09-15: 1633 -> 1634.** **+1, this branch's**, its root being `backend/test`. The one file this branch adds, `backend/test/unit/kernel/session-cookie-secret.test.ts`. It changes `backend/src` not at all — the resolution it covers is a function of `composition.ts`, which already existed.
+    // **`specs/129-github-canonical-migration/` Phase 1 (T012), the disposition
+    // instrument, measured on the tree that already carries `origin/master` at
+    // `eebd2d92e`: 1634 -> 1635 (+1).** **+1, the new test file** — this walk is `backend/test`.
+    //
+    // **Two measurements, not a subtraction.** The parent of this merge — the
+    // commercial-data relocation, itself merged with `master` — was measured in
+    // the same fresh worktree and reads 1634; this tree reads 1635; the
+    // remainder is this branch's four files and nothing else. The deltas either
+    // side of that merge are **not additive** and were not summed: `master` and
+    // the parent branch had both re-recorded the same drift, so arithmetic over
+    // the two would have double-counted it. The branch adds
+    // `backend/scripts/check-root-dispositions.ts`,
+    // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the
+    // disposition record under `specs/129-github-canonical-migration/contracts/`
+    // and one changeset; it deletes nothing.
+    // **`test/declared-absence` (!1698), re-measured after merging `origin/master`: files 1635 -> 1638.** The branch adds **five** tracked files — `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, two unit tests under `backend/test/unit/harness/` and its changeset — and every walk moves by as many of the five as it reads. The two whole-repository walks and `check-root-dispositions` move by **5**; `check-language.sh` by **4**, seeing the four `.ts` and not the `.md`; the four that read only `backend/test` by **3** or **2**, by which of those roots they walk. Conflict resolved wholly to the incoming side and the whole record re-measured — **not reconciled and not reconstructed** — in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. That the other thirty-five entries agree is the check on this attribution.
+    files: 1638,
     sites: 163,
     sources: [],
   },
@@ -10568,7 +10808,24 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // it. **Measured, not computed from the delta**: a clean worktree of this branch
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
-    files: 1767,
+    // **`fix/reference-deployment-session-secret`, 2026-09-15: 1767 -> 1768.** **+1, this branch's**. This population is the test files rather than everything under `backend/test`, and the one file added is a test. The one file this branch adds, `backend/test/unit/kernel/session-cookie-secret.test.ts`. It changes `backend/src` not at all — the resolution it covers is a function of `composition.ts`, which already existed.
+    // **`specs/129-github-canonical-migration/` Phase 1 (T012), the disposition
+    // instrument, measured on the tree that already carries `origin/master` at
+    // `eebd2d92e`: 1768 -> 1769 (+1).** **+1, the new test file.** Its population is the test files rather than everything under the root, which is why it and the three `backend/test` walks move by the same one for different reasons.
+    //
+    // **Two measurements, not a subtraction.** The parent of this merge — the
+    // commercial-data relocation, itself merged with `master` — was measured in
+    // the same fresh worktree and reads 1768; this tree reads 1769; the
+    // remainder is this branch's four files and nothing else. The deltas either
+    // side of that merge are **not additive** and were not summed: `master` and
+    // the parent branch had both re-recorded the same drift, so arithmetic over
+    // the two would have double-counted it. The branch adds
+    // `backend/scripts/check-root-dispositions.ts`,
+    // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the
+    // disposition record under `specs/129-github-canonical-migration/contracts/`
+    // and one changeset; it deletes nothing.
+    // **`test/declared-absence` (!1698), re-measured after merging `origin/master`: files 1769 -> 1771.** The branch adds **five** tracked files — `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, two unit tests under `backend/test/unit/harness/` and its changeset — and every walk moves by as many of the five as it reads. The two whole-repository walks and `check-root-dispositions` move by **5**; `check-language.sh` by **4**, seeing the four `.ts` and not the `.md`; the four that read only `backend/test` by **3** or **2**, by which of those roots they walk. Conflict resolved wholly to the incoming side and the whole record re-measured — **not reconciled and not reconstructed** — in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. That the other thirty-five entries agree is the check on this attribution.
+    files: 1771,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -11405,7 +11662,30 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // it. **Measured, not computed from the delta**: a clean worktree of this branch
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
-    files: 4669,
+    // **`fix/reference-deployment-session-secret`, 2026-09-15: 4669 -> 4670.** **+1, this branch's**, the new file being under a walked root. The one file this branch adds, `backend/test/unit/kernel/session-cookie-secret.test.ts`. It changes `backend/src` not at all — the resolution it covers is a function of `composition.ts`, which already existed.
+    // **`specs/129-github-canonical-migration/` Phase 1 (T012), the disposition
+    // instrument, measured on the tree that already carries `origin/master` at
+    // `eebd2d92e`: 4670 -> 4672 (+2).** **+2, the check script and its test** — this walk reads all of `backend/`.
+    //
+    // **Two measurements, not a subtraction.** The parent of this merge — the
+    // commercial-data relocation, itself merged with `master` — was measured in
+    // the same fresh worktree and reads 4670; this tree reads 4672; the
+    // remainder is this branch's four files and nothing else. The deltas either
+    // side of that merge are **not additive** and were not summed: `master` and
+    // the parent branch had both re-recorded the same drift, so arithmetic over
+    // the two would have double-counted it. The branch adds
+    // `backend/scripts/check-root-dispositions.ts`,
+    // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the
+    // disposition record under `specs/129-github-canonical-migration/contracts/`
+    // and one changeset; it deletes nothing.
+    // **`specs/129-github-canonical-migration/` Phase 1 (T017), the changeset
+    // disclosure gate: 4672 -> 4673 (+1).** Two files, no deletions:
+    // `backend/scripts/lib/commercial-vocabulary.ts` — R3's term list, its two
+    // ruled narrowings and its clearing mechanism — and one changeset. **+1, the new library file** — this walk reads all of `backend/`.
+    // Two measurements: the parent of this merge reads 4672 in the same fresh
+    // worktree and this tree reads 4673.
+    // **`test/declared-absence` (!1698), re-measured after merging `origin/master`: files 4673 -> 4676.** The branch adds **five** tracked files — `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, two unit tests under `backend/test/unit/harness/` and its changeset — and every walk moves by as many of the five as it reads. The two whole-repository walks and `check-root-dispositions` move by **5**; `check-language.sh` by **4**, seeing the four `.ts` and not the `.md`; the four that read only `backend/test` by **3** or **2**, by which of those roots they walk. Conflict resolved wholly to the incoming side and the whole record re-measured — **not reconciled and not reconstructed** — in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. That the other thirty-five entries agree is the check on this attribution.
+    files: 4676,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -12379,7 +12659,51 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // costume of the one trap this record's guidance names, and the reason both
     // numbers here come from `origin/master` in a worktree of its own.
     // **Not this branch's: files 8407 -> 8409.** This merge request edits `.gitlab-ci.yml` and adds no tracked file, so none of this delta is its. The two files are `specs/129-github-canonical-migration/`'s `spec.md` and `tasks.md`, merged with `docs/oss-direction` — a documentation merge request, which is the class that never re-records because its author has no reason to think it moved anything. Every walk that reads `specs/` moves by two and the whole-repository walks move by two; `check-doc-snippets` sees them because its roots are `docs/docs` and `specs`. Recorded here rather than left, because the next author to add one file would have inherited a delta of three and had to work out which part was theirs. Measured in this worktree after `pnpm install` and `build:packages`, with `git clean -fX docs/docs/modules` and the copy stamp deleted.
-    files: 8409,
+    // **`fix/reference-deployment-session-secret`, 2026-09-15: 8409 -> 8410.** **+1, and it is this branch's whole contribution to this entry.** The baseline above is `master`'s own, re-recorded by the merge request that inherited it and re-measured here rather than trusted: a pristine detached worktree of `origin/master` reads 8409. The one file is `backend/test/unit/kernel/session-cookie-secret.test.ts`; `backend/src` gains none, the resolution this branch adds being a function of `composition.ts`, which already existed. This walk takes its population from `git ls-files --cached`, so the file was staged before the number was read.
+    // **Re-measured on the merged tree, after `origin/master` at `eebd2d92e` was
+    // merged in and this record was resolved wholly to the incoming side:
+    // 8410 -> 8412 (+2).** The whole of that delta is this branch's, and it is
+    // **two measurements rather than one subtraction**: the same worktree,
+    // detached at `eebd2d92e`, reads **8410** — so `master`'s own re-record
+    // describes `master`'s tree exactly, and what is left over is the two files
+    // this branch adds. A whole-repository walk sees both of this branch's files, the convention document and its changeset.
+    //
+    // The arithmetic that would have produced a different answer is the reason
+    // the resolution is wholesale. Before the merge this branch had recorded
+    // 8411 against a base of 8407, and `master`'s `ci/backend-suite-timeout`
+    // had recorded 8410 for the **same** drift this branch had already found and
+    // attributed to `master`. Adding the two deltas would double-count it. The
+    // record is not mergeable because a three-way merge of two measurements
+    // yields a number that was never read off a tree.
+    // **`specs/129-github-canonical-migration/` Phase 1 (T012), the disposition
+    // instrument, measured on the tree that already carries `origin/master` at
+    // `eebd2d92e`: 8412 -> 8416 (+4).** **+4, all four** — a whole-repository walk sees every one of them.
+    //
+    // **Two measurements, not a subtraction.** The parent of this merge — the
+    // commercial-data relocation, itself merged with `master` — was measured in
+    // the same fresh worktree and reads 8412; this tree reads 8416; the
+    // remainder is this branch's four files and nothing else. The deltas either
+    // side of that merge are **not additive** and were not summed: `master` and
+    // the parent branch had both re-recorded the same drift, so arithmetic over
+    // the two would have double-counted it. The branch adds
+    // `backend/scripts/check-root-dispositions.ts`,
+    // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the
+    // disposition record under `specs/129-github-canonical-migration/contracts/`
+    // and one changeset; it deletes nothing.
+    // **`specs/129-github-canonical-migration/` Phase 1 (T013/T014), the
+    // contributor-facing documents: 8416 -> 8417 (+1).** One file, `SECURITY.md`
+    // at the repository root — entry number forty-one, and the first one the
+    // disposition instrument from the previous merge actually caught. A whole-repository walk sees it; `check-doc-snippets` does not, its roots being `docs/docs` and `specs`, and neither does `check-language.sh`, whose two populations are source extensions and `docs/docs/**`. The edits this branch makes to `CONTRIBUTING.md`, `AGENTS.md` and `specs/conventions/check-estate.md` move nothing at all: they add no file.
+    // Two measurements: the parent of this merge reads 8416 in the same fresh
+    // worktree and this tree reads 8417; nothing is inferred.
+    // **`specs/129-github-canonical-migration/` Phase 1 (T017), the changeset
+    // disclosure gate: 8417 -> 8419 (+2).** Two files, no deletions:
+    // `backend/scripts/lib/commercial-vocabulary.ts` — R3's term list, its two
+    // ruled narrowings and its clearing mechanism — and one changeset. A whole-repository walk sees both.
+    // Two measurements: the parent of this merge reads 8417 in the same fresh
+    // worktree and this tree reads 8419.
+    // **`test/declared-absence` (!1698), re-measured after merging `origin/master`: files 8419 -> 8424.** The branch adds **five** tracked files — `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, two unit tests under `backend/test/unit/harness/` and its changeset — and every walk moves by as many of the five as it reads. The two whole-repository walks and `check-root-dispositions` move by **5**; `check-language.sh` by **4**, seeing the four `.ts` and not the `.md`; the four that read only `backend/test` by **3** or **2**, by which of those roots they walk. Conflict resolved wholly to the incoming side and the whole record re-measured — **not reconciled and not reconstructed** — in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. That the other thirty-five entries agree is the check on this attribution.
+    files: 8424,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -12974,7 +13298,30 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // it. **Measured, not computed from the delta**: a clean worktree of this branch
     // with the change staged, against a clean worktree of `origin/master` that
     // reproduced the recorded value above exactly.
-    files: 6306,
+    // **`fix/reference-deployment-session-secret`, 2026-09-15: 6306 -> 6307.** **+1, this branch's.** Pristine `origin/master` reproduces the recorded 6306, which is the measurement that separates this entry from the two whole-tree walks above: they inherited two files from `master` and this one inherited none, because its population is source extensions and `docs/docs/**` rather than everything the index lists.
+    // **`specs/129-github-canonical-migration/` Phase 1 (T012), the disposition
+    // instrument, measured on the tree that already carries `origin/master` at
+    // `eebd2d92e`: 6307 -> 6309 (+2).** **+2, the two TypeScript files.** Markdown is in neither of this walk's populations, so the disposition record and the changeset are invisible to it — the asymmetry with `check-naming.sh`, which reads the same `git ls-files` listing and takes all four.
+    //
+    // **Two measurements, not a subtraction.** The parent of this merge — the
+    // commercial-data relocation, itself merged with `master` — was measured in
+    // the same fresh worktree and reads 6307; this tree reads 6309; the
+    // remainder is this branch's four files and nothing else. The deltas either
+    // side of that merge are **not additive** and were not summed: `master` and
+    // the parent branch had both re-recorded the same drift, so arithmetic over
+    // the two would have double-counted it. The branch adds
+    // `backend/scripts/check-root-dispositions.ts`,
+    // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the
+    // disposition record under `specs/129-github-canonical-migration/contracts/`
+    // and one changeset; it deletes nothing.
+    // **`specs/129-github-canonical-migration/` Phase 1 (T017), the changeset
+    // disclosure gate: 6309 -> 6310 (+1).** Two files, no deletions:
+    // `backend/scripts/lib/commercial-vocabulary.ts` — R3's term list, its two
+    // ruled narrowings and its clearing mechanism — and one changeset. **+1, the one TypeScript file.** The changeset is markdown and markdown is in neither of this walk's populations.
+    // Two measurements: the parent of this merge reads 6309 in the same fresh
+    // worktree and this tree reads 6310.
+    // **`test/declared-absence` (!1698), re-measured after merging `origin/master`: files 6310 -> 6314.** The branch adds **five** tracked files — `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, two unit tests under `backend/test/unit/harness/` and its changeset — and every walk moves by as many of the five as it reads. The two whole-repository walks and `check-root-dispositions` move by **5**; `check-language.sh` by **4**, seeing the four `.ts` and not the `.md`; the four that read only `backend/test` by **3** or **2**, by which of those roots they walk. Conflict resolved wholly to the incoming side and the whole record re-measured — **not reconciled and not reconstructed** — in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. That the other thirty-five entries agree is the check on this attribution.
+    files: 6314,
     sites: null,
     sources: ['manifest-index'],
     //
