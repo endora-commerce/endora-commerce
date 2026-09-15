@@ -11,6 +11,18 @@ import { InvoiceLedgerDelivery } from '../entities/invoice-ledger-delivery.entit
 import { InvoiceLedgerDocumentMap } from '../entities/invoice-ledger-document-map.entity.js';
 import { mappedDeliveryError } from './mapped-delivery-error.js';
 
+function remoteVendorNumberFromAttempts(
+  attempts: InvoiceLedgerDeliveryAttempt[],
+): string | null {
+  for (let i = attempts.length - 1; i >= 0; i -= 1) {
+    const attempt = attempts[i];
+    if (attempt?.status === 'succeeded' && attempt.remoteVendorNumber) {
+      return attempt.remoteVendorNumber;
+    }
+  }
+  return null;
+}
+
 function toRecord(row: InvoiceLedgerDelivery): LedgerDeliveryRecord {
   return {
     id: row.id,
@@ -30,6 +42,7 @@ function toRecord(row: InvoiceLedgerDelivery): LedgerDeliveryRecord {
     attempts: row.attempts,
     lastError: mappedDeliveryError(row.lastError ?? null),
     remotePaidAt: row.remotePaidAt ? row.remotePaidAt.toISOString() : null,
+    remoteVendorNumber: remoteVendorNumberFromAttempts(row.attempts),
     ksefDelegated: row.ksefDelegated,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -40,11 +53,15 @@ function appendAttempt(
   row: InvoiceLedgerDelivery,
   status: InvoiceLedgerDeliveryAttempt['status'],
   error: string | null,
+  opts?: { remoteVendorNumber?: string | null },
 ): void {
   const attempt: InvoiceLedgerDeliveryAttempt = {
     status,
     at: new Date().toISOString(),
     error,
+    ...(opts?.remoteVendorNumber
+      ? { remoteVendorNumber: opts.remoteVendorNumber }
+      : {}),
   };
   row.attempts = [...row.attempts, attempt];
   row.attemptCount = row.attempts.length;
@@ -142,7 +159,7 @@ export class InvoiceLedgerDeliveryService implements InvoiceLedgerDeliveryPort {
   async markSucceeded(
     id: string,
     remoteDocumentId: string,
-    opts?: { originalInvoiceId?: string | null },
+    opts?: { originalInvoiceId?: string | null; remoteVendorNumber?: string | null },
   ): Promise<void> {
     // command-coverage-ignore: Infakt worker queue stamp plus the document-map
     // projection the webhook lookup uses.
@@ -151,7 +168,9 @@ export class InvoiceLedgerDeliveryService implements InvoiceLedgerDeliveryPort {
     if (!row) return;
     row.remoteDocumentId = remoteDocumentId;
     row.status = 'succeeded';
-    appendAttempt(row, 'succeeded', null);
+    appendAttempt(row, 'succeeded', null, {
+      remoteVendorNumber: opts?.remoteVendorNumber ?? null,
+    });
 
     let map = await em.findOne(InvoiceLedgerDocumentMap, {
       adapterId: row.adapterId,

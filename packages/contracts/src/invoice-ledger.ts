@@ -120,6 +120,8 @@ export const invoiceLedgerDeliveryAttemptSchema = z.object({
   status: invoiceLedgerDeliveryStatusSchema,
   at: z.string().datetime(),
   error: z.string().nullable(),
+  /** wFirma-assigned fullnumber on succeeded attempts (feature 129). */
+  remoteVendorNumber: z.string().nullable().optional(),
 });
 export type InvoiceLedgerDeliveryAttempt = z.infer<typeof invoiceLedgerDeliveryAttemptSchema>;
 
@@ -141,6 +143,7 @@ export const ledgerDeliveryRecordSchema = z.object({
   attempts: z.array(invoiceLedgerDeliveryAttemptSchema),
   lastError: z.string().nullable(),
   remotePaidAt: z.string().datetime().nullable(),
+  remoteVendorNumber: z.string().nullable(),
   ksefDelegated: z.boolean(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
@@ -204,7 +207,7 @@ export interface InvoiceLedgerDeliveryPort {
   markSucceeded(
     id: string,
     remoteDocumentId: string,
-    opts?: { originalInvoiceId?: string | null },
+    opts?: { originalInvoiceId?: string | null; remoteVendorNumber?: string | null },
   ): Promise<void>;
   markFailed(id: string, error: string, opts?: { dead?: boolean }): Promise<void>;
   rememberClient(input: InvoiceLedgerClientMapInput): Promise<void>;
