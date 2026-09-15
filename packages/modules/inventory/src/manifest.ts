@@ -229,7 +229,7 @@ export const manifest = defineModuleManifest({
    * can sell. And whoever could read orders could enumerate every warehouse and
    * its address. Neither code names the data touched, which is the
    * discriminator `payments-permission-ownership.md` §7.2 sets; the sweep
-   * applied it per module and `specs/first-deployment-window.md` §2 re-applies
+   * applied it per module and `specs/080-f4-real-scope/first-deployment-window.md` §2 re-applies
    * it per route, which is where authority is actually exercised.
    *
    * Nothing could see it. Both codes are real, declared and enforced, so the

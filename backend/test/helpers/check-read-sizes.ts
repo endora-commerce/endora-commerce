@@ -3267,7 +3267,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // answered. Re-recorded here because the drift report names it, and the convention is to
     // re-record what it names — including the entries a branch merged cleanly.
     // **Not this branch's: files 1344 -> 1346.** This merge request edits `.gitlab-ci.yml` and adds no tracked file, so none of this delta is its. The two files are `specs/129-github-canonical-migration/`'s `spec.md` and `tasks.md`, merged with `docs/oss-direction` — a documentation merge request, which is the class that never re-records because its author has no reason to think it moved anything. Every walk that reads `specs/` moves by two and the whole-repository walks move by two; `check-doc-snippets` sees them because its roots are `docs/docs` and `specs`. Recorded here rather than left, because the next author to add one file would have inherited a delta of three and had to work out which part was theirs. Measured in this worktree after `pnpm install` and `build:packages`, with `git clean -fX docs/docs/modules` and the copy stamp deleted.
-    files: 1346,
+    // **Re-measured on the merged tree, after `origin/master` at `eebd2d92e` was
+    // merged in and this record was resolved wholly to the incoming side:
+    // 1346 -> 1347 (+1).** The whole of that delta is this branch's, and it is
+    // **two measurements rather than one subtraction**: the same worktree,
+    // detached at `eebd2d92e`, reads **1346** — so `master`'s own re-record
+    // describes `master`'s tree exactly, and what is left over is the two files
+    // this branch adds. The changeset is invisible here — this walk's roots are `docs/docs` and `specs`, so it takes `specs/conventions/commercial-data.md` and nothing else; `sites` stays 13 because the new document carries no `verbatim-from:` marker.
+    //
+    // The arithmetic that would have produced a different answer is the reason
+    // the resolution is wholesale. Before the merge this branch had recorded
+    // 1347 against a base of 1344, and `master`'s `ci/backend-suite-timeout`
+    // had recorded 1346 for the **same** drift this branch had already found and
+    // attributed to `master`. Adding the two deltas would double-count it. The
+    // record is not mergeable because a three-way merge of two measurements
+    // yields a number that was never read off a tree.
+    files: 1347,
     sites: 13,
     sources: [],
     //
@@ -8147,7 +8162,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // not an inference from the other two.
     // **Not this branch's: files 8347 -> 8349.** This merge request edits `.gitlab-ci.yml` and adds no tracked file, so none of this delta is its. The two files are `specs/129-github-canonical-migration/`'s `spec.md` and `tasks.md`, merged with `docs/oss-direction` — a documentation merge request, which is the class that never re-records because its author has no reason to think it moved anything. Every walk that reads `specs/` moves by two and the whole-repository walks move by two; `check-doc-snippets` sees them because its roots are `docs/docs` and `specs`. Recorded here rather than left, because the next author to add one file would have inherited a delta of three and had to work out which part was theirs. Measured in this worktree after `pnpm install` and `build:packages`, with `git clean -fX docs/docs/modules` and the copy stamp deleted.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 8349 -> 8350.** **+1, and it is this branch's whole contribution to this entry.** The baseline above is `master`'s own, re-recorded by the merge request that inherited it and re-measured here rather than trusted: a pristine detached worktree of `origin/master` reads 8349. The one file is `backend/test/unit/kernel/session-cookie-secret.test.ts`; `backend/src` gains none, the resolution this branch adds being a function of `composition.ts`, which already existed.
-    files: 8350,
+    // **Re-measured on the merged tree, after `origin/master` at `eebd2d92e` was
+    // merged in and this record was resolved wholly to the incoming side:
+    // 8350 -> 8352 (+2).** The whole of that delta is this branch's, and it is
+    // **two measurements rather than one subtraction**: the same worktree,
+    // detached at `eebd2d92e`, reads **8350** — so `master`'s own re-record
+    // describes `master`'s tree exactly, and what is left over is the two files
+    // this branch adds. A whole-repository walk sees both of this branch's files, the convention document and its changeset.
+    //
+    // The arithmetic that would have produced a different answer is the reason
+    // the resolution is wholesale. Before the merge this branch had recorded
+    // 8351 against a base of 8347, and `master`'s `ci/backend-suite-timeout`
+    // had recorded 8350 for the **same** drift this branch had already found and
+    // attributed to `master`. Adding the two deltas would double-count it. The
+    // record is not mergeable because a three-way merge of two measurements
+    // yields a number that was never read off a tree.
+    files: 8352,
     sites: null,
     sources: [],
     //
@@ -12422,7 +12452,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // numbers here come from `origin/master` in a worktree of its own.
     // **Not this branch's: files 8407 -> 8409.** This merge request edits `.gitlab-ci.yml` and adds no tracked file, so none of this delta is its. The two files are `specs/129-github-canonical-migration/`'s `spec.md` and `tasks.md`, merged with `docs/oss-direction` — a documentation merge request, which is the class that never re-records because its author has no reason to think it moved anything. Every walk that reads `specs/` moves by two and the whole-repository walks move by two; `check-doc-snippets` sees them because its roots are `docs/docs` and `specs`. Recorded here rather than left, because the next author to add one file would have inherited a delta of three and had to work out which part was theirs. Measured in this worktree after `pnpm install` and `build:packages`, with `git clean -fX docs/docs/modules` and the copy stamp deleted.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 8409 -> 8410.** **+1, and it is this branch's whole contribution to this entry.** The baseline above is `master`'s own, re-recorded by the merge request that inherited it and re-measured here rather than trusted: a pristine detached worktree of `origin/master` reads 8409. The one file is `backend/test/unit/kernel/session-cookie-secret.test.ts`; `backend/src` gains none, the resolution this branch adds being a function of `composition.ts`, which already existed. This walk takes its population from `git ls-files --cached`, so the file was staged before the number was read.
-    files: 8410,
+    // **Re-measured on the merged tree, after `origin/master` at `eebd2d92e` was
+    // merged in and this record was resolved wholly to the incoming side:
+    // 8410 -> 8412 (+2).** The whole of that delta is this branch's, and it is
+    // **two measurements rather than one subtraction**: the same worktree,
+    // detached at `eebd2d92e`, reads **8410** — so `master`'s own re-record
+    // describes `master`'s tree exactly, and what is left over is the two files
+    // this branch adds. A whole-repository walk sees both of this branch's files, the convention document and its changeset.
+    //
+    // The arithmetic that would have produced a different answer is the reason
+    // the resolution is wholesale. Before the merge this branch had recorded
+    // 8411 against a base of 8407, and `master`'s `ci/backend-suite-timeout`
+    // had recorded 8410 for the **same** drift this branch had already found and
+    // attributed to `master`. Adding the two deltas would double-count it. The
+    // record is not mergeable because a three-way merge of two measurements
+    // yields a number that was never read off a tree.
+    files: 8412,
     sites: null,
     sources: ['manifest-index'],
     //

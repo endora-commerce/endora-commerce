@@ -180,6 +180,7 @@ names this file used to carry.
 | Adding or changing a `check-*` script, re-recording a read size, or meeting a check's obligations | Static checks and their escape hatches | `specs/conventions/check-estate.md` |
 | A check has reported against you, or you want to know whether a rule has an instrument | The full inventory | `specs/conventions/check-inventory.md` |
 | Changing anything a package publishes, or cutting a release | Release intent — changesets | `specs/conventions/release-intent.md` |
+| Judging whether something may be published, or reviewing a file, a changeset body or a commit message against the disclosure gate | Commercial data | `specs/conventions/commercial-data.md` |
 | Writing or changing anything under `backend/src/apps/<deployment>/` | Overlay modules | `specs/conventions/overlay-modules.md` |
 | Touching a package's build configuration, or a type-check and a test run disagreeing about a file | Building the packages | `specs/conventions/building-packages.md` |
 | Running or changing anything in `backend/test/`, or a suite result needing to mean something | Which backend test command to use | `specs/conventions/backend-test-suite.md` |
