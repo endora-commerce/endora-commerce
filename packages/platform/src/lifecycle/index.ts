@@ -106,12 +106,18 @@ export { runStatusCommand } from './commands/status.js';
 // maintains at 250 lines in total. What is genuinely the application's is the
 // directory holding `apps/` and its own `mikro-orm.config.js`; both are
 // parameters here, and the rendered file is fourteen lines.
-export {
-  instanceManifestEntries,
-  instanceOperatorRuntime,
-  runInstanceOperatorCommand,
-  type InstanceOperatorRuntimeOptions,
-} from './commands/operator-entry.js';
+//
+// **One name, and it is the one the rendered tree imports.**
+// `instanceOperatorRuntime`, `instanceManifestEntries` and
+// `InstanceOperatorRuntimeOptions` were here in that same merge request and are
+// not any more: no consumer outside the platform names one of them.
+// `cli/dispatch.ts` wants the manifest set and reaches `operator-entry.js`
+// directly for it, which is what a file inside the platform does — a barrel
+// exists for the consumers that cannot. R5.4 is the rule: a host-internal
+// subpath is not a place to park surface against a future need, and the three
+// stay exported from their own file, one relative import away, for the merge
+// request that first gives one of them a consumer out here.
+export { runInstanceOperatorCommand } from './commands/operator-entry.js';
 
 // --- the module itself, as the generated artefacts name it ----------------
 // Phase 6 made this comment literally true: `composition.generated.ts` and

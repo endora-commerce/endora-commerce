@@ -138,9 +138,11 @@ import {
   evaluateProcess,
   exitCodeFor,
   exitCodeForExpectation,
+  failureExcerpt,
   expectationRefusals,
   formatReport,
   hostNpmrc,
+  instanceEnvValues,
   reconcileFigures,
   type AcceptanceExpectation,
   type AcceptanceMode,
@@ -1717,7 +1719,7 @@ async function measureOverlay(
     notes.push(
       `the instance's own \`module:install --all\` exited ${String(installed.code)} over the ` +
         `tree carrying A8's overlay module: ` +
-        `${installed.output.trim().split('\n').slice(-3).join(' / ')}`,
+        failureExcerpt(installed.output, 3),
     );
   }
 
@@ -2075,16 +2077,14 @@ async function main(): Promise<void> {
       // value this criterion smuggles past a client's file is a red run rather
       // than a sentence at the bottom of a report.
       //
-      // `SESSION_COOKIE_SECRET` is deliberately **not** here. The command
-      // generated one into that same `.env` under R2.5d, and this run proving it
-      // did — by starting an instance whose session key nobody supplied — is
-      // FR-011's end-to-end evidence.
-      const filledIn: Record<string, string> = {
-        DATABASE_URL: database.databaseUrl,
-        REDIS_URL: process.env['REDIS_URL'] ?? 'redis://localhost:6379',
-        PUBLIC_API_BASE_URL: 'https://instance.acceptance.invalid',
-        NODE_ENV: 'production',
-      };
+      // The set itself is `instanceEnvValues`, which carries what may be in it
+      // and what may not — `SESSION_COOKIE_SECRET` deliberately not, and
+      // `MEILISEARCH_URL` deliberately yes since A4 spent a pipeline reporting
+      // a 503 about a search engine that was running.
+      const filledIn = instanceEnvValues({
+        databaseUrl: database.databaseUrl,
+        env: process.env,
+      });
       const undeclared = Object.keys(filledIn).filter(
         (name) => !instanceVariables.includes(name),
       );
@@ -2145,7 +2145,7 @@ async function main(): Promise<void> {
         notes.push(
           `the instance's own \`build\` script exited ${String(built.code)}; it reaches every ` +
             `member, and the assertion for each member reports its own half: ` +
-            `${built.output.trim().split('\n').slice(-3).join(' / ')}`,
+            failureExcerpt(built.output, 3),
         );
       }
 
@@ -2168,7 +2168,7 @@ async function main(): Promise<void> {
           notes.push(
             `the instance's own \`module:install --all\` exited ${String(installed.code)}, so ` +
               `A4 reports whatever the boot then does rather than a clean start: ` +
-              `${installed.output.trim().split('\n').slice(-3).join(' / ')}`,
+              failureExcerpt(installed.output, 3),
           );
         }
         // A15's first half (`specs/123-oss-install-experience/` G2). It runs
