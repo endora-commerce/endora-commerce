@@ -292,10 +292,28 @@ describe('every static check discloses the size of what it read', () => {
       it('corroborates its population the recorded way', () => {
         const read = observed.get(script)?.read;
         if (read === null || read === undefined) return;
+        // A recorded source must be present; a *conditional* one may be, and
+        // an unrecorded one may not. `check-release-intent` prints
+        // `changeset-subjects` only while `.changeset/` names a subject —
+        // `read-size.ts` refuses `expected: 0`, so the alternative to omitting
+        // it is exiting 2 on every post-release tree — and an exact match
+        // against the post-release set red every merge request that carried a
+        // changeset, which is every merge request that changes what a package
+        // publishes.
+        const observedSources = read.coverage.map((c) => c.source).sort();
+        const conditional = recorded.conditionalSources ?? [];
         expect(
-          read.coverage.map((c) => c.source).sort(),
-          `${script} reconciles against a different set of derivations than recorded`,
-        ).toEqual([...recorded.sources].sort());
+          observedSources,
+          `${script} reconciles against a different set of derivations than recorded` +
+            (conditional.length > 0
+              ? ` (conditional: ${[...conditional].sort().join(', ')})`
+              : ''),
+        ).toEqual(
+          [
+            ...recorded.sources,
+            ...conditional.filter((source) => observedSources.includes(source)),
+          ].sort(),
+        );
         expect(read.selfReported).toBe(recorded.sources.length === 0);
         for (const coverage of read.coverage) {
           // The check exits 2 on a shortfall, so seeing one here means the
