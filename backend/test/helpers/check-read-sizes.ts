@@ -8237,7 +8237,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the
     // disposition record under `specs/129-github-canonical-migration/contracts/`
     // and one changeset; it deletes nothing.
-    files: 8356,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T013/T014), the
+    // contributor-facing documents: 8356 -> 8357 (+1).** One file, `SECURITY.md`
+    // at the repository root — entry number forty-one, and the first one the
+    // disposition instrument from the previous merge actually caught. A whole-repository walk sees it; `check-doc-snippets` does not, its roots being `docs/docs` and `specs`, and neither does `check-language.sh`, whose two populations are source extensions and `docs/docs/**`. The edits this branch makes to `CONTRIBUTING.md`, `AGENTS.md` and `specs/conventions/check-estate.md` move nothing at all: they add no file.
+    // Two measurements: the parent of this merge reads 8356 in the same fresh
+    // worktree and this tree reads 8357; nothing is inferred.
+    files: 8357,
     sites: null,
     sources: [],
     //
@@ -9904,8 +9910,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // entry. `check-doc-snippets` does **not** move for the disposition record
     // even though `specs/` is one of its two roots: its walk is markdown and the
     // record is JSON.
-    files: 8417,
-    sites: 1258,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T013/T014), the
+    // contributor-facing documents: 8417 -> 8418 (+1).** One file, `SECURITY.md`
+    // at the repository root — entry number forty-one, and the first one the
+    // disposition instrument from the previous merge actually caught. Its `sites` moves with it, 1258 -> **1259**, and the two are different quantities that happen to agree here: `files` is every path in the tree, `sites` is one decision per root entry plus one per file under a partially-public entry, and a new root entry adds one of each.
+    // Two measurements: the parent of this merge reads 8417 in the same fresh
+    // worktree and this tree reads 8418; nothing is inferred.
+    files: 8418,
+    sites: 1259,
     // `git-tree-entries` — the committed tree's own root entries, read from a
     // different git store than the index this walk uses. Not `self-reported`:
     // two derivations of one population by two routes is precisely the second
@@ -12646,7 +12658,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `backend/test/unit/scripts/check-root-dispositions.test.ts`, the
     // disposition record under `specs/129-github-canonical-migration/contracts/`
     // and one changeset; it deletes nothing.
-    files: 8416,
+    // **`specs/129-github-canonical-migration/` Phase 1 (T013/T014), the
+    // contributor-facing documents: 8416 -> 8417 (+1).** One file, `SECURITY.md`
+    // at the repository root — entry number forty-one, and the first one the
+    // disposition instrument from the previous merge actually caught. A whole-repository walk sees it; `check-doc-snippets` does not, its roots being `docs/docs` and `specs`, and neither does `check-language.sh`, whose two populations are source extensions and `docs/docs/**`. The edits this branch makes to `CONTRIBUTING.md`, `AGENTS.md` and `specs/conventions/check-estate.md` move nothing at all: they add no file.
+    // Two measurements: the parent of this merge reads 8416 in the same fresh
+    // worktree and this tree reads 8417; nothing is inferred.
+    files: 8417,
     sites: null,
     sources: ['manifest-index'],
     //
