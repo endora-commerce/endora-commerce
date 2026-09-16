@@ -120,6 +120,7 @@ jobs:
           pnpm --filter backend run check:port-catches
           pnpm --filter backend run check:port-shape
           pnpm --filter backend run check:subscribe-seam
+          pnpm --filter backend run check:queue-names
           pnpm --filter backend run check:transaction-context
           pnpm --filter backend run check:singleton-identity
           pnpm --filter backend run check:entry-presence
