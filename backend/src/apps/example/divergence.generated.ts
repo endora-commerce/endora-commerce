@@ -10,9 +10,24 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
     "overlayRoot": "backend/src/apps/example/modules"
   },
   "overlayModules": [
+    "comarch_xl_example_overlay",
+    "erp_incumbent_fixture",
     "example_overlay"
   ],
   "entries": [
+    {
+      "key": "decoration:comarch_xl_example_overlay:comarchXlSellabilityPort",
+      "kind": "decoration",
+      "module": "comarch_xl_example_overlay",
+      "subject": "comarchXlSellabilityPort",
+      "owner": "comarch_xl",
+      "rung": 4,
+      "detail": {
+        "kind": "decoration",
+        "depth": null
+      },
+      "reason": "Core leaves new XL catalogue products not sellable until an overlay policy allows it (004 FR-012). This reference overlay marks SKUs matching ^DEMO- as sellable and listed, delegating every other SKU to the core default so a fix to `DefaultComarchXlSellabilityPort` still reaches this deployment — which is the whole difference between decorating and replacing (D-28)."
+    },
     {
       "key": "decoration:example_overlay:pricingService",
       "kind": "decoration",

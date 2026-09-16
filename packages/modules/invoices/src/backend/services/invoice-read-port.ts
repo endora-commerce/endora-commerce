@@ -81,7 +81,7 @@ export function createInvoicePdfPort(): InvoicePdfPort {
 export function toInvoiceRecord(invoice: Invoice): InvoiceRecord {
   return {
     id: invoice.id,
-    orderId: invoice.orderId,
+    orderId: invoice.orderId ?? null,
     salesChannelId: invoice.salesChannelId ?? null,
     kind: invoice.kind,
     number: invoice.number,

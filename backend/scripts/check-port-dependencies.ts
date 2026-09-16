@@ -504,6 +504,8 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // worker itself is `webhooks`' own now; only the deployment half — production
   // follows `BACKEND_ROLE`, the harness runs none — stays a root's.
   webhooksRunWorkers: 'webhooks',
+  // Whether this composition runs the Comarch XL sync consumers (feature 119).
+  comarchXlRunWorkers: 'comarch_xl',
 };
 
 

@@ -522,14 +522,16 @@ export interface InventoryStockReadPort {
  * is this module that decides a row addressing nothing is a rejected row.
  * `variantId` absent or `null` addresses the simple-product baseline level.
  *
- * The row names no warehouse. The import applies to the seeded default one —
- * the behaviour the CSV path has always had, kept explicit here rather than
- * left to a constant a caller copies.
+ * The row names no warehouse by default. The import applies to the seeded
+ * default one — the behaviour the CSV path has always had. Integrations that
+ * address a specific warehouse (for example ERP stock sync) may set
+ * `warehouseCode` to the warehouse's unique `code`.
  */
 export interface StockLevelImportRow {
   productSku: string;
   variantId?: string | null;
   onHand: number;
+  warehouseCode?: string;
 }
 
 /**

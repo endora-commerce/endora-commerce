@@ -164,6 +164,14 @@ const modules = [
   },
   {
     type: 'category',
+    label: 'Comarch ERP XL',
+    link: { type: 'doc', id: 'modules/comarch_xl' },
+    items: [
+      'module-reference/comarch-xl',
+    ],
+  },
+  {
+    type: 'category',
     label: 'Compare Products',
     link: { type: 'doc', id: 'modules/comparisons' },
     items: [

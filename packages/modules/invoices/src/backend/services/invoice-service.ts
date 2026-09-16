@@ -84,7 +84,7 @@ export class InvoiceService {
   /** Issue an invoice/proforma for an order. Idempotent per (order, kind). */
   async issue(
     orderId: string,
-    kind: Exclude<InvoiceKind, 'correction'>,
+    kind: Exclude<InvoiceKind, 'correction' | 'wz'>,
     opts: IssueInvoiceOptions = {},
   ): Promise<InvoiceDetail> {
     const em = this.emFactory();
@@ -347,9 +347,12 @@ export class InvoiceService {
     const em = this.emFactory();
     const inv = await em.findOne(Invoice, { id: invoiceId });
     if (!inv) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invoice not found.');
-    const order = await this.orders.findById(inv.orderId);
-    // Feature 050 — transitive scope: hide invoices whose order is out of scope.
-    if (!order || !isOrgInScope(order.organizationId ?? '')) {
+    const order = inv.orderId ? await this.orders.findById(inv.orderId) : null;
+    if (inv.origin === 'erp_import') {
+      if (!isOrgInScope(inv.organizationId ?? '')) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invoice not found.');
+      }
+    } else if (!order || !isOrgInScope(order.organizationId ?? '')) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Invoice not found.');
     }
     const lineRows = await em.find(InvoiceLine, { invoiceId }, { orderBy: { ordinal: 'asc' } });
@@ -385,7 +388,7 @@ export class InvoiceService {
     const paidTotal = Number(inv.paidTotal);
     return {
       id: inv.id,
-      orderId: inv.orderId,
+      orderId: inv.orderId ?? null,
       orderBusinessId: order?.businessId ?? null,
       salesChannelId: inv.salesChannelId ?? null,
       kind: inv.kind,

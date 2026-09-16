@@ -622,6 +622,7 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     pimAkeneoRunWorkers: runWorkers,
     pimPimcoreRunWorkers: runWorkers,
     pimUnopimRunWorkers: runWorkers,
+    comarchXlRunWorkers: runWorkers,
     productFeedsRunWorkers: runWorkers,
     pimAkeneoPublicBaseUrl: resolvePublicApiBaseUrl(),
     productFeedsPublicBaseUrl: resolvePublicApiBaseUrl(),

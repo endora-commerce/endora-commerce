@@ -104,17 +104,24 @@ export async function registerInvoicesAdminRoutes(
 
       const limit = Math.min(Math.max(Number.parseInt(q['limit'] ?? '50', 10), 1), 200);
       const rows = await em.find(Invoice, where, { orderBy: { issuedAt: 'desc' }, limit });
-      const orderIds = [...new Set(rows.map((r) => r.orderId))];
+      const orderIds = [
+        ...new Set(rows.map((r) => r.orderId).filter((id): id is string => id != null)),
+      ];
       // Feature 075, Phase C — the order number and the owning organisation are
       // `orders`' fields, read over its port rather than out of its table.
       const orders = await orderReadPort.findByIds(orderIds);
       const byOrder = new Map(orders.map((o) => [o.id, o.businessId]));
       const orgByOrder = new Map(orders.map((o) => [o.id, o.organizationId]));
       // Feature 050 — Invoice is transitively scoped via its Order's org; hide
-      // invoices whose order is out of the ambient tenant scope.
-      const scoped = rows.filter((i) => isOrgInScope(orgByOrder.get(i.orderId) ?? ''));
+      // invoices whose order is out of the ambient tenant scope. ERP-imported
+      // rows without an order scope directly on `organizationId` (feature 119).
+      const scoped = rows.filter((i) =>
+        i.origin === 'erp_import'
+          ? isOrgInScope(i.organizationId ?? '')
+          : isOrgInScope(orgByOrder.get(i.orderId ?? '') ?? ''),
+      );
       return {
-        data: scoped.map((i) => serialize(i, byOrder.get(i.orderId) ?? null)),
+        data: scoped.map((i) => serialize(i, i.orderId ? (byOrder.get(i.orderId) ?? null) : null)),
         pagination: { cursor: null, hasMore: false, limit: scoped.length },
       };
     },

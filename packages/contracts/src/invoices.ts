@@ -10,8 +10,25 @@ import { isoDateTimeSchema, uuidSchema } from './common.js';
  * WYSIWYG template metadata.
  */
 
-export const invoiceKindSchema = z.enum(['proforma', 'invoice', 'correction']);
+export const invoiceKindSchema = z.enum(['proforma', 'invoice', 'correction', 'wz']);
 export type InvoiceKind = z.infer<typeof invoiceKindSchema>;
+
+/** Whether a row was issued by the platform or imported from an ERP connector. */
+export const invoiceOriginSchema = z.enum(['platform', 'erp_import']);
+export type InvoiceOrigin = z.infer<typeof invoiceOriginSchema>;
+
+/** XL sale-document kind carried inside {@link externalDocumentRefSchema}. */
+export const erpSaleDocumentKindSchema = z.enum(['invoice', 'wz']);
+export type ErpSaleDocumentKind = z.infer<typeof erpSaleDocumentKindSchema>;
+
+/** Stable XL identity for an ERP-imported sale document (feature 119, FR-087/FR-088). */
+export const externalDocumentRefSchema = z.object({
+  system: z.literal('comarch_xl'),
+  xlSaleDocumentId: z.string().max(128),
+  xlDocumentNumber: z.string().max(64).optional(),
+  documentKind: erpSaleDocumentKindSchema,
+});
+export type ExternalDocumentRef = z.infer<typeof externalDocumentRefSchema>;
 
 export const invoiceStatusSchema = z.enum(['pending', 'ready', 'cancelled']);
 export type InvoiceStatus = z.infer<typeof invoiceStatusSchema>;
@@ -77,7 +94,7 @@ export type VatSummaryRow = z.infer<typeof vatSummaryRowSchema>;
 
 export const invoiceSchema = z.object({
   id: uuidSchema,
-  orderId: uuidSchema,
+  orderId: uuidSchema.nullable(),
   salesChannelId: uuidSchema.nullable(),
   kind: invoiceKindSchema,
   number: z.string(),
@@ -221,7 +238,7 @@ export type IssueInvoiceResponse = z.infer<typeof issueInvoiceResponseSchema>;
  */
 export interface InvoiceRecord {
   id: string;
-  orderId: string;
+  orderId: string | null;
   salesChannelId: string | null;
   kind: InvoiceKind;
   number: string;
@@ -412,3 +429,97 @@ export interface NumberPatternCollision {
  * year, so it collides with itself on the second document.
  */
 export type NumberPatternSequenceDefect = 'no_sequence_token';
+
+// ---------------------------------------------------------------------------
+// ERP-imported sale documents (feature 119, FR-086–FR-088)
+// ---------------------------------------------------------------------------
+
+export const ERP_SALE_DOCUMENT_WRITE_PORT = 'erpSaleDocumentWritePort' as const;
+
+/** Metadata for an XL attachment registered on import; bytes arrive on first download (FR-086). */
+export const erpSaleDocumentAttachmentInputSchema = z.object({
+  xlAttachmentId: z.string().max(128),
+  fileName: z.string().max(256),
+  contentType: z.string().max(128).nullable().optional(),
+});
+export type ErpSaleDocumentAttachmentInput = z.infer<typeof erpSaleDocumentAttachmentInputSchema>;
+
+export const erpSaleDocumentUpsertInputSchema = z.object({
+  organizationId: uuidSchema,
+  orderId: uuidSchema.nullable().optional(),
+  externalDocumentRef: externalDocumentRefSchema,
+  kind: invoiceKindSchema,
+  number: z.string().max(64),
+  currency: z.string().length(3),
+  issuedAt: isoDateTimeSchema,
+  saleDate: z.string().nullable().optional(),
+  paymentDueDate: z.string().nullable().optional(),
+  paymentMethod: z.string().max(64).nullable().optional(),
+  netTotal: z.string().nullable().optional(),
+  taxTotal: z.string().nullable().optional(),
+  grossTotal: z.string(),
+  paidTotal: z.string().optional(),
+  buyerSnapshot: invoiceBuyerSchema.nullable().optional(),
+  attachments: z.array(erpSaleDocumentAttachmentInputSchema).optional(),
+});
+export type ErpSaleDocumentUpsertInput = z.infer<typeof erpSaleDocumentUpsertInputSchema>;
+
+export const erpSaleDocumentUpsertResultSchema = z.object({
+  invoiceId: uuidSchema,
+  created: z.boolean(),
+});
+export type ErpSaleDocumentUpsertResult = z.infer<typeof erpSaleDocumentUpsertResultSchema>;
+
+export const erpSaleDocumentAttachmentListItemSchema = z.object({
+  id: uuidSchema,
+  fileName: z.string(),
+  contentType: z.string().nullable(),
+  downloadHref: z.string(),
+});
+export type ErpSaleDocumentAttachmentListItem = z.infer<
+  typeof erpSaleDocumentAttachmentListItemSchema
+>;
+
+export const erpSaleDocumentListItemSchema = z.object({
+  id: uuidSchema,
+  kind: invoiceKindSchema,
+  number: z.string(),
+  documentKind: erpSaleDocumentKindSchema,
+  issuedAt: isoDateTimeSchema,
+  currency: z.string(),
+  total: z.number().finite(),
+  orderId: uuidSchema.nullable(),
+  attachments: z.array(erpSaleDocumentAttachmentListItemSchema),
+});
+export type ErpSaleDocumentListItem = z.infer<typeof erpSaleDocumentListItemSchema>;
+
+/**
+ * Container name: `erpSaleDocumentWritePort`. Owner: `invoices`.
+ *
+ * `comarch_xl` calls this during `xl.change.sale_document` apply (FR-087). The
+ * module owns persistence; the connector owns XL identity mapping and lazy
+ * attachment fetch (FR-088).
+ */
+export interface ErpSaleDocumentAttachmentContext {
+  xlSaleDocumentId: string;
+  xlAttachmentId: string;
+  fileName: string;
+  contentType: string | null;
+}
+
+export interface ErpSaleDocumentWritePort {
+  upsertImportedDocument(input: ErpSaleDocumentUpsertInput): Promise<ErpSaleDocumentUpsertResult>;
+  resolveAttachmentContext(input: {
+    invoiceId: string;
+    attachmentId: string;
+    organizationId: string;
+  }): Promise<ErpSaleDocumentAttachmentContext | null>;
+  /** Links fetched XL attachment bytes to an ERP-imported document (feature 119, FR-086). */
+  linkAttachmentAsset(input: {
+    invoiceId: string;
+    attachmentId: string;
+    organizationId: string;
+    assetId: string;
+    contentType?: string | null;
+  }): Promise<boolean>;
+}

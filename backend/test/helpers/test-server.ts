@@ -159,7 +159,9 @@ import type { FeedDeliveryAdapter } from '../../../packages/modules/product_feed
 import { FeedDeliveryError, type FeedDeliveryProtocol } from '@endora-commerce/contracts';
 import type { PimErgonodeCradle } from '@endora-commerce/mod-pim-ergonode/backend';
 import type { PimUnopimCradle } from '@endora-commerce/mod-pim-unopim/backend';
+import type { ComarchXlCradle } from '../../../packages/modules/comarch_xl/src/backend/index.js';
 import type {
+  ErpConnectorRegistryPort,
   InfaktHttpPort,
   InvoiceLedgerRegistryPort,
   PimConnectorRegistryPort,
@@ -171,6 +173,7 @@ import type { UnopimMediaFetcherPort } from '../../../packages/modules/pim_unopi
 import type { AkeneoMediaFetcherPort } from '../../../packages/modules/pim_akeneo/src/backend/services/akeneo-media-fetcher.js';
 import { refusingErgonodeClient } from './scripted-ergonode-client.js';
 import { refusingUnopimClient } from './scripted-unopim-client.js';
+import { refusingXlClient } from './scripted-xl-client.js';
 import { ScriptedErgonodeMediaFetcher } from './scripted-ergonode-media-fetcher.js';
 import { ScriptedUnopimMediaFetcher } from './scripted-unopim-media-fetcher.js';
 import { ScriptedAkeneoMediaFetcher } from './scripted-akeneo-media-fetcher.js';
@@ -282,6 +285,11 @@ export interface BackendServerOptions {
    * fetcher that has nothing scripted and therefore answers `not_found`.
    */
   unopimMediaFetcher?: UnopimMediaFetcherPort;
+  /**
+   * Feature 119 — the Comarch XL source transport. Defaults to a client that
+   * refuses every call so no test reaches the network without scripting fixtures.
+   */
+  xlClient?: ComarchXlCradle['comarchXlSourceOverrides']['xlClient'];
   /**
    * Feature 094 / US5 — the byte source for imported media. Defaults to a
    * fetcher that has nothing scripted and therefore answers `not_found`.
@@ -408,6 +416,8 @@ export interface BackendServerHandle {
   pimErgonode: PimErgonodeCradle['pimErgonode']['handle'];
   /** Feature 089 — shared PIM connector registry port. */
   pimConnectorRegistry: PimConnectorRegistryPort;
+  /** Feature 119 — shared ERP connector registry port. */
+  erpConnectorRegistry: ErpConnectorRegistryPort;
   /** Feature 089 — UnoPim PIM handle (source client seam). */
   pimUnopim: PimUnopimCradle['pimUnopim']['handle'];
   /** Feature 092 — Pimcore PIM handle (source client seam, inline import). */
@@ -1192,6 +1202,7 @@ export async function setupBackendServer(
       pimErgonodeRunWorkers: false,
       pimPimcoreRunWorkers: false,
       pimUnopimRunWorkers: false,
+      comarchXlRunWorkers: false,
       pimAkeneoRunWorkers: false,
       pimAkeneoPublicBaseUrl: 'http://localhost',
       productFeedsRunWorkers: false,
@@ -1936,6 +1947,9 @@ export async function setupBackendServer(
           unopimClient: options.unopimClient ?? refusingUnopimClient(),
           mediaFetcher: options.unopimMediaFetcher ?? new ScriptedUnopimMediaFetcher(),
         },
+        comarchXlSourceOverrides: {
+          xlClient: options.xlClient ?? refusingXlClient(),
+        },
         pimAkeneoSourceOverrides: {
           mediaFetcher: options.akeneoMediaFetcher ?? new ScriptedAkeneoMediaFetcher(),
         },
@@ -2560,6 +2574,9 @@ export async function setupBackendServer(
     pimConnectorRegistry: (
       container.cradle as unknown as { pimConnectorRegistryPort: PimConnectorRegistryPort }
     ).pimConnectorRegistryPort,
+    erpConnectorRegistry: (
+      container.cradle as unknown as { erpConnectorRegistryPort: ErpConnectorRegistryPort }
+    ).erpConnectorRegistryPort,
     pimUnopim: (container.cradle as unknown as PimUnopimCradle).pimUnopim.handle,
     pimPimcore: (container.cradle as unknown as PimPimcoreCradle).pimPimcore.handle,
     pwa: pwaCradle.pwa.handle,
@@ -2675,7 +2692,8 @@ function customerResolver(request: FastifyRequest): {
   };
 }
 
-export async function teardownBackendServer(h: BackendServerHandle): Promise<void> {
+export async function teardownBackendServer(h: BackendServerHandle | undefined): Promise<void> {
+  if (!h) return;
   // Feature 109 (T030) — one release sequence, the kit's. It closes the app,
   // runs every registration's disposer and drops the resolution cache, then
   // unsubscribes and drops listeners **before** disconnecting either client — a

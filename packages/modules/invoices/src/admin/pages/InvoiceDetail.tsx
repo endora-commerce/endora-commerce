@@ -187,9 +187,13 @@ export function InvoiceDetail(): ReactNode {
             <Row
               label={t('invoiceDetail.field.order')}
               value={
-                <Link to={`/orders/${invoice.orderId}`} className="font-mono text-xs underline underline-offset-2">
-                  {invoice.orderBusinessId ?? invoice.orderId.slice(0, 8)}
-                </Link>
+                invoice.orderId ? (
+                  <Link to={`/orders/${invoice.orderId}`} className="font-mono text-xs underline underline-offset-2">
+                    {invoice.orderBusinessId ?? invoice.orderId.slice(0, 8)}
+                  </Link>
+                ) : (
+                  '—'
+                )
               }
             />
           </CardContent>

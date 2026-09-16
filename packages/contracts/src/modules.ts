@@ -886,6 +886,12 @@ export const ModuleManifestSchema = z.object({
    */
   invoiceLedger: z.literal(true).optional(),
   /**
+   * When `true`, the module participates in the ERP connector mutual-exclusion
+   * set (feature 119). Consumed by `erp_connector` registry discovery — not by
+   * install ordering.
+   */
+  erpConnector: z.literal(true).optional(),
+  /**
    * The operator-visible error codes this module owns (feature 090, D-182).
    *
    * The declaration is what routes the code's sentence to this module's bundle:
