@@ -2809,7 +2809,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`fix/comarch-credit-limits-edge`: +1 file.** One co-located test,
     // `packages/modules/comarch_xl/src/backend/services/apply/credit-limit-edge.test.ts`,
     // beside the manifest edge it holds. Nothing moved and nothing was deleted.
-    files: 5838,
+    // **`feat/129-t041-t042a-actions`: +2 files.** The two TypeScript files the Actions floor
+    // adds — `backend/test/helpers/actions-workflows.ts` and
+    // `backend/test/unit/ci/actions-floor-parity.test.ts`. The two workflow YAMLs are outside
+    // this walk's extensions.
+    files: 5840,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -5214,7 +5218,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    files: 1698,
+    // **`feat/129-t041-t042a-actions`: +2 files.** The two TypeScript files the Actions floor
+    // adds — `backend/test/helpers/actions-workflows.ts` and
+    // `backend/test/unit/ci/actions-floor-parity.test.ts`. The two workflow YAMLs are outside
+    // this walk's extensions.
+    files: 1700,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -5274,7 +5282,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // receiver. Measured, that spelling's count in the file goes 1 -> 0 and `files` does not
     // move.
     // **+1 site, this branch's; +1 file, already standing on `9a0e8e0d0`.** The site is in `test/unit/scripts/check-env-inputs.test.ts`, which this branch extends; the file is the base's own and not Phase 3's.
-    sites: 610,
+    // **`feat/129-t041-t042a-actions`: sites 610 -> 611.** Measured, not derived: the parity
+    // test is the only file this branch adds that this signal reads.
+    sites: 611,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -5524,7 +5534,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    files: 1698,
+    // **`feat/129-t041-t042a-actions`: +2 files.** The two TypeScript files the Actions floor
+    // adds — `backend/test/helpers/actions-workflows.ts` and
+    // `backend/test/unit/ci/actions-floor-parity.test.ts`. The two workflow YAMLs are outside
+    // this walk's extensions.
+    files: 1700,
     sites: null,
     sources: [],
   },
@@ -9026,7 +9040,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`fix/comarch-credit-limits-edge`: +1 file.** One co-located test,
     // `packages/modules/comarch_xl/src/backend/services/apply/credit-limit-edge.test.ts`,
     // beside the manifest edge it holds. Nothing moved and nothing was deleted.
-    files: 8628,
+    // **`feat/129-t041-t042a-actions`: +4 files.** The Actions floor:
+    // `.github/workflows/quality.yml`, `.github/workflows/publish.yml`,
+    // `backend/test/helpers/actions-workflows.ts` and
+    // `backend/test/unit/ci/actions-floor-parity.test.ts`. This walk takes the YAML too.
+    files: 8632,
     sites: null,
     sources: [],
     //
@@ -10959,7 +10977,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`fix/comarch-credit-limits-edge`: +1 file.** One co-located test,
     // `packages/modules/comarch_xl/src/backend/services/apply/credit-limit-edge.test.ts`,
     // beside the manifest edge it holds. Nothing moved and nothing was deleted.
-    files: 8689,
+    // **`feat/129-t041-t042a-actions`: +4 files.** The Actions floor:
+    // `.github/workflows/quality.yml`, `.github/workflows/publish.yml`,
+    // `backend/test/helpers/actions-workflows.ts` and
+    // `backend/test/unit/ci/actions-floor-parity.test.ts`. This walk takes the YAML too.
+    files: 8693,
     sites: 1291,
     // `git-tree-entries` — the committed tree's own root entries, read from a
     // different git store than the index this walk uses. Not `self-reported`:
@@ -11255,7 +11277,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    files: 1698,
+    // **`feat/129-t041-t042a-actions`: +2 files.** The two TypeScript files the Actions floor
+    // adds — `backend/test/helpers/actions-workflows.ts` and
+    // `backend/test/unit/ci/actions-floor-parity.test.ts`. The two workflow YAMLs are outside
+    // this walk's extensions.
+    files: 1700,
     sites: 163,
     sources: [],
   },
@@ -11937,7 +11963,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`fix/comarch-credit-limits-edge`: +1 file.** One co-located test,
     // `packages/modules/comarch_xl/src/backend/services/apply/credit-limit-edge.test.ts`,
     // beside the manifest edge it holds. Nothing moved and nothing was deleted.
-    files: 1842,
+    // **`feat/129-t041-t042a-actions`: +1 file.** Only
+    // `backend/test/unit/ci/actions-floor-parity.test.ts`: this walk's unit is a test file, so
+    // the helper beside it does not count.
+    files: 1843,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -12859,7 +12888,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`fix/comarch-credit-limits-edge`: +1 file.** One co-located test,
     // `packages/modules/comarch_xl/src/backend/services/apply/credit-limit-edge.test.ts`,
     // beside the manifest edge it holds. Nothing moved and nothing was deleted.
-    files: 4863,
+    // **`feat/129-t041-t042a-actions`: +2 files.** The two TypeScript files the Actions floor
+    // adds — `backend/test/helpers/actions-workflows.ts` and
+    // `backend/test/unit/ci/actions-floor-parity.test.ts`. The two workflow YAMLs are outside
+    // this walk's extensions.
+    files: 4865,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -13949,7 +13982,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`fix/comarch-credit-limits-edge`: +1 file.** One co-located test,
     // `packages/modules/comarch_xl/src/backend/services/apply/credit-limit-edge.test.ts`,
     // beside the manifest edge it holds. Nothing moved and nothing was deleted.
-    files: 8688,
+    // **`feat/129-t041-t042a-actions`: +4 files.** The Actions floor:
+    // `.github/workflows/quality.yml`, `.github/workflows/publish.yml`,
+    // `backend/test/helpers/actions-workflows.ts` and
+    // `backend/test/unit/ci/actions-floor-parity.test.ts`. This walk takes the YAML too.
+    files: 8692,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -14601,7 +14638,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`fix/comarch-credit-limits-edge`: +1 file.** One co-located test,
     // `packages/modules/comarch_xl/src/backend/services/apply/credit-limit-edge.test.ts`,
     // beside the manifest edge it holds. Nothing moved and nothing was deleted.
-    files: 6513,
+    // **`feat/129-t041-t042a-actions`: +2 files.** The two TypeScript files the Actions floor
+    // adds — `backend/test/helpers/actions-workflows.ts` and
+    // `backend/test/unit/ci/actions-floor-parity.test.ts`. The two workflow YAMLs are outside
+    // this walk's extensions.
+    files: 6515,
     sites: null,
     sources: ['manifest-index'],
     //

@@ -1,0 +1,154 @@
+# Publish the workspace packages, with npm provenance.
+#
+# `specs/129-github-canonical-migration/` T041, window §4.1. It replaces
+# `.gitlab-ci.yml`'s `publish:packages` rather than sitting beside it: provenance
+# exists only on Actions, D-242 orders publication after the migration, and this
+# job is therefore on the critical path to T050 -> T051 -> T052.
+#
+# ## The guards are the point, not the provenance
+#
+# npm's unpublish policy makes a wrong first version permanent, so every
+# fail-closed refusal `publish:packages` carries is reproduced here, and one more
+# is added that only this host can fail:
+#
+#   1. `ENDORA_NPM_REGISTRY` unset — exit 2 rather than defaulting to npmjs.
+#   2. `ENDORA_NPM_TOKEN` unset — exit 2 rather than publishing anonymously.
+#   3. `ACTIONS_ID_TOKEN_REQUEST_URL` unset — exit 2. **New here.** It is what
+#      `id-token: write` actually delivers, and without it the publish would
+#      succeed and spend versions carrying no attestation at all.
+#   4. npm does not report `provenance=true` — exit 2. Also new, and it is a
+#      *positive* proof rather than a hope: see the note on how provenance is
+#      requested below.
+#   5. The inline `check:release-intent`, the last gate before a publish.
+#   6. `changeset publish` reporting "No unpublished projects to publish" —
+#      exit 2 rather than passing as a silent success.
+#
+# A publish workflow that keeps the provenance and loses the guards is a worse
+# instrument than the one it replaces.
+#
+# ## How provenance is requested, and why it is asserted rather than assumed
+#
+# `changeset publish` detects the workspace's package manager and, for pnpm,
+# spawns `pnpm publish` with a **fixed** argument list — `--access`, `--tag`,
+# `--no-git-checks`, `--json`, optionally `--otp`. There is no `--provenance` in
+# it, and `pnpm publish --help` on pnpm 9.15.0 lists no such flag either. So the
+# flag route does not exist: provenance has to be requested as *configuration*,
+# which pnpm's publish passes down to the `npm publish` it delegates to (that
+# delegation is observable — npm's own notices appear in the output).
+# `@changesets/cli`'s `sanitizeEnv` clears only the OTP variables, so the
+# environment reaches npm intact.
+#
+# Both routes are set below, and guard 4 then asks npm itself whether it agrees.
+# That matters because the failure mode of a config that does not arrive is
+# **silence**: versions publish, nothing is attested, and the job is green.
+#
+# ## "A publish is a deliberate act" (D-160.5)
+#
+# GitLab spelled that `when: manual` on a `release/version-*` branch, where the
+# branch pattern also did the work of making the protected variables resolve.
+# Here `workflow_dispatch` is the deliberate act and the `npm-publish`
+# environment is where the credentials live, with a required reviewer configured
+# on it in repository settings (T033 owns that configuration). The branch
+# pattern is therefore not ported as a pattern: the environment is what decides
+# who may spend a version, and a ref restriction belongs on the environment, not
+# in a regex here.
+
+name: publish
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish-packages:
+    name: publish:packages
+    runs-on: ubuntu-24.04
+    # Required reviewers and any ref restriction live on this environment.
+    environment: npm-publish
+    permissions:
+      contents: read
+      # Provenance, and nothing else. This is the only job in the repository
+      # that gets it.
+      id-token: write
+    env:
+      ENDORA_NPM_REGISTRY: ${{ vars.ENDORA_NPM_REGISTRY }}
+      ENDORA_NPM_TOKEN: ${{ secrets.ENDORA_NPM_TOKEN }}
+      # The config route npm reads directly; `$HOME/.npmrc` below is the second.
+      NPM_CONFIG_PROVENANCE: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # `changeset publish` tags what it publishes, so it shells out to git.
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18'
+      - run: corepack enable && corepack prepare pnpm@9.15.0 --activate
+      - run: pnpm install --frozen-lockfile
+      # Every package resolves at its own `dist`, and `changeset publish` packs
+      # what is on disk: an unbuilt workspace publishes tarballs with no code in
+      # them.
+      - run: pnpm run build:packages
+      - name: fail closed on a misconfigured publish
+        run: |
+          if [ -z "$ENDORA_NPM_REGISTRY" ]; then
+            echo "publish:packages — ENDORA_NPM_REGISTRY is unset. Publishing anyway would send these packages to registry.npmjs.org, which is npm's default; a version spent there can never be reused. Set it as a variable on the npm-publish environment." >&2
+            exit 2
+          fi
+          if [ -z "$ENDORA_NPM_TOKEN" ]; then
+            echo "publish:packages — ENDORA_NPM_TOKEN is unset. This is what a run that did not reach the npm-publish environment looks like: the publish would be attempted anonymously and the registry would answer 404, which is the same sentence it gives for a package that does not exist." >&2
+            exit 2
+          fi
+          if [ -z "$ACTIONS_ID_TOKEN_REQUEST_URL" ]; then
+            echo "publish:packages — no OIDC token is available, so \`id-token: write\` did not reach this job. Provenance is the reason this workflow exists on Actions at all (D-242); publishing without it would spend versions that can never be re-published with an attestation." >&2
+            exit 2
+          fi
+      - name: derive the publish scope and write .npmrc
+        run: |
+          # The scope is derived from the packages that are about to be
+          # published, never written here: `check:release-intent`'s
+          # `unresolvable-scope` holds them to exactly one, and a second copy of
+          # the answer in a CI file is the derived fact D-100 forbids.
+          #
+          # `exec tsx`, not `run check:release-intent --`: `pnpm run` prints its
+          # `> backend@0.0.0 …` banner on stdout, which this command
+          # substitution would capture into the `.npmrc` line.
+          scope=$(pnpm --filter backend exec tsx scripts/check-release-intent.ts --print-publish-scope)
+          # The token is written as an environment **reference**, not as a
+          # value: pnpm expands `${VAR}` in `.npmrc` in both the registry and
+          # the auth position, so no file in this job holds the secret. It goes
+          # to `$HOME`, not the checkout, so it cannot be committed or packed.
+          printf '%s:registry=%s\n' "$scope" "$ENDORA_NPM_REGISTRY" > "$HOME/.npmrc"
+          printf '%s:_authToken=${ENDORA_NPM_TOKEN}\n' "${ENDORA_NPM_REGISTRY#*:}" >> "$HOME/.npmrc"
+          printf 'provenance=true\n' >> "$HOME/.npmrc"
+          echo "publish:packages — publishing $scope to $ENDORA_NPM_REGISTRY"
+      - name: refuse a publish that would carry no provenance
+        run: |
+          # npm is the tool that actually performs the publish — pnpm delegates
+          # to it — so npm's own view of the setting is the only answer worth
+          # having. A config that did not arrive fails here, loudly, instead of
+          # publishing unattested and reporting success.
+          resolved=$(npm config get provenance)
+          if [ "$resolved" != "true" ]; then
+            echo "publish:packages — npm reports provenance=$resolved. Neither NPM_CONFIG_PROVENANCE nor \$HOME/.npmrc reached it, so \`changeset publish\` would spend versions with no attestation and the failure would be silent." >&2
+            exit 2
+          fi
+      # The last gate before a publish. `quality` does not run on the dispatched
+      # ref unless it happens to be `master`, so without this line the packages
+      # would be published having been judged only by the pull request that
+      # wrote them.
+      - run: pnpm --filter backend run check:release-intent
+      - name: changeset publish
+        run: |
+          status=0
+          pnpm exec changeset publish > changeset-publish.log 2>&1 || status=$?
+          cat changeset-publish.log
+          if [ "$status" -ne 0 ]; then exit "$status"; fi
+          # `changeset publish` exits 0 when it has nothing to publish, which is
+          # byte-identical to a successful publish.
+          if grep -q 'No unpublished projects to publish' changeset-publish.log; then
+            echo "publish:packages — this run consumed changesets and published nothing. \`changeset publish\` reports a plan of zero releases and exits 0, which is byte-identical to a successful publish. Check that the versions moved (\`release:changeset\` asks that question) and that \`.changeset/config.json\` still sees the packages." >&2
+            exit 2
+          fi

@@ -1,0 +1,286 @@
+# The day-one quality floor on GitHub Actions.
+#
+# `specs/129-github-canonical-migration/contracts/gate-window.md` §3 is the
+# specification for this file, T042a is the task, and the five jobs below are
+# the five that document names. Read §3.1 before changing any of them: each is
+# here because it gates a change *today*, needs no service container, and
+# — for `release:changeset` — has an irreversible subject.
+#
+# ## Why this file is on GitLab `master` before the migration runs
+#
+# The history filter (T031) carries whatever is in the tree, so a workflow
+# committed here **before** the filter runs is present on the canonical
+# repository's *first* commit rather than on its first pull request. That is the
+# shape `SECURITY.md` shipped in (T013), and SC-004's byte-identity is
+# unaffected because the file is in both trees. Until the switch, GitLab runs
+# the pipeline and nothing here executes.
+#
+# ## What this file deliberately does not carry
+#
+# **The reasoning.** Every command in the `quality` block below has a paragraph
+# above it in `.gitlab-ci.yml` saying which defect it was written from. Those
+# paragraphs are not copied here: two statements of one rule are what this
+# estate spends its review effort refusing, and a copied comment drifts silently
+# while the command it explains does not. `.gitlab-ci.yml` holds the reasoning;
+# this file holds the list; `backend/test/unit/ci/actions-floor-parity.test.ts`
+# holds the two lists equal, in both directions, so a command added to one host
+# and not the other fails by name.
+#
+# That test is also what connects this file to `check-inventory.test.ts`, which
+# already holds every check's `job` field against `.gitlab-ci.yml`'s `quality`
+# and `quality:static` blocks in both directions. Inventory <-> GitLab is
+# existing; GitLab <-> Actions is new; the composition is what says the port is
+# complete.
+#
+# ## Runners
+#
+# GitHub-hosted standard runners, and **never** a `self-hosted` label. A public
+# repository that accepts pull requests must not run fork code on self-hosted
+# infrastructure, and the box `.gitlab-ci.yml` describes carries another
+# project's live server. The parity test refuses a `self-hosted` label anywhere
+# under `.github/workflows/`.
+#
+# ## Action versions
+#
+# Pinned to major tags, which `.github/dependabot.yml`'s `github-actions`
+# ecosystem already updates weekly. SHA pinning is stronger and is deliberately
+# not done here: a wrong SHA is a workflow that cannot run at all, and no SHA
+# can be verified from this checkout. Whoever tightens this should do it in a
+# merge request that can watch the runs.
+
+name: quality
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+concurrency:
+  # A superseded pull-request run costs a runner and tells nobody anything, so
+  # it is cancelled — which is GitLab's `interruptible: true` behaviour for a
+  # merge request. A `master` run is **not** cancelled: from migration day it is
+  # the only post-merge signal a commit gets (window §5.2), and cancelling it
+  # would drop the answer for a commit that is already merged.
+  group: quality-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: quality
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      # `.gitlab-ci.yml`'s `quality` job carries the measurement this number
+      # comes from: the program's requirement sits between 2048 and 2080 MB and
+      # 2048 is the cliff, not a margin. The 2560 it chose was additionally
+      # bounded above by a 4 GB container cap; a GitHub-hosted runner has no
+      # container and 16 GiB, so only the lower bound applies here and 2560 is
+      # kept as the measured-good value rather than replaced by a new number
+      # nobody bracketed. The remedy differs when it is reached: on GitLab the
+      # answer was "raise the runner's container memory first", and here there
+      # is no container to raise, so the answer is this line.
+      NODE_OPTIONS: --max-old-space-size=2560
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18'
+      - run: corepack enable && corepack prepare pnpm@9.15.0 --activate
+      - id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-
+      - run: pnpm install --frozen-lockfile
+      # Every package resolves through its own `exports` map at `./dist`, and so
+      # does all of `backend/src/{kernel,http,tenancy,commands,events}` through
+      # `packages/platform`. An unbuilt workspace is not a stale import, it is a
+      # repository in which almost nothing resolves.
+      - run: pnpm run build:packages
+      - run: |
+          pnpm -r run typecheck
+          pnpm -r run lint
+          pnpm --filter backend exec tsx scripts/check-entity-tenant-classification.ts
+          pnpm --filter backend exec tsx scripts/check-channel-resolution.ts --enforce
+          pnpm --filter backend run check:command-coverage -- --strict
+          pnpm --filter backend run check:kernel-boundary
+          pnpm --filter backend run check:module-boundary
+          pnpm --filter backend run check:admin-surface
+          pnpm --filter backend run check:admin-zones
+          pnpm --filter backend run check:entry-scope
+          pnpm --filter backend run check:container-imports
+          pnpm --filter backend run check:port-dependencies
+          pnpm --filter backend run check:port-catches
+          pnpm --filter backend run check:port-shape
+          pnpm --filter backend run check:subscribe-seam
+          pnpm --filter backend run check:transaction-context
+          pnpm --filter backend run check:singleton-identity
+          pnpm --filter backend run check:entry-presence
+          pnpm --filter backend run check:lock-claims
+          pnpm --filter backend run check:action-route-permissions
+          pnpm --filter backend run check:harness-teardown
+          pnpm --filter backend run check:fixture-substitution
+          pnpm --filter backend run check:shared-table-wipes
+          pnpm --filter backend run check:nul-bytes
+          pnpm --filter backend run check:diacritic-folds
+          pnpm --filter backend run check:doc-snippets
+          pnpm --filter backend run check:module-docs
+          pnpm --filter backend run check:error-translations
+          pnpm --filter backend run check:bundle-pairing
+          pnpm --filter backend run check:env-inputs
+          pnpm --filter backend run check:block-names
+          pnpm --filter backend run check:class-vocabulary
+          pnpm --filter backend run check:off-state-coverage
+          pnpm --filter backend run check:test-ownership
+          pnpm --filter backend run check:default-language-prose
+          pnpm --filter backend run check:demo-data-budget
+          pnpm --filter backend run check:storefront-indexability
+          pnpm --filter backend run check:rsc-discipline
+          pnpm --filter backend run i18n:hardcoded
+          pnpm run check:pdfmake-footprint
+          pnpm --filter backend run overlay:check
+          pnpm --filter backend run check:divergence
+          pnpm --filter backend run check:release-intent
+          pnpm --filter backend run check:root-dispositions
+          pnpm --filter backend run check:platform-surface
+          pnpm --filter backend run manifests:check
+
+  quality-static:
+    # The job id cannot hold a colon; the **name** can, and the name is what a
+    # required status check is listed by (T033), so it keeps the GitLab job's
+    # name exactly.
+    name: quality:static
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      # No install and no build, deliberately: `.gitlab-ci.yml` keeps this job
+      # separate so the naming and language conventions report "independently of
+      # whether the node toolchain builds at all". GitLab expressed that with a
+      # `debian:bookworm-slim` image; a hosted runner expresses it by having no
+      # install step, which is the property rather than the image. Both scripts
+      # are POSIX shell over perl/awk/grep, all of which `ubuntu-24.04` ships,
+      # and their file list is `git ls-files` — so they hard-fail with exit 2
+      # rather than pass vacuously if git ever goes missing.
+      - uses: actions/checkout@v4
+      # Run both and fail at the end, so one round-trip reports every finding
+      # instead of hiding the language check behind a naming failure.
+      - run: |
+          status=0
+          bash scripts/check-naming.sh || status=1
+          bash scripts/check-language.sh || status=1
+          exit $status
+
+  test-backend-unit:
+    name: test:backend:unit
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18'
+      - run: corepack enable && corepack prepare pnpm@9.15.0 --activate
+      - id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build:packages
+      # `BACKEND_TEST_SERVICES=none` is **not** set here, and that is not an
+      # omission: `backend/vitest.unit.config.ts` sets it in the config itself,
+      # so the GitLab job does not declare it either. The window document
+      # describes the job as declaring it; the declaration is in the config.
+      #
+      # `.backend-unit-test-rules`' `changes:` ladder is not ported. On GitHub a
+      # job filtered away by `paths` never reports a status at all, so a
+      # required check that is skipped blocks a pull request permanently — and
+      # the ladder was a wall-clock optimisation, never a gate. Running it on
+      # every pull request is strictly stronger than the rung it replaces.
+      - run: pnpm --filter backend run test:unit:fast
+
+  test-frontend:
+    name: test:frontend
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18'
+      - run: corepack enable && corepack prepare pnpm@9.15.0 --activate
+      - id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build:packages
+      # Every workspace member that is not `backend` — the packages included.
+      # AGENTS.md's working agreement says in as many words that a package's
+      # failure that is not a type error is reachable by nothing else an author
+      # is told to run.
+      - run: pnpm --filter '!backend' run test
+
+  release-changeset:
+    name: release:changeset
+    # Pull requests only. On the default branch the comparison would be the
+    # branch against itself, and a pass there measures nothing.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # `changeset status` diffs against the merge base, which a shallow
+          # clone does not contain. GitLab spelled this `GIT_DEPTH: 0`.
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18'
+      - run: corepack enable && corepack prepare pnpm@9.15.0 --activate
+      - id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-
+      - run: pnpm install --frozen-lockfile
+      # This job used to be the one node job without a build, on the ground that
+      # it imported nothing of ours. That stopped being true when
+      # `check:release-intent` and `test:release-gate` were added to it.
+      - run: pnpm run build:packages
+      - env:
+          # GitLab read `$CI_MERGE_REQUEST_TARGET_BRANCH_NAME`; the two guards
+          # below are what makes an unresolvable base a refusal rather than a
+          # pass measured against nothing, so an empty value here fails closed.
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          base="${BASE_REF}"
+          git fetch --quiet --no-tags origin "+refs/heads/$base:refs/remotes/origin/$base" || true
+          if ! git rev-parse --verify --quiet "origin/$base^{commit}" > /dev/null; then
+            echo "release:changeset — cannot resolve origin/$base; refusing to report a pass measured against nothing." >&2
+            exit 2
+          fi
+          if ! git merge-base "origin/$base" HEAD > /dev/null 2>&1; then
+            echo "release:changeset — no merge base between HEAD and origin/$base; refusing to report a pass measured against nothing." >&2
+            exit 2
+          fi
+          pnpm --filter backend run check:release-intent -- --since "origin/$base"
+          pnpm --filter backend run test:release-gate
