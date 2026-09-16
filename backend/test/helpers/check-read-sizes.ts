@@ -2207,7 +2207,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    files: 2408,
+    // **`fix/comarch-credit-limits-edge`: +1 file.** One co-located test,
+    // `packages/modules/comarch_xl/src/backend/services/apply/credit-limit-edge.test.ts`,
+    // beside the manifest edge it holds. Nothing moved and nothing was deleted.
+    files: 2409,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -2803,8 +2806,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    // **`specs/129-github-canonical-migration/` T041/T042a, the day-one Actions workflows: files 5837 -> 5839.** The two new `.ts` files; the two workflow files are YAML and this walk is source. Four tracked files added, none deleted: `.github/workflows/quality.yml`, `.github/workflows/publish.yml`, `backend/test/helpers/actions-workflows.ts` and `backend/test/unit/ci/actions-floor-parity.test.ts`. There is no changeset — the branch changes nothing under `packages/`. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install` and `build:packages`: with the branch stashed — index included, because a file merely moved out of the working tree is still in `git ls-files` — this record reports **0 drifted of 45**, and with it restored it reports the value below. Nothing is subtracted, nothing is computed from a delta and no band is widened.
-    files: 5839,
+    // **`fix/comarch-credit-limits-edge`: +1 file.** One co-located test,
+    // `packages/modules/comarch_xl/src/backend/services/apply/credit-limit-edge.test.ts`,
+    // beside the manifest edge it holds. Nothing moved and nothing was deleted.
+    files: 5838,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -3247,7 +3252,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    files: 2605,
+    // **`fix/comarch-credit-limits-edge`: +1 file.** One co-located test,
+    // `packages/modules/comarch_xl/src/backend/services/apply/credit-limit-edge.test.ts`,
+    // beside the manifest edge it holds. Nothing moved and nothing was deleted.
+    files: 2606,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -5206,8 +5214,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    // **`specs/129-github-canonical-migration/` T041/T042a, the day-one Actions workflows: files 1698 -> 1700, sites 610 -> 611.** The two new files under `backend/test`, one of which carries a read the check counts as a site. Four tracked files added, none deleted: `.github/workflows/quality.yml`, `.github/workflows/publish.yml`, `backend/test/helpers/actions-workflows.ts` and `backend/test/unit/ci/actions-floor-parity.test.ts`. There is no changeset — the branch changes nothing under `packages/`. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install` and `build:packages`: with the branch stashed — index included, because a file merely moved out of the working tree is still in `git ls-files` — this record reports **0 drifted of 45**, and with it restored it reports the value below. Nothing is subtracted, nothing is computed from a delta and no band is widened.
-    files: 1700,
+    files: 1698,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -5267,7 +5274,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // receiver. Measured, that spelling's count in the file goes 1 -> 0 and `files` does not
     // move.
     // **+1 site, this branch's; +1 file, already standing on `9a0e8e0d0`.** The site is in `test/unit/scripts/check-env-inputs.test.ts`, which this branch extends; the file is the base's own and not Phase 3's.
-    sites: 611,
+    sites: 610,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -5517,8 +5524,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    // **`specs/129-github-canonical-migration/` T041/T042a, the day-one Actions workflows: files 1698 -> 1700.** The two new files under `backend/test`; neither composes a server. Four tracked files added, none deleted: `.github/workflows/quality.yml`, `.github/workflows/publish.yml`, `backend/test/helpers/actions-workflows.ts` and `backend/test/unit/ci/actions-floor-parity.test.ts`. There is no changeset — the branch changes nothing under `packages/`. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install` and `build:packages`: with the branch stashed — index included, because a file merely moved out of the working tree is still in `git ls-files` — this record reports **0 drifted of 45**, and with it restored it reports the value below. Nothing is subtracted, nothing is computed from a delta and no band is widened.
-    files: 1700,
+    files: 1698,
     sites: null,
     sources: [],
   },
@@ -6372,7 +6378,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    files: 2953,
+    // **`fix/comarch-credit-limits-edge`: +1 file.** One co-located test,
+    // `packages/modules/comarch_xl/src/backend/services/apply/credit-limit-edge.test.ts`,
+    // beside the manifest edge it holds. Nothing moved and nothing was deleted.
+    files: 2954,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 56 -> 66.**
     // The header block above this table has the arithmetic; nothing here
@@ -6678,7 +6687,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    files: 3051,
+    // **`fix/comarch-credit-limits-edge`: +1 file.** One co-located test,
+    // `packages/modules/comarch_xl/src/backend/services/apply/credit-limit-edge.test.ts`,
+    // beside the manifest edge it holds. Nothing moved and nothing was deleted.
+    files: 3052,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -7166,7 +7178,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **The availability-notification acquisition gate (issue #227 / #259): +1 site.** One
     // prose site, in the branch's two new backend test files.
     // **`fix/invoice-ledger-tenancy-parent`: sites 35424 -> 35425 (+1).** **`fix/invoice-ledger-tenancy-parent` adds three tracked files and deletes none**: the migration `20260914T140000_invoice_ledger_row_organization.ts`, the guard test `backend/test/unit/tenancy/transitive-parent-module-ownership.test.ts`, and one `.changeset/*.md`. Every `files` delta is a walk seeing its own share — the two whole-repository walks see all three, `check-language.sh` sees the two comment-bearing `.ts`, a walk over `src` trees sees the migration alone, a walk over `backend/test` sees the test alone, and a walk over both sees two. The `sites` moves are the new artefacts' own units: a migration is a claim-bearing artefact, the enqueue path resolves one more port, and the regenerated `module-reference/invoice-ledger.md` is one more determinism site. **What the merge moved is baselines, not this branch's contribution to them**: the same 30 entries with the same deltas were measured over the pre-merge base, and the three files `fix/instance-wiring-operator-runtime` added are what shifted the starting points. Re-measured on the **merged** tree — `fix/instance-wiring-operator-runtime` merged and re-recorded 27 entries, so this file conflicted; the conflict was resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. In a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain` clean. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 30 and confirmed the other 14 agree.
-    sites: 36886,
+    // **`fix/comarch-credit-limits-edge`: +12 sites.** `comarch_xl`'s manifest gains a
+    // `nonBindingDependencies` entry whose `whenAbsent` and `reason` are prose this walk
+    // classifies, and the new co-located test adds its own; the file count is unchanged
+    // here because this walk's population is not the whole tree.
+    sites: 36898,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -7827,7 +7843,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    files: 5451,
+    // **`fix/comarch-credit-limits-edge`: +2 files, +8 sites.** One co-located test beside
+    // `comarch_xl`'s manifest edge, opened as a module source and as a test; its specifiers
+    // are the new sites. The manifest change itself removes no import and adds none.
+    files: 5453,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -7937,7 +7956,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // on `inventory`'s availability service and on its composition root, plus the contracts
     // import the service's audience gate needs. `files` does not move — no module source file
     // is added or deleted.
-    sites: 13527,
+    sites: 13535,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -9004,8 +9023,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    // **`specs/129-github-canonical-migration/` T041/T042a, the day-one Actions workflows: files 8627 -> 8631.** All four — this walk is the whole repository and opens a `.yml` like any other file. Four tracked files added, none deleted: `.github/workflows/quality.yml`, `.github/workflows/publish.yml`, `backend/test/helpers/actions-workflows.ts` and `backend/test/unit/ci/actions-floor-parity.test.ts`. There is no changeset — the branch changes nothing under `packages/`. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install` and `build:packages`: with the branch stashed — index included, because a file merely moved out of the working tree is still in `git ls-files` — this record reports **0 drifted of 45**, and with it restored it reports the value below. Nothing is subtracted, nothing is computed from a delta and no band is widened.
-    files: 8631,
+    // **`fix/comarch-credit-limits-edge`: +1 file.** One co-located test,
+    // `packages/modules/comarch_xl/src/backend/services/apply/credit-limit-edge.test.ts`,
+    // beside the manifest edge it holds. Nothing moved and nothing was deleted.
+    files: 8628,
     sites: null,
     sources: [],
     //
@@ -10935,8 +10956,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    // **`specs/129-github-canonical-migration/` T041/T042a, the day-one Actions workflows: files 8688 -> 8692.** All four, by the index. `sites` does **not** move and stays 1291: none of the four is under `specs/`, the one partially-public entry — `.github` and `backend` are both public wholesale — so the two counts move apart here, which is the whole reason both are recorded. Four tracked files added, none deleted: `.github/workflows/quality.yml`, `.github/workflows/publish.yml`, `backend/test/helpers/actions-workflows.ts` and `backend/test/unit/ci/actions-floor-parity.test.ts`. There is no changeset — the branch changes nothing under `packages/`. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install` and `build:packages`: with the branch stashed — index included, because a file merely moved out of the working tree is still in `git ls-files` — this record reports **0 drifted of 45**, and with it restored it reports the value below. Nothing is subtracted, nothing is computed from a delta and no band is widened.
-    files: 8692,
+    // **`fix/comarch-credit-limits-edge`: +1 file.** One co-located test,
+    // `packages/modules/comarch_xl/src/backend/services/apply/credit-limit-edge.test.ts`,
+    // beside the manifest edge it holds. Nothing moved and nothing was deleted.
+    files: 8689,
     sites: 1291,
     // `git-tree-entries` — the committed tree's own root entries, read from a
     // different git store than the index this walk uses. Not `self-reported`:
@@ -11232,8 +11255,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    // **`specs/129-github-canonical-migration/` T041/T042a, the day-one Actions workflows: files 1698 -> 1700.** The two new files under `backend/test`; neither empties a table. Four tracked files added, none deleted: `.github/workflows/quality.yml`, `.github/workflows/publish.yml`, `backend/test/helpers/actions-workflows.ts` and `backend/test/unit/ci/actions-floor-parity.test.ts`. There is no changeset — the branch changes nothing under `packages/`. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install` and `build:packages`: with the branch stashed — index included, because a file merely moved out of the working tree is still in `git ls-files` — this record reports **0 drifted of 45**, and with it restored it reports the value below. Nothing is subtracted, nothing is computed from a delta and no band is widened.
-    files: 1700,
+    files: 1698,
     sites: 163,
     sources: [],
   },
@@ -11912,7 +11934,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    // **`specs/129-github-canonical-migration/` T041/T042a, the day-one Actions workflows: files 1841 -> 1842.** One file — `actions-floor-parity.test.ts`. The helper beside it is not a `.test.ts` and is not in the population. Four tracked files added, none deleted: `.github/workflows/quality.yml`, `.github/workflows/publish.yml`, `backend/test/helpers/actions-workflows.ts` and `backend/test/unit/ci/actions-floor-parity.test.ts`. There is no changeset — the branch changes nothing under `packages/`. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install` and `build:packages`: with the branch stashed — index included, because a file merely moved out of the working tree is still in `git ls-files` — this record reports **0 drifted of 45**, and with it restored it reports the value below. Nothing is subtracted, nothing is computed from a delta and no band is widened.
+    // **`fix/comarch-credit-limits-edge`: +1 file.** One co-located test,
+    // `packages/modules/comarch_xl/src/backend/services/apply/credit-limit-edge.test.ts`,
+    // beside the manifest edge it holds. Nothing moved and nothing was deleted.
     files: 1842,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
@@ -12832,8 +12856,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    // **`specs/129-github-canonical-migration/` T041/T042a, the day-one Actions workflows: files 4862 -> 4864.** The two new `.ts` files; this walk is all of `backend/` plus the packages. Four tracked files added, none deleted: `.github/workflows/quality.yml`, `.github/workflows/publish.yml`, `backend/test/helpers/actions-workflows.ts` and `backend/test/unit/ci/actions-floor-parity.test.ts`. There is no changeset — the branch changes nothing under `packages/`. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install` and `build:packages`: with the branch stashed — index included, because a file merely moved out of the working tree is still in `git ls-files` — this record reports **0 drifted of 45**, and with it restored it reports the value below. Nothing is subtracted, nothing is computed from a delta and no band is widened.
-    files: 4864,
+    // **`fix/comarch-credit-limits-edge`: +1 file.** One co-located test,
+    // `packages/modules/comarch_xl/src/backend/services/apply/credit-limit-edge.test.ts`,
+    // beside the manifest edge it holds. Nothing moved and nothing was deleted.
+    files: 4863,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -13920,8 +13946,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    // **`specs/129-github-canonical-migration/` T041/T042a, the day-one Actions workflows: files 8687 -> 8691.** All four, by the index — this walk is the whole repository. Four tracked files added, none deleted: `.github/workflows/quality.yml`, `.github/workflows/publish.yml`, `backend/test/helpers/actions-workflows.ts` and `backend/test/unit/ci/actions-floor-parity.test.ts`. There is no changeset — the branch changes nothing under `packages/`. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install` and `build:packages`: with the branch stashed — index included, because a file merely moved out of the working tree is still in `git ls-files` — this record reports **0 drifted of 45**, and with it restored it reports the value below. Nothing is subtracted, nothing is computed from a delta and no band is widened.
-    files: 8691,
+    // **`fix/comarch-credit-limits-edge`: +1 file.** One co-located test,
+    // `packages/modules/comarch_xl/src/backend/services/apply/credit-limit-edge.test.ts`,
+    // beside the manifest edge it holds. Nothing moved and nothing was deleted.
+    files: 8688,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -14570,8 +14598,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    // **`specs/129-github-canonical-migration/` T041/T042a, the day-one Actions workflows: files 6512 -> 6514.** The two new `.ts` files; the walk is source-code comments plus `/docs/`, and a workflow is neither. Four tracked files added, none deleted: `.github/workflows/quality.yml`, `.github/workflows/publish.yml`, `backend/test/helpers/actions-workflows.ts` and `backend/test/unit/ci/actions-floor-parity.test.ts`. There is no changeset — the branch changes nothing under `packages/`. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install` and `build:packages`: with the branch stashed — index included, because a file merely moved out of the working tree is still in `git ls-files` — this record reports **0 drifted of 45**, and with it restored it reports the value below. Nothing is subtracted, nothing is computed from a delta and no band is widened.
-    files: 6514,
+    // **`fix/comarch-credit-limits-edge`: +1 file.** One co-located test,
+    // `packages/modules/comarch_xl/src/backend/services/apply/credit-limit-edge.test.ts`,
+    // beside the manifest edge it holds. Nothing moved and nothing was deleted.
+    files: 6513,
     sites: null,
     sources: ['manifest-index'],
     //
