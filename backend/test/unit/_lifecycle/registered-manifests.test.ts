@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { ModuleManifest } from '@endora-commerce/contracts';
+import { listOverlayModuleDirs } from '@endora-commerce/platform/overlay';
 import { discoverModulePackages } from '../../../scripts/lib/module-packages.js';
 import type { DiscoveredManifestEntry } from '../../../src/manifest-index.generated.js';
 import {
@@ -297,6 +298,12 @@ describe('resolvedManifestEntries — the deployment-resolved set, discovered at
       DEPLOYMENT: 'example',
     } as NodeJS.ProcessEnv);
     const bareCore = await resolvedManifestEntries({} as NodeJS.ProcessEnv);
-    expect(withDeployment.length).toBe(bareCore.length + 1);
+    // Derived, never written down: `example` shipped exactly one overlay module
+    // when this was written and ships three since
+    // `specs/130-comarch-xl-sync/`, so a literal here measures the fixture's
+    // size rather than the property (D-100).
+    const overlayModules = listOverlayModuleDirs(join(BACKEND_SRC, 'apps', 'example', 'modules'));
+    expect(overlayModules.length).toBeGreaterThan(0);
+    expect(withDeployment.length).toBe(bareCore.length + overlayModules.length);
   });
 });

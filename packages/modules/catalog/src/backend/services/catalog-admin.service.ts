@@ -322,7 +322,7 @@ export class CatalogAdminService {
           sku: req.sku,
           slug,
           type: req.type,
-          status: 'draft',
+          status: req.status ?? 'draft',
           name: req.name,
           description: req.description,
           stockMode: req.stockMode ?? null,

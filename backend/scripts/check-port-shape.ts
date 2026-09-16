@@ -142,25 +142,28 @@ export const PORTS_WITHOUT_A_REGISTRATION: Readonly<Record<string, string>> = {}
  * publishes a name, which is signal 2's subject and the owner's call.
  */
 export const RESOLUTIONS_OF_UNPUBLISHED_NAMES: Readonly<Record<string, string>> = {
-  // The two D-94.5 ports, and they are one entry written twice: each is an
-  // interface the **owner** declares beside its implementation, deliberately
-  // outside `@endora-commerce/contracts`, because its signature carries the caller's
-  // MikroORM `EntityManager` and FR-034 keeps a MikroORM type out of that
-  // package. Both are held there by a foreign key rather than by a convention
-  // — `credit_limit_reservations_order_fk` and `promotion_usages_order_fk`,
-  // both `on delete restrict` — so the reservation and the usage row must be
-  // written inside the placement's own transaction.
+  // `orders:creditLimitService` stood here until `specs/130-comarch-xl-sync/`.
+  // It went not because D-94.5's seam changed — `orders` still resolves the
+  // `EntityManager`-carrying `CreditLimitPort`, and its `permanent: true`
+  // entry in `orders`' cross-module-imports shard still says why — but because
+  // this check's subject is the **name**: `comarch_xl` needs a narrow
+  // grant/adjust seam on the same container registration, declared it in
+  // `@endora-commerce/contracts` as `ContractorCreditLimitPort`, and gave it
+  // the `Container name: creditLimitService` marker. The name is published, so
+  // the entry no longer describes the tree and this check reds on it as
+  // `stale`. Nothing about `orders`' resolution is settled by its removal.
   //
-  // They are `permanent: true` entries in `orders`' cross-module-imports shard
-  // for exactly that reason, and they retire the same way that shard says they
-  // do: F4 package entry points, not a port and not a doc block. Publishing
-  // either shape today would mean publishing an `EntityManager`.
-  'orders:creditLimitService':
-    'D-94.5 — `CreditLimitPort` is declared by `credit_limits` beside its ' +
-    'implementation and stays out of `@endora-commerce/contracts` because `reserve` takes the ' +
-    "caller's `EntityManager` (FR-034); `credit_limit_reservations_order_fk` is what " +
-    'holds it co-transactional. Retired by F4 package entry points, as the matching ' +
-    "`permanent: true` entry in `orders`' cross-module-imports shard says.",
+  // The entry below is the D-94.5 pair's surviving half: an interface the
+  // **owner** declares beside its implementation, deliberately outside
+  // `@endora-commerce/contracts`, because its signature carries the caller's
+  // MikroORM `EntityManager` and FR-034 keeps a MikroORM type out of that
+  // package. It is held there by a foreign key rather than by a convention —
+  // `promotion_usages_order_fk`, `on delete restrict` — so the usage row must
+  // be written inside the placement's own transaction. It is a
+  // `permanent: true` entry in `orders`' cross-module-imports shard for
+  // exactly that reason, and it retires the way that shard says it does: F4
+  // package entry points, not a port and not a doc block. Publishing the shape
+  // today would mean publishing an `EntityManager`.
   'orders:promotionUsageFinalizer':
     'D-94.5 — the twin of the entry above and the same shape: `PromotionUsageFinalizer` ' +
     'is `promotions`\' own interface, kept out of `@endora-commerce/contracts` because ' +

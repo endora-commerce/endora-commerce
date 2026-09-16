@@ -33,7 +33,22 @@ import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifest
  * category its author forgot.
  */
 
-/** Core — 25 modules, each declaring `nonDeactivatable` with its own reason. */
+/**
+ * Core — 26 modules, each declaring `nonDeactivatable` with its own reason.
+ *
+ * `erp_connector` joined with `specs/130-comarch-xl-sync/`, and it is the third
+ * of one family rather than a new kind: `invoice_ledger` and `pim_connector`
+ * are already here on the same ground — a shared layer beneath vendor adapters
+ * that holds the vocabulary and the mutual exclusion, so that switching the
+ * layer off would not disable a feature but would make the *adapters'* own
+ * controls unenforceable. C3, and nothing in its reason cites another module.
+ *
+ * **This entry is a product ruling written down and it has a consequence
+ * outside this file**: a `nonDeactivatable` module is in the required set
+ * `endora new instance` composes by default (`packages/cli/src/new-instance/modules.ts`,
+ * `requiredModuleIds`), so every new instance installs
+ * `@endora-commerce/mod-erp-connector`.
+ */
 const CORE_MODULES = [
   '_i18n',
   '_lifecycle',
@@ -50,6 +65,7 @@ const CORE_MODULES = [
   'customer_accounts',
   'dictionaries',
   'email',
+  'erp_connector',
   'invoice_ledger',
   'languages',
   'orders',
@@ -111,7 +127,7 @@ describe('the classification partitions the discovered manifest set (FR-007, SC-
   });
 
   it('operator-controlled count is the residual of the discovered set', () => {
-    expect(CORE_MODULES).toHaveLength(25);
+    expect(CORE_MODULES).toHaveLength(26);
     // Residual, not a snapshot: a module joining or leaving the control set
     // must not require a hand-edited total. The list above is a product ruling
     // written down; this number is derived from it.

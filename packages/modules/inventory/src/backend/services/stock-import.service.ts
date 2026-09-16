@@ -8,6 +8,7 @@ import type {
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { StockLevel } from '../entities/stock-level.entity.js';
+import { Warehouse } from '../entities/warehouse.entity.js';
 import { DEFAULT_WAREHOUSE_ID } from '../entities/warehouse.entity.js';
 
 /**
@@ -64,17 +65,49 @@ export class InventoryStockImportService implements InventoryStockImportPort {
         }
         if (errors.length > 0) return { result: { imported: 0, errors }, skipAudit: true };
 
+        const warehouseCodes = [
+          ...new Set(rows.map((row) => row.warehouseCode).filter((code): code is string => !!code)),
+        ];
+        const warehouseIdByCode = new Map<string, string>();
+        if (warehouseCodes.length > 0) {
+          const warehouses = await em.find(Warehouse, { code: { $in: warehouseCodes } });
+          for (const warehouse of warehouses) {
+            warehouseIdByCode.set(warehouse.code, warehouse.id);
+          }
+          for (const [index, row] of rows.entries()) {
+            if (row.warehouseCode && !warehouseIdByCode.has(row.warehouseCode)) {
+              errors.push({ index, reason: `unknown warehouse_code: ${row.warehouseCode}` });
+            }
+          }
+          if (errors.length > 0) return { result: { imported: 0, errors }, skipAudit: true };
+        }
+
         const productIds = [...new Set(rows.map((row) => idBySku.get(row.productSku)!))];
+        const warehouseIds = [
+          ...new Set(
+            rows.map((row) =>
+              row.warehouseCode ? warehouseIdByCode.get(row.warehouseCode)! : DEFAULT_WAREHOUSE_ID,
+            ),
+          ),
+        ];
         const levels = await em.find(StockLevel, {
           productId: { $in: productIds },
-          warehouseId: DEFAULT_WAREHOUSE_ID,
+          warehouseId: { $in: warehouseIds },
         });
-        const byKey = new Map(levels.map((level) => [levelKey(level.productId, level.variantId ?? null), level]));
+        const byKey = new Map(
+          levels.map((level) => [
+            levelKey(level.productId, level.variantId ?? null, level.warehouseId),
+            level,
+          ]),
+        );
 
         for (const row of rows) {
           const productId = idBySku.get(row.productSku)!;
           const variantId = row.variantId ?? null;
-          const existing = byKey.get(levelKey(productId, variantId));
+          const warehouseId = row.warehouseCode
+            ? warehouseIdByCode.get(row.warehouseCode)!
+            : DEFAULT_WAREHOUSE_ID;
+          const existing = byKey.get(levelKey(productId, variantId, warehouseId));
           if (existing) {
             existing.onHand = row.onHand;
             continue;
@@ -82,26 +115,26 @@ export class InventoryStockImportService implements InventoryStockImportPort {
           const created = em.create(StockLevel, {
             productId,
             ...(variantId !== null ? { variantId } : {}),
-            warehouseId: DEFAULT_WAREHOUSE_ID,
+            warehouseId,
             onHand: row.onHand,
           });
           // A second row for the same product and variant updates what the first
           // one created, rather than inserting a duplicate the partial-unique
           // index would refuse at flush.
-          byKey.set(levelKey(productId, variantId), created);
+          byKey.set(levelKey(productId, variantId, warehouseId), created);
         }
         await em.flush();
 
         return {
           result: { imported: rows.length, errors: [] },
-          after: { rows: rows.length, warehouseId: DEFAULT_WAREHOUSE_ID },
+          after: { rows: rows.length, warehouseIds },
         };
       },
     });
   }
 }
 
-/** `(productId, variantId)` as one map key; `null` is the simple-product baseline. */
-function levelKey(productId: string, variantId: string | null): string {
-  return `${productId}:${variantId ?? ''}`;
+/** `(productId, variantId, warehouseId)` as one map key. */
+function levelKey(productId: string, variantId: string | null, warehouseId: string): string {
+  return `${productId}:${variantId ?? ''}:${warehouseId}`;
 }

@@ -1,6 +1,13 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { OrderReadPort, OrderRecord, TransactionalEmailSender } from '@endora-commerce/contracts';
+import type {
+  AssetReadPort,
+  AssetsLibraryPort,
+  ComarchXlSaleDocumentAttachmentPort,
+  OrderReadPort,
+  OrderRecord,
+  TransactionalEmailSender,
+} from '@endora-commerce/contracts';
 import { InvoiceService, type InvoiceAuditRecorder } from './services/invoice-service.js';
 import type { LedgerNumberingLookup } from './services/vendor-number-hold.js';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
@@ -46,6 +53,9 @@ export interface InvoicesModuleOptions {
    * switched off.
    */
   orderReadPort: OrderReadPort;
+  assetReadPort: AssetReadPort;
+  assetsLibrary: AssetsLibraryPort;
+  saleDocumentAttachments: ComarchXlSaleDocumentAttachmentPort;
   requireAdmin: RequireAdminFactory;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   settingsService: SettingsReader;
@@ -189,6 +199,8 @@ export function invoicesModule(options: InvoicesModuleOptions): {
     await registerInvoicesCustomerRoutes(app, {
       emFactory: options.emFactory,
       orderReadPort: options.orderReadPort,
+      assetsLibrary: options.assetsLibrary,
+      saleDocumentAttachments: options.saleDocumentAttachments,
       requireCustomer: options.requireCustomer,
       resolveCustomerContext: options.resolveCustomerContext,
       invoiceService,

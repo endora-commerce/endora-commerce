@@ -1,0 +1,5 @@
+{
+  "erp_connector.nav.label": "Konektory ERP",
+  "erp_connector.nav.description": "Wspólna warstwa konektorów ERP",
+  "errors.ERP_CONNECTOR_ALREADY_ACTIVE": "Inny connector ERP jest już aktywny ({activeModuleId}). Najpierw go wyłącz."
+}

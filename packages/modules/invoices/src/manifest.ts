@@ -162,6 +162,7 @@ export const manifest = defineModuleManifest({
     'auth',
     'customer_accounts',
     'orders',
+    'organizations',
     'settings',
     'transactional_emails',
   ],
@@ -173,6 +174,16 @@ export const manifest = defineModuleManifest({
       whenAbsent: 'Issuance stays Endora-numbered and ready; mode B wait is ignored.',
       reason:
         'InvoiceService.issue holds pending only when the ledger module is present and numbering is vendor.',
+    },
+    {
+      moduleId: 'comarch_xl',
+      name: 'comarchXlSaleDocumentAttachmentPort',
+      kind: 'refuses-without',
+      whenAbsent:
+        'ERP-imported sale document attachments cannot be downloaded from Comarch XL.',
+      reason:
+        'The B2B attachment route lazy-fetches bytes through this port on first download. ' +
+        'Platform-issued invoices are unaffected.',
     },
   ],
   settings: invoicesSettingsManifest,

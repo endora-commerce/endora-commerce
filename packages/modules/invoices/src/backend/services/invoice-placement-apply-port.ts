@@ -43,6 +43,6 @@ export class InvoicePlacementApplyService implements InvoicePlacementApplyPort {
     });
     await em.persistAndFlush(invoice);
     // A published record, never the managed entity (D-77's first narrowing).
-    return { id: invoice.id, orderId: invoice.orderId, number: invoice.number };
+    return { id: invoice.id, orderId: invoice.orderId!, number: invoice.number };
   }
 }

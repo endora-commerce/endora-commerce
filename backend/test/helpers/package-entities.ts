@@ -41,6 +41,7 @@ import { entities as invoiceLedgerEntities } from '@endora-commerce/mod-invoice-
 import { entities as pimErgonodeEntities } from '@endora-commerce/mod-pim-ergonode/backend';
 import { entities as pimUnopimEntities } from '@endora-commerce/mod-pim-unopim/backend';
 import { entities as pimPimcoreEntities } from '@endora-commerce/mod-pim-pimcore/backend';
+import { entities as comarchXlEntities } from '@endora-commerce/mod-comarch-xl/backend';
 import { entities as pimAkeneoEntities } from '@endora-commerce/mod-pim-akeneo/backend';
 import { entities as productFeedsEntities } from '@endora-commerce/mod-product-feeds/backend';
 import { entities as authEntities } from '@endora-commerce/mod-auth/backend';
@@ -115,6 +116,9 @@ import type { CredentialConfiguration as CredentialConfigurationRow } from '../.
 import type { Country as CountryRow } from '../../../packages/modules/dictionaries/src/backend/entities/country.entity.js';
 import type { DictionaryTranslation as DictionaryTranslationRow } from '../../../packages/modules/dictionaries/src/backend/entities/dictionary-translation.entity.js';
 import type { LanguageCountry as LanguageCountryRow } from '../../../packages/modules/dictionaries/src/backend/entities/language-country.entity.js';
+import type { XlCategoryMapping as XlCategoryMappingRow } from '../../../packages/modules/comarch_xl/src/backend/entities/xl-category-mapping.entity.js';
+import type { XlImportedOffer as XlImportedOfferRow } from '../../../packages/modules/comarch_xl/src/backend/entities/xl-imported-offer.entity.js';
+import type { XlSyncJob as XlSyncJobRow } from '../../../packages/modules/comarch_xl/src/backend/entities/xl-sync-job.entity.js';
 import type { KsefCredential as KsefCredentialRow } from '../../../packages/modules/ksef/src/backend/entities/ksef-credential.entity.js';
 import type { KsefSubmission as KsefSubmissionRow } from '../../../packages/modules/ksef/src/backend/entities/ksef-submission.entity.js';
 import type { SearchPhraseRecord as SearchPhraseRecordRow } from '../../../packages/modules/search/src/backend/entities/search-phrase-record.entity.js';
@@ -178,6 +182,7 @@ import type { InvoiceLedgerClientMap as InvoiceLedgerClientMapRow } from '../../
 import type { InvoiceLedgerDelivery as InvoiceLedgerDeliveryRow } from '../../../packages/modules/invoice_ledger/src/backend/entities/invoice-ledger-delivery.entity.js';
 import type { InvoiceLedgerDocumentMap as InvoiceLedgerDocumentMapRow } from '../../../packages/modules/invoice_ledger/src/backend/entities/invoice-ledger-document-map.entity.js';
 import type { InvoiceLedgerWebhookReceipt as InvoiceLedgerWebhookReceiptRow } from '../../../packages/modules/invoice_ledger/src/backend/entities/invoice-ledger-webhook-receipt.entity.js';
+import type { InvoiceExternalAttachment as InvoiceExternalAttachmentRow } from '../../../packages/modules/invoices/src/backend/entities/invoice-external-attachment.entity.js';
 import type { Invoice as InvoiceRow } from '../../../packages/modules/invoices/src/backend/entities/invoice.entity.js';
 import type { InvoiceLine as InvoiceLineRow } from '../../../packages/modules/invoices/src/backend/entities/invoice-line.entity.js';
 import type { InvoiceNumberCounter as InvoiceNumberCounterRow } from '../../../packages/modules/invoices/src/backend/entities/invoice-number-counter.entity.js';
@@ -686,6 +691,10 @@ export const InvoiceLedgerWebhookReceipt = classNamed<InvoiceLedgerWebhookReceip
   'InvoiceLedgerWebhookReceipt',
 );
 export const Invoice = classNamed<InvoiceRow>(invoicesEntities, 'Invoice');
+export const InvoiceExternalAttachment = classNamed<InvoiceExternalAttachmentRow>(
+  invoicesEntities,
+  'InvoiceExternalAttachment',
+);
 export const InvoiceLine = classNamed<InvoiceLineRow>(invoicesEntities, 'InvoiceLine');
 export const InvoiceNumberCounter = classNamed<InvoiceNumberCounterRow>(
   invoicesEntities,
@@ -1015,3 +1024,21 @@ export type AkeneoImportRun = AkeneoImportRunRow;
 export type AkeneoMediaLink = AkeneoMediaLinkRow;
 export type AkeneoSourceLink = AkeneoSourceLinkRow;
 export type AdminNotification = AdminNotificationRow;
+
+/**
+ * `comarch_xl`'s entities, taken from the package's published `entities` array
+ * — which is the array the ORM registered, and the only copy of these classes
+ * the composed platform holds. A filesystem path into
+ * `packages/modules/comarch_xl/src` evaluates the module a second time, and the
+ * second copy's classes are not the ones any `em.find` will match
+ * (`check:singleton-identity`, `composed-singleton-reach`).
+ */
+export const XlCategoryMapping = classNamed<XlCategoryMappingRow>(
+  comarchXlEntities,
+  'XlCategoryMapping',
+);
+export const XlImportedOffer = classNamed<XlImportedOfferRow>(
+  comarchXlEntities,
+  'XlImportedOffer',
+);
+export const XlSyncJob = classNamed<XlSyncJobRow>(comarchXlEntities, 'XlSyncJob');

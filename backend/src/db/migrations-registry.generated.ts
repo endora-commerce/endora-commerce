@@ -104,6 +104,11 @@ import { Migration20260903T101741CmsNamespaceBlockNames } from '@endora-commerce
 import { Migration20260912T094733CmsSalesChannelCmsPages } from '@endora-commerce/mod-cms/migrations';
 import { Migration20260912T125709CmsPageBodyAssetRefIndex } from '@endora-commerce/mod-cms/migrations';
 
+// ── comarch_xl ──────────────────────────────────────────────────────────────
+import { Migration20260911T121000ComarchXlInit } from '@endora-commerce/mod-comarch-xl/migrations';
+import { Migration20260914T120000ComarchXlLastAppliedSnapshots } from '@endora-commerce/mod-comarch-xl/migrations';
+import { Migration20260914T160000ComarchXlImportedOffers } from '@endora-commerce/mod-comarch-xl/migrations';
+
 // ── comparisons ─────────────────────────────────────────────────────────────
 import { Migration20260501T185834ComparisonsInit } from '@endora-commerce/mod-comparisons/migrations';
 import { Migration20260830T163143ComparisonsOrganizationAttribution } from '@endora-commerce/mod-comparisons/migrations';
@@ -164,6 +169,9 @@ import { Migration20260506T112634DictionariesDictionaryInit } from '@endora-comm
 // ── email ───────────────────────────────────────────────────────────────────
 import { Migration20260817T070014EmailDeliveryRecord } from '@endora-commerce/mod-email/migrations';
 
+// ── erp_connector ───────────────────────────────────────────────────────────
+import { Migration20260911T120000ErpConnectorInit } from '@endora-commerce/mod-erp-connector/migrations';
+
 // ── google_analytics ────────────────────────────────────────────────────────
 import { Migration20260715T171116GoogleAnalyticsInit } from '@endora-commerce/mod-google-analytics/migrations';
 
@@ -188,6 +196,7 @@ import { Migration20260629T125121InvoicesModule } from '@endora-commerce/mod-inv
 import { Migration20260801T111000InvoicesGenericTemplateReseed } from '@endora-commerce/mod-invoices/migrations';
 import { Migration20260817T201110InvoicesCorrectionIdempotencyKey } from '@endora-commerce/mod-invoices/migrations';
 import { Migration20260903T101756InvoicesNamespaceBlockNames } from '@endora-commerce/mod-invoices/migrations';
+import { Migration20260914T133603InvoicesErpImportedSaleDocuments } from '@endora-commerce/mod-invoices/migrations';
 
 // ── ksef ────────────────────────────────────────────────────────────────────
 import { Migration20260722T224358KsefInit } from '@endora-commerce/mod-ksef/migrations';
@@ -435,6 +444,11 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('cms', Migration20260912T094733CmsSalesChannelCmsPages),
   migration('cms', Migration20260912T125709CmsPageBodyAssetRefIndex),
 
+  // ── comarch_xl ──────────────────────────────────────────────────────────────
+  migration('comarch_xl', Migration20260911T121000ComarchXlInit),
+  migration('comarch_xl', Migration20260914T120000ComarchXlLastAppliedSnapshots),
+  migration('comarch_xl', Migration20260914T160000ComarchXlImportedOffers),
+
   // ── comparisons ─────────────────────────────────────────────────────────────
   migration('comparisons', Migration20260501T185834ComparisonsInit),
   migration('comparisons', Migration20260830T163143ComparisonsOrganizationAttribution),
@@ -495,6 +509,9 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── email ───────────────────────────────────────────────────────────────────
   migration('email', Migration20260817T070014EmailDeliveryRecord),
 
+  // ── erp_connector ───────────────────────────────────────────────────────────
+  migration('erp_connector', Migration20260911T120000ErpConnectorInit),
+
   // ── google_analytics ────────────────────────────────────────────────────────
   migration('google_analytics', Migration20260715T171116GoogleAnalyticsInit),
 
@@ -519,6 +536,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('invoices', Migration20260801T111000InvoicesGenericTemplateReseed),
   migration('invoices', Migration20260817T201110InvoicesCorrectionIdempotencyKey),
   migration('invoices', Migration20260903T101756InvoicesNamespaceBlockNames),
+  migration('invoices', Migration20260914T133603InvoicesErpImportedSaleDocuments),
 
   // ── ksef ────────────────────────────────────────────────────────────────────
   migration('ksef', Migration20260722T224358KsefInit),

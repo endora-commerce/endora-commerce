@@ -184,6 +184,8 @@ export * from './product-feeds.js';
 export * from './pim-ergonode.js';
 export * from './pim-akeneo.js';
 export * from './pim-connector.js';
+export * from './erp-connector.js';
+export * from './comarch-xl.js';
 export {
   canonicalisePimFieldPath,
   isValidPimFieldPath,

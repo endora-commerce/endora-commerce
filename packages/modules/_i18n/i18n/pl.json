@@ -1218,6 +1218,7 @@
   "platform.modules.error.dependenciesAbsent": "Nie można włączyć „{name}”, dopóki nie działa wszystko, czego ten moduł potrzebuje: {modules}. Najpierw włącz tamte.",
   "platform.modules.error.dependentsPresent": "Nie można wyłączyć „{name}”, dopóki potrzebują go inne moduły: {modules}. Najpierw wyłącz tamte.",
   "platform.modules.error.pimConnectorAlreadyActive": "Nie można włączyć „{name}”, dopóki aktywny jest inny connector PIM ({activeModuleId}). Najpierw wyłącz tamten connector.",
+  "platform.modules.error.erpConnectorAlreadyActive": "Nie można włączyć „{name}”, dopóki aktywny jest inny connector ERP ({activeModuleId}). Najpierw wyłącz tamten connector.",
   "platform.modules.flag.depDisabled": "Zależność wyłączona",
   "platform.modules.flag.depMissing": "Brak zależności",
   "platform.modules.flag.orphan": "Brak kodu na dysku",
