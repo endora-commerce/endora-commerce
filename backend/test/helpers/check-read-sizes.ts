@@ -2803,7 +2803,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    files: 5837,
+    // **`specs/129-github-canonical-migration/` T041/T042a, the day-one Actions workflows: files 5837 -> 5839.** The two new `.ts` files; the two workflow files are YAML and this walk is source. Four tracked files added, none deleted: `.github/workflows/quality.yml`, `.github/workflows/publish.yml`, `backend/test/helpers/actions-workflows.ts` and `backend/test/unit/ci/actions-floor-parity.test.ts`. There is no changeset — the branch changes nothing under `packages/`. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install` and `build:packages`: with the branch stashed — index included, because a file merely moved out of the working tree is still in `git ls-files` — this record reports **0 drifted of 45**, and with it restored it reports the value below. Nothing is subtracted, nothing is computed from a delta and no band is widened.
+    files: 5839,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -5205,7 +5206,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    files: 1698,
+    // **`specs/129-github-canonical-migration/` T041/T042a, the day-one Actions workflows: files 1698 -> 1700, sites 610 -> 611.** The two new files under `backend/test`, one of which carries a read the check counts as a site. Four tracked files added, none deleted: `.github/workflows/quality.yml`, `.github/workflows/publish.yml`, `backend/test/helpers/actions-workflows.ts` and `backend/test/unit/ci/actions-floor-parity.test.ts`. There is no changeset — the branch changes nothing under `packages/`. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install` and `build:packages`: with the branch stashed — index included, because a file merely moved out of the working tree is still in `git ls-files` — this record reports **0 drifted of 45**, and with it restored it reports the value below. Nothing is subtracted, nothing is computed from a delta and no band is widened.
+    files: 1700,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -5265,7 +5267,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // receiver. Measured, that spelling's count in the file goes 1 -> 0 and `files` does not
     // move.
     // **+1 site, this branch's; +1 file, already standing on `9a0e8e0d0`.** The site is in `test/unit/scripts/check-env-inputs.test.ts`, which this branch extends; the file is the base's own and not Phase 3's.
-    sites: 610,
+    sites: 611,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -5515,7 +5517,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    files: 1698,
+    // **`specs/129-github-canonical-migration/` T041/T042a, the day-one Actions workflows: files 1698 -> 1700.** The two new files under `backend/test`; neither composes a server. Four tracked files added, none deleted: `.github/workflows/quality.yml`, `.github/workflows/publish.yml`, `backend/test/helpers/actions-workflows.ts` and `backend/test/unit/ci/actions-floor-parity.test.ts`. There is no changeset — the branch changes nothing under `packages/`. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install` and `build:packages`: with the branch stashed — index included, because a file merely moved out of the working tree is still in `git ls-files` — this record reports **0 drifted of 45**, and with it restored it reports the value below. Nothing is subtracted, nothing is computed from a delta and no band is widened.
+    files: 1700,
     sites: null,
     sources: [],
   },
@@ -9001,7 +9004,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    files: 8627,
+    // **`specs/129-github-canonical-migration/` T041/T042a, the day-one Actions workflows: files 8627 -> 8631.** All four — this walk is the whole repository and opens a `.yml` like any other file. Four tracked files added, none deleted: `.github/workflows/quality.yml`, `.github/workflows/publish.yml`, `backend/test/helpers/actions-workflows.ts` and `backend/test/unit/ci/actions-floor-parity.test.ts`. There is no changeset — the branch changes nothing under `packages/`. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install` and `build:packages`: with the branch stashed — index included, because a file merely moved out of the working tree is still in `git ls-files` — this record reports **0 drifted of 45**, and with it restored it reports the value below. Nothing is subtracted, nothing is computed from a delta and no band is widened.
+    files: 8631,
     sites: null,
     sources: [],
     //
@@ -10931,7 +10935,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    files: 8688,
+    // **`specs/129-github-canonical-migration/` T041/T042a, the day-one Actions workflows: files 8688 -> 8692.** All four, by the index. `sites` does **not** move and stays 1291: none of the four is under `specs/`, the one partially-public entry — `.github` and `backend` are both public wholesale — so the two counts move apart here, which is the whole reason both are recorded. Four tracked files added, none deleted: `.github/workflows/quality.yml`, `.github/workflows/publish.yml`, `backend/test/helpers/actions-workflows.ts` and `backend/test/unit/ci/actions-floor-parity.test.ts`. There is no changeset — the branch changes nothing under `packages/`. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install` and `build:packages`: with the branch stashed — index included, because a file merely moved out of the working tree is still in `git ls-files` — this record reports **0 drifted of 45**, and with it restored it reports the value below. Nothing is subtracted, nothing is computed from a delta and no band is widened.
+    files: 8692,
     sites: 1291,
     // `git-tree-entries` — the committed tree's own root entries, read from a
     // different git store than the index this walk uses. Not `self-reported`:
@@ -11227,7 +11232,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    files: 1698,
+    // **`specs/129-github-canonical-migration/` T041/T042a, the day-one Actions workflows: files 1698 -> 1700.** The two new files under `backend/test`; neither empties a table. Four tracked files added, none deleted: `.github/workflows/quality.yml`, `.github/workflows/publish.yml`, `backend/test/helpers/actions-workflows.ts` and `backend/test/unit/ci/actions-floor-parity.test.ts`. There is no changeset — the branch changes nothing under `packages/`. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install` and `build:packages`: with the branch stashed — index included, because a file merely moved out of the working tree is still in `git ls-files` — this record reports **0 drifted of 45**, and with it restored it reports the value below. Nothing is subtracted, nothing is computed from a delta and no band is widened.
+    files: 1700,
     sites: 163,
     sources: [],
   },
@@ -11906,7 +11912,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    files: 1841,
+    // **`specs/129-github-canonical-migration/` T041/T042a, the day-one Actions workflows: files 1841 -> 1842.** One file — `actions-floor-parity.test.ts`. The helper beside it is not a `.test.ts` and is not in the population. Four tracked files added, none deleted: `.github/workflows/quality.yml`, `.github/workflows/publish.yml`, `backend/test/helpers/actions-workflows.ts` and `backend/test/unit/ci/actions-floor-parity.test.ts`. There is no changeset — the branch changes nothing under `packages/`. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install` and `build:packages`: with the branch stashed — index included, because a file merely moved out of the working tree is still in `git ls-files` — this record reports **0 drifted of 45**, and with it restored it reports the value below. Nothing is subtracted, nothing is computed from a delta and no band is widened.
+    files: 1842,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -12825,7 +12832,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    files: 4862,
+    // **`specs/129-github-canonical-migration/` T041/T042a, the day-one Actions workflows: files 4862 -> 4864.** The two new `.ts` files; this walk is all of `backend/` plus the packages. Four tracked files added, none deleted: `.github/workflows/quality.yml`, `.github/workflows/publish.yml`, `backend/test/helpers/actions-workflows.ts` and `backend/test/unit/ci/actions-floor-parity.test.ts`. There is no changeset — the branch changes nothing under `packages/`. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install` and `build:packages`: with the branch stashed — index included, because a file merely moved out of the working tree is still in `git ls-files` — this record reports **0 drifted of 45**, and with it restored it reports the value below. Nothing is subtracted, nothing is computed from a delta and no band is widened.
+    files: 4864,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -13912,7 +13920,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    files: 8687,
+    // **`specs/129-github-canonical-migration/` T041/T042a, the day-one Actions workflows: files 8687 -> 8691.** All four, by the index — this walk is the whole repository. Four tracked files added, none deleted: `.github/workflows/quality.yml`, `.github/workflows/publish.yml`, `backend/test/helpers/actions-workflows.ts` and `backend/test/unit/ci/actions-floor-parity.test.ts`. There is no changeset — the branch changes nothing under `packages/`. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install` and `build:packages`: with the branch stashed — index included, because a file merely moved out of the working tree is still in `git ls-files` — this record reports **0 drifted of 45**, and with it restored it reports the value below. Nothing is subtracted, nothing is computed from a delta and no band is widened.
+    files: 8691,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -14561,7 +14570,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    files: 6512,
+    // **`specs/129-github-canonical-migration/` T041/T042a, the day-one Actions workflows: files 6512 -> 6514.** The two new `.ts` files; the walk is source-code comments plus `/docs/`, and a workflow is neither. Four tracked files added, none deleted: `.github/workflows/quality.yml`, `.github/workflows/publish.yml`, `backend/test/helpers/actions-workflows.ts` and `backend/test/unit/ci/actions-floor-parity.test.ts`. There is no changeset — the branch changes nothing under `packages/`. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install` and `build:packages`: with the branch stashed — index included, because a file merely moved out of the working tree is still in `git ls-files` — this record reports **0 drifted of 45**, and with it restored it reports the value below. Nothing is subtracted, nothing is computed from a delta and no band is widened.
+    files: 6514,
     sites: null,
     sources: ['manifest-index'],
     //
