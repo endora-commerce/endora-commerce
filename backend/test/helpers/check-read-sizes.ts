@@ -5222,7 +5222,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // adds — `backend/test/helpers/actions-workflows.ts` and
     // `backend/test/unit/ci/actions-floor-parity.test.ts`. The two workflow YAMLs are outside
     // this walk's extensions.
-    files: 1700,
+    // **`fix/comarch-queue-names`: files 1700 -> 1701.** The companion test,
+    // `backend/test/unit/scripts/check-queue-names.test.ts` — the only one of this merge
+    // request's four added files that this walk opens, measured by parking each in turn. The
+    // three `backend/test/**` walks (this one, `check-harness-teardown`,
+    // `check-shared-table-wipes`) all move by exactly it and by nothing else.
+    files: 1701,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -5538,7 +5543,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // adds — `backend/test/helpers/actions-workflows.ts` and
     // `backend/test/unit/ci/actions-floor-parity.test.ts`. The two workflow YAMLs are outside
     // this walk's extensions.
-    files: 1700,
+    // **`fix/comarch-queue-names`: files 1700 -> 1701.** The companion test,
+    // `backend/test/unit/scripts/check-queue-names.test.ts`, and nothing else of this merge
+    // request's four added files — measured by parking each in turn. It releases no harness, so
+    // the findings are unmoved.
+    files: 1701,
     sites: null,
     sources: [],
   },
@@ -6085,7 +6094,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    files: 327,
+    // **`fix/comarch-queue-names`: files 327 -> 328.** One file, and only one of the four this
+    // merge request adds: `backend/scripts/check-queue-names.ts`. Measured by parking each of the
+    // four and re-running — the rule in `packages/cli`, the companion test and the changeset body
+    // all leave this walk unmoved. `sites` is unmoved: the new check claims no lock.
+    files: 328,
     // **2026-09-04: 14 -> 15.** One further named-subject lock claim.
     // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge` retired):**
     // sites 15 -> 17, files unchanged. `pwa`'s manifest gains `orders` in its
@@ -9044,7 +9057,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `.github/workflows/quality.yml`, `.github/workflows/publish.yml`,
     // `backend/test/helpers/actions-workflows.ts` and
     // `backend/test/unit/ci/actions-floor-parity.test.ts`. This walk takes the YAML too.
-    files: 8632,
+    // **`fix/comarch-queue-names`: files 8632 -> 8636.** All **four** files this merge request
+    // adds, which is what a whole-tree walk that reads git-ignored files should see: the rule in
+    // `packages/cli`, the repository host under `backend/scripts`, the companion test, and the
+    // changeset body. Confirmed by parking each of the four and re-running — each one costs
+    // exactly 1, which is the cleanest attribution any entry in this record gets.
+    files: 8636,
     sites: null,
     sources: [],
     //
@@ -10328,7 +10346,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    files: 2613,
+    // **`fix/comarch-queue-names`: files 2613 -> 2614.** One file:
+    // `backend/scripts/check-queue-names.ts`. Parking the other three added files leaves this
+    // walk unmoved, including the rule in `packages/cli` — a check script is a consumer of the
+    // platform surface and a CLI rule is not.
+    files: 2614,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -10996,7 +11018,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `.github/workflows/quality.yml`, `.github/workflows/publish.yml`,
     // `backend/test/helpers/actions-workflows.ts` and
     // `backend/test/unit/ci/actions-floor-parity.test.ts`. This walk takes the YAML too.
-    files: 8693,
+    // **`fix/comarch-queue-names`: files 8693 -> 8697.** All four files this merge request adds.
+    // Attributed by inspection rather than by parking, and the distinction is the one this
+    // record's own preamble makes about `check-naming.sh` and `check-language.sh`: this
+    // population comes off the git **index**, so moving a file aside changes its index entry
+    // rather than removing it from the walk, and the number does not budge. Four added files, +4,
+    // and the other ten drifted entries in the same run corroborate the population.
+    files: 8697,
     sites: 1291,
     // `git-tree-entries` — the committed tree's own root entries, read from a
     // different git store than the index this walk uses. Not `self-reported`:
@@ -11296,7 +11324,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // adds — `backend/test/helpers/actions-workflows.ts` and
     // `backend/test/unit/ci/actions-floor-parity.test.ts`. The two workflow YAMLs are outside
     // this walk's extensions.
-    files: 1700,
+    // **`fix/comarch-queue-names`: files 1700 -> 1701.** The companion test,
+    // `backend/test/unit/scripts/check-queue-names.test.ts`, measured by parking each of the four
+    // added files in turn. It wipes no table.
+    files: 1701,
     sites: 163,
     sources: [],
   },
@@ -11981,7 +12012,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/129-t041-t042a-actions`: +1 file.** Only
     // `backend/test/unit/ci/actions-floor-parity.test.ts`: this walk's unit is a test file, so
     // the helper beside it does not count.
-    files: 1843,
+    // **`fix/comarch-queue-names`: files 1843 -> 1844.** The companion test,
+    // `backend/test/unit/scripts/check-queue-names.test.ts` — a harness-free unit test beside the
+    // other `scripts/` proofs, so it needs no ledger entry. Parking the other three added files
+    // leaves the walk unmoved.
+    files: 1844,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -12907,7 +12942,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // adds — `backend/test/helpers/actions-workflows.ts` and
     // `backend/test/unit/ci/actions-floor-parity.test.ts`. The two workflow YAMLs are outside
     // this walk's extensions.
-    files: 4865,
+    // **`fix/comarch-queue-names`: files 4865 -> 4867.** **Two** of the four files this merge
+    // request adds, and which two is measured rather than reasoned about:
+    // `backend/scripts/check-queue-names.ts` and the companion test. Parking
+    // `packages/cli/src/rules/queue-names.ts` leaves it at 4867, which is worth writing down
+    // because the obvious guess is the other way round — the two walks this check unions are the
+    // application tree and each package's *emitted* surface, and a CLI rule is in neither.
+    files: 4867,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -14001,7 +14042,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `.github/workflows/quality.yml`, `.github/workflows/publish.yml`,
     // `backend/test/helpers/actions-workflows.ts` and
     // `backend/test/unit/ci/actions-floor-parity.test.ts`. This walk takes the YAML too.
-    files: 8692,
+    // **`fix/comarch-queue-names`: files 8692 -> 8696.** All four files this merge request adds.
+    // Not measured by parking, for the reason stated at the top of this record: this population
+    // is `git ls-files --cached --others`, so parking a file changes its index entry instead of
+    // removing it from the walk. Measured on a pristine worktree of the branch with the collected
+    // module doc copies cleaned, which is also where the four other whole-tree entries in this
+    // re-record were measured.
+    files: 8696,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -14657,7 +14704,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // adds — `backend/test/helpers/actions-workflows.ts` and
     // `backend/test/unit/ci/actions-floor-parity.test.ts`. The two workflow YAMLs are outside
     // this walk's extensions.
-    files: 6515,
+    // **`fix/comarch-queue-names`: files 6515 -> 6518.** **Three**, not four — the three added
+    // `.ts` files. The fourth added file is the changeset body, which is neither a source file
+    // with comments nor a page under `docs/docs/**`, so it is outside this walk's population.
+    // That asymmetry against `check-naming.sh`'s +4 in the same merge request is the whole reason
+    // the number is re-measured per entry rather than derived from a delta.
+    files: 6518,
     sites: null,
     sources: ['manifest-index'],
     //
