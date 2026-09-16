@@ -109,6 +109,7 @@ import { manifest as manifest71 } from '@endora-commerce/mod-taxes';
 import { manifest as manifest72 } from '@endora-commerce/mod-tpay';
 import { manifest as manifest73 } from '@endora-commerce/mod-transactional-emails';
 import { manifest as manifest74 } from '@endora-commerce/mod-webhooks';
+import { manifest as manifest75 } from '@endora-commerce/mod-wfirma';
 
 export interface DiscoveredManifestEntry {
   id: string;
@@ -202,4 +203,5 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'tpay', manifest: manifest72, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-tpay') },
   { id: 'transactional_emails', manifest: manifest73, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-transactional-emails') },
   { id: 'webhooks', manifest: manifest74, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-webhooks') },
+  { id: 'wfirma', manifest: manifest75, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-wfirma') },
 ];

@@ -11,16 +11,17 @@ import {
 } from '../../helpers/test-server.js';
 
 /**
- * T079 / SC-008. Infakt's `refuse-when-sibling-ledger-vendor-active`
+ * T079 / SC-008. Each ledger vendor's `refuse-when-sibling-ledger-vendor-active`
  * interceptor on POST `/api/v1/admin/modules/:id/activation`.
  *
- * Production `INVOICE_LEDGER_MODULES` stays Infakt-only. The sibling is the
- * test entry `ledger_fixture`, injected through the presence reader and an
- * extra registry table row — not a second vendor module package.
+ * Production `INVOICE_LEDGER_MODULES` lists Infakt and wFirma. The
+ * `ledger_fixture` entry is injected for Infakt-only cases that need a sibling
+ * without activating the real wFirma package.
  */
 
 const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
-const ACTIVATION_URL = '/api/v1/admin/modules/infakt/activation';
+const INFAKT_ACTIVATION_URL = '/api/v1/admin/modules/infakt/activation';
+const WFIRMA_ACTIVATION_URL = '/api/v1/admin/modules/wfirma/activation';
 const CHANNEL_API_KEY = 'infakt-mutex-channel-key-008';
 const LEDGER_FIXTURE = {
   id: 'ledger_fixture',
@@ -46,6 +47,15 @@ describe('invoice_ledger — vendor mutex [contract]', () => {
         },
       },
     });
+    // The harness seeds every module operator-active. wFirma must start off so
+    // Infakt can become the instance vendor (Phase 2 checkpoint).
+    const wfirmaOff = await h.app.inject({
+      method: 'POST',
+      url: WFIRMA_ACTIVATION_URL,
+      ...ADMIN,
+      payload: { active: false },
+    });
+    expect(wfirmaOff.statusCode, wfirmaOff.body).toBe(200);
     channelId = (await ensureSalesChannel(h.em(), 'il-mutex-ch')).id;
   }, 60_000);
 
@@ -57,7 +67,7 @@ describe('invoice_ledger — vendor mutex [contract]', () => {
   it('activates Infakt through the interceptor when no sibling is operator-active', async () => {
     const res = await h.app.inject({
       method: 'POST',
-      url: ACTIVATION_URL,
+      url: INFAKT_ACTIVATION_URL,
       ...ADMIN,
       payload: { active: true },
     });
@@ -108,7 +118,7 @@ describe('invoice_ledger — vendor mutex [contract]', () => {
   it('POST Infakt activate 409s when the test sibling is operator-active', async () => {
     const off = await h.app.inject({
       method: 'POST',
-      url: ACTIVATION_URL,
+      url: INFAKT_ACTIVATION_URL,
       ...ADMIN,
       payload: { active: false },
     });
@@ -118,7 +128,7 @@ describe('invoice_ledger — vendor mutex [contract]', () => {
 
     const refused = await h.app.inject({
       method: 'POST',
-      url: ACTIVATION_URL,
+      url: INFAKT_ACTIVATION_URL,
       ...ADMIN,
       payload: { active: true },
     });
@@ -128,6 +138,63 @@ describe('invoice_ledger — vendor mutex [contract]', () => {
     };
     expect(body.error.code).toBe(ERROR_CODES.INVOICE_LEDGER_VENDOR_ALREADY_ACTIVE);
     expect(body.error.details?.activeModuleId).toBe('ledger_fixture');
+    expect(body.error.details).not.toHaveProperty('salesChannelId');
+
+    extraActive.delete('ledger_fixture');
+  });
+
+  it('POST wFirma activate 409s when Infakt is operator-active', async () => {
+    const infaktOn = await h.app.inject({
+      method: 'POST',
+      url: INFAKT_ACTIVATION_URL,
+      ...ADMIN,
+      payload: { active: true },
+    });
+    expect(infaktOn.statusCode, infaktOn.body).toBe(200);
+
+    const refused = await h.app.inject({
+      method: 'POST',
+      url: WFIRMA_ACTIVATION_URL,
+      ...ADMIN,
+      payload: { active: true },
+    });
+    expect(refused.statusCode, refused.body).toBe(409);
+    const body = refused.json() as {
+      error: { code: string; details?: { activeModuleId?: string; salesChannelId?: string } };
+    };
+    expect(body.error.code).toBe(ERROR_CODES.INVOICE_LEDGER_VENDOR_ALREADY_ACTIVE);
+    expect(body.error.details?.activeModuleId).toBe('infakt');
+    expect(body.error.details).not.toHaveProperty('salesChannelId');
+  });
+
+  it('POST Infakt activate 409s when wFirma is operator-active', async () => {
+    await h.app.inject({
+      method: 'POST',
+      url: INFAKT_ACTIVATION_URL,
+      ...ADMIN,
+      payload: { active: false },
+    });
+
+    const wfirmaOn = await h.app.inject({
+      method: 'POST',
+      url: WFIRMA_ACTIVATION_URL,
+      ...ADMIN,
+      payload: { active: true },
+    });
+    expect(wfirmaOn.statusCode, wfirmaOn.body).toBe(200);
+
+    const refused = await h.app.inject({
+      method: 'POST',
+      url: INFAKT_ACTIVATION_URL,
+      ...ADMIN,
+      payload: { active: true },
+    });
+    expect(refused.statusCode, refused.body).toBe(409);
+    const body = refused.json() as {
+      error: { code: string; details?: { activeModuleId?: string; salesChannelId?: string } };
+    };
+    expect(body.error.code).toBe(ERROR_CODES.INVOICE_LEDGER_VENDOR_ALREADY_ACTIVE);
+    expect(body.error.details?.activeModuleId).toBe('wfirma');
     expect(body.error.details).not.toHaveProperty('salesChannelId');
   });
 });

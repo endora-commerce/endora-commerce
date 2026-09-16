@@ -501,6 +501,11 @@ export const ERROR_CODES = {
   COMARCH_XL_STATUS_UNMAPPED: 'COMARCH_XL_STATUS_UNMAPPED',
   COMARCH_XL_WAREHOUSE_UNMAPPED: 'COMARCH_XL_WAREHOUSE_UNMAPPED',
   COMARCH_XL_AVAILABILITY_LABEL_UNKNOWN: 'COMARCH_XL_AVAILABILITY_LABEL_UNKNOWN',
+  // wFirma invoice-ledger adapter (feature 129). See specs/131-wfirma-integration/contracts/admin-api.md.
+  /** wFirma company probe / connection test failed. */
+  WFIRMA_CONNECTION_FAILED: 'WFIRMA_CONNECTION_FAILED',
+  /** wFirma webhook path token missing or unknown (HTTP 404). */
+  WFIRMA_WEBHOOK_NOT_FOUND: 'WFIRMA_WEBHOOK_NOT_FOUND',
 
   // UnoPim PIM integration (feature 089). See specs/089-unopim-pim-sync/contracts/admin-api.md.
   PIM_UNOPIM_NOT_CONFIGURED: 'PIM_UNOPIM_NOT_CONFIGURED',

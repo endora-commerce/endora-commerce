@@ -90,6 +90,7 @@ export const MIGRATED_MODULES: readonly string[] = [
   'infakt',
   'erp_connector',
   'comarch_xl',
+  'wfirma',
 ];
 
 /**

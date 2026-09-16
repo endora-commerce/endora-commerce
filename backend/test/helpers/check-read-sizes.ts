@@ -1516,7 +1516,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 2141,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 2141 -> 2156 (+15), sites 91 -> 92 (+1).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 2156,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1535,7 +1551,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 88 -> 90.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 91,
+    sites: 92,
     // `emitted-manifests` is this check saying which artefact its manifest half
     // came from: the manifests are imported rather than walked, and a packaged
     // module's resolves at its build output. It is the disclosure half of the
@@ -1870,7 +1886,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 2279,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 2279 -> 2296 (+17).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 2296,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -1995,7 +2027,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 1827,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 1827 -> 1844 (+17).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 1844,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -2143,7 +2191,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 2389,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 2389 -> 2408 (+19).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 2408,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -2723,7 +2787,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 5796,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 5796 -> 5837 (+41), sites 573 -> 576 (+3).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 5837,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -2908,7 +2988,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `--env-file-if-exists=../.env` into each derived CLI alias.
     // **`endora install`, the first mile's Phase 3 (!1672), re-measured after merging `origin/master`: sites 563 -> 564.** The branch adds **three** tracked files — `packages/cli/src/install/index.ts`, `packages/cli/test/install.test.ts` and its changeset — and every walk moves by as many of the three as it reads: the two whole-repository walks by **3**, `check-language.sh` by **2** (the two `.ts`, not the `.md`), `check-diacritic-folds` by **1** file and **1** site, because it reads `packages/*/src` and not a package's tests. That the other forty entries agree is the check on this attribution. Conflict resolved wholly to the incoming side, whole record re-measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 564 -> 566.** **+2, this branch's**, and not a file count: the two `.replace()` calls in the new test's `code()` helper, which strips block and line comments before asserting on source — a mention of a call in prose is not a call. Neither is a slug construction and neither is a violation; they are two more expressions in the population this check examines.
-    sites: 573,
+    sites: 576,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -3150,7 +3230,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 2586,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 2586 -> 2605 (+19).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 2605,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -3384,7 +3480,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 1371,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 1371 -> 1384 (+13).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 1384,
     sites: 13,
     sources: [],
     //
@@ -3728,7 +3840,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 2279,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 2279 -> 2296 (+17).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 2296,
     sites: 279,
     sources: ['manifest-index'],
   },
@@ -4062,7 +4190,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 2279,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 2279 -> 2296 (+17).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 2296,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4393,7 +4537,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 2279,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 2279 -> 2296 (+17), sites 46 -> 47 (+1).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 2296,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -4438,7 +4598,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 44 -> 45.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 46,
+    sites: 47,
     sources: ['manifest-index', 'package-scripts'],
   },
   'backend/scripts/check-env-inputs.ts': {
@@ -4667,11 +4827,27 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 2949,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 2949 -> 2967 (+18), sites 141 -> 143 (+2).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 2967,
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 138 -> 137.** **One fewer `process.env` read, and it is the subject of the change rather than a side effect of it.** `index.ts` and `worker.ts` each read `SESSION_COOKIE_SECRET` and `NODE_ENV` — four reads over two entry points — and the one resolution they now share is three reads in `composition.ts`. `files` does not move: the resolution landed in a file this walk already read, and the test beside it is out of the population by `NOT_RUNTIME`. `specs/117-instance-bring-up/` Phase 6 recorded the identical shape, 139 -> 138, when the deployment root's `NEWSLETTER_TOKEN_SECRET` chain moved into `composeApp` — which is the read this branch exists to make reachable.
-    sites: 141,
+    sites: 143,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
     // anything a declaration does. A consumer counts as covered only when it
@@ -4713,7 +4889,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 138,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 138 -> 140 (+2), sites 938 -> 944 (+6).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 140,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 867 -> 883.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -4726,7 +4918,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 888 -> 905.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 938,
+    sites: 944,
     // Feature 080's T010, and feature 090's Phase 4 for the second entry.
     // `manifest-index` expects the module directories that declare a code:
     // every id the generated index registers, less the ones whose manifest
@@ -4997,7 +5189,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 1679,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 1679 -> 1698 (+19), sites 606 -> 610 (+4).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 1698,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -5057,7 +5265,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // receiver. Measured, that spelling's count in the file goes 1 -> 0 and `files` does not
     // move.
     // **+1 site, this branch's; +1 file, already standing on `9a0e8e0d0`.** The site is in `test/unit/scripts/check-env-inputs.test.ts`, which this branch extends; the file is the base's own and not Phase 3's.
-    sites: 606,
+    sites: 610,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -5291,7 +5499,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 1679,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 1679 -> 1698 (+19).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 1698,
     sites: null,
     sources: [],
   },
@@ -5641,7 +5865,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 2279,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 2279 -> 2296 (+17).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 2296,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -5806,7 +6046,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 325,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 325 -> 327 (+2).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 327,
     // **2026-09-04: 14 -> 15.** One further named-subject lock claim.
     // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge` retired):**
     // sites 15 -> 17, files unchanged. `pwa`'s manifest gains `orders` in its
@@ -6097,12 +6353,28 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 2932,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 2932 -> 2953 (+21), sites 66 -> 70 (+4).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 2953,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 56 -> 66.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 66,
+    sites: 70,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
     // is the second declaration reconciled against it, so a member added
@@ -6239,7 +6511,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 2232,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 2232 -> 2251 (+19).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 2251,
     // The finer population, and it is the one that moves when nothing else does
     // (issues #235/#237): tree sites, unreadable sites, renderer-map sites, the
     // block declarations and the declared `(key, context)` sections. A block
@@ -6371,7 +6659,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 3030,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 3030 -> 3051 (+21), sites 5500 -> 5527 (+27).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 3051,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -6380,7 +6684,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 5397 -> 5433.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 5500,
+    sites: 5527,
     // `manifest-index` is issue #215's shared floor over the module half of the
     // render walk. `design-system` is the `exports` maps' own answer to *"which
     // packages publish `./theme.css`"* against the stylesheets this run opened,
@@ -6420,7 +6724,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 138,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 138 -> 140 (+2), sites 75 -> 76 (+1).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 140,
     // Every registered module, shipping or not. It moves only with the module
     // set, so a run whose `sites` fell while `files` held is a module that left
     // the index rather than a translation that left a package.
@@ -6431,7 +6751,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): sites 74 -> 73.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
-    sites: 75,
+    sites: 76,
     // `manifest-index` is issue #215's shared floor over the module walk, whose
     // unit here is the module's **own directory** — `dirname(manifestPath)`, the
     // anchor the boot reconciler joins `bundlesDir` to. `shipped-languages` is
@@ -6469,7 +6789,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 111,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 111 -> 112 (+1), sites 261 -> 263 (+2).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 112,
     // The finer population, and it answers a different question: the navigation
     // entries the committed sidebar names, the rows the committed map carries,
     // and the relative links a module-owned page writes (R3.7). A page added and
@@ -6516,7 +6852,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // is not a documentation page.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): sites 261 -> 259.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
     // **`fix/instance-docs-foreign-link-catalog`: sites 259 -> 258 (-1), `files` unmoved at 108.** One relative link into a sibling module's page became prose — `catalog/attributes.md` -> `../promotions.md`, the last `foreign-module-link` a default instance's documentation build refuses, `promotions` not being in the set `endora new instance` writes. It is `../search.md`'s repair a second time and the shard is deleted with it, an empty one being a done signal that says nothing. 36 links -> 35; no page was written or deleted, which is why `files` does not move. Re-measured on the **merged** tree (`origin/master` at c99c2cd09) in a fresh detached `git worktree` of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and the resolution staged first — `check-naming.sh` and `check-language.sh` take their population from the index. This file's conflict was resolved wholly to the incoming side and every value was then re-measured rather than reconciled, per `specs/conventions/check-estate.md`. **The attribution is the whole of it and it is one cause**: the branch's own pre-merge run named eight entries, three of which were `docs(128)`'s +4 standing on `master` unrecorded, and `fix/availability-notification-existence-oracle` re-recorded those three before this merge — so five are left and every one of them is this branch's. The branch adds one `.changeset/*.md` and deletes one tracked `.ts`, which is why the two whole-repository walks net to zero and do not appear. No band was widened and no value was computed from a delta: the run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
-    sites: 261,
+    sites: 263,
     // Three authors, each seeing something the others cannot. `manifest-index`
     // is issue #215's shared floor over the module walk, whose unit is the
     // module's own directory. `sidebar-entries` is the **committed artefact's**
@@ -6713,7 +7049,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 1839,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 1839 -> 1856 (+17), sites 36434 -> 36886 (+452).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 1856,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -6811,7 +7163,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **The availability-notification acquisition gate (issue #227 / #259): +1 site.** One
     // prose site, in the branch's two new backend test files.
     // **`fix/invoice-ledger-tenancy-parent`: sites 35424 -> 35425 (+1).** **`fix/invoice-ledger-tenancy-parent` adds three tracked files and deletes none**: the migration `20260914T140000_invoice_ledger_row_organization.ts`, the guard test `backend/test/unit/tenancy/transitive-parent-module-ownership.test.ts`, and one `.changeset/*.md`. Every `files` delta is a walk seeing its own share — the two whole-repository walks see all three, `check-language.sh` sees the two comment-bearing `.ts`, a walk over `src` trees sees the migration alone, a walk over `backend/test` sees the test alone, and a walk over both sees two. The `sites` moves are the new artefacts' own units: a migration is a claim-bearing artefact, the enqueue path resolves one more port, and the regenerated `module-reference/invoice-ledger.md` is one more determinism site. **What the merge moved is baselines, not this branch's contribution to them**: the same 30 entries with the same deltas were measured over the pre-merge base, and the three files `fix/instance-wiring-operator-runtime` added are what shifted the starting points. Re-measured on the **merged** tree — `fix/instance-wiring-operator-runtime` merged and re-recorded 27 entries, so this file conflicted; the conflict was resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. In a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain` clean. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 30 and confirmed the other 14 agree.
-    sites: 36434,
+    sites: 36886,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -7015,7 +7367,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 424,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 424 -> 428 (+4), sites 2345 -> 2361 (+16).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 428,
     // **Batch 13 (feature 091, Phase 4): 2361 -> 2305, and the cause is the move's
     // spelling rather than its size.** A published-symbol reach is counted per
     // import statement, and the twenty-four moved screens rewrote thirty `@/…`
@@ -7060,7 +7428,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 2239 -> 2296.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 2345,
+    sites: 2361,
     // **Three** derivations since Phase 5's T3, none of them the walk counting
     // itself: the generated manifest index for the modules a walked file is
     // attributed to; the kit's own `exports` map against the barrels on disk —
@@ -7440,7 +7808,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 5411,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 5411 -> 5451 (+40), sites 13452 -> 13527 (+75).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 5451,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -7550,7 +7934,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // on `inventory`'s availability service and on its composition root, plus the contracts
     // import the service's audience gate needs. `files` does not move — no module source file
     // is added or deleted.
-    sites: 13452,
+    sites: 13527,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -8601,7 +8985,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 8563,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 8563 -> 8627 (+64).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 8627,
     sites: null,
     sources: [],
     //
@@ -8650,7 +9050,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 114,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 114 -> 116 (+2), sites 204 -> 206 (+2).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 116,
     // The finer population, and the one that moves when a **resolver shape** is
     // added or lost: every `expectModuleAbsent` and `withModuleOff` call the
     // walk read, both helpers, one per call however many modules the call
@@ -8667,7 +9083,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 202 -> 205.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 204,
+    sites: 206,
     // Two independent authors, so the check computes no module list and no
     // call-name list of its own. `manifest-index` is every entry the generated
     // index carries against every entry whose manifest this run could classify
@@ -8816,14 +9232,30 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    sites: 932,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 89 -> 90 (+1), sites 932 -> 941 (+9).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    sites: 941,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 86 -> 87.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: files 87 -> 89.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    files: 89,
+    files: 90,
     sources: [],
   },
   'backend/scripts/check-port-catches.ts': {
@@ -9153,6 +9585,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 2279 -> 2296 (+17).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
     sites: 228,
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 2138 recorded against the tree before it. Measured on
@@ -9243,7 +9691,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and none of it is somebody else's staleness. Never computed from a delta.
     // **`fix/instance-wiring-operator-runtime`: files 2192 -> 2193 (+1).** **`fix/instance-wiring-operator-runtime` adds three tracked files and moves no other**: `packages/platform/src/lifecycle/commands/operator-entry.ts`, its co-located `operator-entry.test.ts`, and one `.changeset/*.md`. Every delta here is a walk seeing the share of those three it reads — the two whole-repository walks see all three, a source-and-test walk sees two, a source-only walk sees one, and `check-language.sh` sees the two comment-bearing `.ts` and not the `.md`; the two `sites` moves are the new file's outward imports and its English prose. **None of it arrived with `master`**: the branch's own earlier run over a pre-`c99c2cd09` base named the same 27 with the same deltas, and what the merge moved is three *baselines* — `check-platform-surface`, `check-singleton-identity` and `check-language.sh`, each by the tracked `.ts` the A6 branch deleted — not this branch's contribution to them. Re-measured on the **merged** tree (`origin/master` after `fix/instance-docs-foreign-link-catalog` merged) in a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and this file's conflict resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 27 and confirmed the other 17 agree.
     // **`fix/invoice-ledger-tenancy-parent`: files 2193 -> 2194 (+1).** **`fix/invoice-ledger-tenancy-parent` adds three tracked files and deletes none**: the migration `20260914T140000_invoice_ledger_row_organization.ts`, the guard test `backend/test/unit/tenancy/transitive-parent-module-ownership.test.ts`, and one `.changeset/*.md`. Every `files` delta is a walk seeing its own share — the two whole-repository walks see all three, `check-language.sh` sees the two comment-bearing `.ts`, a walk over `src` trees sees the migration alone, a walk over `backend/test` sees the test alone, and a walk over both sees two. The `sites` moves are the new artefacts' own units: a migration is a claim-bearing artefact, the enqueue path resolves one more port, and the regenerated `module-reference/invoice-ledger.md` is one more determinism site. **What the merge moved is baselines, not this branch's contribution to them**: the same 30 entries with the same deltas were measured over the pre-merge base, and the three files `fix/instance-wiring-operator-runtime` added are what shifted the starting points. Re-measured on the **merged** tree — `fix/instance-wiring-operator-runtime` merged and re-recorded 27 entries, so this file conflicted; the conflict was resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. In a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain` clean. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 30 and confirmed the other 14 agree.
-    files: 2279,
+    files: 2296,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -9401,7 +9849,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 2095,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 2095 -> 2112 (+17), sites 1743 -> 1770 (+27).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 2112,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 1471 -> 1535.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
@@ -9433,7 +9897,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **The availability-notification acquisition gate (issue #227 / #259): +1 site.** One
     // container resolution — `inventory` now resolves `salesChannelMembershipPort`. A kernel
     // registration, so it adds no manifest edge and no `undeclared-dependency` with it.
-    sites: 1743,
+    sites: 1770,
     sources: ['manifest-index'],
   },
   // Two derivations, deliberately, because the check has two inputs that can be
@@ -9805,7 +10269,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 2595,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 2595 -> 2613 (+18), sites 1970 -> 1983 (+13).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 2613,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -9913,7 +10393,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `inventory`'s availability service, and the same port named by its composition root and
     // by its plugin factory. All four are published platform surface, so the count moves and
     // the verdict does not.
-    sites: 1970,
+    sites: 1983,
     // count moves with the file count here because the reaches that went are exactly
     // the files that went.
     // **T119a: sites 1870 -> 1861.** The same nine files, each the single relative
@@ -10108,7 +10588,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 2198,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 2198 -> 2216 (+18), sites 843 -> 857 (+14).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 2216,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 692 -> 721.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -10137,7 +10633,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // block above this table has the arithmetic; nothing here widened a band.
     // **The availability-notification acquisition gate (issue #227 / #259): +1 site.** The
     // same `lazyPort` resolution, seen by the port-shape walk.
-    sites: 843,
+    sites: 857,
     sources: ['manifest-index', 'ports-subpaths'],
   },
   // Small on purpose: this population is the *workspace*, not a source tree —
@@ -10266,14 +10762,30 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 90,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 90 -> 91 (+1), sites 519 -> 525 (+6).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 91,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 495 -> 501.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 501 -> 513.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 519,
+    sites: 525,
     // **Feature 114 Phase 3 (FR-017, D-225): a second author, and neither count
     // moves.** `changeset-subjects` is the distinct package names the changeset
     // files name, reconciled against the members the workspace globs produce.
@@ -10403,8 +10915,24 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 8624,
-    sites: 1280,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 8624 -> 8688 (+64), sites 1280 -> 1291 (+11).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 8688,
+    sites: 1291,
     // `git-tree-entries` — the committed tree's own root entries, read from a
     // different git store than the index this walk uses. Not `self-reported`:
     // two derivations of one population by two routes is precisely the second
@@ -10683,7 +11211,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 1679,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 1679 -> 1698 (+19).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 1698,
     sites: 163,
     sources: [],
   },
@@ -11066,7 +11610,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 2279,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 2279 -> 2296 (+17).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 2296,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -11330,7 +11890,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 1822,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 1822 -> 1841 (+19).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 1841,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -11704,7 +12280,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 2279,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 2279 -> 2296 (+17).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 2296,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -12217,7 +12809,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 4822,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 4822 -> 4862 (+40).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 4862,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -12356,7 +12964,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 442,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 442 -> 444 (+2).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 444,
     sites: null,
     // `admin-ui` is the workspace manifests' own answer to "how many packages
     // ship a tree of admin UI", reconciled against how many of them the walk
@@ -13272,7 +13896,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 8623,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 8623 -> 8687 (+64).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 8687,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -13905,7 +14545,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
     // merged tree in a worktree stood up for the measurement and worked in nowhere else,
     // never computed from a delta.
-    files: 6468,
+    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
+    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
+    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 6468 -> 6512 (+44).**
+    // Eight paths conflicted; this record was resolved wholly to the incoming side per
+    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
+    // three generated registries were regenerated rather than hand-merged. The value below
+    // was therefore measured on a tree this branch's 64 added files had never reached: 31
+    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
+    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
+    // so every move is upward, and the three whole-repository walks move by exactly +64,
+    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
+    // stood up for the measurement and worked in nowhere else, after `build:packages`,
+    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
+    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
+    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
+    // and never computed from a delta.
+    files: 6512,
     sites: null,
     sources: ['manifest-index'],
     //

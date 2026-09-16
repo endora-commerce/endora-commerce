@@ -179,6 +179,7 @@ export * from './credentials.js';
 export * from './ksef.js';
 export * from './invoice-ledger.js';
 export * from './infakt.js';
+export * from './wfirma.js';
 export * from './product-feeds.js';
 export * from './pim-ergonode.js';
 export * from './pim-akeneo.js';

@@ -192,6 +192,8 @@ import * as module73 from '@endora-commerce/mod-tpay/backend';
 import { manifest as manifest73 } from '@endora-commerce/mod-tpay';
 import * as module74 from '@endora-commerce/mod-webhooks/backend';
 import { manifest as manifest74 } from '@endora-commerce/mod-webhooks';
+import * as module75 from '@endora-commerce/mod-wfirma/backend';
+import { manifest as manifest75 } from '@endora-commerce/mod-wfirma';
 
 export const MODULES: readonly ModuleEntry[] = [
   { id: '_lifecycle', version: manifest0.version, registerModule: module0.registerModule },
@@ -269,4 +271,5 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'stripe', version: manifest72.version, registerModule: module72.registerModule },
   { id: 'tpay', version: manifest73.version, registerModule: module73.registerModule },
   { id: 'webhooks', version: manifest74.version, registerModule: module74.registerModule },
+  { id: 'wfirma', version: manifest75.version, registerModule: module75.registerModule },
 ];
