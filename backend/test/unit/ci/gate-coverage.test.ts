@@ -229,6 +229,17 @@ const SCRIPTS_NO_JOB_RUNS: Readonly<Record<string, Verdict>> = {
     kind: 'developer-tool',
     reason: 'The full dev stack, across all three applications. It never terminates.',
   },
+  'backend::history:filter': {
+    kind: 'local-operation',
+    reason:
+      'It is the one-time filter that projects this history into the public repository, and ' +
+      'feature 129 FR-014 keeps it out of the `check-*` namespace deliberately. There is no ' +
+      'verdict here for a pipeline to hold a branch to: a dry run reports on a projection no ' +
+      'branch contains, and a real run performs the migration, which happens once and by hand. ' +
+      'It also refuses with exit 2 unless `git-filter-repo` is present, and no job provisions ' +
+      'it. What CI does ask about the same subject is the disposition record the filter reads, ' +
+      'through `check:root-dispositions`.',
+  },
   '<root>::version:packages': {
     kind: 'local-operation',
     reason:

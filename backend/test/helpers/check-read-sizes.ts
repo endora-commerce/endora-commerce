@@ -3283,38 +3283,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // attributed to `master`. Adding the two deltas would double-count it. The
     // record is not mergeable because a three-way merge of two measurements
     // yields a number that was never read off a tree.
-        //
-    // **Re-recorded on 2026-09-15 by `specs/132-connector-family-discovery/` — four
-    // entries, every one of them `+8`, and the `+8` is eight markdown files.** The
-    // branch is design work: one new spec directory of eight `.md` files, a
-    // modification to `specs/deferred-defects.md`, no source file, no package and
-    // therefore no changeset — which is the file that is easy to forget because it is
-    // written last, and its absence here is deliberate rather than an omission.
-    //
-    // The arithmetic closes by population, which is how to check this record: the four
-    // walks that gain 8 are the ones that read `specs/**/*.md` — `check-nul-bytes` and
-    // `check-naming.sh` read the whole repository, `check-doc-snippets` reads
-    // `docs/docs` and `specs`, and `check-root-dispositions` reads git tree entries, so
-    // for this branch its sites move 1:1 with its files. The two that read only source
-    // extensions do not move at all: `check-language.sh` 6316 and
-    // `check-diacritic-folds` 5651, both re-measured and both unchanged, which is the
-    // control on the attribution rather than an omission.
-    //
-    // **Re-measured from scratch after a rebase onto `c47cde5f1`, not carried across
-    // it.** The branch first recorded these against `aeca6738f`, and
-    // `specs/129-github-canonical-migration/` Phase 2 moved three of the same four in
-    // between; the conflict was resolved **wholly to the incoming side** and every
-    // number taken again, because a branch value plus a master value is neither. The
-    // baseline was taken on a pristine `git switch --detach origin/master` of this same
-    // worktree after `pnpm install --frozen-lockfile`, `pnpm run build:packages`,
-    // `git clean -fX docs/docs/modules` and deleting the copy stamp — 8367, 1347,
-    // 8428/1260, 8427, 6316 and 5651, every one equal to the value recorded here, so
-    // this branch inherits no drift. Parking the directory outside the tree was tried
-    // first and **rejected as a method for the git-based walks**: a file removed from
-    // the working tree is still in `git ls-files`, so `check-root-dispositions` and the
-    // two shell walks reported the branch number for the baseline and would have been
-    // recorded 8 low.
-    files: 1355,
+    // **`specs/129-github-canonical-migration/` T040, the gate window: files 1347 -> 1348.** **One** tracked file, no deletions: `specs/129-github-canonical-migration/contracts/gate-window.md`. The branch also edits `tasks.md` and this record, and an edit moves nothing. There is no changeset — the branch changes nothing under `packages/`. Its roots are `docs/docs` and `specs`, so it sees the one file and moves by one; `sites` is the cited blocks it found, and a document that cites no fenced block from the tree adds none. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain` reporting no unignored residue beyond the one new file: with the file withdrawn the tree reports 1347, which is what this record already held, and with it restored it reports 1348. **The baseline half is the one worth keeping**: an earlier pass of this measurement read the record with a pairing that matched each check's name to the first number in its *narrative* rather than to its `files:` field, and concluded four entries were three stale on a pristine `c47cde5f1`. They were not. The withdrawal measurement is what refuted it, and it is the reason the convention says two measurements rather than one. Nothing is subtracted and no band is widened.
+    files: 1348,
     sites: 13,
     sources: [],
     //
@@ -8287,38 +8257,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // worktree and this tree reads 8359.
     // **`test/declared-absence` (!1698), re-measured after merging `origin/master`: files 8359 -> 8364.** The branch adds **five** tracked files — `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, two unit tests under `backend/test/unit/harness/` and its changeset — and every walk moves by as many of the five as it reads. The two whole-repository walks and `check-root-dispositions` move by **5**; `check-language.sh` by **4**, seeing the four `.ts` and not the `.md`; the four that read only `backend/test` by **3** or **2**, by which of those roots they walk. Conflict resolved wholly to the incoming side and the whole record re-measured — **not reconciled and not reconstructed** — in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. That the other thirty-five entries agree is the check on this attribution.
     // **`specs/129-github-canonical-migration/` Phase 2 (T020-T025), the one-time disclosure filter: files 8364 -> 8367.** Three tracked files, no deletions: `backend/scripts/public-history-filter.ts`, `backend/test/unit/scripts/public-history-filter.test.ts` and the message-replacement record under `specs/129-github-canonical-migration/contracts/`. There is no changeset, because the branch changes nothing under `packages/`. Every walk moves by as many of the three as it reads: **+3, all three** — it walks the whole tree on disk, git-ignored files included. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain` reporting no unignored residue at either commit: `origin/master` at `aeca6738f` reports **0 drifted, 45 agree**, so the recorded values were current and the whole of this move is these three files, and the branch tip reports the values below. Nothing is subtracted and no band is widened.
-        //
-    // **Re-recorded on 2026-09-15 by `specs/132-connector-family-discovery/` — four
-    // entries, every one of them `+8`, and the `+8` is eight markdown files.** The
-    // branch is design work: one new spec directory of eight `.md` files, a
-    // modification to `specs/deferred-defects.md`, no source file, no package and
-    // therefore no changeset — which is the file that is easy to forget because it is
-    // written last, and its absence here is deliberate rather than an omission.
-    //
-    // The arithmetic closes by population, which is how to check this record: the four
-    // walks that gain 8 are the ones that read `specs/**/*.md` — `check-nul-bytes` and
-    // `check-naming.sh` read the whole repository, `check-doc-snippets` reads
-    // `docs/docs` and `specs`, and `check-root-dispositions` reads git tree entries, so
-    // for this branch its sites move 1:1 with its files. The two that read only source
-    // extensions do not move at all: `check-language.sh` 6316 and
-    // `check-diacritic-folds` 5651, both re-measured and both unchanged, which is the
-    // control on the attribution rather than an omission.
-    //
-    // **Re-measured from scratch after a rebase onto `c47cde5f1`, not carried across
-    // it.** The branch first recorded these against `aeca6738f`, and
-    // `specs/129-github-canonical-migration/` Phase 2 moved three of the same four in
-    // between; the conflict was resolved **wholly to the incoming side** and every
-    // number taken again, because a branch value plus a master value is neither. The
-    // baseline was taken on a pristine `git switch --detach origin/master` of this same
-    // worktree after `pnpm install --frozen-lockfile`, `pnpm run build:packages`,
-    // `git clean -fX docs/docs/modules` and deleting the copy stamp — 8367, 1347,
-    // 8428/1260, 8427, 6316 and 5651, every one equal to the value recorded here, so
-    // this branch inherits no drift. Parking the directory outside the tree was tried
-    // first and **rejected as a method for the git-based walks**: a file removed from
-    // the working tree is still in `git ls-files`, so `check-root-dispositions` and the
-    // two shell walks reported the branch number for the baseline and would have been
-    // recorded 8 low.
-    files: 8375,
+    // **`specs/129-github-canonical-migration/` T040, the gate window: files 8367 -> 8368.** **One** tracked file, no deletions: `specs/129-github-canonical-migration/contracts/gate-window.md`. The branch also edits `tasks.md` and this record, and an edit moves nothing. There is no changeset — the branch changes nothing under `packages/`. It walks the whole tree on disk, git-ignored files included, so it sees the one file: **+1**. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain` reporting no unignored residue beyond the one new file: with the file withdrawn the tree reports 8367, which is what this record already held, and with it restored it reports 8368. **The baseline half is the one worth keeping**: an earlier pass of this measurement read the record with a pairing that matched each check's name to the first number in its *narrative* rather than to its `files:` field, and concluded four entries were three stale on a pristine `c47cde5f1`. They were not. The withdrawal measurement is what refuted it, and it is the reason the convention says two measurements rather than one. Nothing is subtracted and no band is widened.
+    files: 8368,
     sites: null,
     sources: [],
     //
@@ -10006,39 +9946,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // worktree and this tree reads 8420.
     // **`test/declared-absence` (!1698), re-measured after merging `origin/master`: files 8420 -> 8425.** The branch adds **five** tracked files — `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, two unit tests under `backend/test/unit/harness/` and its changeset — and every walk moves by as many of the five as it reads. The two whole-repository walks and `check-root-dispositions` move by **5**; `check-language.sh` by **4**, seeing the four `.ts` and not the `.md`; the four that read only `backend/test` by **3** or **2**, by which of those roots they walk. Conflict resolved wholly to the incoming side and the whole record re-measured — **not reconciled and not reconstructed** — in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. That the other thirty-five entries agree is the check on this attribution.
     // **`specs/129-github-canonical-migration/` Phase 2 (T020-T025), the one-time disclosure filter: files 8425 -> 8428, sites 1259 -> 1260.** Three tracked files, no deletions: `backend/scripts/public-history-filter.ts`, `backend/test/unit/scripts/public-history-filter.test.ts` and the message-replacement record under `specs/129-github-canonical-migration/contracts/`. There is no changeset, because the branch changes nothing under `packages/`. Every walk moves by as many of the three as it reads: **files +3, all three by the index; sites +1**, the record alone. `sites` is one decision per root entry plus one per file under a partially-public entry, and `specs/` is the only one — the two `.ts` sit under `backend`, which is public wholesale. This is exactly the divergence the entry records both numbers to show, and the filter's own run reports the same pair (`paths=8428 dispositions=1260`) from its own walk. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain` reporting no unignored residue at either commit: `origin/master` at `aeca6738f` reports **0 drifted, 45 agree**, so the recorded values were current and the whole of this move is these three files, and the branch tip reports the values below. Nothing is subtracted and no band is widened.
-        //
-    // **Re-recorded on 2026-09-15 by `specs/132-connector-family-discovery/` — four
-    // entries, every one of them `+8`, and the `+8` is eight markdown files.** The
-    // branch is design work: one new spec directory of eight `.md` files, a
-    // modification to `specs/deferred-defects.md`, no source file, no package and
-    // therefore no changeset — which is the file that is easy to forget because it is
-    // written last, and its absence here is deliberate rather than an omission.
-    //
-    // The arithmetic closes by population, which is how to check this record: the four
-    // walks that gain 8 are the ones that read `specs/**/*.md` — `check-nul-bytes` and
-    // `check-naming.sh` read the whole repository, `check-doc-snippets` reads
-    // `docs/docs` and `specs`, and `check-root-dispositions` reads git tree entries, so
-    // for this branch its sites move 1:1 with its files. The two that read only source
-    // extensions do not move at all: `check-language.sh` 6316 and
-    // `check-diacritic-folds` 5651, both re-measured and both unchanged, which is the
-    // control on the attribution rather than an omission.
-    //
-    // **Re-measured from scratch after a rebase onto `c47cde5f1`, not carried across
-    // it.** The branch first recorded these against `aeca6738f`, and
-    // `specs/129-github-canonical-migration/` Phase 2 moved three of the same four in
-    // between; the conflict was resolved **wholly to the incoming side** and every
-    // number taken again, because a branch value plus a master value is neither. The
-    // baseline was taken on a pristine `git switch --detach origin/master` of this same
-    // worktree after `pnpm install --frozen-lockfile`, `pnpm run build:packages`,
-    // `git clean -fX docs/docs/modules` and deleting the copy stamp — 8367, 1347,
-    // 8428/1260, 8427, 6316 and 5651, every one equal to the value recorded here, so
-    // this branch inherits no drift. Parking the directory outside the tree was tried
-    // first and **rejected as a method for the git-based walks**: a file removed from
-    // the working tree is still in `git ls-files`, so `check-root-dispositions` and the
-    // two shell walks reported the branch number for the baseline and would have been
-    // recorded 8 low.
-    files: 8436,
-    sites: 1268,
+    // **`specs/129-github-canonical-migration/` T040, the gate window: files 8428 -> 8429, sites 1260 -> 1261.** **One** tracked file, no deletions: `specs/129-github-canonical-migration/contracts/gate-window.md`. The branch also edits `tasks.md` and this record, and an edit moves nothing. There is no changeset — the branch changes nothing under `packages/`. **files +1** by the index, and **sites +1** — `sites` is one decision per root entry plus one per file under a partially-public entry, and `specs/` is the only such entry, so a file added under it moves both numbers. The 41 root entries are unchanged and `root-entries=41 recorded=41` still reconciles. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain` reporting no unignored residue beyond the one new file: with the file withdrawn the tree reports 8428 / 1260, which is what this record already held, and with it restored it reports 8429 / 1261. **The baseline half is the one worth keeping**: an earlier pass of this measurement read the record with a pairing that matched each check's name to the first number in its *narrative* rather than to its `files:` field, and concluded four entries were three stale on a pristine `c47cde5f1`. They were not. The withdrawal measurement is what refuted it, and it is the reason the convention says two measurements rather than one. Nothing is subtracted and no band is widened.
+    files: 8429,
+    sites: 1261,
     // `git-tree-entries` — the committed tree's own root entries, read from a
     // different git store than the index this walk uses. Not `self-reported`:
     // two derivations of one population by two routes is precisely the second
@@ -12805,38 +12715,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // worktree and this tree reads 8419.
     // **`test/declared-absence` (!1698), re-measured after merging `origin/master`: files 8419 -> 8424.** The branch adds **five** tracked files — `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, two unit tests under `backend/test/unit/harness/` and its changeset — and every walk moves by as many of the five as it reads. The two whole-repository walks and `check-root-dispositions` move by **5**; `check-language.sh` by **4**, seeing the four `.ts` and not the `.md`; the four that read only `backend/test` by **3** or **2**, by which of those roots they walk. Conflict resolved wholly to the incoming side and the whole record re-measured — **not reconciled and not reconstructed** — in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. That the other thirty-five entries agree is the check on this attribution.
     // **`specs/129-github-canonical-migration/` Phase 2 (T020-T025), the one-time disclosure filter: files 8424 -> 8427.** Three tracked files, no deletions: `backend/scripts/public-history-filter.ts`, `backend/test/unit/scripts/public-history-filter.test.ts` and the message-replacement record under `specs/129-github-canonical-migration/contracts/`. There is no changeset, because the branch changes nothing under `packages/`. Every walk moves by as many of the three as it reads: **+3, all three** — its population is the whole index. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain` reporting no unignored residue at either commit: `origin/master` at `aeca6738f` reports **0 drifted, 45 agree**, so the recorded values were current and the whole of this move is these three files, and the branch tip reports the values below. Nothing is subtracted and no band is widened.
-        //
-    // **Re-recorded on 2026-09-15 by `specs/132-connector-family-discovery/` — four
-    // entries, every one of them `+8`, and the `+8` is eight markdown files.** The
-    // branch is design work: one new spec directory of eight `.md` files, a
-    // modification to `specs/deferred-defects.md`, no source file, no package and
-    // therefore no changeset — which is the file that is easy to forget because it is
-    // written last, and its absence here is deliberate rather than an omission.
-    //
-    // The arithmetic closes by population, which is how to check this record: the four
-    // walks that gain 8 are the ones that read `specs/**/*.md` — `check-nul-bytes` and
-    // `check-naming.sh` read the whole repository, `check-doc-snippets` reads
-    // `docs/docs` and `specs`, and `check-root-dispositions` reads git tree entries, so
-    // for this branch its sites move 1:1 with its files. The two that read only source
-    // extensions do not move at all: `check-language.sh` 6316 and
-    // `check-diacritic-folds` 5651, both re-measured and both unchanged, which is the
-    // control on the attribution rather than an omission.
-    //
-    // **Re-measured from scratch after a rebase onto `c47cde5f1`, not carried across
-    // it.** The branch first recorded these against `aeca6738f`, and
-    // `specs/129-github-canonical-migration/` Phase 2 moved three of the same four in
-    // between; the conflict was resolved **wholly to the incoming side** and every
-    // number taken again, because a branch value plus a master value is neither. The
-    // baseline was taken on a pristine `git switch --detach origin/master` of this same
-    // worktree after `pnpm install --frozen-lockfile`, `pnpm run build:packages`,
-    // `git clean -fX docs/docs/modules` and deleting the copy stamp — 8367, 1347,
-    // 8428/1260, 8427, 6316 and 5651, every one equal to the value recorded here, so
-    // this branch inherits no drift. Parking the directory outside the tree was tried
-    // first and **rejected as a method for the git-based walks**: a file removed from
-    // the working tree is still in `git ls-files`, so `check-root-dispositions` and the
-    // two shell walks reported the branch number for the baseline and would have been
-    // recorded 8 low.
-    files: 8435,
+    // **`specs/129-github-canonical-migration/` T040, the gate window: files 8427 -> 8428.** **One** tracked file, no deletions: `specs/129-github-canonical-migration/contracts/gate-window.md`. The branch also edits `tasks.md` and this record, and an edit moves nothing. There is no changeset — the branch changes nothing under `packages/`. Its population is the whole index, so it sees the one file: **+1**. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain` reporting no unignored residue beyond the one new file: with the file withdrawn the tree reports 8427, which is what this record already held, and with it restored it reports 8428. **The baseline half is the one worth keeping**: an earlier pass of this measurement read the record with a pairing that matched each check's name to the first number in its *narrative* rather than to its `files:` field, and concluded four entries were three stale on a pristine `c47cde5f1`. They were not. The withdrawal measurement is what refuted it, and it is the reason the convention says two measurements rather than one. Nothing is subtracted and no band is widened.
+    files: 8428,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -13455,6 +13335,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // worktree and this tree reads 6310.
     // **`test/declared-absence` (!1698), re-measured after merging `origin/master`: files 6310 -> 6314.** The branch adds **five** tracked files — `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, two unit tests under `backend/test/unit/harness/` and its changeset — and every walk moves by as many of the five as it reads. The two whole-repository walks and `check-root-dispositions` move by **5**; `check-language.sh` by **4**, seeing the four `.ts` and not the `.md`; the four that read only `backend/test` by **3** or **2**, by which of those roots they walk. Conflict resolved wholly to the incoming side and the whole record re-measured — **not reconciled and not reconstructed** — in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. That the other thirty-five entries agree is the check on this attribution.
     // **`specs/129-github-canonical-migration/` Phase 2 (T020-T025), the one-time disclosure filter: files 6314 -> 6316.** Three tracked files, no deletions: `backend/scripts/public-history-filter.ts`, `backend/test/unit/scripts/public-history-filter.test.ts` and the message-replacement record under `specs/129-github-canonical-migration/contracts/`. There is no changeset, because the branch changes nothing under `packages/`. Every walk moves by as many of the three as it reads: **+2, the two `.ts`** and not the JSON record, which is the same shape as the `.md` this entry did not see on `test/declared-absence`. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain` reporting no unignored residue at either commit: `origin/master` at `aeca6738f` reports **0 drifted, 45 agree**, so the recorded values were current and the whole of this move is these three files, and the branch tip reports the values below. Nothing is subtracted and no band is widened.
+    // **`specs/129-github-canonical-migration/` T040, the gate window: unchanged at 6316, and that is measured rather than assumed.** The branch's one new file is a `.md` under `specs/`, and this walk's two populations are source extensions and `docs/docs/**` — neither reaches it, the same shape this entry recorded for `test/declared-absence`'s `.md` and for Phase 2's JSON record. Measured both ways in the same worktree, with the file withdrawn and restored: **6316 either way**. Recorded because an entry that does not move is the one a later author has no evidence about, and this branch's other four moved.
     files: 6316,
     sites: null,
     sources: ['manifest-index'],
