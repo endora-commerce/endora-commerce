@@ -1,9 +1,16 @@
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import {
+  listOverlayModuleDirs,
+  resolveOverlayUnit,
+} from '@endora-commerce/platform/overlay';
+import type { ModuleManifest } from '@endora-commerce/contracts';
 import {
   loadOverlayModuleEntries,
   overlayModuleEntriesUnder,
 } from '../../src/overlay/overlay-runtime.js';
+import { overlayModulesRootFor } from '../../src/overlay/overlay-roots.js';
 import { MODULES } from '../../src/composition.generated.js';
 import { FIXTURES } from './_fixtures.js';
 
@@ -55,12 +62,67 @@ describe('D-103 — a backend.ts-only overlay module composes, and a directory w
   });
 });
 
+/**
+ * The overlay module ids the `example` deployment **ships**, derived twice over.
+ *
+ * It exists because the assertion below used to be the literal
+ * `['example_overlay']`, and `specs/130-comarch-xl-sync/` took `master` red by
+ * adding two overlay modules without editing it. That is `AGENTS.md`'s ledger
+ * trap exactly: a statement derived *about* the files a change touches is not a
+ * file that change touches, so the batch that adds an overlay module is
+ * structurally the batch that cannot see this go stale — and
+ * `test:backend:deployment` does not run on a merge-request pipeline, so nothing
+ * caught it before the merge. It had already been fixed **once** on the same
+ * branch, for the *count* in `test/unit/_lifecycle/registered-manifests.test.ts`;
+ * this is the second instance the author and the reviewer each walked past.
+ *
+ * A derived expectation risks being vacuous — passing over whatever the tree
+ * happens to hold — so it is derived from authorities the loader does not use
+ * for the thing being asserted:
+ *
+ *   - the **population** is `listOverlayModuleDirs` filtered by the same
+ *     `resolveOverlayUnit(dir, 'backend')` D-103 skips on, so a module the scan
+ *     drops and a directory it invents both red, and a `manifest.ts`-only
+ *     directory does **not** red (that skip is asserted over a fixture above,
+ *     where it belongs);
+ *   - the **id** is each module's own `manifest.id`, which the loader never
+ *     reads — it takes the id from the *directory*, because that is what makes
+ *     `overlay: true` safe (D-104). So a directory whose manifest declares
+ *     another id reds here, which the old literal could not see either.
+ *
+ * The caller adds the one anchor a derivation cannot supply: that
+ * `example_overlay` — the deployment's own documented module, named by every
+ * other case in this file — is among them.
+ */
+async function shippedExampleOverlayIds(): Promise<string[]> {
+  const root = overlayModulesRootFor('example');
+  const ids: string[] = [];
+  for (const dir of listOverlayModuleDirs(root)) {
+    const moduleDir = join(root, dir);
+    if (resolveOverlayUnit(moduleDir, 'backend') === null) continue;
+    const manifestPath = resolveOverlayUnit(moduleDir, 'manifest');
+    expect(manifestPath, `${moduleDir} ships a backend entry point and no manifest`).not.toBeNull();
+    const mod = (await import(pathToFileURL(manifestPath as string).href)) as {
+      manifest?: ModuleManifest;
+    };
+    expect(mod.manifest, `${manifestPath} exports no manifest`).toBeDefined();
+    ids.push((mod.manifest as ModuleManifest).id);
+  }
+  return ids.sort();
+}
+
 describe('D-104 — discovery is per-deployment, at runtime, and empty for bare core', () => {
-  it('finds the example deployment’s module with DEPLOYMENT selected', async () => {
+  it('finds every module the example deployment ships, with DEPLOYMENT selected', async () => {
     const entries = await loadOverlayModuleEntries({
       DEPLOYMENT: 'example',
     } as NodeJS.ProcessEnv);
-    expect(entries.map((e) => e.id)).toEqual(['example_overlay']);
+    const shipped = await shippedExampleOverlayIds();
+    // Never a literal — see `shippedExampleOverlayIds`. The two assertions the
+    // derivation cannot make itself: it found something at all, and it found
+    // the deployment's own documented module.
+    expect(shipped).not.toHaveLength(0);
+    expect(shipped).toContain('example_overlay');
+    expect(entries.map((e) => e.id).sort()).toEqual(shipped);
   });
 
   it('finds nothing for a bare-core build or an unknown deployment', async () => {

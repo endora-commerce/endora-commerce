@@ -10702,6 +10702,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   // read-size test with nothing wrong in their diff, which is the failure this
   // ratchet is supposed to prevent rather than produce. The number below is the
   // tree, measured, and a merge request adding a changeset moves it by one.
+  // **New with the `comarch_xl` queue-name repair.** Its walk is the estate's
+  // shared source-file population (`collectSeamFiles` over every source root),
+  // so `files` moves with every `.ts` file the application tree or a package
+  // gains or loses — including this check's own rule and host. `sites` is the
+  // finer number and is the one that means something here: it counts BullMQ
+  // queue-name construction sites, so a module gaining a queue moves it while
+  // `files` barely notices, and a run whose `sites` collapsed while `files`
+  // stood still is #235/#237's shape exactly.
+  'backend/scripts/check-queue-names.ts': {
+    prefix: '[queue-names]',
+    run: { kind: 'tsx', path: 'scripts/check-queue-names.ts', args: [] },
+    files: 2296,
+    sites: 52,
+    sources: ['manifest-index'],
+  },
   'backend/scripts/check-release-intent.ts': {
     prefix: '[release-intent]',
     run: { kind: 'tsx', path: 'scripts/check-release-intent.ts', args: [] },

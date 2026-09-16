@@ -101,6 +101,12 @@ import {
   keyOf as subscriptionKeyOf,
   workerKeyOf,
 } from '../rules/subscribe-seam.js';
+import {
+  checkQueueNames,
+  collectQueueNameFiles,
+  keyOf as queueNameKeyOf,
+  remedyFor as queueNameRemedy,
+} from '../rules/queue-names.js';
 
 import { estateEntry, type EstateEntry } from './estate.js';
 import { isFile, layerExpectation, type PackageLayout } from './layout.js';
@@ -437,6 +443,48 @@ const subscribeSeam: PackageRuleHost = (layout) => {
     return { ...result, unevaluatedSignals: [] };
   }
   return result;
+};
+
+/* -------------------------------------------------------------- queue-names */
+
+const queueNames: PackageRuleHost = (layout) => {
+  const id = 'check:queue-names';
+  const entry = entryOf(id);
+  const files = collectQueueNameFiles([layout.sourceRoot]);
+  const coverage = coverageOf(layout, files, opensTypeScript);
+  if (isRefusal(coverage)) return unreadable(id, coverage.refusal, null);
+  if (coverage === null) return notApplicable(id, absentDeclaration(entry));
+
+  const sources = new Map(files.map((file) => [layout.keyOf(file), readFileSync(file, 'utf8')]));
+  const readSize: ReadSizeInput = {
+    prefix: '[queue-names]',
+    files: sources.size,
+    coverage: [coverage],
+  };
+  const short = readSizeOrShortWalk(id, readSize);
+  if (!short.ok) return short.result;
+
+  const result = checkQueueNames({
+    sources,
+    hostResidentModules: new Map([[layout.keyOf(layout.sourceRoot), layout.moduleId]]),
+  });
+
+  const findings: Finding[] = result.findings.map((finding) => ({
+    rule: id,
+    key: queueNameKeyOf(finding.site),
+    location: `${finding.site.file}:${finding.site.line}`,
+    message: queueNameRemedy(finding),
+  }));
+
+  const outcome = ran(id, { ...readSize, sites: result.sites.length }, findings);
+  // The repository-scope host refuses a run that resolved no queue name at all,
+  // because *that* tree is known to hold queues. One package holding none is
+  // the ordinary case — most modules ship no worker — so the floor is stated
+  // rather than enforced.
+  if (result.resolved.length > 0) {
+    return { ...outcome, unevaluatedSignals: [] };
+  }
+  return outcome;
 };
 
 /* --------------------------------------------------------- command-coverage */
@@ -1183,6 +1231,7 @@ export const PACKAGE_HOSTS: ReadonlyMap<string, PackageRuleHost> = new Map<
   ['check:nul-bytes', nulBytes],
   ['check:platform-surface', platformSurface],
   ['check:port-shape', portShape],
+  ['check:queue-names', queueNames],
   ['check:subscribe-seam', subscribeSeam],
   ['check:transaction-context', transactionContext],
 ]);
