@@ -3,12 +3,6 @@
 > **The reporting channel is GitHub's private vulnerability reporting, from the day this
 > repository is public — and there is deliberately no e-mail address.** A published mailbox is a
 > mailbox somebody has to keep watching, and one nobody is watching is worse than none at all.
->
-> **This file ships before that switch is flipped.** Private vulnerability reporting has to be
-> **enabled on the repository**, which happens with the migration, so until then the *Security*
-> tab this file points at does not exist yet. If it is not there when you look: **do not file a
-> suspected vulnerability anywhere public.** Contact the maintainers privately through whatever
-> route you already have and wait for a reply.
 
 ## Reporting a vulnerability
 
@@ -23,8 +17,10 @@ either of us — which is the point. There is **no security e-mail address for t
 that is a decision rather than an omission: an address is a mailbox somebody has to keep watching,
 and a published one that nobody watches is worse than none.
 
-**If the Security tab does not offer it**, the switch has not been flipped yet — see the note at
-the top of this file. Do not report publicly in the meantime.
+**If the Security tab does not offer it**, something is wrong on our side rather than on yours —
+the channel is enabled and was verified from a signed-out browser. Do not report publicly in the
+meantime: contact the maintainers privately through whatever route you already have, and wait for
+a reply.
 
 **What to include**, in as much of this shape as you have:
 
