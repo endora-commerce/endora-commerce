@@ -266,6 +266,11 @@ quality:
     # lost and the job starts failing as a SIGKILL instead.
     NODE_OPTIONS: --max-old-space-size=2560
   before_script:
+    # `check:root-dispositions` derives the top-level entries with
+    # `git ls-files`, and `node:22.18-slim` carries no git. Until this line
+    # the check died `spawnSync git ENOENT` and took the whole job with it,
+    # which is why `quality:static` installs git the same way one job over.
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends git
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
     - pnpm install --frozen-lockfile
     - pnpm run build:packages
