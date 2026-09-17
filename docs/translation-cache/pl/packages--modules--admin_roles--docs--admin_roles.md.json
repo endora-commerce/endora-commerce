@@ -1,0 +1,10 @@
+{
+  "sourcePath": "packages/modules/admin_roles/docs/admin_roles.md",
+  "sourceHash": "1846fb1fb58d97f8fda4ad9924cdbfb2dbc382460cbabeff6ed665ea2074223d",
+  "locale": "pl",
+  "content": "---\ntitle: admin_roles\ndescription: Definicje ról admina + uprawnienia per moduł\n---\n\n# `admin_roles`\n\nDefinicje ról admina i macierz uprawnień per moduł, którą rola przyznaje.\n\n## Publiczne API\n\n| Verb + Path | Cel |\n| --- | --- |\n| `GET /api/v1/admin/roles` | Lista ról |\n| `POST /api/v1/admin/roles` | Utworzenie roli z zestawem uprawnień |\n| `PATCH /api/v1/admin/roles/:id` | Aktualizacja roli |\n| `DELETE /api/v1/admin/roles/:id` | Usunięcie (odrzucone, gdy przypisana do aktywnych użytkowników admina) |\n\n## Model uprawnień\n\nUprawnienia to stringi w kształcie `module:action` (np. `catalog:write`,\n`integrations:manage`, `audit:read`). `permission-service.ts` udostępnia\n`hasPermission(adminUser, 'module:action')`; pre-handler `requireAdmin(permission?)`\nw `auth/plugin.ts` konsultuje go na każdej gated trasie. Rola może też wymagać\n2FA — `requireAdmin` wymusza wyzwanie 2FA przed wywołaniem handlera trasy.\n\n## Encje\n\n`AdminRole`, z `requires2fa: boolean` i kolumną `permissions: string[]`.\n\n## Punkty rozszerzenia\n\n- **Niestandardowe stringi uprawnień** — definiuj nowe przy pierwszym użyciu;\n  zestaw uprawnień jest otwarty i nie jest enumerowany po stronie serwera.\n- **Role hierarchiczne** — `permission-service.hasPermission` może rozwiązywać\n  dziedziczone uprawnienia; dziś każda Rola jest płaska.\n",
+  "meta": {
+    "provider": "manual",
+    "updatedAt": "2026-09-17T10:01:00.000Z"
+  }
+}

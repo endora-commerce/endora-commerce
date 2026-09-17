@@ -158,6 +158,21 @@
   "sidebar.main.category.returns": {
     "message": "returns"
   },
+  "sidebar.main.category.auth": {
+    "message": "auth"
+  },
+  "sidebar.main.category.admin_roles": {
+    "message": "admin_roles"
+  },
+  "sidebar.main.category.admin_users": {
+    "message": "admin_users"
+  },
+  "sidebar.main.category.audit_logs": {
+    "message": "audit_logs"
+  },
+  "sidebar.main.category.settings": {
+    "message": "Settings"
+  },
   "sidebar.main.category.credentials": {
     "message": "Credentials"
   },
