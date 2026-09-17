@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-orders",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "type": "module",
   "sideEffects": false,
   "description": "Order placement, lifecycle, and history.",

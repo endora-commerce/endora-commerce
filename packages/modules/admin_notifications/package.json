@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-admin-notifications",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "type": "module",
   "sideEffects": false,
   "description": "In-app notification feed surfaced in the admin top-nav bell. Generic so any module can write entries.",
