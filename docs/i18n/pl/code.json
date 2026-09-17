@@ -157,5 +157,17 @@
   },
   "sidebar.main.category.returns": {
     "message": "returns"
+  },
+  "sidebar.main.category.credentials": {
+    "message": "Credentials"
+  },
+  "sidebar.main.category.currencies": {
+    "message": "currencies"
+  },
+  "sidebar.main.category.inventory": {
+    "message": "inventory"
+  },
+  "sidebar.main.category.invoices": {
+    "message": "invoices"
   }
 }
