@@ -13,11 +13,11 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { loadDocsLocales } from './lib/docs-locales.js';
-import { hashSourceBody } from './lib/docs-markdown-segments.js';
 import {
   cacheEntryPath,
   defaultTranslationCacheLayout,
   docIdFromSourcePath,
+  hashSourceBody,
   materializedDocPath,
   readCacheEntry,
   type TranslationCacheLayout,

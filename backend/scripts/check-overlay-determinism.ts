@@ -82,10 +82,7 @@ import {
   divergenceOutputPaths,
   renderDivergence,
 } from './generate-divergence.js';
-import { docsRegistry, generatedArtifactPaths, renderAll, workspacePopulation } from './generate-composer.js';
-import { verifyComposerGeneratedTranslations } from './lib/docs-composer-i18n.js';
-import { loadDocsLocales } from './lib/docs-locales.js';
-import { defaultTranslationCacheLayout } from './lib/docs-translation-cache.js';
+import { generatedArtifactPaths, renderAll } from './generate-composer.js';
 import { reportReadSize } from './lib/read-size.js';
 import { nodeWorkspaceFs, workspaceMembers } from './lib/workspace-packages.js';
 
@@ -752,16 +749,7 @@ export function coveredArtifactPaths(): readonly string[] {
 
 async function main(): Promise<void> {
   const roots = permittedRoots();
-  const population = workspacePopulation();
   const composerRendered = await renderAll();
-  const locales = loadDocsLocales();
-  const translationLayout = defaultTranslationCacheLayout(population.root);
-  const translationFindings = verifyComposerGeneratedTranslations({
-    artefacts: composerRendered,
-    registry: docsRegistry(population),
-    translateLocales: locales.translateLocales,
-    layout: translationLayout,
-  });
   // Feature 072 — the composer and the manifest registry are generated from the
   // same tree walk and committed the same way, so they are checked here rather
   // than in a second script with the same shape. Feature 071's F2 added the two
@@ -826,12 +814,6 @@ async function main(): Promise<void> {
     sites: examined.reduce((total, artifact) => total + artifact.sites.length, 0),
   });
   if (!examined.every((artifact) => artifact.verdict.ok)) process.exit(1);
-  if (translationFindings.length > 0) {
-    for (const finding of translationFindings) {
-      process.stderr.write(`[overlay:check] STALE translation: ${finding.detail}\n`);
-    }
-    process.exit(1);
-  }
   process.stdout.write('[overlay:check] all generated artifacts deterministic and contained ✓\n');
 }
 

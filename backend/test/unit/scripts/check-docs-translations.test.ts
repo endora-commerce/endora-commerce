@@ -4,9 +4,9 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { hashSourceBody } from '../../../scripts/lib/docs-markdown-segments.js';
 import {
   defaultTranslationCacheLayout,
+  hashSourceBody,
   materializeTranslation,
   writeCacheEntry,
   type TranslationCacheEntry,
@@ -69,7 +69,7 @@ describe('check-docs-translations', () => {
         sourceHash: hashSourceBody(`${english}\nChanged.`),
         locale: 'pl',
         content: '---\ntitle: Sample\n---\n\nWitamy.\n',
-        meta: { provider: 'deepl', translatedAt: '2026-09-17T08:00:00.000Z' },
+        meta: { provider: 'manual', updatedAt: '2026-09-17T08:00:00.000Z' },
       };
       writeCacheEntry(entry, layout(root));
       materializeTranslation(entry, layout(root));
@@ -92,7 +92,7 @@ describe('check-docs-translations', () => {
         sourceHash: hashSourceBody(english),
         locale: 'pl',
         content: '---\ntitle: Sample\n---\n\nWitamy.\n',
-        meta: { provider: 'deepl', translatedAt: '2026-09-17T08:00:00.000Z' },
+        meta: { provider: 'manual', updatedAt: '2026-09-17T08:00:00.000Z' },
       };
       writeCacheEntry(entry, layout(root));
       materializeTranslation(entry, layout(root));

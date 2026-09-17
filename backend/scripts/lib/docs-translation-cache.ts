@@ -1,10 +1,9 @@
-import { timingSafeEqual } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { findRepoRoot } from './module-roots.js';
-import { hashSourceBody } from './docs-markdown-segments.js';
 
 /** One pinned translation entry under `docs/translation-cache/<locale>/`. */
 export interface TranslationCacheEntry {
@@ -13,8 +12,8 @@ export interface TranslationCacheEntry {
   readonly locale: string;
   readonly content: string;
   readonly meta: {
-    readonly provider: 'deepl';
-    readonly translatedAt: string;
+    readonly provider: 'manual';
+    readonly updatedAt: string;
   };
 }
 
@@ -22,6 +21,55 @@ export interface TranslationCacheLayout {
   readonly repoRoot: string;
   readonly cacheRoot: string;
   readonly i18nDocsRoot: (locale: string) => string;
+}
+
+function stripBom(source: string): string {
+  return source.startsWith('\uFEFF') ? source.slice(1) : source;
+}
+
+function normalizeLineEndings(source: string): string {
+  return source.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+}
+
+function frontMatterBlockStart(source: string): number {
+  if (source.startsWith('---\n') || source.startsWith('---\r\n')) {
+    return 0;
+  }
+  const match = /\n---[\r\n]/.exec(source);
+  return match === null ? -1 : match.index + 1;
+}
+
+/** Split markdown into an opaque prefix (preamble + YAML front matter) and body. */
+function splitFrontMatter(source: string): { prefix: string; body: string } {
+  const text = stripBom(source);
+  const start = frontMatterBlockStart(text);
+  if (start === -1) {
+    return { prefix: '', body: text };
+  }
+
+  const lineBreak = text.indexOf('\n', start);
+  if (lineBreak === -1) {
+    return { prefix: '', body: text };
+  }
+
+  const close = text.indexOf('\n---', lineBreak + 1);
+  if (close === -1) {
+    return { prefix: '', body: text };
+  }
+
+  const afterClose = close + 4;
+  const trailingNewline = text[afterClose] === '\n' ? 1 : 0;
+  const prefixEnd = afterClose + trailingNewline;
+  return {
+    prefix: text.slice(0, prefixEnd),
+    body: text.slice(prefixEnd),
+  };
+}
+
+/** sha256 of the normalised English body with front matter stripped. */
+export function hashSourceBody(source: string): string {
+  const { body } = splitFrontMatter(source);
+  return createHash('sha256').update(normalizeLineEndings(body), 'utf8').digest('hex');
 }
 
 export function defaultTranslationCacheLayout(

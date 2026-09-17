@@ -1,4 +1,3 @@
-import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
@@ -11,21 +10,13 @@ import {
   type DocPage,
 } from './module-docs.js';
 
-/** One English documentation source the MT pipeline may translate or verify. */
+/** One English documentation source that must have a manual Polish translation. */
 export interface DocsTranslationSource {
   /** Repo-relative cache key (e.g. `docs/docs/intro.md`, `generated:module-reference/catalog`). */
   readonly sourcePath: string;
   /** Absolute path of the English markdown file to read. */
   readonly absolutePath: string;
 }
-
-/** Fixed Polish MT disclaimer prepended to materialized `intro.md` (FR-019). */
-export const INTRO_MT_DISCLAIMER_PL =
-  ':::caution Tłumaczenie maszynowe\n\n' +
-  'Ta dokumentacja w języku polskim została wygenerowana automatycznie z wersji angielskiej. ' +
-  'W razie wątpliwości angielski tekst jest źródłem prawdy.\n\n' +
-  'Zasady tłumaczeń opisuje [Contributing — translations](../contributing/translations.md).\n' +
-  ':::\n\n';
 
 const SIDEBAR_MAIN_PREFIX = 'sidebar.main';
 
@@ -247,29 +238,4 @@ export async function resolveDocsTranslationLayout(): Promise<{
     modulePages: resolved.modulePages,
     skipPaths: loadTranslationSkipPaths(layout.repoRoot),
   };
-}
-
-/** English sources changed since a git ref (for `docs:translate --since`). */
-export function sourcesChangedSince(
-  sources: readonly DocsTranslationSource[],
-  sinceRef: string,
-  repoRoot: string,
-): readonly DocsTranslationSource[] {
-  const result = spawnSync(
-    'git',
-    ['diff', '--name-only', `${sinceRef}...HEAD`, '--', 'docs/docs', 'packages/modules'],
-    { cwd: repoRoot, encoding: 'utf8' },
-  );
-  if (result.status !== 0) {
-    throw new Error(
-      `[docs-translate] git diff against ${sinceRef} failed: ${result.stderr || result.stdout}`,
-    );
-  }
-  const changed = new Set(
-    result.stdout
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0),
-  );
-  return sources.filter((source) => changed.has(source.sourcePath));
 }

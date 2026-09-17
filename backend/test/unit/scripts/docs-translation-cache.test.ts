@@ -4,8 +4,8 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { hashSourceBody } from '../../../scripts/lib/docs-markdown-segments.js';
 import {
+  hashSourceBody,
   cacheEntryPath,
   docIdFromSourcePath,
   isCacheHit,
@@ -34,8 +34,8 @@ function sampleEntry(overrides: Partial<TranslationCacheEntry> = {}): Translatio
     locale: 'pl',
     content: '---\ntitle: Wstęp\n---\n\nWitamy.\n',
     meta: {
-      provider: 'deepl',
-      translatedAt: '2026-09-17T08:00:00.000Z',
+      provider: 'manual',
+      updatedAt: '2026-09-17T08:00:00.000Z',
     },
     ...overrides,
   };
@@ -78,6 +78,13 @@ describe('docs-translation-cache', () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  it('hashes only the normalised body with front matter stripped', () => {
+    const source = '---\ntitle: Command Bus\n---\n\nBody text.\n';
+    const withEditedTitle = source.replace('title: Command Bus', 'title: Different title');
+    expect(hashSourceBody(source)).toBe(hashSourceBody(withEditedTitle));
+    expect(hashSourceBody(source)).not.toBe(hashSourceBody(`${source}\nMore text.`));
   });
 
   it('detects cache hits only when the source hash matches', () => {
