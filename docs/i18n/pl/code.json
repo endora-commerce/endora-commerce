@@ -198,13 +198,13 @@
     "message": "wFirma"
   },
   "sidebar.main.doc.module-reference/invoice-ledger": {
-    "message": "invoice_ledger — module reference"
+    "message": "invoice_ledger — referencja modułu"
   },
   "sidebar.main.doc.module-reference/ksef": {
-    "message": "ksef — module reference"
+    "message": "ksef — referencja modułu"
   },
   "sidebar.main.doc.module-reference/infakt": {
-    "message": "infakt — module reference"
+    "message": "infakt — referencja modułu"
   },
   "sidebar.main.doc.module-reference/wfirma": {
     "message": "wfirma — module reference"
@@ -434,8 +434,26 @@
   "sidebar.main.doc.module-reference/i18n": {
     "message": "_i18n — referencja modułu"
   },
+  "sidebar.main.doc.module-reference/import-export": {
+    "message": "import_export — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/inpost": {
+    "message": "inpost — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/inventory": {
+    "message": "inventory — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/invoices": {
+    "message": "invoices — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/languages": {
+    "message": "languages — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/lifecycle": {
+    "message": "_lifecycle — referencja modułu"
+  },
   "sidebar.main.doc.module-reference/linkedin-ads": {
-    "message": "linkedin_ads — module reference"
+    "message": "linkedin_ads — referencja modułu"
   },
   "sidebar.main.doc.module-reference/meta-ads": {
     "message": "meta_ads — module reference"
