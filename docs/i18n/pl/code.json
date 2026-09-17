@@ -7,5 +7,20 @@
   },
   "theme.localeDropdown.label": {
     "message": "Język"
+  },
+  "sidebar.main.doc.intro": {
+    "message": "Wprowadzenie"
+  },
+  "sidebar.main.doc.admin/mobile-responsive": {
+    "message": "Panel administracyjny — układ mobilny"
+  },
+  "sidebar.main.doc.contracts/README": {
+    "message": "Kontrakty API"
+  },
+  "sidebar.main.category.admin-ui": {
+    "message": "Admin UI"
+  },
+  "sidebar.main.category.api-contracts": {
+    "message": "Kontrakty API"
   }
 }
