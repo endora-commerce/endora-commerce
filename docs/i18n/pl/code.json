@@ -347,8 +347,35 @@
   "sidebar.main.category.product_feeds": {
     "message": "Product Feeds"
   },
+  "sidebar.main.doc.module-reference/addresses": {
+    "message": "addresses — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/admin-actions": {
+    "message": "admin_actions — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/admin-notifications": {
+    "message": "admin_notifications — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/admin-roles": {
+    "message": "admin_roles — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/admin-users": {
+    "message": "admin_users — referencja modułu"
+  },
   "sidebar.main.doc.module-reference/analytics": {
-    "message": "analytics — module reference"
+    "message": "analytics — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/api-keys": {
+    "message": "api_keys — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/assets-library": {
+    "message": "assets_library — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/audit-logs": {
+    "message": "audit_logs — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/auth": {
+    "message": "auth — referencja modułu"
   },
   "sidebar.main.doc.module-reference/google-tag-manager": {
     "message": "google_tag_manager — module reference"
