@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-admin-roles",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "type": "module",
   "sideEffects": false,
   "description": "Admin RBAC — roles, permissions, and policy enforcement for admin sessions.",

@@ -1,5 +1,77 @@
 # @endora-commerce/mod-invoice-ledger
 
+## 0.10.0
+
+### Minor Changes
+
+- 55fc950: wFirma invoice-ledger adapter (`specs/131-wfirma-integration/`): a second vendor on the
+  existing ledger, with no schema of its own.
+
+  **`@endora-commerce/mod-wfirma`** is a new switchable module package — connection screen and
+  credential type, synchronous VAT copy, corrections, paid alignment, webhook ingress and a
+  BullMQ delivery worker, plus KSeF delegation when the ledger's routing setting says `vendor`.
+  Subpaths: `.`, `./backend`, `./admin`, `./tailwind.css`. Ships `i18n/` (`en`, `pl`) and its
+  operator documentation under `docs/`. Activation is `wfirma.activation`, default off; while
+  off it performs no wFirma HTTP, its screens and palette entry are gone and the webhook
+  answers 503.
+
+  **`@endora-commerce/contracts`** adds `wfirma.ts` (admin and wire schemas, `WfirmaHttpPort`,
+  the two `WFIRMA_*` error codes) and extends `invoice-ledger.ts`: `wfirma` joins
+  `INVOICE_LEDGER_MODULES`, and `InvoiceLedgerDeliveryPort.markAwaitingRemote` /
+  `markSucceeded` take an optional `remoteVendorNumber`, which `LedgerDeliveryRecord` and
+  `InvoiceLedgerDeliveryAttempt` now carry. Both port changes are additive — an existing
+  implementation keeps compiling and an existing caller keeps its behaviour.
+
+  **`@endora-commerce/mod-invoice-ledger`** implements those two fields: the vendor's own
+  document number is recorded on the succeeding attempt and projected onto the record, and
+  `markAwaitingRemote` may now also stamp the remote document id and the document map, which a
+  vendor that assigns a number before the document is final needs.
+
+  This changeset is written by the reviewer, not by the branch's author: the branch carried
+  none, and `check:release-intent --since` refuses it on two counts —
+  `manifest-changed-beyond-version` for the new package's manifest and
+  `unattributed-package-change` relaying `changeset status`' own exit 1.
+
+### Patch Changes
+
+- 8f61a6b: Every published package now ships its own `LICENSE` and `README.md`.
+
+  npm force-includes a file named `LICENSE` into the tarball exactly as it does `README.md`,
+  whatever `files` says, so the text has to be in the package directory and not only at the
+  repository root — `LICENSE-COMMERCIAL.md` states that rule and, until this release, no package
+  obeyed it. Measured on `master`: **0** of the 82 publishable packages carried a `LICENSE` and
+  **14** carried a `README.md`, so every tarball shipped without licence text and 68 registry
+  pages would have rendered empty.
+
+  Both files are **generated**, by `pnpm --filter backend run manifests:generate`, and refused
+  when stale by `manifests:check` in the `quality` job:
+  - the `LICENSE` is the repository's root `LICENSE`, copied verbatim — the same single source
+    the `license: MIT` field is already rendered from. A package that declares a licence of its
+    own in the `SEE LICENSE IN <file>` form is skipped and keeps the file it names.
+  - the `README.md` is rendered from what the package's own manifest declares: its description,
+    its module id where it has one, every published subpath with what that layer holds, its peer
+    dependencies with the optional ones marked, the locales its `i18n/` carries and what the
+    tarball ships. A `README.md` **without** the generated marker on its first line is a human's
+    and is never rewritten — the fourteen that existed are untouched.
+
+  Five module packages also get their npm description back. `@endora-commerce/mod-blog`,
+  `mod-credit-limits`, `mod-dhl-parcel`, `mod-google-analytics` and `mod-quote-requests` carried
+  the note written when they were moved out of `backend/src/modules` — _"the first module to
+  leave backend/src/modules … the manifest id stays identity of record"_ — as the sentence a
+  registry shows under the package name. Each now carries the sentence its own module manifest
+  declares, which is where `descriptionFor` seeds one from in the first place.
+
+  No API changes, no new dependency, no behaviour change: what moves is what the tarball carries
+  and what a package page says.
+
+- Updated dependencies [4915024]
+- Updated dependencies [8f61a6b]
+- Updated dependencies [6b2ed26]
+- Updated dependencies [55fc950]
+  - @endora-commerce/contracts@0.12.0
+  - @endora-commerce/admin-kit@0.9.1
+  - @endora-commerce/platform@0.11.1
+
 ## 0.9.0
 
 ### Minor Changes

@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-assets-library",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "type": "module",
   "sideEffects": false,
   "description": "Storage adapter registry (local / S3 / GCS), asset upload, and reference tracking.",

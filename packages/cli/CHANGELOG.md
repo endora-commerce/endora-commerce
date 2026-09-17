@@ -1,5 +1,78 @@
 # @endora-commerce/cli
 
+## 0.11.0
+
+### Minor Changes
+
+- 919afc0: `check:queue-names` — a BullMQ queue name may not contain `:`.
+
+  **`@endora-commerce/cli`** adds `rules/queue-names.js`: the analysis behind the new
+  `check:queue-names`, plus its `endora check` package-scope host and its estate entry. A site is
+  `new <Binding>(<arg0>, …)` where the binding is what the file imported from `bullmq` (alias
+  followed) and the class is one whose first constructor parameter is the queue name. `arg0`
+  resolves as a literal, as a `const` in the same file, or as a `const` imported one hop over a
+  relative specifier; anything else is an unresolved site, counted in the read line and never
+  judged. One finding, `colon-in-queue-name`, and no ledger — a ledgered colon is a queue that
+  cannot be constructed. The rule is the colon alone; the repository's broader
+  `<module_id>.<verb>` convention is deliberately not enforced.
+
+  **`@endora-commerce/mod-comarch-xl`** renames its three queues from `comarch_xl:detect`,
+  `comarch_xl:sync` and `comarch_xl:shop-export` to the dot spelling every other module already
+  uses. BullMQ owns `:` as its Redis key-namespace separator and refuses such a name in
+  `new QueueBase` before it reaches Redis, so the module's worker start threw, its plugin never
+  finished loading and the backend never listened — and the same throw landed in the activation
+  control's gate-off phase, so an operator could not switch the module off either. No queue had
+  ever been constructed under the old names, so no data migration is needed.
+
+### Patch Changes
+
+- aa12ebf: `endora check`'s estate manifest gains a row for `check:root-dispositions`, the
+  rule that refuses a top-level repository entry carrying no recorded disposition.
+
+  It is `repository-only`, and here that claim about the rule's _subject_ is
+  unusually literal: a module package holds no root entry of its own — it
+  contributes paths under `packages/` — and the question the rule asks has already
+  been answered for anything a consumer installed from a registry. The row exists
+  anyway because the manifest is not a curated subset: a rule that can never run
+  for a package is printed with its reason rather than left absent, which is what
+  stops `endora check` becoming a list somebody updates or does not.
+
+- 8f61a6b: Every published package now ships its own `LICENSE` and `README.md`.
+
+  npm force-includes a file named `LICENSE` into the tarball exactly as it does `README.md`,
+  whatever `files` says, so the text has to be in the package directory and not only at the
+  repository root — `LICENSE-COMMERCIAL.md` states that rule and, until this release, no package
+  obeyed it. Measured on `master`: **0** of the 82 publishable packages carried a `LICENSE` and
+  **14** carried a `README.md`, so every tarball shipped without licence text and 68 registry
+  pages would have rendered empty.
+
+  Both files are **generated**, by `pnpm --filter backend run manifests:generate`, and refused
+  when stale by `manifests:check` in the `quality` job:
+  - the `LICENSE` is the repository's root `LICENSE`, copied verbatim — the same single source
+    the `license: MIT` field is already rendered from. A package that declares a licence of its
+    own in the `SEE LICENSE IN <file>` form is skipped and keeps the file it names.
+  - the `README.md` is rendered from what the package's own manifest declares: its description,
+    its module id where it has one, every published subpath with what that layer holds, its peer
+    dependencies with the optional ones marked, the locales its `i18n/` carries and what the
+    tarball ships. A `README.md` **without** the generated marker on its first line is a human's
+    and is never rewritten — the fourteen that existed are untouched.
+
+  Five module packages also get their npm description back. `@endora-commerce/mod-blog`,
+  `mod-credit-limits`, `mod-dhl-parcel`, `mod-google-analytics` and `mod-quote-requests` carried
+  the note written when they were moved out of `backend/src/modules` — _"the first module to
+  leave backend/src/modules … the manifest id stays identity of record"_ — as the sentence a
+  registry shows under the package name. Each now carries the sentence its own module manifest
+  declares, which is where `descriptionFor` seeds one from in the first place.
+
+  No API changes, no new dependency, no behaviour change: what moves is what the tarball carries
+  and what a package page says.
+
+- Updated dependencies [4915024]
+- Updated dependencies [8f61a6b]
+- Updated dependencies [6b2ed26]
+- Updated dependencies [55fc950]
+  - @endora-commerce/contracts@0.12.0
+
 ## 0.10.0
 
 ### Minor Changes
