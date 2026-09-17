@@ -117,3 +117,85 @@ export class ConflictingTestSupportError extends Error {
     this.name = 'ConflictingTestSupportError';
   }
 }
+
+/**
+ * Every table the given contributions declare volatile, deduped and sorted.
+ *
+ * **Sorted rather than ordered** (R4.2). The declaration is a set, and the
+ * ordering the contract asks the foreign-key graph to derive is not needed by
+ * the one consumer there is: the caller empties them with a single
+ * `truncate table … cascade`, which is one statement over the whole set and
+ * takes no order — PostgreSQL resolves the dependencies itself, which is why the
+ * harness's hand-written children-first list has always been a comment rather
+ * than a mechanism. A sorted set makes the result a function of the composition
+ * and not of the order the contributions were collected in, which is the
+ * property R4.2 is actually protecting. The day a consumer empties them one
+ * statement at a time, the derivation the contract describes is what it has to
+ * take, and this function is where it goes.
+ *
+ * Two refusals, both about a declaration rather than about a statement: two
+ * modules claiming one table, and a name that is not an identifier. The second
+ * matters because the collected set is interpolated into SQL by its caller, so a
+ * quote or a semicolon has to be refused where it is written down.
+ */
+export function collectVolatileTables(
+  contributions: readonly TestSupportContribution[],
+): readonly string[] {
+  const claimedBy = new Map<string, string>();
+  for (const contribution of contributions) {
+    for (const table of contribution.volatileTables ?? []) {
+      if (!VALID_TABLE_NAME.test(table)) {
+        throw new UndeclarableVolatileTableError(contribution.moduleId, table);
+      }
+      const owner = claimedBy.get(table);
+      // One module naming its own table twice has made no claim it had not
+      // already made; only a *second* module is a conflict.
+      if (owner !== undefined && owner !== contribution.moduleId) {
+        throw new ConflictingVolatileTableError(table, owner, contribution.moduleId);
+      }
+      claimedBy.set(table, contribution.moduleId);
+    }
+  }
+  return [...claimedBy.keys()].sort();
+}
+
+/**
+ * What a table name may be: the unquoted PostgreSQL identifier every migration
+ * in this repository writes. Anything else is refused rather than quoted around.
+ */
+const VALID_TABLE_NAME = /^[a-z_][a-z0-9_]*$/;
+
+/** Two modules declaring one table volatile. */
+export class ConflictingVolatileTableError extends Error {
+  constructor(
+    readonly tableName: string,
+    readonly firstModuleId: string,
+    readonly secondModuleId: string,
+  ) {
+    super(
+      `the table '${tableName}' is declared volatile by both '${firstModuleId}' and ` +
+        `'${secondModuleId}'. A table has one owner (R4.3), and emptying another module's ` +
+        `table between tests deletes rows that module's own tests rely on — so only the ` +
+        `module that owns it may declare it. A test that needs a neighbour's table emptied ` +
+        `does it in its own file, where the coupling is visible.`,
+    );
+    this.name = 'ConflictingVolatileTableError';
+  }
+}
+
+/** A declared volatile table whose name is not an identifier. */
+export class UndeclarableVolatileTableError extends Error {
+  constructor(
+    readonly moduleId: string,
+    readonly tableName: string,
+  ) {
+    super(
+      `'${moduleId}' declares the volatile table '${tableName}', which is not an unquoted ` +
+        `PostgreSQL identifier${tableName.trim() === '' ? ' (it is empty)' : ''}. The collected ` +
+        `set is interpolated into a \`truncate table … cascade\` statement, so a name carrying ` +
+        `a quote, a semicolon or nothing at all is refused where it is written down rather ` +
+        `than where it would run.`,
+    );
+    this.name = 'UndeclarableVolatileTableError';
+  }
+}

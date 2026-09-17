@@ -240,6 +240,21 @@ const LAYER_SUBPATHS: ReadonlyArray<readonly [directory: string, subpath: string
   // — the emitted module exports runtime bindings — which is D-191's own
   // condition and needs no change to that check.
   ['admin-ui', './admin-ui'],
+  // `specs/109-backend-test-kit/contracts/test-kit-package.md` R4.1, scheduled
+  // as T014 and T015 of `specs/134-paid-module-extraction/`. A module's own test
+  // doubles, fixtures and the tables its tests require emptied — the things that
+  // lived in `backend/test/helpers/` and are why the harness names 39 module
+  // packages.
+  //
+  // It is a **development** layer, and the one place the workspace and the
+  // tarball differ on purpose (R4.5): a published module's consumer never
+  // resolves it, and it exists so that this workspace's other packages can name
+  // it by bare specifier instead of by a relative path into a sibling. `files`
+  // lists `dist` wholesale, so the emitted directory does travel in the tarball;
+  // keeping it out would need a second out-dir per package, which is a build
+  // change this layer does not need in order to retire the relative reaches it
+  // exists to retire.
+  ['test-support', './test-support'],
 ];
 
 /** What a package ships, as the directory says. */

@@ -172,12 +172,12 @@ import type { ErgonodeClientPort } from '../../../packages/modules/pim_ergonode/
 import type { ErgonodeMediaFetcherPort } from '../../../packages/modules/pim_ergonode/src/backend/services/ergonode-media-fetcher.js';
 import type { UnopimMediaFetcherPort } from '../../../packages/modules/pim_unopim/src/backend/services/unopim-media-fetcher.js';
 import type { AkeneoMediaFetcherPort } from '../../../packages/modules/pim_akeneo/src/backend/services/akeneo-media-fetcher.js';
-import { refusingErgonodeClient } from './scripted-ergonode-client.js';
-import { refusingUnopimClient } from './scripted-unopim-client.js';
-import { refusingXlClient } from './scripted-xl-client.js';
-import { ScriptedErgonodeMediaFetcher } from './scripted-ergonode-media-fetcher.js';
-import { ScriptedUnopimMediaFetcher } from './scripted-unopim-media-fetcher.js';
-import { ScriptedAkeneoMediaFetcher } from './scripted-akeneo-media-fetcher.js';
+import { refusingErgonodeClient } from '@endora-commerce/mod-pim-ergonode/test-support';
+import { refusingUnopimClient } from '@endora-commerce/mod-pim-unopim/test-support';
+import { refusingXlClient } from '@endora-commerce/mod-comarch-xl/test-support';
+import { ScriptedErgonodeMediaFetcher } from '@endora-commerce/mod-pim-ergonode/test-support';
+import { ScriptedUnopimMediaFetcher } from '@endora-commerce/mod-pim-unopim/test-support';
+import { ScriptedAkeneoMediaFetcher } from '@endora-commerce/mod-pim-akeneo/test-support';
 import type { PimPimcoreCradle } from '@endora-commerce/mod-pim-pimcore/backend';
 import type { KsefApiClientPort } from '../../../packages/modules/ksef/src/backend/integrations/ksef-client.interface.js';
 import type { PwaCradle } from '../../../packages/modules/pwa/src/backend/index.js';
@@ -213,6 +213,12 @@ import {
   TEST_CUSTOMER_ID,
   TEST_ORGANIZATION_ID,
 } from './test-actors.js';
+import {
+  collectVolatileTables,
+  type TestSupportContribution,
+} from '@endora-commerce/test-kit/support';
+import { readFileSync } from 'node:fs';
+import { basename } from 'node:path';
 
 /**
  * What `composeTestServer` hands back as `composed` — the contribution window
@@ -624,7 +630,29 @@ function testAnyLabel(name: unknown): string {
   return '';
 }
 
+/**
+ * The tables this root empties between tests, minus the ones their own module
+ * now declares.
+ *
+ * **It is not the order of the truncate, and never was.** Every name here goes
+ * into one `truncate table … cascade` statement, which PostgreSQL resolves
+ * itself; the children-first annotations this list carried were a comment about
+ * a mechanism that is not there. That is why a module's own `volatileTables` can
+ * be a set (contract R4.2) and why the union below needs no derivation to be
+ * deterministic.
+ *
+ * Feature 134 T014 took the first twenty out — `pim_pimcore`'s eight,
+ * `pim_ergonode`'s ten and `ksef`'s two — into those packages'
+ * `src/test-support/index.ts`, where a module that leaves this repository takes
+ * its tables with it. The remaining 80 are 109 T060–T064's, and the end state of
+ * this array is that it does not exist.
+ */
 const SEEDED_TABLES = [
+  // Feature 119's twelve `xl_*` tables were here on `fix/master-red-baseline`
+  // and are `comarch_xl`'s own `volatileTables` now (feature 134 T014): the wipe
+  // that branch added is kept in full, one directory over, where a module that
+  // leaves this repository takes it along. Nothing about the repair changed —
+  // the same twelve names go into the same one `truncate … cascade`.
   // Feature 067 — product feeds. `product_feeds` itself and everything hanging
   // off it cascade from `sales_channels`, but five tables do not reach any
   // table below: `product_feed_templates` and its fields, and the three
@@ -649,58 +677,6 @@ const SEEDED_TABLES = [
   'product_feeds',
   'product_feed_template_fields',
   'product_feed_templates',
-  // Feature 119 — Comarch XL. Six of these twelve have no foreign key to any
-  // table below — `xl_installations`, `xl_identity_mappings`, `xl_status_maps`,
-  // `xl_sync_jobs` (and its events), `xl_worker_heartbeats` and
-  // `xl_last_applied_snapshots` — so without this the installation one file
-  // configures, the identities it bound and the snapshots it applied are still
-  // there for the next one, and an "is this ERP connected?" read answers from a
-  // neighbour's fixture. The other six do cascade today, from `categories`,
-  // `sales_channels`, `price_lists`, `customer_groups` and `organizations`;
-  // they are listed anyway so that a future nullable-FK change cannot quietly
-  // take a table out of the wipe. Listed children-first.
-  'xl_imported_offer_lines',
-  'xl_imported_offers',
-  'xl_sync_job_events',
-  'xl_sync_jobs',
-  'xl_last_applied_snapshots',
-  'xl_worker_heartbeats',
-  'xl_status_maps',
-  'xl_price_list_mappings',
-  'xl_warehouse_mappings',
-  'xl_category_mappings',
-  'xl_identity_mappings',
-  'xl_installations',
-  // Feature 089 — Pimcore PIM. Truncated explicitly because nothing cascades
-  // here from the tables below. Listed children-first.
-  'pimcore_import_issues',
-  'pimcore_field_protections',
-  'pimcore_media_links',
-  'pimcore_source_links',
-  'pimcore_delivered_records',
-  'pimcore_catalogue_deliveries',
-  // Runs and connections reference each other (`current_run_id` /
-  // `connection_id`); truncate … cascade handles the cycle.
-  'pimcore_import_runs',
-  'pimcore_connections',
-  // Feature 068 — Ergonode PIM. Truncated explicitly because nothing cascades
-  // here: `ergonode_product_links` hangs off products, but the connection, its
-  // cursors, mappings, runs and issues have no path from any table below, so
-  // without this a connection created by one test file is still enabled for the
-  // next one. Listed children-first for a deterministic cascade.
-  'ergonode_import_issues',
-  'ergonode_field_protections',
-  'ergonode_media_links',
-  'ergonode_product_links',
-  'ergonode_price_bindings',
-  'ergonode_category_mappings',
-  'ergonode_attribute_mappings',
-  'ergonode_stream_cursors',
-  // Both run tables reference each other (`current_run_id` / `connection_id`),
-  // so they truncate together in one statement — which is what `truncate ... ,
-  // ... cascade` already does.
-  'ergonode_import_runs',
-  'ergonode_connections',
   // Feature 058 — credentials. Platform-global; truncate so each test starts clean.
   'credential_configurations',
   // Feature 055 — custom fields. Options cascade from definitions.
@@ -745,8 +721,6 @@ const SEEDED_TABLES = [
   'invoice_ledger_document_maps',
   'invoice_ledger_client_maps',
   'invoice_ledger_activation_lock',
-  'ksef_submissions',
-  'ksef_credentials',
   'invoices',
   'payments',
   'order_items',
@@ -799,6 +773,78 @@ const SEEDED_TABLES = [
   // deterministic.
   'search_phrase_records',
 ];
+
+/**
+ * The test-support contribution of every module this deployment resolved, from
+ * the modules themselves (contract §4; feature 134 T014).
+ *
+ * **This is the inversion, and it is why nothing below spells a module id.** A
+ * module that declares a `./test-support` subpath contributes; one that does not
+ * contributes nothing; and a module that leaves this repository takes its
+ * contribution out of every composition in the same commit that deletes its
+ * directory. The wipe list above used to answer the same question by naming a
+ * hundred tables belonging to thirty-nine packages, which is why the first
+ * twenty could not leave.
+ *
+ * The walk is the **resolved registry's**, not a directory scan: a module's
+ * entry carries the real location of the file its manifest was imported from,
+ * which for a package module is that package's own `package.json`, and the
+ * package's name is the specifier. A module that is not a package — an overlay
+ * module, or one the platform host carries — has no subpath to declare and is
+ * skipped by the same rule rather than by a list of exceptions.
+ *
+ * Two refusals and no blanket catch. A package whose manifest does not declare
+ * the subpath answers `ERR_PACKAGE_PATH_NOT_EXPORTED`, which is *"this module
+ * contributes nothing"* and is the only swallowed error; anything else — a
+ * module whose contribution throws on import, a `dist` that was never built —
+ * is raised, because a silently skipped contribution is a truncate that does
+ * not happen and a test that passes on the previous test's rows.
+ */
+const testSupportByModule = new Map<string, TestSupportContribution | null>();
+
+async function moduleTestSupport(
+  registry: readonly { manifest: { id: string }; filePath: string }[],
+): Promise<TestSupportContribution[]> {
+  const contributions: TestSupportContribution[] = [];
+  for (const entry of registry) {
+    const moduleId = entry.manifest.id;
+    if (!testSupportByModule.has(moduleId)) {
+      testSupportByModule.set(moduleId, await loadTestSupport(moduleId, entry.filePath));
+    }
+    const contribution = testSupportByModule.get(moduleId) ?? null;
+    if (contribution !== null) contributions.push(contribution);
+  }
+  return contributions;
+}
+
+async function loadTestSupport(
+  moduleId: string,
+  manifestFilePath: string,
+): Promise<TestSupportContribution | null> {
+  if (basename(manifestFilePath) !== 'package.json') return null;
+  const packageName: unknown = (
+    JSON.parse(readFileSync(manifestFilePath, 'utf8')) as Record<string, unknown>
+  )['name'];
+  if (typeof packageName !== 'string' || packageName === '') return null;
+
+  let module: Record<string, unknown>;
+  try {
+    module = (await import(`${packageName}/test-support`)) as Record<string, unknown>;
+  } catch (error) {
+    const code = (error as { code?: string }).code;
+    if (code === 'ERR_PACKAGE_PATH_NOT_EXPORTED') return null;
+    throw error;
+  }
+  const volatileTables = module['volatileTables'];
+  const registrations = module['registrations'];
+  return {
+    moduleId,
+    ...(Array.isArray(volatileTables) ? { volatileTables: volatileTables as string[] } : {}),
+    ...(registrations !== null && typeof registrations === 'object'
+      ? { registrations: registrations as Record<string, unknown> }
+      : {}),
+  };
+}
 
 /**
  * The manifest registry `_i18n` walks to reconcile every module's
@@ -938,6 +984,10 @@ export async function setupBackendServer(
   // `packages/*` linked out of `node_modules` — which is exactly what it
   // refuses.
   const packageModuleEntries = await loadPackageModuleEntries(overlayEnv);
+  // Feature 134 T014 / contract §4 — what the modules this composition resolved
+  // say about their own test support, collected by the caller because discovery
+  // is a fact about this process and never the kit's (R2.2).
+  const moduleTestSupportContributions = await moduleTestSupport(resolvedRegistry);
 
   // Feature 090 — mirrors `composition.ts`: the error-code routing map,
   // derived from the manifests this run resolved, with the collisions reported
@@ -1227,6 +1277,9 @@ export async function setupBackendServer(
       // captures `DATABASE_URL` at import, so *when* it opens is the caller's.
       orm: { open: initOrm, close: closeOrm },
       manifests: resolvedRegistry,
+      // Contract §4 — exactly the modules in `modules`, because it is the same
+      // resolved registry both are derived from.
+      testSupport: moduleTestSupportContributions,
     },
     // Feature 107 (FR-040/FR-041) — mirrors `composition.ts`: the wrapping order
     // this deployment declares, from `backend/src/apps/<deployment>/divergence.ts`.
@@ -1313,7 +1366,17 @@ export async function setupBackendServer(
       await dropStaleCaches(redis);
 
       const conn = orm.em.getConnection();
-      await conn.execute(`truncate table ${SEEDED_TABLES.map((t) => `"${t}"`).join(', ')} cascade`);
+      // One statement over the union of what this root still writes down and
+      // what the composed modules declared for themselves (contract R4.2). The
+      // `cascade` resolves the order, which is what makes the second half a set
+      // rather than a sequence — and `Set` is what keeps a module that declares
+      // a table this root has not yet given up from emitting it twice.
+      const volatileTables = [
+        ...new Set([...SEEDED_TABLES, ...collectVolatileTables(moduleTestSupportContributions)]),
+      ];
+      await conn.execute(
+        `truncate table ${volatileTables.map((t) => `"${t}"`).join(', ')} cascade`,
+      );
       // Feature 002: keep the system Default Attribute Set, drop everything
       // else so contract tests start from a clean slate. (`attribute_sets`
       // isn't in SEEDED_TABLES because the truncate-cascade would drop the

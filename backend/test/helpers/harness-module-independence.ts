@@ -219,7 +219,7 @@ export function readHarnessIndependence(repoRoot: string): HarnessIndependenceRe
   const residue: HarnessResidue[] = [];
   const seen = new Set<string>();
   const record = (entry: HarnessResidue): void => {
-    const key = `${entry.kind} ${entry.subject}`;
+    const key = `${entry.kind}\u0000${entry.subject}`;
     if (seen.has(key)) return;
     seen.add(key);
     residue.push(entry);

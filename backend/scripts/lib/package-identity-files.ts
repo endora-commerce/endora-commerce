@@ -123,6 +123,10 @@ const MODULE_SUBPATH_MEANINGS: ReadonlyMap<string, string> = new Map([
   ['./admin', 'the Admin UI contribution: the screens, navigation and palette actions it adds'],
   ['./admin-ui', 'React components this module publishes for another module’s admin screens'],
   ['./tailwind.css', 'the Tailwind source declaration for the admin code above'],
+  [
+    './test-support',
+    'development-only — the test doubles, fixtures and volatile tables this module’s own tests need',
+  ],
 ]);
 
 /** What each entry of a `files` list carries into the tarball. */

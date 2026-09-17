@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Invoice } from '../../helpers/package-entities.js';
-import { ScriptedInfaktClient } from '../../helpers/scripted-infakt-client.js';
+import { ScriptedInfaktClient } from '@endora-commerce/mod-infakt/test-support';
 import {
   setupBackendServer,
   teardownBackendServer,
