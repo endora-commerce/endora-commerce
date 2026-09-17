@@ -330,7 +330,7 @@
     "message": "webhooks — module reference"
   },
   "sidebar.main.doc.module-reference/google-analytics": {
-    "message": "google_analytics — module reference"
+    "message": "google_analytics — referencja modułu"
   },
   "sidebar.main.category.analytics": {
     "message": "analytics"
@@ -407,8 +407,32 @@
   "sidebar.main.doc.module-reference/currencies": {
     "message": "currencies — referencja modułu"
   },
+  "sidebar.main.doc.module-reference/custom-fields": {
+    "message": "custom_fields — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/customer-accounts": {
+    "message": "customer_accounts — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/customers": {
+    "message": "customers — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/delivery-methods": {
+    "message": "delivery_methods — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/dhl-parcel": {
+    "message": "dhl_parcel — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/dictionaries": {
+    "message": "dictionaries — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/email": {
+    "message": "email — referencja modułu"
+  },
   "sidebar.main.doc.module-reference/google-tag-manager": {
-    "message": "google_tag_manager — module reference"
+    "message": "google_tag_manager — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/i18n": {
+    "message": "_i18n — referencja modułu"
   },
   "sidebar.main.doc.module-reference/linkedin-ads": {
     "message": "linkedin_ads — module reference"
