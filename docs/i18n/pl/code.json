@@ -91,5 +91,14 @@
   },
   "sidebar.main.doc.operations/runbooks/module-lifecycle-stuck-lock": {
     "message": "Zablokowana blokada cyklu życia modułu"
+  },
+  "sidebar.main.category.deployment": {
+    "message": "Wdrożenie"
+  },
+  "sidebar.main.doc.deployment/first-deployment-checklist": {
+    "message": "Checklist pierwszego wdrożenia produkcyjnego"
+  },
+  "sidebar.main.doc.integrations/akeneo-pim": {
+    "message": "Akeneo PIM"
   }
 }
