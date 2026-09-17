@@ -274,5 +274,17 @@
   },
   "sidebar.main.category.tpay": {
     "message": "TPay"
+  },
+  "sidebar.main.category.pim_akeneo": {
+    "message": "Akeneo PIM"
+  },
+  "sidebar.main.category.pim_ergonode": {
+    "message": "Ergonode PIM"
+  },
+  "sidebar.main.category.pim_pimcore": {
+    "message": "Pimcore PIM"
+  },
+  "sidebar.main.category.pim_unopim": {
+    "message": "UnoPim PIM"
   }
 }
