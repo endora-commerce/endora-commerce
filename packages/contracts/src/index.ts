@@ -9,6 +9,7 @@
 // (catalog.ts, quote-requests.ts, organizations.ts, orders.ts, credit-limits.ts, …).
 
 export * from './errors.js';
+export * from './capabilities.js';
 export * from './envelopes.js';
 export * from './pagination.js';
 export * from './common.js';

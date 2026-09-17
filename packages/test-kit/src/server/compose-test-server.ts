@@ -57,6 +57,7 @@ import {
   ApiInterceptorRegistry,
   AuditLogService,
   activationDeclarationsFrom,
+  capabilityRegistryFrom,
   buildServer,
   composeModules,
   composeSalesChannelsKernel,
@@ -399,6 +400,13 @@ export async function composeTestServer(
     // did turned it into `Module 'auth' is currently disabled` on a platform
     // where nothing was disabled.
     registryCache.setActivationDeclarations(activationDeclarationsFrom(manifests));
+    // Feature 132 — the derived capability families, from the same manifest list
+    // and at the same point the production root installs them
+    // (`loadModulePresence`). A harness that seeded presence but not the families
+    // would answer an empty family for every key, so a family owner's exclusion
+    // interceptor would be registered over nobody and every test of it would be
+    // green over a population it never had.
+    registryCache.setCapabilityDeclarations(capabilityRegistryFrom(manifests));
     registryCache.__setEnabledForTesting([
       ...(options.enabledModuleIds ?? manifests.map((manifest) => manifest.id)),
     ]);

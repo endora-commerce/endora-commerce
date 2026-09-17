@@ -6,6 +6,11 @@ import {
   ModuleRegistryCache,
   STATE_CHANGED_CHANNEL,
 } from './registry-cache.js';
+import { ModuleRegistration } from './module-registration.entity.js';
+import { Setting } from '../settings/setting.entity.js';
+import { ModuleEffectiveState } from './effective-state.js';
+import { capabilityRegistryFrom } from './capability-registry.js';
+import type { ModuleManifest } from '@endora-commerce/contracts';
 
 /**
  * D-174 — the cross-process invalidation a module needs, through the seam that
@@ -208,6 +213,99 @@ describe('the state-changed subscriber drives the registry', () => {
     subscriber.emit('message', 'some:other:channel', '{}');
 
     expect(drops).toBe(0);
+    cache.stopFallbackRefresh();
+  });
+});
+
+/**
+ * Feature 132 (T014) — the derived capability family is refreshed by the **same**
+ * `b2b:module:state-changed` message that re-resolves activation, because it is
+ * installed into the same cache by the same `registryCache.load` call
+ * (`data-model.md` §2.2).
+ *
+ * This is the load-bearing half of that placement rather than a nicety. A family
+ * read against a *different* refresh path would be stale for exactly the window
+ * in which an operator is flipping a connector — the only window a mutual
+ * exclusion has to be right in — and the two answers would disagree while the
+ * refusal was being computed from both.
+ */
+describe('a state-changed refresh re-answers membersOfCapability with the activation it moved', () => {
+  const manifest = (overrides: Partial<ModuleManifest> & { id: string }): ModuleManifest =>
+    ({ version: '1.0.0', dependencies: [], ...overrides }) as unknown as ModuleManifest;
+
+  const member = (id: string): ModuleManifest =>
+    manifest({
+      id,
+      capabilities: ['pim-connector'],
+      activation: { settingCode: `${id}.activation`, default: false },
+    });
+
+  const MEMBERS = ['fixture_pim_a', 'fixture_pim_b'] as const;
+
+  it('one message, both facts — the family follows the flip it was read against', async () => {
+    // The operator's recorded choice, as the `settings` rows hold it. Mutated
+    // between the two refreshes to stand for the flip an operator just made on
+    // `/platform/modules`.
+    const activated = new Map<string, boolean>([
+      ['fixture_pim_a.activation', true],
+      ['fixture_pim_b.activation', false],
+    ]);
+
+    const em = (): EntityManager =>
+      ({
+        find: async (entity: unknown): Promise<unknown[]> => {
+          if (entity === ModuleRegistration) {
+            return MEMBERS.map((moduleId) => ({ moduleId, state: 'installed' }));
+          }
+          if (entity === Setting) {
+            return [...activated].map(([code, globalValue]) => ({
+              code,
+              globalValue,
+              defaultValue: false,
+            }));
+          }
+          return [];
+        },
+      }) as unknown as EntityManager;
+
+    const cache = new ModuleRegistryCache();
+    const state = new ModuleEffectiveState(cache);
+    const subscriber = new FakeSubscriber();
+
+    await cache.load({
+      em,
+      activationDeclarations: MEMBERS.map((moduleId) => ({
+        moduleId,
+        settingCode: `${moduleId}.activation`,
+        default: false,
+        nonDeactivatableReason: null,
+      })),
+      capabilityRegistry: capabilityRegistryFrom(MEMBERS.map(member)),
+    });
+    await cache.watch({ redisSubscriber: subscriber as unknown as Redis, em });
+
+    expect(state.membersOfCapability('pim-connector')).toEqual(['fixture_pim_a']);
+
+    // The operator switches one connector off and the other on.
+    activated.set('fixture_pim_a.activation', false);
+    activated.set('fixture_pim_b.activation', true);
+
+    const before = cache.presenceVersion();
+    const settled = new Promise<void>((resolve) => {
+      const stop = cache.onPresenceInstalled(() => {
+        if (cache.presenceVersion() !== before) {
+          stop();
+          resolve();
+        }
+      });
+    });
+    subscriber.emit('message', STATE_CHANGED_CHANNEL, '{"moduleId":"fixture_pim_b","newState":"installed"}');
+    await settled;
+
+    // The same refresh that installed the new activation answers the family, so
+    // there is no tick in which one of the two is the pre-flip value.
+    expect(state.membersOfCapability('pim-connector')).toEqual(['fixture_pim_b']);
+    expect(state.declaredMembersOfCapability('pim-connector')).toEqual([...MEMBERS]);
     cache.stopFallbackRefresh();
   });
 });

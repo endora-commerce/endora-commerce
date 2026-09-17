@@ -8,6 +8,8 @@ import {
   effectiveState,
 } from './effective-state.js';
 import type { ModuleActivationDeclaration } from './activation-resolver.js';
+import { capabilityRegistryFrom } from './capability-registry.js';
+import type { ModuleManifest } from '@endora-commerce/contracts';
 
 /**
  * Feature 073 — effective state is the conjunction of the two axes
@@ -168,6 +170,91 @@ describe('ModuleEffectiveState', () => {
         'fixture_core',
         'fixture_unconverted',
       ]);
+    });
+  });
+
+  describe('the capability readers (feature 132, T012)', () => {
+    const manifest = (overrides: Partial<ModuleManifest> & { id: string }): ModuleManifest =>
+      ({ version: '1.0.0', dependencies: [], ...overrides }) as unknown as ModuleManifest;
+
+    const member = (id: string): ModuleManifest =>
+      manifest({
+        id,
+        capabilities: ['pim-connector'],
+        activation: { settingCode: `${id}.activation`, default: true },
+      });
+
+    const FAMILY = capabilityRegistryFrom([
+      manifest({
+        id: 'fixture_owner',
+        activation: { nonDeactivatable: true, reason: 'Always present.' },
+        exclusiveCapabilities: [
+          { key: 'pim-connector', errorCode: 'PIM_CONNECTOR_ALREADY_ACTIVE' },
+        ],
+      }),
+      member('fixture_pim_a'),
+      member('fixture_pim_b'),
+      member('fixture_pim_c'),
+    ]);
+
+    const DECLARATIONS: ModuleActivationDeclaration[] = [
+      'fixture_pim_a',
+      'fixture_pim_b',
+      'fixture_pim_c',
+    ].map((moduleId) => ({
+      moduleId,
+      settingCode: `${moduleId}.activation`,
+      default: true,
+      nonDeactivatableReason: null,
+    }));
+
+    beforeEach(() => {
+      cache.setActivationDeclarations([CONTROL, CORE, ...DECLARATIONS]);
+      cache.setCapabilityDeclarations(FAMILY);
+    });
+
+    it('declaredMembersOfCapability answers every declared member, present or not', () => {
+      cache.__setEnabledForTesting(['fixture_pim_a']);
+      expect(state.declaredMembersOfCapability('pim-connector')).toEqual([
+        'fixture_pim_a',
+        'fixture_pim_b',
+        'fixture_pim_c',
+      ]);
+    });
+
+    it('membersOfCapability resolves EFFECTIVE presence — both axes (FR-012)', () => {
+      // `fixture_pim_b` is operator-activated and platform-unavailable. It is the
+      // case `PimConnectorRegistryService.findActiveSibling` answers `true` for
+      // today, because it reads `presence(id)?.operatorActivated`: a connector the
+      // deployment never installed holding a claim that refuses another
+      // (Principle XVII).
+      cache.__setEnabledForTesting(['fixture_pim_a', 'fixture_pim_c'], {
+        deactivated: ['fixture_pim_c'],
+      });
+
+      expect(state.presence('fixture_pim_b')?.operatorActivated).toBe(true);
+      expect(state.presence('fixture_pim_b')?.platformAvailable).toBe(false);
+      expect(state.membersOfCapability('pim-connector')).toEqual(['fixture_pim_a']);
+    });
+
+    it('membersOfCapability answers an empty family for a key nobody declares', () => {
+      cache.__setEnabledForTesting(['fixture_pim_a']);
+      expect(state.membersOfCapability('erp-connector')).toEqual([]);
+    });
+
+    it('membersOfCapability answers nothing when no member is present', () => {
+      cache.__setEnabledForTesting([]);
+      expect(state.membersOfCapability('pim-connector')).toEqual([]);
+    });
+
+    it('exclusiveCapability answers the owner and the code, or undefined (R3.5)', () => {
+      cache.__setEnabledForTesting(['fixture_pim_a']);
+      expect(state.exclusiveCapability('pim-connector')).toEqual({
+        key: 'pim-connector',
+        ownerModuleId: 'fixture_owner',
+        errorCode: 'PIM_CONNECTOR_ALREADY_ACTIVE',
+      });
+      expect(state.exclusiveCapability('erp-connector')).toBeUndefined();
     });
   });
 

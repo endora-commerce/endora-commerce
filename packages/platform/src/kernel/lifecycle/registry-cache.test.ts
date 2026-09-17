@@ -4,6 +4,8 @@ import {
   ModuleRegistryCache,
   registryCache,
 } from './registry-cache.js';
+import { capabilityRegistryFrom } from './capability-registry.js';
+import type { ModuleManifest } from '@endora-commerce/contracts';
 
 describe('ModuleRegistryCache (test seam)', () => {
   let cache: ModuleRegistryCache;
@@ -73,6 +75,106 @@ describe('ModuleRegistryCache (test seam)', () => {
     // And the platform axis moves on its own.
     cache.__setEnabledForTesting(['blog', 'search'], { deactivated: ['blog'] });
     expect(cache.presenceVersion()).toBeGreaterThan(afterDeactivation);
+  });
+
+  describe('the capability registry (feature 132, T011)', () => {
+    // Manifests, because the cache is handed what the derivation produced and the
+    // derivation is handed manifests. Building the fixture through
+    // `capabilityRegistryFrom` rather than by hand is deliberate: a hand-written
+    // registry literal would let this file's idea of the shape drift from the one
+    // `presence-load` installs.
+    const manifest = (overrides: Partial<ModuleManifest> & { id: string }): ModuleManifest =>
+      ({ version: '1.0.0', dependencies: [], ...overrides }) as unknown as ModuleManifest;
+
+    const FAMILY = capabilityRegistryFrom([
+      manifest({
+        id: 'fixture_owner',
+        activation: { nonDeactivatable: true, reason: 'Always present.' },
+        exclusiveCapabilities: [
+          { key: 'pim-connector', errorCode: 'PIM_CONNECTOR_ALREADY_ACTIVE' },
+        ],
+      }),
+      manifest({
+        id: 'fixture_member_a',
+        capabilities: ['pim-connector'],
+        activation: { settingCode: 'fixture_member_a.activation', default: false },
+      }),
+      manifest({
+        id: 'fixture_member_b',
+        capabilities: ['pim-connector', 'erp-connector'],
+        activation: { settingCode: 'fixture_member_b.activation', default: false },
+      }),
+    ]);
+
+    it('answers no member and no owner before anything installed a registry', () => {
+      expect(cache.declaredCapabilityMembers('pim-connector')).toEqual([]);
+      expect(cache.exclusiveCapability('pim-connector')).toBeUndefined();
+    });
+
+    it('indexes declared members by key, in manifest order', () => {
+      cache.setCapabilityDeclarations(FAMILY);
+      expect(cache.declaredCapabilityMembers('pim-connector')).toEqual([
+        'fixture_member_a',
+        'fixture_member_b',
+      ]);
+      expect(cache.declaredCapabilityMembers('erp-connector')).toEqual(['fixture_member_b']);
+      expect(cache.declaredCapabilityMembers('invoice-ledger-vendor')).toEqual([]);
+    });
+
+    it('indexes the owner and the code it minted', () => {
+      cache.setCapabilityDeclarations(FAMILY);
+      expect(cache.exclusiveCapability('pim-connector')).toEqual({
+        key: 'pim-connector',
+        ownerModuleId: 'fixture_owner',
+        errorCode: 'PIM_CONNECTOR_ALREADY_ACTIVE',
+      });
+      // A key with members and no owner is not exclusive here (R3.5).
+      expect(cache.exclusiveCapability('erp-connector')).toBeUndefined();
+    });
+
+    it('replaces the whole registry on each call — a re-load is not a merge', () => {
+      cache.setCapabilityDeclarations(FAMILY);
+      cache.setCapabilityDeclarations(capabilityRegistryFrom([]));
+      expect(cache.declaredCapabilityMembers('pim-connector')).toEqual([]);
+      expect(cache.exclusiveCapability('pim-connector')).toBeUndefined();
+    });
+
+    it('is answerable before the presence load — it is manifest data, not presence', () => {
+      // Same property `activationDeclaration` has: the declarations are installed
+      // by the composition root before any database read, and a member lookup that
+      // threw before the load would make the family unreadable at exactly the
+      // moment the exclusion's interceptor is being registered.
+      cache.setCapabilityDeclarations(FAMILY);
+      expect(cache.isLoaded()).toBe(false);
+      expect(cache.declaredCapabilityMembers('pim-connector')).toEqual([
+        'fixture_member_a',
+        'fixture_member_b',
+      ]);
+    });
+
+    it('`load` installs it in the same call as the activation declarations', async () => {
+      // The Redis invalidation design (`data-model.md` §2.2): membership and
+      // activation are read together on every refusal, so they are installed
+      // together and refreshed by the same `b2b:module:state-changed` event.
+      await cache.load({
+        em: (() => {
+          throw new Error('the fixture must not reach the database');
+        }) as never,
+        activationDeclarations: [],
+        capabilityRegistry: FAMILY,
+      }).catch(() => undefined);
+      expect(cache.declaredCapabilityMembers('pim-connector')).toEqual([
+        'fixture_member_a',
+        'fixture_member_b',
+      ]);
+    });
+
+    it('__resetForTesting clears it, like every other piece of installed state', () => {
+      cache.setCapabilityDeclarations(FAMILY);
+      cache.__resetForTesting();
+      expect(cache.declaredCapabilityMembers('pim-connector')).toEqual([]);
+      expect(cache.exclusiveCapability('pim-connector')).toBeUndefined();
+    });
   });
 
   it('isDegraded() defaults to false', () => {

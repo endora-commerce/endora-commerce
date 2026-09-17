@@ -1,5 +1,6 @@
 import type { ModulePresence, RegistryState } from '@endora-commerce/contracts';
 import { registryCache, type ModuleRegistryCache } from './registry-cache.js';
+import type { ExclusiveCapabilityDeclaration } from './capability-registry.js';
 
 /**
  * Effective module state — the conjunction of the two presence axes
@@ -62,6 +63,24 @@ export interface EffectiveModuleState {
    * configuration away for a module that does not exist.
    */
   presenceOf(moduleId: string): boolean | undefined;
+  /**
+   * The members of capability `key` whose **effective** presence is true — the
+   * conjunction of both axes, never the activation Setting alone (feature 132,
+   * spec FR-012).
+   *
+   * This is the read a family owner's mutual-exclusion registry asks, and the
+   * conjunction is the behaviour change: `findActiveSibling` reads
+   * `presence(id)?.operatorActivated` today, which answers `true` for a module
+   * whose platform axis is off — so a connector the deployment never installed
+   * holds a claim that refuses another (Principle XVII).
+   *
+   * Synchronous and in-memory, on the same budget {@link isPresent} has.
+   */
+  membersOfCapability(key: string): readonly string[];
+  /** Every **declared** member of `key`, present or not — for diagnostics and the admin panel. */
+  declaredMembersOfCapability(key: string): readonly string[];
+  /** The owner and refusal code for an exclusive key, or `undefined` if it is not exclusive here. */
+  exclusiveCapability(key: string): ExclusiveCapabilityDeclaration | undefined;
 }
 
 export class ModuleEffectiveState implements EffectiveModuleState {
@@ -123,6 +142,20 @@ export class ModuleEffectiveState implements EffectiveModuleState {
     const presence = this.presence(moduleId);
     if (!presence) return undefined;
     return presence.platformAvailable && presence.operatorActivated;
+  }
+
+  membersOfCapability(key: string): readonly string[] {
+    return this.cache
+      .declaredCapabilityMembers(key)
+      .filter((moduleId) => this.isPresent(moduleId));
+  }
+
+  declaredMembersOfCapability(key: string): readonly string[] {
+    return this.cache.declaredCapabilityMembers(key);
+  }
+
+  exclusiveCapability(key: string): ExclusiveCapabilityDeclaration | undefined {
+    return this.cache.exclusiveCapability(key);
   }
 
   /**

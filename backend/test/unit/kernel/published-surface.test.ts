@@ -120,6 +120,22 @@ const PUBLISHED_KERNEL_SURFACE: Readonly<Record<string, readonly string[]>> = {
   ],
   /** Row 11. */
   'lifecycle/effective-state.js': ['effectiveState', 'toModulePresenceDto'],
+  /**
+   * Feature 132 — the three shapes `effectiveState`'s capability readers answer
+   * in. Types only, and published for the reason the group header states: a
+   * published method whose return shape is unpublished is a method a consumer
+   * cannot call. `pim_connector`, `erp_connector` and `invoice_ledger` each ask
+   * `exclusiveCapability(key)` for the code they refuse with, so
+   * `ExclusiveCapabilityDeclaration` is a return type a module names; the other
+   * two are the members of the registry that one is read out of. The derivation
+   * itself, `capabilityRegistryFrom`, is **not** here — it is the composition
+   * root's, on `./composition`, beside `activationDeclarationsFrom`.
+   */
+  'lifecycle/capability-registry.js': [
+    'CapabilityRegistry',
+    'ExclusiveCapabilityDeclaration',
+    'ModuleCapabilityDeclaration',
+  ],
   /** Row 7, the **P** half of the by-symbol split (§1.4c). */
   'lifecycle/plugin-helpers.js': [
     'ModuleDisabledError',
@@ -368,6 +384,10 @@ const NOT_PUBLISHED: Readonly<Record<string, string>> = {
   ModuleRegistrationSink: 'composition — a `createModuleContext` input.',
   RegistrationOwnership: 'composition — a `createModuleContext` input.',
   requiredModulesFrom: 'composition — `composeModules` refuses before a module registers.',
+  capabilityRegistryFrom:
+    'composition — `loadModulePresence` derives the families before a module registers (feature 132).',
+  ContestedCapabilityError:
+    'composition — the refusal is the host’s, before boot: two owners of one capability.',
   absentRequiredModules: 'composition — as above.',
   assertRequiredModulesPresent: 'composition — as above.',
   RequiredModuleAbsentError: 'composition — the refusal is the host’s, before boot.',
@@ -579,6 +599,12 @@ const HOST_COMPOSITION_SURFACE: Readonly<Record<string, readonly string[]>> = {
   'kernel/lifecycle/registry-cache.ts': ['registryCache', 'publishStateChanged'],
   'kernel/lifecycle/activation-resolver.ts': ['activationDeclarationsFrom'],
   'kernel/lifecycle/required-modules.ts': ['requiredModulesFrom'],
+  // Feature 132. The derivation and its refusal sit beside the two above for the
+  // same reason: a root calls them once, before the first module registers, and a
+  // module never does — it reads the result through `effectiveState`, which is on
+  // `./kernel`. The three *shapes* are published there for the same reason;
+  // `NOT_PUBLISHED` is keyed by name alone, so they are not repeated here.
+  'kernel/lifecycle/capability-registry.ts': ['capabilityRegistryFrom'],
   // `specs/110-instance-repository/` T119c — the one entry here that is an
   // **entity class**, and the one whose consumer is a generated artefact.
   // `host-package.md` §1.3 classifies `ModuleRegistration` **A**, and this is

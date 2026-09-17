@@ -9,6 +9,10 @@ import {
   resolveActivation,
   type ModuleActivationDeclaration,
 } from './activation-resolver.js';
+import type {
+  CapabilityRegistry,
+  ExclusiveCapabilityDeclaration,
+} from './capability-registry.js';
 
 export const STATE_CHANGED_CHANNEL = 'b2b:module:state-changed';
 export const FALLBACK_TTL_MS = 5_000;
@@ -83,6 +87,22 @@ export class ModuleRegistryCache {
   /** Resolved operator activation, per declaring module. */
   private activation = new Map<string, boolean>();
   private declarations = new Map<string, ModuleActivationDeclaration>();
+  /**
+   * The derived capability families (feature 132), indexed the two ways they are
+   * read: key → declared member ids, and key → its owner's declaration.
+   *
+   * They live **here**, beside the activation declarations and the resolved
+   * activation, and that is the Redis cache-invalidation design rather than a
+   * convenience (`data-model.md` §2.2). An exclusion reads membership and
+   * activation together on every refusal, and this cache is refreshed by the
+   * `b2b:module:state-changed` pub/sub channel — the same refresh that
+   * re-resolves activation. Holding both in one structure with one invalidation
+   * is what stops them disagreeing; a family cached anywhere else would need a
+   * second refresh path and would be stale for exactly the window in which an
+   * operator is flipping a connector, which is the only window that matters.
+   */
+  private capabilityMembers = new Map<string, string[]>();
+  private exclusiveCapabilities = new Map<string, ExclusiveCapabilityDeclaration>();
   /**
    * Content hash of the two axes, and the counter that moves with it.
    *
@@ -253,6 +273,53 @@ export class ModuleRegistryCache {
     this.declarations = new Map(declarations.map((d) => [d.moduleId, d]));
   }
 
+  /**
+   * Install the derived capability registry. Plain data, for the same reason the
+   * activation declarations are: the hot path must never import the manifest
+   * graph.
+   *
+   * Replaces the whole registry rather than merging into it — a re-load is a
+   * re-derivation from the manifests this process composed, and a merge would
+   * keep a member that a `module:uninstall` has taken away.
+   */
+  setCapabilityDeclarations(registry: CapabilityRegistry): void {
+    const members = new Map<string, string[]>();
+    for (const declaration of registry.declarations) {
+      for (const key of declaration.capabilities) {
+        const list = members.get(key) ?? [];
+        list.push(declaration.moduleId);
+        members.set(key, list);
+      }
+    }
+    this.capabilityMembers = members;
+    this.exclusiveCapabilities = new Map(
+      registry.exclusive.map((entry) => [entry.key, entry]),
+    );
+  }
+
+  /**
+   * Every module that **declared** membership of `key`, present or not, in
+   * manifest order.
+   *
+   * No `assertLoaded`, exactly like {@link activationDeclaration}: this is
+   * manifest data installed by the composition root before any database read,
+   * and the family owner registers its exclusion interceptor at that point. A
+   * read that threw before the load would make the family unreadable at the one
+   * moment it has to be readable.
+   */
+  declaredCapabilityMembers(key: string): readonly string[] {
+    return this.capabilityMembers.get(key) ?? [];
+  }
+
+  /**
+   * The owner and refusal code for `key`, or `undefined` when no installed
+   * module owns it — which is not an error (R3.5): the capability is simply not
+   * exclusive in that deployment.
+   */
+  exclusiveCapability(key: string): ExclusiveCapabilityDeclaration | undefined {
+    return this.exclusiveCapabilities.get(key);
+  }
+
   /** Union of everything the registry knows and everything that declared a control. */
   knownModuleIds(): string[] {
     this.assertLoaded('knownModuleIds');
@@ -274,9 +341,20 @@ export class ModuleRegistryCache {
     em: () => EntityManager;
     /** Activation declarations from the loaded manifests (feature 073). */
     activationDeclarations?: readonly ModuleActivationDeclaration[];
+    /**
+     * The capability families derived from the same manifests (feature 132).
+     *
+     * In **this** call and in no other, on purpose: see the field's comment. The
+     * exclusion resolves membership against the activation this call resolves, so
+     * the two are installed by one caller and refreshed by one event.
+     */
+    capabilityRegistry?: CapabilityRegistry;
   }): Promise<void> {
     if (opts.activationDeclarations) {
       this.setActivationDeclarations(opts.activationDeclarations);
+    }
+    if (opts.capabilityRegistry) {
+      this.setCapabilityDeclarations(opts.capabilityRegistry);
     }
     await this.refreshFromDb(opts.em);
   }
@@ -386,6 +464,8 @@ export class ModuleRegistryCache {
     this.platformStates = new Map();
     this.activation = new Map();
     this.declarations = new Map();
+    this.capabilityMembers = new Map();
+    this.exclusiveCapabilities = new Map();
     this.restamp();
   }
 
