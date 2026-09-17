@@ -22,5 +22,20 @@
   },
   "sidebar.main.category.api-contracts": {
     "message": "Kontrakty API"
+  },
+  "sidebar.main.category.architecture": {
+    "message": "Architektura"
+  },
+  "sidebar.main.doc.architecture/tenant-scoping": {
+    "message": "Izolacja tenantów"
+  },
+  "sidebar.main.category.integrations": {
+    "message": "Integracje"
+  },
+  "sidebar.main.doc.integrations/README": {
+    "message": "Integracje"
+  },
+  "sidebar.main.doc.integrations/api-access": {
+    "message": "Dostęp partnerski do API"
   }
 }
