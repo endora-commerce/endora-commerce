@@ -44,6 +44,15 @@
   "sidebar.main.doc.architecture/pim-connector": {
     "message": "Wspólna warstwa PIM"
   },
+  "sidebar.main.doc.architecture/customisation-ladder": {
+    "message": "Drabina dostosowania"
+  },
+  "sidebar.main.doc.architecture/pim-unopim": {
+    "message": "Łącznik PIM UnoPim"
+  },
+  "sidebar.main.doc.architecture/pim-pimcore": {
+    "message": "Łącznik PIM Pimcore"
+  },
   "sidebar.main.category.integrations": {
     "message": "Integracje"
   },
