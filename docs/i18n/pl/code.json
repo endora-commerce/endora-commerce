@@ -301,5 +301,35 @@
   },
   "sidebar.main.doc.modules/cms/extending-page-builder": {
     "message": "Rozszerzanie Page Buildera"
+  },
+  "sidebar.main.category.seo": {
+    "message": "seo"
+  },
+  "sidebar.main.category.newsletter": {
+    "message": "newsletter"
+  },
+  "sidebar.main.category.transactional_emails": {
+    "message": "transactional_emails"
+  },
+  "sidebar.main.category.webhooks": {
+    "message": "webhooks"
+  },
+  "sidebar.main.category.google_analytics": {
+    "message": "Google Analytics"
+  },
+  "sidebar.main.doc.module-reference/seo": {
+    "message": "seo — module reference"
+  },
+  "sidebar.main.doc.module-reference/newsletter": {
+    "message": "newsletter — module reference"
+  },
+  "sidebar.main.doc.module-reference/transactional-emails": {
+    "message": "transactional_emails — module reference"
+  },
+  "sidebar.main.doc.module-reference/webhooks": {
+    "message": "webhooks — module reference"
+  },
+  "sidebar.main.doc.module-reference/google-analytics": {
+    "message": "google_analytics — module reference"
   }
 }
