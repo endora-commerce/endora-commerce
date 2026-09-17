@@ -208,5 +208,20 @@
   },
   "sidebar.main.doc.module-reference/wfirma": {
     "message": "wfirma — module reference"
+  },
+  "sidebar.main.category.admin_actions": {
+    "message": "Admin Command Palette Actions"
+  },
+  "sidebar.main.category.api_keys": {
+    "message": "api_keys"
+  },
+  "sidebar.main.category.languages": {
+    "message": "languages"
+  },
+  "sidebar.main.category.sales_channels": {
+    "message": "Sales channels"
+  },
+  "sidebar.main.category.search": {
+    "message": "search"
   }
 }
