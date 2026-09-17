@@ -3509,7 +3509,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    files: 1384,
+    // **`feat/134-paid-module-extraction`: files 1384 -> 1390, sites unchanged at 13.**
+    // `DOCUMENT_ROOTS` is `['docs/docs', 'specs']`, so this branch's six documents under
+    // `specs/134-paid-module-extraction/` are in the walk and none of them cites a verbatim
+    // block. Measured on a pristine `git worktree` of `origin/master` at `690b9ba50` after
+    // `pnpm install --frozen-lockfile` and `build:packages` — this check refuses to report a
+    // vacuous pass without the built module manifests — with `docs/docs/modules` holding only
+    // its three tracked files and no `docs/.module-docs-copies.json`. **Unlike the three
+    // whole-tree entries this branch re-records, this one was not stale**: 1384 described the
+    // tree exactly, and the movement is this branch's +6 and nothing else.
+    files: 1390,
     sites: 13,
     sources: [],
     //
@@ -9062,7 +9071,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/cli`, the repository host under `backend/scripts`, the companion test, and the
     // changeset body. Confirmed by parking each of the four and re-running — each one costs
     // exactly 1, which is the cleanest attribution any entry in this record gets.
-    files: 8636,
+    // **`feat/134-paid-module-extraction`: files 8636 -> 8635, and the movement is two
+    // movements.** Measured on a pristine `git worktree` of `origin/master` at `690b9ba50`,
+    // parked and re-run for attribution: **8629** without this branch's directory and **8635**
+    // with it. So this branch adds **+6** (`specs/134-paid-module-extraction/`'s six documents)
+    // on top of a **-7** that was already on `master` and that nothing re-recorded: the release
+    // commit `e44a3f3d0` (*chore: version packages*) consumed ten `.changeset/*.md` bodies and
+    // wrote three, which is a legitimate population shrink that sat inside the band — exactly
+    // the silent staleness a band cannot ratchet. Recorded as the measurement, never as
+    // `8636 - 1`.
+    files: 8635,
     sites: null,
     sources: [],
     //
@@ -11024,8 +11042,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // population comes off the git **index**, so moving a file aside changes its index entry
     // rather than removing it from the walk, and the number does not budge. Four added files, +4,
     // and the other ten drifted entries in the same run corroborate the population.
-    files: 8697,
-    sites: 1291,
+    // **`feat/134-paid-module-extraction`: files 8697 -> 8696, sites 1291 -> 1297.** Measured on
+    // a pristine `git worktree` of `origin/master` at `690b9ba50`: **8690 / 1291** without this
+    // branch's directory and **8696 / 1297** with it. **Parking worked here, and the note above
+    // is right about why it usually does not**: this population is
+    // `git ls-files --cached --others --exclude-standard`, so a *tracked* file moved aside keeps
+    // its index entry and the number does not budge — but an **untracked** directory is in the
+    // walk only through `--others`, and moving it out removes it. The `files` movement is again
+    // two movements: **+6** from this branch, on top of a **-7** already on `master` from
+    // `e44a3f3d0`'s consumed changesets, which nothing re-recorded. `sites` moved by exactly
+    // this branch's six documents and was **not** stale.
+    files: 8696,
+    sites: 1297,
     // `git-tree-entries` — the committed tree's own root entries, read from a
     // different git store than the index this walk uses. Not `self-reported`:
     // two derivations of one population by two routes is precisely the second
@@ -14048,7 +14076,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // removing it from the walk. Measured on a pristine worktree of the branch with the collected
     // module doc copies cleaned, which is also where the four other whole-tree entries in this
     // re-record were measured.
-    files: 8696,
+    // **`feat/134-paid-module-extraction`: files 8696 -> 8695.** Measured on a pristine
+    // `git worktree` of `origin/master` at `690b9ba50`: **8689** without this branch's directory
+    // and **8695** with it. **Parking did work this time**, and the note above is still right
+    // about why it usually does not — an *untracked* directory reaches this walk only through
+    // `--others`, so moving it out removes it, while a tracked file keeps its index entry. Two
+    // movements again: **+6** from this branch's six documents, on top of a **-7** already on
+    // `master` from `e44a3f3d0`'s consumed changesets. `check:language` was measured in the same
+    // two runs and answered **6518 both times** — it is the one whole-tree entry this branch does
+    // not move, so its recorded value is left exactly as it stands.
+    files: 8695,
     sites: null,
     sources: ['manifest-index'],
     //
