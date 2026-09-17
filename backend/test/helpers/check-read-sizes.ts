@@ -3605,11 +3605,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-docs-translations.ts': {
     prefix: '[docs-translations]',
     run: { kind: 'tsx', path: 'scripts/check-docs-translations.ts', args: [] },
-    // **Feature 132 Phase 2b:** English documentation sources (hand-authored,
+    // **Feature 132 Phase 6 (T045):** English documentation sources (hand-authored,
     // generated reference, module map, module-owned), their cache entries,
     // materialized i18n markdown, and sidebar message ids in `code.json`.
-    files: 552,
-    sites: 367,
+    // Re-measured 2026-09-17 on clean tree (552/367 → 555/368).
+    files: 555,
+    sites: 368,
     sources: [],
   },
   'backend/scripts/check-doc-snippets.ts': {
