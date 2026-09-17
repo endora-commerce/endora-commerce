@@ -221,6 +221,12 @@
   "sidebar.main.category.sales_channels": {
     "message": "Sales channels"
   },
+  "sidebar.main.doc.modules/sales_channels/admin-usage": {
+    "message": "Admin usage"
+  },
+  "sidebar.main.doc.modules/sales_channels/developer-guide": {
+    "message": "Developer guide"
+  },
   "sidebar.main.category.search": {
     "message": "search"
   }
