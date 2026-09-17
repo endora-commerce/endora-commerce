@@ -229,5 +229,32 @@
   },
   "sidebar.main.category.search": {
     "message": "search"
+  },
+  "sidebar.main.category.catalog": {
+    "message": "Katalog"
+  },
+  "sidebar.main.doc.modules/catalog/attachments": {
+    "message": "Załączniki produktu"
+  },
+  "sidebar.main.doc.modules/catalog/attribute-sets": {
+    "message": "Zestawy atrybutów"
+  },
+  "sidebar.main.doc.modules/catalog/attributes": {
+    "message": "Atrybuty"
+  },
+  "sidebar.main.doc.modules/catalog/composite-products": {
+    "message": "Produkty złożone"
+  },
+  "sidebar.main.doc.modules/catalog/gallery-and-labels": {
+    "message": "Galeria produktu"
+  },
+  "sidebar.main.doc.modules/catalog/packaging-units": {
+    "message": "Jednostki opakowania"
+  },
+  "sidebar.main.doc.modules/catalog/per-channel-per-language-overrides": {
+    "message": "Nadpisania per kanał i język"
+  },
+  "sidebar.main.doc.modules/catalog/product-links": {
+    "message": "Powiązania produktów"
   }
 }
