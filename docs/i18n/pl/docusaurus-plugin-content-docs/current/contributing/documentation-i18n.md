@@ -14,7 +14,7 @@ tłumaczenia maszynowego.
 
 Ta strona opisuje workflow **witryny dokumentacji**. Pakiety stringów UI panelu admina
 (`packages/modules/*/i18n/`) to osobny system — zobacz
-[Tłumaczenia UI panelu admina](./translations.md).
+[Tłumaczenia UI panelu admina](./translations).
 
 ## Co trzeba tłumaczyć
 
@@ -145,7 +145,7 @@ w skryptach.
 
 ## Zobacz także
 
-- [Tłumaczenia UI panelu admina](./translations.md) — polski słownik oraz
+- [Tłumaczenia UI panelu admina](./translations) — polski słownik oraz
   workflow pakietów `packages/modules/*/i18n/` (feature 021).
-- [`specs/conventions/module-documentation.md`](../../../specs/conventions/module-documentation.md)
-  — gdzie przed tłumaczeniem żyją angielskie strony należące do modułów.
+- `specs/conventions/module-documentation.md` — gdzie przed tłumaczeniem żyją angielskie
+  strony należące do modułów.

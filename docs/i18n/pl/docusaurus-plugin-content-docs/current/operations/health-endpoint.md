@@ -15,7 +15,7 @@ instancja ze scaffoldu — którego zestaw modułów wynika z modułów deklaruj
 niewyłączalne — go nie miała, a kontener API nigdy nie stawał się zdrowy.
 
 Ta strona znajduje się w drzewie samej witryny, a nie obok źródeł modułu, na precedencie
-[Cyklu życia modułu](../modules/lifecycle.md), którego temat jest również częścią pakietu
+[Cyklu życia modułu](../modules/lifecycle), którego temat jest również częścią pakietu
 platformy.
 
 ## Publiczne API

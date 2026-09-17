@@ -18,7 +18,7 @@ przypadkiem zostało napisane.
 | Moduł | Możliwość | Pakiet |
 | --- | --- | --- |
 | [Języki Admin UI](./i18n.md) | Preferencja języka per użytkownik Admin UI + paczki tłumaczeń w zakresie modułu | @endora-commerce/mod-i18n |
-| [Cykl życia modułu](./lifecycle.md) | Instalacja / deinstalacja / włączenie / wyłączenie / status przez CLI dla każdego modułu backendu + walidacja zależności + uzgadnianie przy pierwszym starcie | core |
+| [Cykl życia modułu](./lifecycle) | Instalacja / deinstalacja / włączenie / wyłączenie / status przez CLI dla każdego modułu backendu + walidacja zależności + uzgadnianie przy pierwszym starcie | core |
 | [addresses](./addresses.md) | Adresy pocztowe klientów z invariantem domyślnego adresu per rodzaj | @endora-commerce/mod-addresses |
 | [Admin Command Palette Actions](./admin-actions.md) | Rejestr akcji współtworzonych przez moduły, widoczny w palecie poleceń Admin (grupa Actions ⌘K) | @endora-commerce/mod-admin-actions |
 | `admin_notifications` | _brak strony_ | @endora-commerce/mod-admin-notifications |

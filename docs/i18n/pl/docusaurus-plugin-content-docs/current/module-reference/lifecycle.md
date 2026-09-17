@@ -10,7 +10,7 @@ description: Wszystko, co manifest modułu `_lifecycle` deklaruje: uprawnienia, 
 
 # `_lifecycle` — referencja modułu
 
-Wygenerowane z manifestu modułu, bez ręcznych edycji. Co moduł *robi*, opisuje [własna strona](../modules/lifecycle.md).
+Wygenerowane z manifestu modułu, bez ręcznych edycji. Co moduł *robi*, opisuje [własna strona](../modules/lifecycle).
 
 | | |
 | --- | --- |
