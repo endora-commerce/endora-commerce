@@ -17,7 +17,7 @@ import type { LedgerEntry } from '../../check-module-boundary.js';
  * What both entries here have in common, said once.
  *
  * Feature 061's convergence is a one-way move of `catalog`'s own legacy registry
- * **into** `custom_fields`' tables, so the two seams `research.md` §8 offers the
+ * **into** `custom_fields`' tables, so the two seams `specs/097-migration-sql-boundary/research.md` §8 offers the
  * adapter seeds are both unavailable in their usual form: the owner cannot write
  * the migration, because the source rows are `product_attributes`' and
  * `custom_fields` has never heard of them; and an `installHook` cannot, because
@@ -29,7 +29,7 @@ const CONVERGENCE =
   'The write is feature 061\'s one-way convergence of the legacy `product_attributes` ' +
   'registry onto the Custom Fields layer, inside one transaction, and it is not a seed: it ' +
   'copies rows that exist only on a database being upgraded across that feature. Both seams ' +
-  '`research.md` §8 offers the adapter seeds are therefore unavailable as written. The ' +
+  '`specs/097-migration-sql-boundary/research.md` §8 offers the adapter seeds are therefore unavailable as written. The ' +
   'owner\'s own migration cannot do it — `custom_fields` has never heard of ' +
   '`product_attributes`, and giving it that knowledge inverts the dependency the manifest ' +
   'declares. An `installHook` cannot either: it re-runs by contract, and a one-way ' +
@@ -41,7 +41,7 @@ const CONVERGENCE =
   'cross-module seam running inside the caller\'s transaction. What is missing is a caller ' +
   'that is not a migration.\n\n' +
   'Retired by: an owner ruling on where a **one-way historical conversion** into another ' +
-  'module\'s tables lives, which `research.md` §8 does not answer and which the two adapter ' +
+  'module\'s tables lives, which `specs/097-migration-sql-boundary/research.md` §8 does not answer and which the two adapter ' +
   'families do not raise. Constrained by the stamp: `20260723T230401` is below ' +
   '`BASELINE_THROUGH`, so whatever replaces it has to be a no-op on every database that has ' +
   'already applied it.';
