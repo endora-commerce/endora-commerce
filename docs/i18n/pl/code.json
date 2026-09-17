@@ -142,5 +142,20 @@
   },
   "sidebar.main.category.price_lists": {
     "message": "price_lists"
+  },
+  "sidebar.main.category.payments": {
+    "message": "payments"
+  },
+  "sidebar.main.category.shipments": {
+    "message": "shipments"
+  },
+  "sidebar.main.category.taxes": {
+    "message": "taxes"
+  },
+  "sidebar.main.category.promotions": {
+    "message": "promotions"
+  },
+  "sidebar.main.category.returns": {
+    "message": "returns"
   }
 }
