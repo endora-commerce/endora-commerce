@@ -29,6 +29,21 @@
   "sidebar.main.doc.architecture/tenant-scoping": {
     "message": "Izolacja tenantów"
   },
+  "sidebar.main.doc.architecture/api-interceptor": {
+    "message": "Przechwytywacz API"
+  },
+  "sidebar.main.doc.architecture/command-bus": {
+    "message": "Command Bus"
+  },
+  "sidebar.main.doc.architecture/custom-fields": {
+    "message": "Pola niestandardowe"
+  },
+  "sidebar.main.doc.architecture/permissions": {
+    "message": "Uprawnienia"
+  },
+  "sidebar.main.doc.architecture/pim-connector": {
+    "message": "Wspólna warstwa PIM"
+  },
   "sidebar.main.category.integrations": {
     "message": "Integracje"
   },
