@@ -1327,6 +1327,33 @@ export async function setupBackendServer(
         `delete from "attachment_types" where "code" not in ('certificate', 'tech_spec', 'product_card', 'pdf')`,
       );
 
+      // Drop every platform-wide setting override, for the same reason and in
+      // the same spirit as the config resets below: `settings` rows are
+      // declarations the manifest reconciler owns, so the table is not
+      // truncated — but `global_value` on those rows is operator state, and an
+      // operator write by one test file was standing for every file that ran
+      // after it in the same run database.
+      //
+      // Two families of failure came out of that, and neither is visible to a
+      // targeted run because both need a particular neighbour to have run
+      // first. `invoice_ledger.ksef.routing` and `invoice_ledger.numbering.mode`
+      // are written globally by the routing contract test and by several KSeF
+      // integration files, and a leaked `vendor` silently changes what every
+      // later invoice does — a delivery routed to the vendor, native KSeF
+      // submission skipped. And `<module>.activation` is a Setting like any
+      // other, so a leaked `wfirma.activation = true` makes the invoice-ledger
+      // vendor mutex refuse the next file's Infakt activation with a 409.
+      //
+      // NULL is not a value here: it means "no global override", so every
+      // setting resolves to its manifest `defaultValue` again — the state a
+      // fresh install is in, which is what the reconcile below re-asserts.
+      // `setting_values`, the per-channel overrides, needs no statement: every
+      // row points at a `sales_channels` row, and that table is truncated with
+      // cascade above.
+      await conn.execute(
+        'update "settings" set "global_value" = null where "global_value" is not null',
+      );
+
       // Reset the i18n + dictionary config tables to a known state so
       // parallel-running tests don't inherit each other's mutations. We don't
       // truncate them in SEEDED_TABLES because they're configuration, not
