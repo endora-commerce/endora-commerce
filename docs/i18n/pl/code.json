@@ -47,6 +47,12 @@
   "sidebar.main.doc.architecture/customisation-ladder": {
     "message": "Drabina dostosowania"
   },
+  "sidebar.main.doc.architecture/overlay-pattern": {
+    "message": "Wzorzec overlay"
+  },
+  "sidebar.main.doc.architecture/pim-ergonode": {
+    "message": "Łącznik PIM Ergonode"
+  },
   "sidebar.main.doc.architecture/pim-unopim": {
     "message": "Łącznik PIM UnoPim"
   },
