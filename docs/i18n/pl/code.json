@@ -100,5 +100,17 @@
   },
   "sidebar.main.doc.integrations/akeneo-pim": {
     "message": "Akeneo PIM"
+  },
+  "sidebar.main.category.carts": {
+    "message": "carts"
+  },
+  "sidebar.main.category.customer_accounts": {
+    "message": "customer_accounts"
+  },
+  "sidebar.main.category.orders": {
+    "message": "orders"
+  },
+  "sidebar.main.category.quick_order": {
+    "message": "quick_order"
   }
 }
