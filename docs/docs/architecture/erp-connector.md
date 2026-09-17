@@ -104,8 +104,10 @@ The `erp_connector` module package owns the registry service, activation-lock
 entity and migrations. Shared Zod vocabulary lives in `packages/contracts` as
 `erp-connector.ts`. Unit and contract tests live under `backend/test/erp_connector/`.
 
-See the generated [ERP connector module reference](../modules/erp_connector.md) for
-the package that ships this module in a given instance.
+`erp_connector` ships no operator documentation page, and deliberately so: it has no
+operator surface of its own — no admin screen, no setting an operator sets — exactly like
+`pim_connector`, whose architecture page is the sibling of this one. What an operator
+reads is the consumer module's page; the one this registry gates today is linked below.
 
 ## Gates
 

@@ -151,6 +151,11 @@ const CHECKS: readonly MovedTreeCheck[] = [
   { script: 'check-port-dependencies.ts', args: [], prefix: '[port-deps]' },
   { script: 'check-port-shape.ts', args: [], prefix: '[port-shape]' },
   { script: 'check-platform-surface.ts', args: [], prefix: '[platform-surface]' },
+  // Its module-population floor is the ordinary one, but the floor that
+  // actually protects it is the *second* one — no queue name resolved at all —
+  // and a moved module tree is exactly the input that empties it: all 50 of the
+  // resolved names in this tree are declared inside a module.
+  { script: 'check-queue-names.ts', args: [], prefix: '[queue-names]' },
   { script: 'check-subscribe-seam.ts', args: [], prefix: '[subscribe-seam]' },
   { script: 'check-transaction-context.ts', args: [], prefix: '[transaction-context]' },
   // Feature 080, T061. Its population is *two* — the module walk it shares with

@@ -828,6 +828,37 @@ export const ESTATE: readonly EstateEntry[] = [
     tier: 'C',
   },
   {
+    /**
+     * **Tier A, `package` and `built` on day one**, which is unusual and is a
+     * property of the rule rather than of the effort spent on it: its whole
+     * input is one package's own source text. No permission resolver, no peer's
+     * published surface, no generated artefact — a `new Queue('a:b')` is wrong
+     * in a module package for exactly the reason it is wrong here, and the
+     * author who most needs to be refused is the third party writing their
+     * first worker.
+     */
+    id: 'check:queue-names',
+    script: 'backend/scripts/check-queue-names.ts',
+    scope: 'package',
+    host: 'built',
+    partial: [
+      {
+        signal: 'resolved-name-floor',
+        reason:
+          'the repository-scope floor — *no queue name resolved at all is exit 2* — is a ' +
+          'statement about a tree known to hold queues. Most module packages ship no worker ' +
+          'and therefore no queue name, so the floor is declared unevaluated here rather ' +
+          'than refusing an ordinary package',
+      },
+    ],
+    subjectDeclaration: {
+      kind: 'exports-subpath',
+      declaration: '`exports` subpath publishing backend sources',
+    },
+    readsArtefact: false,
+    tier: 'A',
+  },
+  {
     id: 'check:release-intent',
     script: 'backend/scripts/check-release-intent.ts',
     scope: 'repository-only',

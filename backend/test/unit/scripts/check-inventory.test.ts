@@ -205,11 +205,13 @@ import * as hostNulBytes from '../../../scripts/check-nul-bytes.js';
 import * as hostBundlePairing from '../../../scripts/check-bundle-pairing.js';
 import * as hostContainerImports from '../../../scripts/check-container-imports.js';
 import * as hostSubscribeSeam from '../../../scripts/check-subscribe-seam.js';
+import * as hostQueueNames from '../../../scripts/check-queue-names.js';
 import * as hostCommandCoverage from '../../../scripts/check-command-coverage.js';
 import * as ruleNulBytes from '@endora-commerce/cli/rules/nul-bytes.js';
 import * as ruleBundlePairing from '@endora-commerce/cli/rules/bundle-pairing.js';
 import * as ruleContainerImports from '@endora-commerce/cli/rules/container-imports.js';
 import * as ruleSubscribeSeam from '@endora-commerce/cli/rules/subscribe-seam.js';
+import * as ruleQueueNames from '@endora-commerce/cli/rules/queue-names.js';
 import * as ruleCommandCoverage from '@endora-commerce/cli/rules/command-coverage.js';
 import * as hostActionRoute from '../../../scripts/check-action-route-permissions.js';
 import * as hostChannelResolution from '../../../scripts/check-channel-resolution.js';
@@ -299,6 +301,7 @@ import {
 import { publishedSurface } from '../../../scripts/lib/platform-surface.js';
 import { checkPortShape } from '../../../scripts/check-port-shape.js';
 import { checkSubscribeSeam, checkWorkerSeam } from '../../../scripts/check-subscribe-seam.js';
+import { checkQueueNames } from '../../../scripts/check-queue-names.js';
 import { checkTransactionContext } from '../../../scripts/check-transaction-context.js';
 import {
   checkSingletonIdentity,
@@ -8391,6 +8394,91 @@ const CHECKS: readonly CheckEntry[] = [
     },
   },
   {
+    // One rule and one finding, and the proofs are about the **resolver**
+    // rather than about the predicate. `'a:b'.includes(':')` cannot rot;
+    // reaching `'a:b'` from `new Queue(COMARCH_XL_DETECT_QUEUE, …)` is the part
+    // that can, and it is the only part that sees the defect this check was
+    // written from — `comarch_xl` wrote no name at any construction site.
+    //
+    // So there is a proof per rung of the chain (literal, same-file constant,
+    // imported constant) and one per way the population can be wrong in the
+    // direction of a false green (`Worker` as well as `Queue`) or a false red
+    // (a `Queue` that is not BullMQ's, a permission code, an unresolvable
+    // name). Each enters as source text, so the import follower, the constant
+    // collector and the specifier resolver all run.
+    script: 'backend/scripts/check-queue-names.ts',
+    npmScript: 'check:queue-names',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-queue-names.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    residueGuard: 'derived-population',
+    red: {
+      'colon-in-a-literal': top(
+        () =>
+          checkQueueNames({
+            sources: new Map([
+              [
+                'modules/inventory/queues/sync-queue.ts',
+                "import { Queue } from 'bullmq';\nexport const q = new Queue('inventory:sync', {});",
+              ],
+            ]),
+          }).findings.length,
+      ),
+      // The real defect's shape: the literal is on a `const` and the
+      // construction names the identifier.
+      'colon-behind-a-same-file-constant': top(
+        () =>
+          checkQueueNames({
+            sources: new Map([
+              [
+                'modules/comarch_xl/queues/xl-sync-queues.ts',
+                "import { Queue } from 'bullmq';\n" +
+                  "export const DETECT = 'comarch_xl:detect';\n" +
+                  'export const q = new Queue(DETECT, {});',
+              ],
+            ]),
+          }).findings.length,
+      ),
+      // `infakt`'s shape: declared in one file, constructed in another. The
+      // fixture supplies the declaring **file** rather than a pre-resolved
+      // name, which is the only way it can catch a specifier resolver that has
+      // stopped working (issue #130).
+      'colon-behind-an-imported-constant': top(
+        () =>
+          checkQueueNames({
+            sources: new Map([
+              [
+                'modules/infakt/workers/queue-names.ts',
+                "export const DELIVERY = 'infakt:delivery';",
+              ],
+              [
+                'modules/infakt/workers/delivery-worker.ts',
+                "import { Worker } from 'bullmq';\n" +
+                  "import { DELIVERY } from './queue-names.js';\n" +
+                  'export const w = new Worker(DELIVERY, processor);',
+              ],
+            ]),
+          }).findings.length,
+      ),
+      // The second half of the vocabulary. `comarch_xl` threw from `new Queue`,
+      // but a colon is equally fatal on the consumer side, and a walk that read
+      // only one of the two classes would go blind behind the other's red.
+      'colon-on-a-worker': top(
+        () =>
+          checkQueueNames({
+            sources: new Map([
+              [
+                'modules/newsletter/queues/send-queue.ts',
+                "import { Worker } from 'bullmq';\n" +
+                  "export const w = new Worker('newsletter:send', processor);",
+              ],
+            ]),
+          }).findings.length,
+      ),
+    },
+  },
+  {
     // Five signals over one rule — a module's background consumers reach the
     // module's seam — and the fixture for each names only its own.
     //
@@ -11418,6 +11506,13 @@ describe('every red proof enters at the top of the analysis', () => {
       // pre-existing instrument in this estate whose *subject* survives the
       // move to a canonical public repository.
       'backend/scripts/check-release-intent.ts': 36,
+      // Four, and none of them is the predicate. `'a:b'.includes(':')` cannot
+      // rot; the resolver in front of it can, and it is the whole of what
+      // reaches `comarch_xl`'s defect — a literal, a same-file constant, an
+      // imported constant, and the consumer-side class as well as the producer
+      // one. A single proof over a literal at the construction site would go
+      // green over the very tree that took `master` down.
+      'backend/scripts/check-queue-names.ts': 4,
       // Two absences — an undisposed root entry and an undisposed path under a
       // partially-public one — plus the ratchet's two stale directions and the
       // record's two well-formedness refusals. The absences are the rule; the
@@ -12115,6 +12210,7 @@ describe('a relocated analysis has one implementation and two hosts', () => {
       ['check:nul-bytes', hostNulBytes as unknown as Record<string, unknown>, ruleNulBytes as unknown as Record<string, unknown>],
       ['check:bundle-pairing', hostBundlePairing as unknown as Record<string, unknown>, ruleBundlePairing as unknown as Record<string, unknown>],
       ['check:container-imports', hostContainerImports as unknown as Record<string, unknown>, ruleContainerImports as unknown as Record<string, unknown>],
+      ['check:queue-names', hostQueueNames as unknown as Record<string, unknown>, ruleQueueNames as unknown as Record<string, unknown>],
       ['check:subscribe-seam', hostSubscribeSeam as unknown as Record<string, unknown>, ruleSubscribeSeam as unknown as Record<string, unknown>],
       ['check:command-coverage', hostCommandCoverage as unknown as Record<string, unknown>, ruleCommandCoverage as unknown as Record<string, unknown>],
       // Phase 2. Two of these — `check:action-route-permissions` and
