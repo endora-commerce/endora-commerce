@@ -207,7 +207,7 @@
     "message": "infakt — referencja modułu"
   },
   "sidebar.main.doc.module-reference/wfirma": {
-    "message": "wfirma — module reference"
+    "message": "wfirma — referencja modułu"
   },
   "sidebar.main.category.admin_actions": {
     "message": "Admin Command Palette Actions"
@@ -318,16 +318,16 @@
     "message": "Google Analytics"
   },
   "sidebar.main.doc.module-reference/seo": {
-    "message": "seo — module reference"
+    "message": "seo — referencja modułu"
   },
   "sidebar.main.doc.module-reference/newsletter": {
     "message": "newsletter — referencja modułu"
   },
   "sidebar.main.doc.module-reference/transactional-emails": {
-    "message": "transactional_emails — module reference"
+    "message": "transactional_emails — referencja modułu"
   },
   "sidebar.main.doc.module-reference/webhooks": {
-    "message": "webhooks — module reference"
+    "message": "webhooks — referencja modułu"
   },
   "sidebar.main.doc.module-reference/google-analytics": {
     "message": "google_analytics — referencja modułu"
@@ -532,5 +532,59 @@
   },
   "sidebar.main.category.pwa": {
     "message": "PWA (Progressive Web App)"
+  },
+  "sidebar.main.category._lifecycle": {
+    "message": "Cykl życia modułu"
+  },
+  "sidebar.main.category.modules": {
+    "message": "Moduły"
+  },
+  "sidebar.main.doc.admin_notifications": {
+    "message": "admin_notifications — referencja modułu"
+  },
+  "sidebar.main.doc.custom_fields": {
+    "message": "custom_fields — referencja modułu"
+  },
+  "sidebar.main.doc.email": {
+    "message": "email — referencja modułu"
+  },
+  "sidebar.main.doc.mfa": {
+    "message": "mfa — referencja modułu"
+  },
+  "sidebar.main.doc.module-map": {
+    "message": "Mapa modułów"
+  },
+  "sidebar.main.doc.module-reference/quick-order": {
+    "message": "quick_order — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/quote-requests": {
+    "message": "quote_requests — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/returns": {
+    "message": "returns — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/sales-channels": {
+    "message": "sales_channels — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/search": {
+    "message": "search — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/settings": {
+    "message": "settings — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/shipments": {
+    "message": "shipments — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/shopping-lists": {
+    "message": "shopping_lists — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/taxes": {
+    "message": "taxes — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/tpay": {
+    "message": "tpay — referencja modułu"
+  },
+  "sidebar.main.doc.stripe": {
+    "message": "stripe — referencja modułu"
   }
 }
