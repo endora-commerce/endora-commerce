@@ -625,6 +625,28 @@ function testAnyLabel(name: unknown): string {
 }
 
 const SEEDED_TABLES = [
+  // Feature 119 — Comarch XL. Six of these twelve have no foreign key to any
+  // table below — `xl_installations`, `xl_identity_mappings`, `xl_status_maps`,
+  // `xl_sync_jobs` (and its events), `xl_worker_heartbeats` and
+  // `xl_last_applied_snapshots` — so without this the installation one file
+  // configures, the identities it bound and the snapshots it applied are still
+  // there for the next one, and an "is this ERP connected?" read answers from a
+  // neighbour's fixture. The other six do cascade today, from `categories`,
+  // `sales_channels`, `price_lists`, `customer_groups` and `organizations`;
+  // they are listed anyway so that a future nullable-FK change cannot quietly
+  // take a table out of the wipe. Listed children-first.
+  'xl_imported_offer_lines',
+  'xl_imported_offers',
+  'xl_sync_job_events',
+  'xl_sync_jobs',
+  'xl_last_applied_snapshots',
+  'xl_worker_heartbeats',
+  'xl_status_maps',
+  'xl_price_list_mappings',
+  'xl_warehouse_mappings',
+  'xl_category_mappings',
+  'xl_identity_mappings',
+  'xl_installations',
   // Feature 089 — Pimcore PIM. Truncated explicitly because nothing cascades
   // here from the tables below. Listed children-first.
   'pimcore_import_issues',
