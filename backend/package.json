@@ -223,6 +223,7 @@
     "@endora-commerce/cli": "workspace:*",
     "@endora-commerce/test-kit": "workspace:*",
     "@mikro-orm/cli": "^6.6.13",
+    "@types/mdast": "^4.0.4",
     "@types/node": "^22.9.0",
     "@types/nodemailer": "^7.0.4",
     "@types/pdfmake": "^0.3.2",
@@ -230,9 +231,13 @@
     "@types/ssh2-sftp-client": "^9.0.6",
     "@types/web-push": "^3.6.4",
     "aws-sdk-client-mock": "^4.1.0",
+    "deepl-node": "^1.28.0",
     "esbuild": "^0.27.7",
+    "remark-parse": "^11.0.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
+    "unified": "^11.0.5",
+    "unist-util-visit": "^5.1.0",
     "vitest": "^2.1.4"
   },
   "mikro-orm": {
