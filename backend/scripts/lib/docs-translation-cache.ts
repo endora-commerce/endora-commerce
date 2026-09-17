@@ -24,9 +24,10 @@ export interface TranslationCacheLayout {
   readonly i18nDocsRoot: (locale: string) => string;
 }
 
-function defaultLayout(): TranslationCacheLayout {
-  const repoRoot = findRepoRoot(fileURLToPath(new URL('.', import.meta.url)));
-  if (repoRoot === null) {
+export function defaultTranslationCacheLayout(
+  repoRoot: string = findRepoRoot(fileURLToPath(new URL('.', import.meta.url))) ?? '',
+): TranslationCacheLayout {
+  if (repoRoot.length === 0) {
     throw new Error('[docs-translation-cache] could not locate repository root.');
   }
   return {
@@ -35,6 +36,10 @@ function defaultLayout(): TranslationCacheLayout {
     i18nDocsRoot: (locale: string) =>
       join(repoRoot, 'docs/i18n', locale, 'docusaurus-plugin-content-docs/current'),
   };
+}
+
+function defaultLayout(): TranslationCacheLayout {
+  return defaultTranslationCacheLayout();
 }
 
 /** Filesystem-safe cache filename stem for a repo-relative `sourcePath`. */

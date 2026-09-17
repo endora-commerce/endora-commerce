@@ -3602,6 +3602,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // reads a module package's sources and not `backend/test`, so the move is an
     // arrival rather than a transfer — measured, by taking the file back out.
   },
+  'backend/scripts/check-docs-translations.ts': {
+    prefix: '[docs-translations]',
+    run: { kind: 'tsx', path: 'scripts/check-docs-translations.ts', args: [] },
+    // **Feature 132 Phase 2b:** English documentation sources (hand-authored,
+    // generated reference, module map, module-owned), their cache entries,
+    // materialized i18n markdown, and sidebar message ids in `code.json`.
+    files: 552,
+    sites: 367,
+    sources: [],
+  },
   'backend/scripts/check-doc-snippets.ts': {
     prefix: '[doc-snippets]',
     run: { kind: 'tsx', path: 'scripts/check-doc-snippets.ts', args: [] },
@@ -13820,6 +13830,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `uninstall-hard-needs-force.integration.test.ts` spawns to prove `--hard`
     // refuses at a terminal too.
   },
+  'backend/scripts/docs-translate.ts': {
+    prefix: '[docs-translate]',
+    run: { kind: 'tsx', path: 'scripts/docs-translate.ts', args: ['--check'] },
+    // **Feature 132 Phase 2b:** layer-1 hand-authored and layer-4 module-owned
+    // English sources eligible for machine translation (skip list applied).
+    files: 108,
+    sites: 108,
+    sources: [],
+  },
   'backend/scripts/i18n-hardcoded-strings.ts': {
     prefix: '[i18n:hardcoded]',
     run: { kind: 'tsx', path: 'scripts/i18n-hardcoded-strings.ts', args: [] },
@@ -15564,6 +15583,13 @@ export const READ_SIZE_WITHOUT_AN_INDEPENDENT_SOURCE: Readonly<Record<string, st
     'the population is every source file in the repository that could contain a fold or ' +
     'build a slug. Nothing derives that set: both are legal anywhere, which is the whole ' +
     'of issues #240 and #244.',
+  'backend/scripts/check-docs-translations.ts':
+    'the population is every English documentation source configured for translation plus ' +
+    'sidebar message ids derived from the sidebar fragments — both from locale config and ' +
+    'the docs tree rather than a second registry.',
+  'backend/scripts/docs-translate.ts':
+    'the population is hand-authored and module-owned English documentation sources minus ' +
+    'the skip list — the same derivation the check uses for layers 1 and 4.',
   'backend/scripts/check-doc-snippets.ts':
     'the population is the markdown under `docs/docs` and `specs`. A document enrols by ' +
     'carrying a marker, and no registry lists which documents ought to cite a source. ' +
