@@ -256,5 +256,23 @@
   },
   "sidebar.main.doc.modules/catalog/product-links": {
     "message": "Powiązania produktów"
+  },
+  "sidebar.main.category.autopay": {
+    "message": "Autopay"
+  },
+  "sidebar.main.category.dhl_parcel": {
+    "message": "DHL Parcel"
+  },
+  "sidebar.main.category.inpost": {
+    "message": "InPost"
+  },
+  "sidebar.main.category.paypal": {
+    "message": "PayPal"
+  },
+  "sidebar.main.category.payu": {
+    "message": "PayU"
+  },
+  "sidebar.main.category.tpay": {
+    "message": "TPay"
   }
 }
