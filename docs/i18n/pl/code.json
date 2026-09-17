@@ -169,5 +169,29 @@
   },
   "sidebar.main.category.invoices": {
     "message": "invoices"
+  },
+  "sidebar.main.category.invoice_ledger": {
+    "message": "Invoice ledger"
+  },
+  "sidebar.main.category.ksef": {
+    "message": "KSeF"
+  },
+  "sidebar.main.category.infakt": {
+    "message": "Infakt"
+  },
+  "sidebar.main.category.wfirma": {
+    "message": "wFirma"
+  },
+  "sidebar.main.doc.module-reference/invoice-ledger": {
+    "message": "invoice_ledger — module reference"
+  },
+  "sidebar.main.doc.module-reference/ksef": {
+    "message": "ksef — module reference"
+  },
+  "sidebar.main.doc.module-reference/infakt": {
+    "message": "infakt — module reference"
+  },
+  "sidebar.main.doc.module-reference/wfirma": {
+    "message": "wfirma — module reference"
   }
 }
