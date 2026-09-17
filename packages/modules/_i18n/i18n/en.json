@@ -63,7 +63,6 @@
   "adminRoles.permission.dictionary.write": "Manage dictionary registry",
   "adminRoles.permission.google_analytics:read": "View Google Analytics configuration",
   "adminRoles.permission.google_analytics:write": "Manage Google Analytics configuration and custom events",
-  "adminRoles.permission.inpost:manage": "Manage InPost shipping",
   "adminRoles.permission.integrations:manage": "Manage API keys + webhooks",
   "adminRoles.permission.inventory:read": "View stock and warehouses",
   "adminRoles.permission.inventory:write": "Manage stock and warehouses",
@@ -231,10 +230,7 @@
   "appShell.mobileMenu.open": "Open menu",
   "appShell.mobileMenu.title": "Navigation",
   "appShell.nav.autopay": "Autopay",
-  "appShell.nav.deliveryMethods": "Delivery methods",
-  "appShell.nav.dhlParcel": "DHL Parcel",
   "appShell.nav.home": "Home",
-  "appShell.nav.inpost": "InPost",
   "appShell.nav.invoiceTemplates": "Invoice templates",
   "appShell.nav.paymentMethods": "Payment methods",
   "appShell.nav.paypal": "PayPal",
@@ -1981,7 +1977,5 @@
   "webhooks.status.paused": "Paused",
   "platform.modules.recentActivity.shown": "On the dashboard",
   "platform.modules.recentActivity.hidden": "Not on the dashboard",
-  "platform.modules.recentActivity.hint": "Whether {name}'s entries appear on the home dashboard's Recent Activity card. The audit trail itself is unchanged.",
-  "adminRoles.permission.dhl_parcel:read": "View DHL Parcel configuration",
-  "adminRoles.permission.dhl_parcel:write": "Manage DHL Parcel configuration and shipment operations"
+  "platform.modules.recentActivity.hint": "Whether {name}'s entries appear on the home dashboard's Recent Activity card. The audit trail itself is unchanged."
 }
