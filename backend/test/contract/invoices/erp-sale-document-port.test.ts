@@ -143,7 +143,7 @@ describe('invoices — organization sale-document customer routes [contract]', (
   it('lists ERP-imported documents for the signed-in organization', async () => {
     const res = await h.app.inject({
       method: 'GET',
-      url: '/api/v1/account/organization/sale-documents',
+      url: '/api/v1/account/organization/invoices',
       cookies: CUSTOMER_COOKIE,
     });
     expect(res.statusCode).toBe(200);
@@ -159,7 +159,7 @@ describe('invoices — organization sale-document customer routes [contract]', (
   it('refuses attachment download before bytes are stored', async () => {
     const res = await h.app.inject({
       method: 'GET',
-      url: `/api/v1/account/organization/sale-documents/${invoiceId}/attachments/${attachmentId}`,
+      url: `/api/v1/account/organization/invoices/${invoiceId}/attachments/${attachmentId}`,
       cookies: CUSTOMER_COOKIE,
     });
     expect(res.statusCode).toBe(404);

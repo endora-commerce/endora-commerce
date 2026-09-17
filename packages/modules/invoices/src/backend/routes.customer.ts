@@ -110,7 +110,7 @@ export async function registerInvoicesCustomerRoutes(
   );
 
   app.get(
-    '/api/v1/account/organization/sale-documents',
+    '/api/v1/account/organization/invoices',
     { preHandler: requireCustomer },
     async (request) => {
       const ctx = resolveCustomerContext(request);
@@ -145,7 +145,7 @@ export async function registerInvoicesCustomerRoutes(
             id: attachment.id,
             fileName: attachment.fileName,
             contentType: attachment.contentType ?? null,
-            downloadHref: `/api/v1/account/organization/sale-documents/${row.id}/attachments/${attachment.id}`,
+            downloadHref: `/api/v1/account/organization/invoices/${row.id}/attachments/${attachment.id}`,
           })),
         })),
       };
@@ -153,7 +153,7 @@ export async function registerInvoicesCustomerRoutes(
   );
 
   app.get<{ Params: { invoiceId: string; attachmentId: string } }>(
-    '/api/v1/account/organization/sale-documents/:invoiceId/attachments/:attachmentId',
+    '/api/v1/account/organization/invoices/:invoiceId/attachments/:attachmentId',
     { preHandler: requireCustomer, config: { streamingResponse: true } },
     async (request, reply) => {
       const ctx = resolveCustomerContext(request);
