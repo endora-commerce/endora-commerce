@@ -331,5 +331,35 @@
   },
   "sidebar.main.doc.module-reference/google-analytics": {
     "message": "google_analytics — module reference"
+  },
+  "sidebar.main.category.analytics": {
+    "message": "analytics"
+  },
+  "sidebar.main.category.google_tag_manager": {
+    "message": "Google Tag Manager"
+  },
+  "sidebar.main.category.linkedin_ads": {
+    "message": "LinkedIn Ads"
+  },
+  "sidebar.main.category.meta_ads": {
+    "message": "Meta Ads"
+  },
+  "sidebar.main.category.product_feeds": {
+    "message": "Product Feeds"
+  },
+  "sidebar.main.doc.module-reference/analytics": {
+    "message": "analytics — module reference"
+  },
+  "sidebar.main.doc.module-reference/google-tag-manager": {
+    "message": "google_tag_manager — module reference"
+  },
+  "sidebar.main.doc.module-reference/linkedin-ads": {
+    "message": "linkedin_ads — module reference"
+  },
+  "sidebar.main.doc.module-reference/meta-ads": {
+    "message": "meta_ads — module reference"
+  },
+  "sidebar.main.doc.module-reference/product-feeds": {
+    "message": "product_feeds — module reference"
   }
 }
