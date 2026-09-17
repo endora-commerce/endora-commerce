@@ -127,5 +127,20 @@
   },
   "sidebar.main.category.shopping_lists": {
     "message": "shopping_lists"
+  },
+  "sidebar.main.category.addresses": {
+    "message": "addresses"
+  },
+  "sidebar.main.category.credit_limits": {
+    "message": "credit_limits"
+  },
+  "sidebar.main.category.delivery_methods": {
+    "message": "delivery_methods"
+  },
+  "sidebar.main.category.payment_methods": {
+    "message": "payment_methods"
+  },
+  "sidebar.main.category.price_lists": {
+    "message": "price_lists"
   }
 }

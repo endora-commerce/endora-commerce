@@ -1,0 +1,10 @@
+{
+  "sourcePath": "packages/modules/addresses/docs/addresses.md",
+  "sourceHash": "e7fb4483fe3f4bacadaa3e0bc44989ed8f5009ec33f8c3c49687bf00fbf11661",
+  "locale": "pl",
+  "content": "---\ntitle: addresses\ndescription: Adresy pocztowe klientów z inwariantem jednego domyślnego na rodzaj\n---\n\n# `addresses`\n\nAdresy pocztowe klientów w zakresie Organization. Każdy adres ma\n`kind` (`shipping`, `billing`, `delivery`) oraz flagę domyślnego dla danego rodzaju.\n\n## Publiczne API\n\n| Verb + Path | Cel |\n| --- | --- |\n| `GET /api/v1/organizations/mine/addresses` | Lista adresów własnej Organization |\n| `POST /api/v1/organizations/mine/addresses` | Utworzenie; `isDefault=true` atomowo cofa poprzedni domyślny tego samego rodzaju |\n| `PATCH /api/v1/organizations/mine/addresses/:id` | Aktualizacja |\n| `DELETE /api/v1/organizations/mine/addresses/:id` | Usunięcie (odrzucone, gdy adres jest referencjonowany przez zamówienie — `409 ADDRESS_IN_USE`) |\n\n## Encje\n\n`Address` — częściowy unikalny indeks `(organization_id, kind) WHERE\nis_default = true` wymusza „co najwyżej jeden domyślny na rodzaj\" na poziomie bazy.\n\n## Punkty rozszerzenia\n\n- **Walidacja specyficzna dla kraju** — `address-service.ts#createAddress`\n  deleguje sprawdzenie formatu per kraj; dodawaj walidatory tutaj przy wejściu\n  na nowe rynki.\n- **Snapshot przy zamówieniu** — zamówienia osadzają value object `AddressSnapshot`, aby\n  późniejsze edycje adresu źródłowego nie mutowały historycznych zamówień.\n",
+  "meta": {
+    "provider": "manual",
+    "updatedAt": "2026-09-17T09:54:07.337Z"
+  }
+}
