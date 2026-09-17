@@ -29,6 +29,9 @@
   "sidebar.main.doc.architecture/tenant-scoping": {
     "message": "Izolacja tenantów"
   },
+  "sidebar.main.doc.architecture/migrations": {
+    "message": "Migracje bazy danych"
+  },
   "sidebar.main.doc.architecture/api-interceptor": {
     "message": "Przechwytywacz API"
   },
