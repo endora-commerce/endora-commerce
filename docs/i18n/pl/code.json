@@ -482,8 +482,35 @@
   "sidebar.main.doc.module-reference/payu": {
     "message": "payu — referencja modułu"
   },
+  "sidebar.main.doc.pim_connector": {
+    "message": "pim_connector — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/pim-akeneo": {
+    "message": "pim_akeneo — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/pim-ergonode": {
+    "message": "pim_ergonode — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/pim-pimcore": {
+    "message": "pim_pimcore — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/pim-unopim": {
+    "message": "pim_unopim — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/price-lists": {
+    "message": "price_lists — referencja modułu"
+  },
   "sidebar.main.doc.module-reference/product-feeds": {
-    "message": "product_feeds — module reference"
+    "message": "product_feeds — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/promotions": {
+    "message": "promotions — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/prompt-actions": {
+    "message": "prompt_actions — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/pwa": {
+    "message": "pwa — referencja modułu"
   },
   "sidebar.main.category._i18n": {
     "message": "Języki Admin UI"
