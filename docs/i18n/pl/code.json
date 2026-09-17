@@ -361,5 +361,26 @@
   },
   "sidebar.main.doc.module-reference/product-feeds": {
     "message": "product_feeds — module reference"
+  },
+  "sidebar.main.category._i18n": {
+    "message": "Języki Admin UI"
+  },
+  "sidebar.main.category.comarch_xl": {
+    "message": "Comarch ERP XL"
+  },
+  "sidebar.main.category.comparisons": {
+    "message": "Porównywanie produktów"
+  },
+  "sidebar.main.category.dictionaries": {
+    "message": "Słownik"
+  },
+  "sidebar.main.category.import_export": {
+    "message": "import_export"
+  },
+  "sidebar.main.category.prompt_actions": {
+    "message": "Prompt Actions (asystent AI)"
+  },
+  "sidebar.main.category.pwa": {
+    "message": "PWA (Progressive Web App)"
   }
 }
