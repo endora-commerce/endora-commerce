@@ -330,7 +330,9 @@ describe('the navigation reaches every reference page', () => {
     // Otherwise the page is findable only by guessing a URL — `spec.md` § 0.2's
     // measured defect, arriving through the artefact meant to answer it.
     const sidebar = sidebarOver([{ id: 'mfa' }], []);
-    expect(sidebar).toContain("{ type: 'doc', id: 'module-reference/mfa', label: 'mfa' },");
+    expect(sidebar).toContain(
+      "{ type: 'doc', id: 'module-reference/mfa', label: 'mfa', key: 'mfa' },",
+    );
   });
 
   it('names nothing at all for a module that declares docs: false', () => {

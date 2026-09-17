@@ -4,6 +4,8 @@
 // developers (enough detail to extend a module) and Product Owners (enough clarity
 // to understand how to use a module and the system overall).
 
+const localesConfig = require('./locales.config.json');
+
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: 'B2B Platform',
@@ -17,8 +19,13 @@ const config = {
   onBrokenMarkdownLinks: 'warn',
 
   i18n: {
-    defaultLocale: 'en',
-    locales: ['en'],
+    defaultLocale: localesConfig.defaultLocale,
+    locales: localesConfig.locales,
+    localeConfigs: {
+      pl: {
+        label: 'Polski',
+      },
+    },
   },
 
   presets: [
@@ -45,6 +52,7 @@ const config = {
         title: 'B2B Platform',
         items: [
           { type: 'docSidebar', sidebarId: 'main', position: 'left', label: 'Docs' },
+          { type: 'localeDropdown', position: 'right' },
         ],
       },
       footer: {

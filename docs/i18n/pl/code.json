@@ -1,0 +1,11 @@
+{
+  "theme.navbar.title": {
+    "message": "Platforma B2B"
+  },
+  "theme.footer.copyright": {
+    "message": "Dokumentacja wewnętrzna — zobacz repozytorium, aby zapoznać się z konstytucją projektu."
+  },
+  "theme.localeDropdown.label": {
+    "message": "Język"
+  }
+}

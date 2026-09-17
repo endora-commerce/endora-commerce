@@ -183,6 +183,11 @@ function jsString(value: string): string {
   return `'${value.split('\\').join('\\\\').split("'").join("\\'")}'`;
 }
 
+/** Emit `label` + `key` so Docusaurus derives stable `sidebar.main.*` translation ids. */
+function jsSidebarItemLabel(key: string, message: string): string {
+  return `label: ${jsString(message)}, key: ${jsString(key)}`;
+}
+
 /**
  * The sidebar's Modules category, as the array Docusaurus already accepts.
  *
@@ -224,7 +229,8 @@ export function emitDocsSidebar(
       // findable only by guessing a URL — `spec.md` § 0.2's defect, arriving
       // through the artefact meant to answer it.
       if (docs === null) {
-        return `  { type: 'doc', id: ${jsString(referenceDocId ?? '')}, label: ${jsString(
+        return `  { type: 'doc', id: ${jsString(referenceDocId ?? '')}, ${jsSidebarItemLabel(
+          entry.moduleId,
           label,
         )} },`;
       }
@@ -233,7 +239,10 @@ export function emitDocsSidebar(
         ...(referenceDocId === null ? [] : [referenceDocId]),
       ];
       if (items.length === 0) {
-        return `  { type: 'doc', id: ${jsString(docs.entry.docId)}, label: ${jsString(label)} },`;
+        return `  { type: 'doc', id: ${jsString(docs.entry.docId)}, ${jsSidebarItemLabel(
+          entry.moduleId,
+          label,
+        )} },`;
       }
       // The reference page goes **last**, after whatever sub-pages a module
       // wrote: a generated table is what a reader falls back to, not what they
@@ -242,7 +251,7 @@ export function emitDocsSidebar(
       return (
         `  {\n` +
         `    type: 'category',\n` +
-        `    label: ${jsString(label)},\n` +
+        `    ${jsSidebarItemLabel(entry.moduleId, label)},\n` +
         `    link: { type: 'doc', id: ${jsString(docs.entry.docId)} },\n` +
         `    items: [\n${children}\n    ],\n` +
         `  },`
@@ -256,7 +265,7 @@ export function emitDocsSidebar(
   // artefact exists to remove.
   const map = `  { type: 'doc', id: ${jsString(
     `${MODULES_CATEGORY}/${MODULE_MAP_ARTEFACT.replace(/\.mdx?$/, '')}`,
-  )}, label: 'Module map' },`;
+  )}, ${jsSidebarItemLabel('module-map', 'Module map')} },`;
 
   return `${header}//
 // The Modules category of the documentation sidebar (feature 100 / roadmap F12,
