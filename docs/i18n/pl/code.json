@@ -37,5 +37,26 @@
   },
   "sidebar.main.doc.integrations/api-access": {
     "message": "Dostęp partnerski do API"
+  },
+  "sidebar.main.category.operations": {
+    "message": "Operacje"
+  },
+  "sidebar.main.doc.operations/health-endpoint": {
+    "message": "Endpoint health"
+  },
+  "sidebar.main.doc.operations/queue-consumers": {
+    "message": "Konsumenci kolejek i przetwarzanie w tle"
+  },
+  "sidebar.main.doc.operations/warden": {
+    "message": "Lokalny development z Warden"
+  },
+  "sidebar.main.category.runbooks": {
+    "message": "Runbooki"
+  },
+  "sidebar.main.doc.operations/runbooks/block-name-migration": {
+    "message": "Aktualizacja po zmianie nazw bloków Page Buildera"
+  },
+  "sidebar.main.doc.operations/runbooks/module-lifecycle-stuck-lock": {
+    "message": "Zablokowana blokada cyklu życia modułu"
   }
 }
