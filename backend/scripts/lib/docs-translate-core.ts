@@ -75,8 +75,51 @@ function applyIntroDisclaimer(sourcePath: string, locale: string, content: strin
   return `${prefix}${INTRO_MT_DISCLAIMER_PL}${body}`;
 }
 
+async function buildTranslatedMarkdownEntry(
+  english: string,
+  sourcePath: string,
+  locale: string,
+  translator: DocsTextTranslator,
+): Promise<TranslationCacheEntry> {
+  const segmented = segmentMarkdown(english);
+  const translatedSegments =
+    segmented.segments.length === 0
+      ? []
+      : await translator.translateTexts(segmented.segments, locale);
+  const translatedPrefix = await translateFrontMatterFields(
+    segmented.prefix,
+    translator,
+    locale,
+  );
+  let content = restoreSegmentMarkdown(
+    { ...segmented, prefix: translatedPrefix },
+    translatedSegments,
+  );
+  content = applyIntroDisclaimer(sourcePath, locale, content);
+
+  return {
+    sourcePath,
+    sourceHash: hashSourceBody(english),
+    locale,
+    content,
+    meta: {
+      provider: 'deepl',
+      translatedAt: new Date().toISOString(),
+    },
+  };
+}
+
 export interface TranslateDocumentOptions {
   readonly source: DocsTranslationSource;
+  readonly locale: string;
+  readonly layout: TranslationCacheLayout;
+  readonly translator: DocsTextTranslator;
+  readonly dryRun?: boolean;
+}
+
+export interface MaterializeGeneratedDocTranslationOptions {
+  readonly englishContent: string;
+  readonly sourcePath: string;
   readonly locale: string;
   readonly layout: TranslationCacheLayout;
   readonly translator: DocsTextTranslator;
@@ -88,13 +131,19 @@ export interface TranslateDocumentResult {
   readonly entry: TranslationCacheEntry | null;
 }
 
-/** Translate one English source into a cache entry and materialize it. */
-export async function translateDocument(
-  options: TranslateDocumentOptions,
+/**
+ * Translate in-memory English markdown (composer hooks, generated layers 2–3).
+ *
+ * Writes a pinned cache entry and materializes `docs/i18n/<locale>/…` markdown.
+ */
+export async function materializeGeneratedDocTranslation(
+  options: MaterializeGeneratedDocTranslationOptions,
 ): Promise<TranslateDocumentResult> {
-  const english = readFileSync(options.source.absolutePath, 'utf8');
-  const existing = readCacheEntry(options.locale, options.source.sourcePath, options.layout);
-  if (isCacheHit(existing, english)) {
+  const existing = readCacheEntry(options.locale, options.sourcePath, options.layout);
+  if (isCacheHit(existing, options.englishContent)) {
+    if (existing !== null) {
+      materializeTranslation(existing, options.layout);
+    }
     return { status: 'fresh', entry: existing };
   }
 
@@ -102,33 +151,28 @@ export async function translateDocument(
     return { status: 'would-translate', entry: null };
   }
 
-  const segmented = segmentMarkdown(english);
-  const translatedSegments =
-    segmented.segments.length === 0
-      ? []
-      : await options.translator.translateTexts(segmented.segments, options.locale);
-  const translatedPrefix = await translateFrontMatterFields(
-    segmented.prefix,
-    options.translator,
+  const entry = await buildTranslatedMarkdownEntry(
+    options.englishContent,
+    options.sourcePath,
     options.locale,
+    options.translator,
   );
-  let content = restoreSegmentMarkdown(
-    { ...segmented, prefix: translatedPrefix },
-    translatedSegments,
-  );
-  content = applyIntroDisclaimer(options.source.sourcePath, options.locale, content);
-
-  const entry: TranslationCacheEntry = {
-    sourcePath: options.source.sourcePath,
-    sourceHash: hashSourceBody(english),
-    locale: options.locale,
-    content,
-    meta: {
-      provider: 'deepl',
-      translatedAt: new Date().toISOString(),
-    },
-  };
   writeCacheEntry(entry, options.layout);
   materializeTranslation(entry, options.layout);
   return { status: 'translated', entry };
+}
+
+/** Translate one on-disk English source into a cache entry and materialize it. */
+export async function translateDocument(
+  options: TranslateDocumentOptions,
+): Promise<TranslateDocumentResult> {
+  const english = readFileSync(options.source.absolutePath, 'utf8');
+  return materializeGeneratedDocTranslation({
+    englishContent: english,
+    sourcePath: options.source.sourcePath,
+    locale: options.locale,
+    layout: options.layout,
+    translator: options.translator,
+    dryRun: options.dryRun,
+  });
 }

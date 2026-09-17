@@ -105,6 +105,13 @@ import {
 } from './lib/entity-index-artefact.js';
 import { nodeWorkspaceFs, workspaceMembers } from './lib/workspace-packages.js';
 import {
+  materializeComposerGeneratedTranslations,
+  verifyComposerGeneratedTranslations,
+} from './lib/docs-composer-i18n.js';
+import { createDeepLTranslator } from './lib/docs-deepl-client.js';
+import { loadDocsLocales } from './lib/docs-locales.js';
+import { defaultTranslationCacheLayout } from './lib/docs-translation-cache.js';
+import {
   DOCS_SIDEBAR_ARTEFACT,
   docsDeclarationIn,
   MODULE_MAP_ARTEFACT,
@@ -2177,7 +2184,7 @@ export function renderEntityIndex(
 // and stays where it is; nothing here writes a page a human would want to edit.
 
 /** One read of the site's tree, the modules' layers and the index. */
-function docsRegistry(population: ArtefactPopulation): DocsRegistry & {
+export function docsRegistry(population: ArtefactPopulation): DocsRegistry & {
   /** What the index walk found, so the reference renderer needs no second one. */
   manifests: readonly DiscoveredManifest[];
 } {
@@ -2296,6 +2303,10 @@ export async function renderAll(): Promise<
 
 async function main(): Promise<void> {
   const rendered = await renderAll();
+  const population = workspacePopulation();
+  const locales = loadDocsLocales();
+  const translationLayout = defaultTranslationCacheLayout(population.root);
+  const docsReg = docsRegistry(population);
 
   // `--check` never writes: it is the CI form, and a CI job that repairs the
   // tree it is checking reports green on a commit nobody can reproduce.
@@ -2307,6 +2318,19 @@ async function main(): Promise<void> {
       stale = true;
       process.stderr.write(
         `[composer] ${onDisk === null ? 'missing' : 'STALE'}: ${outputPath}\n` +
+          '  Regenerate and commit: pnpm --filter backend run composer:generate\n',
+      );
+    }
+    const translationFindings = verifyComposerGeneratedTranslations({
+      artefacts: rendered,
+      registry: docsReg,
+      translateLocales: locales.translateLocales,
+      layout: translationLayout,
+    });
+    for (const finding of translationFindings) {
+      stale = true;
+      process.stderr.write(
+        `[composer] STALE translation: ${finding.detail}\n` +
           '  Regenerate and commit: pnpm --filter backend run composer:generate\n',
       );
     }
@@ -2323,6 +2347,19 @@ async function main(): Promise<void> {
     writeFileSync(outputPath, content, 'utf8');
     process.stdout.write(`[composer] wrote ${outputPath}\n`);
   }
+
+  const translator = await createDeepLTranslator();
+  const i18nSummary = await materializeComposerGeneratedTranslations({
+    artefacts: rendered,
+    registry: docsReg,
+    translateLocales: locales.translateLocales,
+    layout: translationLayout,
+    translator,
+  });
+  process.stdout.write(
+    `[composer] materialized generated translations: fresh=${i18nSummary.fresh} ` +
+      `translated=${i18nSummary.translated}\n`,
+  );
 
   // The module-owned pages, into the site's tree (feature 100 Phase 2, FR-016).
   // After the artefacts, because the sidebar names doc ids and Docusaurus

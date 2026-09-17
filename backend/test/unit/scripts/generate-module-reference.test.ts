@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -13,6 +13,15 @@ import {
   strayReferencePages,
   type ModuleReference,
 } from '../../../scripts/generate-composer.js';
+import {
+  generatedReferenceSourcePath,
+  materializeComposerGeneratedTranslations,
+} from '../../../scripts/lib/docs-composer-i18n.js';
+import type { DocsTextTranslator } from '../../../scripts/lib/docs-deepl-client.js';
+import {
+  cacheEntryPath,
+  materializedDocPath,
+} from '../../../scripts/lib/docs-translation-cache.js';
 import { ModulePackageError, type ModulePackage } from '../../../scripts/lib/module-packages.js';
 import {
   attributeDocs,
@@ -338,5 +347,75 @@ describe('the navigation reaches every reference page', () => {
   it('names nothing at all for a module that declares docs: false', () => {
     const sidebar = sidebarOver([{ id: 'mfa', declaresNoDocs: true }], []);
     expect(sidebar).not.toContain('mfa');
+  });
+});
+
+describe('composer generated-doc i18n hook', () => {
+  it('materializes reference translations through the shared cache writer', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'composer-i18n-'));
+    const contentRoot = join(root, 'docs/docs');
+    const referenceDir = join(contentRoot, 'module-reference');
+    mkdirSync(referenceDir, { recursive: true });
+    const english = emitModuleReference(referenceFor(CATALOG));
+    const outputPath = join(referenceDir, 'catalog.md');
+    writeFileSync(outputPath, english, 'utf8');
+
+    const writes: string[] = [];
+    const translator: DocsTextTranslator = {
+      translateTexts: async (texts) => {
+        writes.push(...texts);
+        return texts.map((text) => `[pl] ${text}`);
+      },
+    };
+
+    const layout = {
+      repoRoot: root,
+      cacheRoot: join(root, 'docs/translation-cache'),
+      i18nDocsRoot: (locale: string) =>
+        join(root, 'docs/i18n', locale, 'docusaurus-plugin-content-docs/current'),
+    };
+
+    const registry = {
+      layout: {
+        contentRoot,
+        modulesRoot: join(contentRoot, 'modules'),
+        member: { dir: join(root, 'docs') },
+      },
+      pages: [],
+      entries: [
+        {
+          moduleId: 'catalog',
+          docs: null,
+          shipsFrom: 'core',
+          referenceDocId: 'module-reference/catalog',
+        },
+      ],
+      modules: [],
+      attribution: { documented: [], misowned: [] },
+      entrySources: new Map(),
+    };
+
+    const summary = await materializeComposerGeneratedTranslations({
+      artefacts: [
+        {
+          label: 'module-reference (catalog)',
+          outputPath,
+          content: english,
+        },
+      ],
+      registry: registry as never,
+      translateLocales: ['pl'],
+      layout,
+      translator,
+    });
+
+    expect(summary.translated).toBe(1);
+    expect(writes.length).toBeGreaterThan(0);
+    const sourcePath = generatedReferenceSourcePath('catalog');
+    expect(existsSync(cacheEntryPath('pl', sourcePath, layout))).toBe(true);
+    const materialized = materializedDocPath('pl', 'module-reference/catalog', layout);
+    expect(existsSync(materialized)).toBe(true);
+    expect(readFileSync(materialized, 'utf8')).toContain('[pl]');
+    rmSync(root, { recursive: true, force: true });
   });
 });
