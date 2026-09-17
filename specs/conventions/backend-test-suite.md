@@ -60,6 +60,11 @@ old behaviour for a post-mortem, `BACKEND_TEST_KEEP_DATABASE=1` keeps the run's 
 `test:unit:fast` is untouched because it declares `BACKEND_TEST_SERVICES=none` and provisions
 nothing. See `backend/test/README.md` § *One database per invocation*.
 
+**Per-invocation isolation is not per-file isolation**, and before you move `setupBackendServer`'s
+`update "settings" set "global_value" = null`, or replace it with a per-file restore, read the
+comment on that statement in `backend/test/helpers/test-server.ts`: a leaked setting can make a
+later file *skip* work and pass.
+
 ## Worktrees, package resolution and the guard
 
 `AGENTS.md` § *Commands* carries the operation — one command, and never a symlinked
