@@ -112,5 +112,20 @@
   },
   "sidebar.main.category.quick_order": {
     "message": "quick_order"
+  },
+  "sidebar.main.category.organizations": {
+    "message": "organizations"
+  },
+  "sidebar.main.doc.modules/organization-hierarchy": {
+    "message": "Organization hierarchy"
+  },
+  "sidebar.main.category.customers": {
+    "message": "customers"
+  },
+  "sidebar.main.category.quote_requests": {
+    "message": "quote_requests"
+  },
+  "sidebar.main.category.shopping_lists": {
+    "message": "shopping_lists"
   }
 }
