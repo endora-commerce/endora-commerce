@@ -377,6 +377,36 @@
   "sidebar.main.doc.module-reference/auth": {
     "message": "auth — referencja modułu"
   },
+  "sidebar.main.doc.module-reference/autopay": {
+    "message": "autopay — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/blog": {
+    "message": "blog — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/carts": {
+    "message": "carts — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/catalog": {
+    "message": "catalog — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/cms": {
+    "message": "cms — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/comarch-xl": {
+    "message": "comarch_xl — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/comparisons": {
+    "message": "comparisons — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/credentials": {
+    "message": "credentials — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/credit-limits": {
+    "message": "credit_limits — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/currencies": {
+    "message": "currencies — referencja modułu"
+  },
   "sidebar.main.doc.module-reference/google-tag-manager": {
     "message": "google_tag_manager — module reference"
   },
