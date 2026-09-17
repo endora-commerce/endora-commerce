@@ -625,6 +625,30 @@ function testAnyLabel(name: unknown): string {
 }
 
 const SEEDED_TABLES = [
+  // Feature 067 — product feeds. `product_feeds` itself and everything hanging
+  // off it cascade from `sales_channels`, but five tables do not reach any
+  // table below: `product_feed_templates` and its fields, and the three
+  // taxonomy tables — `product_feed_taxonomies`, its nodes and its checks. The
+  // module reinstalls all five at boot (`reconcileTemplates` /
+  // `reconcileTaxonomies`, both idempotent, both after this truncate), so
+  // wiping them hands every file the same bundled corpus instead of whatever
+  // the previous file promoted, imported or marked checked. The other seven are
+  // listed for the same reason as the Comarch XL block: a cascade is a property
+  // of today's foreign keys, not a guarantee. Listed children-first; the
+  // `product_feeds` ⇄ `product_feed_runs` cycle (`current_run_id` /
+  // `product_feed_id`) is what one `truncate … cascade` statement is for.
+  'product_feed_taxonomy_checks',
+  'product_feed_taxonomy_mappings',
+  'product_feed_taxonomy_nodes',
+  'product_feed_taxonomies',
+  'product_feed_delivery_attempts',
+  'product_feed_deliveries',
+  'product_feed_run_issues',
+  'product_feed_artefacts',
+  'product_feed_runs',
+  'product_feeds',
+  'product_feed_template_fields',
+  'product_feed_templates',
   // Feature 119 — Comarch XL. Six of these twelve have no foreign key to any
   // table below — `xl_installations`, `xl_identity_mappings`, `xl_status_maps`,
   // `xl_sync_jobs` (and its events), `xl_worker_heartbeats` and
