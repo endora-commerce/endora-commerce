@@ -529,6 +529,13 @@ quality:
     # Docusaurus's own `checkSidebarsDocIds` — ran in a build that existed in no
     # CI job. `build:docs` below is that half.
     - pnpm --filter backend run check:module-docs
+    # `specs/132-docs-pl-locale/` FR-022 — every English documentation source has
+    # a pinned translation cache entry at the current hash, a materialized i18n
+    # markdown file for each configured locale, and every sidebar message id in
+    # `code.json`. Pairs with `check:module-docs`: that one asks whether the
+    # generator sees every module; this one asks whether every English page the
+    # site ships has a complete translation.
+    - pnpm --filter backend run check:docs-translations
     # Principle VIII — an error code the operator can see has a sentence, in both
     # shipped languages. The envelope replaces the message wholesale with the
     # bundle string, so a missing key renders the raw code and nothing reports it:
@@ -2310,8 +2317,14 @@ build:docs:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes:
         - docs/**/*
+        - docs/translation-cache/**/*
+        - docs/i18n/**/*
+        - docs/locales.config.json
+        - docs/translation-skip.json
         - packages/modules/*/docs/**/*
         - backend/scripts/generate-composer.ts
+        - backend/scripts/check-docs-translations.ts
+        - backend/scripts/lib/docs-*.ts
         - packages/cli/src/lib/module-docs.ts
         - pnpm-lock.yaml
         - .gitlab-ci.yml

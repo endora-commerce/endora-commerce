@@ -42,6 +42,17 @@ import {
   vacuousDocumentPopulation,
 } from '../../../scripts/check-doc-snippets.js';
 import {
+  checkDocsTranslations,
+  type DocsTranslationCheckInput,
+  type DocsTranslationFindingKind,
+} from '../../../scripts/check-docs-translations.js';
+import {
+  defaultTranslationCacheLayout,
+  hashSourceBody,
+  materializeTranslation,
+  writeCacheEntry,
+} from '../../../scripts/lib/docs-translation-cache.js';
+import {
   analyzeSource as classificationAnalyze,
   ENTITY_DECORATOR_HINT,
   packageEntityFindings,
@@ -2689,6 +2700,60 @@ function snippetFindings(doc: string, message: string): number {
   return checkDocument('d.md', docReaderFor(doc)).filter((f) => f.message.includes(message)).length;
 }
 
+/** Findings over a synthetic docs tree, of the one kind the proof is about. */
+function docsTranslationsFindingsOfKind(kind: DocsTranslationFindingKind): number {
+  const root = mkdtempSync(join(tmpdir(), 'endora-docs-translations-'));
+  try {
+    const sourcePath = 'docs/docs/intro.md';
+    const absolutePath = join(root, sourcePath);
+    mkdirSync(dirname(absolutePath), { recursive: true });
+    writeFileSync(absolutePath, '---\ntitle: Sample\n---\n\nWelcome.\n', 'utf8');
+    const layout = defaultTranslationCacheLayout(root);
+    const baseInput: DocsTranslationCheckInput = {
+      repoRoot: root,
+      translateLocales: ['pl'],
+      sources: [{ sourcePath, absolutePath }],
+      sidebarMessageIds: [],
+      skipPaths: new Set(),
+      layout,
+    };
+
+    if (kind === 'stale-translation') {
+      const english = readFileSync(absolutePath, 'utf8');
+      const entry = {
+        sourcePath,
+        sourceHash: hashSourceBody(`${english}\nChanged.`),
+        locale: 'pl',
+        content: '---\ntitle: Sample\n---\n\nWitamy.\n',
+        meta: { provider: 'manual' as const, updatedAt: '2026-09-17T08:00:00.000Z' },
+      };
+      writeCacheEntry(entry, layout);
+      materializeTranslation(entry, layout);
+    } else if (kind === 'missing-sidebar-message') {
+      const english = readFileSync(absolutePath, 'utf8');
+      const entry = {
+        sourcePath,
+        sourceHash: hashSourceBody(english),
+        locale: 'pl',
+        content: '---\ntitle: Sample\n---\n\nWitamy.\n',
+        meta: { provider: 'manual' as const, updatedAt: '2026-09-17T08:00:00.000Z' },
+      };
+      writeCacheEntry(entry, layout);
+      materializeTranslation(entry, layout);
+      return checkDocsTranslations({
+        ...baseInput,
+        sidebarMessageIds: ['sidebar.main.doc.intro'],
+        readCodeJson: () => ({}),
+      }).findings.filter((finding) => finding.kind === kind).length;
+    }
+
+    return checkDocsTranslations(baseInput).findings.filter((finding) => finding.kind === kind)
+      .length;
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
 /**
  * Documents discovered under a synthetic tree.
  *
@@ -5153,6 +5218,32 @@ const CHECKS: readonly CheckEntry[] = [
       // The population one level up: a declared root that contributed nothing,
       // which the total-loss guard cannot see because the other root is full.
       'empty-document-root': top(emptyDocumentRoot),
+    },
+  },
+  {
+    // `specs/132-docs-pl-locale/` FR-022 — every English documentation source
+    // configured for translation has a complete artefact at the current hash.
+    // Pairs with `check:module-docs`: that one asks whether the navigation
+    // describes every module; this one asks whether every English page the
+    // site ships can build in every configured locale.
+    //
+    // Each proof enters over a **documentation tree on disk** plus cache and
+    // i18n artefacts the check reads as files — the same shapes the companion
+    // test uses, because the predicate is hash parity and file presence rather
+    // than a registry reconciliation.
+    script: 'backend/scripts/check-docs-translations.ts',
+    npmScript: 'check:docs-translations',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-docs-translations.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    residueGuard: 'not-a-module-walk',
+    red: {
+      'missing-translation': top(() => docsTranslationsFindingsOfKind('missing-translation')),
+      'stale-translation': top(() => docsTranslationsFindingsOfKind('stale-translation')),
+      'missing-sidebar-message': top(() =>
+        docsTranslationsFindingsOfKind('missing-sidebar-message'),
+      ),
     },
   },
   {
@@ -11271,6 +11362,9 @@ describe('every red proof enters at the top of the analysis', () => {
       // T010's root floor — the population one level above the discovery.
       'backend/scripts/check-divergence.ts': 9,
       'backend/scripts/check-doc-snippets.ts': 5,
+      // Three finding kinds — missing cache/materialized file, stale hash or
+      // content drift, and a sidebar message id absent from `code.json`.
+      'backend/scripts/check-docs-translations.ts': 3,
       // The two in-tree shapes — none and more than one — plus T034's two: a
       // package's persisted entity is in the population, and a package that
       // could not be enumerated stops the run instead of being credited with
