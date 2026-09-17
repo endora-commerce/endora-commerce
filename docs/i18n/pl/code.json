@@ -321,7 +321,7 @@
     "message": "seo — module reference"
   },
   "sidebar.main.doc.module-reference/newsletter": {
-    "message": "newsletter — module reference"
+    "message": "newsletter — referencja modułu"
   },
   "sidebar.main.doc.module-reference/transactional-emails": {
     "message": "transactional_emails — module reference"
@@ -455,8 +455,32 @@
   "sidebar.main.doc.module-reference/linkedin-ads": {
     "message": "linkedin_ads — referencja modułu"
   },
+  "sidebar.main.doc.module-reference/megamenu": {
+    "message": "megamenu — referencja modułu"
+  },
   "sidebar.main.doc.module-reference/meta-ads": {
-    "message": "meta_ads — module reference"
+    "message": "meta_ads — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/mfa": {
+    "message": "mfa — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/orders": {
+    "message": "orders — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/organizations": {
+    "message": "organizations — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/payment-methods": {
+    "message": "payment_methods — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/payments": {
+    "message": "payments — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/paypal": {
+    "message": "paypal — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/payu": {
+    "message": "payu — referencja modułu"
   },
   "sidebar.main.doc.module-reference/product-feeds": {
     "message": "product_feeds — module reference"
