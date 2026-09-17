@@ -1344,6 +1344,21 @@ export async function setupBackendServer(
       // other, so a leaked `wfirma.activation = true` makes the invoice-ledger
       // vendor mutex refuse the next file's Infakt activation with a 409.
       //
+      // **Do not remove this statement because it looks like per-file cost the
+      // suite could do without.** It is cheap — one indexed update over a table
+      // with no rows to change in the common case — and what it buys is not
+      // tidiness. `InvoiceLedgerRoutingService.nativeKsefActionFor` answers
+      // `skip` when the routing reads `vendor`, so a leaked `vendor` does not
+      // make a later file's invoice fail to submit to KSeF: it makes that file
+      // **not enqueue the submission at all**. The reds this reset was written
+      // for are the visible half. The half worth naming is the other one — a
+      // test that **passes because the work was skipped**, which is a green
+      // result that is evidence of nothing. That is the shape to fear from any
+      // state that survives the file that wrote it, and it is why the answer
+      // here is to reset the state rather than to teach each test to restore
+      // what it wrote: a file that forgets costs the next file its meaning, not
+      // its colour, and nothing in a suite result says so.
+      //
       // NULL is not a value here: it means "no global override", so every
       // setting resolves to its manifest `defaultValue` again — the state a
       // fresh install is in, which is what the reconcile below re-asserts.
