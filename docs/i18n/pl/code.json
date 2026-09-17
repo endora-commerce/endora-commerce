@@ -286,5 +286,20 @@
   },
   "sidebar.main.category.pim_unopim": {
     "message": "UnoPim PIM"
+  },
+  "sidebar.main.category.assets_library": {
+    "message": "Assets Library"
+  },
+  "sidebar.main.category.blog": {
+    "message": "Blog"
+  },
+  "sidebar.main.category.cms": {
+    "message": "CMS"
+  },
+  "sidebar.main.category.megamenu": {
+    "message": "Megamenu"
+  },
+  "sidebar.main.doc.modules/cms/extending-page-builder": {
+    "message": "Rozszerzanie Page Buildera"
   }
 }
