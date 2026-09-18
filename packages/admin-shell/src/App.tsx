@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useMemo, useState, type ComponentType, type ReactNode } from 'react';
 import type { AdminModulePresenceResponse } from '@endora-commerce/contracts';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell.js';
 import { LoginPage } from './components/LoginPage.js';
 import { IdleLogout } from './components/IdleLogout.js';
@@ -224,16 +224,29 @@ export function App({ contributions, modulePresence }: AppProps): ReactNode {
             detail publishes the `invoice.detail.after` zone that replaced its
             import of `ksef`'s panel, which is what retires the one key in
             `backend/scripts/ledgers/cross-module-imports/invoices.ts`. */}
-        {/*
-          A redirect for the deep links that predate the screen's move to
-          `/delivery-methods/dhl-parcel`, and the admin application's own:
-          `dhl_parcel` declares the destination route in its own package since
-          feature 091's Phase 4 batch five, and a `<Navigate>` is not that
-          module's screen. It stays ungated deliberately — the destination is
-          what `ModuleRoute` gates, so an operator who cannot reach the screen
-          meets the admin's not-found treatment there rather than here.
-        */}
-        <Route path="/settings/dhl-parcel" element={<Navigate to="/delivery-methods/dhl-parcel" replace />} />
+        {/* A `/settings/dhl-parcel` → `/delivery-methods/dhl-parcel` redirect stood
+            here for deep links predating that screen's move into `dhl_parcel`'s own
+            package (feature 091's Phase 4 batch five). It was deleted by feature
+            134's wave 1, and the reason generalises rather than being about DHL:
+            **the destination route is declared only by `dhl_parcel`, which leaves
+            this repository**, so a free package naming it is W1's refusal verbatim
+            — *"any free package still naming a wave member in code that runs"*.
+            It was reached by no free screen and was therefore invisible to
+            `check:module-boundary`, whose subject is imports.
+
+            Re-pointing it somewhere free was considered and refused: sending an
+            operator who asked for DHL settings to `/delivery-methods`, which in a
+            free instance lists no DHL, is **harder to diagnose than a route that is
+            simply absent** — it lands somewhere plausible and wrong. If the legacy
+            path is worth keeping, the module owning the destination declares the
+            redirect too, so that both ends travel together and a free instance
+            correctly has neither. That is the declarant-owns-its-users inversion
+            this feature applies throughout.
+
+            `admin/test/modules/host-admin-registrations.test.tsx`'s `HOST_ROUTES`
+            claimed this path as the host's own and lost its entry in the same
+            commit — the two halves are one change, and splitting them reds the test
+            for the correct edit. */}
         {/* `/quote-requests*` — three routes — were declared here until feature
             091's Phase 4 batch 12; `quote_requests` owns them now, in
             `packages/modules/quote_requests/src/admin/index.ts`. */}
@@ -266,12 +279,14 @@ export function App({ contributions, modulePresence }: AppProps): ReactNode {
             module-owned registration out of this file. Both modules own their
             screens now and their declarations are in
             `packages/modules/{cms,blog}/src/admin/index.ts`. `/cms` stays a
-            second declaration of the page list rather than becoming a
-            `<Navigate>`: a redirect's element comes from `react-router-dom`
-            rather than from a surface directory, which is how
-            `/settings/dhl-parcel` below came to be the admin application's own,
-            and moving a `cms` deep link into the host's registry is the
-            direction this feature exists to reverse.
+            second declaration of the page list rather than becoming a redirect:
+            a redirect's element comes from `react-router-dom` rather than from a
+            surface directory, which is how `/settings/dhl-parcel` came to count
+            as the admin application's own — and feature 134's wave 1 deleted
+            that one precisely because the reasoning is wrong when the
+            destination belongs to a module that leaves. Moving a `cms` deep link
+            into the host's registry is the direction this feature exists to
+            reverse, and the redirect case is not an exception to it.
 
             `blog`'s two editors render `cms`' `PageBuilderEditor` through
             `@endora-commerce/mod-cms/admin-ui` — D-191's published-component

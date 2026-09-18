@@ -63,11 +63,19 @@ export const contributions: AdminContributions = {
     {
       // The bare section path, which `App.tsx` has rendered onto the page list
       // since the CMS screens were written. It is kept as a second declaration
-      // of the same component rather than turned into a `<Navigate>`: a
-      // redirect would be the admin application's own route (that is how
-      // `check:admin-registrations` attributed `/settings/dhl-parcel`), and
-      // moving a `cms` deep link into the host's registry is the direction this
-      // feature exists to reverse.
+      // of the same component rather than turned into a redirect: a redirect
+      // would be the admin application's own route — that is how
+      // `check:admin-registrations` once attributed `/settings/dhl-parcel` —
+      // and moving a `cms` deep link into the host's registry is the direction
+      // this feature exists to reverse.
+      //
+      // **That precedent has since been withdrawn rather than extended**:
+      // feature 134's wave 1 deleted the `/settings/dhl-parcel` redirect,
+      // because attributing by *element* left the host declaring a route whose
+      // *destination* only a departing module declares. The conclusion here is
+      // unchanged and better supported than it was — keeping both ends with
+      // `cms` is right for exactly the reason the redirect case went on to
+      // prove.
       path: '/cms',
       component: () => import('./pages/PagesListPage.js'),
       requiredPermission: READ_PERMISSION,

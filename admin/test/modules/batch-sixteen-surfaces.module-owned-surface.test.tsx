@@ -47,9 +47,13 @@ function codeOf(relativePath: string): string {
  * Eighteen routes and seven registrations, and they are the **last** ones
  * `admin/src/App.tsx` and `admin/src/components/AppShell.tsx` hold on behalf of
  * a module. What remains in those two files after this is the admin
- * application's own: four routes (the dashboard, the `/settings/dhl-parcel`
- * redirect, `/platform/modules` and `/profile`) and three nav entries (the
- * dashboard's sidebar row and palette row, and `/platform/modules`). That is
+ * application's own: **three** routes (the dashboard, `/platform/modules` and
+ * `/profile`) and three nav entries (the dashboard's sidebar row and palette
+ * row, and `/platform/modules`). It was **four** when this batch landed — a
+ * `/settings/dhl-parcel` redirect counted as the host's own because a redirect's
+ * element comes from `react-router-dom` — and feature 134's wave 1 deleted it,
+ * that reasoning being about the *element* while the *destination* was declared
+ * only by `dhl_parcel`, a module that leaves the repository. That is
  * SC-007, and what says so is `host-admin-registrations.test.tsx` — a file
  * named after the claim rather than after this batch, because the assertion
  * outlives every batch (`contracts/admin-registry.md` R13a). It is the
@@ -167,10 +171,14 @@ const SUBJECTS: readonly Subject[] = [
     section: 'content',
     routes: [
       // The bare alias first, exactly as `App.tsx` declared it. It is a second
-      // declaration of the page list rather than a `<Navigate>`, because a
-      // redirect's element comes from `react-router-dom` and would therefore be
-      // the admin application's own route — the attribution
-      // `/settings/dhl-parcel` already has.
+      // declaration of the page list rather than a redirect, because a redirect's
+      // element comes from `react-router-dom` and would therefore be the admin
+      // application's own route — which is the attribution `/settings/dhl-parcel`
+      // used to have, and feature 134's wave 1 deleted it for taking that
+      // reasoning too far: the element was the host's, the **destination** was a
+      // departing module's. Keeping `/cms` as a declaration is the right call for
+      // the same reason it was always the right call — it keeps both ends with
+      // `cms`.
       ['/cms', 'cms.read'],
       ['/cms/pages', 'cms.read'],
       ['/cms/pages/new', 'cms.write'],
