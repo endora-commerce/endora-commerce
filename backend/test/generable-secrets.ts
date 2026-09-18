@@ -100,7 +100,61 @@ export const PINNED_GENERABLE_SECRETS: Readonly<Record<string, PinnedSecret>> = 
       'refuses without it, so the whole second-factor surface would test only its ' +
       'own refusal.',
   },
+  // Feature 004 / 058 — the settings secret codec is the third cipher that
+  // throws in its constructor, and it was withheld while 151 test files needed
+  // it, so each of them assigned its own. The note below is what that cost.
+  //
+  // Base64, 32 bytes, because `secret-value-codec.ts` decodes it that way and
+  // refuses any other length.
+  SETTINGS_SECRET_ENCRYPTION_KEY: {
+    value: 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=',
+    reason:
+      'The settings secret codec decodes this as a 32-byte AES key and throws ' +
+      'without it, and `composeApp` reads it from the environment while composing, ' +
+      'so an absent value is not a degraded secret setting — it is a composition ' +
+      'that cannot process one, taking every credential and secret-typed setting ' +
+      'with it.',
+  },
 };
+
+/**
+ * Why the third entry is a pin and not 151 restores — and why the fast suite
+ * could never have told you.
+ *
+ * This key was withheld, and 151 test files opened with
+ * `process.env[K] = process.env[K] ?? randomBytes(32).toString('base64')`.
+ * Withholding is a `delete`, so the `??` always fell through: the **first** of
+ * those files to run in a shard's single fork injected a value that then stood
+ * for every file after it in that fork, and
+ * `test/unit/harness/generable-secrets.test.ts` — the instrument that asserts
+ * this population is the harness's and not the machine's — reported it whenever
+ * it happened to run after one of them. That is the same defect as the
+ * `settings.global_value` reset in `helpers/test-server.ts`: state surviving the
+ * file that wrote it. A third channel, `process.env`, rather than a third cause.
+ *
+ * Pinning is the whole repair and it edits none of the 151, because a pinned
+ * value is assigned **unconditionally** before any worker forks, so the `??`
+ * now finds it and each of those assignments becomes a self-assignment. The
+ * reason is the one the two entries above already give — a cipher that throws in
+ * a hundred files — so this is that rule applied consistently rather than an
+ * exception made for one key.
+ *
+ * The repair that suggested itself first would have broken all 151: re-applying
+ * the seam per composition, the exact parallel of the `settings.global_value`
+ * reset. `compose-app.ts` reads this key from `process.env` *while composing*
+ * (lines 744 and 872) and `secret-value-codec.ts` throws without it, so those
+ * assignments are load-bearing rather than vestigial, and deleting the variable
+ * per composition would have taken every file that exercises a credential or a
+ * secret-typed setting with it.
+ *
+ * **`test:unit:fast` cannot catch this class, and that is measured rather than
+ * argued.** Of the 151 files that set this variable, **37 are contract, 110
+ * integration, 4 perf, and zero are under `test/unit`** — so in the fast config
+ * nothing sets it, this test passes every time, and it reds only in a run that
+ * puts a contract or integration file in the same fork ahead of it. Anyone
+ * deciding how far to trust the fast suite should read that number: it is green
+ * here because the population that breaks it is not in it.
+ */
 
 /**
  * The declared population: every environment input that is both `secret` and
