@@ -1598,8 +1598,15 @@ const portCatches: PackageRuleHost = (layout) => {
   // `prompt_actions` each resolve exactly one gated name, `settingsReadPort` —
   // which the **platform** owns (`compose-app.ts` contributes it), not an
   // uninstalled module. All five refused, and the remedy they printed, *install
-  // the owning module*, named work an author cannot do and does not need to. A
-  // remedy an author cannot act on is the §5.1 failure exactly.
+  // the owning module*, named work an author cannot do and does not need to.
+  //
+  // **The wrong remedy was worse than the wrong verdict.** A refusal telling an
+  // author to install a module they do not need and cannot identify is a worse
+  // outcome than a `ran` line that states what it could not attribute — the first
+  // sends them looking for something that is not missing, the second tells them
+  // exactly what this run did and did not judge. That is §5.1's failure, where a
+  // finding an author cannot reproduce is one they learn to ignore, and it is the
+  // reason the floor moved rather than the verdict being softened.
   //
   // So the refusal is the honest analogue of `read-nothing`: the run consulted an
   // owner map and the map was **empty**. That keeps the fixture case — a package

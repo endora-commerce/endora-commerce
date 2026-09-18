@@ -14,13 +14,32 @@
  * `registerModule` — the **owner's** file, not the consumer's. A package that
  * only consumes ports has an empty seed.
  *
- * Measured over this repository's module packages: the whole-tree run attributes
+ * Measured over this repository's module packages, because the hazard is worth
+ * having as evidence rather than as an assertion: the whole-tree run attributes
  * **226** guarded-port sites to 41 packages; the same analysis run over each
  * package **in isolation** finds **19**, in 10 packages. **31 of the 41 lose
  * every site**, and they include all four PIM connectors (17–19 sites each) and
  * `product_feeds` (24) — which is to say the paid modules this phase exists for.
  * A package-scope host without this input would have printed `violations=0` over
  * exactly the packages it was built to judge.
+ *
+ * The reasoning that produced the wrong assessment is worth naming too, since it
+ * is not specific to this rule: it came from **the rule's header comment**, which
+ * describes the alias table as a fixpoint over port-carrying values and is
+ * accurate — and says nothing about the seed. The predicate is six lines of
+ * `isProxyCall`. A written statement trusted in place of the thing it describes is
+ * the failure this whole estate exists against, and it reaches the people
+ * building the estate too.
+ *
+ * ## Both discovery halves are needed, and a reader will not notice deleting one
+ *
+ * Stated here because neither tree alone shows it: the **installed** walk finds
+ * nothing in this repository, because every module package is a workspace member
+ * symlinked into `node_modules` and the walk correctly rejects a candidate whose
+ * real path leaves the `node_modules` it was reached through. The **workspace**
+ * walk finds nothing in a client instance, which has no workspace. So a reader
+ * who deletes either half sees a green run in whichever tree they are standing
+ * in, and the other tree's hosts go quietly blind.
  *
  * ## Why this is synchronous, takes no new dependency, and duplicates nothing
  *
