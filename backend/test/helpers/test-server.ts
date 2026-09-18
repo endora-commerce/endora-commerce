@@ -621,11 +621,13 @@ function testAnyLabel(name: unknown): string {
  * be a set (contract R4.2) and why the union below needs no derivation to be
  * deterministic.
  *
- * Feature 134 T014 took the first twenty out — `pim_pimcore`'s eight,
- * `pim_ergonode`'s ten and `ksef`'s two — into those packages'
+ * Feature 134 T014 took the paid modules' out — `pim_pimcore`'s eight,
+ * `pim_ergonode`'s ten, `ksef`'s two and, on the rebase over
+ * `fix/master-red-baseline`, `comarch_xl`'s twelve — into those packages'
  * `src/test-support/index.ts`, where a module that leaves this repository takes
- * its tables with it. The remaining 80 are 109 T060–T064's, and the end state of
- * this array is that it does not exist.
+ * its tables with it. **20, re-derived, and not the 21 the feature's own spec
+ * records**: `invoice_ledger`'s five are a free module's and stay here. The rest
+ * are 109 T060–T064's, and the end state of this array is that it does not exist.
  */
 const SEEDED_TABLES = [
   // Feature 119's twelve `xl_*` tables were here on `fix/master-red-baseline`
@@ -641,8 +643,8 @@ const SEEDED_TABLES = [
   // `reconcileTaxonomies`, both idempotent, both after this truncate), so
   // wiping them hands every file the same bundled corpus instead of whatever
   // the previous file promoted, imported or marked checked. The other seven are
-  // listed for the same reason as the Comarch XL block: a cascade is a property
-  // of today's foreign keys, not a guarantee. Listed children-first; the
+  // listed for the same reason `comarch_xl` declares the six of its twelve that
+  // do cascade: a cascade is a property of today's foreign keys, not a guarantee. Listed children-first; the
   // `product_feeds` ⇄ `product_feed_runs` cycle (`current_run_id` /
   // `product_feed_id`) is what one `truncate … cascade` statement is for.
   'product_feed_taxonomy_checks',
