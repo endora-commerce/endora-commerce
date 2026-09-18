@@ -65,6 +65,53 @@ nothing. See `backend/test/README.md` § *One database per invocation*.
 comment on that statement in `backend/test/helpers/test-server.ts`: a leaked setting can make a
 later file *skip* work and pass.
 
+## Proving a cross-file leak: the ordered pair, and the two ways it lies to you
+
+**The instrument.** A file that fails only because an earlier file left state behind passes when
+run alone — that is the definition, and it is why a targeted run is no evidence either way. What
+separates a leak from a flake is **determinism**: run the leaker, then the victim, and a leak
+reproduces every time while a loaded box does not. So the unit of proof is an **ordered pair**,
+red before the repair and green after, and every entry in a failure list is then either
+*reproduced as an ordered pair* or *unattributed* — never folded into a neighbouring cause to make
+a count come out.
+
+**How to order the pair, which depends on the channel the state travels through.**
+
+- **Database state** — `TEST_DATABASE_URL=…/<yours>_test` plus
+  `BACKEND_TEST_ISOLATION=shared`, then **two invocations**: leaker first, victim second. Shared
+  is what this switch is for. Point it at your own base rather than `b2b_test` so a concurrent
+  run in another worktree cannot contaminate the verdict.
+- **In-process state** (`process.env`, a module-level singleton) — must be **one** invocation,
+  because two invocations are two processes. Order therefore comes from vitest's sequencer, see
+  below.
+- **Raised timeouts on diagnostics only**: `--hookTimeout=180000 --testTimeout=180000` on the
+  command line, never committed. A pair's verdict is about **state**, not timing, so removing a
+  load-sensitive failure mode cannot change what is being measured — and without it a
+  `beforeAll` that composes a backend dies with `Hook timed out in 30000ms` on a busy machine.
+  Quarantine anything timeout- or connection-shaped rather than counting it, and re-run the pair
+  rather than reasoning about it.
+
+**The first way a pair lies: `vitest`'s default sequencer runs the *larger* file first.** Two of
+three pairs built this way silently ran **victim before leaker** and passed — `connection.test.ts`
+(5850 B) ahead of `identity-mappings.test.ts` (3670 B), `vat-push.test.ts` (4386 B) ahead of
+`routing-write.test.ts` (2842 B). A pair in the wrong order is a green that means nothing, which
+is the exact failure class the instrument exists to remove, reproduced inside the instrument. In
+one invocation, therefore, **the leaker must be the larger file**, and the emitted order must be
+read back out of the log rather than assumed.
+
+**The second way: the leaker may not leak.** The first attempt at the `process.env` pair used
+`contract/settings/secret-redaction.contract.test.ts` as the leaker and passed — because that file
+is the one of 151 that `delete`s the variable in its `afterAll`. A green pair whose leaker cleans
+up says nothing about the victim. Confirm the leaker actually leaves the state behind before
+reading anything into the result.
+
+**Recorded because the wrong answer is the plausible one.** The protocol above replaced a simpler
+one that was proposed, accepted and then refuted by measurement: *"two files in one invocation
+share the leased database and the fork, so shared isolation is unnecessary."* Both halves of that
+sentence are true, and it is still wrong — it omits ordering, which one invocation does not let
+you choose. A convention that states only the right answer teaches less than one that says which
+wrong answer looks right.
+
 ## Worktrees, package resolution and the guard
 
 `AGENTS.md` § *Commands* carries the operation — one command, and never a symlinked
