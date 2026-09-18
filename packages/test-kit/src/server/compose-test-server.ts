@@ -441,6 +441,42 @@ export async function composeTestServer(
         systemTenantContext(`test-kit:${request.method} ${request.url}`));
 
 
+    // The sub-kernel names this composer composed the sub-kernels **for**,
+    // mirroring `compose-app.ts`' own contribution block.
+    //
+    // **They belong to the composer and not to the caller**, and the reason is
+    // measured rather than tidy: this function composes the sales-channel kernel
+    // itself — it has to, the subscriber ordering depends on it happening above
+    // `composeModules` — so a caller could only re-derive from a `salesChannels`
+    // it did not build. It did not, and the four names were absent from every
+    // container the kit composed: `inventory`'s channel-scoped stock read,
+    // `payment_methods`' and `delivery_methods`' auto-bind and every
+    // channel-bridge declaration each failed with `AwilixResolutionError` on
+    // their first call, in a composition that had booted cleanly.
+    //
+    // It stayed invisible in this repository because its reference harness
+    // registers all four itself under a comment reading *"mirrors
+    // `compose-app.ts`"* — the one caller that would have noticed had already
+    // worked around it. An out-of-tree host found them one failed boot at a
+    // time. `registerValues` overwrites, and the harness contributes identical
+    // values, so that workaround stays correct while it is being removed.
+    //
+    // First, so a caller that genuinely wants a different answer for one of them
+    // can still say so in `options.contribute` — the ordering `compose-app.ts`
+    // gives its own twenty for the same reason.
+    composed.contribute({
+      salesChannelsCache: salesChannels.cache,
+      salesChannelBridgeRegistry: salesChannels.bridgeRegistry,
+      salesChannelMembershipPort: salesChannels.membershipService,
+      salesChannelResolutionPort: salesChannels.resolver,
+      // The channel a **channel-scoped** settings read resolves against outside
+      // a request — worker, boot hook, CLI. D-48: the resolver cannot fail to
+      // find a default, so this cannot answer "none"; the return type keeps
+      // `null` because the *seam* still admits one.
+      settingsChannelResolver: async (): Promise<string | null> =>
+        (await salesChannels.resolver.getSystemDefault()).id,
+    });
+
     // The module test-support substitutions, then the caller's own: a test that
     // wants a different stub than its module's default says so at its own call
     // site, which is where the coupling is visible.
