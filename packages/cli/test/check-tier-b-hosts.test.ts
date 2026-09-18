@@ -231,3 +231,133 @@ describe('check-entity-tenant-classification over a package', () => {
     expect(only(dir, TENANT_RULE).verdict).not.toBe('pending');
   });
 });
+
+/* ------------------------------------------------- check:entry-presence */
+
+const PRESENCE_RULE = 'check:entry-presence';
+
+/** A package whose backend plugin holds `body`. */
+function packageWithPlugin(body: readonly string[], activation?: string): string {
+  return fixture({
+    files: [
+      {
+        path: 'src/manifest.ts',
+        content: `export const manifest = { id: 'acme_loyalty'${activation ?? ''} };\n`,
+      },
+      { path: 'src/backend/index.ts', content: body.join('\n') },
+    ],
+    emitted: [
+      {
+        path: 'dist/manifest.js',
+        content: `export const manifest = { id: 'acme_loyalty'${activation ?? ''} };\n`,
+      },
+      { path: 'dist/backend/index.js', content: body.join('\n') },
+    ],
+  });
+}
+
+describe('check:entry-presence over a package', () => {
+  it('reports a repeating timer whose callback asks nothing about presence', () => {
+    const dir = packageWithPlugin([
+      'export function registerModule(ctx: any): void {',
+      '  setInterval(async () => {',
+      '    await ctx.expireLoyalty();',
+      '  }, 300_000);',
+      '}',
+    ]);
+
+    const result = only(dir, PRESENCE_RULE);
+
+    expect(result.verdict).toBe('ran');
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0]?.message).toContain('setInterval');
+    expect(result.findings[0]?.message).toContain('isPresent');
+  });
+
+  it('says nothing once the callback decides presence outside the try', () => {
+    const dir = packageWithPlugin([
+      'export function registerModule(ctx: any): void {',
+      '  setInterval(async () => {',
+      "    if (!ctx.effectiveState.isPresent('acme_loyalty')) return;",
+      '    try {',
+      '      await ctx.expireLoyalty();',
+      '    } catch {}',
+      '  }, 300_000);',
+      '}',
+    ]);
+
+    expect(only(dir, PRESENCE_RULE).findings).toEqual([]);
+  });
+
+  it('reports a presence decision taken inside the try', () => {
+    const dir = packageWithPlugin([
+      'export function registerModule(ctx: any): void {',
+      '  setInterval(async () => {',
+      '    try {',
+      "      if (!ctx.effectiveState.isPresent('acme_loyalty')) return;",
+      '      await ctx.expireLoyalty();',
+      '    } catch {}',
+      '  }, 300_000);',
+      '}',
+    ]);
+
+    const result = only(dir, PRESENCE_RULE);
+
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0]?.message).toContain('`try`');
+  });
+
+  it('is unconditional: a package with no timer and no boot hook still runs it', () => {
+    const dir = packageWithPlugin(['export function registerModule(): void {}']);
+
+    const result = only(dir, PRESENCE_RULE);
+
+    expect(result.verdict).toBe('ran');
+    expect(result.findings).toEqual([]);
+    // The read line is printed even so — that is what makes the zero a
+    // statement rather than an absence.
+    expect(result.readSize?.files).toBeGreaterThan(0);
+  });
+
+  it('exempts a non-deactivatable package boot hook, and not its timer', () => {
+    const body = [
+      'export function registerModule(ctx: any): void {',
+      '  ctx.onBoot(async () => {',
+      '    await ctx.seedLoyaltyTiers();',
+      '  });',
+      '  setInterval(async () => {',
+      '    await ctx.expireLoyalty();',
+      '  }, 300_000);',
+      '}',
+    ];
+    const locked = packageWithPlugin(body, ", activation: { nonDeactivatable: true, reason: 'core' }");
+    const switchable = packageWithPlugin(body, ", activation: { settingCode: 'loyalty.enabled', default: true }");
+
+    const lockedFindings = only(locked, PRESENCE_RULE).findings;
+    const switchableFindings = only(switchable, PRESENCE_RULE).findings;
+
+    expect(lockedFindings.map((f) => f.key)).toEqual(
+      expect.arrayContaining([expect.stringContaining('setInterval')]),
+    );
+    expect(lockedFindings.every((f) => !f.key.includes('onBoot'))).toBe(true);
+    expect(switchableFindings.length).toBeGreaterThan(lockedFindings.length);
+  });
+
+  it('refuses a short walk rather than reporting a clean package', () => {
+    const dir = fixture({
+      exports: { '.': './dist/manifest.js', './migrations': './dist/migrations/index.js' },
+      files: [MANIFEST],
+      emitted: [{ path: 'dist/manifest.js', content: 'export const manifest = {};\n' }],
+    });
+
+    const result = only(dir, PRESENCE_RULE);
+
+    expect(result.verdict).toBe('unreadable');
+    expect(result.findings).toEqual([]);
+  });
+
+  it('never reports pending: the host is built in this build', () => {
+    const dir = packageWithPlugin(['export function registerModule(): void {}']);
+    expect(only(dir, PRESENCE_RULE).verdict).not.toBe('pending');
+  });
+});

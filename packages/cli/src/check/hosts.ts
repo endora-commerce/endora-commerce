@@ -108,6 +108,12 @@ import {
   remedyFor as queueNameRemedy,
 } from '../rules/queue-names.js';
 import {
+  checkEntryPresence,
+  collectPresenceFiles,
+  keyOf as presenceKeyOf,
+  remedyFor as presenceRemedy,
+} from '../rules/entry-presence.js';
+import {
   analyzeEmittedFiles,
   classifyFindings,
   declaredEntityClasses,
@@ -1108,6 +1114,15 @@ interface EmittedAction {
 interface EmittedManifest {
   readonly bundlesDir: string | null;
   readonly actions: readonly EmittedAction[];
+  /**
+   * `true` when the manifest declares `activation.nonDeactivatable`.
+   *
+   * Read as a literal `true`, so anything else — a computed value, an absent
+   * block — reads as *switchable*, which widens a population rather than
+   * narrowing one. A caller that guesses wrong in this direction over-reports;
+   * the other direction goes quietly blind.
+   */
+  readonly nonDeactivatable: boolean;
 }
 
 /**
@@ -1151,6 +1166,7 @@ function readEmittedManifest(layout: PackageLayout): EmittedManifest | null {
     true,
   );
   let bundlesDir: string | null = null;
+  let nonDeactivatable = false;
   const actions: EmittedAction[] = [];
 
   const literal = (node: ts.Node | undefined): string | null =>
@@ -1170,6 +1186,13 @@ function readEmittedManifest(layout: PackageLayout): EmittedManifest | null {
     if (ts.isObjectLiteralExpression(node)) {
       const dir = literal(property(node, 'bundlesDir'));
       if (dir !== null) bundlesDir = dir;
+      const activation = property(node, 'activation');
+      if (activation !== undefined && ts.isObjectLiteralExpression(activation)) {
+        const locked = property(activation, 'nonDeactivatable');
+        if (locked !== undefined && locked.kind === ts.SyntaxKind.TrueKeyword) {
+          nonDeactivatable = true;
+        }
+      }
       const declared = property(node, 'actions');
       if (declared !== undefined && ts.isArrayLiteralExpression(declared)) {
         for (const element of declared.elements) {
@@ -1190,7 +1213,7 @@ function readEmittedManifest(layout: PackageLayout): EmittedManifest | null {
   };
   sf.forEachChild(visit);
 
-  return { bundlesDir, actions };
+  return { bundlesDir, actions, nonDeactivatable };
 }
 
 /**
@@ -1370,6 +1393,99 @@ const entityTenantClassification: PackageRuleHost = (layout) => {
   );
 };
 
+/* --------------------------------------------- entry-presence (Phase 3) */
+
+/**
+ * Constitution XVII's hardest seam: an entry point nothing can catch a throw
+ * from decides presence *before* it works.
+ *
+ * ## Unconditional, and that is a correction
+ *
+ * The estate filed this rule's subject as *"module manifest declaring an
+ * activation control"*, and a host built on that reading would have answered
+ * `not-applicable` for a `nonDeactivatable` package. It is wrong, and the rule's
+ * own input says so: `lockedModules` takes a module's **boot hooks** out of the
+ * population and leaves its **timers** in — `_lifecycle`'s lease heartbeat is
+ * ledgered rather than exempted, which is only meaningful because a locked
+ * module's timers are still judged. So the declaration is corrected to `null`
+ * and the manifest decides an *exemption*, not applicability.
+ *
+ * ## The manifest is read where it can be, and its absence over-reports loudly
+ *
+ * `lockedModules` defaults to empty on purpose: forgetting it widens the
+ * population rather than narrowing it, so a caller that cannot read the manifest
+ * over-reports instead of going quietly blind. A package whose artefact is not
+ * current therefore still gets a run — the rule's subject is source text — and
+ * the `locked-owner-exemption` signal is printed on its own line, because a
+ * finding an author cannot reproduce is one they learn to ignore (§5.1). Where
+ * the manifest *is* read the signal is dropped, which is what makes its presence
+ * mean something.
+ *
+ * ## The ledger
+ *
+ * The repository's two ledgers are not consulted: they are entries about *these*
+ * modules and a third-party package is in none of them. The package's own ledger
+ * is applied by the frame, one layer up, exactly as for every other rule.
+ */
+const entryPresence: PackageRuleHost = (layout) => {
+  const id = 'check:entry-presence';
+  const files = collectPresenceFiles([layout.sourceRoot]);
+  const coverage = coverageOf(layout, files, opensTypeScript);
+  if (isRefusal(coverage)) return unreadable(id, coverage.refusal, null);
+  if (coverage === null) return notApplicable(id, absentDeclaration(entryOf(id)));
+
+  // Keyed **relative to the source root**, which is what the repository host's
+  // keys are relative to (`modules/<id>/…` under `src/`). The analysis attributes
+  // a file to a module through `moduleOf`, whose second source matches on the
+  // tail after the last `/src/` — so a package-relative key would hand it
+  // `/src/src/backend/…` and it would attribute nothing, and the rule would
+  // report `violations=0` over every package for ever.
+  const sources = new Map(
+    files.map((file) => [posixKey(relative(layout.sourceRoot, file)), readFileSync(file, 'utf8')]),
+  );
+  const readSize: ReadSizeInput = {
+    prefix: '[entry-presence]',
+    files: sources.size,
+    coverage: [coverage],
+  };
+  const short = readSizeOrShortWalk(id, readSize);
+  if (!short.ok) return short.result;
+
+  // Every top-level name under the source root belongs to this one module — the
+  // package half of `module-roots`' own derivation (D-142: identity is
+  // `endora.id`, never a directory name), taken off the walk rather than spelled.
+  const hostResidentModules = new Map<string, string>();
+  for (const key of sources.keys()) {
+    const [head] = key.split('/');
+    if (head !== undefined && head.length > 0) hostResidentModules.set(head, layout.moduleId);
+  }
+
+  const manifest = readEmittedManifest(layout);
+  const result = checkEntryPresence(
+    {
+      sources,
+      lockedModules:
+        manifest !== null && manifest.nonDeactivatable ? new Set([layout.moduleId]) : new Set(),
+      hostResidentModules,
+    },
+    {},
+  );
+
+  const outcome = ran(
+    id,
+    readSize,
+    result.violations.map((finding) => ({
+      rule: id,
+      key: presenceKeyOf(finding),
+      location: `${layout.keyOf(join(layout.sourceRoot, finding.file))}:${finding.line}`,
+      message: presenceRemedy(finding),
+    })),
+  );
+  // The exemption was derived, so the degradation does not apply to this run.
+  if (manifest !== null) return { ...outcome, unevaluatedSignals: [] };
+  return outcome;
+};
+
 export const PACKAGE_HOSTS: ReadonlyMap<string, PackageRuleHost> = new Map<
   string,
   PackageRuleHost
@@ -1380,6 +1496,7 @@ export const PACKAGE_HOSTS: ReadonlyMap<string, PackageRuleHost> = new Map<
   ['check:command-coverage', commandCoverage],
   ['check:container-imports', containerImports],
   ['check:default-language-prose', defaultLanguageProse],
+  ['check:entry-presence', entryPresence],
   ['check:diacritic-folds', diacriticFolds],
   ['check:entry-scope', entryScope],
   ['check:kernel-boundary', kernelBoundary],

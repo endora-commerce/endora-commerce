@@ -477,11 +477,28 @@ export const ESTATE: readonly EstateEntry[] = [
     id: 'check:entry-presence',
     script: 'backend/scripts/check-entry-presence.ts',
     scope: 'package',
-    host: pending('Phase 3'),
-    subjectDeclaration: {
-      kind: 'manifest-flag',
-      declaration: 'module manifest declaring an activation control',
-    },
+    host: 'built',
+    partial: [
+      {
+        signal: 'locked-owner-exemption',
+        reason:
+          'a `nonDeactivatable` module’s **boot hooks** are out of the population and its ' +
+          'timers are not, and that exemption is read from the manifest the platform loads. ' +
+          'Over a package whose artefact is not current the exemption cannot be derived, so ' +
+          'the run keeps every hook in — the safe direction — and says so, because a finding ' +
+          'an author cannot reproduce is a finding they learn to ignore',
+      },
+    ],
+    // **`null`, corrected in Phase 3, and the correction is the host's own
+    // finding.** This entry read `manifest-flag` / *"module manifest declaring
+    // an activation control"*, which would have made a `nonDeactivatable`
+    // package `not-applicable`. The rule's own input refuses that reading:
+    // `lockedModules` takes a locked module's **boot hooks** out of the
+    // population and leaves its **timers** in — `_lifecycle`'s lease heartbeat is
+    // *ledgered* rather than exempted, which is only meaningful if a locked
+    // module's timers are still judged. So the manifest decides an exemption,
+    // never applicability, and the rule is unconditional.
+    subjectDeclaration: null,
     readsArtefact: false,
     tier: 'B',
   },

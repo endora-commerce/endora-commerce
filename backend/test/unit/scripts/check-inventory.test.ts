@@ -238,6 +238,8 @@ import * as hostEnvInputs from '../../../scripts/check-env-inputs.js';
 import * as ruleEnvInputs from '@endora-commerce/cli/rules/env-inputs.js';
 import * as hostTenantClassification from '../../../scripts/check-entity-tenant-classification.js';
 import * as ruleTenantClassification from '@endora-commerce/cli/rules/entity-tenant-classification.js';
+import * as hostEntryPresence from '../../../scripts/check-entry-presence.js';
+import * as ruleEntryPresence from '@endora-commerce/cli/rules/entry-presence.js';
 import {
   checkAdminSurface,
   reachKey,
@@ -12250,6 +12252,7 @@ describe('a relocated analysis has one implementation and two hosts', () => {
       ['check:env-inputs', hostEnvInputs as unknown as Record<string, unknown>, ruleEnvInputs as unknown as Record<string, unknown>],
       // Phase 3.
       ['check-entity-tenant-classification', hostTenantClassification as unknown as Record<string, unknown>, ruleTenantClassification as unknown as Record<string, unknown>],
+      ['check:entry-presence', hostEntryPresence as unknown as Record<string, unknown>, ruleEntryPresence as unknown as Record<string, unknown>],
     ];
 
   for (const [id, host, rule] of RELOCATED) {
