@@ -1,9 +1,6 @@
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
-import { lazyPort } from '@endora-commerce/platform/kernel';
-import {
-  ERP_CONNECTOR_MODULES,
-  type ErpConnectorRegistryPort,
-} from '@endora-commerce/contracts';
+import { effectiveState, lazyPort } from '@endora-commerce/platform/kernel';
+import { CAPABILITY_KEYS, type ErpConnectorRegistryPort } from '@endora-commerce/contracts';
 import { ErpConnectorActivationLock } from './entities/erp-connector-activation-lock.entity.js';
 import { ErpConnectorRegistryService } from './services/erp-connector-registry.service.js';
 
@@ -16,14 +13,22 @@ interface ModuleActivationChangedPayload {
   active?: boolean;
 }
 
-type ErpConnectorModuleId = (typeof ERP_CONNECTOR_MODULES)[number]['id'];
-
-const ERP_MODULE_IDS = new Set<ErpConnectorModuleId>(
-  ERP_CONNECTOR_MODULES.map((module) => module.id),
-);
-
-function isErpConnectorModuleId(moduleId: string): moduleId is ErpConnectorModuleId {
-  return ERP_MODULE_IDS.has(moduleId as ErpConnectorModuleId);
+/**
+ * Feature 132 (T027) — family membership, derived and read when it is asked.
+ *
+ * This was a union type and a module-level `Set`, both built from
+ * `ERP_CONNECTOR_MODULES` at import time. The union was the sharper problem: it
+ * made "is this module an ERP connector" a **compile-time** question, so a
+ * connector installed from npm or shipped by a deployment's overlay could not be
+ * one — which is exactly the population the exclusion has to cover.
+ *
+ * **Declared** membership, not effective: on a *deactivation* the member is already
+ * absent, and an effective-presence test would drop the event that clears the lock.
+ */
+function isErpConnectorModuleId(moduleId: string): boolean {
+  return effectiveState
+    .declaredMembersOfCapability(CAPABILITY_KEYS.ERP_CONNECTOR)
+    .includes(moduleId);
 }
 
 function moduleActivationRequest(input: {

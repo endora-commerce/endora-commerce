@@ -51,13 +51,11 @@ export interface ErpConnectorRegistryPort {
   getActiveModuleId(): Promise<string | null>;
 }
 
-/** Known ERP connector modules and their activation setting codes (feature 119). */
-export const ERP_CONNECTOR_MODULES = [
-  { id: 'comarch_xl', activationSettingCode: 'comarch_xl.enabled' },
-  {
-    id: 'erp_incumbent_fixture',
-    activationSettingCode: 'erp_incumbent_fixture.enabled',
-  },
-] as const;
+// Feature 132 — `ERP_CONNECTOR_MODULES` is **gone**, and this array is the one whose
+// deletion repairs a live Principle XV violation: a per-deployment **overlay** module
+// had to be written into this core file to join its family, because there was no
+// other way in. The family is declared by its members
+// (`capabilities: ['erp-connector']`) and derived by the platform; `erp_connector`
+// owns the key and mints the refusal code.
 
 export const ERP_CONNECTOR_ALREADY_ACTIVE = 'ERP_CONNECTOR_ALREADY_ACTIVE' as const;

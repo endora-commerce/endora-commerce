@@ -915,38 +915,19 @@ export const ModuleManifestSchema = z.object({
    * (feature 132, R3.1). See {@link ExclusiveCapabilitySchema}.
    */
   exclusiveCapabilities: z.array(ExclusiveCapabilitySchema).optional(),
-  /**
-   * When `true`, the module participates in the PIM connector mutual-exclusion
-   * set (feature 089). Consumed by `pim_connector` registry discovery — not by
-   * install ordering.
-   *
-   * **Superseded by `capabilities` above** and deleted once every declarer has
-   * moved (feature 132 Phase 4, R5).
-   */
-  pimConnector: z.literal(true).optional(),
-  /**
-   * When `true`, the module participates in the invoice-ledger mutual-exclusion
-   * set (feature 119).
-   *
-   * **Nothing reads it.** `invoice_ledger`'s registry answers
-   * `assertCanActivate` from `INVOICE_LEDGER_MODULES` in
-   * `packages/contracts/src/invoice-ledger.ts`, which is the compile-time table
-   * the exclusion is derived from; this flag is the same fact declared a second
-   * time, in a second place, with nobody to keep the two in agreement. It is
-   * kept because `pimConnector` above is the identical pair — declared by
-   * `pim_unopim`, read by nothing, the mutex answered from the module's own
-   * `pimConnectorRegistry` — and one of two duplicates is not the thing to
-   * remove on its own. Deciding between "the flag is the source and the table
-   * derives from it" and "the table is the source and the flag goes" is a sweep
-   * over both families, not a line here.
-   */
-  invoiceLedger: z.literal(true).optional(),
-  /**
-   * When `true`, the module participates in the ERP connector mutual-exclusion
-   * set (feature 119). Consumed by `erp_connector` registry discovery — not by
-   * install ordering.
-   */
-  erpConnector: z.literal(true).optional(),
+  // Feature 132 — `pimConnector`, `invoiceLedger` and `erpConnector` are **gone**.
+  //
+  // Three `z.literal(true).optional()` flags, one per family, each declared by one or
+  // two modules and each read by **nothing**: every exclusion answered from a
+  // hand-written array in this package instead. The doc comment on `invoiceLedger`
+  // asked for this removal by name, and put the question it could not answer alone —
+  // *"is the flag the source, or the table?"* The answer is neither: the manifest is
+  // the source, in one field for all families (`capabilities` above), and both the
+  // flags and the tables go.
+  //
+  // This is a **breaking** manifest-schema change for any consumer that declared one,
+  // which is three modules in this tree and potentially a package outside it; the
+  // replacement is one line and is additive.
   /**
    * The operator-visible error codes this module owns (feature 090, D-182).
    *

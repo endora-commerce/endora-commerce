@@ -1,8 +1,9 @@
 import { randomBytes } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ERROR_CODES, INVOICE_LEDGER_MODULES } from '@endora-commerce/contracts';
+import { CAPABILITY_KEYS, ERROR_CODES } from '@endora-commerce/contracts';
 import { effectiveState } from '@endora-commerce/platform/kernel';
 import { HttpError } from '@endora-commerce/platform/http';
+import { resolvedManifestEntries } from '../../../src/lifecycle/registered-manifests.js';
 import { ensureSalesChannel } from '../../helpers/sales-channel-fixtures.js';
 import {
   setupBackendServer,
@@ -14,9 +15,10 @@ import {
  * T079 / SC-008. Each ledger vendor's `refuse-when-sibling-ledger-vendor-active`
  * interceptor on POST `/api/v1/admin/modules/:id/activation`.
  *
- * Production `INVOICE_LEDGER_MODULES` lists Infakt and wFirma. The
- * `ledger_fixture` entry is injected for Infakt-only cases that need a sibling
- * without activating the real wFirma package.
+ * Feature 132 — the shipped vendor family is **derived** from the members' own
+ * manifest declarations rather than read off `INVOICE_LEDGER_MODULES`, which is
+ * deleted. The `ledger_fixture` entry is still injected for Infakt-only cases that
+ * need a sibling without activating the real wFirma package.
  */
 
 const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
@@ -30,6 +32,18 @@ const LEDGER_FIXTURE = {
 
 const extraActive = new Set<string>();
 
+/** The vendors this tree ships, from their own declarations. Never a written-down list (D-100). */
+async function shippedLedgerVendors(): Promise<readonly { id: string }[]> {
+  const entries = await resolvedManifestEntries();
+  const vendors = entries
+    .filter((entry) =>
+      (entry.manifest.capabilities ?? []).includes(CAPABILITY_KEYS.INVOICE_LEDGER_VENDOR),
+    )
+    .map((entry) => ({ id: entry.manifest.id }));
+  expect(vendors.length, 'the derived ledger family must not be empty').toBeGreaterThan(0);
+  return vendors;
+}
+
 describe('invoice_ledger — vendor mutex [contract]', () => {
   let h: BackendServerHandle;
   let channelId: string;
@@ -39,7 +53,7 @@ describe('invoice_ledger — vendor mutex [contract]', () => {
       process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] ?? randomBytes(32).toString('base64');
     extraActive.clear();
     h = await setupBackendServer({
-      invoiceLedgerVendorModules: [...INVOICE_LEDGER_MODULES, LEDGER_FIXTURE],
+      invoiceLedgerVendorModules: [...(await shippedLedgerVendors()), LEDGER_FIXTURE],
       invoiceLedgerPresence: {
         isOperatorActivated(moduleId) {
           if (extraActive.has(moduleId)) return true;

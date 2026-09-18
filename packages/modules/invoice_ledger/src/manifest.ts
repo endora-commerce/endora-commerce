@@ -1,4 +1,5 @@
 import {
+  CAPABILITY_KEYS,
   defineModuleManifest,
   defineModuleSettingsManifest,
   INVOICE_LEDGER_READ_PERMISSION,
@@ -83,6 +84,18 @@ export const manifest = defineModuleManifest({
   settings: invoiceLedgerSettingsManifest,
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
+  /**
+   * Feature 132 — this module **owns** the invoice-ledger vendor capability and
+   * declares it mutually exclusive, minting the code an operator meets
+   * (`contracts/module-capabilities.md` R3.1). A vendor raises the code and must
+   * not declare it (D-95.2); it declares membership and nothing more.
+   */
+  exclusiveCapabilities: [
+    {
+      key: CAPABILITY_KEYS.INVOICE_LEDGER_VENDOR,
+      errorCode: 'INVOICE_LEDGER_VENDOR_ALREADY_ACTIVE',
+    },
+  ],
   errorCodes: [
     { code: 'INVOICE_LEDGER_VENDOR_ALREADY_ACTIVE' },
     { code: 'INVOICE_LEDGER_CREDENTIALS_MISSING' },
