@@ -1,5 +1,8 @@
 import type { AssetsLibraryCradle } from '../../../packages/modules/assets_library/src/backend/index.js';
-import type { CartShoppingListBridge, CartsCradle } from '../../../packages/modules/carts/src/backend/index.js';
+import type {
+  CartShoppingListBridge,
+  CartsCradle,
+} from '../../../packages/modules/carts/src/backend/index.js';
 import type { ConfigurationTypeRegistry } from '../../../packages/modules/credentials/src/backend/services/configuration-type-registry.js';
 import type { CredentialsService } from '../../../packages/modules/credentials/src/backend/services/credentials.service.js';
 import type { AdminNotificationService } from '../../../packages/modules/admin_notifications/src/backend/services/admin-notification-service.js';
@@ -149,7 +152,6 @@ import type { PromptActionToolRegistry } from '../../../packages/modules/prompt_
 import type { PromptRequestService } from '../../../packages/modules/prompt_actions/src/backend/services/prompt-request.service.js';
 import type { LlmProviderFactory } from '../../../packages/modules/prompt_actions/src/backend/services/llm/provider-factory.js';
 import type { FetchLike } from '../../../packages/modules/prompt_actions/src/backend/services/llm/provider.js';
-import type { KsefCradle } from '../../../packages/modules/ksef/src/backend/index.js';
 import type { ProductFeedsCradle } from '../../../packages/modules/product_feeds/src/backend/index.js';
 import type {
   TaxonomyFetchResult,
@@ -159,7 +161,6 @@ import type { FeedDeliveryAdapter } from '../../../packages/modules/product_feed
 import { FeedDeliveryError, type FeedDeliveryProtocol } from '@endora-commerce/contracts';
 import type { PimErgonodeCradle } from '@endora-commerce/mod-pim-ergonode/backend';
 import type { PimUnopimCradle } from '@endora-commerce/mod-pim-unopim/backend';
-import type { ComarchXlCradle } from '../../../packages/modules/comarch_xl/src/backend/index.js';
 import type {
   ErpConnectorRegistryPort,
   InfaktHttpPort,
@@ -168,18 +169,7 @@ import type {
   WfirmaHttpPort,
 } from '@endora-commerce/contracts';
 import type { LedgerActivationPresenceReader } from '../../../packages/modules/invoice_ledger/src/backend/services/invoice-ledger-registry.service.js';
-import type { ErgonodeClientPort } from '../../../packages/modules/pim_ergonode/src/backend/services/ergonode-client.port.js';
-import type { ErgonodeMediaFetcherPort } from '../../../packages/modules/pim_ergonode/src/backend/services/ergonode-media-fetcher.js';
-import type { UnopimMediaFetcherPort } from '../../../packages/modules/pim_unopim/src/backend/services/unopim-media-fetcher.js';
-import type { AkeneoMediaFetcherPort } from '../../../packages/modules/pim_akeneo/src/backend/services/akeneo-media-fetcher.js';
-import { refusingErgonodeClient } from '@endora-commerce/mod-pim-ergonode/test-support';
-import { refusingUnopimClient } from '@endora-commerce/mod-pim-unopim/test-support';
-import { refusingXlClient } from '@endora-commerce/mod-comarch-xl/test-support';
-import { ScriptedErgonodeMediaFetcher } from '@endora-commerce/mod-pim-ergonode/test-support';
-import { ScriptedUnopimMediaFetcher } from '@endora-commerce/mod-pim-unopim/test-support';
-import { ScriptedAkeneoMediaFetcher } from '@endora-commerce/mod-pim-akeneo/test-support';
 import type { PimPimcoreCradle } from '@endora-commerce/mod-pim-pimcore/backend';
-import type { KsefApiClientPort } from '../../../packages/modules/ksef/src/backend/integrations/ksef-client.interface.js';
 import type { PwaCradle } from '../../../packages/modules/pwa/src/backend/index.js';
 import { composeErrorEnvelopeOptions } from '@endora-commerce/platform/composition';
 import type { ComparisonsCradle } from '../../../packages/modules/comparisons/src/backend/index.js';
@@ -252,8 +242,34 @@ export interface BackendServerOptions {
   promptActionsLlmFetch?: FetchLike;
   promptActionsNow?: () => Date;
   promptActionsTtlMinutes?: number;
-  /** Feature 059 — stub KSeF API client for submission/credential tests. */
-  ksefClientFactory?: (baseUrl: string) => KsefApiClientPort;
+  /**
+   * Container registrations this test substitutes, keyed by the **registration
+   * name its owner registers** — the same key `composedModules.contribute`
+   * takes (feature 109 R4.1, T051; `specs/134-paid-module-extraction/` T013).
+   *
+   * **This one field replaced seven that each named a module**, and the point is
+   * not the arithmetic: `ksefClientFactory`, `ergonodeClient`,
+   * `ergonodeMediaFetcher`, `unopimClient`, `unopimMediaFetcher`, `xlClient` and
+   * `akeneoMediaFetcher` were typed by imports reaching into
+   * `packages/modules/<paid id>/src/`, which is why this repository did not
+   * compile without those modules' sources and why no module could be extracted
+   * from it (`spec.md` §2.4). The type of what a test substitutes is now the
+   * substituting test's business, which is where it was always visible.
+   *
+   * **Merged one level deep over whatever is already registered under that
+   * name**, which is the behaviour the seven fields had and the reason this is a
+   * merge rather than an assignment: `pimErgonodeSourceOverrides` is one
+   * registration holding a client *and* a media fetcher, and a test that scripts
+   * only the client must keep the module's refusing fetcher rather than silently
+   * lose it and open a socket. One level and no deeper — a recursive merge makes
+   * *"what did this test actually substitute"* unanswerable from the call site.
+   *
+   * A module's own default lives in that module's `src/test-support/index.ts`
+   * (R4.1) and a module may not contribute over a name it does not own (R4.4);
+   * a test that needs a *neighbour's* collaborator substituted says so here, in
+   * its own file, where the coupling it wanted is the thing a reader sees.
+   */
+  registrations?: Readonly<Record<string, unknown>>;
   /**
    * Feature 067 Phase 11 — the taxonomy egress transport. Defaults to a stub
    * that FAILS the test if it is ever called, so "no test in this repository
@@ -268,40 +284,6 @@ export interface BackendServerOptions {
    * without a test opting in has to fail loudly, not quietly succeed.
    */
   feedDeliveryAdapters?: Map<FeedDeliveryProtocol, FeedDeliveryAdapter>;
-  /**
-   * Feature 068 — the Ergonode source transport. Defaults to a client that
-   * THROWS on every stream read, so a test that forgets to script the source
-   * fails loudly instead of reaching a customer's PIM; `pim_ergonode` tests pass
-   * a `ScriptedErgonodeClient` holding their fixtures.
-   */
-  ergonodeClient?: ErgonodeClientPort;
-  /**
-   * Feature 068 / US5 — the byte source for imported media. Defaults to a
-   * fetcher that has nothing scripted and therefore answers `not_found`, so a
-   * test never opens a socket; the media tests pass a
-   * `ScriptedErgonodeMediaFetcher` holding their files.
-   */
-  ergonodeMediaFetcher?: ErgonodeMediaFetcherPort;
-  /**
-   * Feature 089 — the UnoPim source transport. Defaults to a client that throws
-   * on every stream read so no test reaches the network without scripting fixtures.
-   */
-  unopimClient?: PimUnopimCradle['pimUnopimSourceOverrides']['unopimClient'];
-  /**
-   * Feature 089 / US5 — the byte source for imported media. Defaults to a
-   * fetcher that has nothing scripted and therefore answers `not_found`.
-   */
-  unopimMediaFetcher?: UnopimMediaFetcherPort;
-  /**
-   * Feature 119 — the Comarch XL source transport. Defaults to a client that
-   * refuses every call so no test reaches the network without scripting fixtures.
-   */
-  xlClient?: ComarchXlCradle['comarchXlSourceOverrides']['xlClient'];
-  /**
-   * Feature 094 / US5 — the byte source for imported media. Defaults to a
-   * fetcher that has nothing scripted and therefore answers `not_found`.
-   */
-  akeneoMediaFetcher?: AkeneoMediaFetcherPort;
   /**
    * Feature 119 — Infakt HTTP. Defaults to the module's refusing port. US1
    * connection-test scripts pass a stub that answers account details.
@@ -415,8 +397,6 @@ export interface BackendServerHandle {
      */
     loadAssetImage: InvoicesCradle['invoices']['handle']['loadAssetImage'];
   };
-  /** Feature 059 — KSeF handle (settings, auth, credentials, submissions). */
-  ksef: KsefCradle['ksef']['handle'];
   /** Feature 119 — drive the Infakt delivery processor (no BullMQ in this harness). */
   infakt: { processDelivery: (deliveryId: string) => Promise<void> };
   /** Feature 129 — drive the wFirma delivery processor (no BullMQ in this harness). */
@@ -817,6 +797,53 @@ async function moduleTestSupport(
   return contributions;
 }
 
+/**
+ * A test's own container substitutions, merged one level deep over whatever is
+ * already registered under each name (feature 109 T051).
+ *
+ * **One level, and the depth is a decision rather than an omission.** A
+ * registration in this platform is either a collaborator or a small record of
+ * collaborators — `pimErgonodeSourceOverrides` holds a client and a media
+ * fetcher, `ksefTestOverrides` a factory and three timings — so one level is
+ * exactly the granularity a test substitutes at. Going deeper would make
+ * *"what did this test actually replace"* unanswerable from its call site, which
+ * is the property the seven module-named option fields had and the only one of
+ * theirs worth keeping.
+ *
+ * The already-registered value is read from the container rather than threaded
+ * through, because the contributions this merges over are made at nine different
+ * points in this file's boot order and a parameter would have to be assembled by
+ * hand at all nine — which is how the fields it replaced came to have nine
+ * different spellings of "or the default".
+ */
+function contributeTestRegistrations(
+  composedModules: ComposedTestModules,
+  container: KernelContainer,
+  registrations: Readonly<Record<string, unknown>> | undefined,
+): void {
+  for (const [name, value] of Object.entries(registrations ?? {})) {
+    const existing = container.hasRegistration(name)
+      ? (container.resolve(name) as unknown)
+      : undefined;
+    composedModules.contribute({ [name]: mergeOneLevel(existing, value) });
+  }
+}
+
+/** A plain record, and nothing a spread would flatten wrongly. */
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+  // A class instance is a collaborator and not a record of them: spreading one
+  // drops its prototype and therefore every method the module will call on it,
+  // which fails at the call rather than at the substitution.
+  const proto: unknown = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+function mergeOneLevel(existing: unknown, override: unknown): unknown {
+  if (!isPlainRecord(existing) || !isPlainRecord(override)) return override;
+  return { ...existing, ...override };
+}
+
 async function loadTestSupport(
   moduleId: string,
   manifestFilePath: string,
@@ -1053,7 +1080,6 @@ export async function setupBackendServer(
   let dictionariesCradle!: DictionariesCradle;
   let comparisonsCradle!: ComparisonsCradle;
   let invoicesCradle!: InvoicesCradle;
-  let ksefCradle!: KsefCradle;
 
   // Feature 080 (T052) — the identity, order and asset ports, mirroring
   // `composition.ts` name for name. This harness read the same five entity
@@ -1218,9 +1244,7 @@ export async function setupBackendServer(
    * server composed without it is one under which every tenant-scope assertion
    * passes for the wrong reason (Principle XI).
    */
-  const buildTestTenantContext = async (
-    request: FastifyRequest,
-  ): Promise<TenantContext> => {
+  const buildTestTenantContext = async (request: FastifyRequest): Promise<TenantContext> => {
     const actor = request.testActor;
     if (actor?.kind === 'customer') {
       const orgId =
@@ -1247,8 +1271,7 @@ export async function setupBackendServer(
         customerAccountId: actor.customerAccountId,
         organizationId: orgId,
         impersonatorAdminUserId:
-          (actor as { impersonatorAdminUserId?: string | null }).impersonatorAdminUserId ??
-          null,
+          (actor as { impersonatorAdminUserId?: string | null }).impersonatorAdminUserId ?? null,
         ...(rollupSubtree && rollupSubtree.length > 0
           ? { rollupSubtreeOrganizationIds: rollupSubtree }
           : {}),
@@ -1808,12 +1831,13 @@ export async function setupBackendServer(
         transactionalEmailSenderAccessor: () =>
           | import('@endora-commerce/contracts').TransactionalEmailSender
           | undefined;
-        emailBrandingAccessor: () => { resolve(salesChannelId: string): Promise<unknown> } | undefined;
+        emailBrandingAccessor: () =>
+          | { resolve(salesChannelId: string): Promise<unknown> }
+          | undefined;
       } => container.cradle as never;
 
       // Feature 062 — read-only inventory accessors backing the external catalog
       // namespace's availability indication (mirrors composition.ts).
-
 
       // Feature 072 (T118) — the settings names. The kernel itself is composed
       // above `composeModules`, for the subscriber ordering; what belongs here is
@@ -1844,7 +1868,8 @@ export async function setupBackendServer(
       // production, not a decision, and no test in the tree could reach it.
       composedModules.contribute({
         // D-48 — the system-default channel, which always exists.
-        mfaDefaultChannelIdResolver: async () => (await salesChannels.resolver.getSystemDefault()).id,
+        mfaDefaultChannelIdResolver: async () =>
+          (await salesChannels.resolver.getSystemDefault()).id,
         mfaBaseUrls: {
           backend: 'http://localhost',
           storefront: 'http://localhost:3000',
@@ -2029,7 +2054,8 @@ export async function setupBackendServer(
         // own actor property. The ad modules resolve one name instead of each
         // taking its own identically-shaped `resolveAuditContext` option.
         adminAuditActorResolver: (request: FastifyRequest) => ({
-          actorAdminUserId: request.testActor?.kind === 'admin' ? request.testActor.adminUserId : null,
+          actorAdminUserId:
+            request.testActor?.kind === 'admin' ? request.testActor.adminUserId : null,
         }),
         // Feature 072 (wave 2) — **undefined on purpose.** A BullMQ queue built per
         // `setupBackendServer()` is never closed and this harness is constructed
@@ -2040,7 +2066,8 @@ export async function setupBackendServer(
         moduleQueueRedis: undefined,
         // Feature 072 (wave 2) — mirrors `composition.ts`.
         salesChannelCodeIdPort: {
-          idByCode: async (code: string) => (await salesChannels.resolver.getByCode(code))?.id ?? null,
+          idByCode: async (code: string) =>
+            (await salesChannels.resolver.getByCode(code))?.id ?? null,
           codeById: async (id: string) => {
             const { items } = await (
               container.cradle as unknown as SalesChannelsCradle
@@ -2100,27 +2127,18 @@ export async function setupBackendServer(
       // the fetcher and delivery adapters refuse by default, so a code path that
       // starts reaching outward without a test opting in shows up as a failed check
       // rather than a real request.
+      // The four PIM/ERP source overrides that used to be spelled here are the
+      // modules' own now (`src/test-support/index.ts`, contract R4.1): each
+      // registers its refusing client and its unscripted media fetcher, and the
+      // kit applies them before this window opens. What is left below is
+      // `product_feeds`', and it stays until that module takes it.
+      //
+      // The window's timing argument still holds and is why the remaining block
+      // is here rather than later: `pim_ergonode`'s boot hook only skips
+      // constructing the module because `pimErgonodeRunWorkers` is false in this
+      // harness, so a contribution registered after boot would be silently
+      // discarded and a test would open a real socket to Ergonode.
       composedModules.contribute({
-        // Same window, same reason, and here it is a latent *outbound request*
-        // rather than a file read: `pim_ergonode`'s boot hook only skips
-        // constructing the module because `pimErgonodeRunWorkers` is false in this
-        // harness. The day a non-worker reconcile is added there, or one suite
-        // flips that flag, a contribution registered after boot would be silently
-        // discarded and a test would open a real socket to Ergonode.
-        pimErgonodeSourceOverrides: {
-          ergonodeClient: options.ergonodeClient ?? refusingErgonodeClient(),
-          mediaFetcher: options.ergonodeMediaFetcher ?? new ScriptedErgonodeMediaFetcher(),
-        },
-        pimUnopimSourceOverrides: {
-          unopimClient: options.unopimClient ?? refusingUnopimClient(),
-          mediaFetcher: options.unopimMediaFetcher ?? new ScriptedUnopimMediaFetcher(),
-        },
-        comarchXlSourceOverrides: {
-          xlClient: options.xlClient ?? refusingXlClient(),
-        },
-        pimAkeneoSourceOverrides: {
-          mediaFetcher: options.akeneoMediaFetcher ?? new ScriptedAkeneoMediaFetcher(),
-        },
         productFeedsTestOverrides: {
           taxonomyDataRoot: '/nonexistent/product-feeds-taxonomies',
           taxonomySourceFetcher: options.taxonomySourceFetcher ?? refusingTaxonomyFetcher(),
@@ -2291,7 +2309,8 @@ export async function setupBackendServer(
       if (blogCradle.blogCacheService) await blogCradle.blogCacheService.invalidateAll();
 
       dictionariesCradle = container.cradle as unknown as DictionariesCradle;
-      if (dictionariesCradle.dictionaryCache) await dictionariesCradle.dictionaryCache.invalidateAll();
+      if (dictionariesCradle.dictionaryCache)
+        await dictionariesCradle.dictionaryCache.invalidateAll();
 
       // Feature 006 — Search module. Owns the Meilisearch indexer + event
       // subscriber lifecycle. Wires the same settings-aware path the
@@ -2511,17 +2530,13 @@ export async function setupBackendServer(
       // integration test built the **real** client and drove it at production
       // polling — every submission reached `failed` carrying
       // `KSEF_AUTH_REJECTED` from a live 400, rather than the fake's outcome.
-      composedModules.contribute({
-        // The harness substitutes a deterministic client, drives sweeps itself
-        // and polls three times at 5 ms.
-        ksefTestOverrides: {
-          ...(options.ksefClientFactory ? { clientFactory: options.ksefClientFactory } : {}),
-          sweepIntervalMs: 0,
-          pollAttempts: 3,
-          pollIntervalMs: 5,
-        },
-      });
-      ksefCradle = container.cradle as unknown as KsefCradle;
+      // `ksefTestOverrides` is `ksef`'s own contribution now
+      // (`src/test-support/index.ts`): the sweep is off and the poll is three
+      // attempts 5 ms apart because this composition has no queue and drives
+      // `submissions.process(...)` directly, which is a fact about the module and
+      // not about this file. A test that scripts a client passes
+      // `registrations: { ksefTestOverrides: { clientFactory } }` and keeps the
+      // cadence, because the merge below is one level deep.
 
       // Feature 067 — Product Feed. Deliberately NO `redis` and NO `runWorkers`:
       // `setupBackendServer()` runs once per test file in a single fork, and adding
@@ -2573,7 +2588,6 @@ export async function setupBackendServer(
       composedModules.contribute({
         shipmentEmailSender: () => emailCradle().transactionalEmailSenderAccessor(),
       });
-
 
       // Feature 072 (T114) — `newsletter` owns its services and routes now,
       // and `newsletterBridge` is gone since `specs/117-instance-bring-up/`
@@ -2641,6 +2655,13 @@ export async function setupBackendServer(
       // the kit's `beforeBoot` is the later slot, for a reconcile or a settings
       // write a boot hook will read.
       options.configureInterceptors?.(apiInterceptors);
+
+      // **Last in the window, deliberately.** A test's own substitutions go over
+      // everything this root and every module contributed, because that is what
+      // the seven deleted option fields did and because a substitution a later
+      // contribution silently overwrote would be the worst of the two failures
+      // available here.
+      contributeTestRegistrations(composedModules, container, options.registrations);
     },
     plugins: harnessPlugins,
     scopedPlugins: harnessScopedPlugins,
@@ -2727,7 +2748,6 @@ export async function setupBackendServer(
       pdfRenderer: invoicesCradle.invoicePdfRenderer,
       loadAssetImage: invoicesCradle.invoices.handle.loadAssetImage,
     },
-    ksef: ksefCradle.ksef.handle,
     infakt: {
       processDelivery: (deliveryId: string) =>
         (
@@ -2846,7 +2866,6 @@ export async function setupBackendServer(
     cartService: () => (container.cradle as unknown as CartsCradle).cartService,
   };
 }
-
 
 function customerResolver(request: FastifyRequest): {
   customerAccountId: string;

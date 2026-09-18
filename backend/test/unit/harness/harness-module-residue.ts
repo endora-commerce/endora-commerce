@@ -11,33 +11,39 @@
  * lets one coupling replace another, which is how `BackendServerOptions` grew
  * from 3 fields to 22 in three months.
  *
- * Measured on this branch, against feature 134 T012's recorded premise of
- * 7 / 12 / 29 / 21:
+ * ## The counts, and what has drained
  *
- * | | recorded | re-derived |
- * | --- | --- | --- |
- * | host bindings into `../../src/` | 7 | **7** |
- * | module-typed `BackendServerOptions` members | 12 | **12** |
- * | module-typed `BackendServerHandle` members | 29 | **29** |
- * | paid-module table names in the wipe list | 21 | **20** — `pim_pimcore` 8, `pim_ergonode` 10, `ksef` 2; `invoice_ledger`'s five belong to a free module |
+ * Measured against feature 134 T012's recorded premise of 7 / 12 / 29 / 21:
  *
- * The one number the premise did not carry is the **specifier** count, which is
- * what T012's own sentence is about: 59 declarations into 39 module packages on
- * the day the instrument landed, all of them `import type` and therefore
- * invisible to every runtime instrument in the estate.
+ * | | recorded | re-derived when T012 landed | now |
+ * | --- | --- | --- | --- |
+ * | host bindings into `../../src/` | 7 | **7** | 7 — and they stay: they are what the inversion hands the kit |
+ * | module-typed `BackendServerOptions` members | 12 | **12** | **5** |
+ * | module-typed `BackendServerHandle` members | 29 | **29** | **28** |
+ * | paid-module table names in the wipe list | 21 | **20** | **0** |
+ * | module-package specifiers (the premise carried no number) | — | **59** | **52** |
+ *
+ * **The compile-time hard stop `spec.md` §2.4 measures is closed.** Seven
+ * declarations reached into `packages/modules/<paid id>/src/` — `KsefCradle`,
+ * `KsefApiClientPort`, `ErgonodeClientPort`, `ErgonodeMediaFetcherPort`,
+ * `UnopimMediaFetcherPort`, `AkeneoMediaFetcherPort` and `ComarchXlCradle` — and
+ * there are now none: `grep -c 'packages/modules/<any paid id>/'` over that file
+ * is **0**. What is left of the paid modules there is **three bare specifiers**
+ * at a published subpath, `@endora-commerce/mod-{pim-ergonode,pim-pimcore,pim-unopim}/backend`,
+ * typing three handle fields. Those resolve out of `node_modules` against the
+ * published package rather than out of a directory, so a paid module leaving the
+ * tree does not break the compile — it becomes an undeclared dependency, which is
+ * a different and answerable problem. They retire the way `ksef`'s did, through a
+ * handle accessor the module publishes from its own `./test-support`.
  */
 
 /**
  * Specifiers that resolve into a module package.
  *
  * Retired by 109 T050/T051: each is here because a member of
- * `BackendServerOptions` or `BackendServerHandle` is typed by it, or — for the
- * four `./test-support` entries — because this root still constructs that
- * module's default test double. The four arrived **with** T015 and are the price
- * of the fifteen vendor helpers leaving `backend/test/helpers/`: the doubles are
- * now the modules', and the day the six source and media option fields go
- * (T051), the modules contribute them through their own `registrations` and
- * these four go with the fields.
+ * `BackendServerOptions` or `BackendServerHandle` is typed by it. **None is a
+ * relative reach into a paid module's `src/` any more** — that was the whole of
+ * the hard stop and it is the whole of what T013 removed.
  */
 export const LEDGERED_MODULE_SPECIFIERS: readonly string[] = [
   '../../../packages/modules/admin_notifications/src/backend/services/admin-notification-service.js',
@@ -51,7 +57,6 @@ export const LEDGERED_MODULE_SPECIFIERS: readonly string[] = [
   '../../../packages/modules/carts/src/backend/services/cart-service.js',
   '../../../packages/modules/catalog/dist/backend/services/catalog-attribute-read.service.js',
   '../../../packages/modules/cms/src/backend/index.js',
-  '../../../packages/modules/comarch_xl/src/backend/index.js',
   '../../../packages/modules/comparisons/src/backend/index.js',
   '../../../packages/modules/credentials/src/backend/services/configuration-type-registry.js',
   '../../../packages/modules/credentials/src/backend/services/credentials.service.js',
@@ -64,18 +69,12 @@ export const LEDGERED_MODULE_SPECIFIERS: readonly string[] = [
   '../../../packages/modules/email/src/backend/services/mailer.js',
   '../../../packages/modules/invoice_ledger/src/backend/services/invoice-ledger-registry.service.js',
   '../../../packages/modules/invoices/dist/backend/index.js',
-  '../../../packages/modules/ksef/src/backend/index.js',
-  '../../../packages/modules/ksef/src/backend/integrations/ksef-client.interface.js',
   '../../../packages/modules/mfa/src/backend/services/oauth-provider-service.js',
   '../../../packages/modules/organizations/src/backend/index.js',
   '../../../packages/modules/organizations/src/backend/services/organization-context-service.js',
   '../../../packages/modules/organizations/src/backend/services/organization-moderation-service.js',
   '../../../packages/modules/organizations/src/backend/services/organization-restriction-service.js',
   '../../../packages/modules/organizations/src/backend/services/vat-validator-port.js',
-  '../../../packages/modules/pim_akeneo/src/backend/services/akeneo-media-fetcher.js',
-  '../../../packages/modules/pim_ergonode/src/backend/services/ergonode-client.port.js',
-  '../../../packages/modules/pim_ergonode/src/backend/services/ergonode-media-fetcher.js',
-  '../../../packages/modules/pim_unopim/src/backend/services/unopim-media-fetcher.js',
   '../../../packages/modules/price_lists/src/backend/services/pricing-service.interface.js',
   '../../../packages/modules/product_feeds/src/backend/index.js',
   '../../../packages/modules/product_feeds/src/backend/services/delivery/delivery-adapter.interface.js',
@@ -92,27 +91,24 @@ export const LEDGERED_MODULE_SPECIFIERS: readonly string[] = [
   '../../../packages/modules/shopping_lists/src/backend/services/shopping-list-service.js',
   '@endora-commerce/mod-admin-users/backend',
   '@endora-commerce/mod-auth/backend',
-  '@endora-commerce/mod-comarch-xl/test-support',
   '@endora-commerce/mod-customer-accounts/backend',
   '@endora-commerce/mod-i18n/backend',
   '@endora-commerce/mod-megamenu/backend',
-  '@endora-commerce/mod-pim-akeneo/test-support',
   '@endora-commerce/mod-pim-ergonode/backend',
-  '@endora-commerce/mod-pim-ergonode/test-support',
   '@endora-commerce/mod-pim-pimcore/backend',
   '@endora-commerce/mod-pim-unopim/backend',
-  '@endora-commerce/mod-pim-unopim/test-support',
   '@endora-commerce/mod-promotions/backend',
 ];
 
 /**
  * `Interface.member` pairs whose type names a module package.
  *
- * Retired by 109 T050 (the handle, 29) and T051 (the options, 12). Feature 109
- * SC-003 is these two counts reaching zero, and 134 T013 is where it is
- * scheduled. **This is the compile-time hard stop**: while a member of either
- * interface is typed by a paid module's source, the free repository does not
- * compile without that module's directory.
+ * Retired by 109 T050 (the handle) and T051 (the options). Feature 109 SC-003 is
+ * these two counts reaching zero. Seven option members went with T013 — the six
+ * PIM/ERP source and media seams and `ksefClientFactory` — replaced by one
+ * host-shaped `registrations` field merged one level deep over what each module
+ * contributes from its own `src/test-support/index.ts`; and one handle member,
+ * `ksef`, replaced by `ksefHandle(h.container)`, which that package publishes.
  */
 export const LEDGERED_MODULE_TYPE_REFERENCES: readonly string[] = [
   'BackendServerHandle.adminI18n',
@@ -127,7 +123,6 @@ export const LEDGERED_MODULE_TYPE_REFERENCES: readonly string[] = [
   'BackendServerHandle.dictionaries',
   'BackendServerHandle.integrations',
   'BackendServerHandle.invoices',
-  'BackendServerHandle.ksef',
   'BackendServerHandle.megamenu',
   'BackendServerHandle.organizations',
   'BackendServerHandle.permissionCatalogueService',
@@ -144,25 +139,18 @@ export const LEDGERED_MODULE_TYPE_REFERENCES: readonly string[] = [
   'BackendServerHandle.search',
   'BackendServerHandle.sessionService',
   'BackendServerHandle.settings',
-  'BackendServerOptions.akeneoMediaFetcher',
-  'BackendServerOptions.ergonodeClient',
-  'BackendServerOptions.ergonodeMediaFetcher',
   'BackendServerOptions.feedDeliveryAdapters',
   'BackendServerOptions.invoiceLedgerPresence',
-  'BackendServerOptions.ksefClientFactory',
   'BackendServerOptions.organizationsMailer',
   'BackendServerOptions.promptActionsLlmFetch',
   'BackendServerOptions.taxonomySourceFetcher',
-  'BackendServerOptions.unopimClient',
-  'BackendServerOptions.unopimMediaFetcher',
-  'BackendServerOptions.xlClient',
 ];
 
 /**
  * Table names a module package owns, written into this root's wipe list.
  *
  * Retired by 109 T060-T064: the set a composition empties is contributed by the
- * modules in it. **100 on the day T012 landed, 80 now** — T014 took
+ * modules in it. **100 when T012 landed, 80 now, and 0 of them paid** — T014 took
  * `pim_pimcore`'s eight, `pim_ergonode`'s ten and `ksef`'s two into those
  * packages' own `src/test-support/index.ts`, which is the shape the remaining 80
  * follow.
