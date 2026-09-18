@@ -159,8 +159,6 @@ import type {
 } from '../../../packages/modules/product_feeds/src/backend/services/taxonomy-source-fetcher.interface.js';
 import type { FeedDeliveryAdapter } from '../../../packages/modules/product_feeds/src/backend/services/delivery/delivery-adapter.interface.js';
 import { FeedDeliveryError, type FeedDeliveryProtocol } from '@endora-commerce/contracts';
-import type { PimErgonodeCradle } from '@endora-commerce/mod-pim-ergonode/backend';
-import type { PimUnopimCradle } from '@endora-commerce/mod-pim-unopim/backend';
 import type {
   ErpConnectorRegistryPort,
   InfaktHttpPort,
@@ -169,7 +167,6 @@ import type {
   WfirmaHttpPort,
 } from '@endora-commerce/contracts';
 import type { LedgerActivationPresenceReader } from '../../../packages/modules/invoice_ledger/src/backend/services/invoice-ledger-registry.service.js';
-import type { PimPimcoreCradle } from '@endora-commerce/mod-pim-pimcore/backend';
 import type { PwaCradle } from '../../../packages/modules/pwa/src/backend/index.js';
 import { composeErrorEnvelopeOptions } from '@endora-commerce/platform/composition';
 import type { ComparisonsCradle } from '../../../packages/modules/comparisons/src/backend/index.js';
@@ -405,16 +402,10 @@ export interface BackendServerHandle {
   invoiceLedgerRegistry: InvoiceLedgerRegistryPort;
   /** Feature 067 — Product Feed handle (feeds, generation, runs, token cache). */
   productFeeds: ProductFeedsCradle['productFeeds']['handle'];
-  /** Feature 068 — Ergonode PIM handle (source client seam, queue gate). */
-  pimErgonode: PimErgonodeCradle['pimErgonode']['handle'];
   /** Feature 089 — shared PIM connector registry port. */
   pimConnectorRegistry: PimConnectorRegistryPort;
   /** Feature 119 — shared ERP connector registry port. */
   erpConnectorRegistry: ErpConnectorRegistryPort;
-  /** Feature 089 — UnoPim PIM handle (source client seam). */
-  pimUnopim: PimUnopimCradle['pimUnopim']['handle'];
-  /** Feature 092 — Pimcore PIM handle (source client seam, inline import). */
-  pimPimcore: PimPimcoreCradle['pimPimcore']['handle'];
   /** Feature 046 — PWA handle (config resolver, push services, delivery queue). */
   pwa: PwaCradle['pwa']['handle'];
   /**
@@ -2770,15 +2761,12 @@ export async function setupBackendServer(
       container.cradle as unknown as { invoiceLedgerRegistryPort: InvoiceLedgerRegistryPort }
     ).invoiceLedgerRegistryPort,
     productFeeds: (container.cradle as unknown as ProductFeedsCradle).productFeeds.handle,
-    pimErgonode: (container.cradle as unknown as PimErgonodeCradle).pimErgonode.handle,
     pimConnectorRegistry: (
       container.cradle as unknown as { pimConnectorRegistryPort: PimConnectorRegistryPort }
     ).pimConnectorRegistryPort,
     erpConnectorRegistry: (
       container.cradle as unknown as { erpConnectorRegistryPort: ErpConnectorRegistryPort }
     ).erpConnectorRegistryPort,
-    pimUnopim: (container.cradle as unknown as PimUnopimCradle).pimUnopim.handle,
-    pimPimcore: (container.cradle as unknown as PimPimcoreCradle).pimPimcore.handle,
     pwa: pwaCradle.pwa.handle,
     permissionService,
     permissionCatalogueService,

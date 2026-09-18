@@ -10,6 +10,7 @@ import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import { InventoryThreshold } from '../../helpers/package-entities.js';
 import { INVENTORY_SETTING_CODES } from '../../../../packages/modules/inventory/src/manifest.js';
+import { pimErgonodeHandle } from '@endora-commerce/mod-pim-ergonode/test-support';
 
 /**
  * Issue #107 — a module's EventBus subscriptions stop when the module does.
@@ -62,11 +63,7 @@ interface Probe {
 }
 
 /** Replace one method with a counter and hand back the restore. */
-function countCalls(
-  owner: object,
-  method: string,
-  count: () => void,
-): () => void {
+function countCalls(owner: object, method: string, count: () => void): () => void {
   const target = owner as Record<string, (...args: unknown[]) => unknown>;
   const original = target[method];
   if (typeof original !== 'function') {
@@ -166,7 +163,7 @@ const PROBES: readonly Probe[] = [
     what: 'reinstates the import Job Scheduler that pulls the client’s PIM',
     event: 'pim_ergonode.connection_changed',
     payload: () => ({ eventId: randomUUID() }),
-    spy: (h, count) => countCalls(h.pimErgonode.schedules, 'syncOne', count),
+    spy: (h, count) => countCalls(pimErgonodeHandle(h.container).schedules, 'syncOne', count),
   },
   {
     moduleId: 'catalog',
