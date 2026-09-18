@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CAPABILITY_KEYS, ERROR_CODES } from '@endora-commerce/contracts';
 import { effectiveState } from '@endora-commerce/platform/kernel';
@@ -29,9 +30,9 @@ import {
 
 const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
 const OVERLAY_ID = 'erp_incumbent_fixture';
-const CORE_FAMILY_FILE = new URL(
-  '../../../../packages/contracts/src/erp-connector.ts',
-  import.meta.url,
+/** Every source file of the package the core edit used to live in. */
+const CORE_CONTRACTS_SRC = fileURLToPath(
+  new URL('../../../../packages/contracts/src/', import.meta.url),
 );
 
 const activationUrl = (moduleId: string): string =>
@@ -68,12 +69,29 @@ describe('erp_connector — an overlay module joins the family [Principle XV]', 
 
   it('is named by no core file — the Principle XV edit is gone, not moved', () => {
     // The guard that makes this test fail if the core edit comes back. Reading the
-    // file as text rather than importing it is deliberate: an entry restored for
-    // "compatibility" would be invisible to a behavioural assertion, because it
-    // would name the very module the overlay already declares.
-    const coreFamilyFile = readFileSync(CORE_FAMILY_FILE, 'utf8');
-    expect(coreFamilyFile).not.toContain(OVERLAY_ID);
-    expect(coreFamilyFile).not.toContain('ERP_CONNECTOR_MODULES');
+    // sources as text rather than importing them is deliberate: an entry restored
+    // for "compatibility" would be invisible to a behavioural assertion, because it
+    // would name the very module the overlay already declares, and every case above
+    // would stay green.
+    //
+    // The population is the **whole** package, not the one file the entry used to
+    // sit in: re-adding it to a different core file is the same violation, and a
+    // guard aimed at one path would miss it.
+    //
+    // The subject is the **module id**, not the deleted symbol's spelling. The old
+    // array's name still appears in this tree — in the doc comments that record its
+    // deletion, which is how a reader finds out what happened — and a guard that
+    // forbade the string would forbid the explanation. What Principle XV forbids is
+    // core **naming a deployment's module**, so that is what is asserted, beside the
+    // array not being re-declared under its own name.
+    const offenders: string[] = [];
+    for (const name of readdirSync(CORE_CONTRACTS_SRC)) {
+      if (!name.endsWith('.ts') || name.endsWith('.test.ts')) continue;
+      const text = readFileSync(`${CORE_CONTRACTS_SRC}${name}`, 'utf8');
+      if (text.includes(OVERLAY_ID)) offenders.push(name);
+      if (/export const ERP_CONNECTOR_MODULES\b/.test(text)) offenders.push(`${name} (array)`);
+    }
+    expect(offenders, 'no core contracts file may name a deployment-owned module').toEqual([]);
   });
 
   it('holds the claim against the core ERP connector, and is refused by it', async () => {
