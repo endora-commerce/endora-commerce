@@ -822,19 +822,29 @@ async function loadTestSupport(
   manifestFilePath: string,
 ): Promise<TestSupportContribution | null> {
   if (basename(manifestFilePath) !== 'package.json') return null;
-  const packageName: unknown = (
-    JSON.parse(readFileSync(manifestFilePath, 'utf8')) as Record<string, unknown>
-  )['name'];
+  const packageManifest = JSON.parse(readFileSync(manifestFilePath, 'utf8')) as Record<
+    string,
+    unknown
+  >;
+  const packageName: unknown = packageManifest['name'];
   if (typeof packageName !== 'string' || packageName === '') return null;
 
-  let module: Record<string, unknown>;
-  try {
-    module = (await import(`${packageName}/test-support`)) as Record<string, unknown>;
-  } catch (error) {
-    const code = (error as { code?: string }).code;
-    if (code === 'ERR_PACKAGE_PATH_NOT_EXPORTED') return null;
-    throw error;
-  }
+  // **Asked of the manifest, never of a failed import.** Resolving and catching
+  // the refusal is the obvious shape and it is wrong twice over: the module graph
+  // a test runs in is Vite's, whose refusal is its own error object and carries
+  // no `ERR_PACKAGE_PATH_NOT_EXPORTED` to recognise — so a catch either swallows
+  // a module whose contribution genuinely threw, or reds every suite for the
+  // sixty-nine modules that have no such layer. Measured: it did the second,
+  // across every paid contract suite, before this read the `exports` map.
+  const exports = packageManifest['exports'];
+  const declaresTestSupport =
+    exports !== null &&
+    typeof exports === 'object' &&
+    !Array.isArray(exports) &&
+    Object.prototype.hasOwnProperty.call(exports, './test-support');
+  if (!declaresTestSupport) return null;
+
+  const module = (await import(`${packageName}/test-support`)) as Record<string, unknown>;
   const volatileTables = module['volatileTables'];
   const registrations = module['registrations'];
   return {
