@@ -69,6 +69,33 @@ export function familySiblingsOf(moduleId: string): readonly string[] {
 }
 
 /**
+ * Switch **every** member of `key` off, the subject included.
+ *
+ * `clearFamilyFor` deliberately leaves the subject alone, so that it can then be
+ * switched on. A test whose subject is *being refused* needs the other thing: the
+ * subject off as well, or it holds the claim itself and refuses the incumbent the test
+ * was arranging. The suite shares one database across files, so a member left on by an
+ * earlier file is a real state to arrange away rather than a hypothetical one — and it
+ * is invisible in a single-file run, which is how it was missed.
+ */
+export async function switchCapabilityFamilyOff(
+  h: BackendServerHandle,
+  key: string,
+): Promise<readonly string[]> {
+  const members = declaredMembersOf(key);
+  for (const member of members) {
+    const res = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/modules/${member}/activation`,
+      cookies: { b2b_session: 'stub-admin-session' },
+      payload: { active: false },
+    });
+    expect(res.statusCode, `deactivating the family member '${member}': ${res.body}`).toBe(200);
+  }
+  return members;
+}
+
+/**
  * Switch every sibling of `moduleId` off through the activation route, so that
  * `moduleId` can be switched on without meeting a claim.
  *

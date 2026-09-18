@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CAPABILITY_KEYS, ERROR_CODES } from '@endora-commerce/contracts';
 import { resolvedManifestEntries } from '../../../src/lifecycle/registered-manifests.js';
+import { switchCapabilityFamilyOff } from '../../helpers/capability-families.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -54,17 +55,15 @@ describe('pim_connector — exclusivity over every ordered pair of the derived f
     await teardownBackendServer(h);
   });
 
-  /** Put the whole family off. Deactivation is never refused by this seam (R2.4). */
+  /**
+   * Put the whole family off. Deactivation is never refused by this seam (R2.4).
+   *
+   * The shared helper rather than a local copy: this file had its own, and a second
+   * spelling of "switch the family off" is the shape that let one caller clear the
+   * siblings and forget the subject.
+   */
   async function switchWholeFamilyOff(): Promise<void> {
-    for (const moduleId of FAMILY) {
-      const res = await h.app.inject({
-        method: 'POST',
-        url: activationUrl(moduleId),
-        ...ADMIN,
-        payload: { active: false },
-      });
-      expect(res.statusCode, `deactivating ${moduleId}: ${res.body}`).toBe(200);
-    }
+    await switchCapabilityFamilyOff(h, CAPABILITY_KEYS.PIM_CONNECTOR);
   }
 
   /**
