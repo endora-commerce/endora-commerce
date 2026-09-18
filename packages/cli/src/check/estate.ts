@@ -65,7 +65,32 @@ export type EstateScope =
  */
 export type EstateHost = 'built' | { readonly pending: string };
 
-/** One signal a rule evaluated in this repository and cannot in package scope. */
+/**
+ * One signal a rule evaluated in this repository and cannot in package scope.
+ *
+ * **Declared, and therefore static — which is the one thing about this shape that
+ * is scheduled to change.** `contracts/exit-reduction.md` §1 describes a partial
+ * rule as one that *"names, on its own line, each signal it did not evaluate and
+ * why"*, and says nothing about the signal being written down in advance. Phase 3
+ * met the case it is too weak for: *"3 of the 11 gated port names this package
+ * resolves could not be attributed, and they are X, Y and Z"* is a **run-determined**
+ * fact, and it has no home here — a `reason` is a constant.
+ *
+ * What Phase 3 does instead, and it needs no contract change: the count goes in
+ * the `read:` line's `sources=` token (`owners:<n>/<m>`), which is machine-readable
+ * and already the estate's idiom for *"I read n of the m things I needed"*, and the
+ * names go in the result's `explanation`. See `check:port-catches`' entry below and
+ * `check/peer-owners.ts`.
+ *
+ * **The migration is deferred, not abandoned**, and the condition is written here
+ * so it is a decision rather than a forgotten possibility: a run-determined
+ * partial signal — this interface gaining a per-run payload, or `RuleResult`
+ * carrying its own signals beside the declared ones — is the right eventual form,
+ * and it amends a contract that touches every entry's type. It should ride along
+ * the **next time `exit-reduction.md` §1 is edited for another reason**, and not
+ * before: paying a whole-estate type change for a presentation improvement, in a
+ * phase that is shipping hosts, is how a phase stops shipping hosts.
+ */
 export interface PartialSignal {
   /** The signal's own name, as the rule's header spells it. */
   readonly signal: string;
