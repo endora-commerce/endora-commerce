@@ -17,7 +17,7 @@
  * emitted reader is that it reads what the platform loads.
  */
 
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -359,5 +359,175 @@ describe('check:entry-presence over a package', () => {
   it('never reports pending: the host is built in this build', () => {
     const dir = packageWithPlugin(['export function registerModule(): void {}']);
     expect(only(dir, PRESENCE_RULE).verdict).not.toBe('pending');
+  });
+});
+
+/* ---------------------------------------------------- check:port-catches */
+
+const CATCH_RULE = 'check:port-catches';
+
+/**
+ * A package that resolves a peer's gated port, with a peer **installed beside it**.
+ *
+ * The peer is written into a real `node_modules` rather than faked, because the
+ * whole claim of this host is that it resolves peers the way an author's tree
+ * holds them — and the analysis admits `lazyPort(ctx, 'x')` as a port only when
+ * some owner's artefact provides `x`. A fixture without the peer proves the
+ * vacuous case, which is the proof below it.
+ */
+function packageResolvingPeerPort(body: readonly string[], withPeer: boolean): string {
+  const dir = fixture({
+    files: [MANIFEST, { path: 'src/backend/index.ts', content: body.join('\n') }],
+    emitted: [
+      { path: 'dist/manifest.js', content: 'export const manifest = {};\n' },
+      { path: 'dist/backend/index.js', content: body.join('\n') },
+    ],
+  });
+  if (withPeer) {
+    const peer = join(dir, 'node_modules', '@acme', 'mod-tax');
+    mkdirSync(join(peer, 'dist', 'backend'), { recursive: true });
+    writeFileSync(
+      join(peer, 'package.json'),
+      `${JSON.stringify(
+        {
+          name: '@acme/mod-tax',
+          version: '1.0.0',
+          endora: { type: 'module', id: 'acme_tax' },
+          exports: { './backend': { default: './dist/backend/index.js' } },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    writeFileSync(
+      join(peer, 'dist', 'backend', 'index.js'),
+      [
+        'export function registerModule(ctx) {',
+        "    ctx.di.providePort('taxService', () => ({}));",
+        '}',
+      ].join('\n'),
+    );
+  }
+  return dir;
+}
+
+const SWALLOWING_CATCH = [
+  "import { lazyPort } from '@endora-commerce/platform/kernel';",
+  'export function registerModule(ctx: any): void {',
+  "  const taxService = lazyPort<any>(ctx, 'taxService');",
+  '  ctx.rate = async (id: string) => {',
+  '    try {',
+  '      return await taxService.rateFor(id);',
+  '    } catch {',
+  '      return null;',
+  '    }',
+  '  };',
+  '}',
+];
+
+describe('check:port-catches over a package', () => {
+  it('reports a catch around a peer-owned gated port once the peer is installed', () => {
+    const dir = packageResolvingPeerPort(SWALLOWING_CATCH, true);
+
+    const result = only(dir, CATCH_RULE);
+
+    expect(result.verdict).toBe('ran');
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0]?.message).toContain('taxService');
+    expect(result.findings[0]?.message).toContain('rethrowIfModuleDisabled');
+  });
+
+  it('refuses, rather than reporting clean, when the owning peer is absent', () => {
+    // This is the measured vacuous case and the reason this host needed a peer
+    // owner map at all: without the owner, `lazyPort(ctx, 'taxService')` is not
+    // admitted as a port, the `catch` is never seen, and the pre-`sources=owners`
+    // shape of this host printed `violations=0`. 31 of the 41 packages with sites
+    // in this repository lost every one of them that way.
+    const dir = packageResolvingPeerPort(SWALLOWING_CATCH, false);
+
+    const result = only(dir, CATCH_RULE);
+
+    expect(result.verdict).toBe('unreadable');
+    expect(result.findings).toEqual([]);
+    expect(result.explanation).toContain('taxService');
+    expect(result.explanation).toContain('not installed');
+  });
+
+  it('says nothing once the catch re-throws the presence answer', () => {
+    const dir = packageResolvingPeerPort(
+      [
+        "import { lazyPort } from '@endora-commerce/platform/kernel';",
+        "import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';",
+        'export function registerModule(ctx: any): void {',
+        "  const taxService = lazyPort<any>(ctx, 'taxService');",
+        '  ctx.rate = async (id: string) => {',
+        '    try {',
+        '      return await taxService.rateFor(id);',
+        '    } catch (error) {',
+        '      rethrowIfModuleDisabled(error);',
+        '      return null;',
+        '    }',
+        '  };',
+        '}',
+      ],
+      true,
+    );
+
+    const result = only(dir, CATCH_RULE);
+
+    expect(result.verdict).toBe('ran');
+    expect(result.findings).toEqual([]);
+  });
+
+  it('omits the owners token, and does not refuse, for a package that resolves no port', () => {
+    const dir = packageResolvingPeerPort(
+      ['export function registerModule(): void {}'],
+      false,
+    );
+
+    const result = only(dir, CATCH_RULE);
+
+    expect(result.verdict).toBe('ran');
+    expect(result.findings).toEqual([]);
+    expect(result.readSize?.coverage?.some((c) => c.source === 'owners')).toBe(false);
+  });
+
+  it('prints owners:<n>/<m> when it resolved some and not all', () => {
+    const dir = packageResolvingPeerPort(
+      [
+        "import { lazyPort } from '@endora-commerce/platform/kernel';",
+        'export function registerModule(ctx: any): void {',
+        "  const taxService = lazyPort<any>(ctx, 'taxService');",
+        "  const shipping = lazyPort<any>(ctx, 'shippingService');",
+        '  ctx.rate = async (id: string) => {',
+        '    try {',
+        '      return await taxService.rateFor(id);',
+        '    } catch (error) {',
+        "      void shipping; throw error;",
+        '    }',
+        '  };',
+        '}',
+      ],
+      true,
+    );
+
+    const result = only(dir, CATCH_RULE);
+
+    const owners = result.readSize?.coverage?.find((c) => c.source === 'owners');
+    expect(owners).toEqual({ source: 'owners', expected: 2, covered: 1 });
+    // One of the two resolved, so the run judged something: `ran`, with the
+    // fraction stating its own incompleteness. The floor is `covered === 0`, not
+    // `covered < expected` — refusing the whole rule on one unresolved peer
+    // would be fail-closed in the wrong dimension, and for a package reaching
+    // another paid module that is the ordinary case rather than the exception.
+    expect(result.verdict).toBe('ran');
+    // And the unattributed name is named, because a fraction does not tell an
+    // author which module to install.
+    expect(result.explanation).toContain('shippingService');
+  });
+
+  it('never reports pending: the host is built in this build', () => {
+    const dir = packageResolvingPeerPort(['export function registerModule(): void {}'], false);
+    expect(only(dir, CATCH_RULE).verdict).not.toBe('pending');
   });
 });

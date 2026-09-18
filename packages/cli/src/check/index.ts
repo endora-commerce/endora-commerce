@@ -128,6 +128,12 @@ export function estateIds(estate: readonly EstateEntry[] = ESTATE): readonly str
 }
 
 export { ESTATE, ESTATE_SIZE, estateEntry, pendingEntries } from './estate.js';
+export {
+  NO_PEER_OWNERS,
+  readPeerOwners,
+  type PeerOwners,
+  type UnreadablePeer,
+} from './peer-owners.js';
 export type {
   EstateEntry,
   EstateHost,

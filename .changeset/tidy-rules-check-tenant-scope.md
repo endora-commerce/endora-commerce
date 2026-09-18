@@ -23,3 +23,18 @@ their analyses on two new `./rules/*` subpaths.
 
 `checkEntryPresence(input, ledger)`'s second argument is **required**: a host states which
 exemptions it is judging against rather than inheriting whichever ledger the library carried.
+
+- **`check:port-catches`** — a `catch` around a gated-port call may not swallow
+  `ModuleDisabledError`. `@endora-commerce/cli/rules/port-catches.js` exports
+  `checkPortCatches`, `findPortCatches`, `collectPortCatchFiles`, `keyOf`,
+  `resolvedPortNames`, `lockedOwners` and the site types.
+  `checkPortCatches(input, ledger)`'s second argument is now **required**, and
+  `PortCatchInput` gains `peerOwners` — the gated port names the subject's peers
+  provide. Without it the analysis admits nothing a *consuming* package wrote:
+  measured over this repository, 31 of the 41 packages with sites saw every one
+  of them disappear when analysed alone.
+
+`@endora-commerce/cli/checks` additionally exports `readPeerOwners`,
+`NO_PEER_OWNERS` and the `PeerOwners` / `UnreadablePeer` types — what a package's
+installed and workspace peers own, read synchronously out of their emitted
+artefacts. It is the input Phase 3's owner-map rules share.

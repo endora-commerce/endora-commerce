@@ -32,6 +32,8 @@ import {
   type HostPackage,
   type PlatformSurface,
 } from '../lib/platform-surface.js';
+import { declaresRegisterModule } from '../lib/module-roots.js';
+import { providedPortNames } from '../lib/port-registrations.js';
 import { readSizeRefusal, type ReadCoverage, type ReadSizeInput } from '../lib/read-size.js';
 import { checkBundlePairing, type ModuleUnderCheck } from '../rules/bundle-pairing.js';
 import {
@@ -113,6 +115,13 @@ import {
   keyOf as presenceKeyOf,
   remedyFor as presenceRemedy,
 } from '../rules/entry-presence.js';
+import {
+  checkPortCatches,
+  collectPortCatchFiles,
+  keyOf as portCatchKeyOf,
+  resolvedPortNames,
+} from '../rules/port-catches.js';
+import { readPeerOwners } from './peer-owners.js';
 import {
   analyzeEmittedFiles,
   classifyFindings,
@@ -1486,6 +1495,155 @@ const entryPresence: PackageRuleHost = (layout) => {
   return outcome;
 };
 
+/* ------------------------------------------------ port-catches (Phase 3) */
+
+/**
+ * A `catch` around a gated-port call may not swallow the module's presence
+ * answer — Constitution XVII at the one seam where the throw has somewhere to go
+ * and gets eaten anyway.
+ *
+ * ## The peer owner map is not optional here, and the measurement says why
+ *
+ * The analysis admits `lazyPort(ctx, '<name>')` as a port only when `<name>` is
+ * in its owner map, and that map is built from `di.providePort` in the **owner's**
+ * composing file. So a consuming package seeds nothing on its own. Over this
+ * repository's module packages: 226 sites attributed to 41 packages by the
+ * whole-tree run, **19** in 10 packages when each is analysed alone, and **31 of
+ * the 41 lose every site** — the four PIM connectors and `product_feeds` among
+ * them. {@link readPeerOwners} is the input that closes it, out of the installed
+ * and workspace peers, synchronously and with no new dependency.
+ *
+ * ## `sources=owners:<n>/<m>`, and the floor that comes with it
+ *
+ * The estate's idiom for *"I read n of the m things I needed"* is the `read:`
+ * line's `sources=` token, and this rule's `m` is the number of gated-port names
+ * the package **writes** ({@link resolvedPortNames}) — a denominator the package
+ * itself authors, independent of any owner map. `n` is how many of those an owner
+ * could be found for. A reader, and a later ratchet, can then see a partially
+ * resolved run for what it is instead of taking a caveat in prose on trust.
+ *
+ * The floor falls out of the same idiom rather than being bolted on: **`n === 0`
+ * with `m > 0` is `unreadable`**, because a run that resolved none of the names
+ * it was asked to resolve has judged nothing — which is `read-size.ts`'
+ * `read-nothing` refusal one granularity in, and the same refusal the repository
+ * host makes about an owner map that resolved zero. A package that writes no
+ * `lazyPort` name at all has nothing to resolve and is not short: `m === 0` is
+ * `ran`, and the token is omitted rather than printed `0/0`.
+ *
+ * ## `OWNER LOCKED` still over-reports, and still says so
+ *
+ * The estate's `owner-locked-merge` signal is unchanged and is printed whenever
+ * the peers' **manifests** were not read — which is every package-scope run,
+ * because `readPeerOwners` reads registrations out of artefacts and locks out of
+ * manifests are a separate question. Absent, a locked owner's site reads as a
+ * violation rather than as retired: over-reporting, the safe direction, declared.
+ */
+const portCatches: PackageRuleHost = (layout) => {
+  const id = 'check:port-catches';
+  const files = collectPortCatchFiles([layout.sourceRoot]);
+  const layerCoverage = coverageOf(layout, files, opensTypeScript);
+  if (isRefusal(layerCoverage)) return unreadable(id, layerCoverage.refusal, null);
+  if (layerCoverage === null) return notApplicable(id, absentDeclaration(entryOf(id)));
+
+  // Keyed relative to the source root, for the same reason `check:entry-presence`
+  // is: `moduleOf` matches on the tail after the last `/src/`, and a
+  // package-relative key would attribute every file to no module.
+  const sources = new Map(
+    files.map((file) => [posixKey(relative(layout.sourceRoot, file)), readFileSync(file, 'utf8')]),
+  );
+  const hostResidentModules = new Map<string, string>();
+  for (const key of sources.keys()) {
+    const [head] = key.split('/');
+    if (head !== undefined && head.length > 0) hostResidentModules.set(head, layout.moduleId);
+  }
+
+  const peers = readPeerOwners(layout);
+  const written = resolvedPortNames(sources);
+  const attributed = [...written].filter(
+    (name) => peers.portOwners.has(name) || ownProvidedNames(sources).has(name),
+  );
+
+  const coverage: ReadCoverage[] = [layerCoverage];
+  if (written.size > 0) {
+    coverage.push({ source: 'owners', expected: written.size, covered: attributed.length });
+  }
+  const readSize: ReadSizeInput = {
+    prefix: '[port-catches]',
+    files: sources.size + peers.filesRead,
+    coverage,
+  };
+
+  // **The `owners` token is printed but is deliberately not put through the
+  // short-walk refusal**, and the distinction is the whole of the owner-map
+  // ruling. `read-size.ts` refuses any `covered < expected`, which would make a
+  // package with one unresolved peer lose the rule entirely — fail-closed in the
+  // wrong dimension, trading a small honest gap for a total blind spot, and for a
+  // package reaching another paid module that is the common case. So the layer
+  // walk keeps the standard refusal, and `owners` carries its own floor:
+  //
+  //   * `covered > 0` → `ran`, with the fraction stating its own incompleteness
+  //     in a form something can ratchet on later;
+  //   * `covered === 0` with `expected > 0` → `unreadable`, because a run that
+  //     attributed none of the names it was asked to attribute has judged
+  //     nothing. That is `read-nothing` one granularity in, and the same refusal
+  //     the repository host makes about an owner map that resolved zero;
+  //   * `expected === 0` → nothing to resolve, token omitted, never `0/0`.
+  const short = readSizeOrShortWalk(id, { ...readSize, coverage: [layerCoverage] });
+  if (!short.ok) return short.result;
+
+  const unattributed = [...written].filter((name) => !attributed.includes(name));
+  if (written.size > 0 && attributed.length === 0) {
+    return unreadable(
+      id,
+      `this package resolves ${written.size} gated port name(s) and an owner could be found ` +
+        `for none of them — ${unattributed.join(', ')}. Their owning modules are not installed ` +
+        `beside it, so the analysis admits none of those calls as a port and every \`catch\` ` +
+        `around one is unjudged. That is not clean: install the owning modules, or read this ` +
+        `rule as not having run.`,
+      readSize,
+    );
+  }
+
+  const result = checkPortCatches(
+    { sources, hostResidentModules, peerOwners: peers.portOwners },
+    {},
+  );
+
+  const findings: Finding[] = result.violations.map((finding) => ({
+    rule: id,
+    key: portCatchKeyOf(finding),
+    location: `${layout.keyOf(join(layout.sourceRoot, finding.file))}:${finding.line}`,
+    message:
+      `a \`catch\` around \`${finding.port}\` (${finding.form}) swallows ` +
+      `\`ModuleDisabledError\`, so a switched-off owner reads as "no data" instead of "this ` +
+      `capability is off" (Constitution XVII). Delete it if it was only defensive, move the ` +
+      `degrade into the port's return type, or keep it and add ` +
+      `\`rethrowIfModuleDisabled(error)\`.`,
+  }));
+
+  const outcome = ran(id, { ...readSize, sites: result.total }, findings);
+  if (unattributed.length === 0) return outcome;
+  // Partially resolved. The fraction is already on the `read:` line; this names
+  // the ones, because "owners:3/5" does not tell an author which two to install.
+  return {
+    ...outcome,
+    explanation:
+      `${unattributed.length} of the ${written.size} gated port name(s) this package resolves ` +
+      `could not be attributed to an owner — ${unattributed.join(', ')}. A \`catch\` around ` +
+      `one of those is unjudged rather than clean; install the owning module to have it read.`,
+  };
+};
+
+/** The gated port names the package's **own** composing files provide. */
+function ownProvidedNames(sources: ReadonlyMap<string, string>): ReadonlySet<string> {
+  const names = new Set<string>();
+  for (const [file, text] of sources) {
+    if (!declaresRegisterModule(text)) continue;
+    for (const name of providedPortNames(text, file)) names.add(name);
+  }
+  return names;
+}
+
 export const PACKAGE_HOSTS: ReadonlyMap<string, PackageRuleHost> = new Map<
   string,
   PackageRuleHost
@@ -1502,6 +1660,7 @@ export const PACKAGE_HOSTS: ReadonlyMap<string, PackageRuleHost> = new Map<
   ['check:kernel-boundary', kernelBoundary],
   ['check:nul-bytes', nulBytes],
   ['check:platform-surface', platformSurface],
+  ['check:port-catches', portCatches],
   ['check:port-shape', portShape],
   ['check:queue-names', queueNames],
   ['check:subscribe-seam', subscribeSeam],

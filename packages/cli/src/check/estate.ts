@@ -841,7 +841,27 @@ export const ESTATE: readonly EstateEntry[] = [
     id: 'check:port-catches',
     script: 'backend/scripts/check-port-catches.ts',
     scope: 'package',
-    host: pending('Phase 3'),
+    // **This rule was assessed as needing no peer input and the assessment was
+    // wrong**, which is worth the space because the reasoning was plausible and
+    // the failure silent. The alias table is a fixpoint over port-carrying
+    // values, and a consumer writes its own resolutions — but the *seed* is
+    // `lazyPort(ctx, '<name>')` whose `<name>` is already in the owner map, and
+    // that map comes from `di.providePort` in the **owner's** composing file. A
+    // package that only consumes ports seeds nothing.
+    //
+    // Measured over this repository's module packages: the whole-tree run
+    // attributes **226** sites to 41 packages; the same analysis over each package
+    // alone finds **19** in 10; and **31 of the 41 lose every site** — all four
+    // PIM connectors (17–19 each) and `product_feeds` (24) among them, which is
+    // the paid population this phase exists for. A host shipped on the original
+    // assessment would have printed `violations=0` over exactly those packages.
+    //
+    // What closes it is `check/peer-owners.ts`, synchronously and with no new
+    // dependency, and what makes a short owner map legible rather than
+    // reassuring is `sources=owners:<n>/<m>` on the rule's own `read:` line —
+    // `m` from `resolvedPortNames`, which the package itself authors. `n === 0`
+    // with `m > 0` is `unreadable`.
+    host: 'built',
     partial: [
       {
         signal: 'owner-locked-merge',
