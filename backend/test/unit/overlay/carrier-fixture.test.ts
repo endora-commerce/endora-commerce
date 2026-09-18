@@ -103,8 +103,13 @@ describe('carrier_fixture — the manifest', () => {
     });
     // Both presence axes apply to an overlay module unchanged (Principle XVII),
     // and the off-state cases below are only meaningful if the module can be
-    // switched off at all.
-    expect(manifest.activation?.nonDeactivatable).toBeUndefined();
+    // switched off at all. `activation` is a union — a setting code, or a
+    // `nonDeactivatable` declaration — so the narrowing *is* the assertion: a
+    // fixture declaring the second variant would have no absent state for the
+    // seam cases below to drive.
+    expect(manifest.activation !== undefined && 'nonDeactivatable' in manifest.activation).toBe(
+      false,
+    );
     // `shippingAdapterRegistry` is `delivery_methods`', reached from the boot
     // hook — a binding dependency, exactly as `dhl_parcel` declares it.
     expect(manifest.dependencies).toContain('delivery_methods');
@@ -198,9 +203,13 @@ describe('carrier_fixture — the port surface it restores', () => {
   });
 
   it('opts into auto-creation on paid for the courier only', async () => {
+    // `!` on the member, not only on the element: `shouldAutoCreateOnPaid` is
+    // **optional** on the published contract, which is exactly why this fixture
+    // implements it — after wave 1 nothing else in this repository does. The
+    // non-null assertion is the shape of the claim.
     const [courier, pickup] = carrierFixtureAdapters();
-    await expect(courier!.shouldAutoCreateOnPaid()).resolves.toBe(true);
-    await expect(pickup!.shouldAutoCreateOnPaid()).resolves.toBe(false);
+    await expect(courier!.shouldAutoCreateOnPaid!()).resolves.toBe(true);
+    await expect(pickup!.shouldAutoCreateOnPaid!()).resolves.toBe(false);
   });
 });
 

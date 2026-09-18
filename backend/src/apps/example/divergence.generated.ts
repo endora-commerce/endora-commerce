@@ -10,6 +10,7 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
     "overlayRoot": "backend/src/apps/example/modules"
   },
   "overlayModules": [
+    "carrier_fixture",
     "comarch_xl_example_overlay",
     "erp_incumbent_fixture",
     "example_overlay"
@@ -56,6 +57,18 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
         "targetMatched": true
       },
       "reason": "Core serves nothing on this endpoint: the route is this deployment’s own, and the interceptor stamps its response so that the reference deployment demonstrates the rung-2 seam end to end. It runs after the handler and adds a field; it vetoes nothing and writes nothing, which is what a `post` interceptor may do."
+    },
+    {
+      "key": "port-consumed:carrier_fixture:shippingAdapterRegistry",
+      "kind": "port-consumed",
+      "module": "carrier_fixture",
+      "subject": "shippingAdapterRegistry",
+      "owner": "delivery_methods",
+      "rung": 3,
+      "detail": {
+        "kind": "port-consumed"
+      },
+      "reason": "The contribution seam `delivery_methods` publishes for a module that ships parcels, reached from this fixture’s boot hook so that the carrier port keeps an implementor in this repository after feature 134’s wave 1 removes `inpost` and `dhl_parcel` (FR-021, FR-063). It is rung 3 read exactly as the ladder intends: the owner published the seam, the consumer declares the dependency, and nothing of `delivery_methods` is wrapped or replaced. The fixture is a reference implementor rather than a delivery capability — it seeds no method, owns no table and serves no route — so what this deployment gains is a contributor to an existing registry and no behaviour a shop would notice."
     },
     {
       "key": "registration:example_overlay:exampleOverlayService",
