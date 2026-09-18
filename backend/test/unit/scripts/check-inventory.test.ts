@@ -233,6 +233,8 @@ import * as rulePlatformSurface from '@endora-commerce/cli/rules/platform-surfac
 import * as rulePortShape from '@endora-commerce/cli/rules/port-shape.js';
 import * as ruleSingletonIdentity from '@endora-commerce/cli/rules/singleton-identity.js';
 import * as ruleTransactionContext from '@endora-commerce/cli/rules/transaction-context.js';
+import * as hostEnvInputs from '../../../scripts/check-env-inputs.js';
+import * as ruleEnvInputs from '@endora-commerce/cli/rules/env-inputs.js';
 import {
   checkAdminSurface,
   reachKey,
@@ -12230,6 +12232,15 @@ describe('a relocated analysis has one implementation and two hosts', () => {
       ['check:port-shape', hostPortShape as unknown as Record<string, unknown>, rulePortShape as unknown as Record<string, unknown>],
       ['check:singleton-identity', hostSingletonIdentity as unknown as Record<string, unknown>, ruleSingletonIdentity as unknown as Record<string, unknown>],
       ['check:transaction-context', hostTransactionContext as unknown as Record<string, unknown>, ruleTransactionContext as unknown as Record<string, unknown>],
+      // `check:env-inputs` has no package host either, and for a third reason:
+      // it is blocked on a *ruling* rather than on code or on an input (the
+      // platform declaration a module's read resolves against is source text
+      // here and `dist` in a client's tree). The relocation is nevertheless
+      // done, and the row above says why a done relocation is asserted whatever
+      // the host's state. Absent this row a copy taken back into
+      // `backend/scripts/` would be invisible for the one rule of the three
+      // whose unblocking is not scheduled at all.
+      ['check:env-inputs', hostEnvInputs as unknown as Record<string, unknown>, ruleEnvInputs as unknown as Record<string, unknown>],
     ];
 
   for (const [id, host, rule] of RELOCATED) {
