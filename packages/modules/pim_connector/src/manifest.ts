@@ -28,7 +28,7 @@ export const manifest = defineModuleManifest({
    * The owner declares exclusivity and a member never can, which is what keeps
    * three things from coming loose. The refusal code stays on the semantic owner,
    * so a member raises `PIM_CONNECTOR_ALREADY_ACTIVE` and must **not** declare it
-   * (D-95.2, and `pim_akeneo`'s manifest carries the paragraph explaining that).
+   * (D-95.2, and one member's manifest carries the paragraph explaining that).
    * A connector cannot make the family exclusive by accident and cannot un-make
    * it. And a deployment that installs a connector without this shared layer has
    * a family that is simply not exclusive there (R3.5) — the honest answer, since

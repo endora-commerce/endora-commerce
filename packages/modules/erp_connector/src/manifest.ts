@@ -20,13 +20,12 @@ export const manifest = defineModuleManifest({
    * Feature 132 — this module **owns** the ERP connector capability and declares it
    * mutually exclusive (`contracts/module-capabilities.md` R3.1).
    *
-   * This is the family whose old shape carried a live Principle XV violation:
-   * `erp_incumbent_fixture` is a per-deployment **overlay** module and had to be
-   * written into `packages/contracts/src/erp-connector.ts` — a core file the
-   * deployment does not own — to be seen by the exclusion at all. There was no
-   * other way in. After this, it declares membership in its own manifest and core
-   * is untouched, which `backend/test/integration/erp_connector/overlay-joins.test.ts`
-   * asserts directly.
+   * This is the family whose old shape carried a live Principle XV violation: one
+   * of its members is a per-deployment **overlay** module, and it had to be written
+   * into `packages/contracts/src/erp-connector.ts` — a core file the deployment does
+   * not own — to be seen by the exclusion at all. There was no other way in. After
+   * this, it declares membership in its own manifest and core is untouched, which
+   * `backend/test/integration/erp_connector/overlay-joins.test.ts` asserts directly.
    */
   exclusiveCapabilities: [
     {
