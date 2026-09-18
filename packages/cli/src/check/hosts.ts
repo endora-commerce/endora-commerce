@@ -107,9 +107,22 @@ import {
   keyOf as queueNameKeyOf,
   remedyFor as queueNameRemedy,
 } from '../rules/queue-names.js';
+import {
+  analyzeEmittedFiles,
+  classifyFindings,
+  declaredEntityClasses,
+  PREFIX as TENANT_PREFIX,
+  remedyFor as tenantRemedy,
+  walkEmitted,
+} from '../rules/entity-tenant-classification.js';
 
 import { estateEntry, type EstateEntry } from './estate.js';
-import { isFile, layerExpectation, type PackageLayout } from './layout.js';
+import {
+  isFile,
+  layerExpectation,
+  type DeclaredLayer,
+  type PackageLayout,
+} from './layout.js';
 import type { Finding, RuleResult } from './run.js';
 
 /** A rule's package-scope host. Pure but for reading the package off disk. */
@@ -1216,11 +1229,153 @@ function walkEverything(dir: string, out: string[] = []): string[] {
  * an entry declaring `host: 'built'` with no host here fails, and a host with no
  * such entry fails too (`data-model.md` §1, invariant 4).
  */
+/* ------------------------------ entity-tenant-classification (Phase 3) */
+
+/** A declared layer's emitted target, and what stopped it being read. */
+interface ArtefactState {
+  readonly layer: DeclaredLayer;
+  readonly artefact: string;
+  readonly state: 'current' | 'absent' | 'stale';
+}
+
+/**
+ * Every declared layer's artefact, with its currency decided.
+ *
+ * Decided per layer rather than for the package as a whole, because the two
+ * refusals name different remedies: `absent` says *build the package*, `stale`
+ * says *rebuild it*, and answering either from source would make this command's
+ * verdict differ from the platform's (§4).
+ */
+function artefactStates(layout: PackageLayout): readonly ArtefactState[] {
+  return layout.layers.map((layer) => {
+    const artefact = join(layout.packageRoot, ...layer.target.replace(/^\.\//, '').split('/'));
+    let state: ArtefactState['state'];
+    try {
+      const artefactStat = statSync(artefact);
+      const sourceStat = statSync(layer.entry);
+      state = sourceStat.mtimeMs > artefactStat.mtimeMs ? 'stale' : 'current';
+    } catch {
+      state = 'absent';
+    }
+    return { layer, artefact, state };
+  });
+}
+
+/**
+ * Principle XI's out-of-tree instrument, and the reason Phase 3 exists.
+ *
+ * The subject is *the entity classes this package hands the ORM*, so the read is
+ * the **artefact** (§4) — the platform composes a module package through its
+ * published output, and a rule that answered from source would pass a build that
+ * dropped the decorators, which is precisely the silence this rule exists to
+ * remove.
+ *
+ * ## Which subpath, derived rather than spelled
+ *
+ * Nothing here spells `./backend`. The subpath that publishes entity classes is
+ * *the one whose artefact declares an `entities` array* — the package's own
+ * statement about itself, and the estate's own words for the declaration
+ * (`subjectDeclaration`). A package whose artefacts declare none publishes no
+ * entity class and is `not-applicable`; a package with an artefact this run
+ * could not read is `unreadable`, because the layer it could not read is a layer
+ * that might have been the one.
+ *
+ * ## The floor is the composition's own list
+ *
+ * `entities` is a finer and more independent author than the layer count: the
+ * walk deliberately reaches exactly one layer, so a per-layer expectation would
+ * read `1/1` by construction — the tautology §3 refuses. `declared-entities`
+ * compares the classes the walk classified against the classes the composition
+ * hands the ORM, and a short answer is a refusal. That is also the guard on the
+ * emit shape itself: if TypeScript's decorator lowering changed, this walk would
+ * classify nothing and the token would say so, rather than the run reporting
+ * every entity classified over an artefact it could not read.
+ */
+const entityTenantClassification: PackageRuleHost = (layout) => {
+  const id = 'check-entity-tenant-classification';
+  const entry = entryOf(id);
+  if (layout.layerRefusal !== null) return unreadable(id, layout.layerRefusal, null);
+
+  const states = artefactStates(layout);
+  const stale = states.filter((state) => state.state === 'stale');
+  if (stale.length > 0) {
+    return unreadable(
+      id,
+      `the source behind ${stale
+        .map((state) => state.layer.subpath)
+        .join(', ')} is newer than the artefact the platform would load, so what this run read ` +
+        `is not what the platform reads. Rebuild the package; this rule is never answered from ` +
+        `source as a convenience.`,
+      null,
+    );
+  }
+  const absent = states.filter((state) => state.state === 'absent');
+  if (absent.length > 0) {
+    return unreadable(
+      id,
+      `${absent
+        .map((state) => state.layer.subpath)
+        .join(', ')} is declared in the \`exports\` map and its target is not on disk, so the ` +
+        `subpath that publishes this package's entity classes may be one this run could not ` +
+        `open. Build the package (\`pnpm run build\` in its directory).`,
+      null,
+    );
+  }
+
+  const publishing = states
+    .map((state) => ({
+      state,
+      declared: declaredEntityClasses(readFileSync(state.artefact, 'utf8'), state.artefact),
+    }))
+    .find((candidate) => candidate.declared.length > 0);
+  if (publishing === undefined) return notApplicable(id, absentDeclaration(entry));
+
+  const files = walkEmitted(dirname(publishing.state.artefact));
+  const findings = analyzeEmittedFiles(files);
+  const classified = new Set(findings.map((finding) => finding.className));
+  const readSize: ReadSizeInput = {
+    prefix: TENANT_PREFIX,
+    files: files.length,
+    sites: findings.length,
+    coverage: [
+      {
+        source: 'declared-entities',
+        expected: publishing.declared.length,
+        covered: publishing.declared.filter((name) => classified.has(name)).length,
+      },
+    ],
+  };
+  const short = readSizeRefusal(readSize);
+  if (short !== null) {
+    return unreadable(
+      id,
+      `${short.message}. The classes this package's composition hands the ORM are the ` +
+        `independent second author here: ${publishing.declared
+          .filter((name) => !classified.has(name))
+          .join(', ')} could not be read out of the artefact.`,
+      readSize,
+    );
+  }
+
+  const outcome = classifyFindings(findings);
+  return ran(
+    id,
+    readSize,
+    [...outcome.unclassified, ...outcome.multiple].map((finding) => ({
+      rule: id,
+      key: `${layout.moduleId}|${finding.className}`,
+      location: layout.keyOf(finding.file),
+      message: tenantRemedy(finding),
+    })),
+  );
+};
+
 export const PACKAGE_HOSTS: ReadonlyMap<string, PackageRuleHost> = new Map<
   string,
   PackageRuleHost
 >([
   ['channel:resolution', channelResolution],
+  ['check-entity-tenant-classification', entityTenantClassification],
   ['check:bundle-pairing', bundlePairing],
   ['check:command-coverage', commandCoverage],
   ['check:container-imports', containerImports],

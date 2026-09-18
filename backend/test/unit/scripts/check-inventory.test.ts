@@ -49,6 +49,7 @@ import {
 import {
   NO_PACKAGE_DECLARATIONS,
   unreadablePackageReason,
+  type PackageEntity,
   type PackageTable,
 } from '../../../scripts/lib/package-declarations.js';
 import {
@@ -235,6 +236,8 @@ import * as ruleSingletonIdentity from '@endora-commerce/cli/rules/singleton-ide
 import * as ruleTransactionContext from '@endora-commerce/cli/rules/transaction-context.js';
 import * as hostEnvInputs from '../../../scripts/check-env-inputs.js';
 import * as ruleEnvInputs from '@endora-commerce/cli/rules/env-inputs.js';
+import * as hostTenantClassification from '../../../scripts/check-entity-tenant-classification.js';
+import * as ruleTenantClassification from '@endora-commerce/cli/rules/entity-tenant-classification.js';
 import {
   checkAdminSurface,
   reachKey,
@@ -5164,19 +5167,23 @@ const CHECKS: readonly CheckEntry[] = [
       // this check receives them. The enumeration under that, on a package tree
       // on disk, is proven in `package-declarations.test.ts`; splitting them
       // there is what keeps each proof at the top of the analysis it protects.
-      'package-entity-without-a-classification': top(
-        () =>
-          packageEntityFindings([
-            {
-              moduleId: 'fixture_widgets',
-              packageName: '@fixture/mod-widgets',
-              className: 'FixtureWidget',
-              table: 'fixture_widgets',
-              classifications: [],
-              file: '/instance/node_modules/@fixture/mod-widgets/lib/backend/index.js',
-            },
-          ]).filter((finding) => finding.classifications.length === 0).length,
-      ),
+      'package-entity-without-a-classification': top(() => {
+        // The relocated analysis takes the structural shape it needs
+        // (`DescribedEntity`) rather than the owner map's `PackageEntity`: the
+        // CLI package states no type of the platform's. Naming `PackageEntity`
+        // on this fixture is what asserts the two still fit.
+        const entity: PackageEntity = {
+          moduleId: 'fixture_widgets',
+          packageName: '@fixture/mod-widgets',
+          className: 'FixtureWidget',
+          table: 'fixture_widgets',
+          classifications: [],
+          file: '/instance/node_modules/@fixture/mod-widgets/lib/backend/index.js',
+        };
+        return packageEntityFindings([entity]).filter(
+          (finding) => finding.classifications.length === 0,
+        ).length;
+      }),
       // The refusal, which is the property that stops this check answering "no
       // owner" in silence: a discovered package whose entities cannot be
       // enumerated stops the run at exit 2 instead of being credited with none.
@@ -12241,6 +12248,8 @@ describe('a relocated analysis has one implementation and two hosts', () => {
       // `backend/scripts/` would be invisible for the one rule of the three
       // whose unblocking is not scheduled at all.
       ['check:env-inputs', hostEnvInputs as unknown as Record<string, unknown>, ruleEnvInputs as unknown as Record<string, unknown>],
+      // Phase 3.
+      ['check-entity-tenant-classification', hostTenantClassification as unknown as Record<string, unknown>, ruleTenantClassification as unknown as Record<string, unknown>],
     ];
 
   for (const [id, host, rule] of RELOCATED) {

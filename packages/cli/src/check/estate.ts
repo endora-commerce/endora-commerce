@@ -166,7 +166,11 @@ export const ESTATE: readonly EstateEntry[] = [
     id: 'check-entity-tenant-classification',
     script: 'backend/scripts/check-entity-tenant-classification.ts',
     scope: 'package',
-    host: pending('Phase 3'),
+    // Phase 3's first host, and the one the phase exists for. The declaration
+    // is read as *an artefact declaring an `entities` array*, which is the
+    // package's own statement about which subpath publishes entity classes —
+    // no subpath is spelled here or in the host (D-100).
+    host: 'built',
     subjectDeclaration: {
       kind: 'exports-subpath',
       declaration: '`exports` subpath publishing entity classes',

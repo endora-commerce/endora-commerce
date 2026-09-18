@@ -1,5 +1,14 @@
 /**
  * CI check — Systemic Organization Tenant Scoping (feature 050, FR-012 / SC-001).
+ * **Repository-scope host** over the relocated analysis.
+ *
+ * The rule lives in `@endora-commerce/cli/rules/entity-tenant-classification.js`
+ * (`specs/101-endora-check/contracts/package-scope-layout.md` §6: one analysis,
+ * two hosts) and its header carries the whole reasoning — including why the
+ * package host reads the *emitted* artefact where this one reads decorated
+ * source. This file supplies this repository's source roots, its
+ * module-population floor and the installed-package half below; `endora check`
+ * supplies one package's.
  *
  * Enumerates every MikroORM entity declared anywhere under `src/` — the file's
  * name is not part of the rule (issue #113) — and asserts
@@ -42,106 +51,35 @@
  * installed package whose entities it could not enumerate.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
-import { readdirSync, statSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import ts from 'typescript';
+import {
+  analyzeSource,
+  classifyFindings,
+  CLASSIFICATION_DECORATOR_NAMES,
+  ENTITY_DECORATOR_HINT,
+  packageEntityFindings,
+  PREFIX,
+  remedyFor,
+  walk,
+  type EntityFinding,
+} from '@endora-commerce/cli/rules/entity-tenant-classification.js';
 import { refuseVacuousModulePopulation } from './lib/module-population.js';
 import {
   loadPackageDeclarations,
   packageCoverage,
   refuseUnreadablePackages,
-  type PackageEntity,
 } from './lib/package-declarations.js';
 import { reportReadSize, type ReadCoverage } from './lib/read-size.js';
 import { requireModuleLayout } from './lib/module-roots.js';
 
-const CLASSIFICATION_DECORATORS = new Set([
-  'OrgScoped',
-  'CustomerScoped',
-  'GlobalEntity',
-  'TransitivelyScoped',
-  'RuleScoped',
-]);
+export * from '@endora-commerce/cli/rules/entity-tenant-classification.js';
 
 const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src');
 
-/**
- * Every `.ts` under `dir` except tests and declaration files.
- *
- * The walk used to collect `*.entity.ts` only. Nothing enforces that suffix, so
- * an entity declared anywhere else was not unclassified as far as this check was
- * concerned — it was unread, which a green run cannot be told apart from
- * (issue #113). {@link ENTITY_DECORATOR_HINT} decides what is worth parsing.
- */
-export function walk(dir: string, out: string[] = []): string[] {
-  for (const name of readdirSync(dir)) {
-    const full = join(dir, name);
-    if (statSync(full).isDirectory()) {
-      if (name === 'node_modules' || name === 'dist') continue;
-      walk(full, out);
-    } else if (name.endsWith('.ts') && !name.endsWith('.test.ts') && !name.endsWith('.d.ts')) {
-      out.push(full);
-    }
-  }
-  return out;
-}
-
-/** Only a file that spells `@Entity(` can declare one; the parse decides the rest. */
-export const ENTITY_DECORATOR_HINT = /@Entity\s*\(/;
-
-function decoratorName(decorator: ts.Decorator): string | undefined {
-  const expr = decorator.expression;
-  const callee = ts.isCallExpression(expr) ? expr.expression : expr;
-  return ts.isIdentifier(callee) ? callee.text : undefined;
-}
-
-export interface EntityFinding {
-  file: string;
-  className: string;
-  classifications: string[];
-}
-
-/** Analyze a single TypeScript source string for MikroORM entities + their classification. Exported for tests. */
-export function analyzeSource(source: string, file: string): EntityFinding[] {
-  const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
-  const findings: EntityFinding[] = [];
-  sf.forEachChild((node) => {
-    if (!ts.isClassDeclaration(node)) return;
-    const decorators = ts.getDecorators(node) ?? [];
-    const names = decorators.map(decoratorName).filter((n): n is string => Boolean(n));
-    if (!names.includes('Entity')) return; // only MikroORM entities
-    const classifications = names.filter((n) => CLASSIFICATION_DECORATORS.has(n));
-    findings.push({ file, className: node.name?.text ?? '<anonymous>', classifications });
-  });
-  return findings;
-}
-
 function analyzeFile(file: string): EntityFinding[] {
   return analyzeSource(readFileSync(file, 'utf8'), file);
-}
-
-/**
- * An installed package's entity classes, in the same shape a source walk
- * produces (feature 080, T034).
- *
- * The rule is one rule: exactly one classification, whatever the entity arrived
- * in. Keeping the two populations in one shape is what makes that true of the
- * code as well as of the sentence — the counting, the `--list` output and the
- * failure report all run over one array.
- *
- * `file` is the resolved artefact the class was imported from, so the message
- * points at something the reader can open. Exported so a red proof can enter
- * here with a package entity rather than with a finished report.
- */
-export function packageEntityFindings(
-  entities: readonly PackageEntity[],
-): EntityFinding[] {
-  return entities.map((entity) => ({
-    file: entity.file,
-    className: `${entity.className} (${entity.packageName})`,
-    classifications: [...entity.classifications],
-  }));
 }
 
 async function main(): Promise<void> {
@@ -149,7 +87,7 @@ async function main(): Promise<void> {
   // Both roots, derived (feature 080, T040a). A packaged module's entities are
   // already held to this rule through its published artefact (T034); this is
   // the other half — the same module's *sources*, once they leave `src`.
-  const layout = await requireModuleLayout('[tenant-classification]');
+  const layout = await requireModuleLayout(PREFIX);
   const files = layout.sourceRoots.flatMap((root) => walk(root));
   // 216 of the 221 entities in the tree are a module's. `src/` minus
   // `src/modules` still holds the kernel's five, so an emptiness guard passes
@@ -157,7 +95,7 @@ async function main(): Promise<void> {
   // it did not read (issue #215). The expectation is per registered module and
   // comes from the manifest index.
   const coverage = await refuseVacuousModulePopulation({
-    prefix: '[tenant-classification]',
+    prefix: PREFIX,
     manifestIndexPath: layout.manifestIndexPath,
     files,
     moduleIdOf: layout.moduleIdOfPath,
@@ -166,7 +104,7 @@ async function main(): Promise<void> {
   const treeFindings = entityFiles.flatMap(analyzeFile);
   if (treeFindings.length === 0) {
     console.error(
-      '[tenant-classification] no entities found in a tree that has hundreds — ' +
+      `${PREFIX} no entities found in a tree that has hundreds — ` +
         'refusing to report a vacuous pass',
     );
     process.exit(2);
@@ -176,12 +114,12 @@ async function main(): Promise<void> {
   // a checkout that installed no module package; a package whose entities cannot
   // be enumerated stops the run rather than being credited with none.
   const packages = await loadPackageDeclarations();
-  refuseUnreadablePackages('[tenant-classification]', packages);
+  refuseUnreadablePackages(PREFIX, packages);
   const findings = [...treeFindings, ...packageEntityFindings(packages.entities)];
 
-  const unclassified = findings.filter((f) => f.classifications.length === 0);
-  const multi = findings.filter((f) => f.classifications.length > 1);
-  const classified = findings.filter((f) => f.classifications.length === 1);
+  // The predicate itself, in the one place it is written — the package host
+  // calls the same function over the same shape (§6).
+  const { classified, unclassified, multiple: multi } = classifyFindings(findings);
 
   const rel = (p: string) => p.replace(`${SRC_ROOT}/`, 'src/');
 
@@ -205,25 +143,27 @@ async function main(): Promise<void> {
   const installed = packageCoverage(packages);
   const coverages: ReadCoverage[] = installed === null ? [coverage] : [coverage, installed];
   reportReadSize({
-    prefix: '[tenant-classification]',
+    prefix: PREFIX,
     files: files.length + packages.filesRead,
     sites: findings.length,
     coverage: coverages,
   });
   console.log(
-    `[tenant-classification] sources=${files.length} entity files=${entityFiles.length} ` +
+    `${PREFIX} sources=${files.length} entity files=${entityFiles.length} ` +
       `entities=${findings.length} classified=${classified.length} ` +
       `unclassified=${unclassified.length} multiple=${multi.length} ` +
       `packages=${packages.discovered} package entities=${packages.entities.length}`,
   );
 
   if (unclassified.length > 0) {
-    console.error('\nUnclassified entities (add one of @OrgScoped/@CustomerScoped/@GlobalEntity/@TransitivelyScoped/@RuleScoped):');
-    for (const f of unclassified) console.error(`  - ${f.className}  (${rel(f.file)})`);
+    console.error(
+      `\nUnclassified entities (add one of @${CLASSIFICATION_DECORATOR_NAMES.join('/@')}):`,
+    );
+    for (const f of unclassified) console.error(`  - ${remedyFor(f)}  (${rel(f.file)})`);
   }
   if (multi.length > 0) {
     console.error('\nEntities with more than one classification (keep exactly one):');
-    for (const f of multi) console.error(`  - ${f.className}: ${f.classifications.join(', ')}  (${rel(f.file)})`);
+    for (const f of multi) console.error(`  - ${remedyFor(f)}  (${rel(f.file)})`);
   }
 
   process.exit(unclassified.length === 0 && multi.length === 0 ? 0 : 1);
