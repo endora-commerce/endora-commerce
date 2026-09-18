@@ -1,7 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
+  CAPABILITY_KEYS,
   ERROR_CODES,
-  PIM_CONNECTOR_MODULES,
   type PimConnectorRegistryPort,
 } from '@endora-commerce/contracts';
 import { effectiveState } from '@endora-commerce/platform/kernel';
@@ -12,25 +12,43 @@ import {
 } from '../entities/pim-connector-activation-lock.entity.js';
 
 /**
- * How the registry asks whether a sibling PIM connector is operator-activated.
- * Defaults to the platform's effective-state conjunction so it stays in lockstep
- * with `/platform/modules` flips (which refresh presence immediately and do not
- * go through the settings cache the activation Command bypasses).
+ * How the registry asks **who is in the family and present** (feature 132,
+ * `capability-exclusivity.md` R2.1–R2.2).
+ *
+ * Two things moved here and both were defects.
+ *
+ * The member list was `PIM_CONNECTOR_MODULES`, a hand-written array in
+ * `@endora-commerce/contracts` that named two of the four shipped connectors — so
+ * exclusivity covered 2 of the 12 ordered pairs, a connector outside this
+ * repository could not join at all, and an overlay module had to edit a core file
+ * to. It is now the members' own manifest declarations, derived on every
+ * composition, so a connector that declares membership is covered **by existing**.
+ *
+ * The axis was `presence(id)?.operatorActivated`, which answers `true` for a
+ * module whose *platform* availability is off — a connector the deployment never
+ * installed holding a claim that refuses another. It is now the conjunction
+ * `effectiveState.membersOfCapability` computes: a module that is off behaves as
+ * if never installed (Principle XVII, spec FR-012).
+ *
+ * The default reads the platform's effective state directly, so it stays in
+ * lockstep with `/platform/modules` flips — those refresh presence immediately
+ * and do not go through the settings cache the activation Command bypasses.
  */
-export interface PimActivationPresenceReader {
-  isOperatorActivated(moduleId: string): boolean;
+export interface PimConnectorFamilyReader {
+  /** The family members whose **effective** presence is true, in manifest order. */
+  activeMembers(): readonly string[];
 }
 
-const defaultPresenceReader: PimActivationPresenceReader = {
-  isOperatorActivated(moduleId) {
-    return effectiveState.presence(moduleId)?.operatorActivated ?? false;
+const defaultFamilyReader: PimConnectorFamilyReader = {
+  activeMembers() {
+    return effectiveState.membersOfCapability(CAPABILITY_KEYS.PIM_CONNECTOR);
   },
 };
 
 export class PimConnectorRegistryService implements PimConnectorRegistryPort {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly presence: PimActivationPresenceReader = defaultPresenceReader,
+    private readonly family: PimConnectorFamilyReader = defaultFamilyReader,
   ) {}
 
   async assertCanActivate(moduleId: string): Promise<void> {
@@ -90,12 +108,18 @@ export class PimConnectorRegistryService implements PimConnectorRegistryPort {
     return row?.activeModuleId ?? null;
   }
 
+  /**
+   * The member holding the claim, or `null`.
+   *
+   * `exceptModuleId` is excluded even though an effectively-present module is by
+   * definition not the one being switched on: the activation route is idempotent,
+   * so `POST {active:true}` against the module that already holds the claim must
+   * not be refused by the claim it holds.
+   */
   private findActiveSibling(exceptModuleId: string): string | null {
-    for (const sibling of PIM_CONNECTOR_MODULES) {
-      if (sibling.id === exceptModuleId) continue;
-      if (this.presence.isOperatorActivated(sibling.id)) {
-        return sibling.id;
-      }
+    for (const moduleId of this.family.activeMembers()) {
+      if (moduleId === exceptModuleId) continue;
+      return moduleId;
     }
     return null;
   }
