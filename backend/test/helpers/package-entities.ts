@@ -77,8 +77,10 @@ import type { Promotion as PromotionRow } from '../../../packages/modules/promot
 import type { QuoteRequest as QuoteRequestRow } from '../../../packages/modules/quote_requests/src/backend/entities/quote-request.entity.js';
 import type { QuoteRequestItem as QuoteRequestItemRow } from '../../../packages/modules/quote_requests/src/backend/entities/quote-request-item.entity.js';
 import type { QuoteRequestRevision as QuoteRequestRevisionRow } from '../../../packages/modules/quote_requests/src/backend/entities/quote-request-revision.entity.js';
-import type { InpostWebhookEvent as InpostWebhookEventRow } from '../../../packages/modules/inpost/src/backend/entities/inpost-webhook-event.entity.js';
-import type { InpostShipmentLink as InpostShipmentLinkRow } from '../../../packages/modules/inpost/src/backend/entities/inpost-shipment-link.entity.js';
+import type {
+  InpostShipmentLink as InpostShipmentLinkRow,
+  InpostWebhookEvent as InpostWebhookEventRow,
+} from '@endora-commerce/mod-inpost/test-support';
 import type { Shipment as ShipmentRow } from '../../../packages/modules/shipments/src/backend/entities/shipment.entity.js';
 import type { AdminNotification as AdminNotificationRow } from '../../../packages/modules/admin_notifications/src/backend/entities/admin-notification.entity.js';
 import type { ApiKey as ApiKeyRow } from '../../../packages/modules/api_keys/src/backend/entities/api-key.entity.js';
@@ -116,11 +118,15 @@ import type { CredentialConfiguration as CredentialConfigurationRow } from '../.
 import type { Country as CountryRow } from '../../../packages/modules/dictionaries/src/backend/entities/country.entity.js';
 import type { DictionaryTranslation as DictionaryTranslationRow } from '../../../packages/modules/dictionaries/src/backend/entities/dictionary-translation.entity.js';
 import type { LanguageCountry as LanguageCountryRow } from '../../../packages/modules/dictionaries/src/backend/entities/language-country.entity.js';
-import type { XlCategoryMapping as XlCategoryMappingRow } from '../../../packages/modules/comarch_xl/src/backend/entities/xl-category-mapping.entity.js';
-import type { XlImportedOffer as XlImportedOfferRow } from '../../../packages/modules/comarch_xl/src/backend/entities/xl-imported-offer.entity.js';
-import type { XlSyncJob as XlSyncJobRow } from '../../../packages/modules/comarch_xl/src/backend/entities/xl-sync-job.entity.js';
-import type { KsefCredential as KsefCredentialRow } from '../../../packages/modules/ksef/src/backend/entities/ksef-credential.entity.js';
-import type { KsefSubmission as KsefSubmissionRow } from '../../../packages/modules/ksef/src/backend/entities/ksef-submission.entity.js';
+import type {
+  XlCategoryMapping as XlCategoryMappingRow,
+  XlImportedOffer as XlImportedOfferRow,
+  XlSyncJob as XlSyncJobRow,
+} from '@endora-commerce/mod-comarch-xl/test-support';
+import type {
+  KsefCredential as KsefCredentialRow,
+  KsefSubmission as KsefSubmissionRow,
+} from '@endora-commerce/mod-ksef/test-support';
 import type { SearchPhraseRecord as SearchPhraseRecordRow } from '../../../packages/modules/search/src/backend/entities/search-phrase-record.entity.js';
 import type { Tax as TaxRow } from '../../../packages/modules/taxes/src/backend/entities/tax.entity.js';
 import type { Asset as AssetRow } from '../../../packages/modules/assets_library/src/backend/entities/asset.entity.js';
@@ -141,42 +147,50 @@ import type { StockAllocation as StockAllocationRow } from '../../../packages/mo
 import type { StockLevel as StockLevelRow } from '../../../packages/modules/inventory/src/backend/entities/stock-level.entity.js';
 import type { WarehouseChannelAssignment as WarehouseChannelAssignmentRow } from '../../../packages/modules/inventory/src/backend/entities/warehouse-channel-assignment.entity.js';
 import type { Warehouse as WarehouseRow } from '../../../packages/modules/inventory/src/backend/entities/warehouse.entity.js';
-import type { ErgonodeAttributeMapping as ErgonodeAttributeMappingRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-attribute-mapping.entity.js';
-import type { ErgonodeCategoryMapping as ErgonodeCategoryMappingRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-category-mapping.entity.js';
-import type { ErgonodeConnection as ErgonodeConnectionRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-connection.entity.js';
-import type { ErgonodeFieldProtection as ErgonodeFieldProtectionRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-field-protection.entity.js';
-import type { ErgonodeImportIssue as ErgonodeImportIssueRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-import-issue.entity.js';
-import type { ErgonodeImportRun as ErgonodeImportRunRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-import-run.entity.js';
-import type { ErgonodeMediaLink as ErgonodeMediaLinkRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-media-link.entity.js';
-import type { ErgonodePriceBinding as ErgonodePriceBindingRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-price-binding.entity.js';
-import type { ErgonodeProductLink as ErgonodeProductLinkRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-product-link.entity.js';
-import type { ErgonodeStreamCursor as ErgonodeStreamCursorRow } from '../../../packages/modules/pim_ergonode/src/backend/entities/ergonode-stream-cursor.entity.js';
-import type { UnopimConnection as UnopimConnectionRow } from '../../../packages/modules/pim_unopim/src/backend/entities/unopim-connection.entity.js';
-import type { UnopimImportRun as UnopimImportRunRow } from '../../../packages/modules/pim_unopim/src/backend/entities/unopim-import-run.entity.js';
-import type { UnopimProductLink as UnopimProductLinkRow } from '../../../packages/modules/pim_unopim/src/backend/entities/unopim-product-link.entity.js';
-import type { UnopimSyncBookmark as UnopimSyncBookmarkRow } from '../../../packages/modules/pim_unopim/src/backend/entities/unopim-sync-bookmark.entity.js';
-import type { UnopimCategoryMapping as UnopimCategoryMappingRow } from '../../../packages/modules/pim_unopim/src/backend/entities/unopim-category-mapping.entity.js';
-import type { UnopimAttributeMapping as UnopimAttributeMappingRow } from '../../../packages/modules/pim_unopim/src/backend/entities/unopim-attribute-mapping.entity.js';
-import type { UnopimAssociationTypeMapping as UnopimAssociationTypeMappingRow } from '../../../packages/modules/pim_unopim/src/backend/entities/unopim-association-type-mapping.entity.js';
-import type { UnopimImportIssue as UnopimImportIssueRow } from '../../../packages/modules/pim_unopim/src/backend/entities/unopim-import-issue.entity.js';
-import type { UnopimMediaLink as UnopimMediaLinkRow } from '../../../packages/modules/pim_unopim/src/backend/entities/unopim-media-link.entity.js';
-import type { UnopimPriceBinding as UnopimPriceBindingRow } from '../../../packages/modules/pim_unopim/src/backend/entities/unopim-price-binding.entity.js';
-import type { PimcoreCatalogueDelivery as PimcoreCatalogueDeliveryRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-catalogue-delivery.entity.js';
-import type { PimcoreConnection as PimcoreConnectionRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-connection.entity.js';
-import type { PimcoreDeliveredRecord as PimcoreDeliveredRecordRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-delivered-record.entity.js';
-import type { PimcoreFieldProtection as PimcoreFieldProtectionRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-field-protection.entity.js';
-import type { PimcoreImportIssue as PimcoreImportIssueRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-import-issue.entity.js';
-import type { PimcoreImportRun as PimcoreImportRunRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-import-run.entity.js';
-import type { PimcoreMediaLink as PimcoreMediaLinkRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-media-link.entity.js';
-import type { PimcoreSourceLink as PimcoreSourceLinkRow } from '../../../packages/modules/pim_pimcore/src/backend/entities/pimcore-source-link.entity.js';
-import type { AkeneoConnection as AkeneoConnectionRow } from '../../../packages/modules/pim_akeneo/src/backend/entities/akeneo-connection.entity.js';
-import type { AkeneoDeliveredRecord as AkeneoDeliveredRecordRow } from '../../../packages/modules/pim_akeneo/src/backend/entities/akeneo-delivered-record.entity.js';
-import type { AkeneoFieldProtection as AkeneoFieldProtectionRow } from '../../../packages/modules/pim_akeneo/src/backend/entities/akeneo-field-protection.entity.js';
-import type { AkeneoHmacReplay as AkeneoHmacReplayRow } from '../../../packages/modules/pim_akeneo/src/backend/entities/akeneo-hmac-replay.entity.js';
-import type { AkeneoImportIssue as AkeneoImportIssueRow } from '../../../packages/modules/pim_akeneo/src/backend/entities/akeneo-import-issue.entity.js';
-import type { AkeneoImportRun as AkeneoImportRunRow } from '../../../packages/modules/pim_akeneo/src/backend/entities/akeneo-import-run.entity.js';
-import type { AkeneoMediaLink as AkeneoMediaLinkRow } from '../../../packages/modules/pim_akeneo/src/backend/entities/akeneo-media-link.entity.js';
-import type { AkeneoSourceLink as AkeneoSourceLinkRow } from '../../../packages/modules/pim_akeneo/src/backend/entities/akeneo-source-link.entity.js';
+import type {
+  ErgonodeAttributeMapping as ErgonodeAttributeMappingRow,
+  ErgonodeCategoryMapping as ErgonodeCategoryMappingRow,
+  ErgonodeConnection as ErgonodeConnectionRow,
+  ErgonodeFieldProtection as ErgonodeFieldProtectionRow,
+  ErgonodeImportIssue as ErgonodeImportIssueRow,
+  ErgonodeImportRun as ErgonodeImportRunRow,
+  ErgonodeMediaLink as ErgonodeMediaLinkRow,
+  ErgonodePriceBinding as ErgonodePriceBindingRow,
+  ErgonodeProductLink as ErgonodeProductLinkRow,
+  ErgonodeStreamCursor as ErgonodeStreamCursorRow,
+} from '@endora-commerce/mod-pim-ergonode/test-support';
+import type {
+  UnopimAssociationTypeMapping as UnopimAssociationTypeMappingRow,
+  UnopimAttributeMapping as UnopimAttributeMappingRow,
+  UnopimCategoryMapping as UnopimCategoryMappingRow,
+  UnopimConnection as UnopimConnectionRow,
+  UnopimImportIssue as UnopimImportIssueRow,
+  UnopimImportRun as UnopimImportRunRow,
+  UnopimMediaLink as UnopimMediaLinkRow,
+  UnopimPriceBinding as UnopimPriceBindingRow,
+  UnopimProductLink as UnopimProductLinkRow,
+  UnopimSyncBookmark as UnopimSyncBookmarkRow,
+} from '@endora-commerce/mod-pim-unopim/test-support';
+import type {
+  PimcoreCatalogueDelivery as PimcoreCatalogueDeliveryRow,
+  PimcoreConnection as PimcoreConnectionRow,
+  PimcoreDeliveredRecord as PimcoreDeliveredRecordRow,
+  PimcoreFieldProtection as PimcoreFieldProtectionRow,
+  PimcoreImportIssue as PimcoreImportIssueRow,
+  PimcoreImportRun as PimcoreImportRunRow,
+  PimcoreMediaLink as PimcoreMediaLinkRow,
+  PimcoreSourceLink as PimcoreSourceLinkRow,
+} from '@endora-commerce/mod-pim-pimcore/test-support';
+import type {
+  AkeneoConnection as AkeneoConnectionRow,
+  AkeneoDeliveredRecord as AkeneoDeliveredRecordRow,
+  AkeneoFieldProtection as AkeneoFieldProtectionRow,
+  AkeneoHmacReplay as AkeneoHmacReplayRow,
+  AkeneoImportIssue as AkeneoImportIssueRow,
+  AkeneoImportRun as AkeneoImportRunRow,
+  AkeneoMediaLink as AkeneoMediaLinkRow,
+  AkeneoSourceLink as AkeneoSourceLinkRow,
+} from '@endora-commerce/mod-pim-akeneo/test-support';
 import type { EmailDelivery as EmailDeliveryRow } from '../../../packages/modules/email/src/backend/entities/email-delivery.entity.js';
 import type { InvoiceLedgerClientMap as InvoiceLedgerClientMapRow } from '../../../packages/modules/invoice_ledger/src/backend/entities/invoice-ledger-client-map.entity.js';
 import type { InvoiceLedgerDelivery as InvoiceLedgerDeliveryRow } from '../../../packages/modules/invoice_ledger/src/backend/entities/invoice-ledger-delivery.entity.js';
