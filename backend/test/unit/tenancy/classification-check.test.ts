@@ -120,6 +120,24 @@ describe('the scan scope', () => {
  * Preconditions are asserted rather than assumed: a run over packages whose
  * `dist` is absent would agree vacuously, so the number of packages compared and
  * the number of entity classes read both carry a floor.
+ *
+ * ## The two vacuous shapes this test had before it had any value
+ *
+ * Both were in the first version of this file, both passed, and neither would have
+ * been visible in a diff. They are named here because they are the shapes every
+ * later agreement proof in this estate has to be checked against:
+ *
+ *   1. **A finding-set comparison that is `[] === []`.** Every entity in this tree
+ *      is classified, so comparing what the two hosts *reported* asserted nothing
+ *      at all on any package. The load-bearing comparison is the **population each
+ *      host read** — the number a broken reader moves. The finding-set comparison
+ *      is kept below it, for the day it stops being vacuous.
+ *   2. **A `continue` past an `unreadable` package.** Found by breaking the emitted
+ *      reader on purpose: six packages went `unreadable` through the
+ *      declared-entities floor and the comparison stayed green over the rest. Every
+ *      package in this checkout is built, so an `unreadable` here is the host
+ *      refusing an input it should have had, and it is a **disagreement** rather
+ *      than a skip.
  */
 describe('SC-002 — the repository host and the package host agree', () => {
   const PACKAGE_ROOTS = MODULE_LAYOUT.moduleRoots.filter(
