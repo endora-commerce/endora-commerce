@@ -18,8 +18,6 @@ import {
  * withdrawal is covered by the kernel port-fail-closed contract suite.
  */
 
-const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
-
 describe('pim_connector — registry port [contract]', () => {
   let h: BackendServerHandle;
 
