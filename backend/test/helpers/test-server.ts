@@ -625,6 +625,52 @@ function testAnyLabel(name: unknown): string {
 }
 
 const SEEDED_TABLES = [
+  // Feature 067 — product feeds. `product_feeds` itself and everything hanging
+  // off it cascade from `sales_channels`, but five tables do not reach any
+  // table below: `product_feed_templates` and its fields, and the three
+  // taxonomy tables — `product_feed_taxonomies`, its nodes and its checks. The
+  // module reinstalls all five at boot (`reconcileTemplates` /
+  // `reconcileTaxonomies`, both idempotent, both after this truncate), so
+  // wiping them hands every file the same bundled corpus instead of whatever
+  // the previous file promoted, imported or marked checked. The other seven are
+  // listed for the same reason as the Comarch XL block: a cascade is a property
+  // of today's foreign keys, not a guarantee. Listed children-first; the
+  // `product_feeds` ⇄ `product_feed_runs` cycle (`current_run_id` /
+  // `product_feed_id`) is what one `truncate … cascade` statement is for.
+  'product_feed_taxonomy_checks',
+  'product_feed_taxonomy_mappings',
+  'product_feed_taxonomy_nodes',
+  'product_feed_taxonomies',
+  'product_feed_delivery_attempts',
+  'product_feed_deliveries',
+  'product_feed_run_issues',
+  'product_feed_artefacts',
+  'product_feed_runs',
+  'product_feeds',
+  'product_feed_template_fields',
+  'product_feed_templates',
+  // Feature 119 — Comarch XL. Six of these twelve have no foreign key to any
+  // table below — `xl_installations`, `xl_identity_mappings`, `xl_status_maps`,
+  // `xl_sync_jobs` (and its events), `xl_worker_heartbeats` and
+  // `xl_last_applied_snapshots` — so without this the installation one file
+  // configures, the identities it bound and the snapshots it applied are still
+  // there for the next one, and an "is this ERP connected?" read answers from a
+  // neighbour's fixture. The other six do cascade today, from `categories`,
+  // `sales_channels`, `price_lists`, `customer_groups` and `organizations`;
+  // they are listed anyway so that a future nullable-FK change cannot quietly
+  // take a table out of the wipe. Listed children-first.
+  'xl_imported_offer_lines',
+  'xl_imported_offers',
+  'xl_sync_job_events',
+  'xl_sync_jobs',
+  'xl_last_applied_snapshots',
+  'xl_worker_heartbeats',
+  'xl_status_maps',
+  'xl_price_list_mappings',
+  'xl_warehouse_mappings',
+  'xl_category_mappings',
+  'xl_identity_mappings',
+  'xl_installations',
   // Feature 089 — Pimcore PIM. Truncated explicitly because nothing cascades
   // here from the tables below. Listed children-first.
   'pimcore_import_issues',
@@ -1279,6 +1325,48 @@ export async function setupBackendServer(
       // as attribute_sets — truncate-cascade would drop the seed.
       await conn.execute(
         `delete from "attachment_types" where "code" not in ('certificate', 'tech_spec', 'product_card', 'pdf')`,
+      );
+
+      // Drop every platform-wide setting override, for the same reason and in
+      // the same spirit as the config resets below: `settings` rows are
+      // declarations the manifest reconciler owns, so the table is not
+      // truncated — but `global_value` on those rows is operator state, and an
+      // operator write by one test file was standing for every file that ran
+      // after it in the same run database.
+      //
+      // Two families of failure came out of that, and neither is visible to a
+      // targeted run because both need a particular neighbour to have run
+      // first. `invoice_ledger.ksef.routing` and `invoice_ledger.numbering.mode`
+      // are written globally by the routing contract test and by several KSeF
+      // integration files, and a leaked `vendor` silently changes what every
+      // later invoice does — a delivery routed to the vendor, native KSeF
+      // submission skipped. And `<module>.activation` is a Setting like any
+      // other, so a leaked `wfirma.activation = true` makes the invoice-ledger
+      // vendor mutex refuse the next file's Infakt activation with a 409.
+      //
+      // **Do not remove this statement because it looks like per-file cost the
+      // suite could do without.** It is cheap — one indexed update over a table
+      // with no rows to change in the common case — and what it buys is not
+      // tidiness. `InvoiceLedgerRoutingService.nativeKsefActionFor` answers
+      // `skip` when the routing reads `vendor`, so a leaked `vendor` does not
+      // make a later file's invoice fail to submit to KSeF: it makes that file
+      // **not enqueue the submission at all**. The reds this reset was written
+      // for are the visible half. The half worth naming is the other one — a
+      // test that **passes because the work was skipped**, which is a green
+      // result that is evidence of nothing. That is the shape to fear from any
+      // state that survives the file that wrote it, and it is why the answer
+      // here is to reset the state rather than to teach each test to restore
+      // what it wrote: a file that forgets costs the next file its meaning, not
+      // its colour, and nothing in a suite result says so.
+      //
+      // NULL is not a value here: it means "no global override", so every
+      // setting resolves to its manifest `defaultValue` again — the state a
+      // fresh install is in, which is what the reconcile below re-asserts.
+      // `setting_values`, the per-channel overrides, needs no statement: every
+      // row points at a `sales_channels` row, and that table is truncated with
+      // cascade above.
+      await conn.execute(
+        'update "settings" set "global_value" = null where "global_value" is not null',
       );
 
       // Reset the i18n + dictionary config tables to a known state so
