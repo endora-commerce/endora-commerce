@@ -884,8 +884,26 @@ export const ESTATE: readonly EstateEntry[] = [
     // What closes it is `check/peer-owners.ts`, synchronously and with no new
     // dependency, and what makes a short owner map legible rather than
     // reassuring is `sources=owners:<n>/<m>` on the rule's own `read:` line —
-    // `m` from `resolvedPortNames`, which the package itself authors. `n === 0`
-    // with `m > 0` is `unreadable`.
+    // `m` from `resolvedPortNames`, which the package itself authors.
+    //
+    // **The floor is "no owner map was read", not "these names did not
+    // resolve", and that too is a correction on a measurement rather than a
+    // preference.** Built the second way first: `audit_logs`,
+    // `google_tag_manager`, `linkedin_ads`, `meta_ads` and `prompt_actions` each
+    // resolve exactly one gated name, `settingsReadPort` — which the
+    // **platform** contributes, not an uninstalled module — and all five
+    // refused, printing *install the owning module*, a remedy naming work their
+    // author cannot do and does not need to. Five false refusals in 75 packages,
+    // and the remedy was the §5.1 failure rather than the verdict.
+    //
+    // What that leaves is stated in the host: a package whose every resolved
+    // name belongs to an uninstalled *module*, in a tree that has other peers,
+    // reads `owners:0/1` on a `ran` line instead of refusing. It is printed and
+    // named. Closing it means deriving the platform's own registrations —
+    // `PLATFORM_OWNED_NAMES` is a curated list today because `compose-app.ts`
+    // registers them through `contribute({ … })`, which neither `registeredNames`
+    // nor `providedPortNames` recognises — and that recogniser is the next thing
+    // to build here.
     host: 'built',
     partial: [
       {

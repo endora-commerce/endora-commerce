@@ -450,7 +450,42 @@ describe('check:port-catches over a package', () => {
     expect(result.verdict).toBe('unreadable');
     expect(result.findings).toEqual([]);
     expect(result.explanation).toContain('taxService');
-    expect(result.explanation).toContain('not installed');
+    expect(result.explanation).toContain('no owner map could be read at all');
+  });
+
+  it('does not refuse a package whose owner map is read but does not hold its name', () => {
+    // The five-false-refusal case, as a proof. `settingsReadPort` is the
+    // platform's, not an uninstalled module's, and five real packages resolve
+    // nothing else: refusing them printed a remedy — *install the owning module*
+    // — naming work their author cannot do and does not need to. The floor is
+    // "no owner map was read", so a run that read one and did not find this name
+    // states the fraction and runs.
+    const dir = packageResolvingPeerPort(
+      [
+        "import { lazyPort } from '@endora-commerce/platform/kernel';",
+        'export function registerModule(ctx: any): void {',
+        "  const settings = lazyPort<any>(ctx, 'settingsReadPort');",
+        '  ctx.read = async (k: string) => {',
+        '    try {',
+        '      return await settings.get(k);',
+        '    } catch {',
+        '      return null;',
+        '    }',
+        '  };',
+        '}',
+      ],
+      true,
+    );
+
+    const result = only(dir, CATCH_RULE);
+
+    expect(result.verdict).toBe('ran');
+    const owners = result.readSize?.coverage?.find((c) => c.source === 'owners');
+    expect(owners).toEqual({ source: 'owners', expected: 1, covered: 0 });
+    // Printed and named, never silent — and the sentence admits both causes
+    // rather than naming the one an author cannot act on.
+    expect(result.explanation).toContain('settingsReadPort');
+    expect(result.explanation).toContain('the platform itself registers');
   });
 
   it('says nothing once the catch re-throws the presence answer', () => {

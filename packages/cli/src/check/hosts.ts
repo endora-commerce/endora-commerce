@@ -1592,14 +1592,37 @@ const portCatches: PackageRuleHost = (layout) => {
   if (!short.ok) return short.result;
 
   const unattributed = [...written].filter((name) => !attributed.includes(name));
-  if (written.size > 0 && attributed.length === 0) {
+  // **The floor is "no owner map was read", not "these names did not resolve",
+  // and the difference is five false refusals.** Built the second way first, and
+  // measured: `audit_logs`, `google_tag_manager`, `linkedin_ads`, `meta_ads` and
+  // `prompt_actions` each resolve exactly one gated name, `settingsReadPort` —
+  // which the **platform** owns (`compose-app.ts` contributes it), not an
+  // uninstalled module. All five refused, and the remedy they printed, *install
+  // the owning module*, named work an author cannot do and does not need to. A
+  // remedy an author cannot act on is the §5.1 failure exactly.
+  //
+  // So the refusal is the honest analogue of `read-nothing`: the run consulted an
+  // owner map and the map was **empty**. That keeps the fixture case — a package
+  // resolving a peer's port with no peer installed anywhere — and drops all five
+  // false ones, because those runs read 174 owners and simply do not own this
+  // name between them.
+  //
+  // **What this leaves, stated rather than discovered:** a package whose every
+  // resolved name belongs to an uninstalled *module*, in a tree that has other
+  // peers, reads `owners:0/1` on a `ran` line rather than refusing. It is printed
+  // and named, not silent. Closing it properly means deriving the platform's own
+  // registrations — `PLATFORM_OWNED_NAMES` is today a curated list because
+  // `compose-app.ts` registers them through `contribute({ … })`, which neither
+  // `registeredNames` nor `providedPortNames` recognises — and that recogniser is
+  // the next thing to build here, not a weakening to accept for ever.
+  if (written.size > 0 && attributed.length === 0 && peers.portOwners.size === 0) {
     return unreadable(
       id,
-      `this package resolves ${written.size} gated port name(s) and an owner could be found ` +
-        `for none of them — ${unattributed.join(', ')}. Their owning modules are not installed ` +
-        `beside it, so the analysis admits none of those calls as a port and every \`catch\` ` +
-        `around one is unjudged. That is not clean: install the owning modules, or read this ` +
-        `rule as not having run.`,
+      `this package resolves ${written.size} gated port name(s) — ${unattributed.join(', ')} — ` +
+        `and no owner map could be read at all: no module package was found installed beside ` +
+        `it or in a workspace with it. The analysis admits none of those calls as a port, so ` +
+        `every \`catch\` around one is unjudged. That is not clean: install the modules that ` +
+        `own them, or read this rule as not having run.`,
       readSize,
     );
   }
@@ -1629,8 +1652,9 @@ const portCatches: PackageRuleHost = (layout) => {
     ...outcome,
     explanation:
       `${unattributed.length} of the ${written.size} gated port name(s) this package resolves ` +
-      `could not be attributed to an owner — ${unattributed.join(', ')}. A \`catch\` around ` +
-      `one of those is unjudged rather than clean; install the owning module to have it read.`,
+      `could not be attributed to an owner — ${unattributed.join(', ')}. Each is either a ` +
+      `module you have not installed or a name the platform itself registers, and this run ` +
+      `cannot tell those apart; a \`catch\` around one of them is unjudged rather than clean.`,
   };
 };
 
