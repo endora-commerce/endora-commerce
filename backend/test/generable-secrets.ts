@@ -121,23 +121,44 @@ export const PINNED_GENERABLE_SECRETS: Readonly<Record<string, PinnedSecret>> = 
  * Why the third entry is a pin and not 151 restores — and why the fast suite
  * could never have told you.
  *
- * This key was withheld, and 151 test files opened with
- * `process.env[K] = process.env[K] ?? randomBytes(32).toString('base64')`.
- * Withholding is a `delete`, so the `??` always fell through: the **first** of
- * those files to run in a shard's single fork injected a value that then stood
- * for every file after it in that fork, and
- * `test/unit/harness/generable-secrets.test.ts` — the instrument that asserts
- * this population is the harness's and not the machine's — reported it whenever
- * it happened to run after one of them. That is the same defect as the
- * `settings.global_value` reset in `helpers/test-server.ts`: state surviving the
- * file that wrote it. A third channel, `process.env`, rather than a third cause.
+ * This key was withheld, and 151 test files set it themselves. Withholding is a
+ * `delete`, so a file using the preserving idiom
+ * `process.env[K] = process.env[K] ?? randomBytes(32).toString('base64')` always
+ * fell through to the random branch: the **first** of those files to run in a
+ * shard's single fork injected a value that then stood for every file after it
+ * in that fork, and `test/unit/harness/generable-secrets.test.ts` — the
+ * instrument that asserts this population is the harness's and not the machine's
+ * — reported it whenever it happened to run after one of them. That is the same
+ * defect as the `settings.global_value` reset in `helpers/test-server.ts`: state
+ * surviving the file that wrote it. A third channel, `process.env`, rather than
+ * a third cause.
  *
- * Pinning is the whole repair and it edits none of the 151, because a pinned
- * value is assigned **unconditionally** before any worker forks, so the `??`
- * now finds it and each of those assignments becomes a self-assignment. The
- * reason is the one the two entries above already give — a cipher that throws in
- * a hundred files — so this is that rule applied consistently rather than an
- * exception made for one key.
+ * **The 151 is not the useful fact; the split is.** Measured over
+ * `backend/test/`, and summed rather than subtracted:
+ *
+ *   - **112** preserve — the `??` idiom above, a self-assignment once pinned;
+ *   - **36** assign `randomBytes(32).toString('base64')` **unconditionally**,
+ *     overwriting a pinned value for every later file in the fork;
+ *   - **2** capture the ambient value and restore it;
+ *   - **1** assigns its own `TEST_KEY`.
+ *
+ * 112 + 36 + 2 + 1 = 151. Separately, **38** files `delete` the variable in
+ * `afterAll` — correct while it was withheld, and fatal to a pinned key. So
+ * **74 of the 151 break a pin**, and pinning alone was therefore *not* the whole
+ * repair: `test/pinned-secrets-setup.ts` re-asserts the pinned values per test
+ * file, which is what makes the entry above hold for every file rather than only
+ * until the first of those 74 runs.
+ *
+ * That correction cost a merge. The claim was that pinning edits none of the 151
+ * because the `??` finds the pinned value — true of 112 files, false of 36, and
+ * the pair that verified it used a leaker from the 112. A count was decomposed
+ * only after the population it described had already refuted it; see
+ * `specs/conventions/backend-test-suite.md` § *Proving a cross-file leak*, third
+ * way.
+ *
+ * The reason this key is pinned at all is the one the two entries above already
+ * give — a cipher that throws in a hundred files — so it is that rule applied
+ * consistently rather than an exception made for one key.
  *
  * The repair that suggested itself first would have broken all 151: re-applying
  * the seam per composition, the exact parallel of the `settings.global_value`
