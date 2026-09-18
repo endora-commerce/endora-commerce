@@ -1,22 +1,21 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type {
-  ShippingAdapter,
-  ShippingEligibilityContext,
   DeliveryMethodAdmin,
+  ShippingAdapter,
+  ShippingAdapterRegistryPort,
+  ShippingEligibilityContext,
 } from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
-import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
-import { ShippingAdapterRegistry } from '../../../../packages/modules/delivery_methods/src/backend/services/shipping-adapter-registry.js';
 import {
   CARRIER_FIXTURE_SETTING_CODES,
   manifest,
-} from '../../../src/apps/example/modules/carrier_fixture/manifest.js';
+} from './manifest.js';
 import {
   CARRIER_FIXTURE_ADAPTER_KEYS,
   CARRIER_FIXTURE_MODULE_ID,
   carrierFixtureAdapters,
   registerModule,
-} from '../../../src/apps/example/modules/carrier_fixture/backend.js';
+} from './backend.js';
 
 /**
  * `carrier_fixture` — the example deployment's stand-in carrier (feature 134,
@@ -39,20 +38,81 @@ import {
  * to read. `Required<ShippingAdapter>` in `backend.ts` is the half `tsc`
  * enforces; the assertions below are the half it cannot.
  *
- * ## The off state
+ * ## The off state, and where each half of it is proved
  *
  * The module contributes no route, no permission, no admin surface and no
  * storefront element, so item 6 of `specs/conventions/module-activation.md`
- * reduces here to the one seam it does own: the registry must stop answering
- * with this adapter the moment the module is not effectively present, while
- * still being able to say **which** module went (`absentOwnerFor`), and must
- * restore it unchanged when it comes back — with no re-registration, because a
- * contribution hook runs once at composition and an operator's flip must not
- * need a restart (D-67/D-68).
+ * reduces here to the one seam it does own — and that seam has two halves with
+ * two owners, which is why this file does not assert both:
+ *
+ *  * **this module's half** is that the push names *itself* as the contributor,
+ *    because the contributor name is the only datum the owner's filter keys on.
+ *    That is asserted below, on both axes: the push lands under
+ *    `carrier_fixture` and it lands *even while the module is absent*, because a
+ *    contribution hook must never probe (D-67/D-68) or an operator's activation
+ *    flip would need a restart;
+ *  * **`delivery_methods`' half** is that `isAvailable` / `get` / `list` /
+ *    `resolve` / `absentOwnerFor` filter on that name's effective state. That is
+ *    the owner's behaviour and the owner already tests it, beside its own
+ *    subject in `shipping-adapter-registry.test.ts`.
+ *
+ * **Do not "complete" this file by importing `ShippingAdapterRegistry`.** It was
+ * written that way first and `check:module-boundary` refused it, correctly: this
+ * file is `backend/src` code, so it is *module* code, and a relative import into
+ * `delivery_methods`' internals is the reach Constitution I forbids — the remedy
+ * for which is the published type, not a ledger entry. Asserting the owner's
+ * filtering here as well would also be two answers to one question, which is the
+ * shape this repository keeps paying for. The double below implements
+ * `ShippingAdapterRegistryPort` in full, so the contribution seam's *type* is
+ * still exercised from this side.
  */
 
-const registryFor = (present: ReadonlySet<string>): ShippingAdapterRegistry =>
-  new ShippingAdapterRegistry({ warn: () => {} }, (moduleId) => present.has(moduleId));
+/**
+ * The published contribution seam, implemented as a recorder.
+ *
+ * `implements ShippingAdapterRegistryPort` is load-bearing rather than tidy: it
+ * is the assertion that this module still compiles against the whole port after
+ * a change to it, from the consumer side, which is half of what FR-063 buys.
+ */
+class RecordingAdapterRegistry implements ShippingAdapterRegistryPort {
+  readonly pushes: { adapterKey: string; module: string }[] = [];
+  private readonly entries = new Map<string, { adapter: ShippingAdapter; module: string }>();
+
+  register(adapter: ShippingAdapter, module: string): void {
+    this.pushes.push({ adapterKey: adapter.adapterKey, module });
+    this.entries.set(adapter.adapterKey, { adapter, module });
+  }
+  unregister(adapterKey: string): void {
+    this.entries.delete(adapterKey);
+  }
+  isRegistered(adapterKey: string): boolean {
+    return this.entries.has(adapterKey);
+  }
+  /** Presence is the owner's question; this double answers the blind half only. */
+  isAvailable(adapterKey: string): boolean {
+    return this.entries.has(adapterKey);
+  }
+  get(adapterKey: string): ShippingAdapter | undefined {
+    return this.entries.get(adapterKey)?.adapter;
+  }
+  resolve(adapterKey: string): ShippingAdapter {
+    const adapter = this.get(adapterKey);
+    if (!adapter) throw new Error(`no adapter for "${adapterKey}"`);
+    return adapter;
+  }
+  list(): string[] {
+    return [...this.entries.keys()];
+  }
+  listAll(): string[] {
+    return [...this.entries.keys()];
+  }
+  ownerOf(adapterKey: string): string | null {
+    return this.entries.get(adapterKey)?.module ?? null;
+  }
+  absentOwnerFor(): string | null {
+    return null;
+  }
+}
 
 /** A `ModuleContext` shaped exactly as far as a contribution hook reaches. */
 function contextStub(registry: unknown): {
@@ -215,95 +275,64 @@ describe('carrier_fixture — the port surface it restores', () => {
 
 describe('carrier_fixture — the contribution seam', () => {
   it('registers every adapter under its own module id, from a boot hook', () => {
-    const registry = registryFor(new Set([CARRIER_FIXTURE_MODULE_ID, 'delivery_methods']));
+    const registry = new RecordingAdapterRegistry();
     const { ctx, runBootHooks } = contextStub(registry);
 
     registerModule(ctx);
-    // Nothing is pushed during composition — the hook is what pushes.
-    expect(registry.listAll()).toEqual([]);
+    // Nothing is pushed during composition — the hook is what pushes. This is
+    // the half that matters for a *runtime* activation flip: a push at
+    // composition would be a push the operator's switch cannot reach.
+    expect(registry.pushes).toEqual([]);
 
     runBootHooks();
 
-    for (const key of Object.values(CARRIER_FIXTURE_ADAPTER_KEYS)) {
-      expect(registry.isRegistered(key), key).toBe(true);
-      expect(registry.ownerOf(key), key).toBe(CARRIER_FIXTURE_MODULE_ID);
-    }
+    // **The contributor name is the assertion.** It is the only datum
+    // `delivery_methods` filters its enumeration on, so a push naming anything
+    // else — `delivery_methods`, an adapter key, a blank — would make this
+    // fixture unfilterable while looking registered.
+    expect(registry.pushes).toEqual([
+      { adapterKey: CARRIER_FIXTURE_ADAPTER_KEYS.COURIER, module: CARRIER_FIXTURE_MODULE_ID },
+      { adapterKey: CARRIER_FIXTURE_ADAPTER_KEYS.PICKUP, module: CARRIER_FIXTURE_MODULE_ID },
+    ]);
   });
 
   it('does not probe its own presence in the contributing hook', () => {
-    // D-67/D-68: a hook that contributes an inert descriptor must not probe, or
-    // an operator's activation flip would need a restart. The probe a wrong
-    // implementation would use is the registry's `isModulePresent`, so drive it
-    // with the module **absent** and assert the push landed anyway.
-    const registry = registryFor(new Set(['delivery_methods']));
+    // D-67/D-68, and the off-state case that is genuinely this module's
+    // (Principle XVII item 5): a hook that contributes an inert descriptor must
+    // **not** probe, or an operator's activation flip would need a restart.
+    //
+    // Driving it is what makes the assertion real rather than a reading of the
+    // source: the context here answers no presence question at all, so an
+    // implementation that probed would throw or read `undefined` instead of
+    // pushing. The push landing proves the absence of the probe.
+    const registry = new RecordingAdapterRegistry();
     const { ctx, runBootHooks } = contextStub(registry);
 
     registerModule(ctx);
+    runBootHooks();
+
+    expect(registry.pushes.map((push) => push.adapterKey)).toEqual([
+      ...Object.values(CARRIER_FIXTURE_ADAPTER_KEYS),
+    ]);
+  });
+
+  it('pushes each adapter key once per hook run, and collides with nothing', () => {
+    // Two runs is what a re-composition looks like. The owner's policy is
+    // last-writer-wins with a warning **when the contributor differs**, so the
+    // property this module owes is that its own second push carries the same
+    // contributor as its first — a re-registration under a drifting name is
+    // what would make the owner warn and what would strand the entry.
+    const registry = new RecordingAdapterRegistry();
+    const { ctx, runBootHooks } = contextStub(registry);
+
+    registerModule(ctx);
+    runBootHooks();
     runBootHooks();
 
     expect(registry.listAll()).toEqual([...Object.values(CARRIER_FIXTURE_ADAPTER_KEYS)]);
-  });
-
-  it('registers nothing twice when the hook runs twice', () => {
-    const warn = vi.fn();
-    const counted = new ShippingAdapterRegistry({ warn }, () => true);
-    const { ctx, runBootHooks } = contextStub(counted);
-
-    registerModule(ctx);
-    runBootHooks();
-    runBootHooks();
-
-    expect(counted.listAll()).toEqual([...Object.values(CARRIER_FIXTURE_ADAPTER_KEYS)]);
-    expect(warn).not.toHaveBeenCalled();
-  });
-});
-
-describe('carrier_fixture — the off state (Principle XVII item 5)', () => {
-  const contributed = (present: readonly string[]): ShippingAdapterRegistry => {
-    const registry = registryFor(new Set(present));
-    const { ctx, runBootHooks } = contextStub(registry);
-    registerModule(ctx);
-    runBootHooks();
-    return registry;
-  };
-
-  const courierKey = CARRIER_FIXTURE_ADAPTER_KEYS.COURIER;
-
-  it('is available while the module is effectively present', () => {
-    const registry = contributed([CARRIER_FIXTURE_MODULE_ID, 'delivery_methods']);
-    // The positive control first: an absence proves nothing until a presence
-    // has been seen.
-    expect(registry.isAvailable(courierKey)).toBe(true);
-    expect(registry.get(courierKey)).toBeDefined();
-    expect(registry.list()).toContain(courierKey);
-    expect(registry.absentOwnerFor(courierKey)).toBeNull();
-  });
-
-  it('withdraws the adapter while the module is off, and names who went', () => {
-    const registry = contributed(['delivery_methods']);
-    expect(registry.isAvailable(courierKey)).toBe(false);
-    expect(registry.get(courierKey)).toBeUndefined();
-    expect(registry.list()).not.toContain(courierKey);
-    // Still contributed — the admin has to keep showing the method *and* the
-    // reason it is unavailable.
-    expect(registry.isRegistered(courierKey)).toBe(true);
-    expect(registry.absentOwnerFor(courierKey)).toBe(CARRIER_FIXTURE_MODULE_ID);
-    expect(() => registry.resolve(courierKey)).toThrow(ModuleDisabledError);
-  });
-
-  it('restores the adapter when the module comes back, with no second push', () => {
-    const present = new Set(['delivery_methods']);
-    const registry = new ShippingAdapterRegistry({ warn: () => {} }, (id) => present.has(id));
-    const { ctx, runBootHooks } = contextStub(registry);
-    registerModule(ctx);
-    runBootHooks();
-
-    expect(registry.isAvailable(courierKey)).toBe(false);
-    present.add(CARRIER_FIXTURE_MODULE_ID);
-    // No re-composition, no re-registration: the same table answers differently
-    // because the read is per-operation.
-    expect(registry.isAvailable(courierKey)).toBe(true);
-    expect(registry.absentOwnerFor(courierKey)).toBeNull();
+    expect(new Set(registry.pushes.map((push) => push.module))).toEqual(
+      new Set([CARRIER_FIXTURE_MODULE_ID]),
+    );
   });
 });
 
