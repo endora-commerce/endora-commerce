@@ -16,11 +16,38 @@ import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-comm
  * family; this one carries a runtime surface because a carrier port is
  * behavioural where ERP exclusion is a manifest fact.
  *
- * **It is not a delivery capability.** It seeds no delivery method, owns no
- * table, serves no route and contributes no admin or storefront surface; it
- * exists so that the contract has an implementor and the contribution seam has
- * a contributor. `example` is the reference deployment, so it is composed
- * nowhere a real shop runs.
+ * **It is not a delivery capability.** It owns no table, serves no route and
+ * contributes no admin or storefront surface; it exists so that the contract has
+ * an implementor and the contribution seam has a contributor. `example` is the
+ * reference deployment, so it is composed nowhere a real shop runs.
+ *
+ * ## It seeds no delivery method *yet*, and that is W7's last step
+ *
+ * **Whoever implements FR-064 / W7 finishes here.** That work makes `inpost` and
+ * `dhl_parcel` seed `delivery_methods` from their own `installHook` through the
+ * owner's published install surface instead of by raw SQL — and then both modules
+ * **leave**, so `DeliveryMethodSeedApi` is left a published surface with **zero
+ * consumers in this repository**. That is `extraction-procedure.md` refusal 6 one
+ * level up, on the consumer side: the same defect this module exists to prevent
+ * for `ShippingAdapter`. This module is the standing consumer, and the sequencing
+ * was ruled **B** on 2026-09-18 on the condition that W7 ends by wiring it.
+ *
+ * So add, as W7's final step:
+ *
+ *  - an `installHook` seeding one method through `createDeliveryMethodSeeder`,
+ *    calling `bindToDefaultChannel` **only when `created === true`** — an
+ *    unguarded call is issue #96 verbatim, a method an operator deliberately
+ *    unbound from every channel coming back bound with nothing saying so;
+ *  - `status: 'inactive'` passed **explicitly** if this fixture comes to mirror
+ *    `dhl_parcel`, because the seeder's default is `'active'` and taking it
+ *    silently switches a carrier on for every new install;
+ *  - an `uninstallHook` behind `if (!ctx.hard) return;`, so a soft uninstall
+ *    removes nothing — the row outliving deactivation is deliberate
+ *    (Principle XVII).
+ *
+ * `specs/134-paid-module-extraction/contracts/foreign-write-repair.md` is
+ * normative for all three, and none of it existed when this module was written,
+ * which is why the hook is **absent rather than wrong**.
  */
 
 export const CARRIER_FIXTURE_SETTING_CODES = {
