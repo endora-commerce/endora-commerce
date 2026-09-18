@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { clearFamilyFor, familySiblingsOf } from '../../helpers/capability-families.js';
 import { PIM_ERGONODE_SETTING_CODES } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
@@ -106,6 +107,21 @@ describe('POST /api/v1/admin/modules/:id/activation [contract]', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
+    // Feature 132 — `MODULE` is a PIM connector, used here as a generic "a module
+    // with an activation control" subject. Since the PIM family became four modules
+    // derived from their own manifests, three of which declare
+    // `activation.default: true`, switching this subject on meets a sibling's claim
+    // and the route answers `PIM_CONNECTOR_ALREADY_ACTIVE` where this file is
+    // asserting something else entirely — including two dependency refusals that
+    // then never get the chance to fire.
+    //
+    // Clearing the family once, through the route, writes an explicit `false` for
+    // each sibling, which survives the propagation refresh that otherwise resolves
+    // them back to their manifest defaults. It names no module: the siblings are
+    // derived. The alternative — moving this file's subject to a module in no
+    // exclusive family — is the better shape and a wider change than this feature
+    // should make to a file it does not own.
+    await clearFamilyFor(h, MODULE);
   }, 60_000);
 
   afterAll(async () => {
@@ -399,7 +415,15 @@ describe('POST /api/v1/admin/modules/:id/activation [contract]', () => {
     // the honest replacement — the connector's API credentials live there, and
     // it is one of the five modules 074 gives a control to, so the pairing also
     // proves that control reaches the graph.
-    registryCache.__setEnabledForTesting(ALL_IDS, { deactivated: ['credentials'] });
+    // Feature 132 — `__setEnabledForTesting` re-seeds **every** module's operator
+    // axis to `true`, which undoes the family clearing `beforeAll` did in the cache
+    // even though the rows it wrote are still `false`. The subject's family siblings
+    // therefore have to be part of the seeded state, or the exclusion refuses first
+    // and this case never reaches the refusal it is about. Derived, so a fifth
+    // connector needs no edit.
+    registryCache.__setEnabledForTesting(ALL_IDS, {
+      deactivated: ['credentials', ...familySiblingsOf(MODULE)],
+    });
 
     const res = await flip(MODULE, true);
     expect(res.statusCode).toBe(409);
@@ -412,7 +436,12 @@ describe('POST /api/v1/admin/modules/:id/activation [contract]', () => {
     // Both axes, one answer: a dependency the deployment does not offer is as
     // absent as one the operator switched off, and effective presence is where
     // the two are combined.
-    registryCache.__setEnabledForTesting(ALL_IDS.filter((id) => id !== 'credentials'));
+    registryCache.__setEnabledForTesting(
+      ALL_IDS.filter((id) => id !== 'credentials'),
+      // As above: the subject's family siblings must not hold a claim, or the
+      // exclusion answers before the dependency refusal this case is about.
+      { deactivated: familySiblingsOf(MODULE) },
+    );
 
     const res = await flip(MODULE, true);
     expect(res.statusCode).toBe(409);

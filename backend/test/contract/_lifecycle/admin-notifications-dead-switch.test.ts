@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { clearFamilyFor } from '../../helpers/capability-families.js';
 import type { AdminNotificationRecordPort, ModuleManifest } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
@@ -294,6 +295,19 @@ describe('admin_notifications.enabled is a live control [contract]', () => {
     // order. It names no module and encodes no other module's rules, so the
     // next exclusive family costs this file nothing.
     for (const binder of bindersOf(OWNER)) {
+      // Feature 132 — and the reason this is here rather than in the comment above:
+      // four of these binders are PIM connectors, and three of them declare
+      // `activation.default: true`. The harness seeds every module activated and the
+      // propagation refresh re-resolves from the database, so a member with no
+      // explicit row resolves back to its manifest default — which means parking one
+      // member is not enough once the family is four rather than two. Clearing the
+      // family writes an explicit `false` for each sibling, which survives the
+      // refresh, and it names no module: the siblings are derived from the manifests.
+      //
+      // This becomes a no-op for the PIM family when that feature's Phase 5 flips the
+      // three defaults (FR-017); it is written so that it is correct either way.
+      await clearFamilyFor(h, binder);
+
       const on = await flip(binder, true);
       expect(on.statusCode, `switching '${binder}' back on`).toBe(200);
       expect(await presenceOf(binder)).toMatchObject({ present: true, activated: true });

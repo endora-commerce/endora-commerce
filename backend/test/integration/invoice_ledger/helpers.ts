@@ -10,6 +10,7 @@ import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 import { setSellerSettings } from '../invoices/helpers.js';
 import type { BackendServerHandle } from '../../helpers/test-server.js';
+import { clearFamilyFor } from '../../helpers/capability-families.js';
 
 type DeliveryRow = InvoiceLedgerDeliveryRow;
 
@@ -24,16 +25,22 @@ export const MISSING_NIP_MESSAGE =
 export const WFIRMA_MISSING_NIP_MESSAGE = WFIRMA_DELIVERY_MESSAGES.missingNip;
 const AUDIT = { actorAdminUserId: '00000000-0000-0000-0000-000000000000' };
 
+/**
+ * Switch the instance vendor to Infakt: every **other** member of the invoice-ledger family
+ * off, then Infakt on.
+ *
+ * The sibling used to be switched off **by name** (`wfirma`), which was right when the family
+ * held two modules and `wfirma` was the other one. Feature 132 makes family membership a
+ * manifest declaration the platform derives, so the siblings are derived here too: a third
+ * vendor is handled by existing rather than by somebody remembering this file. The same D-100
+ * shape as the array this feature deletes, one level up in the fixtures.
+ *
+ * What this does **not** change is the repair that put this helper in front of the two `infakt`
+ * contract files: they call it instead of POSTing the activation raw, because the harness seeds
+ * every module's operator axis to `true` and the raw POST met the vendor mutex.
+ */
 export async function activateInfakt(h: BackendServerHandle): Promise<void> {
-  const wfirmaOff = await h.app.inject({
-    method: 'POST',
-    url: '/api/v1/admin/modules/wfirma/activation',
-    ...ADMIN,
-    payload: { active: false },
-  });
-  if (wfirmaOff.statusCode !== 200) {
-    throw new Error(`wFirma deactivation failed: ${wfirmaOff.statusCode} ${wfirmaOff.body}`);
-  }
+  await clearFamilyFor(h, 'infakt');
   const res = await h.app.inject({
     method: 'POST',
     url: '/api/v1/admin/modules/infakt/activation',
@@ -45,16 +52,9 @@ export async function activateInfakt(h: BackendServerHandle): Promise<void> {
   }
 }
 
+/** {@link activateInfakt}'s twin, and derived for the same reason. */
 export async function activateWfirma(h: BackendServerHandle): Promise<void> {
-  const infaktOff = await h.app.inject({
-    method: 'POST',
-    url: '/api/v1/admin/modules/infakt/activation',
-    ...ADMIN,
-    payload: { active: false },
-  });
-  if (infaktOff.statusCode !== 200) {
-    throw new Error(`Infakt deactivation failed: ${infaktOff.statusCode} ${infaktOff.body}`);
-  }
+  await clearFamilyFor(h, 'wfirma');
   const res = await h.app.inject({
     method: 'POST',
     url: '/api/v1/admin/modules/wfirma/activation',

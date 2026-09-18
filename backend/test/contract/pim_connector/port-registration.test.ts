@@ -3,6 +3,7 @@ import {
   PIM_CONNECTOR_REGISTRY_PORT,
   type PimConnectorRegistryPort,
 } from '@endora-commerce/contracts';
+import { clearFamilyFor } from '../../helpers/capability-families.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -18,24 +19,6 @@ import {
  */
 
 const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
-
-async function setModuleActivation(
-  h: BackendServerHandle,
-  moduleId: string,
-  active: boolean,
-): Promise<void> {
-  const response = await h.app.inject({
-    method: 'POST',
-    url: `/api/v1/admin/modules/${moduleId}/activation`,
-    payload: { active },
-    ...ADMIN,
-  });
-  if (response.statusCode !== 200) {
-    throw new Error(
-      `activation ${moduleId}=${active} failed: ${response.statusCode} ${response.body}`,
-    );
-  }
-}
 
 describe('pim_connector — registry port [contract]', () => {
   let h: BackendServerHandle;
@@ -56,9 +39,11 @@ describe('pim_connector — registry port [contract]', () => {
   });
 
   it('assertCanActivate passes when no sibling PIM connector is active', async () => {
-    // Ergonode defaults to activated in fresh installs; mutual exclusion is
-    // operator-axis, so the sibling must be switched off for this assertion.
-    await setModuleActivation(h, 'pim_ergonode', false);
+    // The harness activates every module, and mutual exclusion is operator-axis, so
+    // every sibling has to be switched off for this assertion. Derived rather than
+    // named: this line used to switch off `pim_ergonode` alone, which was the whole
+    // family when it was written and is a quarter of it now (feature 132).
+    await clearFamilyFor(h, 'pim_unopim');
     await expect(h.pimConnectorRegistry.assertCanActivate('pim_unopim')).resolves.toBeUndefined();
   });
 
