@@ -37,6 +37,18 @@ import type { BackendServerHandle } from './test-server.js';
 
 const MANIFESTS: readonly ModuleManifest[] = REGISTERED_MANIFESTS.map((entry) => entry.manifest);
 
+/**
+ * Every module declaring membership of `key`, in manifest order.
+ *
+ * For a test that wants "a PIM connector" rather than "this module's siblings" — and
+ * that should not name one, for the same reason nothing else here does.
+ */
+export function declaredMembersOf(key: string): readonly string[] {
+  return MANIFESTS.filter((manifest) => (manifest.capabilities ?? []).includes(key)).map(
+    (manifest) => manifest.id,
+  );
+}
+
 /** The capability keys `moduleId` declares membership of. Empty for most modules. */
 export function capabilityKeysOf(moduleId: string): readonly string[] {
   return MANIFESTS.find((manifest) => manifest.id === moduleId)?.capabilities ?? [];
