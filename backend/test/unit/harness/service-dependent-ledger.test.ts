@@ -346,25 +346,16 @@ const MISFILED_INTEGRATION_TESTS: Readonly<Record<string, MisfiledIntegrationTes
       'header explains that the contract-shaped version — driving it through the Settings ' +
       'admin surface — was deferred, so what stands is a unit test of one validator.',
   },
-  'test/integration/inpost/eligibility-list.test.ts': {
-    scope: 'unit',
-    reason:
-      'Two eligibility validators over a `vi.fn()` settings double. Nothing is persisted and ' +
-      'no route is exercised.',
-  },
-  'test/integration/inpost/place-order-courier.test.ts': {
-    scope: 'contract',
-    reason:
-      '`placeOrderRequestSchema.parse` — a wire shape from `@endora-commerce/contracts`, ' +
-      'which is III(b) exactly.',
-  },
-  'test/integration/inpost/place-order-locker.test.ts': {
-    scope: 'contract',
-    reason:
-      'The locker `shippingAdapterData` schema, parsed. Its own header calls it an ' +
-      '"integration contract" and says the database coverage is deferred — so it is the ' +
-      'contract half that exists.',
-  },
+  // The three `test/integration/inpost/` entries that stood here were retired by
+  // `specs/134-paid-module-extraction/` T030, and they are the first to be retired by the
+  // mechanism this ledger did not anticipate. It expected each entry to be drained by a
+  // move *within* `backend/test/`, from tree (c) to the tree its scope names. Instead
+  // `eligibility-list`, `place-order-courier` and `place-order-locker` left
+  // `backend/test/` altogether, into `packages/modules/inpost/src/backend/`, where the
+  // question this ledger asks — which of the three trees does this file belong to — has no
+  // subject: a module package's tests are one run, declared by its own `vitest.config.ts`.
+  // So a misfiled-scope entry can also be retired by the file becoming its module's, and
+  // that is the drain that wave 1 of the paid-module extraction will keep applying.
   'test/integration/kernel/boot-failure.test.ts': {
     scope: 'unit',
     reason:
