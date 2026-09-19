@@ -1,5 +1,71 @@
 # @endora-commerce/test-kit
 
+## 0.11.0
+
+### Minor Changes
+
+- 0515a1b: A module package may publish its own test support, on a new `./test-support` subpath
+
+  Eleven vendor test doubles — the scripted Ergonode, UnoPim, Comarch XL, Infakt and wFirma
+  clients, the three scripted media fetchers, the two webhook signers and the XL installation
+  fixture — moved out of `backend/test/helpers/` into the packages whose protocols they encode.
+  Each is now published at `<package>/test-support`, which is the first consumer-visible change:
+  a specifier that was a relative path into an application's test tree is a bare one.
+
+  The tables a module's tests need emptied travel the same way. `pim_pimcore`, `pim_ergonode` and
+  `ksef` declare their own `volatileTables`, and `@endora-commerce/test-kit/support` gains
+  `collectVolatileTables` to merge them — refusing two modules that claim one table, and any name
+  that is not an unquoted identifier, because the collected set is interpolated into a
+  `truncate … cascade`.
+
+  `@endora-commerce/cli`'s command-coverage rule prunes the new layer from its walk. A fixture
+  writer is not a service write, for the same reason a migration is not.
+
+- 15af64a: `./support` publishes the entity index's type and its lookup, and names no module
+
+  A server-bound test writes rows, and to write one it needs the entity class **the ORM
+  registered** — not a structurally identical copy read out of a package's source, which is a class
+  the ORM never discovered (D-160.6.1). A module package publishes one `entities` array and no
+  entity class by name (D-168), so the class is picked out of that array by name.
+
+  _Which_ modules are there is the one fact a package that may name none is forbidden to know
+  (feature 109 R2.2, FR-001), which is why `backend/test/helpers/package-entities.ts` is
+  permanently host-owned (`module-package-layout.md` R10's closing paragraph). So the kit carries
+  the **shape** — `InstalledEntityIndex`, keyed by module id — and the **lookup** —
+  `entityNamedIn(index, moduleId, name)` — and the population arrives as an argument, rendered by
+  the host's own generator.
+
+  The lookup delegates to the platform's own `entityNamed` rather than re-implementing it: two
+  implementations of one lookup are two answers waiting to disagree about what a missing name
+  does. What it adds is the module dimension, because "no such entity" has two causes with
+  different remedies — the module is not installed, or the module publishes no such class — and a
+  host that gets `Cannot read properties of undefined` for the first has been told nothing.
+
+- cd7b1ee: `composeTestServer` registers the sales-channel kernel it composes
+
+  It composed the kernel — it has to, the subscriber ordering depends on that happening above
+  `composeModules` — and then registered none of the four names `compose-app.ts` registers out of
+  the same object, nor the out-of-request channel resolver a channel-scoped settings read needs. So
+  the kernel existed and nothing could resolve it: `inventory`'s channel-scoped stock read,
+  `payment_methods`' and `delivery_methods`' auto-bind and every channel-bridge declaration each
+  failed with `AwilixResolutionError` on their first call, in a composition that had booted cleanly.
+
+  It stayed invisible in the monorepo because the reference harness registers all four itself,
+  under a comment reading _"mirrors `compose-app.ts`"_ — the one caller that would have noticed had
+  already worked around it. An out-of-tree host booting the published platform through the kit found
+  them one failed boot at a time.
+
+  `registerValues` overwrites and the harness contributes identical values, so that workaround stays
+  correct while it is removed. A caller that wants a different answer for one of the five still says
+  so in `contribute`, which runs after.
+
+### Patch Changes
+
+- Updated dependencies [b413e2d]
+- Updated dependencies [0c59e92]
+  - @endora-commerce/contracts@0.13.0
+  - @endora-commerce/platform@0.12.0
+
 ## 0.10.1
 
 ### Patch Changes

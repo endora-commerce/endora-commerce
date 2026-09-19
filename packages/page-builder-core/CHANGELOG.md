@@ -1,5 +1,12 @@
 # @endora-commerce/page-builder-core
 
+## 0.9.2
+
+### Patch Changes
+
+- Updated dependencies [b413e2d]
+  - @endora-commerce/contracts@0.13.0
+
 ## 0.9.1
 
 ### Patch Changes

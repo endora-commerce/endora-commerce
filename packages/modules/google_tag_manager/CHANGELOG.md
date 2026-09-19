@@ -1,5 +1,14 @@
 # @endora-commerce/mod-google-tag-manager
 
+## 0.8.2
+
+### Patch Changes
+
+- Updated dependencies [b413e2d]
+- Updated dependencies [0c59e92]
+  - @endora-commerce/contracts@0.13.0
+  - @endora-commerce/platform@0.12.0
+
 ## 0.8.1
 
 ### Patch Changes

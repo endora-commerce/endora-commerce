@@ -1,5 +1,16 @@
 # @endora-commerce/mod-settings
 
+## 0.9.2
+
+### Patch Changes
+
+- Updated dependencies [b413e2d]
+- Updated dependencies [0c59e92]
+  - @endora-commerce/contracts@0.13.0
+  - @endora-commerce/platform@0.12.0
+  - @endora-commerce/admin-kit@0.9.2
+  - @endora-commerce/mod-credentials@0.9.2
+
 ## 0.9.1
 
 ### Patch Changes

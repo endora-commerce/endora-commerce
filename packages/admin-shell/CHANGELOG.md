@@ -1,5 +1,13 @@
 # @endora-commerce/admin-shell
 
+## 0.10.2
+
+### Patch Changes
+
+- Updated dependencies [b413e2d]
+  - @endora-commerce/contracts@0.13.0
+  - @endora-commerce/admin-kit@0.9.2
+
 ## 0.10.1
 
 ### Patch Changes
