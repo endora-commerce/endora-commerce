@@ -738,8 +738,25 @@ export const EXCLUDED_MODULES: readonly string[] = ['audit_logs'];
  * `migrations` is the one that is a *rule* rather than a convenience: a
  * migration is schema, not a service write, and judging one would put a finding
  * on every table this platform creates.
+ *
+ * `test-support` is the second of that kind, and it arrived measured
+ * (`specs/134-paid-module-extraction/` T015). A module's test doubles and
+ * fixtures moved out of `backend/test/helpers/` into `src/test-support/`, which
+ * is inside this walk where the old location was outside it — so
+ * `seedXlInstallation()`, a fixture writer that has always existed, became an
+ * `unaudited-sensitive-write` on the day it moved and took `master` red in
+ * `moved-module-tree.test.ts` rather than in the check anybody had run. A
+ * fixture is not a service write for the same reason a migration is not: nothing
+ * an operator did is being recorded, and requiring a Command of one would put a
+ * finding on every seed in the tree. The layer is excluded exactly as
+ * `*.test.ts` is below, which is what it is — the test tree, one directory over.
  */
-export const PRUNED_DIRECTORIES: readonly string[] = ['node_modules', 'dist', 'migrations'];
+export const PRUNED_DIRECTORIES: readonly string[] = [
+  'node_modules',
+  'dist',
+  'migrations',
+  'test-support',
+];
 
 /**
  * Whether a file is in this rule's population — the **one** membership decision,

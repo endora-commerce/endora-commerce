@@ -5,7 +5,7 @@ import {
   invoiceLedgerDeliveryListItemSchema,
 } from '@endora-commerce/contracts';
 import { AdminRole, AdminUser, InvoiceLedgerDelivery, OrganizationSalesRepAssignment } from '../../helpers/package-entities.js';
-import { ScriptedInfaktClient } from '../../helpers/scripted-infakt-client.js';
+import { ScriptedInfaktClient } from '@endora-commerce/mod-infakt/test-support';
 import { ADMIN_COOKIES, OTHER_TEST_ORGANIZATION_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import {
   setupBackendServer,
