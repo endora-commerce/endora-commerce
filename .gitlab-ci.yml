@@ -1574,6 +1574,36 @@ test:frontend:
     - pnpm run build:packages
   script:
     - pnpm --filter '!backend' run test
+  # The failure survives the log, for the second time in this file — see
+  # `test:backend` above, whose identical repair this copies. Master pipeline
+  # 14265's job 55801 was red on `bb99c74a7` and the reason was unobtainable by
+  # every route at once: the trace ends in `Job's log exceeded limit of 4194304
+  # bytes`, vitest prints its failure summary LAST so the summary was past the
+  # cut, and `projects/267/pipelines/14265/test_report` answered `total: 0`
+  # because the job published nothing to answer with. Unlike `test:backend` this
+  # job runs on merge requests too, so it is the one place a frontend regression
+  # is caught before it reaches `master` — and it was the one place that could
+  # not say what it caught.
+  #
+  # A glob rather than a path, because the script is a RECURSIVE run: vitest is
+  # rooted in each member `--filter '!backend'` selects, so there are as many
+  # reports as there are members with a `test` script (71 on the run that
+  # measured this), at three different depths — `admin`, `packages/contracts`,
+  # `packages/modules/catalog`. `**` is what covers all three; a literal list
+  # would be a ledger of members nobody would maintain.
+  # `backend/test/unit/ci/junit-artifact.test.ts` derives the population from the
+  # job's own script and fails when the glob stops covering it, for the same
+  # reason it does for `test:backend`: a path that has stopped matching uploads
+  # nothing and GitLab says so only as a warning, on a job that has already
+  # failed.
+  #
+  # `when: always` is the whole point: a report uploaded only on success is a
+  # report nobody ever needs.
+  artifacts:
+    when: always
+    expire_in: 1 week
+    reports:
+      junit: '**/test-results.junit.xml'
   cache:
     key:
       files:
