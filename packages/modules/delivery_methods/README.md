@@ -17,7 +17,9 @@ A module is not imported by application code. The platform discovers the extensi
 | `@endora-commerce/mod-delivery-methods` | the module manifest — its id, version, dependencies, settings and activation |
 | `@endora-commerce/mod-delivery-methods/admin` | the Admin UI contribution: the screens, navigation and palette actions it adds |
 | `@endora-commerce/mod-delivery-methods/backend` | the composition root the platform calls, with the entities, services, routes and workers it registers |
+| `@endora-commerce/mod-delivery-methods/install` | the install surface: factories another module’s `installHook` constructs over its own `EntityManager` |
 | `@endora-commerce/mod-delivery-methods/migrations` | the module’s own schema migrations, in the order the platform runs them |
+| `@endora-commerce/mod-delivery-methods/ports` | type-only — the port interfaces other modules resolve this one through |
 | `@endora-commerce/mod-delivery-methods/tailwind.css` | the Tailwind source declaration for the admin code above |
 
 ## Depends on

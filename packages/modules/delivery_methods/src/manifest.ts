@@ -35,10 +35,17 @@ const demo: ModuleDemoManifest<ModuleContext> = {
  * services/registry-singleton.ts) from its **boot hook**, naming itself as the
  * contributing module. Not from `installHook`: the registry is an in-memory
  * table per process, install runs once in the CLI process, and the serving
- * process reads what its own composition pushed. The `delivery_methods` row is
- * static reference data and ships as the contributing module's migration;
- * `DeliveryMethodReconciler.ensureMethodForAdapter(...)` stays available from
- * an `installHook` for a row that must be created from code.
+ * process reads what its own composition pushed.
+ *
+ * The `delivery_methods` **row** is the other half, and since feature 134's
+ * FR-064 it is written from the contributing module's `installHook` through this
+ * module's published install surface — `createDeliveryMethodSeeder()` on
+ * `./backend`, typed by `DeliveryMethodSeedApi` on `./ports`. It used to ship as
+ * that module's own migration, which was an `insert` into this module's table
+ * from another module's migration: three `migration-foreign-writes` ledger keys,
+ * and once the seeding module lives in another repository, a schema dependency
+ * with no version range and no compile-time signal
+ * (`specs/134-paid-module-extraction/contracts/foreign-write-repair.md`).
  *
  * No `uninstallHook` withdraws the adapter, and none should: the registry
  * records the contributing module on every entry and filters its enumeration on

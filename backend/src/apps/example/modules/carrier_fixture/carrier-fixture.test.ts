@@ -7,8 +7,10 @@ import type {
 } from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import {
+  CARRIER_FIXTURE_DELIVERY_METHOD,
   CARRIER_FIXTURE_SETTING_CODES,
   manifest,
+  uninstallHook,
 } from './manifest.js';
 import {
   CARRIER_FIXTURE_ADAPTER_KEYS,
@@ -173,6 +175,52 @@ describe('carrier_fixture — the manifest', () => {
     // `shippingAdapterRegistry` is `delivery_methods`', reached from the boot
     // hook — a binding dependency, exactly as `dhl_parcel` declares it.
     expect(manifest.dependencies).toContain('delivery_methods');
+  });
+});
+
+/**
+ * W7's last step, from the side a unit test can judge (feature 134, FR-064).
+ *
+ * What the hooks *write* needs a database and is in
+ * `backend/test/integration/_lifecycle/carrier-seed-install-hook.integration.test.ts`,
+ * beside the two carriers'. What belongs here is the pair of facts that need no
+ * database and that a reader would otherwise take on trust: the seeded row is
+ * **explicitly** inactive, and a soft uninstall touches nothing at all.
+ */
+describe('carrier_fixture — the install surface it consumes', () => {
+  it('seeds an explicitly inactive method for its courier adapter', () => {
+    // The one field where the seeder's default and the correct value disagree:
+    // omitting it switches a carrier on for every install of this deployment.
+    expect(CARRIER_FIXTURE_DELIVERY_METHOD.status).toBe('inactive');
+    expect(CARRIER_FIXTURE_DELIVERY_METHOD.code).toBe(CARRIER_FIXTURE_ADAPTER_KEYS.COURIER);
+  });
+
+  it('removes nothing on a soft uninstall — the em is never touched', async () => {
+    // A proxy rather than a spy: the claim is that `if (!ctx.hard) return;` is the
+    // first line, so *any* use of the EntityManager is the violation rather than
+    // one particular call. A spy would have to enumerate the calls it forbids.
+    const forbidden = new Proxy(
+      {},
+      {
+        get(_target, property) {
+          throw new Error(
+            `soft uninstall touched the EntityManager (${String(property)}); the rows must ` +
+              `survive it (Principle XVII)`,
+          );
+        },
+      },
+    );
+    const log = { info: () => {}, warn: () => {}, error: () => {} };
+
+    await expect(
+      uninstallHook({
+        em: forbidden,
+        redis: undefined,
+        log,
+        module: { id: CARRIER_FIXTURE_MODULE_ID, version: '1.0.0' },
+        hard: false,
+      }),
+    ).resolves.toBeUndefined();
   });
 });
 

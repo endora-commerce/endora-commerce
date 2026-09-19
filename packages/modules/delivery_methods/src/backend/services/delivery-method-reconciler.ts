@@ -1,8 +1,17 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
+import type {
+  DeliveryMethodSeedApi,
+  DeliveryMethodSeedDefaults,
+  DeliveryMethodSeedOutcome,
+  DeliveryMethodSeedRecord,
+} from '../../ports/index.js';
 import { DeliveryMethod } from '../entities/delivery-method.entity.js';
 
 /**
- * DeliveryMethodReconciler (feature 035, FR-002).
+ * DeliveryMethodReconciler (feature 035, FR-002) — the implementation behind
+ * `DeliveryMethodSeedApi`, this module's published install surface
+ * (`../../ports/index.ts`, `createDeliveryMethodSeeder` below).
  *
  * A module that must create its `delivery_methods` row from code calls
  * `ensureMethodForAdapter` from its **install hook**, so installing a
@@ -18,32 +27,32 @@ import { DeliveryMethod } from '../entities/delivery-method.entity.js';
  * Neither waits for the other: a row whose `adapter` key nothing has contributed
  * is simply not offered, and the registry is not read until a request reads it.
  *
- * **It no longer touches sales-channel membership (issue #96)** — see the
+ * **The `EntityManager` is a parameter of every method and is never held**
+ * (feature 134, FR-064; D-169). It used to be a constructor `emFactory`, which is
+ * the shape of a service resolved from a container — and the caller this class
+ * was written for has no container: `ModuleLifecycleContext` is
+ * `{ em, redis, log, module }` and `module:install` composes nothing (D-46). The
+ * hook's own `ctx.em` is therefore what every statement here runs on, handed in
+ * at the call, so the write lands in the transaction the orchestrator will
+ * commit or revert rather than on a fork of it.
+ *
+ * **It no longer rebinds sales-channel membership (issue #96)** — see the
  * payment twin (`payment_methods/services/payment-method-reconciler.ts`).
- * The mechanism was identical here; only the exposure differed, because no
- * carrier module contributes an adapter yet. Removing it before one does is
- * the point.
+ * `bindToDefaultChannel` exists, and is the seed's own *once, for the rows it
+ * creates* half rather than a reconcile: the caller guards it on
+ * `created === true`. What issue #96 removed was the unconditional call, which
+ * brought a method an operator had deliberately unbound from every channel back
+ * to Default at the next boot, and nothing said so. "Unbound" is a state an
+ * operator is entitled to reach and to keep.
  */
-export interface EnsureMethodDefaults {
-  code: string;
-  name: Record<string, string>;
-  cost?: string;
-  currency?: string;
-  status?: 'active' | 'inactive';
-  statusOnSuccess?: string;
-  statusOnFailure?: string;
-}
-
-export class DeliveryMethodReconciler {
-  constructor(private readonly emFactory: () => EntityManager) {}
-
+export class DeliveryMethodReconciler implements DeliveryMethodSeedApi {
   async ensureMethodForAdapter(
+    em: EntityManager,
     adapterKey: string,
-    defaults: EnsureMethodDefaults,
-  ): Promise<DeliveryMethod> {
+    defaults: DeliveryMethodSeedDefaults,
+  ): Promise<DeliveryMethodSeedOutcome> {
     // command-coverage-ignore: idempotent reconciliation of adapter-backed delivery
     // methods — a system-invariant repair, not an operator-initiated write.
-    const em = this.emFactory();
     const existing = await em.findOne(DeliveryMethod, { code: defaults.code });
     if (existing) {
       // Prune-safe: never clobber admin configuration. Only backfill a missing
@@ -52,7 +61,7 @@ export class DeliveryMethodReconciler {
         existing.adapter = adapterKey;
         await em.persistAndFlush(existing);
       }
-      return existing;
+      return { row: recordOf(existing), created: false };
     }
 
     const row = em.create(DeliveryMethod, {
@@ -66,6 +75,102 @@ export class DeliveryMethodReconciler {
       statusOnFailure: defaults.statusOnFailure ?? 'processing',
     });
     await em.persistAndFlush(row);
-    return row;
+    return { row: recordOf(row), created: true };
   }
+
+  /**
+   * The seed's channel binding — one membership row in the system-default
+   * channel, written against **this module's own** bridge table.
+   *
+   * Not through `SalesChannelMembershipService`, and the reason is structural
+   * rather than a preference: that service needs the `EventBus`, the audit port
+   * and the channel-bridge registry, and the registry is contributed from a boot
+   * hook. An install composes nothing, so at this seam it holds no registration
+   * for `'delivery-method'` and `bridges.require` would refuse (FR-017) before
+   * the database was touched. `sales_channel_delivery_methods` is this module's
+   * since `specs/120-migration-closure-bridge-ownership/` Phase 2 (D-226), so the
+   * statement is the owner's own and crosses no boundary — which is what FR-064
+   * buys by putting the writer here instead of in the seeding module.
+   *
+   * The channel itself is read through the kernel's own `SalesChannel` entity
+   * rather than in SQL — `api_keys` reads it the same way — because a raw
+   * `select … from "sales_channels"` from a module is a `check:module-boundary`
+   * finding against a kernel-owned table, and correctly so: the table is not
+   * this module's and the entity is the platform's published name for it.
+   *
+   * `em.execute` for the insert rather than `em.getConnection().execute`, so the
+   * statement runs inside the caller's transaction (issue #200). The bridge has
+   * no entity class — the kernel's membership service writes it in SQL too.
+   *
+   * **No system-default channel answers `false` rather than raising, and that is
+   * measured rather than defensive.** The default channel is created by
+   * `DefaultChannelReconciler` at **boot**, from `composeApp` — not by a migration
+   * and not by an install — and `module:install` composes nothing (D-46). So a
+   * database that has been migrated and never booted has no default channel, and
+   * a seeding module installed there is the ordinary case, not a broken instance:
+   * `pnpm --filter backend run db:fresh && module:install dhl_parcel` is exactly
+   * it. The seed migration this replaced degraded the same way, silently — its
+   * `cross join "sales_channels" where "system_default"` produced no rows and
+   * inserted no membership — so answering `false` is what keeps a fresh install
+   * and an upgraded one at the same row state in that state too. Raising instead
+   * **aborts the install**, and the hook is not inside a database transaction:
+   * measured on a throwaway database, the first of two rows stayed and the second
+   * never arrived.
+   */
+  async bindToDefaultChannel(em: EntityManager, deliveryMethodId: string): Promise<boolean> {
+    // command-coverage-ignore: install-time seed membership for a row this seam
+    // just created — a system-invariant write with no request and no actor.
+    const defaultChannel = await em.findOne(SalesChannel, { systemDefault: true });
+    if (!defaultChannel) return false;
+
+    const inserted = await em.execute<Array<{ delivery_method_id: string }>>(
+      'insert into "sales_channel_delivery_methods" ("sales_channel_id", "delivery_method_id") ' +
+        'values (?, ?) on conflict ("sales_channel_id", "delivery_method_id") do nothing ' +
+        'returning "delivery_method_id"',
+      [defaultChannel.id, deliveryMethodId],
+    );
+    return inserted.length > 0;
+  }
+
+  /**
+   * The hard-uninstall half. Channel memberships go with the row: the bridge's
+   * foreign key onto `delivery_methods` is `on delete cascade`.
+   */
+  async removeMethodForAdapter(em: EntityManager, code: string): Promise<boolean> {
+    // command-coverage-ignore: hard-uninstall removal of an adapter-backed
+    // delivery method — no request, no actor and nothing to attribute an audit
+    // entry to; the operator path is `commands/delivery-method.commands.ts`.
+    const removed = await em.nativeDelete(DeliveryMethod, { code });
+    return removed > 0;
+  }
+}
+
+/**
+ * The published record, mapped field by field rather than by handing the entity
+ * back (D-168/D-77): a caller reads values off it and cannot persist through it.
+ */
+function recordOf(row: DeliveryMethod): DeliveryMethodSeedRecord {
+  return {
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    cost: row.cost,
+    currency: row.currency,
+    status: row.status,
+    adapter: row.adapter,
+    statusOnSuccess: row.statusOnSuccess,
+    statusOnFailure: row.statusOnFailure,
+  };
+}
+
+/**
+ * The runtime half of this module's install surface (feature 134, FR-064).
+ *
+ * A seeding module's `installHook` writes `createDeliveryMethodSeeder()` and
+ * hands `ctx.em` to each call. The factory takes no arguments because the `em`
+ * belongs to the call and not to the seeder: one `em`, named at every statement,
+ * with no second source of truth for which transaction the write lands in.
+ */
+export function createDeliveryMethodSeeder(): DeliveryMethodSeedApi {
+  return new DeliveryMethodReconciler();
 }
