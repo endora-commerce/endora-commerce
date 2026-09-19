@@ -328,11 +328,20 @@ export function assertDeploymentName(deployment: string): void {
  * than catching it. A committed stylesheet enumeration is the tree and the
  * install disagreeing about which packages were scanned — which is silent, and
  * is the whole failure `admin-stylesheet-composition.md` exists for.
+ *
+ * **The fourth is the entity index** (`specs/109-backend-test-kit/` T065), and it
+ * is the first entry here that belongs to **no member**: its consumer is a test,
+ * and a test is not a member of a client's workspace. It is in this list for the
+ * one reason the list exists — `.gitignore` has to cover it — and it is
+ * `.gitignore`d for §2.6's own predicate: which modules a host installed is a
+ * fact about the install, so a committed index is the tree and the install
+ * disagreeing about which tables exist.
  */
 export const GENERATED_ARTEFACTS = [
   'admin/src/modules.generated.ts',
   'admin/src/tailwind.generated.css',
   'docs/sidebars.modules.generated.js',
+  'backend/test/entities.generated.ts',
 ] as const;
 
 /**
@@ -720,6 +729,23 @@ export function planInstance(input: PlanInput): InstancePlan {
   if (admin.omission !== null) omitted.push({ path: 'admin/', reason: admin.omission });
   if (docs.omission !== null) omitted.push({ path: 'docs/', reason: docs.omission });
 
+  /**
+   * Has this instance anything for `endora generate` to render? (§2.5, §2.6.)
+   *
+   * One predicate, named once, read by the `generate` script, by `setup`'s term
+   * for it and by the `@endora-commerce/cli` devDependency the binary needs —
+   * three sites that used to spell `admin.written || docs.written` each, and a
+   * fourth artefact family is exactly how three copies of one condition come to
+   * disagree.
+   *
+   * The third term is T065's entity index, which belongs to no member: its
+   * population is the module packages this instance installed, so a headless
+   * instance with a module has an artefact and a `generate` script where before
+   * it had neither. An instance with **no** module installed still gets neither,
+   * which is the state `runGenerate` refuses under exit 1.
+   */
+  const generatesArtefacts = admin.written || docs.written || input.modules.length > 0;
+
   // --- the workspace root (§2.1) -------------------------------------------
   //
   // The per-layer builds, and the composite that is their conjunction
@@ -746,10 +772,10 @@ export function planInstance(input: PlanInput): InstancePlan {
   // `pnpm -C backend run migrate` would be a second spelling of it.
   //
   // `generate` is conditional on the same predicate the script itself is: an
-  // instance with neither generated member declares none, so the composite must
-  // not name one.
+  // instance with nothing to generate declares none, so the composite must not
+  // name one.
   const setupSteps: readonly string[] = [
-    ...(admin.written || docs.written ? ['generate'] : []),
+    ...(generatesArtefacts ? ['generate'] : []),
     'build',
     'migrate',
     'module:install --all',
@@ -766,9 +792,9 @@ export function planInstance(input: PlanInput): InstancePlan {
     build: layerBuilds.map(([, command]) => command).join(' && '),
     // One `endora generate` renders every member's artefacts, so the root
     // script is the command itself rather than a member's. An instance with
-    // neither member gets no `generate` at all, rather than a script that
+    // nothing to generate gets no `generate` at all, rather than a script that
     // fails on a directory nobody wrote.
-    ...(admin.written || docs.written ? { generate: 'endora generate' } : {}),
+    ...(generatesArtefacts ? { generate: 'endora generate' } : {}),
     // The development stack (`specs/125-first-mile-install/` FR-108). `--wait`
     // is not decoration: it blocks until every health check in the rendered
     // document passes, which is what stops `migrate` racing a Postgres that is
@@ -833,7 +859,7 @@ export function planInstance(input: PlanInput): InstancePlan {
       scripts: rootScripts,
       dependencies: Object.fromEntries([...dependencies].sort(([a], [b]) => a.localeCompare(b))),
       devDependencies: Object.fromEntries(
-        devDependenciesFor(input, admin.written || docs.written),
+        devDependenciesFor(input, generatesArtefacts),
       ),
     }),
   });
@@ -1111,9 +1137,12 @@ export function devDependenciesFor(
    *
    * The root's `generate` script is `endora generate` — one run renders every
    * member's artefacts — so the binary has to be on the **root's** path. An
-   * instance with neither an admin project nor a documentation site has no
-   * `generate` script, and declaring the tool that runs it would be a
-   * dependency with nothing to do.
+   * instance with no artefact family at all has no `generate` script, and
+   * declaring the tool that runs it would be a dependency with nothing to do.
+   *
+   * The caller's predicate is `planInstance`'s `generatesArtefacts`, which since
+   * T065 counts the entity index: a headless instance with a module installed
+   * does have something to render, so it does get the tool.
    */
   generates = false,
 ): readonly (readonly [string, string])[] {

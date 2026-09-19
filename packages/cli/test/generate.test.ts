@@ -59,11 +59,18 @@ function installModule(root: string, id: string, options: { admin: boolean } = {
       endora: { type: 'module', id },
       exports: {
         '.': './dist/manifest.js',
+        // **Every** module package publishes `./backend` — it is a required key
+        // of a closed set (`module-package-layout.md` §2.2, R7), and the entity
+        // index refuses a module that does not rather than skipping it. The
+        // fixture declared none until T065, which is a fixture declaring a shape
+        // its own rule forbids.
+        './backend': './dist/backend/index.js',
         ...(options.admin ? { './admin': './dist/admin/index.js' } : {}),
         './tailwind.css': './tailwind.css',
       },
     }),
   );
+  write(join(dir, 'dist', 'backend', 'index.js'), 'export const entities = [];\n');
   write(
     join(dir, 'dist', 'manifest.js'),
     // What a **published** manifest looks like: `tsc` output, so a plain object
@@ -240,13 +247,32 @@ describe('endora generate (instance-tree.md §2.6)', () => {
     const result = await runGenerate({ cwd: root });
     expect(result.omitted.join('\n')).toContain('Docusaurus');
     expect(result.collected).toBeNull();
-    expect(result.artefacts).toHaveLength(2);
+    // The admin project's two, plus the entity index, which belongs to no member
+    // and is therefore rendered whatever this instance's members are (T065).
+    expect(result.artefacts).toHaveLength(3);
   });
 
-  it('refuses an instance with neither member — exit 1, naming both', async () => {
-    const root = instance(['blog'], { admin: false, docs: false });
+  /**
+   * The refusal is *"a run that wrote nothing and said it succeeded"*, and T065
+   * narrowed the state that satisfies it rather than weakening it.
+   *
+   * An instance with a module installed now has one artefact whatever its
+   * members are — the entity index, whose population is the install and whose
+   * consumer is not a member. So the state this refuses is a workspace with no
+   * member, no deployment **and no module**, which is a directory this command
+   * genuinely has nothing to say about.
+   */
+  it('refuses an instance with no member, no deployment and no module — exit 1', async () => {
+    const root = instance([], { admin: false, docs: false });
     rmSync(join(root, 'admin'), { recursive: true, force: true });
     rmSync(join(root, 'docs'), { recursive: true, force: true });
+    // Installed, and not a module: an instance always has the platform, and a
+    // `node_modules` that is not there at all is the *other* refusal — exit 2,
+    // because a run that could not read its input has said nothing.
+    write(
+      join(root, 'node_modules', SCOPE, 'platform', 'package.json'),
+      JSON.stringify({ name: `${SCOPE}/platform`, version: '1.0.0', endora: { type: 'platform' } }),
+    );
     let raised: unknown;
     try {
       await runGenerate({ cwd: root });
@@ -256,6 +282,22 @@ describe('endora generate (instance-tree.md §2.6)', () => {
     expect(raised).toBeInstanceOf(GenerateInputError);
     expect((raised as Error).message).toContain('"@/*"');
     expect((raised as Error).message).toContain('Docusaurus');
+    expect((raised as Error).message).toContain('entity index');
+  });
+
+  it('renders the entity index for a headless instance, and does not refuse', async () => {
+    const root = instance(['blog'], { admin: false, docs: false });
+    rmSync(join(root, 'admin'), { recursive: true, force: true });
+    rmSync(join(root, 'docs'), { recursive: true, force: true });
+    const result = await runGenerate({ cwd: root });
+    expect(result.artefacts.map((artefact) => artefact.path)).toEqual([
+      join(root, 'backend', 'test', 'entities.generated.ts'),
+    ]);
+    const index = readFileSync(join(root, 'backend', 'test', 'entities.generated.ts'), 'utf8');
+    // The bare specifier the package's own `exports` map declares, keyed by the
+    // module id — never a path into `dist`, which no consumer could resolve.
+    expect(index).toContain(`from '${SCOPE}/mod-blog/backend'`);
+    expect(index).toContain('  blog: entities0,');
   });
 
   it('a module that publishes no admin layer is in neither artefact and is not a refusal', async () => {

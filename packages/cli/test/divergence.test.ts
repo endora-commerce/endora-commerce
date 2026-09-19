@@ -470,11 +470,20 @@ describe('the command writes them beside the deployment they describe', () => {
     expect(generateReport(wet).join('\n')).toContain('Commit it: it is a fact about your tree');
   });
 
-  it('refuses a headless instance with no deployment either — exit 2 is not this one’s class', async () => {
+  it('reports a headless instance with no deployment as an omission — never exit 2', async () => {
     const root = instance({ apps: false });
-    // No admin, no docs, no deployment: nothing to render, and the remedy is the
-    // operator's, so it is exit 1 and not 2.
-    await expect(runGenerate({ cwd: root })).rejects.toThrow(/no `apps\/<deployment>\/` tree/);
+    // No admin, no docs, no deployment. This used to be *"nothing to render"* —
+    // exit 1, and pointedly not the exit 2 an unreadable input gets. Since T065
+    // it is not nothing: the entity index belongs to no member, so a host with a
+    // module installed always has one artefact. What has to stay true is the
+    // class discrimination this case exists for — the absent deployment is
+    // something the client said, so it is an **omission** and never a refusal.
+    const result = await runGenerate({ cwd: root });
+    expect(result.divergence).toEqual([]);
+    expect(result.omitted.join('\n')).toMatch(/no `apps\/<deployment>\/` tree/);
+    expect(result.artefacts.map((artefact) => artefact.path)).toEqual([
+      join(root, 'backend', 'test', 'entities.generated.ts'),
+    ]);
   });
 
   it('an unreadable composition stops the whole command — exit 2, never a partial render', async () => {
