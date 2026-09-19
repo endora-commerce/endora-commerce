@@ -71,7 +71,11 @@ number", never pick a number, never edit an execution list.
    outside both, derived from the owner map and never from a table list: the kernel cannot
    appear in a `dependencies` array. The three seams a write's repair takes are the owner's
    own migration, the writing module's `installHook` (idempotent by contract, and it re-runs
-   after a soft-uninstall → install cycle) and the owner's port at boot. Do **not** answer an
+   after a soft-uninstall → install cycle) and the owner's port at boot. **A seed of your own
+   reference rows into the owner's table takes the second**, and how it is written is
+   `module-composition.md` item 9a's, not this document's — a hook has no container, so the
+   choice there is the owner's published install surface and not raw SQL (ruled 2026-09-17,
+   `specs/134-paid-module-extraction/contracts/foreign-write-repair.md`). Do **not** answer an
    R1 finding with a manifest line where your module is `nonDeactivatable` and the owner is
    switchable: that makes the owner's activation control a dead switch (`module-composition.md`
    item 4a), and it is the case that produced the feature.

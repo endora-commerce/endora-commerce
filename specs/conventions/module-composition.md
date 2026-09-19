@@ -135,6 +135,23 @@ never add a "module options" object for something the module can read itself.
    `if (!ctx.hard) return;`; **neither hook fires on activation or deactivation** — that is
    the other axis (Principle XVII) and no hook may be added to it; and the hook context is
    `{ em, redis, log, module }` (`+ hard`), which cannot carry services.
+9a. **A hook's only cross-module seam is the owner's published install surface, imported as a
+   *runtime* binding and constructed over `ctx.em`** — the inverse of item 3, for one reason:
+   there is no container at install. `ModuleLifecycleContext` carries no cradle, **both**
+   orchestrator construction sites pass `{ orm, redis, em, auditLog, registry }` and no
+   container, and D-46 deleted `ctx.onInstall` because `module:install` composes nothing — so
+   `lazyPort` and `CommandBus.run` are both unavailable here and "resolve it from the container
+   instead" is not an alternative that exists. Publish the **type** on the owner's `./ports`
+   subpath (`EntityManager`-taking, the `em` required and never optional, D-169) and **one
+   factory** on its `./backend`; the consumer imports both by bare specifier. Do **not** answer
+   this with raw SQL against the owner's table: it is neither of Principle I's two forms, and
+   once the two modules are in different repositories it is the only shape that carries no
+   version range and no compile-time signal at all. The classification consequence is known and
+   accepted rather than discovered: contract surface is the subpath exporting **no** runtime
+   binding, so the factory import is a **reach** and takes a `cross-module-imports` ledger key
+   where the type-only half would not. That is the right trade at this seam and **only** at this
+   seam — wherever a container exists, item 3 still governs. Worked family:
+   `specs/134-paid-module-extraction/contracts/foreign-write-repair.md`.
 10. **The platform may not import a module (D-52/D-53), and the subject is the whole
    package.** D-52 named `src/kernel`, `src/http`, `src/events` and `src/tenancy` as one rule
    rather than one plus three peers: the kernel does not compile without them (five kernel

@@ -24,7 +24,7 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     '**Seam: `customer_accounts`\' own migration**, or rather its absence of one — the ' +
     'honest shape here is that a rollback which un-does a two-module change has to touch ' +
     'both modules\' rows, and this repository has never decided how a `down()` spanning two ' +
-    'owners is written. Neither of `research.md` §8\'s two adapter seams applies: an ' +
+    'owners is written. Neither of `specs/097-migration-sql-boundary/research.md` §8\'s two adapter seams applies: an ' +
     '`installHook` has no uninstall-time twin that runs during a migration rollback, and ' +
     'the owner cannot write a `down()` for a migration it does not own.\n\n' +
     'Retired by: an owner ruling on cross-module `down()`, which nobody has taken and which ' +
