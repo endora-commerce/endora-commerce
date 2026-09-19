@@ -63,7 +63,6 @@ const coreBundle = {
   'appShell.nav.orders',
   'appShell.nav.organizations',
   'appShell.nav.priceLists',
-  'appShell.nav.deliveryMethods',
   'appShell.nav.taxes',
   'appShell.section.inventory',
   'appShell.nav.stockOverview',

@@ -496,16 +496,41 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   //  - the *Catalog* crumb on the Ergonode trails keeps its `/catalog/products`
   //    href, that being the section's first host-declared entry — the same
   //    answer the hand-written rules gave.
-  { test: /^\/delivery-methods\/dhl-parcel\/?$/, build: () => [
-    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
-    { labelKey: 'appShell.nav.deliveryMethods', href: '/delivery-methods' },
-    { labelKey: 'appShell.nav.dhlParcel', href: null },
-  ] },
-  { test: /^\/settings\/inpost\/?$/, build: () => [
-    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
-    { labelKey: 'appShell.nav.deliveryMethods', href: '/delivery-methods' },
-    { labelKey: 'appShell.nav.inpost', href: null },
-  ] },
+  // The two carrier trails — `/delivery-methods/dhl-parcel` and
+  // `/settings/inpost` — stood here until feature 134's wave 1 (FR-023, the
+  // extraction's per-wave prologue W1). They are the first two of the seven
+  // this table has left, and they retire for a reason the earlier batches did
+  // not have: `dhl_parcel` and `inpost` **leave this repository**, so a rule
+  // here naming either of them is a free package naming a paid module in code
+  // that runs. `registryCrumbs` derives both trails now. Three
+  // operator-visible changes, stated rather than glossed:
+  //
+  //  - `/delivery-methods/dhl-parcel` loses its *DHL Parcel* leaf and reads
+  //    *Pricing → Delivery methods*. Neither carrier contributes a sidebar
+  //    entry and neither is given one — that is the carriers' own
+  //    `plan.md` Ruling 1, and a nav row added to make a crumb derivable would
+  //    be a product change bought for a breadcrumb — so there is no contributed
+  //    row for `registryCrumbs` to build a leaf from. It is the shape every
+  //    converted module's sub-screen already gets.
+  //  - `/settings/inpost` reads *System → Settings*, and this one is **worse
+  //    than it was**, not merely shorter. `registryCrumbs` takes the longest
+  //    nav entry the path sits under, and `/settings/inpost` sits under
+  //    `settings`' own `/settings` rather than under anything the carrier
+  //    declares, so the trail names a screen the operator is not on. The route
+  //    is `inpost`'s and leaves with it two tasks later, at which point the
+  //    trail is moot; the alternatives were giving `inpost` a sidebar row it has
+  //    never had, or keeping a rule that names a departing module, and both are
+  //    refused above.
+  //  - three `_i18n` keys retire, not two: the carriers' own pair, and the
+  //    shared **parent** key both trails named. That third one was kept out of
+  //    batch 8's sweep *explicitly* to parent these two trails —
+  //    `packages/modules/delivery_methods/src/admin/index.ts` says so, and says
+  //    it retires when they do — and after this it has no renderer at all; the
+  //    sidebar row resolves `nav.deliveryMethods.label` in `delivery_methods`'
+  //    own namespace. None of the three is spelled here on purpose:
+  //    `batch-eight-surfaces.module-owned-surface.test.tsx` asserts a retired
+  //    key's **absence from this file's source**, so naming one in a comment
+  //    about retiring it reds the assertion that proves it was retired.
   { test: /^\/settings\/tpay\/?$/, build: () => [
     { labelKey: 'appShell.section.pricing', href: '/price-lists' },
     { labelKey: 'appShell.nav.paymentMethods', href: '/payment-methods' },

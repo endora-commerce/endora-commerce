@@ -63,7 +63,6 @@
   "adminRoles.permission.dictionary.write": "Zarządzanie rejestrem słownika",
   "adminRoles.permission.google_analytics:read": "Podgląd konfiguracji Google Analytics",
   "adminRoles.permission.google_analytics:write": "Zarządzanie konfiguracją i zdarzeniami Google Analytics",
-  "adminRoles.permission.inpost:manage": "Zarządzanie wysyłką InPost",
   "adminRoles.permission.integrations:manage": "Zarządzanie kluczami API i webhookami",
   "adminRoles.permission.inventory:read": "Podgląd stanów i magazynów",
   "adminRoles.permission.inventory:write": "Zarządzanie stanami i magazynami",
@@ -231,10 +230,7 @@
   "appShell.mobileMenu.open": "Otwórz menu",
   "appShell.mobileMenu.title": "Nawigacja",
   "appShell.nav.autopay": "Autopay",
-  "appShell.nav.deliveryMethods": "Metody dostawy",
-  "appShell.nav.dhlParcel": "DHL Parcel",
   "appShell.nav.home": "Strona główna",
-  "appShell.nav.inpost": "InPost",
   "appShell.nav.invoiceTemplates": "Szablony faktur",
   "appShell.nav.paymentMethods": "Metody płatności",
   "appShell.nav.paypal": "PayPal",
@@ -1981,7 +1977,5 @@
   "webhooks.status.paused": "Wstrzymany",
   "platform.modules.recentActivity.shown": "Na pulpicie",
   "platform.modules.recentActivity.hidden": "Poza pulpitem",
-  "platform.modules.recentActivity.hint": "Czy wpisy modułu {name} pojawiają się na karcie „Ostatnia aktywność” na pulpicie. Sam dziennik audytu pozostaje bez zmian.",
-  "adminRoles.permission.dhl_parcel:read": "Podgląd konfiguracji DHL Parcel",
-  "adminRoles.permission.dhl_parcel:write": "Zarządzanie konfiguracją DHL Parcel i operacjami przesyłek"
+  "platform.modules.recentActivity.hint": "Czy wpisy modułu {name} pojawiają się na karcie „Ostatnia aktywność” na pulpicie. Sam dziennik audytu pozostaje bez zmian."
 }

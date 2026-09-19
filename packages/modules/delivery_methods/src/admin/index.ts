@@ -52,14 +52,17 @@ export const contributions: AdminContributions = {
       to: ROUTE_PATH,
       // Module-relative (R8), out of
       // `packages/modules/delivery_methods/i18n/`. `appShell.nav.deliveryMethods`
-      // **stays** in `_i18n` rather than moving: it is also the parent crumb of
-      // the two carrier trails this batch leaves standing
-      // (`/delivery-methods/dhl-parcel` and `/settings/inpost`, whose modules
-      // contribute no nav entry for `registryCrumbs` to derive from), so
-      // deleting it would render a raw key on two screens this batch does not
-      // touch. That is batch 7's `appShell.nav.paymentMethods` asymmetry, met a
-      // second time and for the same reason; it retires when those two trails
-      // do.
+      // **stayed** in `_i18n` through batch 8 rather than moving with this row:
+      // it was also the parent crumb of the two carrier trails that batch left
+      // standing (`/delivery-methods/dhl-parcel` and `/settings/inpost`, whose
+      // modules contribute no nav entry for `registryCrumbs` to derive from),
+      // so deleting it then would have rendered a raw key on two screens that
+      // batch did not touch. That was batch 7's `appShell.nav.paymentMethods`
+      // asymmetry, met a second time and for the same reason, and it retired
+      // when those two trails did — feature 134's wave 1 (FR-023), which took
+      // both `CRUMB_DICT` rules out because `dhl_parcel` and `inpost` leave
+      // this repository. `appShell.nav.paymentMethods` is still standing and
+      // retires with wave 2's five.
       labelKey: 'nav.deliveryMethods.label',
       icon: 'Truck',
       section: 'pricing',

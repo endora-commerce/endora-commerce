@@ -31,6 +31,15 @@ export const divergence: DeploymentDivergenceDeclaration = {
   omittedModules: [],
   decorationOrder: {},
   reasons: {
+    'port-consumed:carrier_fixture:shippingAdapterRegistry':
+      'The contribution seam `delivery_methods` publishes for a module that ships parcels, ' +
+      'reached from this fixture’s boot hook so that the carrier port keeps an implementor in ' +
+      'this repository after feature 134’s wave 1 removes `inpost` and `dhl_parcel` (FR-021, ' +
+      'FR-063). It is rung 3 read exactly as the ladder intends: the owner published the seam, ' +
+      'the consumer declares the dependency, and nothing of `delivery_methods` is wrapped or ' +
+      'replaced. The fixture is a reference implementor rather than a delivery capability — it ' +
+      'seeds no method, owns no table and serves no route — so what this deployment gains is a ' +
+      'contributor to an existing registry and no behaviour a shop would notice.',
     'decoration:example_overlay:pricingService':
       'Core resolves a line price from the price lists a customer is entitled to. This ' +
       'deployment prefixes the resolved list id so that a reference reader can see, on a live ' +

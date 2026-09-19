@@ -142,11 +142,15 @@ const SUBJECTS: readonly Subject[] = [
     specifier: '@endora-commerce/mod-delivery-methods/admin',
     section: 'pricing',
     routes: ['/delivery-methods'],
-    // `appShell.nav.deliveryMethods` **stays** in `_i18n`: it is also the
-    // parent crumb of the `/delivery-methods/dhl-parcel` and `/settings/inpost`
-    // trails this batch leaves standing. Batch 7's `appShell.nav.paymentMethods`
-    // asymmetry, met a second time and for the same reason.
-    retiredSharedKey: null,
+    // `appShell.nav.deliveryMethods` **stayed** in `_i18n` through this batch:
+    // it was also the parent crumb of the `/delivery-methods/dhl-parcel` and
+    // `/settings/inpost` trails the batch left standing. Batch 7's
+    // `appShell.nav.paymentMethods` asymmetry, met a second time and for the
+    // same reason — and this one has since drained. Feature 134's wave 1
+    // (FR-023) retired both carrier `CRUMB_DICT` rules, because `dhl_parcel`
+    // and `inpost` leave this repository, and the parent key with them; so the
+    // entry that read `null` is now the ordinary one, asserted like the rest.
+    retiredSharedKey: 'appShell.nav.deliveryMethods',
   },
   {
     module: 'megamenu',

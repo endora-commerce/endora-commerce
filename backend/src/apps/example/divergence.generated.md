@@ -14,6 +14,7 @@ sentence this deployment wrote when it made the change.
 
 | Overlay module |
 | --- |
+| `carrier_fixture` |
 | `comarch_xl_example_overlay` |
 | `erp_incumbent_fixture` |
 | `example_overlay` |
@@ -27,6 +28,14 @@ rung 2 — run before or after what the owner already serves. Costs a coupling t
 | What | Changed by | Owned by | Why |
 | --- | --- | --- | --- |
 | `GET /api/v1/admin/example-overlay/ping` (post) | `example_overlay` | `example_overlay` | Core serves nothing on this endpoint: the route is this deployment’s own, and the interceptor stamps its response so that the reference deployment demonstrates the rung-2 seam end to end. It runs after the handler and adds a field; it vetoes nothing and writes nothing, which is what a `post` interceptor may do. |
+
+### Ports this deployment consumes
+
+rung 3 — a strategy port the owner published. Costs a dependency edge in your manifest; the owner keeps the seam and keeps fixing it behind you.
+
+| What | Changed by | Owned by | Why |
+| --- | --- | --- | --- |
+| `shippingAdapterRegistry` | `carrier_fixture` | `delivery_methods` | The contribution seam `delivery_methods` publishes for a module that ships parcels, reached from this fixture’s boot hook so that the carrier port keeps an implementor in this repository after feature 134’s wave 1 removes `inpost` and `dhl_parcel` (FR-021, FR-063). It is rung 3 read exactly as the ladder intends: the owner published the seam, the consumer declares the dependency, and nothing of `delivery_methods` is wrapped or replaced. The fixture is a reference implementor rather than a delivery capability — it seeds no method, owns no table and serves no route — so what this deployment gains is a contributor to an existing registry and no behaviour a shop would notice. |
 
 ### Registrations this deployment wraps
 

@@ -66,17 +66,29 @@ function codeOf(relativePath: string): string {
 }
 
 /**
- * The four routes `App.tsx` declares that belong to no module, in source order,
+ * The three routes `App.tsx` declares that belong to no module, in source order,
  * each with the reason it is the admin application's own.
+ *
+ * **It was four until feature 134's wave 1**, and losing one is the interesting
+ * part rather than a tidy-up. `/settings/dhl-parcel` was a `<Navigate>` to a
+ * route **only `dhl_parcel` declares**, and it counted as the host's own on the
+ * grounds that a redirect's element comes from `react-router-dom` rather than
+ * from a surface directory. That test is about the *element* and says nothing
+ * about the *destination* — so it classified as host-owned a route that cannot
+ * outlive a module leaving the repository, which is W1's refusal: a free package
+ * naming a wave member in code that runs. Deleted rather than re-pointed, because
+ * sending an operator who asked for DHL settings to a free `/delivery-methods`
+ * that lists no DHL is harder to diagnose than an absent route; if the legacy
+ * path is wanted, `dhl_parcel` declares the redirect in its own admin layer and
+ * both ends travel together.
+ *
+ * The generalisation, for whoever adds the next entry here: **ask what declares
+ * the destination, not what supplies the element.**
  */
 const HOST_ROUTES = [
   // The dashboard. `admin/src/modules/home/` is claimed by no nav entry, so the
   // layout derivation leaves it host-owned rather than attributing it by name.
   'index',
-  // A redirect for deep links that predate `dhl_parcel`'s screen moving into
-  // its package. Its element comes from `react-router-dom` rather than from a
-  // surface directory, which is what makes it the host's and not that module's.
-  '/settings/dhl-parcel',
   // D-36: the screen that switches modules on and off may belong to no module,
   // or it could switch itself out of existence.
   '/platform/modules',

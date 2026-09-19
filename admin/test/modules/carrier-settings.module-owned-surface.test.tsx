@@ -378,16 +378,33 @@ describe('the shell no longer names either carrier by hand', () => {
     expect(shell).not.toContain("to: '/delivery-methods/dhl-parcel'");
   });
 
-  it('keeps the `/settings/dhl-parcel` redirect, which is the admin application', () => {
-    // The one `<Route>` naming this module's URL space that stays: a
-    // `<Navigate>` for the deep links predating the screen's move, whose
-    // element comes from `react-router-dom` rather than from a surface
-    // directory. `check:admin-registrations` attributes it to `host` and its
-    // `host-owned (routes=4 nav=3)` is unchanged by this batch, which is the
-    // arithmetic this assertion pins.
+  it('names this module nowhere in the shell — the `/settings/dhl-parcel` redirect included', () => {
+    // **This assertion was inverted by feature 134's wave 1, and the inversion is
+    // the finding rather than a consequence.** It read
+    // `expect(app).toContain('path="/settings/dhl-parcel"')` and was titled
+    // *"keeps the redirect, which is the admin application"* — a `<Navigate>` for
+    // deep links predating the screen's move, counted as the host's own because
+    // its element comes from `react-router-dom` rather than from a surface
+    // directory.
+    //
+    // That is true about the **element** and says nothing about the
+    // **destination**, which `dhl_parcel` alone declares. So the shell held a
+    // route that cannot outlive this module leaving the repository — W1's refusal,
+    // *"any free package still naming a wave member in code that runs"* — and the
+    // old assertion was **pinning the coupling in place**: the merge request that
+    // removed the route would have reded here and looked like the mistake.
+    //
+    // Re-pointing at a free destination was refused: `/delivery-methods` lists no
+    // DHL in a free instance, so an operator asking for DHL settings would land
+    // somewhere plausible and wrong, which is harder to diagnose than an absent
+    // route. If the legacy path is wanted, this module declares the redirect in
+    // its own admin layer and both ends travel together.
+    //
+    // Asserted as an absence in **both** spellings, so the route cannot come back
+    // by either half.
     const app = sourceOf('../packages/admin-shell/src/App.tsx');
-    expect(app).toContain('path="/settings/dhl-parcel"');
-    expect(app).toContain('to="/delivery-methods/dhl-parcel"');
+    expect(app).not.toContain('path="/settings/dhl-parcel"');
+    expect(app).not.toContain('to="/delivery-methods/dhl-parcel"');
   });
 
   it('resolves both screens through the module packages, never through admin/src', () => {
