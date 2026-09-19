@@ -1,63 +1,143 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import {
-  setupBackendServer,
-  teardownBackendServer,
-  type BackendServerHandle,
-} from '../../helpers/test-server.js';
-import { DeliveryMethodReconciler } from '../../../../packages/modules/delivery_methods/src/backend/services/delivery-method-reconciler.js';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
+import { createDeliveryMethodSeeder } from '@endora-commerce/mod-delivery-methods/backend';
 import { DeliveryMethod } from '../../helpers/package-entities.js';
 
 /**
- * T013/T016 (US1) — the reconciler auto-creates a configurable delivery_methods
- * row for a registered shipping adapter, seeding statusOn* and leaving an
- * existing row's admin configuration untouched (FR-002).
+ * T013/T016 (US1) — the seeder auto-creates a configurable delivery_methods row
+ * for a registered shipping adapter, seeding statusOn* and leaving an existing
+ * row's admin configuration untouched (FR-002).
+ *
+ * **Reached through the published install surface since feature 134's W7**
+ * (`specs/134-paid-module-extraction/contracts/foreign-write-repair.md` §2.1):
+ * the class is the implementation and `createDeliveryMethodSeeder()` is the name
+ * a consumer may write, so the test that judges the behaviour writes the same
+ * name the two carrier install hooks and the carrier fixture do. It used to
+ * import the class by relative path into the owner package's `src/`, which is
+ * the one reach publishing the surface had to retire.
+ *
+ * The fixture is `setupTestDb` rather than `setupBackendServer`: the surface
+ * writes a channel-bridge row and deletes one, and both belong inside a
+ * transaction that is rolled back rather than in the shared database.
  */
-describe('DeliveryMethodReconciler.ensureMethodForAdapter', () => {
-  let h: BackendServerHandle;
+describe('DeliveryMethodSeedApi — delivery_methods\' published install surface', () => {
+  let db: TestDb;
 
   beforeAll(async () => {
-    h = await setupBackendServer();
-  });
-  afterAll(async () => {
-    await teardownBackendServer(h);
+    db = await setupTestDb();
+  }, 60_000);
+
+  beforeEach(async () => {
+    await db.beginTx();
   });
 
-  it('creates a row with seed status mappings when none exists', async () => {
-    const reconciler = new DeliveryMethodReconciler(h.em);
+  afterEach(async () => {
+    await db.rollbackTx();
+  });
+
+  afterAll(async () => {
+    await db.close();
+  });
+
+  it('creates a row with seed status mappings when none exists, and reports it created', async () => {
+    const seeder = createDeliveryMethodSeeder();
     const code = `recon_ship_${Date.now()}`;
 
-    const row = await reconciler.ensureMethodForAdapter('my_carrier', {
+    const { row, created } = await seeder.ensureMethodForAdapter(db.em(), 'my_carrier', {
       code,
       name: { default: 'Reconciled Shipping' },
     });
 
+    expect(created).toBe(true);
     expect(row.adapter).toBe('my_carrier');
+    expect(row.status).toBe('active');
     expect(row.statusOnSuccess).toBe('shipment_sent');
     expect(row.statusOnFailure).toBe('processing');
 
-    const persisted = await h.em().findOne(DeliveryMethod, { code });
+    const persisted = await db.em().findOne(DeliveryMethod, { code });
     expect(persisted?.adapter).toBe('my_carrier');
   });
 
-  it('is idempotent and does not clobber existing configuration', async () => {
-    const reconciler = new DeliveryMethodReconciler(h.em);
+  it('honours an explicit inactive status rather than the active default', async () => {
+    const seeder = createDeliveryMethodSeeder();
+    const code = `recon_ship_inactive_${Date.now()}`;
+
+    const { row } = await seeder.ensureMethodForAdapter(db.em(), 'quiet_carrier', {
+      code,
+      name: { default: 'Quiet' },
+      status: 'inactive',
+    });
+
+    expect(row.status).toBe('inactive');
+    const persisted = await db.em().findOne(DeliveryMethod, { code });
+    expect(persisted?.status).toBe('inactive');
+  });
+
+  it('is idempotent, reports created=false and does not clobber existing configuration', async () => {
+    const seeder = createDeliveryMethodSeeder();
     const code = `recon_ship_idem_${Date.now()}`;
 
-    const first = await reconciler.ensureMethodForAdapter('idem_carrier', {
+    const first = await seeder.ensureMethodForAdapter(db.em(), 'idem_carrier', {
       code,
       name: { default: 'Idem' },
     });
-    const em = h.em();
-    const row = await em.findOne(DeliveryMethod, { id: first.id });
+    expect(first.created).toBe(true);
+
+    const em = db.em();
+    const row = await em.findOne(DeliveryMethod, { id: first.row.id });
     row!.statusOnSuccess = 'completed';
     await em.persistAndFlush(row!);
 
-    const second = await reconciler.ensureMethodForAdapter('idem_carrier', {
+    const second = await seeder.ensureMethodForAdapter(db.em(), 'idem_carrier', {
       code,
       name: { default: 'Idem' },
     });
 
-    expect(second.id).toBe(first.id);
-    expect(second.statusOnSuccess).toBe('completed'); // admin edit preserved
+    expect(second.created).toBe(false);
+    expect(second.row.id).toBe(first.row.id);
+    expect(second.row.statusOnSuccess).toBe('completed'); // admin edit preserved
+  });
+
+  it('binds a method to the system-default channel once, and answers false on a repeat', async () => {
+    const seeder = createDeliveryMethodSeeder();
+    const code = `recon_ship_bind_${Date.now()}`;
+    const { row } = await seeder.ensureMethodForAdapter(db.em(), 'bind_carrier', {
+      code,
+      name: { default: 'Bind' },
+    });
+
+    expect(await seeder.bindToDefaultChannel(db.em(), row.id)).toBe(true);
+    expect(await seeder.bindToDefaultChannel(db.em(), row.id)).toBe(false);
+
+    const bound = await db
+      .em()
+      .execute<Array<{ sales_channel_id: string }>>(
+        'select "sales_channel_id" from "sales_channel_delivery_methods" where "delivery_method_id" = ?',
+        [row.id],
+      );
+    expect(bound.map((r) => r.sales_channel_id)).toEqual([db.systemDefaultChannelId]);
+  });
+
+  it('removes the method and its channel memberships on the hard-uninstall path', async () => {
+    const seeder = createDeliveryMethodSeeder();
+    const code = `recon_ship_remove_${Date.now()}`;
+    const { row } = await seeder.ensureMethodForAdapter(db.em(), 'remove_carrier', {
+      code,
+      name: { default: 'Remove' },
+    });
+    await seeder.bindToDefaultChannel(db.em(), row.id);
+
+    expect(await seeder.removeMethodForAdapter(db.em(), code)).toBe(true);
+    // Idempotent: a code that is not there is not an error.
+    expect(await seeder.removeMethodForAdapter(db.em(), code)).toBe(false);
+
+    expect(await db.em().findOne(DeliveryMethod, { code })).toBeNull();
+    const bound = await db
+      .em()
+      .execute<Array<{ sales_channel_id: string }>>(
+        'select "sales_channel_id" from "sales_channel_delivery_methods" where "delivery_method_id" = ?',
+        [row.id],
+      );
+    expect(bound).toEqual([]);
   });
 });
