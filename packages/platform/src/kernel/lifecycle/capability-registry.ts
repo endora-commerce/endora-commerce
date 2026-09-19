@@ -110,6 +110,93 @@ function refusalMessage(findings: readonly ContestedCapabilityFinding[]): string
   return lines.join('\n');
 }
 
+/** One member of an exclusive key that ships activated. */
+export interface DefaultActivatedMemberFinding {
+  readonly moduleId: string;
+  readonly key: string;
+  /** The activation control whose declared default is the problem. */
+  readonly settingCode: string;
+}
+
+/**
+ * A member of an **exclusive** capability declares `activation.default: true`
+ * (R3.6, spec FR-016).
+ *
+ * ## Why this is a refusal and not a runtime tolerance
+ *
+ * `resolveActivation` returns `Map<string, boolean>` and carries **no provenance**:
+ * nothing downstream can tell "the operator wrote this row" from "no row exists and
+ * the manifest said `true`". So a mutual exclusion resolved on the activation axis
+ * cannot ask the question it needs to ask, and a default-activated member holds a
+ * claim nobody made — which is what an operator meets as a refusal naming a
+ * connector they never configured.
+ *
+ * The tempting repair is to add provenance and have the exclusion require an
+ * **explicit** choice. It is unsafe, and `research.md` D6 records why: member `A`
+ * default-activated and member `B` explicitly activated would then **both** be
+ * active, because the test that was supposed to refuse `B` now ignores `A`. A mutual
+ * exclusion may not fail open. Refusing the manifest makes the state unreachable
+ * rather than tolerated, which is the difference between a guard and a repair.
+ *
+ * ## Why it is weaker-looking than the defect it prevents, and is not
+ *
+ * The exclusion is a `pre` interceptor on the activation route, so it guards the
+ * **transition** and not the **existing state**: two default-activated members are
+ * both present from the first boot and no transition ever happens to be refused.
+ * Nothing surfaces it. That is not a hypothetical — it was measured on a freshly
+ * migrated database, three connectors deep, before this refusal existed.
+ *
+ * ## Why not `defineModuleManifest`
+ *
+ * Same reason {@link ContestedCapabilityError} is not there: that function sees one
+ * manifest and cannot see whether the key is **exclusive**, which is the owner's
+ * declaration. Both facts are in hand only here. `check:port-dependencies` carries
+ * the same assertion as an earlier instrument for this repository's own modules
+ * (R3.7); the two layers cover what the other cannot — the check sees a member merged
+ * here before anybody boots, and this sees a connector installed from npm, which no
+ * check in this repository walks.
+ */
+export class DefaultActivatedMemberError extends Error {
+  readonly findings: readonly DefaultActivatedMemberFinding[];
+
+  constructor(findings: readonly DefaultActivatedMemberFinding[]) {
+    super(defaultActivatedMessage(findings));
+    this.name = 'DefaultActivatedMemberError';
+    this.findings = findings;
+  }
+}
+
+function defaultActivatedMessage(
+  findings: readonly DefaultActivatedMemberFinding[],
+): string {
+  const lines: string[] = [
+    'This deployment will not start: a module ships activated into a capability that ' +
+      'permits one active member.',
+    '',
+  ];
+  for (const finding of findings) {
+    lines.push(
+      `  ${finding.moduleId} — declares \`capabilities: ['${finding.key}']\` and ` +
+        `\`activation.default: true\``,
+      `      remedy: set \`default: false\` on \`${finding.settingCode}\` in ` +
+        `${finding.moduleId}'s manifest.`,
+      '',
+    );
+  }
+  lines.push(
+    'An exclusion resolved on the activation axis cannot tell an operator\'s recorded choice',
+    'from a manifest default — the resolver returns booleans and carries no provenance — so a',
+    'member that ships activated holds a claim nobody made. Two such members are both active',
+    'from the first boot, and the exclusion guards the *transition* rather than the existing',
+    'state, so nothing ever refuses it and nothing reports it.',
+    '',
+    'Shipping off is not a smaller default: it is the only one an operator can be asked to',
+    'choose from. A member the deployment wants running is switched on once, on',
+    '/platform/modules, and that choice is recorded and survives every upgrade.',
+  );
+  return lines.join('\n');
+}
+
 /**
  * Distil the capability registry from a manifest list.
  *
@@ -154,7 +241,34 @@ export function capabilityRegistryFrom(
   for (const [key, ownerModuleIds] of claimants) {
     if (ownerModuleIds.length > 1) contested.push({ key, ownerModuleIds });
   }
+  // Ordering is deliberate: whether a member's default is illegal depends on the key
+  // being exclusive, and a key with two claimants is exclusive on nobody's authority.
+  // The mis-assembly has to be read first.
   if (contested.length > 0) throw new ContestedCapabilityError(contested);
+
+  // R3.6 / FR-016 — reported per (module, key) pair, so the message says which of a
+  // member's keys is the one that cannot tolerate the default. Only an **exclusive**
+  // key counts: a key no installed module owns is not exclusive in this deployment, so
+  // there is no claim for a default to pre-empt (R3.5).
+  const exclusiveKeys = new Set(exclusive.map((entry) => entry.key));
+  const defaultActivated: DefaultActivatedMemberFinding[] = [];
+  for (const manifest of manifests) {
+    const activation = manifest.activation;
+    // A `nonDeactivatable` module declares no control and is not resolved on this axis
+    // — every family owner in this tree is one. A member with no `activation` at all is
+    // already refused by `defineModuleManifest` (R4.1) and cannot reach here.
+    if (activation === undefined || 'nonDeactivatable' in activation) continue;
+    if (activation.default !== true) continue;
+    for (const key of manifest.capabilities ?? []) {
+      if (!exclusiveKeys.has(key)) continue;
+      defaultActivated.push({
+        moduleId: manifest.id,
+        key,
+        settingCode: activation.settingCode,
+      });
+    }
+  }
+  if (defaultActivated.length > 0) throw new DefaultActivatedMemberError(defaultActivated);
 
   return { declarations, exclusive };
 }
