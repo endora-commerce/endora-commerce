@@ -172,7 +172,7 @@ describe('emitEntityIndex', () => {
     ]);
     expect(source).toContain(`import { entities as entities0 } from '${SCOPE}mod-widgets/backend';`);
     expect(source).toContain(`import { entities as entities1 } from '${SCOPE}mod-i18n/backend';`);
-    expect(source).toContain(`export const ${ENTITY_INDEX_EXPORT} = {`);
+    expect(source).toContain(`export const ${ENTITY_INDEX_EXPORT}: Readonly<`);
     expect(source).toContain('  widgets: entities0,');
     // Every module id in this repository is a JS identifier — `_i18n`'s leading
     // underscore included — so the ordinary rendering is a bare key. The key is
@@ -194,7 +194,7 @@ describe('emitEntityIndex', () => {
   it('carries the do-not-edit header and names no module in its prose', () => {
     const source = emitEntityIndex([]);
     expect(source).toMatch(/DO NOT EDIT/);
-    expect(source).toContain(`export const ${ENTITY_INDEX_EXPORT} = {`);
+    expect(source).toContain(`export const ${ENTITY_INDEX_EXPORT}: Readonly<`);
   });
 
   /**
