@@ -75,7 +75,6 @@ import { entities as pimErgonodeEntities } from '@endora-commerce/mod-pim-ergono
 import { entities as erpConnectorEntities } from '@endora-commerce/mod-erp-connector/backend';
 import { entities as productFeedsEntities } from '@endora-commerce/mod-product-feeds/backend';
 import { entities as googleAnalyticsEntities } from '@endora-commerce/mod-google-analytics/backend';
-import { entities as inpostEntities } from '@endora-commerce/mod-inpost/backend';
 import { entities as invoicesEntities } from '@endora-commerce/mod-invoices/backend';
 import { entities as invoiceLedgerEntities } from '@endora-commerce/mod-invoice-ledger/backend';
 import { entities as ksefEntities } from '@endora-commerce/mod-ksef/backend';
@@ -151,7 +150,6 @@ export const ALL_ENTITIES = [
   ...(erpConnectorEntities as readonly EntityClassLike[]),
   ...(productFeedsEntities as readonly EntityClassLike[]),
   ...(googleAnalyticsEntities as readonly EntityClassLike[]),
-  ...(inpostEntities as readonly EntityClassLike[]),
   ...(invoicesEntities as readonly EntityClassLike[]),
   ...(invoiceLedgerEntities as readonly EntityClassLike[]),
   ...(ksefEntities as readonly EntityClassLike[]),
