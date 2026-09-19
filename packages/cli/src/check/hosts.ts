@@ -32,6 +32,8 @@ import {
   type HostPackage,
   type PlatformSurface,
 } from '../lib/platform-surface.js';
+import { declaresRegisterModule } from '../lib/module-roots.js';
+import { providedPortNames } from '../lib/port-registrations.js';
 import { readSizeRefusal, type ReadCoverage, type ReadSizeInput } from '../lib/read-size.js';
 import { checkBundlePairing, type ModuleUnderCheck } from '../rules/bundle-pairing.js';
 import {
@@ -107,9 +109,35 @@ import {
   keyOf as queueNameKeyOf,
   remedyFor as queueNameRemedy,
 } from '../rules/queue-names.js';
+import {
+  checkEntryPresence,
+  collectPresenceFiles,
+  keyOf as presenceKeyOf,
+  remedyFor as presenceRemedy,
+} from '../rules/entry-presence.js';
+import {
+  checkPortCatches,
+  collectPortCatchFiles,
+  keyOf as portCatchKeyOf,
+  resolvedPortNames,
+} from '../rules/port-catches.js';
+import { readPeerOwners } from './peer-owners.js';
+import {
+  analyzeEmittedFiles,
+  classifyFindings,
+  declaredEntityClasses,
+  PREFIX as TENANT_PREFIX,
+  remedyFor as tenantRemedy,
+  walkEmitted,
+} from '../rules/entity-tenant-classification.js';
 
 import { estateEntry, type EstateEntry } from './estate.js';
-import { isFile, layerExpectation, type PackageLayout } from './layout.js';
+import {
+  isFile,
+  layerExpectation,
+  type DeclaredLayer,
+  type PackageLayout,
+} from './layout.js';
 import type { Finding, RuleResult } from './run.js';
 
 /** A rule's package-scope host. Pure but for reading the package off disk. */
@@ -1095,6 +1123,15 @@ interface EmittedAction {
 interface EmittedManifest {
   readonly bundlesDir: string | null;
   readonly actions: readonly EmittedAction[];
+  /**
+   * `true` when the manifest declares `activation.nonDeactivatable`.
+   *
+   * Read as a literal `true`, so anything else — a computed value, an absent
+   * block — reads as *switchable*, which widens a population rather than
+   * narrowing one. A caller that guesses wrong in this direction over-reports;
+   * the other direction goes quietly blind.
+   */
+  readonly nonDeactivatable: boolean;
 }
 
 /**
@@ -1138,6 +1175,7 @@ function readEmittedManifest(layout: PackageLayout): EmittedManifest | null {
     true,
   );
   let bundlesDir: string | null = null;
+  let nonDeactivatable = false;
   const actions: EmittedAction[] = [];
 
   const literal = (node: ts.Node | undefined): string | null =>
@@ -1157,6 +1195,13 @@ function readEmittedManifest(layout: PackageLayout): EmittedManifest | null {
     if (ts.isObjectLiteralExpression(node)) {
       const dir = literal(property(node, 'bundlesDir'));
       if (dir !== null) bundlesDir = dir;
+      const activation = property(node, 'activation');
+      if (activation !== undefined && ts.isObjectLiteralExpression(activation)) {
+        const locked = property(activation, 'nonDeactivatable');
+        if (locked !== undefined && locked.kind === ts.SyntaxKind.TrueKeyword) {
+          nonDeactivatable = true;
+        }
+      }
       const declared = property(node, 'actions');
       if (declared !== undefined && ts.isArrayLiteralExpression(declared)) {
         for (const element of declared.elements) {
@@ -1177,7 +1222,7 @@ function readEmittedManifest(layout: PackageLayout): EmittedManifest | null {
   };
   sf.forEachChild(visit);
 
-  return { bundlesDir, actions };
+  return { bundlesDir, actions, nonDeactivatable };
 }
 
 /**
@@ -1216,20 +1261,437 @@ function walkEverything(dir: string, out: string[] = []): string[] {
  * an entry declaring `host: 'built'` with no host here fails, and a host with no
  * such entry fails too (`data-model.md` §1, invariant 4).
  */
+/* ------------------------------ entity-tenant-classification (Phase 3) */
+
+/** A declared layer's emitted target, and what stopped it being read. */
+interface ArtefactState {
+  readonly layer: DeclaredLayer;
+  readonly artefact: string;
+  readonly state: 'current' | 'absent' | 'stale';
+}
+
+/**
+ * Every declared layer's artefact, with its currency decided.
+ *
+ * Decided per layer rather than for the package as a whole, because the two
+ * refusals name different remedies: `absent` says *build the package*, `stale`
+ * says *rebuild it*, and answering either from source would make this command's
+ * verdict differ from the platform's (§4).
+ */
+function artefactStates(layout: PackageLayout): readonly ArtefactState[] {
+  return layout.layers.map((layer) => {
+    const artefact = join(layout.packageRoot, ...layer.target.replace(/^\.\//, '').split('/'));
+    let state: ArtefactState['state'];
+    try {
+      const artefactStat = statSync(artefact);
+      const sourceStat = statSync(layer.entry);
+      state = sourceStat.mtimeMs > artefactStat.mtimeMs ? 'stale' : 'current';
+    } catch {
+      state = 'absent';
+    }
+    return { layer, artefact, state };
+  });
+}
+
+/**
+ * Principle XI's out-of-tree instrument, and the reason Phase 3 exists.
+ *
+ * The subject is *the entity classes this package hands the ORM*, so the read is
+ * the **artefact** (§4) — the platform composes a module package through its
+ * published output, and a rule that answered from source would pass a build that
+ * dropped the decorators, which is precisely the silence this rule exists to
+ * remove.
+ *
+ * ## Which subpath, derived rather than spelled
+ *
+ * Nothing here spells `./backend`. The subpath that publishes entity classes is
+ * *the one whose artefact declares an `entities` array* — the package's own
+ * statement about itself, and the estate's own words for the declaration
+ * (`subjectDeclaration`). A package whose artefacts declare none publishes no
+ * entity class and is `not-applicable`; a package with an artefact this run
+ * could not read is `unreadable`, because the layer it could not read is a layer
+ * that might have been the one.
+ *
+ * ## The floor is the composition's own list
+ *
+ * `entities` is a finer and more independent author than the layer count: the
+ * walk deliberately reaches exactly one layer, so a per-layer expectation would
+ * read `1/1` by construction — the tautology §3 refuses. `declared-entities`
+ * compares the classes the walk classified against the classes the composition
+ * hands the ORM, and a short answer is a refusal. That is also the guard on the
+ * emit shape itself: if TypeScript's decorator lowering changed, this walk would
+ * classify nothing and the token would say so, rather than the run reporting
+ * every entity classified over an artefact it could not read.
+ */
+const entityTenantClassification: PackageRuleHost = (layout) => {
+  const id = 'check-entity-tenant-classification';
+  const entry = entryOf(id);
+  if (layout.layerRefusal !== null) return unreadable(id, layout.layerRefusal, null);
+
+  const states = artefactStates(layout);
+  const stale = states.filter((state) => state.state === 'stale');
+  if (stale.length > 0) {
+    return unreadable(
+      id,
+      `the source behind ${stale
+        .map((state) => state.layer.subpath)
+        .join(', ')} is newer than the artefact the platform would load, so what this run read ` +
+        `is not what the platform reads. Rebuild the package; this rule is never answered from ` +
+        `source as a convenience.`,
+      null,
+    );
+  }
+  const absent = states.filter((state) => state.state === 'absent');
+  if (absent.length > 0) {
+    return unreadable(
+      id,
+      `${absent
+        .map((state) => state.layer.subpath)
+        .join(', ')} is declared in the \`exports\` map and its target is not on disk, so the ` +
+        `subpath that publishes this package's entity classes may be one this run could not ` +
+        `open. Build the package (\`pnpm run build\` in its directory).`,
+      null,
+    );
+  }
+
+  const publishing = states
+    .map((state) => ({
+      state,
+      declared: declaredEntityClasses(readFileSync(state.artefact, 'utf8'), state.artefact),
+    }))
+    .find((candidate) => candidate.declared.length > 0);
+  if (publishing === undefined) return notApplicable(id, absentDeclaration(entry));
+
+  const files = walkEmitted(dirname(publishing.state.artefact));
+  const findings = analyzeEmittedFiles(files);
+  const classified = new Set(findings.map((finding) => finding.className));
+  const readSize: ReadSizeInput = {
+    prefix: TENANT_PREFIX,
+    files: files.length,
+    sites: findings.length,
+    coverage: [
+      {
+        source: 'declared-entities',
+        expected: publishing.declared.length,
+        covered: publishing.declared.filter((name) => classified.has(name)).length,
+      },
+    ],
+  };
+  const short = readSizeRefusal(readSize);
+  if (short !== null) {
+    return unreadable(
+      id,
+      `${short.message}. The classes this package's composition hands the ORM are the ` +
+        `independent second author here: ${publishing.declared
+          .filter((name) => !classified.has(name))
+          .join(', ')} could not be read out of the artefact.`,
+      readSize,
+    );
+  }
+
+  const outcome = classifyFindings(findings);
+  return ran(
+    id,
+    readSize,
+    [...outcome.unclassified, ...outcome.multiple].map((finding) => ({
+      rule: id,
+      key: `${layout.moduleId}|${finding.className}`,
+      location: layout.keyOf(finding.file),
+      message: tenantRemedy(finding),
+    })),
+  );
+};
+
+/* --------------------------------------------- entry-presence (Phase 3) */
+
+/**
+ * Constitution XVII's hardest seam: an entry point nothing can catch a throw
+ * from decides presence *before* it works.
+ *
+ * ## Unconditional, and that is a correction
+ *
+ * The estate filed this rule's subject as *"module manifest declaring an
+ * activation control"*, and a host built on that reading would have answered
+ * `not-applicable` for a `nonDeactivatable` package. It is wrong, and the rule's
+ * own input says so: `lockedModules` takes a module's **boot hooks** out of the
+ * population and leaves its **timers** in — `_lifecycle`'s lease heartbeat is
+ * ledgered rather than exempted, which is only meaningful because a locked
+ * module's timers are still judged. So the declaration is corrected to `null`
+ * and the manifest decides an *exemption*, not applicability.
+ *
+ * ## The manifest is read where it can be, and its absence over-reports loudly
+ *
+ * `lockedModules` defaults to empty on purpose: forgetting it widens the
+ * population rather than narrowing it, so a caller that cannot read the manifest
+ * over-reports instead of going quietly blind. A package whose artefact is not
+ * current therefore still gets a run — the rule's subject is source text — and
+ * the `locked-owner-exemption` signal is printed on its own line, because a
+ * finding an author cannot reproduce is one they learn to ignore (§5.1). Where
+ * the manifest *is* read the signal is dropped, which is what makes its presence
+ * mean something.
+ *
+ * ## The ledger
+ *
+ * The repository's two ledgers are not consulted: they are entries about *these*
+ * modules and a third-party package is in none of them. The package's own ledger
+ * is applied by the frame, one layer up, exactly as for every other rule.
+ */
+const entryPresence: PackageRuleHost = (layout) => {
+  const id = 'check:entry-presence';
+  const files = collectPresenceFiles([layout.sourceRoot]);
+  const coverage = coverageOf(layout, files, opensTypeScript);
+  if (isRefusal(coverage)) return unreadable(id, coverage.refusal, null);
+  if (coverage === null) return notApplicable(id, absentDeclaration(entryOf(id)));
+
+  // Keyed **relative to the source root**, which is what the repository host's
+  // keys are relative to (`modules/<id>/…` under `src/`). The analysis attributes
+  // a file to a module through `moduleOf`, whose second source matches on the
+  // tail after the last `/src/` — so a package-relative key would hand it
+  // `/src/src/backend/…` and it would attribute nothing, and the rule would
+  // report `violations=0` over every package for ever.
+  const sources = new Map(
+    files.map((file) => [posixKey(relative(layout.sourceRoot, file)), readFileSync(file, 'utf8')]),
+  );
+  const readSize: ReadSizeInput = {
+    prefix: '[entry-presence]',
+    files: sources.size,
+    coverage: [coverage],
+  };
+  const short = readSizeOrShortWalk(id, readSize);
+  if (!short.ok) return short.result;
+
+  // Every top-level name under the source root belongs to this one module — the
+  // package half of `module-roots`' own derivation (D-142: identity is
+  // `endora.id`, never a directory name), taken off the walk rather than spelled.
+  const hostResidentModules = new Map<string, string>();
+  for (const key of sources.keys()) {
+    const [head] = key.split('/');
+    if (head !== undefined && head.length > 0) hostResidentModules.set(head, layout.moduleId);
+  }
+
+  const manifest = readEmittedManifest(layout);
+  const result = checkEntryPresence(
+    {
+      sources,
+      lockedModules:
+        manifest !== null && manifest.nonDeactivatable ? new Set([layout.moduleId]) : new Set(),
+      hostResidentModules,
+    },
+    {},
+  );
+
+  const outcome = ran(
+    id,
+    readSize,
+    result.violations.map((finding) => ({
+      rule: id,
+      key: presenceKeyOf(finding),
+      location: `${layout.keyOf(join(layout.sourceRoot, finding.file))}:${finding.line}`,
+      message: presenceRemedy(finding),
+    })),
+  );
+  // The exemption was derived, so the degradation does not apply to this run.
+  if (manifest !== null) return { ...outcome, unevaluatedSignals: [] };
+  return outcome;
+};
+
+/* ------------------------------------------------ port-catches (Phase 3) */
+
+/**
+ * A `catch` around a gated-port call may not swallow the module's presence
+ * answer — Constitution XVII at the one seam where the throw has somewhere to go
+ * and gets eaten anyway.
+ *
+ * ## The peer owner map is not optional here, and the measurement says why
+ *
+ * The analysis admits `lazyPort(ctx, '<name>')` as a port only when `<name>` is
+ * in its owner map, and that map is built from `di.providePort` in the **owner's**
+ * composing file. So a consuming package seeds nothing on its own. Over this
+ * repository's module packages: 226 sites attributed to 41 packages by the
+ * whole-tree run, **19** in 10 packages when each is analysed alone, and **31 of
+ * the 41 lose every site** — the four PIM connectors and `product_feeds` among
+ * them. {@link readPeerOwners} is the input that closes it, out of the installed
+ * and workspace peers, synchronously and with no new dependency.
+ *
+ * ## `sources=owners:<n>/<m>`, and the floor that comes with it
+ *
+ * The estate's idiom for *"I read n of the m things I needed"* is the `read:`
+ * line's `sources=` token, and this rule's `m` is the number of gated-port names
+ * the package **writes** ({@link resolvedPortNames}) — a denominator the package
+ * itself authors, independent of any owner map. `n` is how many of those an owner
+ * could be found for. A reader, and a later ratchet, can then see a partially
+ * resolved run for what it is instead of taking a caveat in prose on trust.
+ *
+ * The floor falls out of the same idiom rather than being bolted on: **`n === 0`
+ * with `m > 0` is `unreadable`**, because a run that resolved none of the names
+ * it was asked to resolve has judged nothing — which is `read-size.ts`'
+ * `read-nothing` refusal one granularity in, and the same refusal the repository
+ * host makes about an owner map that resolved zero. A package that writes no
+ * `lazyPort` name at all has nothing to resolve and is not short: `m === 0` is
+ * `ran`, and the token is omitted rather than printed `0/0`.
+ *
+ * ## `OWNER LOCKED` still over-reports, and still says so
+ *
+ * The estate's `owner-locked-merge` signal is unchanged and is printed whenever
+ * the peers' **manifests** were not read — which is every package-scope run,
+ * because `readPeerOwners` reads registrations out of artefacts and locks out of
+ * manifests are a separate question. Absent, a locked owner's site reads as a
+ * violation rather than as retired: over-reporting, the safe direction, declared.
+ */
+const portCatches: PackageRuleHost = (layout) => {
+  const id = 'check:port-catches';
+  const files = collectPortCatchFiles([layout.sourceRoot]);
+  const layerCoverage = coverageOf(layout, files, opensTypeScript);
+  if (isRefusal(layerCoverage)) return unreadable(id, layerCoverage.refusal, null);
+  if (layerCoverage === null) return notApplicable(id, absentDeclaration(entryOf(id)));
+
+  // Keyed relative to the source root, for the same reason `check:entry-presence`
+  // is: `moduleOf` matches on the tail after the last `/src/`, and a
+  // package-relative key would attribute every file to no module.
+  const sources = new Map(
+    files.map((file) => [posixKey(relative(layout.sourceRoot, file)), readFileSync(file, 'utf8')]),
+  );
+  const hostResidentModules = new Map<string, string>();
+  for (const key of sources.keys()) {
+    const [head] = key.split('/');
+    if (head !== undefined && head.length > 0) hostResidentModules.set(head, layout.moduleId);
+  }
+
+  const peers = readPeerOwners(layout);
+  const written = resolvedPortNames(sources);
+  const attributed = [...written].filter(
+    (name) => peers.portOwners.has(name) || ownProvidedNames(sources).has(name),
+  );
+
+  const coverage: ReadCoverage[] = [layerCoverage];
+  if (written.size > 0) {
+    coverage.push({ source: 'owners', expected: written.size, covered: attributed.length });
+  }
+  const readSize: ReadSizeInput = {
+    prefix: '[port-catches]',
+    files: sources.size + peers.filesRead,
+    coverage,
+  };
+
+  // **The `owners` token is printed but is deliberately not put through the
+  // short-walk refusal**, and the distinction is the whole of the owner-map
+  // ruling. `read-size.ts` refuses any `covered < expected`, which would make a
+  // package with one unresolved peer lose the rule entirely — fail-closed in the
+  // wrong dimension, trading a small honest gap for a total blind spot, and for a
+  // package reaching another paid module that is the common case. So the layer
+  // walk keeps the standard refusal, and `owners` carries its own floor:
+  //
+  //   * `covered > 0` → `ran`, with the fraction stating its own incompleteness
+  //     in a form something can ratchet on later;
+  //   * `covered === 0` with `expected > 0` → `unreadable`, because a run that
+  //     attributed none of the names it was asked to attribute has judged
+  //     nothing. That is `read-nothing` one granularity in, and the same refusal
+  //     the repository host makes about an owner map that resolved zero;
+  //   * `expected === 0` → nothing to resolve, token omitted, never `0/0`.
+  const short = readSizeOrShortWalk(id, { ...readSize, coverage: [layerCoverage] });
+  if (!short.ok) return short.result;
+
+  const unattributed = [...written].filter((name) => !attributed.includes(name));
+  // **The floor is "no owner map was read", not "these names did not resolve",
+  // and the difference is five false refusals.** Built the second way first, and
+  // measured: `audit_logs`, `google_tag_manager`, `linkedin_ads`, `meta_ads` and
+  // `prompt_actions` each resolve exactly one gated name, `settingsReadPort` —
+  // which the **platform** owns (`compose-app.ts` contributes it), not an
+  // uninstalled module. All five refused, and the remedy they printed, *install
+  // the owning module*, named work an author cannot do and does not need to.
+  //
+  // **The wrong remedy was worse than the wrong verdict.** A refusal telling an
+  // author to install a module they do not need and cannot identify is a worse
+  // outcome than a `ran` line that states what it could not attribute — the first
+  // sends them looking for something that is not missing, the second tells them
+  // exactly what this run did and did not judge. That is §5.1's failure, where a
+  // finding an author cannot reproduce is one they learn to ignore, and it is the
+  // reason the floor moved rather than the verdict being softened.
+  //
+  // So the refusal is the honest analogue of `read-nothing`: the run consulted an
+  // owner map and the map was **empty**. That keeps the fixture case — a package
+  // resolving a peer's port with no peer installed anywhere — and drops all five
+  // false ones, because those runs read 174 owners and simply do not own this
+  // name between them.
+  //
+  // **What this leaves, stated rather than discovered:** a package whose every
+  // resolved name belongs to an uninstalled *module*, in a tree that has other
+  // peers, reads `owners:0/1` on a `ran` line rather than refusing. It is printed
+  // and named, not silent. Closing it properly means deriving the platform's own
+  // registrations — `PLATFORM_OWNED_NAMES` is today a curated list because
+  // `compose-app.ts` registers them through `contribute({ … })`, which neither
+  // `registeredNames` nor `providedPortNames` recognises — and that recogniser is
+  // the next thing to build here, not a weakening to accept for ever.
+  if (written.size > 0 && attributed.length === 0 && peers.portOwners.size === 0) {
+    return unreadable(
+      id,
+      `this package resolves ${written.size} gated port name(s) — ${unattributed.join(', ')} — ` +
+        `and no owner map could be read at all: no module package was found installed beside ` +
+        `it or in a workspace with it. The analysis admits none of those calls as a port, so ` +
+        `every \`catch\` around one is unjudged. That is not clean: install the modules that ` +
+        `own them, or read this rule as not having run.`,
+      readSize,
+    );
+  }
+
+  const result = checkPortCatches(
+    { sources, hostResidentModules, peerOwners: peers.portOwners },
+    {},
+  );
+
+  const findings: Finding[] = result.violations.map((finding) => ({
+    rule: id,
+    key: portCatchKeyOf(finding),
+    location: `${layout.keyOf(join(layout.sourceRoot, finding.file))}:${finding.line}`,
+    message:
+      `a \`catch\` around \`${finding.port}\` (${finding.form}) swallows ` +
+      `\`ModuleDisabledError\`, so a switched-off owner reads as "no data" instead of "this ` +
+      `capability is off" (Constitution XVII). Delete it if it was only defensive, move the ` +
+      `degrade into the port's return type, or keep it and add ` +
+      `\`rethrowIfModuleDisabled(error)\`.`,
+  }));
+
+  const outcome = ran(id, { ...readSize, sites: result.total }, findings);
+  if (unattributed.length === 0) return outcome;
+  // Partially resolved. The fraction is already on the `read:` line; this names
+  // the ones, because "owners:3/5" does not tell an author which two to install.
+  return {
+    ...outcome,
+    explanation:
+      `${unattributed.length} of the ${written.size} gated port name(s) this package resolves ` +
+      `could not be attributed to an owner — ${unattributed.join(', ')}. Each is either a ` +
+      `module you have not installed or a name the platform itself registers, and this run ` +
+      `cannot tell those apart; a \`catch\` around one of them is unjudged rather than clean.`,
+  };
+};
+
+/** The gated port names the package's **own** composing files provide. */
+function ownProvidedNames(sources: ReadonlyMap<string, string>): ReadonlySet<string> {
+  const names = new Set<string>();
+  for (const [file, text] of sources) {
+    if (!declaresRegisterModule(text)) continue;
+    for (const name of providedPortNames(text, file)) names.add(name);
+  }
+  return names;
+}
+
 export const PACKAGE_HOSTS: ReadonlyMap<string, PackageRuleHost> = new Map<
   string,
   PackageRuleHost
 >([
   ['channel:resolution', channelResolution],
+  ['check-entity-tenant-classification', entityTenantClassification],
   ['check:bundle-pairing', bundlePairing],
   ['check:command-coverage', commandCoverage],
   ['check:container-imports', containerImports],
   ['check:default-language-prose', defaultLanguageProse],
+  ['check:entry-presence', entryPresence],
   ['check:diacritic-folds', diacriticFolds],
   ['check:entry-scope', entryScope],
   ['check:kernel-boundary', kernelBoundary],
   ['check:nul-bytes', nulBytes],
   ['check:platform-surface', platformSurface],
+  ['check:port-catches', portCatches],
   ['check:port-shape', portShape],
   ['check:queue-names', queueNames],
   ['check:subscribe-seam', subscribeSeam],

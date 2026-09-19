@@ -49,6 +49,7 @@ import {
 import {
   NO_PACKAGE_DECLARATIONS,
   unreadablePackageReason,
+  type PackageEntity,
   type PackageTable,
 } from '../../../scripts/lib/package-declarations.js';
 import {
@@ -233,6 +234,14 @@ import * as rulePlatformSurface from '@endora-commerce/cli/rules/platform-surfac
 import * as rulePortShape from '@endora-commerce/cli/rules/port-shape.js';
 import * as ruleSingletonIdentity from '@endora-commerce/cli/rules/singleton-identity.js';
 import * as ruleTransactionContext from '@endora-commerce/cli/rules/transaction-context.js';
+import * as hostEnvInputs from '../../../scripts/check-env-inputs.js';
+import * as ruleEnvInputs from '@endora-commerce/cli/rules/env-inputs.js';
+import * as hostTenantClassification from '../../../scripts/check-entity-tenant-classification.js';
+import * as ruleTenantClassification from '@endora-commerce/cli/rules/entity-tenant-classification.js';
+import * as hostEntryPresence from '../../../scripts/check-entry-presence.js';
+import * as ruleEntryPresence from '@endora-commerce/cli/rules/entry-presence.js';
+import * as hostPortCatches from '../../../scripts/check-port-catches.js';
+import * as rulePortCatches from '@endora-commerce/cli/rules/port-catches.js';
 import {
   checkAdminSurface,
   reachKey,
@@ -5162,19 +5171,23 @@ const CHECKS: readonly CheckEntry[] = [
       // this check receives them. The enumeration under that, on a package tree
       // on disk, is proven in `package-declarations.test.ts`; splitting them
       // there is what keeps each proof at the top of the analysis it protects.
-      'package-entity-without-a-classification': top(
-        () =>
-          packageEntityFindings([
-            {
-              moduleId: 'fixture_widgets',
-              packageName: '@fixture/mod-widgets',
-              className: 'FixtureWidget',
-              table: 'fixture_widgets',
-              classifications: [],
-              file: '/instance/node_modules/@fixture/mod-widgets/lib/backend/index.js',
-            },
-          ]).filter((finding) => finding.classifications.length === 0).length,
-      ),
+      'package-entity-without-a-classification': top(() => {
+        // The relocated analysis takes the structural shape it needs
+        // (`DescribedEntity`) rather than the owner map's `PackageEntity`: the
+        // CLI package states no type of the platform's. Naming `PackageEntity`
+        // on this fixture is what asserts the two still fit.
+        const entity: PackageEntity = {
+          moduleId: 'fixture_widgets',
+          packageName: '@fixture/mod-widgets',
+          className: 'FixtureWidget',
+          table: 'fixture_widgets',
+          classifications: [],
+          file: '/instance/node_modules/@fixture/mod-widgets/lib/backend/index.js',
+        };
+        return packageEntityFindings([entity]).filter(
+          (finding) => finding.classifications.length === 0,
+        ).length;
+      }),
       // The refusal, which is the property that stops this check answering "no
       // owner" in silence: a discovered package whose entities cannot be
       // enumerated stops the run at exit 2 instead of being credited with none.
@@ -12230,6 +12243,19 @@ describe('a relocated analysis has one implementation and two hosts', () => {
       ['check:port-shape', hostPortShape as unknown as Record<string, unknown>, rulePortShape as unknown as Record<string, unknown>],
       ['check:singleton-identity', hostSingletonIdentity as unknown as Record<string, unknown>, ruleSingletonIdentity as unknown as Record<string, unknown>],
       ['check:transaction-context', hostTransactionContext as unknown as Record<string, unknown>, ruleTransactionContext as unknown as Record<string, unknown>],
+      // `check:env-inputs` has no package host either, and for a third reason:
+      // it is blocked on a *ruling* rather than on code or on an input (the
+      // platform declaration a module's read resolves against is source text
+      // here and `dist` in a client's tree). The relocation is nevertheless
+      // done, and the row above says why a done relocation is asserted whatever
+      // the host's state. Absent this row a copy taken back into
+      // `backend/scripts/` would be invisible for the one rule of the three
+      // whose unblocking is not scheduled at all.
+      ['check:env-inputs', hostEnvInputs as unknown as Record<string, unknown>, ruleEnvInputs as unknown as Record<string, unknown>],
+      // Phase 3.
+      ['check-entity-tenant-classification', hostTenantClassification as unknown as Record<string, unknown>, ruleTenantClassification as unknown as Record<string, unknown>],
+      ['check:entry-presence', hostEntryPresence as unknown as Record<string, unknown>, ruleEntryPresence as unknown as Record<string, unknown>],
+      ['check:port-catches', hostPortCatches as unknown as Record<string, unknown>, rulePortCatches as unknown as Record<string, unknown>],
     ];
 
   for (const [id, host, rule] of RELOCATED) {

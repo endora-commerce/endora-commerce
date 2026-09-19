@@ -1,9 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
+import { runCheck } from '@endora-commerce/cli/checks';
 import {
   analyzeSource,
+  classifyFindings,
   walk,
   ENTITY_DECORATOR_HINT,
+  type EntityFinding,
 } from '../../../scripts/check-entity-tenant-classification.js';
 import { requireModuleLayout } from '../../../scripts/lib/module-roots.js';
 
@@ -95,5 +98,120 @@ describe('the scan scope', () => {
     const entities = entityFiles.flatMap((f) => analyzeSource(readFileSync(f, 'utf8'), f));
     expect(entities.length).toBeGreaterThan(100);
     expect(entities.filter((e) => e.classifications.length !== 1)).toEqual([]);
+  });
+});
+
+/**
+ * SC-002 — one analysis, two hosts, one finding set
+ * (`specs/101-endora-check/contracts/package-scope-layout.md` §6).
+ *
+ * This is the assertion the whole split stands on, and it is the one that would
+ * have caught every way of getting the split wrong: `endora check` over a module
+ * package must produce the same findings, for this rule, as this repository's run
+ * of it restricted to that module. A disagreement is a defect in the split, never
+ * in either host.
+ *
+ * It is worth having here rather than only in the CLI's fixture proofs because
+ * the two hosts read **different files** for this rule — the repository reads
+ * decorated TypeScript, the package reads the emitted `__decorate` call the
+ * platform loads (§4) — and a fixture cannot tell you that `tsc`'s real output
+ * agrees with its own input. Only this tree's built packages can.
+ *
+ * Preconditions are asserted rather than assumed: a run over packages whose
+ * `dist` is absent would agree vacuously, so the number of packages compared and
+ * the number of entity classes read both carry a floor.
+ *
+ * ## The two vacuous shapes this test had before it had any value
+ *
+ * Both were in the first version of this file, both passed, and neither would have
+ * been visible in a diff. They are named here because they are the shapes every
+ * later agreement proof in this estate has to be checked against:
+ *
+ *   1. **A finding-set comparison that is `[] === []`.** Every entity in this tree
+ *      is classified, so comparing what the two hosts *reported* asserted nothing
+ *      at all on any package. The load-bearing comparison is the **population each
+ *      host read** — the number a broken reader moves. The finding-set comparison
+ *      is kept below it, for the day it stops being vacuous.
+ *   2. **A `continue` past an `unreadable` package.** Found by breaking the emitted
+ *      reader on purpose: six packages went `unreadable` through the
+ *      declared-entities floor and the comparison stayed green over the rest. Every
+ *      package in this checkout is built, so an `unreadable` here is the host
+ *      refusing an input it should have had, and it is a **disagreement** rather
+ *      than a skip.
+ */
+describe('SC-002 — the repository host and the package host agree', () => {
+  const PACKAGE_ROOTS = MODULE_LAYOUT.moduleRoots.filter(
+    (root) => root.origin === 'workspace-package',
+  );
+
+  /** Every entity class the repository host reads out of a package's sources. */
+  const repositoryEntities = (directory: string): readonly EntityFinding[] =>
+    walk(directory)
+      .filter((file) => ENTITY_DECORATOR_HINT.test(readFileSync(file, 'utf8')))
+      .flatMap((file) => analyzeSource(readFileSync(file, 'utf8'), file));
+
+  it('reads the same entity population out of every built module package', () => {
+    let compared = 0;
+    let entitiesRead = 0;
+    const disagreements: string[] = [];
+
+    for (const root of PACKAGE_ROOTS) {
+      const run = runCheck({ cwd: root.directory, rules: ['check-entity-tenant-classification'] });
+      const result = run.report.results[0];
+      if (result === undefined) throw new Error(`no result for ${root.directory}`);
+      // A package that publishes no entity class is `not-applicable` on both
+      // sides. `unreadable` is **not** skipped: every package in this checkout is
+      // built, so an `unreadable` here is the package host refusing an input it
+      // should have had — and skipping it would hide exactly the failure this
+      // test exists for. Measured while writing it: a deliberately broken
+      // emitted reader turned six packages `unreadable` through the
+      // declared-entities floor and left the comparison green over the rest,
+      // which is the vacuous shape a `continue` buys.
+      if (result.verdict === 'unreadable') {
+        disagreements.push(`${run.report.packageName}: unreadable — ${result.explanation}`);
+        continue;
+      }
+      if (result.verdict !== 'ran') continue;
+      compared += 1;
+
+      // **The population, not the findings.** Both sides report no finding over
+      // this tree — every entity here is classified — so a comparison of finding
+      // sets alone would be `[] === []` on every package and would assert
+      // nothing at all. The number of entity classes each host *read* is the
+      // non-vacuous half, and it is the half a broken emitted reader would move.
+      const fromRepository = repositoryEntities(root.directory);
+      entitiesRead += fromRepository.length;
+      const fromPackage = result.readSize?.sites ?? 0;
+      if (fromPackage !== fromRepository.length) {
+        disagreements.push(
+          `${run.report.packageName}: package read ${fromPackage} entity class(es), ` +
+            `repository read ${fromRepository.length}`,
+        );
+      }
+
+      // And the findings, which is SC-002 as written: the same finding set, per
+      // rule. Vacuous today by the argument above, and it is here for the day it
+      // is not — a red on this line and a green on the one above is the split
+      // diverging on the *predicate* rather than on the walk.
+      const { unclassified, multiple } = classifyFindings(fromRepository);
+      const expectedClasses = [...unclassified, ...multiple]
+        .map((finding) => finding.className)
+        .sort();
+      const reportedClasses = result.findings
+        .map((finding) => finding.message.split(' ')[0] ?? '')
+        .sort();
+      if (JSON.stringify(reportedClasses) !== JSON.stringify(expectedClasses)) {
+        disagreements.push(
+          `${run.report.packageName}: package reported ${JSON.stringify(reportedClasses)}, ` +
+            `repository reported ${JSON.stringify(expectedClasses)}`,
+        );
+      }
+    }
+
+    // The floors. Without them a checkout with no `dist` would pass this by
+    // comparing nothing, which is the vacuous green the estate exists against.
+    expect(compared).toBeGreaterThan(20);
+    expect(entitiesRead).toBeGreaterThan(100);
+    expect(disagreements).toEqual([]);
   });
 });

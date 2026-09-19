@@ -44,9 +44,36 @@
  * so a source-text probe of a package's `dist` is a probe that finds nothing and
  * reports clean, which is the defect above wearing a different hat.
  *
- * What survives is the artefact the platform itself composes. So the entity half
- * **imports the package's `./backend` subpath**, exactly as `package-runtime.ts`
- * does at boot, and reads:
+ * **What this paragraph used to conclude from that was wrong, and correcting it
+ * in place matters more than the sentence does** (`specs/101-endora-check/` Phase
+ * 3): it said the artefact can only be read by *importing* it. The premise holds
+ * and the conclusion does not follow. `tsc` lowers a decorated class to a
+ * class-level call —
+ *
+ * ```js
+ * Loyalty = __decorate([OrgScoped(), Entity({ tableName: 'loyalties' })], Loyalty);
+ * ```
+ *
+ * — and the decorator **identifiers survive**, which is a different fact from
+ * `@Entity(` surviving. So a `dist` *can* be read statically, and
+ * `@endora-commerce/cli/rules/entity-tenant-classification.js`'s `analyzeEmitted`
+ * does exactly that for `endora check`'s package-scope host: synchronously, with
+ * no dynamic import, and therefore without the CLI depending on `@mikro-orm/core`
+ * or on `@endora-commerce/platform`. The correction is recorded here rather than
+ * only there because the wrong conclusion is how the next reader re-plans the
+ * 514-line dependency inversion that measurement removed the need for.
+ *
+ * **This file still imports, and for reasons the static read does not cover.**
+ * Its job is the *owner map* rather than one rule: it needs each class's MikroORM
+ * table name, which only the ORM's own metadata knows, and it reads the
+ * classification out of the **runtime registry the platform reads** by class
+ * identity — so that a classification recorded in some other copy of that
+ * registry is correctly read as no classification at all. Neither is available to
+ * a text reader. The two readers answer different questions and both are right;
+ * what would have been wrong is inventing a second one for the same question.
+ *
+ * So the entity half **imports the package's `./backend` subpath**, exactly as
+ * `package-runtime.ts` does at boot, and reads:
  *
  *   * the `entities` export — the array of entity classes a package hands the
  *     host, and the same array T033's merged ORM configuration will consume;

@@ -65,7 +65,32 @@ export type EstateScope =
  */
 export type EstateHost = 'built' | { readonly pending: string };
 
-/** One signal a rule evaluated in this repository and cannot in package scope. */
+/**
+ * One signal a rule evaluated in this repository and cannot in package scope.
+ *
+ * **Declared, and therefore static — which is the one thing about this shape that
+ * is scheduled to change.** `contracts/exit-reduction.md` §1 describes a partial
+ * rule as one that *"names, on its own line, each signal it did not evaluate and
+ * why"*, and says nothing about the signal being written down in advance. Phase 3
+ * met the case it is too weak for: *"3 of the 11 gated port names this package
+ * resolves could not be attributed, and they are X, Y and Z"* is a **run-determined**
+ * fact, and it has no home here — a `reason` is a constant.
+ *
+ * What Phase 3 does instead, and it needs no contract change: the count goes in
+ * the `read:` line's `sources=` token (`owners:<n>/<m>`), which is machine-readable
+ * and already the estate's idiom for *"I read n of the m things I needed"*, and the
+ * names go in the result's `explanation`. See `check:port-catches`' entry below and
+ * `check/peer-owners.ts`.
+ *
+ * **The migration is deferred, not abandoned**, and the condition is written here
+ * so it is a decision rather than a forgotten possibility: a run-determined
+ * partial signal — this interface gaining a per-run payload, or `RuleResult`
+ * carrying its own signals beside the declared ones — is the right eventual form,
+ * and it amends a contract that touches every entry's type. It should ride along
+ * the **next time `exit-reduction.md` §1 is edited for another reason**, and not
+ * before: paying a whole-estate type change for a presentation improvement, in a
+ * phase that is shipping hosts, is how a phase stops shipping hosts.
+ */
 export interface PartialSignal {
   /** The signal's own name, as the rule's header spells it. */
   readonly signal: string;
@@ -131,7 +156,19 @@ export interface EstateEntry {
   readonly partial?: readonly PartialSignal[];
   /** What makes the rule applicable. `null` is unconditionally applicable. */
   readonly subjectDeclaration: SubjectDeclaration | null;
-  /** True where the rule's subject is something the platform *loads*. */
+  /**
+   * True where the rule's subject is something the platform *loads*
+   * (`contracts/package-scope-layout.md` §4).
+   *
+   * **Set on every entry and read by no code in this build** — measured in Phase
+   * 3. It is documentation wearing the shape of a gate, which is worse than a
+   * comment: the next reader will ratchet on it. Each host decides for itself
+   * whether to read the artefact, and this field records the *intent* that
+   * decision has to match. Either make it load-bearing — one place that refuses a
+   * host reading a `dist` while its entry says `false`, and the reverse — or
+   * demote it to prose. Until one of those happens, do not treat a value here as
+   * evidence about what a host does; read the host.
+   */
   readonly readsArtefact: boolean;
   readonly tier: EstateTier;
 }
@@ -166,7 +203,11 @@ export const ESTATE: readonly EstateEntry[] = [
     id: 'check-entity-tenant-classification',
     script: 'backend/scripts/check-entity-tenant-classification.ts',
     scope: 'package',
-    host: pending('Phase 3'),
+    // Phase 3's first host, and the one the phase exists for. The declaration
+    // is read as *an artefact declaring an `entities` array*, which is the
+    // package's own statement about which subpath publishes entity classes —
+    // no subpath is spelled here or in the host (D-100).
+    host: 'built',
     subjectDeclaration: {
       kind: 'exports-subpath',
       declaration: '`exports` subpath publishing entity classes',
@@ -186,14 +227,27 @@ export const ESTATE: readonly EstateEntry[] = [
     // published only on `@endora-commerce/mod-admin-roles/backend`, which no
     // module package depends on and whose import evaluates the platform.
     //
-    // Measured over all 70 module packages with the resolver absent: **27
-    // gates in 11 packages** read as `unreadable`, which the analysis correctly
-    // reports as an `unresolvable` finding (an unreadable gate taken for
-    // "ungated" agrees with everything). Every one of them is a gate this
-    // repository's own run resolves, so shipping the host would hand an author
-    // 27 findings about correct code — exactly the state
-    // `contracts/package-scope-layout.md` §5.1 refuses, where a finding an
-    // author cannot reproduce is one they learn to ignore.
+    // Measured with the resolver absent, **re-derived per package in Phase 3
+    // because a recorded figure is a premise and not a fact**: `38` unreadable-gate
+    // findings across `17` module packages, and `0` across `0` with the resolver
+    // supplied. Over all admin route gates rather than action targets the same
+    // measurement reads `402` of `873` unreadable without it and `75` with it.
+    //
+    // The figure recorded on 2026-09-17 was **27 in 11** — low, like the six
+    // before it, and in the same direction. The likeliest cause is that this
+    // re-derivation measured **one package at a time**, which is `endora check`'s
+    // own population: an action targeting a *peer's* route resolves at repository
+    // scope and cannot at package scope, which adds findings rather than removing
+    // them. Nothing depended on the old number, which is what makes it a clean
+    // instance of the pattern rather than a defect.
+    //
+    // The conclusion is unchanged and stronger. The analysis correctly reports an
+    // unreadable gate as an `unresolvable` finding (an unreadable gate taken for
+    // "ungated" agrees with everything), and every one of the 38 is a gate this
+    // repository's own run resolves — so shipping the host would hand an author 38
+    // findings about correct code, exactly the state
+    // `contracts/package-scope-layout.md` §5.1 refuses, where a finding an author
+    // cannot reproduce is one they learn to ignore.
     //
     // The unblocking step is one relocation, not a re-implementation:
     // `ConstantResolver` is a pure source-text reader and belongs in
@@ -473,11 +527,38 @@ export const ESTATE: readonly EstateEntry[] = [
     id: 'check:entry-presence',
     script: 'backend/scripts/check-entry-presence.ts',
     scope: 'package',
-    host: pending('Phase 3'),
-    subjectDeclaration: {
-      kind: 'manifest-flag',
-      declaration: 'module manifest declaring an activation control',
-    },
+    host: 'built',
+    partial: [
+      {
+        signal: 'locked-owner-exemption',
+        reason:
+          'a `nonDeactivatable` module’s **boot hooks** are out of the population and its ' +
+          'timers are not, and that exemption is read from the manifest the platform loads. ' +
+          'Over a package whose artefact is not current the exemption cannot be derived, so ' +
+          'the run keeps every hook in — the safe direction — and says so, because a finding ' +
+          'an author cannot reproduce is a finding they learn to ignore',
+      },
+    ],
+    // **The bug this host shipped first, recorded because a review would not have
+    // caught it and a proof did.** The host keyed its sources package-relative,
+    // which is what every other host here does. `moduleOf` matches on the tail
+    // after the **last** `/src/`, so it was handed `/src/src/backend/index.ts`,
+    // attributed the file to no module, and skipped every site: `violations=0`,
+    // over every package, for ever — a vacuous green in the rule whose whole
+    // subject is work nobody can catch. It now keys source-root-relative and
+    // derives `hostResidentModules` from the walk's own first path segments, which
+    // is attribution by `endora.id` (D-142) rather than by a directory name.
+    //
+    // **`null`, corrected in Phase 3, and the correction is the host's own
+    // finding.** This entry read `manifest-flag` / *"module manifest declaring
+    // an activation control"*, which would have made a `nonDeactivatable`
+    // package `not-applicable`. The rule's own input refuses that reading:
+    // `lockedModules` takes a locked module's **boot hooks** out of the
+    // population and leaves its **timers** in — `_lifecycle`'s lease heartbeat is
+    // *ledgered* rather than exempted, which is only meaningful if a locked
+    // module's timers are still judged. So the manifest decides an exemption,
+    // never applicability, and the rule is unconditional.
+    subjectDeclaration: null,
     readsArtefact: false,
     tier: 'B',
   },
@@ -631,7 +712,36 @@ export const ESTATE: readonly EstateEntry[] = [
     id: 'check:lock-claims',
     script: 'backend/scripts/check-lock-claims.ts',
     scope: 'package',
-    host: pending('Phase 3'),
+    // **Held out of Phase 3 by an owner decision, on an argument rather than on
+    // effort.** The analysis is small and the population is available: a package's
+    // own manifest and the ledger its `endora` block declares. What is not
+    // available is the thing the claim is judged against.
+    //
+    // `findLockClaims(file, source, moduleIds)` recognises a claim only about an
+    // id **in the manifest set the run read**. So `` `orders` is
+    // non-deactivatable `` written in a package that has not installed `orders`
+    // reads as *no claim at all* — and that is a **latent** defect: it is wrong
+    // the day the author installs `orders`, and nothing before that day says so.
+    // The distinction that would fix it, "a backticked token that looks like a
+    // module id but is not installed" versus "a backticked token that is not a
+    // module id" (`` `settings.enabled` ``), is undecidable from text.
+    //
+    // A package host would therefore be the **first degradation in this estate
+    // that under-reports**. Every §5.1 precedent over-reports — `port-catches`'
+    // `OWNER LOCKED` merge is the worked example — and shipping the first
+    // under-reporting one inside a merge request that is also landing other hosts
+    // would bury the precedent instead of putting it to a decision. So it waits
+    // for its own, made visibly.
+    //
+    // The gap is **structural, not unfinished**: the rule's honest form needs the
+    // installed module set, which is Tier B's defining input, and the narrowing
+    // above is what is left when an author has not installed the peer a claim
+    // names. The next reader meets an argument here rather than a blank.
+    host: pending(
+      'its own decision: the honest package-scope form would be this estate’s first ' +
+        'under-reporting degradation — a lock claim about a module the author has not ' +
+        'installed reads as no claim, and text cannot tell that from `settings.enabled`',
+    ),
     subjectDeclaration: null,
     readsArtefact: true,
     tier: 'B',
@@ -756,7 +866,45 @@ export const ESTATE: readonly EstateEntry[] = [
     id: 'check:port-catches',
     script: 'backend/scripts/check-port-catches.ts',
     scope: 'package',
-    host: pending('Phase 3'),
+    // **This rule was assessed as needing no peer input and the assessment was
+    // wrong**, which is worth the space because the reasoning was plausible and
+    // the failure silent. The alias table is a fixpoint over port-carrying
+    // values, and a consumer writes its own resolutions — but the *seed* is
+    // `lazyPort(ctx, '<name>')` whose `<name>` is already in the owner map, and
+    // that map comes from `di.providePort` in the **owner's** composing file. A
+    // package that only consumes ports seeds nothing.
+    //
+    // Measured over this repository's module packages: the whole-tree run
+    // attributes **226** sites to 41 packages; the same analysis over each package
+    // alone finds **19** in 10; and **31 of the 41 lose every site** — all four
+    // PIM connectors (17–19 each) and `product_feeds` (24) among them, which is
+    // the paid population this phase exists for. A host shipped on the original
+    // assessment would have printed `violations=0` over exactly those packages.
+    //
+    // What closes it is `check/peer-owners.ts`, synchronously and with no new
+    // dependency, and what makes a short owner map legible rather than
+    // reassuring is `sources=owners:<n>/<m>` on the rule's own `read:` line —
+    // `m` from `resolvedPortNames`, which the package itself authors.
+    //
+    // **The floor is "no owner map was read", not "these names did not
+    // resolve", and that too is a correction on a measurement rather than a
+    // preference.** Built the second way first: `audit_logs`,
+    // `google_tag_manager`, `linkedin_ads`, `meta_ads` and `prompt_actions` each
+    // resolve exactly one gated name, `settingsReadPort` — which the
+    // **platform** contributes, not an uninstalled module — and all five
+    // refused, printing *install the owning module*, a remedy naming work their
+    // author cannot do and does not need to. Five false refusals in 75 packages,
+    // and the remedy was the §5.1 failure rather than the verdict.
+    //
+    // What that leaves is stated in the host: a package whose every resolved
+    // name belongs to an uninstalled *module*, in a tree that has other peers,
+    // reads `owners:0/1` on a `ran` line instead of refusing. It is printed and
+    // named. Closing it means deriving the platform's own registrations —
+    // `PLATFORM_OWNED_NAMES` is a curated list today because `compose-app.ts`
+    // registers them through `contribute({ … })`, which neither `registeredNames`
+    // nor `providedPortNames` recognises — and that recogniser is the next thing
+    // to build here.
+    host: 'built',
     partial: [
       {
         signal: 'owner-locked-merge',
