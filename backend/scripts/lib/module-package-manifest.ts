@@ -313,11 +313,17 @@ const LAYER_SUBPATHS: ReadonlyArray<readonly [directory: string, subpath: string
  *
  * **Two ratchets are armed against a member added without the paperwork**, so the
  * criterion is not self-policing prose: {@link layerInventoryOf} refuses a
- * `src/<layer>/` directory that {@link LAYER_SUBPATHS} does not map — and its
- * message demands the `module-package-layout.md` §2 entry in the same merge
- * request — and `package-identity-files.ts` refuses a **published** subpath with no
+ * `src/<layer>/` directory that {@link LAYER_SUBPATHS} does not map, and
+ * `package-identity-files.ts` refuses a **published** subpath with no
  * `MODULE_SUBPATH_MEANINGS` entry, naming `LAYER_SUBPATHS` as the other half. A
- * layer nobody documented therefore cannot reach a published `exports` map.
+ * layer nobody mapped therefore cannot reach a published `exports` map.
+ *
+ * **Exactly two, and the third obligation is review's.** `layerInventoryOf`'s
+ * refusal message also asks for the `module-package-layout.md` §2 entry in the same
+ * merge request, and **nothing checks that it arrived** — no test holds
+ * {@link LAYER_SUBPATHS} against that document's prose. It is said here because a
+ * reader who knows which half is automated can trust it and read the other, while a
+ * reader who assumes both are automated checks neither.
  *
  * It cannot be derived from the artefact the way D-171's contract-surface
  * designation is. That one asks *"does this subpath emit a runtime binding"* and
