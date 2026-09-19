@@ -15,7 +15,11 @@
 #
 # Five of E1…E12 are **not** here, because each needs a judgement a script cannot make:
 #
-#   E1  the `endora check` baseline — one command, but the artefact has to be read and committed
+#   E1  the `endora check` baseline — one command, but the artefact has to be read and committed,
+#       and it must be taken at the commit the package **leaves in** rather than at the branch
+#       point. Wave 1 took it early and 13 of its read lines then described a package one layer
+#       smaller than the one that left, which would have handed E12 step 4 thirteen differences
+#       that were not the move's
 #   E2  reading the module's ledger shards — a `migration-foreign-writes` shard means STOP
 #   E5  the vendor contract module — every consumer of its symbols has to be re-pointed
 #   E9  classifying every remaining occurrence as prose or coupling
@@ -26,16 +30,17 @@
 #
 # ## Idempotence, and what that means for a half-finished run
 #
-# Every step is a no-op when it has already happened: a missing package directory, an absent
-# dependency line and an already-clean generated artefact are all success. So a run interrupted
-# anywhere can be re-run. What it is **not** is reversible — `git` is the undo, which is why it
-# refuses a dirty working tree.
+# Every step is a no-op when it has already happened: no **tracked** file under the package, an
+# absent dependency line and an already-clean generated artefact are all success. So a run
+# interrupted anywhere can be re-run. What it is **not** is reversible — `git` is the undo, which
+# is why it refuses a dirty working tree.
 #
 # ## The refusals
 #
 #   * a dirty working tree (there is no undo but `git`)
-#   * no `packages/modules/<id>/` and no `.changeset/` intent already present — i.e. nothing to
-#     do and no evidence anybody did it
+#   * nothing tracked under `packages/modules/<id>/` — which is an exit **0**, not a refusal:
+#     the module is already out, and a second run over the same module is how that path is
+#     exercised
 #   * **W2**: a test of this module still under `backend/test/` or `admin/test/` that is NOT
 #     server-bound. A server-bound file is the **host's** under **D-252** — it composes from the
 #     host's install — so its presence is expected and is not a W2 failure; it is the operator's
