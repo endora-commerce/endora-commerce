@@ -202,6 +202,20 @@ export function generatedArtifactPaths(): readonly string[] {
     baselineListOutputPath(),
     adminRegistryOutputPathIn(repoRoot),
     tailwindRegistryOutputPathIn(repoRoot),
+    // The entity index (`specs/109-backend-test-kit/` T065). It belongs here for
+    // the same reason the two registries above do and for **no** reason peculiar
+    // to itself: `endora generate` writes all three into a client's tree as
+    // `.gitignore`d facts about that install, and this repository commits all
+    // three because its module set is its own tree rather than an install. That
+    // it lands under `backend/test` rather than a `src` root is where the
+    // artefact is consumed, not what kind of artefact it is.
+    //
+    // It was missing for one merge — T065 added the renderer entry in
+    // `renderAll` and not the path here, which is the shape this list exists to
+    // make loud: the count these two enumerations agree on is asserted in
+    // `test/overlay/us3-artifact-env-independence.test.ts`, and their **paths**
+    // are compared against the tree in `test/unit/scripts/check-overlay-determinism.test.ts`.
+    entityIndexOutputPathIn(repoRoot),
     ...docsArtefactPaths(),
   ];
 }

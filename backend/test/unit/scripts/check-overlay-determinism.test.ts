@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, readdirSync, statSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
@@ -20,6 +20,7 @@ import {
   type SourceTree,
 } from '../../../scripts/generate-composer.js';
 import { findAliasMember } from '../../../scripts/lib/admin-surfaces.js';
+import { entityIndexOutputPathIn } from '../../../scripts/lib/entity-index-artefact.js';
 import { platformSourceRootAt } from '../../../scripts/lib/platform-root.js';
 import { MODULE_REFERENCE_CATEGORY, resolveDocsLayout } from '../../../scripts/lib/module-docs.js';
 import {
@@ -154,6 +155,28 @@ describe('coveredArtifactPaths', () => {
     return root;
   })();
 
+  /**
+   * The backend member's **test** tree — the one root that is not a source tree,
+   * and a fifth because of the entity index (`specs/109-backend-test-kit/` T065).
+   *
+   * That artefact lands outside every `src` for a reason its own generator states:
+   * the member's tsconfig sets `include: ['src']` with `rootDir: 'src'`, so a
+   * `.ts` placed there would join the production build. A sweep of the four
+   * source trees therefore could not see it, and that is not a detail — it is
+   * why nothing caught the merge that added the artefact to `renderAll` and not
+   * to `generatedArtifactPaths`. This comparison is the estate's only *path*
+   * level answer to "is every committed artefact covered", and a root it does
+   * not walk is an artefact it agrees about vacuously.
+   *
+   * Derived from the artefact's own path function rather than spelled as
+   * `backend/test` (D-100): if the index ever moves, this root moves with it in
+   * the same edit instead of leaving a sweep watching an empty directory.
+   */
+  const backendTestRoot = ((): string => {
+    const repoRoot = resolve(fileURLToPath(new URL('../../../..', import.meta.url)));
+    return dirname(entityIndexOutputPathIn(repoRoot));
+  })();
+
   const referenceRoot = ((): string => {
     const repoRoot = resolve(fileURLToPath(new URL('../../../..', import.meta.url)));
     return join(resolveDocsLayout(repoRoot).contentRoot, MODULE_REFERENCE_CATEGORY);
@@ -206,6 +229,7 @@ describe('coveredArtifactPaths', () => {
       ...generatedFilesUnder(adminSourceRoot),
       ...generatedFilesUnder(platformSourceRoot),
       ...generatedFilesUnder(docsRoot),
+      ...generatedFilesUnder(backendTestRoot),
       ...referencePagesOnDisk(),
     ].sort();
     expect(onDisk).toEqual([...coveredArtifactPaths()].sort());
