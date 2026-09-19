@@ -13,6 +13,9 @@ import {
   findNonBindingIssues,
   findViolations,
   findRootIssues,
+  defaultActivatedMembers,
+  describeDefaultActivatedMember,
+  exclusiveCapabilityCount,
   describeInstanceGap,
   importedContributionSeams,
   ledgerReads,
@@ -1982,5 +1985,104 @@ describe('findInstanceGaps — what a client instance cannot resolve', () => {
     expect(gaps[0]!.readers).toEqual(['customers', 'orders']);
     // No owner in principle, so the message offers both honest repairs.
     expect(describeInstanceGap(gaps[0]!)).toContain("register it in 'composeApp'");
+  });
+
+  describe('a member of an exclusive capability that ships activated (feature 132, R3.7)', () => {
+    // The check's own obligation: **one red proof per finding**. The fixtures enter at the
+    // top of the analysis — whole manifests through `defineModuleManifest`, so a fixture
+    // cannot express a shape the schema refuses and the proof cannot drift from what an
+    // author can actually write.
+    const owner = (id: string, key: string) =>
+      defineModuleManifest({
+        id,
+        name: id,
+        version: '1.0.0',
+        dependencies: [],
+        activation: { nonDeactivatable: true, reason: 'The shared layer is always present.' },
+        exclusiveCapabilities: [{ key, errorCode: 'FIXTURE_ALREADY_ACTIVE' }],
+      });
+
+    const member = (id: string, on: boolean, ...capabilities: string[]) =>
+      defineModuleManifest({
+        id,
+        name: id,
+        version: '1.0.0',
+        dependencies: [],
+        capabilities,
+        activation: { settingCode: `${id}.activation`, default: on },
+      });
+
+    it('finds the member, and names whose rule it broke', () => {
+      const found = defaultActivatedMembers([
+        owner('fixture_family', 'fixture-key'),
+        member('fixture_on', true, 'fixture-key'),
+        member('fixture_off', false, 'fixture-key'),
+      ]);
+
+      expect(found).toEqual([
+        {
+          moduleId: 'fixture_on',
+          key: 'fixture-key',
+          settingCode: 'fixture_on.activation',
+          ownerModuleId: 'fixture_family',
+        },
+      ]);
+    });
+
+    it('says both halves of the remedy, because flipping one of them changes nothing', () => {
+      const [found] = defaultActivatedMembers([
+        owner('fixture_family', 'fixture-key'),
+        member('fixture_on', true, 'fixture-key'),
+      ]);
+      const message = describeDefaultActivatedMember(found!);
+
+      expect(message).toContain('fixture_on');
+      expect(message).toContain('fixture-key');
+      expect(message).toContain('fixture_family');
+      // `resolveActivation` reads `global_value ?? default_value` off the Setting row, so a
+      // manifest-only flip leaves the module on for every database the reconciler touched.
+      expect(message).toContain('default_value');
+      expect(message).toContain('settings row');
+    });
+
+    it('does not find a member of a key nobody owns — that key is not exclusive here (R3.5)', () => {
+      expect(defaultActivatedMembers([member('fixture_on', true, 'nobody-owns-this')])).toEqual([]);
+    });
+
+    it('does not find an owner, whose activation is not resolved on this axis', () => {
+      expect(defaultActivatedMembers([owner('fixture_family', 'fixture-key')])).toEqual([]);
+    });
+
+    it('reports one finding per (module, key) pair when a member declares two families', () => {
+      const found = defaultActivatedMembers([
+        owner('fixture_family_a', 'key-a'),
+        owner('fixture_family_b', 'key-b'),
+        member('fixture_on', true, 'key-a', 'key-b'),
+      ]);
+      expect(found.map((f) => f.key)).toEqual(['key-a', 'key-b']);
+    });
+
+    it('counts the exclusive capabilities it judged, which is the coverage it reports', () => {
+      // The coverage token exists because the failure this guards against is the
+      // population going to zero: an assertion over no exclusive capability passes every
+      // tree, and this check has twice had a reach halve while it read clean (issue #113).
+      expect(
+        exclusiveCapabilityCount([
+          owner('fixture_family_a', 'key-a'),
+          owner('fixture_family_b', 'key-b'),
+          member('fixture_on', false, 'key-a'),
+        ]),
+      ).toBe(2);
+      expect(exclusiveCapabilityCount([])).toBe(0);
+    });
+
+    it('judges this repository as clean, over the manifests the check really walks', () => {
+      // The whole-tree claim lives in
+      // `backend/test/contract/_lifecycle/capability-defaults.test.ts`, which also walks the
+      // `example` deployment. This is the bare-core half, next to the analysis it proves.
+      const manifests = DISCOVERED_MANIFESTS.map((entry) => entry.manifest);
+      expect(exclusiveCapabilityCount(manifests)).toBeGreaterThan(0);
+      expect(defaultActivatedMembers(manifests)).toEqual([]);
+    });
   });
 });

@@ -156,6 +156,14 @@ export { platformLogger } from '../kernel/logging.js';
 // --- kernel: the lifecycle a root primes and reconciles -------------------
 export { registryCache, publishStateChanged } from '../kernel/lifecycle/registry-cache.js';
 export { activationDeclarationsFrom } from '../kernel/lifecycle/activation-resolver.js';
+// Feature 132 — the family derivation, beside the two above and for the same
+// reason: a composition root calls it once, before the first module registers.
+// `ContestedCapabilityError` is deliberately **not** re-exported here. Nothing
+// outside the platform catches it — the refusal is a boot that stops, printed at
+// the terminal of whoever assembled the deployment — and this barrel is
+// reconciled against its consumers in both directions, so a name nobody imports
+// belongs on it no more than a name nobody published.
+export { capabilityRegistryFrom } from '../kernel/lifecycle/capability-registry.js';
 export { requiredModulesFrom } from '../kernel/lifecycle/required-modules.js';
 // `specs/110-instance-repository/` T119c. The platform-availability row itself —
 // the entity class `module_registrations` is mapped by. It is here and **not** on

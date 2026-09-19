@@ -79,6 +79,13 @@ export {
 } from './public-api-base-url.js';
 
 export { effectiveState, toModulePresenceDto } from './lifecycle/effective-state.js';
+// Feature 132 — the derived capability families. A module reads them through
+// `effectiveState`; these are the shapes those reads answer in.
+export type {
+  CapabilityRegistry,
+  ExclusiveCapabilityDeclaration,
+  ModuleCapabilityDeclaration,
+} from './lifecycle/capability-registry.js';
 /**
  * The **P** half of `plugin-helpers` (§1.4c). `rethrowIfModuleDisabled` and
  * `ModuleDisabledError` are mandated by composition-checklist item 7, and

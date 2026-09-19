@@ -21,6 +21,7 @@ import {
 import { KnownIconNameSchema, ModuleActionsManifestSchema } from './admin-actions.js';
 import { modulePermissionDeclarationSchema } from './admin.js';
 import { errorCodeRe } from './errors.js';
+import { capabilityKeyRe } from './capabilities.js';
 import { transactionalEmailManifestEntrySchema } from './transactional-emails.js';
 import { BlockCategorySchema, BlockDefinitionSchema, blockNameRe } from './cms.js';
 import { EnvironmentInputSchema } from './environment-inputs.js';
@@ -782,6 +783,27 @@ export const ModuleErrorCodeDeclarationSchema = z.object({
 });
 export type ModuleErrorCodeDeclaration = z.infer<typeof ModuleErrorCodeDeclarationSchema>;
 
+/**
+ * One capability this module **owns** and declares mutually exclusive
+ * (`specs/132-connector-family-discovery/contracts/module-capabilities.md` R3.1).
+ *
+ * The owner declares exclusivity, never the member, and three things follow that
+ * are otherwise loose ends. The refusal code stays on the semantic owner, which
+ * is what D-95.2 requires — a member raises it and must **not** declare it. A
+ * member cannot make a capability exclusive by accident, and cannot un-make it.
+ * And if the owner module is not installed in a deployment, the capability is
+ * simply not exclusive there, which is the honest answer rather than a refusal:
+ * without the shared layer there is no lock row and nothing to enforce with
+ * (R3.5).
+ */
+export const ExclusiveCapabilitySchema = z.object({
+  /** The capability this module owns and declares mutually exclusive. */
+  key: z.string().regex(capabilityKeyRe),
+  /** The code raised when a second member is activated. Owned by this module. */
+  errorCode: z.string().regex(errorCodeRe),
+});
+export type ExclusiveCapability = z.infer<typeof ExclusiveCapabilitySchema>;
+
 export const ModuleManifestSchema = z.object({
   id: z.string().regex(moduleIdRe),
   name: z.string().min(1).max(120),
@@ -863,34 +885,49 @@ export const ModuleManifestSchema = z.object({
    */
   transactionalEmails: z.array(transactionalEmailManifestEntrySchema).optional(),
   /**
-   * When `true`, the module participates in the PIM connector mutual-exclusion
-   * set (feature 089). Consumed by `pim_connector` registry discovery — not by
-   * install ordering.
-   */
-  pimConnector: z.literal(true).optional(),
-  /**
-   * When `true`, the module participates in the invoice-ledger mutual-exclusion
-   * set (feature 119).
+   * The capability families this module declares itself a **member** of
+   * (feature 132, `contracts/module-capabilities.md` R1).
    *
-   * **Nothing reads it.** `invoice_ledger`'s registry answers
-   * `assertCanActivate` from `INVOICE_LEDGER_MODULES` in
-   * `packages/contracts/src/invoice-ledger.ts`, which is the compile-time table
-   * the exclusion is derived from; this flag is the same fact declared a second
-   * time, in a second place, with nobody to keep the two in agreement. It is
-   * kept because `pimConnector` above is the identical pair — declared by
-   * `pim_unopim`, read by nothing, the mutex answered from the module's own
-   * `pimConnectorRegistry` — and one of two duplicates is not the thing to
-   * remove on its own. Deciding between "the flag is the source and the table
-   * derives from it" and "the table is the source and the flag goes" is a sweep
-   * over both families, not a line here.
+   * A key is a kebab-case string, not an enum: `CAPABILITY_KEYS` spells the
+   * three this repository mints, and a capability owned by a package this
+   * repository does not contain is spelled by its owner and needs no entry
+   * anywhere here. That openness is the point — it is what lets a connector
+   * installed from npm and a per-deployment overlay module join a family on the
+   * same terms as a core module, which the three arrays below cannot (R2.1).
+   *
+   * It carries **membership only** (R1.4). The activation setting code is
+   * `activation.settingCode`, which every member already declares and which the
+   * registry cache already indexes by module; the three arrays this field
+   * replaces each carried a second field byte-identical to it in every entry
+   * that could be checked, which is D-100 written into a schema.
+   *
+   * Declaring it creates **no** lifecycle edge (R1.5): no `dependencies` entry,
+   * no migration ordering, no install ordering, and no obstacle to an operator
+   * switching the capability's owner off. The same sentence `demo` carries, and
+   * enforced the same way — no graph reads this field.
+   *
+   * Absent means "this module declares no capability", which is true of most
+   * modules and is not a finding.
    */
-  invoiceLedger: z.literal(true).optional(),
+  capabilities: z.array(z.string().regex(capabilityKeyRe)).optional(),
   /**
-   * When `true`, the module participates in the ERP connector mutual-exclusion
-   * set (feature 119). Consumed by `erp_connector` registry discovery — not by
-   * install ordering.
+   * The capabilities this module **owns** and declares mutually exclusive
+   * (feature 132, R3.1). See {@link ExclusiveCapabilitySchema}.
    */
-  erpConnector: z.literal(true).optional(),
+  exclusiveCapabilities: z.array(ExclusiveCapabilitySchema).optional(),
+  // Feature 132 — `pimConnector`, `invoiceLedger` and `erpConnector` are **gone**.
+  //
+  // Three `z.literal(true).optional()` flags, one per family, each declared by one or
+  // two modules and each read by **nothing**: every exclusion answered from a
+  // hand-written array in this package instead. The doc comment on `invoiceLedger`
+  // asked for this removal by name, and put the question it could not answer alone —
+  // *"is the flag the source, or the table?"* The answer is neither: the manifest is
+  // the source, in one field for all families (`capabilities` above), and both the
+  // flags and the tables go.
+  //
+  // This is a **breaking** manifest-schema change for any consumer that declared one,
+  // which is three modules in this tree and potentially a package outside it; the
+  // replacement is one line and is additive.
   /**
    * The operator-visible error codes this module owns (feature 090, D-182).
    *
@@ -1004,6 +1041,79 @@ function assertActivationRules(id: string, activation: unknown): void {
         `[contracts/modules] manifest "${id}" declares activation setting ` +
           `"${code}", which is outside the module's own namespace ` +
           `("${id}" or "${id}.*").`,
+      );
+    }
+  }
+}
+
+/**
+ * The four cross-field capability rules (feature 132,
+ * `contracts/module-capabilities.md` R4).
+ *
+ * They sit beside the activation rules for the reason `assertActivationRules`
+ * states about itself: they are cross-field, a non-strict object schema accepts
+ * a value carrying both arms, and the message has to name the module the author
+ * is looking at — and the key, since a manifest may declare several.
+ *
+ * **Two rules are deliberately not here**, and both for the same reason:
+ * this function sees **one** manifest and cannot see a family. "Exactly one
+ * installed module may own a key" (R3.4) and "a member of an *exclusive* key may
+ * not declare `activation.default: true`" (R3.6) are refused at derivation, in
+ * `capabilityRegistryFrom`, where both facts are in hand.
+ */
+function assertCapabilityRules(m: ModuleManifest): void {
+  const memberships = m.capabilities ?? [];
+  const owned = m.exclusiveCapabilities ?? [];
+
+  // R4.1 — a member with no activation control cannot participate in an
+  // exclusion that is resolved on the activation axis, so the declaration would
+  // be a claim nothing could ever check. Asked of members only: an owner is not
+  // resolved on that axis, its members are.
+  if (memberships.length > 0 && m.activation === undefined) {
+    throw new Error(
+      `[contracts/modules] manifest "${m.id}" declares capability membership ` +
+        `(${memberships.join(', ')}) but no \`activation\` block. A member with no ` +
+        `activation control cannot participate in an exclusion that is resolved on ` +
+        `the activation axis, so the membership could never be enforced or released.`,
+    );
+  }
+
+  // R4.2 — a duplicate says nothing the single entry does not, and a family read
+  // that counts entries rather than modules would count this member twice.
+  const seenMembership = new Set<string>();
+  for (const key of memberships) {
+    if (seenMembership.has(key)) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares capability "${key}" twice ` +
+          `in \`capabilities\`. Membership is a set; drop the duplicate.`,
+      );
+    }
+    seenMembership.add(key);
+  }
+
+  // R4.3 — two entries for one key are two refusal codes for one condition, and
+  // nothing decides which of them an operator meets.
+  const seenOwned = new Set<string>();
+  for (const entry of owned) {
+    if (seenOwned.has(entry.key)) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares capability "${entry.key}" ` +
+          `twice in \`exclusiveCapabilities\`. A key has one owner and one refusal ` +
+          `code; two entries leave nothing to decide which an operator meets.`,
+      );
+    }
+    seenOwned.add(entry.key);
+  }
+
+  // R4.4 / R3.3 — an owner that is also a member would exclude itself from its
+  // own family. Two *different* keys in the two arrays are fine and expected:
+  // keys never exclude each other (`capability-exclusivity.md` R2.5).
+  for (const key of seenOwned) {
+    if (seenMembership.has(key)) {
+      throw new Error(
+        `[contracts/modules] manifest "${m.id}" declares capability "${key}" as both ` +
+          `a membership and an exclusive capability it owns. An owner that is also a ` +
+          `member would exclude itself from its own family.`,
       );
     }
   }
@@ -1385,6 +1495,7 @@ export function defineModuleManifest(m: ModuleManifest): ModuleManifest {
     }
   }
   assertNonBindingRules(m);
+  assertCapabilityRules(m);
   assertErrorCodeRules(m);
   assertBlockRules(m);
   assertDemoRules(m);

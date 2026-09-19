@@ -64,8 +64,15 @@ export interface PimConnectorRegistryPort {
   getActiveModuleId(): Promise<string | null>;
 }
 
-/** Known PIM connector modules and their activation setting codes (feature 089). */
-export const PIM_CONNECTOR_MODULES = [
-  { id: 'pim_ergonode', activationSettingCode: 'pim_ergonode.activation' },
-  { id: 'pim_unopim', activationSettingCode: 'pim_unopim.activation' },
-] as const;
+// Feature 132 — `PIM_CONNECTOR_MODULES` is **gone**.
+//
+// It listed two of the four shipped PIM connectors, so exclusivity covered 2 of the
+// 12 ordered pairs and nothing said so; its second field, `activationSettingCode`,
+// was byte-identical to each member's own `activation.settingCode` in every entry
+// that could be checked — one fact with two homes (D-100); and a connector
+// installed from npm or shipped by a deployment's overlay could not get into it
+// without editing this file, which they do not own.
+//
+// The family is declared by its members, in their own manifests
+// (`capabilities: ['pim-connector']`), and derived by the platform on every
+// composition. `pim_connector` owns the key and mints the refusal code.

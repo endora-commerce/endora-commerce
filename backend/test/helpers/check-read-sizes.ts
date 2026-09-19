@@ -9977,7 +9977,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // container resolution — `inventory` now resolves `salesChannelMembershipPort`. A kernel
     // registration, so it adds no manifest edge and no `undeclared-dependency` with it.
     sites: 1770,
-    sources: ['manifest-index'],
+    // **Feature 132 (T031): `capability-families` joins the reconciliation.** The check
+    // gained the FR-016 assertion — a member of an exclusive capability that ships
+    // activated — over the manifests it already walked, so it now corroborates a second
+    // population: the exclusive capability keys, three of them, each judged. `sources` is
+    // compared exactly rather than by band, which is why this line moves in the same merge
+    // request as the assertion; `files` and `sites` are band-checked and their re-record is
+    // this feature's T043, on the final tree.
+    sources: ['manifest-index', 'capability-families'],
   },
   // Two derivations, deliberately, because the check has two inputs that can be
   // silently missing and they have different authors: `manifest-index` is the

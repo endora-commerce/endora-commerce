@@ -80,14 +80,9 @@ export interface InvoiceLedgerVendorFreezeRegistryPort {
   ): Promise<InvoiceLedgerVendorFreeze | null>;
 }
 
-/**
- * Known invoice-ledger vendor modules and their activation setting codes.
- * Consumed by the mutex registry.
- */
-export const INVOICE_LEDGER_MODULES = [
-  { id: 'infakt', activationSettingCode: 'infakt.activation' },
-  { id: 'wfirma', activationSettingCode: 'wfirma.activation' },
-] as const;
+// Feature 132 — `INVOICE_LEDGER_MODULES` is **gone**. The vendor family is declared
+// by its members (`capabilities: ['invoice-ledger-vendor']`) and derived by the
+// platform; `invoice_ledger` owns the key and mints the refusal code.
 
 /**
  * Container name: `invoiceLedgerRegistryPort`. Owner: `invoice_ledger`.

@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleManifest, RegistryState } from '@endora-commerce/contracts';
 import { ModuleRegistration } from '../../kernel/lifecycle/module-registration.entity.js';
 import { activationDeclarationsFrom } from '../../kernel/lifecycle/activation-resolver.js';
+import { capabilityRegistryFrom } from '../../kernel/lifecycle/capability-registry.js';
 import { installGatingGraph } from './gating-graph.js';
 import { registryCache } from '../../kernel/lifecycle/registry-cache.js';
 import {
@@ -290,6 +291,21 @@ export async function loadModulePresence(opts: {
     // shipped manifests, so there is no hand-maintained list: a module that
     // declares no control is governed by the platform axis alone.
     activationDeclarations: activationDeclarationsFrom(manifests),
+    // Feature 132 — the capability families, from the **same** manifest list and
+    // in the **same** call, which is the Redis cache-invalidation design rather
+    // than a convenience (`data-model.md` §2.2). A family owner's exclusion reads
+    // membership and activation together on every refusal, and this cache is
+    // refreshed by the `b2b:module:state-changed` channel; installed here, the
+    // two are refreshed by one event and cannot disagree. Cached anywhere else,
+    // the family would need a second invalidation path and would be stale for
+    // exactly the window in which an operator is flipping a connector.
+    //
+    // Same list, so the same three populations declare on identical terms (R2.1):
+    // a core module, this deployment's overlay modules and every installed Endora
+    // module package. That is the property the three arrays this replaces could
+    // not have — an overlay module had to be written into a core contracts file
+    // to join its family, which is Principle XV failing quietly.
+    capabilityRegistry: capabilityRegistryFrom(manifests),
   });
 }
 

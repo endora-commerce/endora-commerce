@@ -292,9 +292,13 @@ export interface BackendServerOptions {
    */
   wfirmaHttp?: WfirmaHttpPort;
   /**
-   * Feature 119 / US10 — extra invoice-ledger vendor ids for the mutex
-   * registry. Production `INVOICE_LEDGER_MODULES` lists Infakt and wFirma;
-   * mutex contract tests may still inject `ledger_fixture` here.
+   * Feature 119 / US10 — extra invoice-ledger vendor ids for the mutex registry.
+   *
+   * Feature 132 — production derives the vendor family from the members' own
+   * manifest declarations (`capabilities: ['invoice-ledger-vendor']`), so there is
+   * no array to spread any more: a test that wants the shipped family plus a
+   * sibling it does not ship reads the family off the resolved manifest index and
+   * appends. `ledger_fixture` is still the sibling to inject.
    */
   invoiceLedgerVendorModules?: readonly { id: string }[];
   /**

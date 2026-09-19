@@ -1124,6 +1124,98 @@ export interface ImportedContributionSeam {
   readonly site: ResolutionSite;
 }
 
+/**
+ * A member of an **exclusive** capability that ships activated — feature 132,
+ * R3.7 / spec FR-016.
+ *
+ * ## Why here, and why a second instrument at all
+ *
+ * `capabilityRegistryFrom` refuses this at derivation, which fails closed and reaches a
+ * connector installed from npm that no check in this repository walks. But the refusal
+ * arrives as *a deployment that will not start*, and the author who caused it is not
+ * usually the operator who meets it. This check already walks every manifest and already
+ * reasons about `activation`, so the same assertion costs it one pass and tells the author
+ * in their own merge request. Two layers, each covering what the other cannot — the
+ * argument `research.md` D6 makes for having both.
+ *
+ * It is deliberately **not** a new `check:capability-defaults` script: a new script owes
+ * the full check-estate obligations — a read-size line with an independent source, a
+ * gate-coverage classification, a spawn test — for one assertion over a population this
+ * check already holds.
+ *
+ * ## The rule is "none", not "at most one"
+ *
+ * `resolveActivation` returns `Map<string, boolean>` and carries no provenance, so nothing
+ * downstream can tell an operator's recorded choice from a manifest default. A member that
+ * ships activated therefore holds a claim nobody made, whether it is the only one or not;
+ * capping the count at one leaves the category error in place.
+ *
+ * Only a key some installed module **owns** counts. A key with no owner is not exclusive
+ * in that deployment, so there is no claim for a default to pre-empt (R3.5). A
+ * `nonDeactivatable` module declares no control and is not resolved on this axis, which is
+ * every family owner in this tree.
+ */
+export interface DefaultActivatedMember {
+  readonly moduleId: string;
+  readonly key: string;
+  readonly settingCode: string;
+  /** The module that declares the key exclusive — named so the author knows whose rule it is. */
+  readonly ownerModuleId: string;
+}
+
+/** Exported so its proof enters at the top of the analysis, from fixture manifests. */
+export function defaultActivatedMembers(
+  manifests: readonly ModuleManifest[],
+): readonly DefaultActivatedMember[] {
+  const owners = new Map<string, string>();
+  for (const manifest of manifests) {
+    for (const entry of manifest.exclusiveCapabilities ?? []) {
+      // A key two modules claim is `capabilityRegistryFrom`'s refusal, not this one's;
+      // first claimant is enough to name the rule's author in a message.
+      if (!owners.has(entry.key)) owners.set(entry.key, manifest.id);
+    }
+  }
+
+  const found: DefaultActivatedMember[] = [];
+  for (const manifest of manifests) {
+    const activation = manifest.activation;
+    if (activation === undefined || 'nonDeactivatable' in activation) continue;
+    if (activation.default !== true) continue;
+    for (const key of manifest.capabilities ?? []) {
+      const ownerModuleId = owners.get(key);
+      if (ownerModuleId === undefined) continue;
+      found.push({
+        moduleId: manifest.id,
+        key,
+        settingCode: activation.settingCode,
+        ownerModuleId,
+      });
+    }
+  }
+  return found;
+}
+
+/** How many capabilities were judged — the coverage this assertion reports. */
+export function exclusiveCapabilityCount(manifests: readonly ModuleManifest[]): number {
+  return new Set(
+    manifests.flatMap((manifest) =>
+      (manifest.exclusiveCapabilities ?? []).map((entry) => entry.key),
+    ),
+  ).size;
+}
+
+export function describeDefaultActivatedMember(member: DefaultActivatedMember): string {
+  return (
+    `  - ${member.moduleId} declares \`capabilities: ['${member.key}']\` and ` +
+    `\`activation.default: true\`\n` +
+    `      '${member.key}' is declared exclusive by ${member.ownerModuleId}, so one member ` +
+    `may be active.\n` +
+    `      remedy: set \`default: false\` on \`${member.settingCode}\` — in the ` +
+    `\`activation\` block **and** on the settings row of the same code, because\n` +
+    `      \`resolveActivation\` reads \`global_value ?? default_value\` off the row.`
+  );
+}
+
 export function importedContributionSeams(
   source: string,
   file: string,
@@ -2383,11 +2475,30 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
+  // Feature 132 (T031 / R3.7) — a member of an exclusive capability that ships
+  // activated, over the manifests this check already walks.
+  const defaultActivated = defaultActivatedMembers(manifests);
+  const exclusiveCapabilities = exclusiveCapabilityCount(manifests);
+
   // What was read, in the shared grammar (issue #244). The port resolutions are
   // the finer population: `resolutions.length === 0` was already a floor, but a
   // number that halves silently is the case the floor cannot see.
   const installed = packageCoverage(packages);
-  const coverages: ReadCoverage[] = installed === null ? [coverage] : [coverage, installed];
+  const coverages: ReadCoverage[] = [
+    coverage,
+    ...(installed === null ? [] : [installed]),
+    // The families judged by the assertion above. It is a coverage token rather than
+    // a bare count because the failure it guards against is the population going to
+    // zero: an assertion over no exclusive capability passes every tree, and this
+    // check's own history is two reaches that halved silently while it read clean
+    // (issue #113). `expected` and `covered` are equal by construction — every key
+    // discovered is judged — so the number moving is the signal.
+    {
+      source: 'capability-families',
+      expected: exclusiveCapabilities,
+      covered: exclusiveCapabilities,
+    },
+  ];
   reportReadSize({
     prefix: '[port-deps]',
     files: files.length + packages.filesRead,
@@ -2472,6 +2583,20 @@ async function main(): Promise<void> {
     for (const violation of violations) console.error(describe(violation));
   }
 
+  if (defaultActivated.length > 0) {
+    console.error(
+      `\nA module ships activated into a capability that permits one active member. An ` +
+        `exclusion resolved on the activation axis cannot tell an operator's recorded choice ` +
+        `from a manifest default — the resolver returns booleans and carries no provenance — ` +
+        `so this member holds a claim nobody made. Two of them are both active from the first ` +
+        `boot, and the exclusion guards the *transition* rather than the existing state, so ` +
+        `nothing ever refuses it and nothing reports it:`,
+    );
+    for (const member of defaultActivated) {
+      console.error(describeDefaultActivatedMember(member));
+    }
+  }
+
   if (policyDrained.length > 0) {
     console.error(
       `\nREGISTRY_POLICIES_UNSTATED entries nothing reads without a policy any more — delete ` +
@@ -2501,6 +2626,7 @@ async function main(): Promise<void> {
       aliasDrained.length === 0 &&
       nonBindingIssues.length === 0 &&
       policyDrained.length === 0 &&
+      defaultActivated.length === 0 &&
       unassigned.length === 0
       ? 0
       : 1,
