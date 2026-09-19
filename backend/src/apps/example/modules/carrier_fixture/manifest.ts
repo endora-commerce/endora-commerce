@@ -5,7 +5,7 @@ import {
   type ModuleUninstallHook,
 } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { createDeliveryMethodSeeder } from '@endora-commerce/mod-delivery-methods/backend';
+import { createDeliveryMethodSeeder } from '@endora-commerce/mod-delivery-methods/install';
 import type { DeliveryMethodSeedDefaults } from '@endora-commerce/mod-delivery-methods/ports';
 import { CARRIER_FIXTURE_ADAPTER_KEYS } from './backend.js';
 

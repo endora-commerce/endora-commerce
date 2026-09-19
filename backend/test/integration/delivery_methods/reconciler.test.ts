@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
-import { createDeliveryMethodSeeder } from '@endora-commerce/mod-delivery-methods/backend';
+import { createDeliveryMethodSeeder } from '@endora-commerce/mod-delivery-methods/install';
 import { DeliveryMethod } from '../../helpers/package-entities.js';
 
 /**

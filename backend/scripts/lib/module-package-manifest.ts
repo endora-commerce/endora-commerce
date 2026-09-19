@@ -223,10 +223,35 @@ export interface PackageLayer {
  * skipped.
  */
 
+/**
+ * The layer a module publishes its **install surface** on (feature 134, FR-064).
+ *
+ * Named here rather than beside `PUBLISHED_COMPONENT_LAYER_DIRECTORY`, whose home
+ * is `ui-layer.ts`, because this layer is not a UI concern and nothing outside
+ * this file's two readers asks about it: the directory, the subpath and the
+ * admission are all statements about the package layout, which is this file's
+ * subject.
+ */
+const INSTALL_SURFACE_LAYER_DIRECTORY = 'install';
+
 const LAYER_SUBPATHS: ReadonlyArray<readonly [directory: string, subpath: string]> = [
   ['backend', './backend'],
   ['migrations', './migrations'],
   ['ports', './ports'],
+  // FR-064's install surface, **adjacent to `./ports` on purpose**: the two are
+  // the halves of one seam — the type a consumer compiles against and the factory
+  // it constructs — and the emitted order is where a reader meets them
+  // (`module-package-layout.md` R11; feature 134,
+  // `specs/134-paid-module-extraction/contracts/foreign-write-repair.md` §2.1).
+  //
+  // A layer of its own rather than a line on `./backend`, and R7 is the reason
+  // rather than R4: *"every reach into `<pkg>/backend` really is a wiring
+  // reach"*, which a seed factory there makes false for every module that adopts
+  // the seam — one subpath meaning either "wiring another module", a Principle I
+  // violation, or "seeding my own row through the sanctioned surface", with
+  // opposite remedies. See {@link FOREIGN_CONSUMPTION_SUBPATHS} for what it
+  // takes to be the third member.
+  [INSTALL_SURFACE_LAYER_DIRECTORY, `./${INSTALL_SURFACE_LAYER_DIRECTORY}`],
   ['admin', './admin'],
   // D-191's published-component exit (feature 091, batch 10; Z9 of
   // `contracts/admin-component-contribution.md`). A **sibling** of `admin/`
@@ -255,6 +280,86 @@ const LAYER_SUBPATHS: ReadonlyArray<readonly [directory: string, subpath: string
   // change this layer does not need in order to retire the relative reaches it
   // exists to retire.
   ['test-support', './test-support'],
+];
+
+/**
+ * The subpaths whose **declared meaning is foreign consumption**, and therefore
+ * the only ones R4 admits a *value* reach at (D-191; **D-251**, owner ruling of
+ * 2026-09-19, MR !1728; feature 134, FR-064; `module-package-layout.md` R11).
+ *
+ * One closed set with a stated criterion, read by **both** places the question is
+ * asked — {@link firstNonContractReach}'s exit and the peer clause in
+ * {@link renderManifest} — because two `if`s over one rule are two answers waiting
+ * to disagree, and because a second membership test is how a criterion becomes a
+ * drift. `backend/test/unit/packages/module-package-install-surface.test.ts` pins
+ * the membership to exactly these two names, so a third arrives with a merge
+ * request that has to argue the four conditions below rather than cite a
+ * precedent.
+ *
+ * **D-251 is a criterion and not a name-by-name admission, and that decides who
+ * the rule is for.** Any module may satisfy it — including a free third-party
+ * module nobody here has seen, **without a merge request into this repository**.
+ * The reason is the product's rather than the estate's: admitting subpaths by name
+ * would mean a stranger's module cannot publish an install surface at all until we
+ * merge something, which contradicts the open-source direction outright; and it
+ * would make `./install` a **precedent** rather than a rule, after which the third
+ * member is admitted by citing the second instead of by meeting the conditions.
+ * So the four conditions below are written to be read and complied with by an
+ * author this repository will never review.
+ *
+ * **The cost was taken knowingly and is stated rather than implied**: an author
+ * who misreads the conditions can publish a wider surface than they intended, and
+ * only review catches it. A rule whose cost is unstated reads as having none.
+ *
+ * **Two ratchets are armed against a member added without the paperwork**, so the
+ * criterion is not self-policing prose: {@link layerInventoryOf} refuses a
+ * `src/<layer>/` directory that {@link LAYER_SUBPATHS} does not map — and its
+ * message demands the `module-package-layout.md` §2 entry in the same merge
+ * request — and `package-identity-files.ts` refuses a **published** subpath with no
+ * `MODULE_SUBPATH_MEANINGS` entry, naming `LAYER_SUBPATHS` as the other half. A
+ * layer nobody documented therefore cannot reach a published `exports` map.
+ *
+ * It cannot be derived from the artefact the way D-171's contract-surface
+ * designation is. That one asks *"does this subpath emit a runtime binding"* and
+ * gets an answer true independently of anybody's intent; a published component and
+ * a seed factory both emit runtime bindings, exactly as `./backend` does, so the
+ * artefact cannot tell the three apart. What distinguishes them is the **subpath
+ * the owner published it on**, which is a declaration — this file's own
+ * {@link LAYER_SUBPATHS} — and that is the whole of what D-191 settled and what
+ * R11 extends.
+ *
+ * **The four conditions a member must satisfy.** They are conditions, not a
+ * description of the two members, and the third candidate must argue them:
+ *
+ *  1. **The subpath's declared meaning is foreign consumption.** Never
+ *     `./backend`, `./migrations` or the root: each of those means "this module's
+ *     own composition", and a value reach into one is the coupling R4 exists to
+ *     refuse. `module-package-layout.md` §2's enumeration is where the meaning is
+ *     declared, and `MODULE_SUBPATH_MEANINGS` is where it is read back.
+ *  2. **The consumer has no container, structurally rather than
+ *     inconveniently.** `./admin-ui`'s consumer is a React tree in another
+ *     module's screen; `./install`'s is an `installHook`, whose
+ *     `ModuleLifecycleContext` is `{ em, redis, log, module }` and whose
+ *     orchestrator construction sites pass no cradle, because `module:install`
+ *     composes nothing (D-46). Wherever a container exists,
+ *     `module-composition.md` item 3 still governs and this set is not the answer.
+ *  3. **The reach keeps its `cross-module-imports` ledger key.** This admission is
+ *     about the npm declaration and nothing else: `check:module-boundary` goes on
+ *     counting the reach — its D-171 derivation is not widened, and
+ *     `module-composition.md` item 9a says so for the install half in as many
+ *     words.
+ *  4. **The npm declaration is truthful.** `peerRequirementOf` answers from the
+ *     layer that wrote the reach and needs no exception here: a UI-layer reach is
+ *     an **optional** peer because a consumer can decline the whole admin layer,
+ *     while `src/manifest.ts` is the `'root'` layer and answers **required** —
+ *     which is the truth for an install surface, because
+ *     `manifest-index.generated.ts` imports every manifest statically and eagerly
+ *     in every process, so the *import* is evaluated at every boot even though the
+ *     *call* only happens at install.
+ */
+export const FOREIGN_CONSUMPTION_SUBPATHS: readonly string[] = [
+  PUBLISHED_COMPONENT_LAYER_DIRECTORY,
+  INSTALL_SURFACE_LAYER_DIRECTORY,
 ];
 
 /** What a package ships, as the directory says. */
@@ -1635,25 +1740,26 @@ export function firstNonContractReach(
   for (const reach of reaches) {
     const where = `${reach.file}:${reach.line}`;
     const written = `'${reach.subpath === '' ? name : `${name}/${reach.subpath}`}'`;
-    // D-191's published-component exit, and the **only** value reach into
-    // another module package this generator admits (feature 091, batch 10; R9).
+    // The value reaches this generator admits: a subpath whose **declared
+    // meaning is foreign consumption** (D-191 for `./admin-ui`, feature 091
+    // batch 10, R9; FR-064 for `./install`, feature 134, R11). The set, the
+    // criterion its third member would have to argue, and why the artefact
+    // cannot answer this question are all on
+    // {@link FOREIGN_CONSUMPTION_SUBPATHS}; this is one of its two readers and
+    // holds no second copy of the rule.
     //
-    // It cannot be derived the way D-171's exemption is. That one asks the
-    // artefact *"does this subpath emit a runtime binding"* and gets an answer
-    // that is true independently of anybody's intent; a published component
-    // emits runtime bindings by construction, exactly as `./backend` does, so
-    // the artefact cannot tell the two apart. What distinguishes them is which
-    // **subpath** the owner published it on, which is a declaration — this
-    // file's own `LAYER_SUBPATHS`, through the one name in `ui-layer.ts` — and
-    // the whole of what D-191 settled.
-    //
-    // What it therefore does **not** waive, stated so the next reader does not
-    // have to infer it: the reach stays a counted cross-module reach in
-    // `check:module-boundary` (Z11 — do not widen that derivation), the
-    // consumer gates the owner's presence at the render (Z12), and neither
-    // module gains a manifest `dependencies` entry, because a component is not
-    // a port and an npm edge is still not a lifecycle edge.
-    if (reach.subpath === PUBLISHED_COMPONENT_LAYER_DIRECTORY) continue;
+    // What it does **not** waive, stated so the next reader does not have to
+    // infer it: the reach stays a counted cross-module reach in
+    // `check:module-boundary` (Z11 — do not widen that derivation), and the
+    // consumer's obligation at the other end stands — a component gates the
+    // owner's presence at the render (Z12), an `installHook` is called by an
+    // orchestrator that has already resolved the dependency closure. The two
+    // differ on the manifest: a component is not a port and its modules gain no
+    // `dependencies` entry, while an install surface's consumer **already
+    // declares one** — `inpost` and `dhl_parcel` both name `delivery_methods` —
+    // which is why the npm edge here coincides with a lifecycle edge instead of
+    // substituting for one.
+    if (FOREIGN_CONSUMPTION_SUBPATHS.includes(reach.subpath)) continue;
     if (reach.kind !== 'type-only-import') {
       return (
         `${where} writes ${written} as a ${reach.kind}, which survives into the emitted ` +
@@ -1884,10 +1990,23 @@ export function renderManifest(input: RenderInput): string {
       // Not an *optional* peer, for D-181's reason above — it documents the
       // defect instead of removing it — and still not `dependencies`, which is
       // R4's own word and the field this generator preserves for an author.
+      //
+      // **And so is an install surface, for the same reason and one more**
+      // (FR-064; feature 134, R11). It too survives into the emitted JavaScript
+      // by construction — that is what a factory *is* — and the level is decided
+      // by `peerRequirementOf` from the layer that wrote the reach, with no
+      // exception needed here: a UI reach is written from a UI layer and is an
+      // **optional** peer, because a consumer can decline the whole admin layer;
+      // an install surface is reached from `src/manifest.ts`, the `'root'` layer,
+      // and is **required**, because `manifest-index.generated.ts` imports every
+      // manifest statically and eagerly in the server, the CLI and every worker.
+      // The *call* is at install; the *import* is at every boot. Required is
+      // therefore the minimum truthful declaration rather than an
+      // over-declaration.
       if (
         survivesIntoDeclarations(input, name) ||
-        (input.imported.get(name) ?? []).some(
-          (reach) => reach.subpath === PUBLISHED_COMPONENT_LAYER_DIRECTORY,
+        (input.imported.get(name) ?? []).some((reach) =>
+          FOREIGN_CONSUMPTION_SUBPATHS.includes(reach.subpath),
         )
       ) {
         setPeer('workspace:*');

@@ -2122,6 +2122,9 @@ importers:
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
+      '@endora-commerce/mod-delivery-methods':
+        specifier: workspace:*
+        version: link:../delivery_methods
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform
@@ -2440,6 +2443,9 @@ importers:
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
+      '@endora-commerce/mod-delivery-methods':
+        specifier: workspace:*
+        version: link:../delivery_methods
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform

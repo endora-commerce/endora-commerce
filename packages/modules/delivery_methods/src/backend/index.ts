@@ -21,21 +21,6 @@ import { makeShipmentUsageCounter } from './services/shipment-usage-guard.js';
 import { DeliveryMethod } from './entities/delivery-method.entity.js';
 
 /**
- * This module's **install surface**, and the one runtime binding on this barrel
- * that a *foreign* module is meant to import (feature 134, FR-064;
- * `specs/134-paid-module-extraction/contracts/foreign-write-repair.md` §2.1).
- *
- * A module shipping its own carrier seeds its `delivery_methods` row from its
- * `installHook` through this factory — `inpost`, `dhl_parcel` and the example
- * deployment's `carrier_fixture` all do. The interface it returns is published
- * type-only on this package's `./ports`; the factory is here because a hook has
- * no container to resolve anything from, and the alternative — raw SQL against
- * this module's table from another module's migration — is the three ledger keys
- * FR-064 exists to retire.
- */
-export { createDeliveryMethodSeeder } from './services/delivery-method-reconciler.js';
-
-/**
  * `delivery_methods` — the payment twin's mirror image (feature 072, wave 1,
  * T095).
  *

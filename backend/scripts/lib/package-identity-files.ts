@@ -120,6 +120,10 @@ const MODULE_SUBPATH_MEANINGS: ReadonlyMap<string, string> = new Map([
   ],
   ['./migrations', 'the module’s own schema migrations, in the order the platform runs them'],
   ['./ports', 'type-only — the port interfaces other modules resolve this one through'],
+  [
+    './install',
+    'the install surface: factories another module’s `installHook` constructs over its own `EntityManager`',
+  ],
   ['./admin', 'the Admin UI contribution: the screens, navigation and palette actions it adds'],
   ['./admin-ui', 'React components this module publishes for another module’s admin screens'],
   ['./tailwind.css', 'the Tailwind source declaration for the admin code above'],

@@ -34,6 +34,10 @@
       "types": "./dist/ports/index.d.ts",
       "default": "./dist/ports/index.js"
     },
+    "./install": {
+      "types": "./dist/install/index.d.ts",
+      "default": "./dist/install/index.js"
+    },
     "./admin": {
       "types": "./dist/admin/index.d.ts",
       "default": "./dist/admin/index.js"

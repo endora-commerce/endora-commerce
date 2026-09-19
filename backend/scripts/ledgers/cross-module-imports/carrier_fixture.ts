@@ -16,10 +16,10 @@
 import type { LedgerEntry } from '../../check-module-boundary.js';
 
 export const entries: Readonly<Record<string, LedgerEntry>> = {
-  'apps/example/modules/carrier_fixture/manifest.ts:delivery_methods/backend':
+  'apps/example/modules/carrier_fixture/manifest.ts:delivery_methods/install':
     'Import reach: the fixture\'s `installHook` and `uninstallHook` construct ' +
     '`delivery_methods`\' published install surface — `createDeliveryMethodSeeder()` on ' +
-    '`@endora-commerce/mod-delivery-methods/backend`, typed by `DeliveryMethodSeedApi` on that ' +
+    '`@endora-commerce/mod-delivery-methods/install`, typed by `DeliveryMethodSeedApi` on that ' +
     'package\'s `./ports` — to seed one delivery method for its courier adapter, bind it to the ' +
     'default channel **on create only**, and remove it on a hard uninstall (W7\'s last step; ' +
     '`specs/134-paid-module-extraction/contracts/foreign-write-repair.md` §2.1).\n\n' +
