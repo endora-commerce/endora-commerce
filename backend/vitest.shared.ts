@@ -135,6 +135,11 @@ export function backendTestOptions(): NonNullable<UserConfig['test']> {
       // Issue #199 — the fork reports how close it is to its own heap limit
       // before it dies of it. See test/heap-headroom.ts.
       './test/heap-headroom-setup.ts',
+      // `global-setup.ts` pins the generable secrets once, in the parent process,
+      // and 36 files in this suite then overwrite one unconditionally while 38
+      // delete it. Re-asserted per test file here; the measurements and the
+      // reason this is not 74 edits are in test/pinned-secrets-setup.ts.
+      './test/pinned-secrets-setup.ts',
     ],
     // Forces DATABASE_URL → b2b_test, auto-creates the DB on first run, and
     // applies migrations — unless the run declared BACKEND_TEST_SERVICES=none,

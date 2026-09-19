@@ -65,7 +65,7 @@ nothing. See `backend/test/README.md` § *One database per invocation*.
 comment on that statement in `backend/test/helpers/test-server.ts`: a leaked setting can make a
 later file *skip* work and pass.
 
-## Proving a cross-file leak: the ordered pair, and the two ways it lies to you
+## Proving a cross-file leak: the ordered pair, and the three ways it lies to you
 
 **The instrument.** A file that fails only because an earlier file left state behind passes when
 run alone — that is the definition, and it is why a targeted run is no evidence either way. What
@@ -101,9 +101,31 @@ read back out of the log rather than assumed.
 
 **The second way: the leaker may not leak.** The first attempt at the `process.env` pair used
 `contract/settings/secret-redaction.contract.test.ts` as the leaker and passed — because that file
-is the one of 151 that `delete`s the variable in its `afterAll`. A green pair whose leaker cleans
-up says nothing about the victim. Confirm the leaker actually leaves the state behind before
-reading anything into the result.
+captures the variable, assigns its own value and then `delete`s it in `afterAll`, leaving nothing
+behind for the victim to trip on. A green pair whose leaker cleans up says nothing about the
+victim. Confirm the leaker actually leaves the state behind before reading anything into the
+result.
+
+**The third way, and the one that survived a merge: the leaker may not represent the population
+the repair claims to cover.** So — **choose the leaker from the sub-population the repair claims to
+cover, and say in the report which sub-population it is.** A pair is evidence about one file's
+behaviour; a repair is a claim about a population; the pair is only evidence for the repair if the
+leaker is drawn from the part of that population the repair has to survive.
+
+The instance. Pinning `SETTINGS_SECRET_ENCRYPTION_KEY` was verified with
+`contract/infakt/webhook.test.ts` as leaker and went green — and `master` reddened anyway.
+`webhook.test.ts` is one of the **112** files that write the variable with the preserving idiom
+`process.env[K] = process.env[K] ?? randomBytes(32)…`, which is a self-assignment once the key is
+pinned; the repair's claim was about all **151** writers, and it is the **36** that assign
+unconditionally — plus the **38** that `delete` in `afterAll` — which break it. The pair was drawn
+from the 112 the repair could not fail on. Re-verified with
+`integration/prompt_actions/bulk-category-flow.test.ts`, which is one of the 36 and also deletes.
+
+**A count is not a population.** The figure that mattered was never 151 — it was the split, and
+the split says **74 of the 151 break a pin**. This is the eighth figure in this programme that was
+counted but never decomposed, and the first where the decomposition rather than the total was the
+whole answer. When a repair's argument turns on *how* a population writes rather than on *how many*
+write, decompose before believing the pair.
 
 **Recorded because the wrong answer is the plausible one.** The protocol above replaced a simpler
 one that was proposed, accepted and then refuted by measurement: *"two files in one invocation
