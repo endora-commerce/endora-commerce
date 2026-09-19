@@ -1,5 +1,88 @@
 # @endora-commerce/cli
 
+## 0.12.0
+
+### Minor Changes
+
+- 56ac8af: `endora generate` renders a host's test entity index, and `./lib` publishes the renderer
+
+  A server-bound test needs the entity class **the ORM registered**, and a module package publishes
+  one `entities` array and no entity class by name (D-168). _Which_ modules a host installed is the
+  one fact `@endora-commerce/test-kit` may not know (feature 109 R2.2, FR-001), so the index is a
+  generated per-host artefact: `backend/test/entities.generated.ts`, every installed module keyed by
+  its own `endora.id`, with the `entities` array off its published `./backend`.
+
+  `./lib/entity-index-artefact.js` is the renderer, one derivation over two populations
+  (`instance-repository.md` R3.5) exactly as `./lib/admin-artefacts.js` is: `endora generate` runs it
+  over an instance's installed packages and `composer:generate` runs it over this repository's
+  workspace members. A module package publishing no `./backend` is refused rather than skipped — a
+  skip reports an installed module as one nobody installed, which sends its operator to look at
+  their install rather than at the artefact.
+
+  It is the fifth artefact family and the first that belongs to **no member**, which narrows two
+  things rather than weakening them. The `generate` script and the `@endora-commerce/cli`
+  devDependency are now written for a headless instance that installed a module, because such an
+  instance does have something to render. And `endora generate`'s exit-1 refusal — _a run that wrote
+  nothing and said it succeeded_ — now fires on a workspace with no member, no deployment **and no
+  installed module**, and its message names the third condition.
+
+- ca34f24: `endora check` gains package-scope hosts for two rules that until now had none, and publishes
+  their analyses on two new `./rules/*` subpaths.
+  - **`check-entity-tenant-classification`** — every persisted entity class carries exactly one
+    tenant-scope decorator (`@OrgScoped`, `@CustomerScoped`, `@GlobalEntity`,
+    `@TransitivelyScoped`, `@RuleScoped`). It reads the **emitted** artefact, because that is what
+    the platform loads: `@Entity(` does not survive compilation, and the class-level
+    `__decorate([Entity({…}), OrgScoped()], C)` call does. A package that was never built, or whose
+    source is newer than its `dist`, is reported `unreadable` with the build command — never
+    answered from source. `@endora-commerce/cli/rules/entity-tenant-classification.js` exports
+    `analyzeSource`, `analyzeEmitted`, `analyzeEmittedFiles`, `classifyFindings`,
+    `declaredEntityClasses`, `packageEntityFindings`, `walk`, `walkEmitted` and `remedyFor`.
+  - **`check:entry-presence`** — a timer, a process-lifecycle handler or a `ctx.onBoot` hook that
+    nothing can catch a throw from must decide the module's presence before it works. The rule is
+    unconditional; a `nonDeactivatable` manifest exempts the boot hooks and not the timers.
+    `@endora-commerce/cli/rules/entry-presence.js` exports `checkEntryPresence`,
+    `findUngatedEntries`, `collectPresenceFiles`, `keyOf`, `remedyFor`, `bootHookDoesWork`,
+    `bootHookContributes`, `EXPLANATION` and the finding types.
+
+  `checkEntryPresence(input, ledger)`'s second argument is **required**: a host states which
+  exemptions it is judging against rather than inheriting whichever ledger the library carried.
+  - **`check:port-catches`** — a `catch` around a gated-port call may not swallow
+    `ModuleDisabledError`. `@endora-commerce/cli/rules/port-catches.js` exports
+    `checkPortCatches`, `findPortCatches`, `collectPortCatchFiles`, `keyOf`,
+    `resolvedPortNames`, `lockedOwners` and the site types.
+    `checkPortCatches(input, ledger)`'s second argument is now **required**, and
+    `PortCatchInput` gains `peerOwners` — the gated port names the subject's peers
+    provide. Without it the analysis admits nothing a _consuming_ package wrote:
+    measured over this repository, 31 of the 41 packages with sites saw every one
+    of them disappear when analysed alone.
+
+  `@endora-commerce/cli/checks` additionally exports `readPeerOwners`,
+  `NO_PEER_OWNERS` and the `PeerOwners` / `UnreadablePeer` types — what a package's
+  installed and workspace peers own, read synchronously out of their emitted
+  artefacts. It is the input Phase 3's owner-map rules share.
+
+### Patch Changes
+
+- 0515a1b: A module package may publish its own test support, on a new `./test-support` subpath
+
+  Eleven vendor test doubles — the scripted Ergonode, UnoPim, Comarch XL, Infakt and wFirma
+  clients, the three scripted media fetchers, the two webhook signers and the XL installation
+  fixture — moved out of `backend/test/helpers/` into the packages whose protocols they encode.
+  Each is now published at `<package>/test-support`, which is the first consumer-visible change:
+  a specifier that was a relative path into an application's test tree is a bare one.
+
+  The tables a module's tests need emptied travel the same way. `pim_pimcore`, `pim_ergonode` and
+  `ksef` declare their own `volatileTables`, and `@endora-commerce/test-kit/support` gains
+  `collectVolatileTables` to merge them — refusing two modules that claim one table, and any name
+  that is not an unquoted identifier, because the collected set is interpolated into a
+  `truncate … cascade`.
+
+  `@endora-commerce/cli`'s command-coverage rule prunes the new layer from its walk. A fixture
+  writer is not a service write, for the same reason a migration is not.
+
+- Updated dependencies [b413e2d]
+  - @endora-commerce/contracts@0.13.0
+
 ## 0.11.0
 
 ### Minor Changes

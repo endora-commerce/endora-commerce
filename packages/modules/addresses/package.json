@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-addresses",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "type": "module",
   "sideEffects": false,
   "description": "Reusable address entities used by organizations, customers, and order fulfilment.",

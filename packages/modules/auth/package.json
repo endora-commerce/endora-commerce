@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-auth",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "type": "module",
   "sideEffects": false,
   "description": "Authentication primitives — session cookies, bearer-token resolution, and request actor binding.",
