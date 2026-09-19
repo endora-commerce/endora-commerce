@@ -9,6 +9,27 @@ import {
 } from '@endora-commerce/platform/lifecycle';
 import { AuditLogService, ModuleRegistration } from '@endora-commerce/platform/composition';
 import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
+import {
+  CARRIER_FIXTURE_DELIVERY_METHOD,
+  installHook as carrierFixtureInstallHook,
+  manifest as carrierFixtureManifest,
+  uninstallHook as carrierFixtureUninstallHook,
+} from '../../../src/apps/example/modules/carrier_fixture/manifest.js';
+
+/**
+ * One entry of the registry the orchestrator installs from, in the shape both
+ * sources produce — `manifest-index.generated.ts` for a module package, and the
+ * overlay loader for a module under `src/apps/<deployment>/modules/`. The fixture
+ * is the second kind, and is handed in rather than discovered because this file
+ * drives the orchestrator directly.
+ */
+interface DiscoveredLike {
+  readonly id: string;
+  readonly manifest: (typeof DISCOVERED_MANIFESTS)[number]['manifest'];
+  readonly manifestPath: string;
+  readonly installHook?: (typeof DISCOVERED_MANIFESTS)[number]['installHook'];
+  readonly uninstallHook?: (typeof DISCOVERED_MANIFESTS)[number]['uninstallHook'];
+}
 
 /**
  * SC-009 / FR-064 — a carrier's delivery-method seed, moved out of its migration
@@ -163,14 +184,23 @@ describe('Carrier delivery-method seeds — install hook, fresh vs upgraded (int
    * eighty-odd modules for a two-row assertion. The entry under test carries its
    * package's own `installHook`, which is the thing being exercised.
    */
-  async function install(moduleId: string): Promise<void> {
+  async function install(
+    moduleId: string,
+    extra: ReadonlyArray<DiscoveredLike> = [],
+  ): Promise<void> {
     const em = db.em();
-    await em.nativeDelete(ModuleRegistration, {});
+    const population = [...DISCOVERED_MANIFESTS, ...extra];
+    // Scoped to the ids this test writes rather than `{}`: a wipe of every row in
+    // a shared table is what `check:shared-table-wipes` counts, and the rows this
+    // file is entitled to remove are exactly the ones it is about to write.
+    await em.nativeDelete(ModuleRegistration, {
+      moduleId: { $in: population.map((entry) => entry.id) },
+    });
     // `nativeDelete` bypasses the identity map, so a second `install()` in one
     // test would otherwise find the first run's registration entity still
     // managed and answer `already-installed` about a row that is gone.
     em.clear();
-    for (const entry of DISCOVERED_MANIFESTS) {
+    for (const entry of population) {
       if (entry.id === moduleId) continue;
       em.create(ModuleRegistration, {
         moduleId: entry.id,
@@ -182,10 +212,10 @@ describe('Carrier delivery-method seeds — install hook, fresh vs upgraded (int
     }
     await em.flush();
 
-    const manifests = DISCOVERED_MANIFESTS.map((entry) => entry.manifest);
+    const manifests = population.map((entry) => entry.manifest);
     const registry: LoadedManifestRegistry = {
       modules: new Map(
-        DISCOVERED_MANIFESTS.map((entry) => [
+        population.map((entry) => [
           entry.id,
           {
             manifest: entry.manifest,
@@ -309,6 +339,58 @@ describe('Carrier delivery-method seeds — install hook, fresh vs upgraded (int
     const after = await snapshot(DHL_PARCEL_CODES);
     expect(after.methods).toHaveLength(2);
     expect(after.memberships).toEqual([]);
+  }, 120_000);
+
+  /**
+   * W7's last step, and the reason it is not optional: once both carriers leave,
+   * `DeliveryMethodSeedApi` has **zero consumers in this repository** — a
+   * published surface whose breaking change would type-check green here and red
+   * somewhere else, days later (`extraction-procedure.md` refusal 6, on the
+   * consumer side). The example deployment's fixture is the standing consumer, so
+   * it is installed here through the same orchestrator, with its overlay entry
+   * handed in rather than discovered.
+   */
+  it('carrier_fixture: the standing consumer seeds one inactive method and binds it once', async () => {
+    const fixtureEntry: DiscoveredLike = {
+      id: carrierFixtureManifest.id,
+      manifest: carrierFixtureManifest,
+      manifestPath: '<overlay:example/carrier_fixture>',
+      installHook: carrierFixtureInstallHook,
+      uninstallHook: carrierFixtureUninstallHook,
+    };
+    const code = CARRIER_FIXTURE_DELIVERY_METHOD.code;
+
+    await clearMethods([code]);
+    await install('carrier_fixture', [fixtureEntry]);
+
+    const seeded = await snapshot([code]);
+    expect(seeded.methods).toHaveLength(1);
+    expect(seeded.methods[0]?.status).toBe('inactive');
+    expect(seeded.methods[0]?.adapter).toBe(code);
+    expect(seeded.memberships.map((r) => r.channel_code)).toHaveLength(1);
+
+    // An operator unbinds it; a re-install does not put it back (issue #96).
+    await db
+      .em()
+      .execute(
+        `delete from "sales_channel_delivery_methods" where "delivery_method_id" in (
+           select "id" from "delivery_methods" where "code" = ?)`,
+        [code],
+      );
+    await install('carrier_fixture', [fixtureEntry]);
+    expect((await snapshot([code])).memberships).toEqual([]);
+
+    // The hard-uninstall half, called directly: the orchestrator's uninstall also
+    // reverts migrations and removes settings, and neither is this seam's subject.
+    const log = { info: () => {}, warn: () => {}, error: () => {} };
+    await carrierFixtureUninstallHook?.({
+      em: db.em(),
+      redis: undefined,
+      log,
+      module: { id: 'carrier_fixture', version: carrierFixtureManifest.version },
+      hard: true,
+    });
+    expect((await snapshot([code])).methods).toEqual([]);
   }, 120_000);
 
   it('the hooks are idempotent: a second install leaves an admin edit alone', async () => {
