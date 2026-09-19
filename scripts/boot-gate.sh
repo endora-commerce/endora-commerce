@@ -35,7 +35,11 @@
 #     arithmetic is what catches silence 1, because `installed > 0` alone is
 #     satisfied by the six modules that are packages and carry their bundles
 #     inside `node_modules`;
-#   * every overlay module the deployment declares is composed and present.
+#   * every overlay module the deployment declares is composed. Composed and
+#     not present is *not* asserted (D-165.6): that is the operator axis of
+#     Principle XVII working, and a presence branch could never catch the
+#     silence it claimed to guard, which fails open through
+#     `operatorActivated`'s `return declaration?.default ?? true`.
 #
 # The expected overlay ids are derived from the deployment's own `modules/`
 # directory and the module count from the running platform's own enumeration;

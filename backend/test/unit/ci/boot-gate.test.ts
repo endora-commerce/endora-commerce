@@ -108,17 +108,6 @@ describe('the boot gate reads the three observations a real run collects', () =>
     expect(judge(`boot_gate_module_ids "${path}"`)).toEqual(['catalog', 'ksef', 'example_overlay']);
   });
 
-  it('separates composed from present, because a switched-off module is not a vanished one', () => {
-    const path = fixture(
-      'presence.json',
-      presenceBody([
-        ['catalog', true],
-        ['ksef', false],
-      ]),
-    );
-    expect(judge(`boot_gate_present_module_ids "${path}"`)).toEqual(['catalog']);
-  });
-
   it('reads the reconcile line through the log colouring', () => {
     const path = fixture('boot.log', bootLog(45, 22, 0));
     const line = judge(`boot_gate_reconcile_line "${path}"`).join('');
@@ -195,11 +184,18 @@ describe('overlays — D-165.3 second silence', () => {
     expect(findings[0]).toContain('67');
   });
 
-  it('distinguishes a vanished overlay from one an operator switched off', () => {
+  it('an overlay an operator switched off is not a finding — this gate asserts composition, not activation (D-165.6)', () => {
+    // The fixture is the legitimate operator state the gate used to report: the
+    // overlay is composed and its activation setting is off. `erp_incumbent_fixture`
+    // is exactly that on master, and forced to be — it holds an exclusive
+    // capability key, which `capability-registry.ts` refuses to see with
+    // `activation.default === true`. Asserting presence here also guarded nothing
+    // in the direction it claimed: `operatorActivated` ends
+    // `return declaration?.default ?? true`, so an image that lost its activation
+    // declarations reads `activated: true` for every module and the silence fails
+    // open.
     const path = fixture('presence.json', presenceBody([...SIXTY_SEVEN, ['example_overlay', false]]));
-    expect(kinds(judge(`boot_gate_overlay_findings "${path}" example_overlay`))).toEqual([
-      'overlay-not-present',
-    ]);
+    expect(judge(`boot_gate_overlay_findings "${path}" example_overlay`)).toEqual([]);
   });
 
   it('answers for every declared module, not the first one it finds', () => {
