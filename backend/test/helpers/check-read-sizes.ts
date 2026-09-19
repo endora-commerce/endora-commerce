@@ -11087,7 +11087,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // notice's `page.tsx` and its test. `sites` is unmoved and that is the
     // point of this page: it is a Server Component that fetches nothing, so it
     // classifies no `useEffect` and could not be a candidate if it tried.
-    files: 334,
+    // **`specs/134-paid-module-extraction/` T031: files 334 -> 331, sites 90 -> 83.**
+    // Three `.tsx` leave the walk with the carrier pickers — `InpostLockerPicker.tsx`
+    // and the two shipping renderers — and `sites` falls by the seven `useEffect`
+    // callbacks the locker picker classified, which is why this entry moves in both
+    // dimensions where the deletions of the same batch's two `.ts` files move it in
+    // neither. **Attributed rather than reasoned about**, and this is the one
+    // dimension of that worth stating: `origin/master` at `3d8ff362c` is drifted on
+    // 35 of the 46 recorded entries, so a value read off the tree cannot be assumed
+    // to be this branch's. This check was measured on a **pristine worktree** at both
+    // commits — 334/90 at `3d8ff362c`, agreeing with the recorded value, and 331/83
+    // at this branch's tip — so the figures below carry no part of that 35 and
+    // absorb no earlier merge. The entries this branch moved jointly with `master`
+    // are left for their owners.
+    files: 331,
     // The `useEffect` callbacks classified inside those client components, and
     // this is the number that matters. #237's shape for this check is a syntax
     // walk that stops recognising an effect while the file count stands still:
@@ -11098,7 +11111,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // as features 105 and 108 landed; five `.tsx` files were added over the same
     // range. `files` did not move, which is the #235/#237 pair this entry records:
     // the site count is the one that carries the signal here.
-    sites: 90,
+    // **T031: 90 -> 83**, measured with `files` above and attributed the same way.
+    // Six of the seven are the locker picker's `useEffect` callbacks and the
+    // seventh is the DHL pickup renderer's — worth splitting rather than
+    // attributing the whole fall to the one file the ledger happens to name,
+    // which is the shape that makes a re-record read as explained when it is
+    // not. The ledger's three deleted entries are keyed on that picker's
+    // *state names* and are a different count from these seven; they go in this
+    // same merge request because an entry naming a file that is gone is a
+    // `stale-ledger-entry`.
+    sites: 83,
     // `storefront-deps` is `storefront/package.json`'s own dependency list —
     // the `@endora-commerce/*` workspace members declaring `react` — against
     // how many of them contributed a file to the walk. It is #215's predicate

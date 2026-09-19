@@ -107,7 +107,8 @@ export interface PlaceOrderPayload {
   };
   /**
    * Feature 068 — adapter-specific shipping payload persisted on the order.
-   * InPost locker: `{ targetPoint: string }` from the Geowidget selection.
+   * Collected from the checkout form's `shippingAdapterData.<key>` fields; what
+   * the keys mean is the delivery adapter's business, not this client's.
    */
   shippingAdapterData?: Record<string, unknown>;
 }
