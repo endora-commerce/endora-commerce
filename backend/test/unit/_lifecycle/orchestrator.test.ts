@@ -36,6 +36,14 @@ interface FakeRow {
   lastStateChangeAt: Date;
   lastInstallFailedAt: Date | null;
   lastInstallError: string | null;
+  /**
+   * The boot reconciler's marker — *"this row was written by boot convergence
+   * and no install has run"*. Optional here and only here: the column is
+   * nullable and absent from every row this file wrote before the repair, which
+   * is exactly the shape a pre-repair database holds, so the fixtures that omit
+   * it are the regression net for the short-circuit still working over them.
+   */
+  bootConvergedAt?: Date | null;
 }
 
 class FakeEm {
@@ -271,6 +279,144 @@ describe('ModuleLifecycleOrchestrator (unit)', () => {
 
       expect(result.state).toBe('already-installed');
       expect(migrator.applied).toHaveLength(0);
+    });
+  });
+
+  /**
+   * `install` completes a row it did not write — the second half of the
+   * boot-first repair, whose first half is `boot-convergence-marker.test.ts`.
+   *
+   * The boot reconciler converges `module_registrations` to the shipped manifest
+   * list and runs no hook — it cannot, and D-157.6(b) is why it must not. So a
+   * database whose first action after the migrations was a `start` carried
+   * `state='installed'` rows that no install had ever produced, and `install`
+   * answered `already-installed` over them for ever: no migration, no settings
+   * reconcile, no participant pass and **no install hook**, silently.
+   *
+   * The marker is what makes the two cases distinguishable, and every step of
+   * the normal body is already safe on a converged database:
+   * `getPendingMigrations()` returns none so the rollback set is empty, the
+   * settings reconcile is idempotent, the participants upsert-and-prune, and the
+   * hook is idempotent by contract (`module-composition.md` item 9). That is
+   * what makes `module:install --all` the command that **repairs** a boot-first
+   * database.
+   */
+  describe('install — a boot-converged row is repaired, not reported already-installed', () => {
+    /** The row the boot reconciler writes: installed, and marked as its own. */
+    function bootConvergedRow(moduleId: string): FakeRow {
+      return {
+        moduleId,
+        state: 'installed',
+        version: '1.0.0',
+        installedAt: new Date(),
+        lastStateChangeAt: new Date(),
+        lastInstallFailedAt: null,
+        lastInstallError: null,
+        bootConvergedAt: new Date(),
+      };
+    }
+
+    it('runs the install hook a boot silenced, and clears the marker', async () => {
+      let hookCalled = 0;
+      const reg = buildRegistry([
+        {
+          id: 'carrier_seed',
+          installHook: async () => {
+            hookCalled++;
+          },
+        },
+      ]);
+      const { orchestrator, em, auditLog } = buildOrchestrator({
+        registry: reg,
+        em: new FakeEm([bootConvergedRow('carrier_seed')]),
+      });
+
+      const result = await orchestrator.install('carrier_seed');
+
+      expect(result.state).toBe('installed');
+      expect(hookCalled).toBe(1);
+      // Cleared at step 4, so a second run is the ordinary no-op again. Leaving
+      // it set would make every `module:install --all` re-run every hook, which
+      // is the write-on-every-invocation shape issue #96 took out of the gateway
+      // reconcilers.
+      expect(em.rows[0]?.bootConvergedAt).toBeNull();
+      expect(auditLog.records.some((r) => r['action'] === 'module.installed')).toBe(true);
+    });
+
+    it('is a no-op the second time, so the repair is idempotent', async () => {
+      let hookCalled = 0;
+      const reg = buildRegistry([
+        {
+          id: 'carrier_seed',
+          installHook: async () => {
+            hookCalled++;
+          },
+        },
+      ]);
+      const { orchestrator } = buildOrchestrator({
+        registry: reg,
+        em: new FakeEm([bootConvergedRow('carrier_seed')]),
+      });
+
+      await orchestrator.install('carrier_seed');
+      const second = await orchestrator.install('carrier_seed');
+
+      expect(second.state).toBe('already-installed');
+      expect(hookCalled).toBe(1);
+    });
+
+    it('still answers already-installed for a row a real install wrote', async () => {
+      // The unmarked row is the one `install` itself produced, and nothing about
+      // this case moves: the short-circuit is narrowed by the marker and by
+      // nothing else, so the cost of the repair on every already-installed
+      // deployment is one null check.
+      let hookCalled = 0;
+      const reg = buildRegistry([
+        {
+          id: 'carrier_seed',
+          installHook: async () => {
+            hookCalled++;
+          },
+        },
+      ]);
+      const { orchestrator, migrator } = buildOrchestrator({
+        registry: reg,
+        em: new FakeEm([
+          {
+            moduleId: 'carrier_seed',
+            state: 'installed',
+            version: '1.0.0',
+            installedAt: new Date(),
+            lastStateChangeAt: new Date(),
+            lastInstallFailedAt: null,
+            lastInstallError: null,
+            bootConvergedAt: null,
+          },
+        ]),
+      });
+
+      migrator.pending = [{ name: 'should-not-run' }];
+      const result = await orchestrator.install('carrier_seed');
+
+      expect(result.state).toBe('already-installed');
+      expect(hookCalled).toBe(0);
+      expect(migrator.applied).toHaveLength(0);
+    });
+
+    it('repairs a boot-converged row that declares no hook, without inventing work', async () => {
+      // Most converged modules have no hook, and the marker is on their rows
+      // too. What a boot also skipped for them is the settings reconcile and the
+      // participant pass, so the run is real and reports `installed`.
+      const reg = buildRegistry([{ id: 'plain' }]);
+      const { orchestrator, em } = buildOrchestrator({
+        registry: reg,
+        em: new FakeEm([bootConvergedRow('plain')]),
+      });
+
+      const result = await orchestrator.install('plain');
+
+      expect(result.state).toBe('installed');
+      expect(em.rows[0]?.bootConvergedAt).toBeNull();
     });
   });
 

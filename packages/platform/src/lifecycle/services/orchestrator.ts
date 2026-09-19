@@ -175,7 +175,31 @@ export class ModuleLifecycleOrchestrator {
       const existing = await this.deps.em().findOne(ModuleRegistration, {
         moduleId,
       });
-      if (existing?.state === 'installed') {
+      // `installed` **and** unmarked — a row this orchestrator wrote itself, so
+      // there is nothing left to do.
+      //
+      // The marker is what narrows this, and the narrowing is the whole repair.
+      // `reconcileExistingModules` converges `module_registrations` to the shipped
+      // manifest list at boot and runs no hook — it cannot, and D-157.6(b) is why
+      // it must not — so a database whose first action after the migrations was a
+      // `start` carried `installed` rows no install had produced. This branch
+      // answered `already-installed` over them, for ever: no migration, no
+      // settings reconcile, no participant pass and **no install hook**, with
+      // nothing saying so. Invisible until feature 134's W7, because until then
+      // the tree had no `installHook` at all.
+      //
+      // With `bootConvergedAt` set, the normal body below runs instead, and every
+      // step of it is already safe on a converged database: `getPendingMigrations`
+      // returns none so the rollback set is empty, the settings reconcile is
+      // idempotent, the participants upsert-and-prune, and the hook is idempotent
+      // by contract (`module-composition.md` item 9). Step 4 clears the marker, so
+      // the second run is this no-op again — leaving it set would re-run every
+      // hook on every `module:install --all`, which is the write-on-every-
+      // invocation shape issue #96 took out of the gateway reconcilers.
+      //
+      // That is what makes `module:install --all` the command that **repairs** a
+      // boot-first database rather than reporting it as already fine.
+      if (existing?.state === 'installed' && existing.bootConvergedAt == null) {
         return {
           moduleId,
           version: existing.version,
@@ -319,11 +343,17 @@ export class ModuleLifecycleOrchestrator {
           hookDurationMs = Date.now() - hookStart;
         }
 
-        // 4. Mark installed.
+        // 4. Mark installed — and clear the boot-convergence marker, because an
+        //    install has now run. It is cleared *here*, after the hook, so a
+        //    failure above leaves it set and the next `module:install` repairs
+        //    the row again instead of finding it already fine. On the failure
+        //    path the row goes to `uninstalled` anyway, but this ordering is what
+        //    makes that a consequence rather than the only thing holding it.
         await this.upsertRegistration(moduleId, {
           state: 'installed',
           version: manifest.version,
           lastStateChangeAt: new Date(),
+          bootConvergedAt: null,
         });
       } catch (err) {
         // Rollback path: revert any migrations we just applied (in reverse).
@@ -961,6 +991,12 @@ export class ModuleLifecycleOrchestrator {
       lastStateChangeAt: Date;
       lastInstallFailedAt: Date | null;
       lastInstallError: string | null;
+      /**
+       * Cleared by `install`'s step 4 and by nothing else. The orchestrator never
+       * *sets* it: writing it would be this class claiming a row came from boot
+       * convergence, which only `reconcileExistingModules` can truthfully say.
+       */
+      bootConvergedAt: Date | null;
     }>,
   ): Promise<void> {
     const em = this.deps.em();
@@ -978,6 +1014,10 @@ export class ModuleLifecycleOrchestrator {
       lastStateChangeAt: patch.lastStateChangeAt ?? new Date(),
       lastInstallFailedAt: patch.lastInstallFailedAt ?? null,
       lastInstallError: patch.lastInstallError ?? null,
+      // A row this orchestrator creates is by definition not boot convergence's,
+      // so `null` is the only value this branch can write. Stated rather than
+      // left to the entity's field default, like every other column here.
+      bootConvergedAt: patch.bootConvergedAt ?? null,
     });
     await em.persistAndFlush(created);
   }

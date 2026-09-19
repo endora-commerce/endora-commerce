@@ -135,6 +135,27 @@ never add a "module options" object for something the module can read itself.
    `if (!ctx.hard) return;`; **neither hook fires on activation or deactivation** — that is
    the other axis (Principle XVII) and no hook may be added to it; and the hook context is
    `{ em, redis, log, module }` (`+ hard`), which cannot carry services.
+
+   **Read the clause about the activation axis as being about *that* axis and nothing else.**
+   It forbids a hook on activation/deactivation, and D-46 forbids `ctx.onInstall` in the
+   container. Neither sentence is about **boot**, and a compression of the two into *"no hook
+   at boot, because item 9 says so"* has been written down once already and was wrong: the
+   reason a hook may not run from boot convergence is not this item. It is that
+   `loadModulePresence` runs before `DefaultChannelReconciler`, so a hook there has strictly
+   *less* context than at install; that `install` holds `acquireLock()` where the reconciler
+   holds nothing, while an instance composes in two processes (`start` and `worker`); and that
+   `install` turns a hook failure into `install-failed` with that run's migrations reverted,
+   where at boot a seeding problem becomes a platform that will not start.
+
+   **`module:install` is the only thing that runs your hook, and `db:fresh` is not it.** Boot
+   convergence writes `state='installed'` for a shipped manifest with no row and runs no hook
+   — it stamps `module_registrations.bootConvergedAt` and warns, naming
+   `module:install <id>`, and `install` then completes such a row rather than answering
+   `already-installed`. So `pnpm run setup` (`db:fresh` **then** `module:install --all`) is the
+   dev sequence that exercises a hook you just wrote; `db:fresh` followed by `pnpm run dev`
+   leaves a boot-first database. That path silenced hooks unnoticed until 2026-09-19 for one
+   reason only — until feature 134's W7 the tree declared **no** `installHook` at all, so there
+   was nothing for it to silence.
 9a. **A hook's only cross-module seam is the owner's published install surface, imported as a
    *runtime* binding and constructed over `ctx.em`** — the inverse of item 3, for one reason:
    there is no container at install. `ModuleLifecycleContext` carries no cradle, **both**

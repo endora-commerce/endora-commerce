@@ -23,6 +23,7 @@
     "changeset:status": "changeset status",
     "changeset:version": "changeset version",
     "version:packages": "node scripts/version-packages.mjs",
+    "setup": "pnpm run build:packages && pnpm --filter backend run setup",
     "dev:infra": "docker compose up -d",
     "dev:infra:down": "docker compose down",
     "dev": "node scripts/dev.mjs",
