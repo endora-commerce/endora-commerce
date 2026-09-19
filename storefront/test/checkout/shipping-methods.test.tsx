@@ -6,17 +6,6 @@ import {
   registerShippingMethodRenderer,
   resolveShippingMethodRenderer,
 } from '../../lib/shipping-renderers/registry';
-import {
-  INPOST_LOCKER_RENDERER_KEY,
-  InpostLockerRenderer,
-} from '../../lib/shipping-renderers/inpost-locker';
-import {
-  geowidgetAssetUrls,
-  INPOST_TARGET_POINT_FIELD,
-  pointNameFromGeowidgetEvent,
-  resolveGeowidgetLanguage,
-  shippingAdapterDataFromFormData,
-} from '../../lib/shipping-renderers/inpost-geowidget';
 import type { DeliveryMethodSummary } from '../../lib/api/methods';
 
 /**
@@ -24,7 +13,10 @@ import type { DeliveryMethodSummary } from '../../lib/api/methods';
  * eligible methods through the default renderer, communicates the empty state,
  * and resolves a custom renderer by key (falling back to the default).
  *
- * Feature 068 — InPost locker renderer registration + form → placeOrder helpers.
+ * `specs/134-paid-module-extraction/` T031, ruling O-1(b) — the courier
+ * renderers are paid fragments and are not in this repository, so the last
+ * describe pins what a storefront that has copied none of them does: it renders
+ * their methods through the default renderer rather than not at all.
  */
 const method = (
   id: string,
@@ -91,16 +83,19 @@ describe('shipping-renderer registry', () => {
   });
 });
 
-describe('InPost locker renderer (feature 068)', () => {
-  it('registers under renderer key inpost_locker', () => {
-    expect(resolveShippingMethodRenderer(INPOST_LOCKER_RENDERER_KEY)).toBe(InpostLockerRenderer);
+describe('a courier fragment nobody copied in', () => {
+  it('falls back to the default renderer for a carrier renderer key', () => {
+    // The two keys wave 1's fragments register under, asserted as absent here:
+    // `registry.tsx` keeps the default renderer and registers no carrier.
+    expect(resolveShippingMethodRenderer('inpost_locker')).toBe(DefaultShippingMethodRenderer);
+    expect(resolveShippingMethodRenderer('dhl_parcel.pickup')).toBe(DefaultShippingMethodRenderer);
   });
 
-  it('renders the locker radio row on SSR (Geowidget panel is client-only)', () => {
+  it('still renders the carrier method, with its name and cost', () => {
     const html = renderToString(
       <ShippingMethods
         methods={[
-          method('locker-1', 'InPost Parcel Locker', INPOST_LOCKER_RENDERER_KEY, 'inpost_locker'),
+          method('locker-1', 'InPost Parcel Locker', 'inpost_locker', 'inpost_locker'),
           method('courier-1', 'InPost Courier', null, 'inpost_courier'),
         ]}
         locale="en-US"
@@ -109,46 +104,6 @@ describe('InPost locker renderer (feature 068)', () => {
     expect(html).toContain('InPost Parcel Locker');
     expect(html).toContain('InPost Courier');
     expect(html).toContain('value="locker-1"');
-    // Courier keeps the default renderer (no Geowidget copy).
     expect(html).toContain('15.00 PLN');
-  });
-
-  it('maps geowidget host to css/script asset URLs', () => {
-    expect(geowidgetAssetUrls('https://geowidget.inpost.pl/')).toEqual({
-      cssUrl: 'https://geowidget.inpost.pl/inpost-geowidget.css',
-      scriptUrl: 'https://geowidget.inpost.pl/inpost-geowidget.js',
-    });
-  });
-
-  it('resolves Geowidget language from storefront locale', () => {
-    expect(resolveGeowidgetLanguage('pl-PL')).toBe('pl');
-    expect(resolveGeowidgetLanguage('en-US')).toBe('en');
-    expect(resolveGeowidgetLanguage(undefined)).toBe('en');
-  });
-
-  it('parses shippingAdapterData.targetPoint from FormData for placeOrder', () => {
-    const fd = new FormData();
-    fd.set(INPOST_TARGET_POINT_FIELD, '  KRA010  ');
-    expect(shippingAdapterDataFromFormData(fd)).toEqual({ targetPoint: 'KRA010' });
-
-    const empty = new FormData();
-    expect(shippingAdapterDataFromFormData(empty)).toBeUndefined();
-  });
-
-  it('reads point.name from Geowidget onpointselect events', () => {
-    const event = new CustomEvent('onpointselect', { detail: { name: 'WAW123A' } });
-    expect(pointNameFromGeowidgetEvent(event)).toBe('WAW123A');
-    expect(pointNameFromGeowidgetEvent(new Event('onpointselect'))).toBeNull();
-
-    // InPost docs use non-standard `event.details.name`.
-    const legacy = new Event('onpointselect') as Event & { details?: { name: string } };
-    legacy.details = { name: 'KRA010' };
-    expect(pointNameFromGeowidgetEvent(legacy)).toBe('KRA010');
-  });
-
-  it('parses legacy dotted FormData field name', () => {
-    const fd = new FormData();
-    fd.set('shippingAdapterData.targetPoint', 'POZ01A');
-    expect(shippingAdapterDataFromFormData(fd)).toEqual({ targetPoint: 'POZ01A' });
   });
 });
