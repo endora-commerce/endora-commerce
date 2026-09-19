@@ -177,11 +177,17 @@ describe('ModuleEffectiveState', () => {
     const manifest = (overrides: Partial<ModuleManifest> & { id: string }): ModuleManifest =>
       ({ version: '1.0.0', dependencies: [], ...overrides }) as unknown as ModuleManifest;
 
+    // `default: false`, and not by taste: a member of an **exclusive** key may not ship
+    // activated (R3.6), and `capabilityRegistryFrom` refuses a manifest that does. This
+    // fixture declared `true` and the refusal caught it — the guard working on the first
+    // fixture that expressed the shape it forbids. The operator axis these cases need comes
+    // from `DECLARATIONS` below, which is the activation-declaration side and is what
+    // `setActivationDeclarations` reads, so nothing here depended on the manifest default.
     const member = (id: string): ModuleManifest =>
       manifest({
         id,
         capabilities: ['pim-connector'],
-        activation: { settingCode: `${id}.activation`, default: true },
+        activation: { settingCode: `${id}.activation`, default: false },
       });
 
     const FAMILY = capabilityRegistryFrom([
