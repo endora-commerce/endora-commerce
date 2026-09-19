@@ -303,7 +303,12 @@ describe('a host outside this checkout', () => {
       'utf8',
     );
 
-    const stdout = execFileSync(process.execPath, [driver], {
+    // `--experimental-strip-types` explicitly, though every Node this repository
+    // supports strips types without it: the flag is accepted from 22.18 (the CI
+    // image) through 26 (a developer's machine), so naming it makes the run
+    // independent of *when* stripping became the default rather than of whether
+    // it is available.
+    const stdout = execFileSync(process.execPath, ['--experimental-strip-types', driver], {
       cwd: root,
       encoding: 'utf8',
       // No inherited module resolution: `NODE_PATH` set by whatever ran this
