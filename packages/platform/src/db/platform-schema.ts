@@ -1,7 +1,15 @@
 /**
- * The platform's **own** schema — its six entity classes and its twelve
+ * The platform's **own** schema — its six entity classes and its thirteen
  * migrations — as a value the platform contributes to every composition
  * (`specs/110-instance-repository/` T141).
+ *
+ * **Every count below is a derived fact written down, so re-derive before you
+ * edit one** (D-100). `PLATFORM_ENTITIES.length` and
+ * `PLATFORM_MIGRATION_ENTRIES.length` are the two answers, and their sum is what
+ * the generated registries name. `platform-schema.test.ts` derives rather than
+ * counts, so it does **not** catch this prose going stale — the bare `ls` of
+ * `../migrations/` does not either, since that directory also holds `index.ts`
+ * and `baseline-migrations.generated.ts`, which are not migrations.
  *
  * ## The defect this closes
  *
@@ -23,14 +31,14 @@
  * and R1.5 rules it: *"it is data about **this platform's** history, a client
  * receives it by installing the platform, and a client receives a correction to
  * it by `pnpm update`"*. The order and the migrations it orders are the same
- * datum one step apart. A client's tree listing our twelve class names would be
- * a fact about our history held in a repository we cannot grep — exactly what
- * R1.5 refuses — and it would go stale on the thirteenth.
+ * datum one step apart. A client's tree listing our thirteen class names would
+ * be a fact about our history held in a repository we cannot grep — exactly what
+ * R1.5 refuses — and it went stale on the thirteenth, which has now landed.
  *
  * ## Why merging is safe where a host **does** supply them
  *
  * This repository's own `entities-registry.generated.ts` and
- * `migrations-registry.generated.ts` name all eighteen, by the bare specifiers
+ * `migrations-registry.generated.ts` name all nineteen, by the bare specifiers
  * this package's `exports` map declares. So the host's array and this one hold
  * **the same objects**, and the merge below is an identity de-duplication — not
  * a heuristic, and not a name comparison that could coalesce two different
@@ -62,6 +70,7 @@ import {
   Migration20260717T134752CoreTenantScopeIndexes,
   Migration20260721T011510CoreSettingsCredentialRefValueType,
   Migration20260816T203339CoreRetireCoreActivationSettings,
+  Migration20260919T101500CoreModuleRegistrationsBootConverged,
 } from '../migrations/index.js';
 import type { MigrationRegistryEntry } from './migration-order.js';
 
@@ -95,7 +104,7 @@ export const PLATFORM_ENTITIES: readonly EntityClassLike[] = [
 ];
 
 /**
- * The platform's twelve migrations, owned by the cross-cutting `core`
+ * The platform's thirteen migrations, owned by the cross-cutting `core`
  * pseudo-module.
  *
  * `origin` is left absent, which {@link MigrationRegistryEntry} documents as
@@ -115,6 +124,7 @@ export const PLATFORM_MIGRATION_ENTRIES: readonly MigrationRegistryEntry[] = [
   Migration20260717T134752CoreTenantScopeIndexes,
   Migration20260721T011510CoreSettingsCredentialRefValueType,
   Migration20260816T203339CoreRetireCoreActivationSettings,
+  Migration20260919T101500CoreModuleRegistrationsBootConverged,
 ].map((cls) => ({ moduleId: CORE_MODULE_ID, cls }));
 
 /**

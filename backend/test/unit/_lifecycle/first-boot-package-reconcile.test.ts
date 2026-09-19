@@ -204,6 +204,12 @@ describe('the first-boot reconciler inserts for core and overlay, never for a pa
   });
 });
 
+/**
+ * It answers with **entries** and not with manifests, which it used to. The
+ * second reader — `bootConvergenceWarnings` — asks about `installHook`, which
+ * lives on the entry, and returning manifests would have made it re-derive the
+ * origin split for itself: the D-100 shape this function exists to prevent.
+ */
 describe('firstBootInsertPopulation — the origin split, without a database', () => {
   it('keeps core and overlay entries and drops package entries', () => {
     const population = firstBootInsertPopulation([
@@ -212,7 +218,7 @@ describe('firstBootInsertPopulation — the origin split, without a database', (
       packageEntry(PACKAGE_ID),
     ]);
 
-    expect(population.map((m) => m.id)).toEqual([CORE_ID, OVERLAY_ID]);
+    expect(population.map((e) => e.manifest.id)).toEqual([CORE_ID, OVERLAY_ID]);
   });
 
   it('classifies every entry the committed core registry ships as insertable', () => {

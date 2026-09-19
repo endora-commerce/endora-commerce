@@ -1,6 +1,11 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { ModuleManifest, RegistryState } from '@endora-commerce/contracts';
+import type {
+  ModuleManifest,
+  ModuleManifestExports,
+  RegistryState,
+} from '@endora-commerce/contracts';
 import { ModuleRegistration } from '../../kernel/lifecycle/module-registration.entity.js';
+import { platformLogger, type PlatformLogger } from '../../kernel/logging.js';
 import { activationDeclarationsFrom } from '../../kernel/lifecycle/activation-resolver.js';
 import { capabilityRegistryFrom } from '../../kernel/lifecycle/capability-registry.js';
 import { installGatingGraph } from './gating-graph.js';
@@ -258,6 +263,17 @@ export async function loadModulePresence(opts: {
    * missing module rather than a boot that proceeds.
    */
   declaredOmissions?: readonly string[];
+  /**
+   * Where the boot-convergence warnings go. Defaults to `platformLogger()`,
+   * which reads the late-bound destination **per line** — so a warning emitted
+   * here, before the app exists, still reaches the app's logger once one is
+   * attached, and reaches the console fallback when none ever is.
+   *
+   * Injectable so a test can read the lines rather than the terminal, and
+   * defaulted rather than required for the reason the warning is a warning: a
+   * root that passed nothing must still be heard, not silenced.
+   */
+  log?: PlatformLogger;
 }): Promise<void> {
   const manifests = opts.entries.map((entry) => entry.manifest);
   // D-101 — two refusals, in the order the two questions can be answered.
@@ -280,6 +296,14 @@ export async function loadModulePresence(opts: {
     opts.em,
     firstBootInsertPopulation(opts.entries),
   );
+  // …and it stops being silent about the one thing convergence cannot do. A
+  // **warning, not a refusal**: this must not break a first boot, and the
+  // remedy is a command the operator can run afterwards. One line here for the
+  // reason the two refusals are one line each — the analysis is a pure function
+  // beside this one, because the harness never calls `loadModulePresence`.
+  for (const warning of bootConvergenceWarnings(opts.entries, new Set(rows.keys()))) {
+    (opts.log ?? platformLogger()).warn({ moduleId: warning.moduleId }, warning.message);
+  }
   assertLockedModulesPresent(manifests, rows, declared);
   // Feature 073 (T045/T046) — the graph the flip-time refusals read. Installed
   // from the same manifest list as the activation declarations, so an overlay
@@ -325,6 +349,23 @@ export interface ShippedModuleEntry {
    * `RegisteredManifestEntry.origin`.
    */
   readonly origin: ModuleIdClaimOrigin;
+  /**
+   * The module's exported `installHook`, when it exports one — read here as a
+   * **presence question only**, never called.
+   *
+   * It is on the entry rather than on the manifest because that is where the
+   * composer generator, the overlay scan and the package scan all put it
+   * (`RegisteredManifestEntry.installHook`), so `resolvedManifestEntries()`'
+   * output is already the shape this needs. What reads it is
+   * {@link bootConvergenceWarnings}: boot convergence writes a row it cannot run
+   * a hook for, and the module that declares one is the module whose operator
+   * has to be told.
+   *
+   * A hook is never *invoked* from this file, and must not be. `install` owns
+   * that, with a lock, a rollback and a persisted error; at boot a seeding
+   * problem would become a platform that will not start.
+   */
+  readonly installHook?: ModuleManifestExports['installHook'];
 }
 
 /**
@@ -355,11 +396,97 @@ export interface ShippedModuleEntry {
  * spelled here (feature 080, T046): the boot settings reconcile has to stop at
  * the same line, for reasons of its own, and a second copy of an origin test is
  * two answers waiting to disagree (D-100).
+ *
+ * **It answers with entries and not with manifests**, which it used to. Two
+ * readers now need the population and one of them —
+ * {@link bootConvergenceWarnings} — asks about `installHook`, which lives on the
+ * entry. Returning manifests would have made that reader re-derive the origin
+ * split for itself, which is the D-100 shape this function exists to prevent.
  */
 export function firstBootInsertPopulation(
   entries: readonly ShippedModuleEntry[],
-): ModuleManifest[] {
-  return deploymentShippedEntries(entries).map((entry) => entry.manifest);
+): ShippedModuleEntry[] {
+  return deploymentShippedEntries(entries);
+}
+
+/** One module the boot converged whose `installHook` that convergence skipped. */
+export interface BootConvergenceWarning {
+  readonly moduleId: string;
+  /** The line an operator reads, naming the remedy. */
+  readonly message: string;
+}
+
+/**
+ * The convergence stops being silent: one warning per manifest this boot is
+ * about to converge that declares an `installHook`.
+ *
+ * ## What it is about
+ *
+ * {@link reconcileExistingModules} writes `state='installed'` for a shipped
+ * manifest with no row and runs no hook. Before the `bootConvergedAt` marker,
+ * `install` could not tell that row from one it had written itself, so it
+ * answered `already-installed` and the hook never ran and never would. The
+ * marker makes the repair possible; this makes it **findable**, which is the
+ * half a marker cannot do on its own: nobody runs a command they have not been
+ * told to run.
+ *
+ * ## A warning and not a refusal
+ *
+ * Deliberate, and the direction matters. A refusal here would break a first
+ * boot, which is the one boot a fresh deployment cannot route around, and it
+ * would make **presence a function of hook declaration** — presence being
+ * Constitution XVII's platform-availability axis. The codebase has refused that
+ * trade twice in writing: `firstBootInsertPopulation` above (*"would trade a
+ * silent install for a silent absence"*) and
+ * `backend/test/unit/_lifecycle/first-boot-package-reconcile.test.ts` (*"the same
+ * defect wearing the other sign"*). Whether a boot-first database should instead
+ * be **refused** is an open owner question; `ModuleRegistration.bootConvergedAt`
+ * is the datum such a refusal would read, so that ruling costs a branch rather
+ * than a redesign.
+ *
+ * ## And not "run the hook here"
+ *
+ * Three reasons that each resolve in this tree. `loadModulePresence` runs
+ * **before** `DefaultChannelReconciler` in `compose-app.ts`, so a hook here has
+ * strictly *less* context than at install. `install` takes `acquireLock()` and
+ * this takes nothing, while an instance runs `start` and `worker` as two
+ * processes that both compose — two racing the same seed writes. And `install`
+ * turns a hook failure into `install-failed` with that run's migrations reverted
+ * and the error persisted, where at boot a seeding problem becomes a platform
+ * that will not start; `backend/src/lifecycle/scripts/install.ts` already names
+ * the neighbouring hazard in its D-157.2 comment.
+ *
+ * ## Pure, for the reason its two neighbours are
+ *
+ * The harness never calls {@link loadModulePresence} — it seeds the registry
+ * cache directly — so a rule written into that body would be proved by nothing
+ * that runs. It reads the population by **calling**
+ * {@link firstBootInsertPopulation} rather than restating the origin test, so
+ * the warning and the insert cannot disagree about who is converged.
+ *
+ * @param entries the instance-resolved set, exactly as the boot step has it
+ * @param existingModuleIds the ids that **already** had a row — so a converged
+ *   database, which is the steady state and boots many times a day, says nothing
+ */
+export function bootConvergenceWarnings(
+  entries: readonly ShippedModuleEntry[],
+  existingModuleIds: ReadonlySet<string>,
+): readonly BootConvergenceWarning[] {
+  const warnings: BootConvergenceWarning[] = [];
+  for (const entry of firstBootInsertPopulation(entries)) {
+    if (entry.installHook === undefined) continue;
+    if (existingModuleIds.has(entry.manifest.id)) continue;
+    const id = entry.manifest.id;
+    warnings.push({
+      moduleId: id,
+      message:
+        `module "${id}" was marked installed by boot convergence, which cannot run its ` +
+        'install hook — so the rows that hook seeds are absent. Run ' +
+        `\`module:install ${id}\` (or \`module:install --all\`) to complete it; both are ` +
+        'idempotent, and the platform serves normally in the meantime.',
+    });
+  }
+  return warnings;
 }
 
 /**
@@ -390,12 +517,26 @@ export function firstBootInsertPopulation(
  * nothing about the reconcile became sensitive on the way across.
  *
  * **What it writes.** One `module_registrations` row per shipped manifest that
- * has none, carrying `state='installed'` and the manifest's version. Inserts
- * only: it skips every id that already has a row, so it never updates a state,
- * never bumps a version, never deletes. It therefore cannot overwrite an
- * operator's platform-availability choice, and it does not touch the operator
- * activation axis at all — that lives in the settings store (Principle XVII).
- * On a converged database it writes nothing.
+ * has none, carrying `state='installed'`, the manifest's version and
+ * `bootConvergedAt` — the marker saying *"boot wrote this and no install has
+ * run"*. Inserts only: it skips every id that already has a row, so it never
+ * updates a state, never bumps a version, never deletes. It therefore cannot
+ * overwrite an operator's platform-availability choice, and it does not touch the
+ * operator activation axis at all — that lives in the settings store (Principle
+ * XVII). On a converged database it writes nothing.
+ *
+ * **The marker changes nothing about the decision this function makes**, which
+ * is why the hatch above still covers it verbatim: it is a second field on a row
+ * this function was already inserting, recording *who wrote it* rather than
+ * deriving *what to write*. `install` reads it, completes the row it describes
+ * and clears it. Before it existed, `install` short-circuited on
+ * `state === 'installed'` and answered `already-installed` over a converged row,
+ * so a database whose first action after the migrations was a boot could never
+ * run any `installHook` — invisible until feature 134's W7, because until then
+ * the tree had no `installHook` at all. The marker is on **every** converged row
+ * and not only a hook-bearing one: it is true of both, and narrowing it to the
+ * hook-bearing set would leave a module that gains a hook later unmarked, which
+ * is the residual case all over again one release on.
  *
  * **Why no actor exists.** It runs from `composeApp()` before the first module
  * registers, inside
@@ -419,13 +560,13 @@ export function firstBootInsertPopulation(
  */
 async function reconcileExistingModules(
   emFactory: () => EntityManager,
-  manifests: readonly ModuleManifest[],
+  entries: readonly ShippedModuleEntry[],
 ): Promise<ReadonlyMap<string, RegistryState>> {
   const em = emFactory();
   const existing = await em.find(ModuleRegistration, {});
   const existingIds = new Set(existing.map((r) => r.moduleId));
   const now = new Date();
-  for (const manifest of manifests) {
+  for (const { manifest } of entries) {
     if (existingIds.has(manifest.id)) continue;
     em.create(ModuleRegistration, {
       moduleId: manifest.id,
@@ -435,6 +576,8 @@ async function reconcileExistingModules(
       lastStateChangeAt: now,
       lastInstallFailedAt: null,
       lastInstallError: null,
+      // The marker, on the row and on the same timestamp as the rest of it.
+      bootConvergedAt: now,
     });
   }
   await em.flush();

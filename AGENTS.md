@@ -94,7 +94,10 @@ pnpm --filter backend run test           # COMPLETE (~1 h): unit + contract + in
 pnpm --filter '!backend' run test        # every OTHER workspace member's suite — the
                                          # packages included; nothing above reaches them
 pnpm run dev                             # full dev stack; pnpm run dev:infra for docker services
-pnpm --filter backend run db:fresh       # rebuild the schema from migrations
+pnpm run setup                           # db:fresh THEN module:install --all: the
+                                         # only sequence that runs every installHook.
+                                         # db:fresh alone leaves a boot-first database,
+                                         # whose hooks `install` then reports as done
 pnpm run check:naming && pnpm run check:language
 ```
 

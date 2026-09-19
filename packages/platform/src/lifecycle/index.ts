@@ -236,6 +236,11 @@ export {
 // --- reading presence out of the registry at boot -------------------------
 export {
   assertLockedModulesPresent,
+  // The `BootConvergenceWarning` shape is deliberately **not** re-exported:
+  // nothing outside the platform names it, and R5.4 refuses surface parked
+  // against a future need. A consumer that needs it says
+  // `ReturnType<typeof bootConvergenceWarnings>[number]`.
+  bootConvergenceWarnings,
   firstBootInsertPopulation,
   loadModulePresence,
   ReducedDeploymentError,

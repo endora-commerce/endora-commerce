@@ -46,7 +46,7 @@
  */
 export { BASELINE_MIGRATIONS } from './baseline-migrations.generated.js';
 
-// --- the platform's own twelve migrations ---------------------------------
+// --- the platform's own thirteen migrations -------------------------------
 //
 // Named exports and no `migrations` array, and the asymmetry with a module
 // package's `./migrations` barrel is deliberate. That array exists because
@@ -71,3 +71,4 @@ export { Migration20260629T090100CoreSettingsHiddenFlag } from './20260629T09010
 export { Migration20260717T134752CoreTenantScopeIndexes } from './20260717T134752_core_tenant_scope_indexes.js';
 export { Migration20260721T011510CoreSettingsCredentialRefValueType } from './20260721T011510_core_settings_credential_ref_value_type.js';
 export { Migration20260816T203339CoreRetireCoreActivationSettings } from './20260816T203339_core_retire_core_activation_settings.js';
+export { Migration20260919T101500CoreModuleRegistrationsBootConverged } from './20260919T101500_core_module_registrations_boot_converged.js';

@@ -10,7 +10,13 @@ import { orchestratorFor, type OperatorRuntime } from './operator-runtime.js';
  * ## `--all`, and why it is a command rather than a boot (T141)
  *
  * In this repository every module is compiled in, so the boot reconciler
- * converges the registry and nobody runs this command. In an **instance** every
+ * converges the registry — which is not the same as nobody needing this command,
+ * and that sentence used to say it was. Convergence runs no `installHook`: it
+ * stamps `bootConvergedAt` and warns, and `install` completes a row carrying that
+ * marker instead of answering `already-installed`. So `--all` is **also the
+ * repair for a boot-first database**, which is what `pnpm run setup` runs after
+ * `db:fresh` and what this repository's dev flow lacked until 2026-09-19.
+ * In an **instance** every
  * module is an installed package, and `firstBootInsertPopulation` deliberately
  * excludes those (D-157.6(b)) — a package is converged by `install`, which is
  * also what applies its migrations, reconciles its settings and runs its install
