@@ -30,10 +30,6 @@ import type { Promotion as PromotionRow } from '../../../packages/modules/promot
 import type { QuoteRequest as QuoteRequestRow } from '../../../packages/modules/quote_requests/src/backend/entities/quote-request.entity.js';
 import type { QuoteRequestItem as QuoteRequestItemRow } from '../../../packages/modules/quote_requests/src/backend/entities/quote-request-item.entity.js';
 import type { QuoteRequestRevision as QuoteRequestRevisionRow } from '../../../packages/modules/quote_requests/src/backend/entities/quote-request-revision.entity.js';
-import type {
-  InpostShipmentLink as InpostShipmentLinkRow,
-  InpostWebhookEvent as InpostWebhookEventRow,
-} from '@endora-commerce/mod-inpost/test-support';
 import type { Shipment as ShipmentRow } from '../../../packages/modules/shipments/src/backend/entities/shipment.entity.js';
 import type { AdminNotification as AdminNotificationRow } from '../../../packages/modules/admin_notifications/src/backend/entities/admin-notification.entity.js';
 import type { ApiKey as ApiKeyRow } from '../../../packages/modules/api_keys/src/backend/entities/api-key.entity.js';
@@ -361,16 +357,6 @@ export const AnalyticsEvent = classNamed<AnalyticsEventRow>(
 );
 
 export const Shipment = classNamed<ShipmentRow>(installedModuleEntities, 'shipments', 'Shipment');
-export const InpostWebhookEvent = classNamed<InpostWebhookEventRow>(
-  installedModuleEntities,
-  'inpost',
-  'InpostWebhookEvent',
-);
-export const InpostShipmentLink = classNamed<InpostShipmentLinkRow>(
-  installedModuleEntities,
-  'inpost',
-  'InpostShipmentLink',
-);
 
 export const PaymentMethod = classNamed<PaymentMethodRow>(
   installedModuleEntities,
@@ -1296,8 +1282,6 @@ export type OrderComment = OrderCommentRow;
 export type OrderAppliedPromotion = OrderAppliedPromotionRow;
 export type OrderPlacementIntent = OrderPlacementIntentRow;
 export type Payment = PaymentRow;
-export type InpostWebhookEvent = InpostWebhookEventRow;
-export type InpostShipmentLink = InpostShipmentLinkRow;
 export type Shipment = ShipmentRow;
 export type NewsletterSubscriber = NewsletterSubscriberRow;
 

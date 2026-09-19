@@ -21,12 +21,16 @@ import type { ForeignLinkEntry } from '../../check-module-docs.js';
  * Every entry stands for the same reason: this batch **moved** the pages and
  * changed no prose, so rewriting a sentence is a documentation decision its
  * module's author takes, not one a packaging move takes for them.
+ *
+ * **One entry drained on 2026-09-19, and it drained by the remedy rather than by a
+ * batch** (`specs/134-paid-module-extraction/` T035). `inpost` left this repository, so
+ * `./inpost` was about to become a broken link in *this* repository's own documentation
+ * build — the W6 shape, a free page consuming a declaration whose only declarant left,
+ * which reads as working right up until the halves separate. The sentence in
+ * `delivery_methods.md` now names carrier modules without linking one, which is exactly
+ * R4.1's remedy above, applied for the reason the header already gives.
  */
 export const entries: Readonly<Record<string, ForeignLinkEntry>> = {
-  inpost:
-    "FR-020 — 1 link(s) into `inpost`'s pages: `delivery_methods.md` -> `./inpost`. Refer " +
-    'to the sibling by name or link the module map; the reference survives the sibling ' +
-    'being absent either way.',
   shipments: {
     sites: 2,
     reason:

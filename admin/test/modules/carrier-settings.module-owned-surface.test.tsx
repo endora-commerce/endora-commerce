@@ -6,7 +6,6 @@ import { resolve } from 'node:path';
 import type { RenderResult } from '@testing-library/react';
 import type { AdminContributions } from '@endora-commerce/admin-kit/contributions';
 import { contributions as dhlParcelContributions } from '@endora-commerce/mod-dhl-parcel/admin';
-import { contributions as inpostContributions } from '@endora-commerce/mod-inpost/admin';
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
 import { adminSession, modulePresence, withSession } from '../helpers/render-with-session';
 import { MODULE_ADMIN_CONTRIBUTIONS } from '../../src/modules.generated.js';
@@ -24,6 +23,39 @@ function sourceOf(relativePath: string): string {
 /**
  * `dhl_parcel` and `inpost` own their admin surfaces — feature 091's Phase 4
  * batch five, and the batch's **carrier pair**.
+ *
+ * ## `inpost` left with wave 1, and what that did to this file
+ *
+ * `specs/134-paid-module-extraction/` **T035**. This file has **two owners and
+ * therefore none** (ownership §1, §1.1), so it stays here rather than moving into
+ * either package — that much was ruled on 2026-09-19 and is unchanged. What the
+ * extraction changes is that one of the two subjects is no longer in this tree, and
+ * the treatment is **ruling α**'s: whatever this file asserted about `inpost`'s
+ * **own declaration** goes with `inpost`, and whatever it asserts about the
+ * **host's** machinery stays.
+ *
+ * `CARRIERS` is therefore one entry. The five cases it drives are all about the
+ * *host* — `App.tsx`'s `ModuleRoute` gating a contributed route on presence and on
+ * permission, and the screen coming back with no rebuild — and `dhl_parcel`'s real
+ * declaration still drives every one of them. Adding a hand-written `inpost` entry
+ * beside it would have driven the same host code over a literal written in this
+ * file, which is duplication rather than coverage; the two cases that were genuinely
+ * `inpost`'s (*"declares one lazily-loaded route … and its zones"*, and the `@/`
+ * reach read off the package's own source) have no subject here at all.
+ *
+ * **T036 empties `CARRIERS`, and it must not answer that by narrowing this file to
+ * nothing.** When the second carrier goes, the host machinery above loses its last
+ * real contributor in this file and the question becomes whose the proof is — a
+ * stand-in contributor here, or a free module's zone test that already has one. It
+ * is the same question `integrations-zone.test.tsx` answers with a literal, and the
+ * answer may legitimately differ, because *this* file's host is the router rather
+ * than a screen. What it may not be is quietly deleted.
+ *
+ * The second `describe` is untouched and keeps naming `inpost`: an absence assertion
+ * about the shell stays true and stays useful after the module goes, because what it
+ * refuses is a **host file naming a paid module**, and the shell can regain one.
+ *
+ * ## The original reason the two were one file
  *
  * They are one file because they are one repair.
  * `backend/scripts/ledgers/cross-module-imports/orders.ts` recorded both
@@ -67,9 +99,12 @@ function sourceOf(relativePath: string): string {
  * The **sidebar** is asserted as an absence in the second `describe` below, and
  * the **palette** — the third surface Constitution XVII item 5 lists — is the
  * server's answer and is proved in
- * `backend/test/integration/{dhl_parcel,inpost}/module-owned-surface-off-state.test.ts`.
- * Both carriers do declare a palette action, so those files drive it rather
- * than assert an emptiness.
+ * `backend/test/integration/dhl_parcel/module-owned-surface-off-state.test.ts` — and,
+ * for `inpost` since wave 1, the paid repository's
+ * `host/backend/test/modules/inpost/module-owned-surface-off-state.test.ts`, which is
+ * the same file under **D-252**: it composes a server from the host's install, so it is
+ * the host's wherever it sits. Both carriers do declare a palette action, so those
+ * files drive it rather than assert an emptiness.
  *
  * The whole `App` is rendered rather than the screen, deliberately: the gate is
  * `App.tsx`'s, and a test that mounted the component directly would prove the
@@ -131,29 +166,13 @@ const DHL_CONFIG = {
   senderEmail: '',
 };
 
-const INPOST_CONFIG = {
-  salesChannelId: null,
-  mode: 'sandbox',
-  active: true,
-  organizationIdTest: '',
-  organizationIdLive: '',
-  accessTokenTestIsSet: false,
-  accessTokenLiveIsSet: false,
-  geowidgetTokenTest: '',
-  geowidgetTokenLive: '',
-  defaultSendingMethod: 'parcel_locker',
-  defaultParcelTemplate: 'small',
-  defaultSenderPoint: '',
-  labelSize: 'A6',
-  autoCreateOnPaid: false,
-  autoInsure: false,
-  defaultInsuranceAmount: 0,
-  webhookUrl: 'https://example.test/api/v1/public/inpost/webhook',
-};
 
-// Both screens call their own config endpoint on mount. The mock sits on the
-// kit's barrel, which is the specifier the packaged screens resolve — the admin
-// resolves the same module, so one mock covers both sides of the move.
+// The screen calls its own config endpoint on mount. The mock sits on the kit's
+// barrel, which is the specifier the packaged screen resolves — the admin resolves
+// the same module, so one mock covers both sides of the move.
+//
+// One config since wave 1: the branch here read `url.includes('/inpost/')` and chose
+// between two shapes, and `inpost` is no longer a subject of this file.
 vi.mock('@endora-commerce/admin-kit/lib', async () => {
   const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
     '@endora-commerce/admin-kit/lib',
@@ -161,8 +180,8 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
   return {
     ...actual,
     apiClient: {
-      get: vi.fn(async (url: string) => ({
-        data: url.includes('/inpost/') ? INPOST_CONFIG : DHL_CONFIG,
+      get: vi.fn(async () => ({
+        data: DHL_CONFIG,
       })),
       post: vi.fn(),
       put: vi.fn(),
@@ -196,7 +215,6 @@ const bundle = {
     'app.notFound',
   ]),
   ...passthroughBundle('dhl_parcel', ['admin.page.title', 'admin.page.subtitle']),
-  ...passthroughBundle('inpost', ['page.title', 'page.subtitle']),
 };
 
 function renderAt(path: string): RenderResult {
@@ -265,19 +283,6 @@ const CARRIERS: readonly Carrier[] = [
       'order.shipments.tab.actions',
     ],
     page: '../packages/modules/dhl_parcel/src/admin/pages/DhlParcelSettingsPage.tsx',
-  },
-  {
-    id: 'inpost',
-    route: '/settings/inpost',
-    headingKey: /page\.title/,
-    // Every `/api/v1/admin/inpost/*` route enforces this one code — this module
-    // never split read from write.
-    code: 'inpost:manage',
-    foreignCode: 'dhl_parcel:read',
-    contributions: inpostContributions,
-    // P7d: the label button on a shipment row, narrowed by `match`.
-    zones: ['delivery_method.list.integrations', 'order.shipment.row.actions'],
-    page: '../packages/modules/inpost/src/admin/pages/InpostSettingsPage.tsx',
   },
 ];
 
@@ -348,8 +353,10 @@ describe.each(CARRIERS)('$id owns its admin surface, and its proof is the route'
     // here would make every future contribution of either carrier a failure in
     // a file whose subject is the settings route. Each carrier's own zone test
     // asserts its declaration in full —
-    // `admin/test/modules/inpost/inpost-shipment-row-zone.test.tsx` and
-    // `admin/test/modules/dhl_parcel/dhl-shipment-actions-zone.test.tsx`.
+    // `admin/test/modules/dhl_parcel/dhl-shipment-actions-zone.test.tsx`. `inpost`'s
+    // counterpart left with the module in wave 1 and is owed to the paid repository,
+    // which has no admin test host yet — recorded under T035 in
+    // `specs/134-paid-module-extraction/tasks.md`, not silently dropped.
     const zones = carrier.contributions.zones ?? [];
     expect(zones[0]?.zone).toBe('delivery_method.list.integrations');
     expect(zones[0]?.requiredPermission).toBe(carrier.code);
@@ -408,13 +415,18 @@ describe('the shell no longer names either carrier by hand', () => {
     expect(app).not.toContain('to="/delivery-methods/dhl-parcel"');
   });
 
-  it('resolves both screens through the module packages, never through admin/src', () => {
+  it('resolves the screen through the module package, never through admin/src', () => {
     // R3 / D-149: a relative reach into a package's `src/` would evaluate its
     // source beside its `dist` — two copies of every module-scope value, which
     // is silent in a frontend.
+    //
+    // **One positive assertion since wave 1.** `mod-inpost` is not installed here
+    // any more, so `toContain` on its specifier would refuse the extraction rather
+    // than report a defect. The `not.toContain('packages/modules')` line below is the
+    // half that keeps working whatever the population is, and it is the one that
+    // actually states the rule.
     const registry = sourceOf('src/modules.generated.ts');
     expect(registry).toContain("from '@endora-commerce/mod-dhl-parcel/admin'");
-    expect(registry).toContain("from '@endora-commerce/mod-inpost/admin'");
     expect(registry).not.toContain('packages/modules');
   });
 

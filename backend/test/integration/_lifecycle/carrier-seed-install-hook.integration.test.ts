@@ -44,8 +44,16 @@ interface DiscoveredLike {
  * index, rather than a hand-called hook — a hook that works when called directly
  * and not when the orchestrator calls it would pass a weaker test.
  *
- * **The historical SQL lives here now.** Both migrations' bodies are no-ops
- * (their class names are identities persisted in every customer database and may
+ * **`inpost`'s case and its historical SQL left with the module** (T035, E9: a test
+ * whose subject is not in this tree is coupling, not prose). The equivalence claim
+ * for that carrier is now the paid repository's — it needs a booted orchestrator
+ * against a real database, so it is the **host's** under **D-252** and not the
+ * package's. What stays here is `dhl_parcel`, which T036 takes, and
+ * `carrier_fixture`, which FR-021 put in `backend/src/apps/example/modules/`
+ * precisely so this file still has a subject when both carriers are gone.
+ *
+ * **The historical SQL lives here now.** The remaining carrier's migration body is a
+ * no-op (its class name is an identity persisted in every customer database and may
  * not be renamed or deleted, §3.1), so the `insert` statements below are the last
  * statement in the repository of what an upgraded database actually contains.
  * That is what makes the equivalence assertion mean anything: without them the
@@ -55,43 +63,6 @@ interface DiscoveredLike {
  * registration rows the install needs are written the same way.
  */
 
-/** Verbatim from `Migration20260829T120000InpostSeedDeliveryMethods` before W7 emptied it. */
-const INPOST_HISTORICAL_SEED = `
-  insert into "delivery_methods" (
-    "id", "code", "name", "cost", "currency", "adapter", "status",
-    "status_on_success", "status_on_failure", "created_at", "updated_at"
-  )
-  values
-    (
-      gen_random_uuid(),
-      'inpost_locker',
-      '{"default":"InPost Parcel Locker","en":"InPost Parcel Locker","pl":"InPost Paczkomat","en-US":"InPost Parcel Locker","pl-PL":"InPost Paczkomat"}'::jsonb,
-      0,
-      'PLN',
-      'inpost_locker',
-      'active',
-      'shipment_sent',
-      'processing',
-      now(),
-      now()
-    ),
-    (
-      gen_random_uuid(),
-      'inpost_courier',
-      '{"default":"InPost Courier","en":"InPost Courier","pl":"InPost Kurier","en-US":"InPost Courier","pl-PL":"InPost Kurier"}'::jsonb,
-      0,
-      'PLN',
-      'inpost_courier',
-      'active',
-      'shipment_sent',
-      'processing',
-      now(),
-      now()
-    )
-  on conflict ("code") do nothing;
-`;
-
-/** Verbatim from `Migration20260824T083100DhlParcelSeedDeliveryMethods` before W7 emptied it. */
 const DHL_PARCEL_HISTORICAL_SEED = `
   with inserted as (
     insert into "delivery_methods" (
@@ -136,7 +107,6 @@ const DHL_PARCEL_HISTORICAL_SEED = `
   on conflict ("sales_channel_id", "delivery_method_id") do nothing;
 `;
 
-const INPOST_CODES = ['inpost_courier', 'inpost_locker'] as const;
 const DHL_PARCEL_CODES = ['dhl_parcel_courier', 'dhl_parcel_pickup'] as const;
 
 interface MethodRow {
@@ -276,29 +246,6 @@ describe('Carrier delivery-method seeds — install hook, fresh vs upgraded (int
     return { methods, memberships };
   }
 
-  it('inpost: the hook seeds two active methods, binds no channel, and a fresh install matches an upgraded one', async () => {
-    // Fresh: nothing has ever written these rows.
-    await clearMethods(INPOST_CODES);
-    await install('inpost');
-    const fresh = await snapshot(INPOST_CODES);
-
-    expect(fresh.methods.map((r) => r.code)).toEqual([...INPOST_CODES]);
-    expect(fresh.methods.map((r) => r.status)).toEqual(['active', 'active']);
-    // The migration deliberately wrote no membership row and that must survive
-    // the move (`foreign-write-repair.md` §2.3).
-    expect(fresh.memberships).toEqual([]);
-
-    // Upgraded: the migration ran before it was emptied, and the hook runs after.
-    await db.rollbackTx();
-    await db.beginTx();
-    await clearMethods(INPOST_CODES);
-    await db.em().execute(INPOST_HISTORICAL_SEED);
-    await install('inpost');
-    const upgraded = await snapshot(INPOST_CODES);
-
-    expect(JSON.stringify(upgraded)).toBe(JSON.stringify(fresh));
-  }, 120_000);
-
   it('dhl_parcel: the hook seeds two INACTIVE methods in the default channel, and a fresh install matches an upgraded one', async () => {
     await clearMethods(DHL_PARCEL_CODES);
     await install('dhl_parcel');
@@ -394,21 +341,30 @@ describe('Carrier delivery-method seeds — install hook, fresh vs upgraded (int
   }, 120_000);
 
   it('the hooks are idempotent: a second install leaves an admin edit alone', async () => {
-    await clearMethods(INPOST_CODES);
-    await install('inpost');
+    // **Driven over `dhl_parcel` since wave 1.** It was `inpost`'s until
+    // `specs/134-paid-module-extraction/` T035 took that module out of this
+    // repository; the property is the seam's rather than either carrier's, and the
+    // other half of the guard it protects — `created === true`, issue #96 — is
+    // asserted per carrier in the two cases above. T036 takes the second carrier, and
+    // what is left then is `carrier_fixture`, which is FR-021's standing consumer and
+    // exists so that this file keeps a subject at all.
+    await clearMethods(DHL_PARCEL_CODES);
+    await install('dhl_parcel');
     await db
       .em()
       .execute('update "delivery_methods" set "cost" = ?, "status" = ? where "code" = ?', [
         '19.99',
-        'inactive',
-        'inpost_locker',
+        'active',
+        'dhl_parcel_courier',
       ]);
 
-    await install('inpost');
+    await install('dhl_parcel');
 
-    const rows = await snapshot(INPOST_CODES);
-    const locker = rows.methods.find((r) => r.code === 'inpost_locker');
-    expect(locker?.cost).toBe('19.99');
-    expect(locker?.status).toBe('inactive');
+    const rows = await snapshot(DHL_PARCEL_CODES);
+    const courier = rows.methods.find((r) => r.code === 'dhl_parcel_courier');
+    expect(courier?.cost).toBe('19.99');
+    // Seeded `inactive`; an operator turned it on, and a second install may not turn
+    // it back off.
+    expect(courier?.status).toBe('active');
   }, 120_000);
 });
