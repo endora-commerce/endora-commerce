@@ -31,6 +31,12 @@ import type { ClientFetchLedgerEntry } from '../../check-rsc-discipline.js';
  * `app/(commerce)/quote-request/page.tsx` each carry
  * `robots: { index: false, follow: false }`, and `check:storefront-indexability`
  * is what keeps that true.
+ *
+ * **Three entries left with their subject** (`specs/134-paid-module-extraction/`
+ * T031): a carrier's locker picker is the carrier's own storefront code and is no
+ * longer a file in this repository, so those entries described nothing and
+ * `stale-ledger-entry` is what would have said so. Deleting an entry whose
+ * subject is gone is the ledger working, not an exemption being dropped.
  */
 const NOT_PAGE_CONTENT =
   'this entry is wrong the moment the component renders anything a crawler is owed — page ' +
@@ -80,25 +86,6 @@ export const entries: Readonly<Record<string, ClientFetchLedgerEntry>> = {
     firstPaint: false,
     reason: 'FR-020 — as `applePayReady`: a browser capability, on a `noindex` route.',
     retiredBy: STILL_NOINDEX('/checkout/pay'),
-  },
-  'storefront/components/checkout/InpostLockerPicker.tsx#assetsReady': {
-    firstPaint: false,
-    reason:
-      'FR-020 — whether InPost’s Geowidget assets have loaded. The picker is a map the visitor ' +
-      'interacts with, rendered on `/checkout`, which is `noindex`.',
-    retiredBy: STILL_NOINDEX('/checkout'),
-  },
-  'storefront/components/checkout/InpostLockerPicker.tsx#loadState': {
-    firstPaint: false,
-    reason: 'FR-020 — the same widget’s load state.',
-    retiredBy: STILL_NOINDEX('/checkout'),
-  },
-  'storefront/components/checkout/InpostLockerPicker.tsx#targetPoint': {
-    firstPaint: false,
-    reason:
-      'FR-020 — the parcel locker the visitor picked. It is this visitor’s choice and belongs ' +
-      'to no server render.',
-    retiredBy: STILL_NOINDEX('/checkout'),
   },
   'storefront/components/checkout/PaymentMethods.tsx#visibleMethods': {
     firstPaint: false,

@@ -2,8 +2,6 @@ import type { ReactNode } from 'react';
 import type { DeliveryMethodSummary } from '../../lib/api/methods';
 import { tForLocale } from '../../lib/i18n/messages';
 import { resolveShippingMethodRenderer } from '../../lib/shipping-renderers/registry';
-/** Feature 068 — register InPost locker Geowidget renderer before resolve. */
-import '../../lib/shipping-renderers/inpost-locker';
 
 /**
  * Checkout "Shipping methods" section (feature 035, US2). Renders each eligible
@@ -25,7 +23,7 @@ export function ShippingMethods({
   methods: DeliveryMethodSummary[];
   /** Feature 039 — pre-select this method (the resolved default) when present. */
   preferredId?: string | null;
-  /** Feature 068 — locale for adapter-specific checkout copy (e.g. InPost). */
+  /** Feature 068 — locale for adapter-specific checkout copy. */
   locale?: string | undefined;
 }): ReactNode {
   const preferredIdx = preferredId ? methods.findIndex((m) => m.id === preferredId) : -1;

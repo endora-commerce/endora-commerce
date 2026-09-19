@@ -49,8 +49,8 @@ import { getMe } from '../../../lib/api/account';
 import { BeginCheckoutTracker } from '../../../components/analytics/EcommerceTrackers';
 import {
   shippingAdapterDataFromFormData,
-  ensureInpostTargetPointOnFormData,
-} from '../../../lib/shipping-renderers/inpost-geowidget';
+  ensureShippingAdapterDataOnFormData,
+} from '../../../lib/checkout/shipping-adapter-data';
 import type { Metadata } from 'next';
 
 /**
@@ -330,7 +330,7 @@ export default async function CheckoutPage({
       />
       {params.error ? <p className="b2b-auth__error">{params.error}</p> : null}
 
-      <CheckoutForm action={submitAction} className="b2b-auth__form" locale={locale}>
+      <CheckoutForm action={submitAction} className="b2b-auth__form">
         <AddressSection
           deliveryAddresses={deliveryAddrs}
           billingAddresses={billingAddrs}
@@ -516,8 +516,8 @@ async function buildPlaceOrderPayload(
   const deliveryPointLabel = field('deliveryPointLabel');
   const deliveryPointAddress = field('deliveryPointAddress');
   const selectedDeliveryMethodId = (formData.get('deliveryMethodId') as string) ?? '';
-  // Feature 068 — InPost locker (and future adapters) via shippingAdapterData.
-  ensureInpostTargetPointOnFormData(formData);
+  // Feature 068 — a delivery adapter's own fields, via shippingAdapterData.
+  ensureShippingAdapterDataOnFormData(formData);
   const shippingAdapterData = shippingAdapterDataFromFormData(formData);
   return {
     deliveryAddressId,
