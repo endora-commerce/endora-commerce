@@ -53,7 +53,8 @@ function codeOf(relativePath: string): string {
  * `/settings/dhl-parcel` redirect counted as the host's own because a redirect's
  * element comes from `react-router-dom` — and feature 134's wave 1 deleted it,
  * that reasoning being about the *element* while the *destination* was declared
- * only by `dhl_parcel`, a module that leaves the repository. That is
+ * only by `dhl_parcel`: a host route whose destination no host file declares is
+ * the application's own by element and the module's by reach. That is
  * SC-007, and what says so is `host-admin-registrations.test.tsx` — a file
  * named after the claim rather than after this batch, because the assertion
  * outlives every batch (`contracts/admin-registry.md` R13a). It is the

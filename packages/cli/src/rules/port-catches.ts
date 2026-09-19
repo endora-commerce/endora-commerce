@@ -31,9 +31,9 @@
  * whole-tree run attributes **226** sites to 41 packages, the same analysis over
  * each package alone finds **19** in 10 packages, and **31 of the 41 lose every
  * site** — including all four PIM connectors and `product_feeds`, which is to say
- * the paid modules the package host exists for. {@link PortCatchInput.peerOwners}
- * is what a package-scope host supplies instead, out of its installed and
- * workspace peers.
+ * the integration-heavy modules the package host exists for: the ones whose ports
+ * are almost all somebody else's. {@link PortCatchInput.peerOwners} is what a
+ * package-scope host supplies instead, out of its installed and workspace peers.
  *
  * **2. {@link resolvedPortNames} is new, and it is the denominator.** A rule that
  * reads an owner map has to say how much of it it managed to resolve, or a short

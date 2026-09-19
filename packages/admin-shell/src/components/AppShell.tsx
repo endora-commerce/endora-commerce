@@ -500,9 +500,14 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   // `/settings/inpost` — stood here until feature 134's wave 1 (FR-023, the
   // extraction's per-wave prologue W1). They are the first two of the seven
   // this table has left, and they retire for a reason the earlier batches did
-  // not have: `dhl_parcel` and `inpost` **leave this repository**, so a rule
-  // here naming either of them is a free package naming a paid module in code
-  // that runs. `registryCrumbs` derives both trails now. Three
+  // not have: **a host-owned crumb table may not declare a trail whose
+  // destination only a module declares.** Both routes are declared in
+  // `dhl_parcel`'s and `inpost`'s own admin layers and nowhere else, so this
+  // table was asserting a trail whose other end it cannot see — and a module
+  // that ships separately from this package takes its route declarations with
+  // it, at which point the rule describes nothing
+  // (`specs/conventions/module-admin-surfaces.md`).
+  // `registryCrumbs` derives both trails now. Three
   // operator-visible changes, stated rather than glossed:
   //
   //  - `/delivery-methods/dhl-parcel` loses its *DHL Parcel* leaf and reads
@@ -517,10 +522,10 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   //    nav entry the path sits under, and `/settings/inpost` sits under
   //    `settings`' own `/settings` rather than under anything the carrier
   //    declares, so the trail names a screen the operator is not on. The route
-  //    is `inpost`'s and leaves with it two tasks later, at which point the
-  //    trail is moot; the alternatives were giving `inpost` a sidebar row it has
-  //    never had, or keeping a rule that names a departing module, and both are
-  //    refused above.
+  //    is `inpost`'s own declaration, and it is moot in any instance that does
+  //    not install that module; the alternatives were giving `inpost` a sidebar
+  //    row it has never had, or keeping a host rule whose destination only the
+  //    module declares, and both are refused above.
   //  - three `_i18n` keys retire, not two: the carriers' own pair, and the
   //    shared **parent** key both trails named. That third one was kept out of
   //    batch 8's sweep *explicitly* to parent these two trails —

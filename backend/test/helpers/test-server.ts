@@ -616,20 +616,21 @@ function testAnyLabel(name: unknown): string {
  * be a set (contract R4.2) and why the union below needs no derivation to be
  * deterministic.
  *
- * Feature 134 T014 took the paid modules' out — `pim_pimcore`'s eight,
- * `pim_ergonode`'s ten, `ksef`'s two and, on the rebase over
+ * Feature 134 T014 took **20** module-owned table names out — `pim_pimcore`'s
+ * eight, `pim_ergonode`'s ten, `ksef`'s two and, on the rebase over
  * `fix/master-red-baseline`, `comarch_xl`'s twelve — into those packages'
- * `src/test-support/index.ts`, where a module that leaves this repository takes
- * its tables with it. **20, re-derived, and not the 21 the feature's own spec
- * records**: `invoice_ledger`'s five are a free module's and stay here. The rest
+ * `src/test-support/index.ts`, because **a module that ships separately takes its
+ * tables with it** and this list holds no table a module package owns. **20,
+ * re-derived, and not the 21 the feature's own spec records**: `invoice_ledger`
+ * owns five of the names still below and none of them was in the move. The rest
  * are 109 T060–T064's, and the end state of this array is that it does not exist.
  */
 const SEEDED_TABLES = [
   // Feature 119's twelve `xl_*` tables were here on `fix/master-red-baseline`
   // and are `comarch_xl`'s own `volatileTables` now (feature 134 T014): the wipe
   // that branch added is kept in full, one directory over, where a module that
-  // leaves this repository takes it along. Nothing about the repair changed —
-  // the same twelve names go into the same one `truncate … cascade`.
+  // ships separately takes it along. Nothing about the repair changed — the same
+  // twelve names go into the same one `truncate … cascade`.
   // Feature 067 — product feeds. `product_feeds` itself and everything hanging
   // off it cascade from `sales_channels`, but five tables do not reach any
   // table below: `product_feed_templates` and its fields, and the three
