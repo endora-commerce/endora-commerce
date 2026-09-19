@@ -1,7 +1,5 @@
 import { expect } from 'vitest';
 import type { InjectOptions } from 'fastify';
-import type { EntityManager } from '@mikro-orm/postgresql';
-import { Setting } from '@endora-commerce/platform/kernel';
 import { effectiveState } from '../../src/kernel/lifecycle/effective-state.js';
 import { registryCache } from '../../src/kernel/lifecycle/registry-cache.js';
 import { REGISTERED_MANIFESTS } from '../../src/lifecycle/registered-manifests.js';
@@ -363,52 +361,6 @@ async function expectSettingWriteRefused(
  * The registry state is restored even if an assertion fails, so one red
  * off-state test cannot cascade into every file that runs after it.
  */
-/**
- * Seed the **platform** axis off for `moduleId` while its **operator** axis stays on, so a
- * test can assert that the two are reported separately.
- *
- * ## Why this needs a helper at all
- *
- * `__setEnabledForTesting(ids)` seeds the operator axis only for the ids it is given, so a
- * module left out of the list has no stored activation value and falls back to its
- * **manifest default**. Three off-state tests relied on that fallback being `true` to get
- * "platform off, operator on" — the one combination that makes the Admin UI's distinction
- * between *"not installed here"* and *"we turned it off"* visible. When feature 132 flipped
- * those three connectors to `default: false` (FR-017), the fallback became `false`, both
- * axes read off, and the case stopped distinguishing anything while still passing its first
- * two assertions.
- *
- * So the operator axis is **arranged** here rather than inherited: an explicit
- * `global_value = true` row, then `__refreshActivationForTesting`, which is the same seam
- * the activation route's propagation uses. A test that says what it needs cannot be
- * changed by a default moving underneath it.
- */
-export async function withPlatformAxisOffOnly(opts: {
-  readonly em: () => EntityManager;
-  readonly moduleId: string;
-  /** Every module id the cache should hold — the caller's `ALL_IDS`. */
-  readonly allModuleIds: readonly string[];
-}): Promise<void> {
-  const settingCode = effectiveState.activationSettingCode(opts.moduleId);
-  if (settingCode === null) {
-    throw new Error(
-      `'${opts.moduleId}' declares no activation control, so it has no operator axis to ` +
-        'keep on — this helper is for a module that does.',
-    );
-  }
-
-  await opts
-    .em()
-    .nativeUpdate(Setting, { code: settingCode }, { globalValue: true });
-
-  // Platform axis: everything except the subject. This resets the operator axis, which is
-  // why the refresh below has to come after it.
-  registryCache.__setEnabledForTesting(
-    opts.allModuleIds.filter((id) => id !== opts.moduleId),
-  );
-  await registryCache.__refreshActivationForTesting(opts.em);
-}
-
 export async function expectModuleAbsent(
   server: ServerLike,
   moduleId: string,
