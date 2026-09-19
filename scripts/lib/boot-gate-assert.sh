@@ -45,18 +45,6 @@ boot_gate_module_ids() {
   grep -o '"id":"[^"]*"' "$1" 2>/dev/null | sed 's/^"id":"//; s/"$//'
 }
 
-# boot_gate_present_module_ids <presence-json-file>
-#
-# The ids whose `present` is true. Presence is the conjunction of the two axes
-# of Principle XVII, so a module that is composed but switched off is listed
-# and is *not* here — which is the distinction the overlay finding needs: an
-# overlay module that vanished is missing from the enumeration entirely, while
-# one an operator switched off is enumerated and absent, and those are not the
-# same defect.
-boot_gate_present_module_ids() {
-  grep -o '"id":"[^"]*","present":true' "$1" 2>/dev/null | sed 's/^"id":"//; s/","present":true$//'
-}
-
 # boot_gate_reconcile_line <boot-log-file>
 #
 # The last `[i18n] reconcile complete — installed=N skipped=M failed=K` line, with
@@ -140,23 +128,29 @@ boot_gate_translation_findings() {
 # The expected ids are derived by the caller from the deployment's own
 # `modules/` directory, never written down here: a deployment that grows a
 # second overlay module is covered by existing, and D-100 refuses the copy.
+#
+# **Composition is asserted and presence is not** (D-165.6), and that is a
+# conclusion rather than an omission: an overlay whose activation Setting is off
+# is composed and absent, which is the operator axis of Principle XVII working as
+# Constitution XVII requires rather than a defect — and `erp_incumbent_fixture`
+# is forced into exactly that state, holding an exclusive capability key that
+# `capability-registry.ts` refuses to see with `activation.default === true`. The
+# assertion was also powerless in the direction it claimed to guard, which is why
+# it is retired by kind and must not come back: `effective-state.ts`'
+# `operatorActivated` ends `return declaration?.default ?? true`, so an image that
+# lost its activation declarations reads activated for every module — that silence
+# fails **open**, and a branch firing only on `present: false` could never see it.
 boot_gate_overlay_findings() {
   local presence=$1
   shift
-  local composed present id total
+  local composed id total
   composed=$(boot_gate_module_ids "$presence")
-  present=$(boot_gate_present_module_ids "$presence")
   total=$(printf '%s\n' "$composed" | grep -c '[^[:space:]]')
 
   for id in "$@"; do
     if ! printf '%s\n' "$composed" | grep -qx "$id"; then
       printf 'overlay-missing: the deployment declares overlay module "%s" and the running platform does not compose it — it enumerates %s modules and that is not one of them. This is D-165.3'"'"'s second silence: the overlay vanishes from the compiled application with no error and no warning.\n' \
         "$id" "$total"
-      continue
-    fi
-    if ! printf '%s\n' "$present" | grep -qx "$id"; then
-      printf 'overlay-not-present: the running platform composes overlay module "%s" but reports it as absent. That is the operator axis of Principle XVII rather than a vanished overlay, and a deployment whose reference module is switched off cannot answer the question this gate asks.\n' \
-        "$id"
     fi
   done
 }
