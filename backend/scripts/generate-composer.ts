@@ -96,6 +96,13 @@ import {
   emitTailwindRegistry,
   tailwindRegistryOutputPathIn,
 } from './lib/admin-artefacts.js';
+// The entity index's renderer, shared with `endora generate` for the same reason
+// — see the wrapper block below and `contracts/instance-repository.md` R3.5.
+import {
+  collectEntityIndexEntries,
+  emitEntityIndex,
+  entityIndexOutputPathIn,
+} from './lib/entity-index-artefact.js';
 import { nodeWorkspaceFs, workspaceMembers } from './lib/workspace-packages.js';
 import {
   DOCS_SIDEBAR_ARTEFACT,
@@ -2103,6 +2110,35 @@ export function renderTailwindRegistry(
   };
 }
 
+// ── the test entity index ───────────────────────────────────────────────────
+//
+// `specs/109-backend-test-kit/` T065. The derivation is
+// `@endora-commerce/cli/lib/entity-index-artefact.js`', for the reason the admin
+// registry's is, and what stays here is the wrapper supplying this tree's
+// population and output root.
+//
+// **It is the only artefact of this generator whose consumer is a test**, and
+// that is deliberate rather than accidental placement. Its population is
+// *which modules this host installed* — exactly the population the admin
+// registry and the documentation navigation are rendered over — and there is one
+// walk of it per run. A second generator for one artefact over the same
+// population would be a second answer to the question this one already asked.
+//
+// Unlike an instance's copy it **is** committed here: this repository's module
+// set is its own tree rather than an install (`divergence-report.md` §1's
+// predicate), so `composer:check` is what keeps it honest and a stale index is a
+// merge request's finding rather than a client's silent defect.
+
+/** Pure render — the target path + expected content of the test entity index. */
+export function renderEntityIndex(
+  population: ArtefactPopulation = workspacePopulation(),
+): { outputPath: string; content: string } {
+  return {
+    outputPath: entityIndexOutputPathIn(population.root),
+    content: emitEntityIndex(collectEntityIndexEntries(population.packages)),
+  };
+}
+
 // ── the documentation registry ──────────────────────────────────────────────
 //
 // Artefacts six and onward (feature 100 / roadmap F12, `contracts/docs-registry.md`
@@ -2237,6 +2273,7 @@ export async function renderAll(): Promise<
     { label: 'baseline-migrations', ...renderBaselineList(sources), entryKind: 'none' as const },
     { label: 'admin-registry', ...renderAdminRegistry(population) },
     { label: 'admin-tailwind', ...renderTailwindRegistry(population), entryKind: 'css-specifier' as const },
+    { label: 'entity-index', ...renderEntityIndex(population) },
     { label: 'docs-sidebar', ...renderDocsSidebar(population) },
     { label: 'module-map', ...renderModuleMap(population) },
     ...(await renderModuleReferences(population)),

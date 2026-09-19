@@ -1,53 +1,6 @@
-import { entityNamed as classNamed } from '../../src/packages/package-entity-lookup.js';
-import { entities as adminNotificationsEntities } from '@endora-commerce/mod-admin-notifications/backend';
-import { entities as apiKeysEntities } from '@endora-commerce/mod-api-keys/backend';
-import { entities as cmsEntities } from '@endora-commerce/mod-cms/backend';
-import { entities as deliveryMethodsEntities } from '@endora-commerce/mod-delivery-methods/backend';
-import { entities as mfaEntities } from '@endora-commerce/mod-mfa/backend';
-import { entities as newsletterEntities } from '@endora-commerce/mod-newsletter/backend';
-import { entities as promptActionsEntities } from '@endora-commerce/mod-prompt-actions/backend';
-import { entities as pwaEntities } from '@endora-commerce/mod-pwa/backend';
-import { entities as returnsEntities } from '@endora-commerce/mod-returns/backend';
-import { entities as shoppingListsEntities } from '@endora-commerce/mod-shopping-lists/backend';
-import { entities as transactionalEmailsEntities } from '@endora-commerce/mod-transactional-emails/backend';
-import { entities as webhooksEntities } from '@endora-commerce/mod-webhooks/backend';
-import { entities as addressesEntities } from '@endora-commerce/mod-addresses/backend';
-import { entities as analyticsEntities } from '@endora-commerce/mod-analytics/backend';
-import { entities as creditLimitsEntities } from '@endora-commerce/mod-credit-limits/backend';
-import { entities as currenciesEntities } from '@endora-commerce/mod-currencies/backend';
-import { entities as googleAnalyticsEntities } from '@endora-commerce/mod-google-analytics/backend';
-import { entities as languagesEntities } from '@endora-commerce/mod-languages/backend';
-import { entities as i18nEntities } from '@endora-commerce/mod-i18n/backend';
-import { entities as paymentMethodsEntities } from '@endora-commerce/mod-payment-methods/backend';
-import { entities as promotionsEntities } from '@endora-commerce/mod-promotions/backend';
-import { entities as quoteRequestsEntities } from '@endora-commerce/mod-quote-requests/backend';
-import { entities as shipmentsEntities } from '@endora-commerce/mod-shipments/backend';
-import { entities as inpostEntities } from '@endora-commerce/mod-inpost/backend';
-import { entities as comparisonsEntities } from '@endora-commerce/mod-comparisons/backend';
-import { entities as credentialsEntities } from '@endora-commerce/mod-credentials/backend';
-import { entities as dictionariesEntities } from '@endora-commerce/mod-dictionaries/backend';
-import { entities as ksefEntities } from '@endora-commerce/mod-ksef/backend';
-import { entities as searchEntities } from '@endora-commerce/mod-search/backend';
-import { entities as taxesEntities } from '@endora-commerce/mod-taxes/backend';
-import { entities as assetsLibraryEntities } from '@endora-commerce/mod-assets-library/backend';
-import { entities as cartsEntities } from '@endora-commerce/mod-carts/backend';
-import { entities as customFieldsEntities } from '@endora-commerce/mod-custom-fields/backend';
-import { entities as customersEntities } from '@endora-commerce/mod-customers/backend';
-import { entities as customerAccountsEntities } from '@endora-commerce/mod-customer-accounts/backend';
-import { entities as inventoryEntities } from '@endora-commerce/mod-inventory/backend';
-import { entities as emailEntities } from '@endora-commerce/mod-email/backend';
-import { entities as invoicesEntities } from '@endora-commerce/mod-invoices/backend';
-import { entities as invoiceLedgerEntities } from '@endora-commerce/mod-invoice-ledger/backend';
-import { entities as pimErgonodeEntities } from '@endora-commerce/mod-pim-ergonode/backend';
-import { entities as pimUnopimEntities } from '@endora-commerce/mod-pim-unopim/backend';
-import { entities as pimPimcoreEntities } from '@endora-commerce/mod-pim-pimcore/backend';
-import { entities as comarchXlEntities } from '@endora-commerce/mod-comarch-xl/backend';
-import { entities as pimAkeneoEntities } from '@endora-commerce/mod-pim-akeneo/backend';
-import { entities as productFeedsEntities } from '@endora-commerce/mod-product-feeds/backend';
-import { entities as authEntities } from '@endora-commerce/mod-auth/backend';
-import { entities as catalogEntities } from '@endora-commerce/mod-catalog/backend';
-import { entities as ordersEntities } from '@endora-commerce/mod-orders/backend';
-import { entities as paymentsEntities } from '@endora-commerce/mod-payments/backend';
+import { entityNamedIn as classNamed } from '@endora-commerce/test-kit/support';
+
+import { installedModuleEntities } from '../entities.generated.js';
 import type { Session as SessionRow } from '../../../packages/modules/auth/src/backend/entities/session.entity.js';
 import type { AttributeSet as AttributeSetRow } from '../../../packages/modules/catalog/src/backend/entities/attribute-set.entity.js';
 import type { AttributeSetAttribute as AttributeSetAttributeRow } from '../../../packages/modules/catalog/src/backend/entities/attribute-set-attribute.entity.js';
@@ -213,12 +166,6 @@ import type { FeedTaxonomyNode as FeedTaxonomyNodeRow } from '../../../packages/
 import type { FeedTemplate as FeedTemplateRow } from '../../../packages/modules/product_feeds/src/backend/entities/feed-template.entity.js';
 import type { FeedTemplateField as FeedTemplateFieldRow } from '../../../packages/modules/product_feeds/src/backend/entities/feed-template-field.entity.js';
 import type { ProductFeed as ProductFeedRow } from '../../../packages/modules/product_feeds/src/backend/entities/product-feed.entity.js';
-import { entities as adminActionsEntities } from '@endora-commerce/mod-admin-actions/backend';
-import { entities as adminRolesEntities } from '@endora-commerce/mod-admin-roles/backend';
-import { entities as adminUsersEntities } from '@endora-commerce/mod-admin-users/backend';
-import { entities as megamenuEntities } from '@endora-commerce/mod-megamenu/backend';
-import { entities as organizationsEntities } from '@endora-commerce/mod-organizations/backend';
-import { entities as priceListsEntities } from '@endora-commerce/mod-price-lists/backend';
 import type { ModuleAction as ModuleActionRow } from '../../../packages/modules/admin_actions/src/backend/entities/module-action.entity.js';
 import type { AdminRole as AdminRoleRow } from '../../../packages/modules/admin_roles/src/backend/entities/admin-role.entity.js';
 import type { AdminUser as AdminUserRow } from '../../../packages/modules/admin_users/src/backend/entities/admin-user.entity.js';
@@ -274,36 +221,82 @@ import type { Payment as PaymentRow } from '../../../packages/modules/payments/s
  * re-point every test in this repository at a different table.
  */
 /**
- * The lookup itself is the **host's**, not this file's (T040b, criterion 7).
+ * **Neither half of that split is this file's own any more** (T065).
  *
- * `src/packages/package-entity-lookup.ts` exists because a host program in the
- * compiled build needs exactly this, and two implementations of one lookup are
- * two answers waiting to disagree about what a missing name does. Only the
- * *type* half differs by tree, and deliberately: this one names the package's
- * **source**, which is legal here because the test program has no `rootDir`; the
- * host build sets one, so its call sites name the emitted declaration instead.
+ * The **arrays** come off `../entities.generated.ts`, which
+ * `composer:generate` renders from the module packages this tree holds; the
+ * **lookup** is `@endora-commerce/test-kit/support`'s `entityNamedIn`, which
+ * delegates to the platform's own `entityNamed` and adds the module dimension.
+ * What is left here is the 169 named constants and their row types — which is
+ * the part that is genuinely this repository's judgement about which entities its
+ * own tests construct.
+ *
+ * ## Why this file stays, at this path
+ *
+ * `module-package-layout.md` R10's closing paragraph: it may not move into a
+ * module package and may not be published by the kit either, because it *is* an
+ * index of the modules one deployment installed and that is the one fact a
+ * package naming no module is forbidden to know. Its import count is a reason to
+ * keep its **path** stable and never a reason to publish it — so the 607 files
+ * that name this path go on naming it, and what changed underneath them is where
+ * the two halves come from.
+ *
+ * ## What the change buys, beyond removing 55 hand-written imports
+ *
+ * Three things, and the third is the one that matters outside this tree:
+ *
+ *  * the module set is no longer stated twice. A module added to this workspace
+ *    used to need a line here; now `composer:generate` writes it, and
+ *    `composer:check` reds a merge request whose index is stale.
+ *  * a module that leaves the composition is a named refusal —
+ *    `ModuleNotInstalledError`, naming the ids that are installed — rather than
+ *    a `TypeError` on `undefined`.
+ *  * **the kit's lookup is exercised here.** T016's landing measured the
+ *    opposite: `composeTestServer` registered none of the four sales-channel
+ *    kernel names, and an out-of-tree host found them one failed boot at a time,
+ *    because the reference harness had registered them itself. A seam this
+ *    repository does not use is a seam whose defects only a stranger sees.
  */
 
-export const QuoteRequest = classNamed<QuoteRequestRow>(quoteRequestsEntities, 'QuoteRequest');
+export const QuoteRequest = classNamed<QuoteRequestRow>(
+  installedModuleEntities,
+  'quote_requests',
+  'QuoteRequest',
+);
 export const QuoteRequestItem = classNamed<QuoteRequestItemRow>(
-  quoteRequestsEntities,
+  installedModuleEntities,
+  'quote_requests',
   'QuoteRequestItem',
 );
 export const QuoteRequestRevision = classNamed<QuoteRequestRevisionRow>(
-  quoteRequestsEntities,
+  installedModuleEntities,
+  'quote_requests',
   'QuoteRequestRevision',
 );
-export const GaCustomEvent = classNamed<GaCustomEventRow>(googleAnalyticsEntities, 'GaCustomEvent');
+export const GaCustomEvent = classNamed<GaCustomEventRow>(
+  installedModuleEntities,
+  'google_analytics',
+  'GaCustomEvent',
+);
 
-export const CreditLimit = classNamed<CreditLimitRow>(creditLimitsEntities, 'CreditLimit');
+export const CreditLimit = classNamed<CreditLimitRow>(
+  installedModuleEntities,
+  'credit_limits',
+  'CreditLimit',
+);
 export const CreditLimitReservation = classNamed<CreditLimitReservationRow>(
-  creditLimitsEntities,
+  installedModuleEntities,
+  'credit_limits',
   'CreditLimitReservation',
 );
 
-export const Promotion = classNamed<PromotionRow>(promotionsEntities, 'Promotion');
+export const Promotion = classNamed<PromotionRow>(
+  installedModuleEntities,
+  'promotions',
+  'Promotion',
+);
 
-export const Address = classNamed<AddressRow>(addressesEntities, 'Address');
+export const Address = classNamed<AddressRow>(installedModuleEntities, 'addresses', 'Address');
 
 /**
  * `orders`' entity classes, taken off the package's own `entities` array.
@@ -317,28 +310,33 @@ export const Address = classNamed<AddressRow>(addressesEntities, 'Address');
  * the fifty-two tests that used to name `order.entity.ts` by path come through
  * here instead.
  */
-export const Order = classNamed<OrderRow>(ordersEntities, 'Order');
+export const Order = classNamed<OrderRow>(installedModuleEntities, 'orders', 'Order');
 
-export const Payment = classNamed<PaymentRow>(paymentsEntities, 'Payment');
+export const Payment = classNamed<PaymentRow>(installedModuleEntities, 'payments', 'Payment');
 
-export const OrderItem = classNamed<OrderItemRow>(ordersEntities, 'OrderItem');
+export const OrderItem = classNamed<OrderItemRow>(installedModuleEntities, 'orders', 'OrderItem');
 
-export const OrderComment = classNamed<OrderCommentRow>(ordersEntities, 'OrderComment');
+export const OrderComment = classNamed<OrderCommentRow>(
+  installedModuleEntities,
+  'orders',
+  'OrderComment',
+);
 
 export const OrderAppliedPromotion = classNamed<OrderAppliedPromotionRow>(
-  ordersEntities,
+  installedModuleEntities,
+  'orders',
   'OrderAppliedPromotion',
 );
 
 export const OrderPlacementIntent = classNamed<OrderPlacementIntentRow>(
-  ordersEntities,
+  installedModuleEntities,
+  'orders',
   'OrderPlacementIntent',
 );
 
+export const Currency = classNamed<CurrencyRow>(installedModuleEntities, 'currencies', 'Currency');
 
-export const Currency = classNamed<CurrencyRow>(currenciesEntities, 'Currency');
-
-export const Language = classNamed<LanguageRow>(languagesEntities, 'Language');
+export const Language = classNamed<LanguageRow>(installedModuleEntities, 'languages', 'Language');
 
 /**
  * `_i18n`'s one entity — the table every module's translation bundles land in.
@@ -351,25 +349,36 @@ export const Language = classNamed<LanguageRow>(languagesEntities, 'Language');
  * class it never discovered.
  */
 export const TranslationBundle = classNamed<TranslationBundleRow>(
-  i18nEntities,
+  installedModuleEntities,
+  '_i18n',
   'TranslationBundle',
 );
 
-export const AnalyticsEvent = classNamed<AnalyticsEventRow>(analyticsEntities, 'AnalyticsEvent');
+export const AnalyticsEvent = classNamed<AnalyticsEventRow>(
+  installedModuleEntities,
+  'analytics',
+  'AnalyticsEvent',
+);
 
-export const Shipment = classNamed<ShipmentRow>(shipmentsEntities, 'Shipment');
+export const Shipment = classNamed<ShipmentRow>(installedModuleEntities, 'shipments', 'Shipment');
 export const InpostWebhookEvent = classNamed<InpostWebhookEventRow>(
-  inpostEntities,
+  installedModuleEntities,
+  'inpost',
   'InpostWebhookEvent',
 );
 export const InpostShipmentLink = classNamed<InpostShipmentLinkRow>(
-  inpostEntities,
+  installedModuleEntities,
+  'inpost',
   'InpostShipmentLink',
 );
 
-export const PaymentMethod = classNamed<PaymentMethodRow>(paymentMethodsEntities, 'PaymentMethod');
+export const PaymentMethod = classNamed<PaymentMethodRow>(
+  installedModuleEntities,
+  'payment_methods',
+  'PaymentMethod',
+);
 
-export const Session = classNamed<SessionRow>(authEntities, 'Session');
+export const Session = classNamed<SessionRow>(installedModuleEntities, 'auth', 'Session');
 
 /**
  * `catalog` — twelve of the module's eighteen entity classes, the ones this
@@ -378,39 +387,73 @@ export const Session = classNamed<SessionRow>(authEntities, 'Session');
  * above load-bearing here rather than theoretical: a relative reach into the
  * package's source would hand `em.find` a class the ORM never registered.
  */
-export const AttributeSet = classNamed<AttributeSetRow>(catalogEntities, 'AttributeSet');
+export const AttributeSet = classNamed<AttributeSetRow>(
+  installedModuleEntities,
+  'catalog',
+  'AttributeSet',
+);
 export const AttributeSetAttribute = classNamed<AttributeSetAttributeRow>(
-  catalogEntities,
+  installedModuleEntities,
+  'catalog',
   'AttributeSetAttribute',
 );
-export const BulkOperation = classNamed<BulkOperationRow>(catalogEntities, 'BulkOperation');
-export const BundleSlot = classNamed<BundleSlotRow>(catalogEntities, 'BundleSlot');
-export const Category = classNamed<CategoryRow>(catalogEntities, 'Category');
-export const GalleryItem = classNamed<GalleryItemRow>(catalogEntities, 'GalleryItem');
+export const BulkOperation = classNamed<BulkOperationRow>(
+  installedModuleEntities,
+  'catalog',
+  'BulkOperation',
+);
+export const BundleSlot = classNamed<BundleSlotRow>(
+  installedModuleEntities,
+  'catalog',
+  'BundleSlot',
+);
+export const Category = classNamed<CategoryRow>(installedModuleEntities, 'catalog', 'Category');
+export const GalleryItem = classNamed<GalleryItemRow>(
+  installedModuleEntities,
+  'catalog',
+  'GalleryItem',
+);
 export const GalleryItemLabel = classNamed<GalleryItemLabelRow>(
-  catalogEntities,
+  installedModuleEntities,
+  'catalog',
   'GalleryItemLabel',
 );
-export const GroupedItem = classNamed<GroupedItemRow>(catalogEntities, 'GroupedItem');
-export const Product = classNamed<ProductRow>(catalogEntities, 'Product');
+export const GroupedItem = classNamed<GroupedItemRow>(
+  installedModuleEntities,
+  'catalog',
+  'GroupedItem',
+);
+export const Product = classNamed<ProductRow>(installedModuleEntities, 'catalog', 'Product');
 export const ProductAttachment = classNamed<ProductAttachmentRow>(
-  catalogEntities,
+  installedModuleEntities,
+  'catalog',
   'ProductAttachment',
 );
 export const ProductAttribute = classNamed<ProductAttributeRow>(
-  catalogEntities,
+  installedModuleEntities,
+  'catalog',
   'ProductAttribute',
 );
-export const ProductLink = classNamed<ProductLinkRow>(catalogEntities, 'ProductLink');
+export const ProductLink = classNamed<ProductLinkRow>(
+  installedModuleEntities,
+  'catalog',
+  'ProductLink',
+);
 export const ProductPackagingUnit = classNamed<ProductPackagingUnitRow>(
-  catalogEntities,
+  installedModuleEntities,
+  'catalog',
   'ProductPackagingUnit',
 );
 export const ProductValueOverride = classNamed<ProductValueOverrideRow>(
-  catalogEntities,
+  installedModuleEntities,
+  'catalog',
   'ProductValueOverride',
 );
-export const ProductVariant = classNamed<ProductVariantRow>(catalogEntities, 'ProductVariant');
+export const ProductVariant = classNamed<ProductVariantRow>(
+  installedModuleEntities,
+  'catalog',
+  'ProductVariant',
+);
 
 /**
  * The **row shape**, for a test that annotates a variable with it.
@@ -463,79 +506,134 @@ export type {
  * different object on purpose.
  */
 export const AdminNotification = classNamed<AdminNotificationRow>(
-  adminNotificationsEntities,
+  installedModuleEntities,
+  'admin_notifications',
   'AdminNotification',
 );
-export const ApiKey = classNamed<ApiKeyRow>(apiKeysEntities, 'ApiKey');
-export const CmsPage = classNamed<CmsPageRow>(cmsEntities, 'CmsPage');
+export const ApiKey = classNamed<ApiKeyRow>(installedModuleEntities, 'api_keys', 'ApiKey');
+export const CmsPage = classNamed<CmsPageRow>(installedModuleEntities, 'cms', 'CmsPage');
 export const DeliveryMethod = classNamed<DeliveryMethodRow>(
-  deliveryMethodsEntities,
+  installedModuleEntities,
+  'delivery_methods',
   'DeliveryMethod',
 );
-export const MfaEnrolment = classNamed<MfaEnrolmentRow>(mfaEntities, 'MfaEnrolment');
-export const MfaSocialIdentity = classNamed<MfaSocialIdentityRow>(mfaEntities, 'MfaSocialIdentity');
+export const MfaEnrolment = classNamed<MfaEnrolmentRow>(
+  installedModuleEntities,
+  'mfa',
+  'MfaEnrolment',
+);
+export const MfaSocialIdentity = classNamed<MfaSocialIdentityRow>(
+  installedModuleEntities,
+  'mfa',
+  'MfaSocialIdentity',
+);
 export const NewsletterAutomationRun = classNamed<NewsletterAutomationRunRow>(
-  newsletterEntities,
+  installedModuleEntities,
+  'newsletter',
   'NewsletterAutomationRun',
 );
 export const NewsletterCampaign = classNamed<NewsletterCampaignRow>(
-  newsletterEntities,
+  installedModuleEntities,
+  'newsletter',
   'NewsletterCampaign',
 );
 export const NewsletterCustomField = classNamed<NewsletterCustomFieldRow>(
-  newsletterEntities,
+  installedModuleEntities,
+  'newsletter',
   'NewsletterCustomField',
 );
 export const NewsletterEmailBlock = classNamed<NewsletterEmailBlockRow>(
-  newsletterEntities,
+  installedModuleEntities,
+  'newsletter',
   'NewsletterEmailBlock',
 );
 export const NewsletterSendRecord = classNamed<NewsletterSendRecordRow>(
-  newsletterEntities,
+  installedModuleEntities,
+  'newsletter',
   'NewsletterSendRecord',
 );
 export const NewsletterSubscriber = classNamed<NewsletterSubscriberRow>(
-  newsletterEntities,
+  installedModuleEntities,
+  'newsletter',
   'NewsletterSubscriber',
 );
 export const NewsletterSubscriberTag = classNamed<NewsletterSubscriberTagRow>(
-  newsletterEntities,
+  installedModuleEntities,
+  'newsletter',
   'NewsletterSubscriberTag',
 );
 export const NewsletterSuppression = classNamed<NewsletterSuppressionRow>(
-  newsletterEntities,
+  installedModuleEntities,
+  'newsletter',
   'NewsletterSuppression',
 );
-export const NewsletterTag = classNamed<NewsletterTagRow>(newsletterEntities, 'NewsletterTag');
+export const NewsletterTag = classNamed<NewsletterTagRow>(
+  installedModuleEntities,
+  'newsletter',
+  'NewsletterTag',
+);
 export const PromptActionRequest = classNamed<PromptActionRequestRow>(
-  promptActionsEntities,
+  installedModuleEntities,
+  'prompt_actions',
   'PromptActionRequest',
 );
-export const Refund = classNamed<RefundRow>(returnsEntities, 'Refund');
-export const ReturnCase = classNamed<ReturnCaseRow>(returnsEntities, 'ReturnCase');
+export const Refund = classNamed<RefundRow>(installedModuleEntities, 'returns', 'Refund');
+export const ReturnCase = classNamed<ReturnCaseRow>(
+  installedModuleEntities,
+  'returns',
+  'ReturnCase',
+);
 export const ReturnCaseComment = classNamed<ReturnCaseCommentRow>(
-  returnsEntities,
+  installedModuleEntities,
+  'returns',
   'ReturnCaseComment',
 );
-export const ReturnCaseItem = classNamed<ReturnCaseItemRow>(returnsEntities, 'ReturnCaseItem');
-export const ReturnReason = classNamed<ReturnReasonRow>(returnsEntities, 'ReturnReason');
-export const ReturnShipment = classNamed<ReturnShipmentRow>(returnsEntities, 'ReturnShipment');
-export const ReturnStatus = classNamed<ReturnStatusRow>(returnsEntities, 'ReturnStatus');
+export const ReturnCaseItem = classNamed<ReturnCaseItemRow>(
+  installedModuleEntities,
+  'returns',
+  'ReturnCaseItem',
+);
+export const ReturnReason = classNamed<ReturnReasonRow>(
+  installedModuleEntities,
+  'returns',
+  'ReturnReason',
+);
+export const ReturnShipment = classNamed<ReturnShipmentRow>(
+  installedModuleEntities,
+  'returns',
+  'ReturnShipment',
+);
+export const ReturnStatus = classNamed<ReturnStatusRow>(
+  installedModuleEntities,
+  'returns',
+  'ReturnStatus',
+);
 export const ReturnStatusTransition = classNamed<ReturnStatusTransitionRow>(
-  returnsEntities,
+  installedModuleEntities,
+  'returns',
   'ReturnStatusTransition',
 );
-export const ShoppingList = classNamed<ShoppingListRow>(shoppingListsEntities, 'ShoppingList');
+export const ShoppingList = classNamed<ShoppingListRow>(
+  installedModuleEntities,
+  'shopping_lists',
+  'ShoppingList',
+);
 export const TransactionalEmail = classNamed<TransactionalEmailRow>(
-  transactionalEmailsEntities,
+  installedModuleEntities,
+  'transactional_emails',
   'TransactionalEmail',
 );
 export const TransactionalEmailContent = classNamed<TransactionalEmailContentRow>(
-  transactionalEmailsEntities,
+  installedModuleEntities,
+  'transactional_emails',
   'TransactionalEmailContent',
 );
-export const Webhook = classNamed<WebhookRow>(webhooksEntities, 'Webhook');
-export const WebhookDelivery = classNamed<WebhookDeliveryRow>(webhooksEntities, 'WebhookDelivery');
+export const Webhook = classNamed<WebhookRow>(installedModuleEntities, 'webhooks', 'Webhook');
+export const WebhookDelivery = classNamed<WebhookDeliveryRow>(
+  installedModuleEntities,
+  'webhooks',
+  'WebhookDelivery',
+);
 
 /**
  * Batch three (feature 080, T040b). Ten classes across six packages, each one a
@@ -547,35 +645,53 @@ export const WebhookDelivery = classNamed<WebhookDeliveryRow>(webhooksEntities, 
  * `EntityManager` and keeps its relative import into the package source — a
  * different object on purpose, and one no ORM ever sees.
  */
-export const Comparison = classNamed<ComparisonRow>(comparisonsEntities, 'Comparison');
+export const Comparison = classNamed<ComparisonRow>(
+  installedModuleEntities,
+  'comparisons',
+  'Comparison',
+);
 export const PushSubscription = classNamed<PushSubscriptionRow>(
-  pwaEntities,
+  installedModuleEntities,
+  'pwa',
   'PushSubscription',
 );
 export const ComparisonProduct = classNamed<ComparisonProductRow>(
-  comparisonsEntities,
+  installedModuleEntities,
+  'comparisons',
   'ComparisonProduct',
 );
 export const CredentialConfiguration = classNamed<CredentialConfigurationRow>(
-  credentialsEntities,
+  installedModuleEntities,
+  'credentials',
   'CredentialConfiguration',
 );
-export const Country = classNamed<CountryRow>(dictionariesEntities, 'Country');
+export const Country = classNamed<CountryRow>(installedModuleEntities, 'dictionaries', 'Country');
 export const DictionaryTranslation = classNamed<DictionaryTranslationRow>(
-  dictionariesEntities,
+  installedModuleEntities,
+  'dictionaries',
   'DictionaryTranslation',
 );
 export const LanguageCountry = classNamed<LanguageCountryRow>(
-  dictionariesEntities,
+  installedModuleEntities,
+  'dictionaries',
   'LanguageCountry',
 );
-export const KsefCredential = classNamed<KsefCredentialRow>(ksefEntities, 'KsefCredential');
-export const KsefSubmission = classNamed<KsefSubmissionRow>(ksefEntities, 'KsefSubmission');
+export const KsefCredential = classNamed<KsefCredentialRow>(
+  installedModuleEntities,
+  'ksef',
+  'KsefCredential',
+);
+export const KsefSubmission = classNamed<KsefSubmissionRow>(
+  installedModuleEntities,
+  'ksef',
+  'KsefSubmission',
+);
 export const SearchPhraseRecord = classNamed<SearchPhraseRecordRow>(
-  searchEntities,
+  installedModuleEntities,
+  'search',
   'SearchPhraseRecord',
 );
-export const Tax = classNamed<TaxRow>(taxesEntities, 'Tax');
+export const Tax = classNamed<TaxRow>(installedModuleEntities, 'taxes', 'Tax');
 
 export type {
   AdminNotificationRow,
@@ -636,85 +752,130 @@ export type {
  * happen to exist rather than of what the package publishes — the next test to persist
  * one would otherwise reach for the source copy and find nothing telling it not to.
  */
-export const Asset = classNamed<AssetRow>(assetsLibraryEntities, 'Asset');
-export const AssetFolder = classNamed<AssetFolderRow>(assetsLibraryEntities, 'AssetFolder');
-export const Cart = classNamed<CartRow>(cartsEntities, 'Cart');
-export const CartItem = classNamed<CartItemRow>(cartsEntities, 'CartItem');
-export const CartAuditEntry = classNamed<CartAuditEntryRow>(cartsEntities, 'CartAuditEntry');
+export const Asset = classNamed<AssetRow>(installedModuleEntities, 'assets_library', 'Asset');
+export const AssetFolder = classNamed<AssetFolderRow>(
+  installedModuleEntities,
+  'assets_library',
+  'AssetFolder',
+);
+export const Cart = classNamed<CartRow>(installedModuleEntities, 'carts', 'Cart');
+export const CartItem = classNamed<CartItemRow>(installedModuleEntities, 'carts', 'CartItem');
+export const CartAuditEntry = classNamed<CartAuditEntryRow>(
+  installedModuleEntities,
+  'carts',
+  'CartAuditEntry',
+);
 export const CustomFieldDefinition = classNamed<CustomFieldDefinitionRow>(
-  customFieldsEntities,
+  installedModuleEntities,
+  'custom_fields',
   'CustomFieldDefinition',
 );
 export const CustomFieldOption = classNamed<CustomFieldOptionRow>(
-  customFieldsEntities,
+  installedModuleEntities,
+  'custom_fields',
   'CustomFieldOption',
 );
-export const CustomerAddress = classNamed<CustomerAddressRow>(customersEntities, 'CustomerAddress');
+export const CustomerAddress = classNamed<CustomerAddressRow>(
+  installedModuleEntities,
+  'customers',
+  'CustomerAddress',
+);
 export const CustomerAccount = classNamed<CustomerAccountRow>(
-  customerAccountsEntities,
+  installedModuleEntities,
+  'customer_accounts',
   'CustomerAccount',
 );
-export const CustomerGroup = classNamed<CustomerGroupRow>(customerAccountsEntities, 'CustomerGroup');
+export const CustomerGroup = classNamed<CustomerGroupRow>(
+  installedModuleEntities,
+  'customer_accounts',
+  'CustomerGroup',
+);
 export const PasswordResetToken = classNamed<PasswordResetTokenRow>(
-  customerAccountsEntities,
+  installedModuleEntities,
+  'customer_accounts',
   'PasswordResetToken',
 );
 export const AvailabilityNotification = classNamed<AvailabilityNotificationRow>(
-  inventoryEntities,
+  installedModuleEntities,
+  'inventory',
   'AvailabilityNotification',
 );
 export const InventoryThreshold = classNamed<InventoryThresholdRow>(
-  inventoryEntities,
+  installedModuleEntities,
+  'inventory',
   'InventoryThreshold',
 );
 export const ProductWarehouseLowStockThreshold = classNamed<ProductWarehouseLowStockThresholdRow>(
-  inventoryEntities,
+  installedModuleEntities,
+  'inventory',
   'ProductWarehouseLowStockThreshold',
 );
 export const StockAllocation = classNamed<StockAllocationRow>(
-  inventoryEntities,
+  installedModuleEntities,
+  'inventory',
   'StockAllocation',
 );
 export const StockLevel = classNamed<StockLevelRow>(
-  inventoryEntities,
+  installedModuleEntities,
+  'inventory',
   'StockLevel',
 );
 export const WarehouseChannelAssignment = classNamed<WarehouseChannelAssignmentRow>(
-  inventoryEntities,
+  installedModuleEntities,
+  'inventory',
   'WarehouseChannelAssignment',
 );
 export const Warehouse = classNamed<WarehouseRow>(
-  inventoryEntities,
+  installedModuleEntities,
+  'inventory',
   'Warehouse',
 );
-export const EmailDelivery = classNamed<EmailDeliveryRow>(emailEntities, 'EmailDelivery');
+export const EmailDelivery = classNamed<EmailDeliveryRow>(
+  installedModuleEntities,
+  'email',
+  'EmailDelivery',
+);
 export const InvoiceLedgerClientMap = classNamed<InvoiceLedgerClientMapRow>(
-  invoiceLedgerEntities,
+  installedModuleEntities,
+  'invoice_ledger',
   'InvoiceLedgerClientMap',
 );
 export const InvoiceLedgerDelivery = classNamed<InvoiceLedgerDeliveryRow>(
-  invoiceLedgerEntities,
+  installedModuleEntities,
+  'invoice_ledger',
   'InvoiceLedgerDelivery',
 );
 export const InvoiceLedgerDocumentMap = classNamed<InvoiceLedgerDocumentMapRow>(
-  invoiceLedgerEntities,
+  installedModuleEntities,
+  'invoice_ledger',
   'InvoiceLedgerDocumentMap',
 );
 export const InvoiceLedgerWebhookReceipt = classNamed<InvoiceLedgerWebhookReceiptRow>(
-  invoiceLedgerEntities,
+  installedModuleEntities,
+  'invoice_ledger',
   'InvoiceLedgerWebhookReceipt',
 );
-export const Invoice = classNamed<InvoiceRow>(invoicesEntities, 'Invoice');
+export const Invoice = classNamed<InvoiceRow>(installedModuleEntities, 'invoices', 'Invoice');
 export const InvoiceExternalAttachment = classNamed<InvoiceExternalAttachmentRow>(
-  invoicesEntities,
+  installedModuleEntities,
+  'invoices',
   'InvoiceExternalAttachment',
 );
-export const InvoiceLine = classNamed<InvoiceLineRow>(invoicesEntities, 'InvoiceLine');
+export const InvoiceLine = classNamed<InvoiceLineRow>(
+  installedModuleEntities,
+  'invoices',
+  'InvoiceLine',
+);
 export const InvoiceNumberCounter = classNamed<InvoiceNumberCounterRow>(
-  invoicesEntities,
+  installedModuleEntities,
+  'invoices',
   'InvoiceNumberCounter',
 );
-export const InvoiceTemplate = classNamed<InvoiceTemplateRow>(invoicesEntities, 'InvoiceTemplate');
+export const InvoiceTemplate = classNamed<InvoiceTemplateRow>(
+  installedModuleEntities,
+  'invoices',
+  'InvoiceTemplate',
+);
 
 /**
  * `pim_ergonode`'s ten entity classes — the largest block in this file, and the
@@ -727,140 +888,185 @@ export const InvoiceTemplate = classNamed<InvoiceTemplateRow>(invoicesEntities, 
  * connection row would be a row the importer could not read.
  */
 export const ErgonodeAttributeMapping = classNamed<ErgonodeAttributeMappingRow>(
-  pimErgonodeEntities,
+  installedModuleEntities,
+  'pim_ergonode',
   'ErgonodeAttributeMapping',
 );
 export const ErgonodeCategoryMapping = classNamed<ErgonodeCategoryMappingRow>(
-  pimErgonodeEntities,
+  installedModuleEntities,
+  'pim_ergonode',
   'ErgonodeCategoryMapping',
 );
 export const ErgonodeConnection = classNamed<ErgonodeConnectionRow>(
-  pimErgonodeEntities,
+  installedModuleEntities,
+  'pim_ergonode',
   'ErgonodeConnection',
 );
 export const ErgonodeFieldProtection = classNamed<ErgonodeFieldProtectionRow>(
-  pimErgonodeEntities,
+  installedModuleEntities,
+  'pim_ergonode',
   'ErgonodeFieldProtection',
 );
 export const ErgonodeImportIssue = classNamed<ErgonodeImportIssueRow>(
-  pimErgonodeEntities,
+  installedModuleEntities,
+  'pim_ergonode',
   'ErgonodeImportIssue',
 );
 export const ErgonodeImportRun = classNamed<ErgonodeImportRunRow>(
-  pimErgonodeEntities,
+  installedModuleEntities,
+  'pim_ergonode',
   'ErgonodeImportRun',
 );
 export const ErgonodeMediaLink = classNamed<ErgonodeMediaLinkRow>(
-  pimErgonodeEntities,
+  installedModuleEntities,
+  'pim_ergonode',
   'ErgonodeMediaLink',
 );
 export const ErgonodePriceBinding = classNamed<ErgonodePriceBindingRow>(
-  pimErgonodeEntities,
+  installedModuleEntities,
+  'pim_ergonode',
   'ErgonodePriceBinding',
 );
 export const ErgonodeProductLink = classNamed<ErgonodeProductLinkRow>(
-  pimErgonodeEntities,
+  installedModuleEntities,
+  'pim_ergonode',
   'ErgonodeProductLink',
 );
 export const ErgonodeStreamCursor = classNamed<ErgonodeStreamCursorRow>(
-  pimErgonodeEntities,
+  installedModuleEntities,
+  'pim_ergonode',
   'ErgonodeStreamCursor',
 );
 export const UnopimConnection = classNamed<UnopimConnectionRow>(
-  pimUnopimEntities,
+  installedModuleEntities,
+  'pim_unopim',
   'UnopimConnection',
 );
-export const UnopimImportRun = classNamed<UnopimImportRunRow>(pimUnopimEntities, 'UnopimImportRun');
+export const UnopimImportRun = classNamed<UnopimImportRunRow>(
+  installedModuleEntities,
+  'pim_unopim',
+  'UnopimImportRun',
+);
 export const UnopimProductLink = classNamed<UnopimProductLinkRow>(
-  pimUnopimEntities,
+  installedModuleEntities,
+  'pim_unopim',
   'UnopimProductLink',
 );
 export const UnopimSyncBookmark = classNamed<UnopimSyncBookmarkRow>(
-  pimUnopimEntities,
+  installedModuleEntities,
+  'pim_unopim',
   'UnopimSyncBookmark',
 );
 export const UnopimCategoryMapping = classNamed<UnopimCategoryMappingRow>(
-  pimUnopimEntities,
+  installedModuleEntities,
+  'pim_unopim',
   'UnopimCategoryMapping',
 );
 export const UnopimAttributeMapping = classNamed<UnopimAttributeMappingRow>(
-  pimUnopimEntities,
+  installedModuleEntities,
+  'pim_unopim',
   'UnopimAttributeMapping',
 );
 export const UnopimAssociationTypeMapping = classNamed<UnopimAssociationTypeMappingRow>(
-  pimUnopimEntities,
+  installedModuleEntities,
+  'pim_unopim',
   'UnopimAssociationTypeMapping',
 );
 export const UnopimImportIssue = classNamed<UnopimImportIssueRow>(
-  pimUnopimEntities,
+  installedModuleEntities,
+  'pim_unopim',
   'UnopimImportIssue',
 );
 export const UnopimMediaLink = classNamed<UnopimMediaLinkRow>(
-  pimUnopimEntities,
+  installedModuleEntities,
+  'pim_unopim',
   'UnopimMediaLink',
 );
 export const UnopimPriceBinding = classNamed<UnopimPriceBindingRow>(
-  pimUnopimEntities,
+  installedModuleEntities,
+  'pim_unopim',
   'UnopimPriceBinding',
 );
 
 export const PimcoreCatalogueDelivery = classNamed<PimcoreCatalogueDeliveryRow>(
-  pimPimcoreEntities,
+  installedModuleEntities,
+  'pim_pimcore',
   'PimcoreCatalogueDelivery',
 );
 export const PimcoreConnection = classNamed<PimcoreConnectionRow>(
-  pimPimcoreEntities,
+  installedModuleEntities,
+  'pim_pimcore',
   'PimcoreConnection',
 );
 export const PimcoreDeliveredRecord = classNamed<PimcoreDeliveredRecordRow>(
-  pimPimcoreEntities,
+  installedModuleEntities,
+  'pim_pimcore',
   'PimcoreDeliveredRecord',
 );
 export const PimcoreFieldProtection = classNamed<PimcoreFieldProtectionRow>(
-  pimPimcoreEntities,
+  installedModuleEntities,
+  'pim_pimcore',
   'PimcoreFieldProtection',
 );
 export const PimcoreImportIssue = classNamed<PimcoreImportIssueRow>(
-  pimPimcoreEntities,
+  installedModuleEntities,
+  'pim_pimcore',
   'PimcoreImportIssue',
 );
 export const PimcoreImportRun = classNamed<PimcoreImportRunRow>(
-  pimPimcoreEntities,
+  installedModuleEntities,
+  'pim_pimcore',
   'PimcoreImportRun',
 );
 export const PimcoreMediaLink = classNamed<PimcoreMediaLinkRow>(
-  pimPimcoreEntities,
+  installedModuleEntities,
+  'pim_pimcore',
   'PimcoreMediaLink',
 );
 export const PimcoreSourceLink = classNamed<PimcoreSourceLinkRow>(
-  pimPimcoreEntities,
+  installedModuleEntities,
+  'pim_pimcore',
   'PimcoreSourceLink',
 );
 
 export const AkeneoConnection = classNamed<AkeneoConnectionRow>(
-  pimAkeneoEntities,
+  installedModuleEntities,
+  'pim_akeneo',
   'AkeneoConnection',
 );
 export const AkeneoDeliveredRecord = classNamed<AkeneoDeliveredRecordRow>(
-  pimAkeneoEntities,
+  installedModuleEntities,
+  'pim_akeneo',
   'AkeneoDeliveredRecord',
 );
 export const AkeneoFieldProtection = classNamed<AkeneoFieldProtectionRow>(
-  pimAkeneoEntities,
+  installedModuleEntities,
+  'pim_akeneo',
   'AkeneoFieldProtection',
 );
 export const AkeneoHmacReplay = classNamed<AkeneoHmacReplayRow>(
-  pimAkeneoEntities,
+  installedModuleEntities,
+  'pim_akeneo',
   'AkeneoHmacReplay',
 );
 export const AkeneoImportIssue = classNamed<AkeneoImportIssueRow>(
-  pimAkeneoEntities,
+  installedModuleEntities,
+  'pim_akeneo',
   'AkeneoImportIssue',
 );
-export const AkeneoImportRun = classNamed<AkeneoImportRunRow>(pimAkeneoEntities, 'AkeneoImportRun');
-export const AkeneoMediaLink = classNamed<AkeneoMediaLinkRow>(pimAkeneoEntities, 'AkeneoMediaLink');
+export const AkeneoImportRun = classNamed<AkeneoImportRunRow>(
+  installedModuleEntities,
+  'pim_akeneo',
+  'AkeneoImportRun',
+);
+export const AkeneoMediaLink = classNamed<AkeneoMediaLinkRow>(
+  installedModuleEntities,
+  'pim_akeneo',
+  'AkeneoMediaLink',
+);
 export const AkeneoSourceLink = classNamed<AkeneoSourceLinkRow>(
-  pimAkeneoEntities,
+  installedModuleEntities,
+  'pim_akeneo',
   'AkeneoSourceLink',
 );
 
@@ -911,18 +1117,62 @@ export type {
  * `EntityManager` and registers nothing, so there is no second copy to
  * disagree with (D-168).
  */
-export const FeedArtefact = classNamed<FeedArtefactRow>(productFeedsEntities, 'FeedArtefact');
-export const FeedDelivery = classNamed<FeedDeliveryRow>(productFeedsEntities, 'FeedDelivery');
-export const FeedDeliveryAttempt = classNamed<FeedDeliveryAttemptRow>(productFeedsEntities, 'FeedDeliveryAttempt');
-export const FeedRun = classNamed<FeedRunRow>(productFeedsEntities, 'FeedRun');
-export const FeedRunIssue = classNamed<FeedRunIssueRow>(productFeedsEntities, 'FeedRunIssue');
-export const FeedTaxonomy = classNamed<FeedTaxonomyRow>(productFeedsEntities, 'FeedTaxonomy');
-export const FeedTaxonomyCheck = classNamed<FeedTaxonomyCheckRow>(productFeedsEntities, 'FeedTaxonomyCheck');
-export const FeedTaxonomyMapping = classNamed<FeedTaxonomyMappingRow>(productFeedsEntities, 'FeedTaxonomyMapping');
-export const FeedTaxonomyNode = classNamed<FeedTaxonomyNodeRow>(productFeedsEntities, 'FeedTaxonomyNode');
-export const FeedTemplate = classNamed<FeedTemplateRow>(productFeedsEntities, 'FeedTemplate');
-export const FeedTemplateField = classNamed<FeedTemplateFieldRow>(productFeedsEntities, 'FeedTemplateField');
-export const ProductFeed = classNamed<ProductFeedRow>(productFeedsEntities, 'ProductFeed');
+export const FeedArtefact = classNamed<FeedArtefactRow>(
+  installedModuleEntities,
+  'product_feeds',
+  'FeedArtefact',
+);
+export const FeedDelivery = classNamed<FeedDeliveryRow>(
+  installedModuleEntities,
+  'product_feeds',
+  'FeedDelivery',
+);
+export const FeedDeliveryAttempt = classNamed<FeedDeliveryAttemptRow>(
+  installedModuleEntities,
+  'product_feeds',
+  'FeedDeliveryAttempt',
+);
+export const FeedRun = classNamed<FeedRunRow>(installedModuleEntities, 'product_feeds', 'FeedRun');
+export const FeedRunIssue = classNamed<FeedRunIssueRow>(
+  installedModuleEntities,
+  'product_feeds',
+  'FeedRunIssue',
+);
+export const FeedTaxonomy = classNamed<FeedTaxonomyRow>(
+  installedModuleEntities,
+  'product_feeds',
+  'FeedTaxonomy',
+);
+export const FeedTaxonomyCheck = classNamed<FeedTaxonomyCheckRow>(
+  installedModuleEntities,
+  'product_feeds',
+  'FeedTaxonomyCheck',
+);
+export const FeedTaxonomyMapping = classNamed<FeedTaxonomyMappingRow>(
+  installedModuleEntities,
+  'product_feeds',
+  'FeedTaxonomyMapping',
+);
+export const FeedTaxonomyNode = classNamed<FeedTaxonomyNodeRow>(
+  installedModuleEntities,
+  'product_feeds',
+  'FeedTaxonomyNode',
+);
+export const FeedTemplate = classNamed<FeedTemplateRow>(
+  installedModuleEntities,
+  'product_feeds',
+  'FeedTemplate',
+);
+export const FeedTemplateField = classNamed<FeedTemplateFieldRow>(
+  installedModuleEntities,
+  'product_feeds',
+  'FeedTemplateField',
+);
+export const ProductFeed = classNamed<ProductFeedRow>(
+  installedModuleEntities,
+  'product_feeds',
+  'ProductFeed',
+);
 
 /**
  * The **row shapes** this module's tests annotate with, on the same terms as
@@ -939,7 +1189,6 @@ export type {
   FeedDeliveryAttemptRow,
 };
 
-
 /**
  * Batch five's six modules (feature 080, T040b).
  *
@@ -950,18 +1199,62 @@ export type {
  * `rootDir`, which is why it may name package *source* where
  * `src/seeds/dev-catalog-seed.ts` may not.
  */
-export const ModuleAction = classNamed<ModuleActionRow>(adminActionsEntities, 'ModuleAction');
-export const AdminRole = classNamed<AdminRoleRow>(adminRolesEntities, 'AdminRole');
-export const AdminUser = classNamed<AdminUserRow>(adminUsersEntities, 'AdminUser');
-export const Megamenu = classNamed<MegamenuRow>(megamenuEntities, 'Megamenu');
-export const MegamenuItem = classNamed<MegamenuItemRow>(megamenuEntities, 'MegamenuItem');
-export const MegamenuBinding = classNamed<MegamenuBindingRow>(megamenuEntities, 'MegamenuBinding');
-export const Organization = classNamed<OrganizationRow>(organizationsEntities, 'Organization');
-export const OrganizationSalesRepAssignment = classNamed<OrganizationSalesRepAssignmentRow>(organizationsEntities, 'OrganizationSalesRepAssignment');
-export const PriceList = classNamed<PriceListRow>(priceListsEntities, 'PriceList');
-export const PriceListProduct = classNamed<PriceListProductRow>(priceListsEntities, 'PriceListProduct');
-export const PriceListPriceBracket = classNamed<PriceListPriceBracketRow>(priceListsEntities, 'PriceListPriceBracket');
-export const PriceDisplayModeOverride = classNamed<PriceDisplayModeOverrideRow>(priceListsEntities, 'PriceDisplayModeOverride');
+export const ModuleAction = classNamed<ModuleActionRow>(
+  installedModuleEntities,
+  'admin_actions',
+  'ModuleAction',
+);
+export const AdminRole = classNamed<AdminRoleRow>(
+  installedModuleEntities,
+  'admin_roles',
+  'AdminRole',
+);
+export const AdminUser = classNamed<AdminUserRow>(
+  installedModuleEntities,
+  'admin_users',
+  'AdminUser',
+);
+export const Megamenu = classNamed<MegamenuRow>(installedModuleEntities, 'megamenu', 'Megamenu');
+export const MegamenuItem = classNamed<MegamenuItemRow>(
+  installedModuleEntities,
+  'megamenu',
+  'MegamenuItem',
+);
+export const MegamenuBinding = classNamed<MegamenuBindingRow>(
+  installedModuleEntities,
+  'megamenu',
+  'MegamenuBinding',
+);
+export const Organization = classNamed<OrganizationRow>(
+  installedModuleEntities,
+  'organizations',
+  'Organization',
+);
+export const OrganizationSalesRepAssignment = classNamed<OrganizationSalesRepAssignmentRow>(
+  installedModuleEntities,
+  'organizations',
+  'OrganizationSalesRepAssignment',
+);
+export const PriceList = classNamed<PriceListRow>(
+  installedModuleEntities,
+  'price_lists',
+  'PriceList',
+);
+export const PriceListProduct = classNamed<PriceListProductRow>(
+  installedModuleEntities,
+  'price_lists',
+  'PriceListProduct',
+);
+export const PriceListPriceBracket = classNamed<PriceListPriceBracketRow>(
+  installedModuleEntities,
+  'price_lists',
+  'PriceListPriceBracket',
+);
+export const PriceDisplayModeOverride = classNamed<PriceDisplayModeOverrideRow>(
+  installedModuleEntities,
+  'price_lists',
+  'PriceDisplayModeOverride',
+);
 
 /**
  * The names the test tree also uses as a **type**, aliased.
@@ -1048,11 +1341,17 @@ export type AdminNotification = AdminNotificationRow;
  * (`check:singleton-identity`, `composed-singleton-reach`).
  */
 export const XlCategoryMapping = classNamed<XlCategoryMappingRow>(
-  comarchXlEntities,
+  installedModuleEntities,
+  'comarch_xl',
   'XlCategoryMapping',
 );
 export const XlImportedOffer = classNamed<XlImportedOfferRow>(
-  comarchXlEntities,
+  installedModuleEntities,
+  'comarch_xl',
   'XlImportedOffer',
 );
-export const XlSyncJob = classNamed<XlSyncJobRow>(comarchXlEntities, 'XlSyncJob');
+export const XlSyncJob = classNamed<XlSyncJobRow>(
+  installedModuleEntities,
+  'comarch_xl',
+  'XlSyncJob',
+);

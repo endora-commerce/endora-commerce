@@ -157,11 +157,23 @@ describe('FR-109 — `setup` is the conjunction of the named entries, never a se
     );
   });
 
-  it('an instance with neither generated member has no `generate` term to run', () => {
-    const scripts = scriptsOf(planInput({ docsRanges: new Map() }));
+  it('an instance with nothing to generate has no `generate` term to run', () => {
+    // Neither generated member **and** no installed module: since T065 the
+    // entity index is a family of its own, belonging to no member, so a headless
+    // instance that installed a module does have something to render and does
+    // get the term. This is the state that has nothing at all.
+    const scripts = scriptsOf(planInput({ docsRanges: new Map(), modules: [] }));
     expect(scripts['generate']).toBeUndefined();
     expect(scripts['setup']).toBe(
       'pnpm run build && pnpm run migrate && pnpm run module:install --all',
+    );
+  });
+
+  it('a headless instance that installed a module keeps the `generate` term', () => {
+    const scripts = scriptsOf(planInput({ docsRanges: new Map() }));
+    expect(scripts['generate']).toBe('endora generate');
+    expect(scripts['setup']).toBe(
+      'pnpm run generate && pnpm run build && pnpm run migrate && pnpm run module:install --all',
     );
   });
 });

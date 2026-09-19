@@ -1083,12 +1083,19 @@ describe('the admin member (instance-tree.md §2.4)', () => {
     // members would be two spellings of one run.
     expect(withMember['generate']).toBe('endora generate');
     expect(withMember['build']).toContain('pnpm -C admin run build');
-    // A tree with **neither** generated member: no `generate` at all, rather
-    // than a script that fails on a directory nobody wrote. One member absent
-    // is not that state — the documentation site generates its own pair.
-    const without = scripts(planInstance(planInput({ docsRanges: new Map() })));
+    // A tree with nothing to generate at all: no `generate`, rather than a
+    // script that fails on a directory nobody wrote. One member absent is not
+    // that state — the documentation site generates its own pair — and since
+    // T065 **a module installed is not that state either**: the entity index
+    // belongs to no member, so a headless instance with a module has an
+    // artefact. The state that remains is a headless instance with no module.
+    const without = scripts(
+      planInstance(planInput({ docsRanges: new Map(), modules: [] })),
+    );
     expect(without['generate']).toBeUndefined();
     expect(without['build']).toBe('pnpm -C backend run build');
+    const headlessWithModules = scripts(planInstance(planInput({ docsRanges: new Map() })));
+    expect(headlessWithModules['generate']).toBe('endora generate');
     const docsOnly = scripts(planInstance(planInput()));
     expect(docsOnly['generate']).toBe('endora generate');
     expect(docsOnly['build']).toBe('pnpm -C backend run build && pnpm -C docs run build');

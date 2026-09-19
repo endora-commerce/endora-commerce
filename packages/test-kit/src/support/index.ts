@@ -25,7 +25,21 @@
  * today gets no truncate from them. The alternative — leaving them out of the
  * type until the collector exists — would make every module that ships a
  * contribution in Phase 3 edit a declaration it had already written.
+ *
+ * ## The entity index is here too, and it is the same inversion
+ *
+ * `./entity-index.js` carries the **type** of a host's entity index and the
+ * **lookup** over it, and no module's name (T065). It is on this subpath rather
+ * than a new one because it is the same kind of thing as everything above: a
+ * shape the kit declares and a population the caller supplies. Its own header
+ * is where the reasoning is.
  */
+
+export {
+  entityNamedIn,
+  ModuleNotInstalledError,
+  type InstalledEntityIndex,
+} from './entity-index.js';
 
 /**
  * One module's test support.
