@@ -101,23 +101,27 @@ export class DeliveryMethodReconciler implements DeliveryMethodSeedApi {
    * `em.execute` for the insert rather than `em.getConnection().execute`, so the
    * statement runs inside the caller's transaction (issue #200). The bridge has
    * no entity class — the kernel's membership service writes it in SQL too.
+   *
+   * **No system-default channel answers `false` rather than raising, and that is
+   * measured rather than defensive.** The default channel is created by
+   * `DefaultChannelReconciler` at **boot**, from `composeApp` — not by a migration
+   * and not by an install — and `module:install` composes nothing (D-46). So a
+   * database that has been migrated and never booted has no default channel, and
+   * a seeding module installed there is the ordinary case, not a broken instance:
+   * `pnpm --filter backend run db:fresh && module:install dhl_parcel` is exactly
+   * it. The seed migration this replaced degraded the same way, silently — its
+   * `cross join "sales_channels" where "system_default"` produced no rows and
+   * inserted no membership — so answering `false` is what keeps a fresh install
+   * and an upgraded one at the same row state in that state too. Raising instead
+   * **aborts the install**, and the hook is not inside a database transaction:
+   * measured on a throwaway database, the first of two rows stayed and the second
+   * never arrived.
    */
   async bindToDefaultChannel(em: EntityManager, deliveryMethodId: string): Promise<boolean> {
     // command-coverage-ignore: install-time seed membership for a row this seam
     // just created — a system-invariant write with no request and no actor.
     const defaultChannel = await em.findOne(SalesChannel, { systemDefault: true });
-    if (!defaultChannel) {
-      // A system-default channel always exists — the platform creates one at
-      // install and exactly one row carries the flag (D-47…D-51). A "no channel"
-      // branch here would silently skip the binding on an instance whose
-      // invariant is broken, which is how a seeded method becomes unreachable
-      // with nothing saying so.
-      throw new Error(
-        'delivery_methods: no system-default sales channel, so a seeded delivery method ' +
-          'cannot be bound to one. The platform guarantees exactly one (D-47…D-51); this ' +
-          'instance does not have it.',
-      );
-    }
+    if (!defaultChannel) return false;
 
     const inserted = await em.execute<Array<{ delivery_method_id: string }>>(
       'insert into "sales_channel_delivery_methods" ("sales_channel_id", "delivery_method_id") ' +

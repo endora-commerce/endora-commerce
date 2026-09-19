@@ -118,6 +118,37 @@ describe('DeliveryMethodSeedApi — delivery_methods\' published install surface
     expect(bound.map((r) => r.sales_channel_id)).toEqual([db.systemDefaultChannelId]);
   });
 
+  it('answers false, and writes nothing, when the platform has no system-default channel', async () => {
+    // The state of a database that has been migrated and never booted: the
+    // default channel is `DefaultChannelReconciler`'s, and it runs from
+    // `composeApp`, which `module:install` does not (D-46). The partial unique
+    // index permits zero winners, so clearing the flag inside this transaction is
+    // the state rather than a contrivance. The seed migration this surface
+    // replaced behaved the same way — its `cross join … where "system_default"`
+    // matched nothing and inserted nothing.
+    await db.em().execute('update "sales_channels" set "system_default" = false');
+    const seeder = createDeliveryMethodSeeder();
+    const code = `recon_ship_nochannel_${Date.now()}`;
+    const { row } = await seeder.ensureMethodForAdapter(db.em(), 'unbound_carrier', {
+      code,
+      name: { default: 'Unbound' },
+    });
+
+    expect(await seeder.bindToDefaultChannel(db.em(), row.id)).toBe(false);
+
+    const bound = await db
+      .em()
+      .execute<Array<{ sales_channel_id: string }>>(
+        'select "sales_channel_id" from "sales_channel_delivery_methods" where "delivery_method_id" = ?',
+        [row.id],
+      );
+    expect(bound).toEqual([]);
+    // The method itself is there, unbound — an operator binds it, or the first
+    // boot's reconciler gives the platform a default channel and a re-install
+    // does nothing, because the row already exists.
+    expect(await db.em().findOne(DeliveryMethod, { code })).not.toBeNull();
+  });
+
   it('removes the method and its channel memberships on the hard-uninstall path', async () => {
     const seeder = createDeliveryMethodSeeder();
     const code = `recon_ship_remove_${Date.now()}`;
