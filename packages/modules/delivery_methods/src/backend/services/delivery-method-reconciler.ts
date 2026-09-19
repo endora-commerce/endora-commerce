@@ -1,4 +1,5 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
+import { SalesChannel } from '@endora-commerce/platform/kernel';
 import type {
   DeliveryMethodSeedApi,
   DeliveryMethodSeedDefaults,
@@ -91,16 +92,20 @@ export class DeliveryMethodReconciler implements DeliveryMethodSeedApi {
    * statement is the owner's own and crosses no boundary — which is what FR-064
    * buys by putting the writer here instead of in the seeding module.
    *
-   * `em.execute` rather than `em.getConnection().execute`, so the statement runs
-   * inside the caller's transaction (issue #200).
+   * The channel itself is read through the kernel's own `SalesChannel` entity
+   * rather than in SQL — `api_keys` reads it the same way — because a raw
+   * `select … from "sales_channels"` from a module is a `check:module-boundary`
+   * finding against a kernel-owned table, and correctly so: the table is not
+   * this module's and the entity is the platform's published name for it.
+   *
+   * `em.execute` for the insert rather than `em.getConnection().execute`, so the
+   * statement runs inside the caller's transaction (issue #200). The bridge has
+   * no entity class — the kernel's membership service writes it in SQL too.
    */
   async bindToDefaultChannel(em: EntityManager, deliveryMethodId: string): Promise<boolean> {
     // command-coverage-ignore: install-time seed membership for a row this seam
     // just created — a system-invariant write with no request and no actor.
-    const channels = await em.execute<Array<{ id: string }>>(
-      'select "id" from "sales_channels" where "system_default" = true limit 1',
-    );
-    const defaultChannel = channels[0];
+    const defaultChannel = await em.findOne(SalesChannel, { systemDefault: true });
     if (!defaultChannel) {
       // A system-default channel always exists — the platform creates one at
       // install and exactly one row carries the flag (D-47…D-51). A "no channel"
