@@ -346,16 +346,16 @@ const MISFILED_INTEGRATION_TESTS: Readonly<Record<string, MisfiledIntegrationTes
       'header explains that the contract-shaped version — driving it through the Settings ' +
       'admin surface — was deferred, so what stands is a unit test of one validator.',
   },
-  // The three `test/integration/inpost/` entries that stood here were retired by
-  // `specs/134-paid-module-extraction/` T030, and they are the first to be retired by the
-  // mechanism this ledger did not anticipate. It expected each entry to be drained by a
-  // move *within* `backend/test/`, from tree (c) to the tree its scope names. Instead
-  // `eligibility-list`, `place-order-courier` and `place-order-locker` left
-  // `backend/test/` altogether, into `packages/modules/inpost/src/backend/`, where the
-  // question this ledger asks — which of the three trees does this file belong to — has no
-  // subject: a module package's tests are one run, declared by its own `vitest.config.ts`.
-  // So a misfiled-scope entry can also be retired by the file becoming its module's, and
-  // that is the drain that wave 1 of the paid-module extraction will keep applying.
+  // The three `test/integration/inpost/` entries that stood here were retired by feature
+  // 134's T030, and they are the first to be retired by the mechanism this ledger did not
+  // anticipate. It expected each entry to be drained by a move *within* `backend/test/`,
+  // from tree (c) to the tree its scope names. Instead `eligibility-list`,
+  // `place-order-courier` and `place-order-locker` left `backend/test/` altogether, into
+  // `packages/modules/inpost/src/backend/`, where the question this ledger asks — which of
+  // the three trees does this file belong to — has no subject: a module package's tests are
+  // one run, declared by its own `vitest.config.ts`. So a misfiled-scope entry can also be
+  // retired by the file becoming its module's, and that is the drain every batch that moves
+  // a test into its own module package will keep applying.
   'test/integration/kernel/boot-failure.test.ts': {
     scope: 'unit',
     reason:

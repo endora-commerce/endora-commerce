@@ -75,12 +75,12 @@ function codeOf(relativePath: string): string {
  * grounds that a redirect's element comes from `react-router-dom` rather than
  * from a surface directory. That test is about the *element* and says nothing
  * about the *destination* — so it classified as host-owned a route that cannot
- * outlive a module leaving the repository, which is W1's refusal: a free package
- * naming a wave member in code that runs. Deleted rather than re-pointed, because
- * sending an operator who asked for DHL settings to a free `/delivery-methods`
- * that lists no DHL is harder to diagnose than an absent route; if the legacy
- * path is wanted, `dhl_parcel` declares the redirect in its own admin layer and
- * both ends travel together.
+ * outlive that module being absent, which is W1's refusal: **a host file may not
+ * name a route only a module declares.** Deleted rather than re-pointed, because
+ * sending an operator who asked for DHL settings to a `/delivery-methods` that
+ * lists no DHL is harder to diagnose than an absent route; if the legacy path is
+ * wanted, `dhl_parcel` declares the redirect in its own admin layer and both ends
+ * travel together.
  *
  * The generalisation, for whoever adds the next entry here: **ask what declares
  * the destination, not what supplies the element.**

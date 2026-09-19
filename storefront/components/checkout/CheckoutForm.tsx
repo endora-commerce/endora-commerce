@@ -13,11 +13,14 @@ import { ensureShippingAdapterDataOnFormData } from '../../lib/checkout/shipping
  * field-name convention.
  *
  * It used to gate submission on an InPost-specific rule — a Polish mobile number
- * on the delivery address — which left a vendor's business rule and an import of
- * that vendor's contract module in the free checkout. The rule is enforced where
- * it belongs, in the carrier adapter's own `validate` (which is what actually
- * refuses the order); the client-side copy went with the carrier's storefront
- * fragment (`specs/134-paid-module-extraction/`, ruling O-1(b)).
+ * on the delivery address — which left a vendor's business rule, and an import of
+ * that vendor's contract module, inside a component every checkout renders.
+ * **A vendor's business rule does not belong in the shared checkout**: this
+ * component has no way to know which carriers an instance installed, so the rule
+ * either refuses an order no carrier objects to or is dead code, depending on the
+ * instance. It is enforced where it belongs, in the carrier adapter's own
+ * `validate`, which is what actually refuses the order; the client-side copy went
+ * with that carrier's own storefront fragment (feature 134, ruling O-1(b)).
  */
 export function CheckoutForm({
   action,

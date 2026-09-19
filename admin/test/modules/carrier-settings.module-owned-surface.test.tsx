@@ -389,16 +389,17 @@ describe('the shell no longer names either carrier by hand', () => {
     //
     // That is true about the **element** and says nothing about the
     // **destination**, which `dhl_parcel` alone declares. So the shell held a
-    // route that cannot outlive this module leaving the repository — W1's refusal,
-    // *"any free package still naming a wave member in code that runs"* — and the
-    // old assertion was **pinning the coupling in place**: the merge request that
-    // removed the route would have reded here and looked like the mistake.
+    // route that cannot outlive this module being absent — W1's refusal, *a host
+    // file may not name a route only a module declares* — and the old assertion
+    // was **pinning the coupling in place**: the merge request that removed the
+    // route would have reded here and looked like the mistake.
     //
-    // Re-pointing at a free destination was refused: `/delivery-methods` lists no
-    // DHL in a free instance, so an operator asking for DHL settings would land
-    // somewhere plausible and wrong, which is harder to diagnose than an absent
-    // route. If the legacy path is wanted, this module declares the redirect in
-    // its own admin layer and both ends travel together.
+    // Re-pointing it at a host-declared destination was refused: `/delivery-methods`
+    // lists no DHL in an instance that does not install this module, so an operator
+    // asking for DHL settings would land somewhere plausible and wrong, which is
+    // harder to diagnose than an absent route. If the legacy path is wanted, this
+    // module declares the redirect in its own admin layer and both ends travel
+    // together.
     //
     // Asserted as an absence in **both** spellings, so the route cannot come back
     // by either half.

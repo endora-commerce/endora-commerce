@@ -147,9 +147,10 @@ const SUBJECTS: readonly Subject[] = [
     // `/settings/inpost` trails the batch left standing. Batch 7's
     // `appShell.nav.paymentMethods` asymmetry, met a second time and for the
     // same reason — and this one has since drained. Feature 134's wave 1
-    // (FR-023) retired both carrier `CRUMB_DICT` rules, because `dhl_parcel`
-    // and `inpost` leave this repository, and the parent key with them; so the
-    // entry that read `null` is now the ordinary one, asserted like the rest.
+    // (FR-023) retired both carrier `CRUMB_DICT` rules, because a host-owned
+    // crumb table may not declare a trail whose destination only a module
+    // declares, and the parent key went with them; so the entry that read
+    // `null` is now the ordinary one, asserted like the rest.
     retiredSharedKey: 'appShell.nav.deliveryMethods',
   },
   {

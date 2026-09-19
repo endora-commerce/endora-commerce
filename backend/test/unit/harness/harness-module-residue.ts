@@ -20,22 +20,24 @@
  * | host bindings into `../../src/` | 7 | **7** | 7 — and they stay: they are what the inversion hands the kit |
  * | module-typed `BackendServerOptions` members | 12 | **12** | **5** |
  * | module-typed `BackendServerHandle` members | 29 | **29** | **25** |
- * | paid-module table names in the wipe list | 21 | **20** | **0** |
+ * | module-owned table names in the wipe list | 21 | **20** | **0** |
  * | module-package specifiers (the premise carried no number) | — | **59** | **49** |
  *
- * **Every kind of paid-module reference in that file is now zero** — specifier,
+ * **The wipe list holds no table a module package owns**, and no kind of
+ * reference into one of those packages survives in that file either — specifier,
  * type reference and table name alike. The 92 table names below rose from 80
  * because `fix/master-red-baseline` (!1722) added twelve `product_feed*` entries
- * to close a cross-file leak, and `product_feeds` is a **free** module; that
+ * to close a cross-file leak, and `product_feeds` has no `src/test-support/` to
+ * declare them in — the row above counts the names of modules that do; that
  * branch's twelve `xl_*` entries went to `comarch_xl`'s own `volatileTables`
- * instead, so the repair is kept in full and the paid count stays at zero.
+ * instead, so the repair is kept in full and the row above stays at zero.
  *
  * **The compile-time hard stop `spec.md` §2.4 measures is closed.** Seven
- * declarations reached into `packages/modules/<paid id>/src/` — `KsefCradle`,
+ * declarations reached into `packages/modules/<id>/src/` — `KsefCradle`,
  * `KsefApiClientPort`, `ErgonodeClientPort`, `ErgonodeMediaFetcherPort`,
  * `UnopimMediaFetcherPort`, `AkeneoMediaFetcherPort` and `ComarchXlCradle` — and
- * there are now none: `grep -c 'packages/modules/<any paid id>/'` over that file
- * is **0**. The three bare specifiers that
+ * there are now none: `grep -c 'packages/modules/<any of those ids>/'` over that
+ * file is **0**. The three bare specifiers that
  * outlived it — `@endora-commerce/mod-{pim-ergonode,pim-pimcore,pim-unopim}/backend`,
  * typing three handle fields — are gone too, through the same inversion `ksef`'s
  * took: a `<module>Handle(container)` accessor the module publishes from its own
@@ -49,8 +51,8 @@
  *
  * Retired by 109 T050/T051: each is here because a member of
  * `BackendServerOptions` or `BackendServerHandle` is typed by it. **None is a
- * relative reach into a paid module's `src/` any more** — that was the whole of
- * the hard stop and it is the whole of what T013 removed.
+ * relative reach into the `src/` of a module that ships separately any more** —
+ * that was the whole of the hard stop and it is the whole of what T013 removed.
  */
 export const LEDGERED_MODULE_SPECIFIERS: readonly string[] = [
   '../../../packages/modules/admin_notifications/src/backend/services/admin-notification-service.js',

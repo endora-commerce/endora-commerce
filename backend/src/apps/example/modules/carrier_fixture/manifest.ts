@@ -122,9 +122,10 @@ export const CARRIER_FIXTURE_DELIVERY_METHOD: DeliveryMethodSeedDefaults = {
  * (feature 134, FR-064 / W7's last step).
  *
  * It is the **consumer** half of FR-021's argument: the two carriers that used to
- * call this surface leave the repository, and a published surface with no caller
- * here is a breaking change to it that type-checks green here and reds somewhere
- * else, days later. So the fixture calls it, over `ctx.em`, exactly as a real
+ * call this surface stop being workspace peers, and a published surface with no
+ * caller in this workspace is a breaking change to it that type-checks green here
+ * and reds in a consumer's build, days later. So the fixture calls it, over
+ * `ctx.em`, exactly as a real
  * carrier does — a hook has no container, so there is nothing to resolve the
  * owner's service from and the factory import is the seam
  * (`specs/conventions/module-composition.md` item 9a).

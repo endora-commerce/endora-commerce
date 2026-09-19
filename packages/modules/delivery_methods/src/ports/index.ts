@@ -13,12 +13,15 @@
  *
  * A module that ships its own carrier rows used to seed them with an `insert`
  * into this module's table from its own migration — `inpost` and `dhl_parcel`
- * each did, which is three `migration-foreign-writes` ledger keys and, once
- * those modules live in another repository, a hard schema dependency with no
- * version range and no compile-time signal at all
- * (`specs/134-paid-module-extraction/contracts/foreign-write-repair.md` §7.1).
- * The repair is that the seed is issued from the seeding module's `installHook`
- * through this surface.
+ * each did, which is three `migration-foreign-writes` ledger keys and, **once a
+ * seeding module ships separately from the table's owner**, a hard schema
+ * dependency with no version range and no compile-time signal at all. That is
+ * the whole of the reason, and it holds for any pair of modules published from
+ * two places rather than for these two: an `insert` into a table another package
+ * owns is a dependency on that table's *shape*, and npm has no way to express
+ * one. The repair is that the seed is issued from the seeding module's
+ * `installHook` through this surface — **R11 / D-251 / FR-064**, the criterion
+ * any module may satisfy.
  *
  * It cannot live in `@endora-commerce/contracts`: every method takes a MikroORM
  * `EntityManager`, that package is compiled by `admin` and `storefront`, and

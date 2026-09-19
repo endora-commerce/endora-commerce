@@ -7,11 +7,11 @@
  *
  * **This module's whole purpose is to be a consumer**, so its one entry retires
  * with the seam rather than with the fixture: the two carriers that used to call
- * `delivery_methods`' install surface leave the repository at wave 1's end, and a
- * published surface with no caller here is a breaking change that type-checks
- * green here and reds somewhere else, days later. The same reach in a real
- * carrier's manifest is ledgered in `inpost.ts` and `dhl_parcel.ts`, with the
- * argument; this shard outlives them.
+ * `delivery_methods`' install surface stop being workspace peers at wave 1's end,
+ * and a published surface with no caller in this workspace is a breaking change
+ * that type-checks green here and reds in a consumer's build, days later. The same
+ * reach in a real carrier's manifest is ledgered in that carrier's own shard, with
+ * the argument; this shard outlives them.
  */
 import type { LedgerEntry } from '../../check-module-boundary.js';
 

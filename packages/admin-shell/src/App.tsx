@@ -228,20 +228,21 @@ export function App({ contributions, modulePresence }: AppProps): ReactNode {
             here for deep links predating that screen's move into `dhl_parcel`'s own
             package (feature 091's Phase 4 batch five). It was deleted by feature
             134's wave 1, and the reason generalises rather than being about DHL:
-            **the destination route is declared only by `dhl_parcel`, which leaves
-            this repository**, so a free package naming it is W1's refusal verbatim
-            — *"any free package still naming a wave member in code that runs"*.
-            It was reached by no free screen and was therefore invisible to
-            `check:module-boundary`, whose subject is imports.
+            **the destination route is declared only by `dhl_parcel`**, so this file
+            was naming a path no host file declares — W1's refusal, *a host file may
+            not name a route only a module declares*. It was reached by no screen in
+            this package and was therefore invisible to `check:module-boundary`,
+            whose subject is imports.
 
-            Re-pointing it somewhere free was considered and refused: sending an
-            operator who asked for DHL settings to `/delivery-methods`, which in a
-            free instance lists no DHL, is **harder to diagnose than a route that is
-            simply absent** — it lands somewhere plausible and wrong. If the legacy
-            path is worth keeping, the module owning the destination declares the
-            redirect too, so that both ends travel together and a free instance
-            correctly has neither. That is the declarant-owns-its-users inversion
-            this feature applies throughout.
+            Re-pointing it at a host-declared destination was considered and refused:
+            sending an operator who asked for DHL settings to `/delivery-methods`,
+            which in an instance without that module lists no DHL, is **harder to
+            diagnose than a route that is simply absent** — it lands somewhere
+            plausible and wrong. If the legacy path is worth keeping, the module
+            owning the destination declares the redirect too, so that both ends
+            travel together and an instance without the module correctly has
+            neither. That is the declarant-owns-its-users inversion this feature
+            applies throughout.
 
             `admin/test/modules/host-admin-registrations.test.tsx`'s `HOST_ROUTES`
             claimed this path as the host's own and lost its entry in the same

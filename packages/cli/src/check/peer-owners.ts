@@ -19,9 +19,10 @@
  * **226** guarded-port sites to 41 packages; the same analysis run over each
  * package **in isolation** finds **19**, in 10 packages. **31 of the 41 lose
  * every site**, and they include all four PIM connectors (17–19 sites each) and
- * `product_feeds` (24) — which is to say the paid modules this phase exists for.
- * A package-scope host without this input would have printed `violations=0` over
- * exactly the packages it was built to judge.
+ * `product_feeds` (24) — which is to say the integration-heavy modules a
+ * package-scope host exists to judge, the ones whose ports are almost all
+ * somebody else's. A package-scope host without this input would have printed
+ * `violations=0` over exactly the packages it was built to judge.
  *
  * The reasoning that produced the wrong assessment is worth naming too, since it
  * is not specific to this rule: it came from **the rule's header comment**, which

@@ -25,19 +25,20 @@ import {
  *
  * ## Why it exists, which is not "coverage"
  *
- * Wave 1 takes `inpost` and `dhl_parcel` out of this repository, and with them
- * the **only** cross-module contributors to `shippingAdapterRegistry` and the
- * only implementors of `ShippingAdapter`'s two optional members. What is left
- * is `delivery_methods`' own pair of offline built-ins, registered by
+ * Wave 1 leaves this workspace with **no** cross-module contributor to
+ * `shippingAdapterRegistry` and **no** implementor of `ShippingAdapter`'s two
+ * optional members: the two carrier modules that were the only ones are published
+ * from their own package and are no longer workspace peers. What is left is
+ * `delivery_methods`' own pair of offline built-ins, registered by
  * `delivery_methods` under its own id: they never exercise the contribution
  * seam, never opt into auto-creation on paid, and declare no renderer.
  *
- * So the port would be *published with no foreign implementor*, and a breaking
- * change to it would type-check green here and red in another repository days
- * later (`spec.md` §6, FR-063). This module is what keeps that an ordinary
- * local type error, so it implements the **whole** contract — every required
- * member and both optional ones — rather than the subset today's tests happen
- * to read. `Required<ShippingAdapter>` in `backend.ts` is the half `tsc`
+ * So the port would be *published with no foreign implementor in this workspace*,
+ * and a breaking change to it would type-check green here and red in a consumer's
+ * build days later (`spec.md` §6, FR-063). This module is what keeps that an
+ * ordinary local type error, so it implements the **whole** contract — every
+ * required member and both optional ones — rather than the subset today's tests
+ * happen to read. `Required<ShippingAdapter>` in `backend.ts` is the half `tsc`
  * enforces; the assertions below are the half it cannot.
  *
  * ## The off state, and where each half of it is proved
