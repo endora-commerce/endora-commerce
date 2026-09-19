@@ -63,6 +63,7 @@ interface DiscoveredLike {
  * registration rows the install needs are written the same way.
  */
 
+/** Verbatim from `Migration20260824T083100DhlParcelSeedDeliveryMethods` before W7 emptied it. */
 const DHL_PARCEL_HISTORICAL_SEED = `
   with inserted as (
     insert into "delivery_methods" (
