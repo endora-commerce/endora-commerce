@@ -1,5 +1,13 @@
 # @endora-commerce/mod-invoices
 
+## 0.10.2
+
+### Patch Changes
+
+- Updated dependencies [80751c2]
+  - @endora-commerce/admin-kit@0.9.3
+  - @endora-commerce/page-builder-admin@0.9.3
+
 ## 0.10.1
 
 ### Patch Changes

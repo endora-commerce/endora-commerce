@@ -1,5 +1,17 @@
 # @endora-commerce/mod-orders
 
+## 0.10.3
+
+### Patch Changes
+
+- Updated dependencies [80751c2]
+  - @endora-commerce/admin-kit@0.9.3
+  - @endora-commerce/mod-carts@0.9.3
+  - @endora-commerce/mod-credit-limits@0.9.3
+  - @endora-commerce/mod-inventory@0.12.2
+  - @endora-commerce/mod-invoices@0.10.2
+  - @endora-commerce/mod-promotions@0.10.3
+
 ## 0.10.2
 
 ### Patch Changes

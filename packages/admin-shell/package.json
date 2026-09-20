@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/admin-shell",
-  "version": "0.10.2",
+  "version": "0.10.3",
   "type": "module",
   "description": "The admin application itself (feature 110, FR-016) — the router, the sidebar and palette shell, the sign-in screen and the host's own screens. An instance depends on it and holds only index.html, main.tsx, the configuration, the brand assets, the theme overrides and the generated contribution registry.",
   "license": "MIT",
