@@ -67,7 +67,6 @@ import { entities as customFieldsEntities } from '@endora-commerce/mod-custom-fi
 import { entities as customerAccountsEntities } from '@endora-commerce/mod-customer-accounts/backend';
 import { entities as customersEntities } from '@endora-commerce/mod-customers/backend';
 import { entities as deliveryMethodsEntities } from '@endora-commerce/mod-delivery-methods/backend';
-import { entities as dhlParcelEntities } from '@endora-commerce/mod-dhl-parcel/backend';
 import { entities as transactionalEmailsEntities } from '@endora-commerce/mod-transactional-emails/backend';
 import { entities as emailEntities } from '@endora-commerce/mod-email/backend';
 import { entities as organizationsEntities } from '@endora-commerce/mod-organizations/backend';
@@ -142,7 +141,6 @@ export const ALL_ENTITIES = [
   ...(customerAccountsEntities as readonly EntityClassLike[]),
   ...(customersEntities as readonly EntityClassLike[]),
   ...(deliveryMethodsEntities as readonly EntityClassLike[]),
-  ...(dhlParcelEntities as readonly EntityClassLike[]),
   ...(transactionalEmailsEntities as readonly EntityClassLike[]),
   ...(emailEntities as readonly EntityClassLike[]),
   ...(organizationsEntities as readonly EntityClassLike[]),
