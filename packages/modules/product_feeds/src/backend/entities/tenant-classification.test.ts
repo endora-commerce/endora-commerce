@@ -2,12 +2,11 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-// The **published** array, not twelve side-effect imports of the package's
-// source: a source-reached entity class is a *second* class object beside the
-// one the ORM registered out of this array (D-160.6.1). Naming the array is
-// also what makes the coverage assertion real — it is the same array
-// `db/entities-registry.generated.ts` spreads.
-import { entities } from '@endora-commerce/mod-product-feeds/backend';
+// The composition's own array, not a hand-written list of classes: it is the
+// array `db/entities-registry.generated.ts` spreads and the one
+// `check-entity-tenant-classification` floors its coverage on, so the census
+// below cannot go stale while the module grows an entity.
+import { entities } from '../index.js';
 
 /**
  * Feature 067 / data-model.md §0 — every Product Feed entity is
@@ -38,10 +37,14 @@ import { entities } from '@endora-commerce/mod-product-feeds/backend';
  * in both repositories.
  */
 
-const ENTITY_DIR = join(
-  dirname(fileURLToPath(import.meta.url)),
-  '../../../../packages/modules/product_feeds/src/backend/entities',
-);
+/**
+ * This file sits *in* the directory it reads, so the subject is
+ * `dirname(import.meta.url)` rather than a path spelled relative to the
+ * repository. A test inside a published package may not carry a fact about this
+ * checkout's layout
+ * (`specs/106-module-owned-tests/contracts/module-test-ownership.md` §3).
+ */
+const ENTITY_DIR = dirname(fileURLToPath(import.meta.url));
 
 const ENTITIES: ReadonlyArray<[className: string, fileName: string]> = [
   ['FeedTemplate', 'feed-template.entity.ts'],
