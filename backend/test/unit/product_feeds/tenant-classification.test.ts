@@ -3,16 +3,13 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { tenantClassifications } from '../../../src/tenancy/org-scoped.decorator.js';
-import '../../../../packages/modules/product_feeds/src/backend/entities/feed-template.entity.js';
-import '../../../../packages/modules/product_feeds/src/backend/entities/feed-template-field.entity.js';
-import '../../../../packages/modules/product_feeds/src/backend/entities/product-feed.entity.js';
-import '../../../../packages/modules/product_feeds/src/backend/entities/feed-run.entity.js';
-import '../../../../packages/modules/product_feeds/src/backend/entities/feed-run-issue.entity.js';
-import '../../../../packages/modules/product_feeds/src/backend/entities/feed-artefact.entity.js';
-import '../../../../packages/modules/product_feeds/src/backend/entities/feed-taxonomy.entity.js';
-import '../../../../packages/modules/product_feeds/src/backend/entities/feed-taxonomy-node.entity.js';
-import '../../../../packages/modules/product_feeds/src/backend/entities/feed-taxonomy-mapping.entity.js';
-import '../../../../packages/modules/product_feeds/src/backend/entities/feed-taxonomy-check.entity.js';
+// The **published** array, not twelve side-effect imports of the package's
+// source. Both would run the decorators, and that is exactly the problem: a
+// source-reached entity class is a *second* class object beside the one the
+// ORM registered out of this array (D-160.6.1). Naming the array is also what
+// makes the coverage assertion real: it is the same array
+// `db/entities-registry.generated.ts` spreads.
+import { entities } from '@endora-commerce/mod-product-feeds/backend';
 
 /**
  * Feature 067 / data-model.md §0 — every Product Feed entity is
@@ -43,13 +40,36 @@ const ENTITIES: ReadonlyArray<[className: string, fileName: string]> = [
   ['FeedRun', 'feed-run.entity.ts'],
   ['FeedRunIssue', 'feed-run-issue.entity.ts'],
   ['FeedArtefact', 'feed-artefact.entity.ts'],
+  ['FeedDelivery', 'feed-delivery.entity.ts'],
+  ['FeedDeliveryAttempt', 'feed-delivery-attempt.entity.ts'],
   ['FeedTaxonomy', 'feed-taxonomy.entity.ts'],
   ['FeedTaxonomyNode', 'feed-taxonomy-node.entity.ts'],
   ['FeedTaxonomyMapping', 'feed-taxonomy-mapping.entity.ts'],
   ['FeedTaxonomyCheck', 'feed-taxonomy-check.entity.ts'],
 ];
 
+/** The five decorators of `packages/platform/src/tenancy/org-scoped.decorator.ts`. */
+const CLASSIFICATION_DECORATORS = [
+  'OrgScoped',
+  'CustomerScoped',
+  'GlobalEntity',
+  'TransitivelyScoped',
+  'RuleScoped',
+];
+
 describe('product_feeds entity tenant classification', () => {
+  it('covers every entity the package publishes', () => {
+    // Two-way, against the package's own `entities` array rather than against a
+    // hand-written census. The list above named ten classes while the package
+    // published twelve — `FeedDelivery` and `FeedDeliveryAttempt` were
+    // classified by nothing here — which is exactly the way a spelled census
+    // goes stale.
+    const declared = ENTITIES.map(([className]) => className).sort();
+    const published = entities.map((cls) => cls.name).sort();
+    expect(declared).toEqual(published);
+    expect(new Set(ENTITIES.map(([, fileName]) => fileName)).size).toBe(ENTITIES.length);
+  });
+
   it.each(ENTITIES.map(([className]) => className))(
     '%s is registered as a global entity',
     (className) => {
@@ -58,6 +78,14 @@ describe('product_feeds entity tenant classification', () => {
       expect(meta?.scope).toBe('global');
     },
   );
+
+  it.each(ENTITIES)('%s applies exactly one classification decorator', (_className, fileName) => {
+    const source = readFileSync(join(ENTITY_DIR, fileName), 'utf8');
+    const applied = CLASSIFICATION_DECORATORS.filter((name) =>
+      new RegExp(`^@${name}\\(`, 'm').test(source),
+    );
+    expect(applied).toEqual(['GlobalEntity']);
+  });
 
   it.each(ENTITIES)('%s declares no tenant key column', (_className, fileName) => {
     const source = readFileSync(join(ENTITY_DIR, fileName), 'utf8');
