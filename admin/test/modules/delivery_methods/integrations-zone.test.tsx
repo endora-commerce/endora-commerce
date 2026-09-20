@@ -24,11 +24,18 @@ import { adminSession, modulePresence, withSession } from '../../helpers/render-
  *
  * `useAdminZone` **throws** outside `AdminContributionsProvider` rather than
  * answering `[]`, deliberately, so "no provider" and "nobody contributed"
- * cannot be confused. A zone asserted against a stub of the enumeration asserts
- * that the stub was consulted, so every case here drives the real provider over
- * the real declarations — imported from the two carrier packages, not written
- * out here, so a contribution whose `requiredPermission` drifts fails on the
- * gate rather than on a copy of it.
+ * cannot be confused. A zone asserted against a stub of the *enumeration* asserts
+ * that the stub was consulted, so every case here drives the real provider, the
+ * real screen and the real renderer.
+ *
+ * **Both contributors are test-local literals since feature 134's wave 1, and the
+ * subject of every case is the host.** The two carrier packages left this
+ * repository — `inpost` under T035 and `dhl_parcel` under T036 — so their
+ * declarations are not here to import. What `DeliveryMethodsPage`, a **free**
+ * module's screen, needs from a contributor is a zone name, a weight and a
+ * permission code, and a literal supplies all three; what a literal cannot
+ * honestly assert is a *carrier's own* declaration, so the case that did that is
+ * gone rather than re-pointed. See `CARRIER_ENTRIES` below.
  *
  * The three properties that matter are each an `it`: the card renders one entry
  * per **contributing** module; a contributor that is switched off or whose code
@@ -53,49 +60,61 @@ vi.mock('../../../../packages/modules/delivery_methods/src/admin/api/delivery-me
 const { DeliveryMethodsPage } = await import(
   '../../../../packages/modules/delivery_methods/src/admin/pages/DeliveryMethodsPage'
 );
-const dhlParcel = await import('@endora-commerce/mod-dhl-parcel/admin');
 
-/** What the stand-in contribution below renders: the configuration link, and nothing else. */
+/** What each stand-in contribution renders: the configuration link, and nothing else. */
+function DhlParcelCardStandIn(): React.JSX.Element {
+  return <a href="/delivery-methods/dhl-parcel">integrations.deliveryMethods.configure</a>;
+}
+
 function InpostCardStandIn(): React.JSX.Element {
   return <a href="/settings/inpost">integrations.deliveryMethods.configure</a>;
 }
 
 /**
- * The subset whose declarations are real — the carriers still in this repository.
+ * The registry entries the host's provider is seeded with — **two literals, which is
+ * ruling α carried to its end** (`specs/134-paid-module-extraction/` T032, applied by
+ * T035 for `inpost` and by T036 for `dhl_parcel`).
  *
- * The last case asserts a *carrier's own* declaration and may only read these; a
- * literal asserted against itself is the shape that reads green and means nothing.
- */
-const REAL_CARRIER_ENTRIES = [{ moduleId: 'dhl_parcel', contributions: dhlParcel.contributions }];
-
-/**
- * The registry entries the host's provider is seeded with.
+ * The doc block above says a contribution written out here is a copy of the thing
+ * under test. That is true, and it is why T035 kept `dhl_parcel`'s real declaration
+ * while it was still here — and why the one case that read it is deleted rather than
+ * re-pointed now that it is not. The choice for the rest of the file is a literal or
+ * nothing, and nothing would delete the **host's** half, which is what this file is
+ * actually about: the subject of every case below is `DeliveryMethodsPage`, a **free**
+ * module's screen, and what it needs from a contributor is a zone name, a weight and a
+ * permission code.
  *
- * **`inpost`'s is written out here rather than imported, and that is ruling α**
- * (`specs/134-paid-module-extraction/` T032, applied by T035). The doc block above
- * says a contribution written out here is a copy of the thing under test — true,
- * and it is why `dhl_parcel`'s is still the real one. `inpost` left this repository
- * with wave 1, so its declaration is not here to import: the choice is a literal or
- * nothing, and nothing would delete the *host's* half of this file, which is what
- * the file is actually about. The subject of every case below is
- * `DeliveryMethodsPage` — a **free** module's screen — and what it needs from a
- * contributor is a zone name, a weight and a permission code.
+ * The alternative was refused twice, for the same reason both times: the FR-021
+ * carrier fixture **cannot** be a subject here, because an overlay module cannot
+ * contribute an admin zone at all — `generate-composer.ts` emits
+ * `admin/src/modules.generated.ts` from module **packages** only and overlays are
+ * discovered at runtime (**D-104**).
  *
- * The alternative was refused: the FR-021 carrier fixture **cannot** be a subject
- * here, because an overlay module cannot contribute an admin zone at all —
- * `generate-composer.ts` emits `admin/src/modules.generated.ts` from module
- * **packages** only and overlays are discovered at runtime (**D-104**).
- *
- * The literal is a transcript of `@endora-commerce/mod-inpost/admin`'s own
- * declaration as it stood when the package left, at
- * `packages/modules/inpost/src/admin/index.ts`: weight 200, `inpost:manage`, one
- * lazily-loaded card. Its own assertion moved with it — the paid repository is where
- * "does `inpost` declare this zone once" is now asked, which is the same inversion
- * T036 will apply to `dhl_parcel`'s entry when the second carrier goes and this
- * whole constant becomes two literals.
+ * Each literal is a transcript of that package's own `./admin` declaration as it stood
+ * when the package left. `dhl_parcel`: weight 100, `dhl_parcel:read`, one lazily-loaded
+ * card linking `/delivery-methods/dhl-parcel`
+ * (`packages/modules/dhl_parcel/src/admin/index.ts`, at
+ * `d699322fc9b98ca4dc3fa0edbf27b0e87718f81b`). `inpost`: weight 200, `inpost:manage`,
+ * one lazily-loaded card. **The weights are load-bearing here and only here** — the
+ * first case asserts the DOM order they produce — so a transcript that got them the
+ * wrong way round would pass a test about the ordering of a list it had reordered.
+ * Each carrier's own *"declares this zone once"* assertion is asked in the paid
+ * repository instead.
  */
 const CARRIER_ENTRIES = [
-  ...REAL_CARRIER_ENTRIES,
+  {
+    moduleId: 'dhl_parcel',
+    contributions: {
+      zones: [
+        {
+          zone: 'delivery_method.list.integrations' as const,
+          component: async () => ({ default: DhlParcelCardStandIn }),
+          weight: 100,
+          requiredPermission: 'dhl_parcel:read',
+        },
+      ],
+    } satisfies AdminContributions,
+  },
   {
     moduleId: 'inpost',
     contributions: {
@@ -258,34 +277,13 @@ describe('the delivery-methods integrations card is a zone', () => {
     expect(source).toContain("useAdminZone('delivery_method.list.integrations'");
   });
 
-  it('declares the zone once per carrier, against the published enum member', async () => {
-    // Both ends of `AdminZonePropsMap` are checked by `tsc`; what is checked
-    // here is the datum in between, because `check:admin-zones` reads the
-    // declaration as text and this reads the value the admin composes.
-    //
-    // **Once per carrier, not "the only zone the carrier declares"**, and this
-    // assertion read the second until P7d gave both carriers contributions on
-    // the order screen. The subject here is *this* member: a carrier
-    // contributing to it twice would render two cards for one integration,
-    // which is what the filter and the count below refuse. What the carrier
-    // does elsewhere is its own test's.
-    //
-    // **`inpost` is not in this loop since wave 1, and the omission is the rule
-    // rather than a gap** (`specs/134-paid-module-extraction/` T035). This case
-    // asserts a **carrier's own declaration**, so it belongs to the carrier: over
-    // the test-local literal above it would assert that a literal in this file
-    // says what this file put in it. It is asked in the paid repository instead.
-    // T036 empties the loop by the same argument, and deletes the case with it.
-    for (const entry of REAL_CARRIER_ENTRIES) {
-      const zones = (entry.contributions.zones ?? []).filter(
-        (zone) => zone.zone === 'delivery_method.list.integrations',
-      );
-      expect(zones, entry.moduleId).toHaveLength(1);
-      // FR-013: the chunk is behind a factory the renderer reaches only after
-      // it has decided presence and permission.
-      expect(typeof zones[0]!.component).toBe('function');
-      const loaded = await zones[0]!.component();
-      expect(typeof loaded.default).toBe('function');
-    }
-  });
+  // **The case that asserted *"declares the zone once per carrier, against the
+  // published enum member"* is gone, and its absence is the rule rather than a gap**
+  // (`specs/134-paid-module-extraction/` T036; T035 removed `inpost` from its loop for
+  // the same reason). It asserted a **carrier's own declaration**, and with both
+  // carriers now test-local literals it would assert that a literal in this file says
+  // what this file put in it — green, and evidence of nothing. It is asked in the paid
+  // repository, over each package's real `./admin` layer, which is where the
+  // declaration now is. Nothing in *this* repository lost a subject it could still
+  // measure.
 });

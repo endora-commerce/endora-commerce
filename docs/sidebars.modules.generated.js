@@ -229,14 +229,6 @@ const modules = [
   },
   {
     type: 'category',
-    label: 'DHL Parcel',
-    link: { type: 'doc', id: 'modules/dhl_parcel' },
-    items: [
-      'module-reference/dhl-parcel',
-    ],
-  },
-  {
-    type: 'category',
     label: 'Dictionary',
     link: { type: 'doc', id: 'modules/dictionaries/index' },
     items: [

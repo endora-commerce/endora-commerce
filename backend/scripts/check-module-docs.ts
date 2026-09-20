@@ -421,10 +421,6 @@ export const DERIVED_FACTS_IN_PROSE: Readonly<Record<string, ProseLedgerEntry>> 
     'cites `packages/modules/comparisons/src/manifest.ts` by address. The file is real ' +
     'and the sentence is worth keeping; the repair is to name the module and the file ' +
     'rather than the path.',
-  'modules/dhl_parcel#955a8b02':
-    'the page states `dhl_parcel`\'s own package directory. The generated reference page ' +
-    'carries the package that ships a module, so the sentence can link that instead of ' +
-    'restating it.',
   'modules/i18n#0addab46':
     'the page states `_i18n`\'s own package directory. The generated reference page ' +
     'carries the package that ships a module, so the sentence can link that instead of ' +

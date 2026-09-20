@@ -160,10 +160,6 @@ import { Migration20260611T140354DeliveryMethodsShippingMethodsAdapterAndShipmen
 import { Migration20260611T140416DeliveryMethodsFixInPersonPickupAdapter } from '@endora-commerce/mod-delivery-methods/migrations';
 import { Migration20260912T094638DeliveryMethodsSalesChannelDeliveryMethods } from '@endora-commerce/mod-delivery-methods/migrations';
 
-// ── dhl_parcel ──────────────────────────────────────────────────────────────
-import { Migration20260824T083000DhlParcelInit } from '@endora-commerce/mod-dhl-parcel/migrations';
-import { Migration20260824T083100DhlParcelSeedDeliveryMethods } from '@endora-commerce/mod-dhl-parcel/migrations';
-
 // ── dictionaries ────────────────────────────────────────────────────────────
 import { Migration20260506T112634DictionariesDictionaryInit } from '@endora-commerce/mod-dictionaries/migrations';
 
@@ -496,10 +492,6 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('delivery_methods', Migration20260611T140354DeliveryMethodsShippingMethodsAdapterAndShipments),
   migration('delivery_methods', Migration20260611T140416DeliveryMethodsFixInPersonPickupAdapter),
   migration('delivery_methods', Migration20260912T094638DeliveryMethodsSalesChannelDeliveryMethods),
-
-  // ── dhl_parcel ──────────────────────────────────────────────────────────────
-  migration('dhl_parcel', Migration20260824T083000DhlParcelInit),
-  migration('dhl_parcel', Migration20260824T083100DhlParcelSeedDeliveryMethods),
 
   // ── dictionaries ────────────────────────────────────────────────────────────
   migration('dictionaries', Migration20260506T112634DictionariesDictionaryInit),

@@ -33,82 +33,50 @@ interface DiscoveredLike {
 
 /**
  * SC-009 / FR-064 — a carrier's delivery-method seed, moved out of its migration
- * and into its `installHook`, reaches the same rows on a fresh database and on
- * one that already ran the migration.
+ * and into its `installHook`, is driven through the real
+ * `ModuleLifecycleOrchestrator.install` over the generated manifest index rather
+ * than by a hand-called hook: a hook that works when called directly and not when
+ * the orchestrator calls it would pass a weaker test.
  *
  * `specs/134-paid-module-extraction/contracts/foreign-write-repair.md` is
- * normative; §3.2 is the claim this file measures. The two seeds are the
- * repository's **first** install hooks, so the orchestrator branch that invokes
- * one has never been exercised by a module here: the install below is the real
- * `ModuleLifecycleOrchestrator.install`, driven over the generated manifest
- * index, rather than a hand-called hook — a hook that works when called directly
- * and not when the orchestrator calls it would pass a weaker test.
+ * normative; §3.2 is the claim this file measures.
  *
- * **`inpost`'s case and its historical SQL left with the module** (T035, E9: a test
- * whose subject is not in this tree is coupling, not prose). The equivalence claim
- * for that carrier is now the paid repository's — it needs a booted orchestrator
- * against a real database, so it is the **host's** under **D-252** and not the
- * package's. What stays here is `dhl_parcel`, which T036 takes, and
- * `carrier_fixture`, which FR-021 put in `backend/src/apps/example/modules/`
- * precisely so this file still has a subject when both carriers are gone.
+ * ## Both carriers left with wave 1, and what remains is FR-021's standing consumer
  *
- * **The historical SQL lives here now.** The remaining carrier's migration body is a
- * no-op (its class name is an identity persisted in every customer database and may
- * not be renamed or deleted, §3.1), so the `insert` statements below are the last
- * statement in the repository of what an upgraded database actually contains.
- * That is what makes the equivalence assertion mean anything: without them the
- * "upgraded" case would be a second copy of the fresh one.
+ * `inpost`'s case and its historical SQL went with **T035**; `dhl_parcel`'s went with
+ * **T036** (E9: a test whose subject is not in this tree is coupling, not prose). The
+ * **fresh-versus-upgraded equivalence** claim is a carrier's own and travels with it
+ * — it needs a booted orchestrator against a real database, so it is the **host's**
+ * under **D-252** and not the package's, and the paid repository is where each
+ * carrier's historical migration SQL is now the last statement of what an upgraded
+ * database contains. **That claim is not asserted anywhere in this repository any
+ * more, and it is recorded as owed under T036 rather than dropped**: there is no free
+ * module here whose delivery-method rows were ever written by a migration, so nothing
+ * here can stand in for it. `carrier_fixture` has no historical SQL because it never
+ * had a migration — inventing one would assert the equivalence against a fiction.
+ *
+ * What **is** still asserted here, over `carrier_fixture` — the overlay module FR-021
+ * put in `backend/src/apps/example/modules/` precisely so this seam keeps a consumer
+ * and this file keeps a subject:
+ *
+ *   * the hook seeds through `delivery_methods`' published install surface and binds
+ *     the row to the default channel exactly once;
+ *   * a row an operator unbound from every channel stays unbound across a re-install
+ *     (issue #96) — `created === false`, so `bindToDefaultChannel` is not called;
+ *   * the hook is **idempotent**: a second install leaves an operator's edits alone.
+ *     This case was `inpost`'s until T035 and `dhl_parcel`'s until T036; the property
+ *     is the **seam's** rather than any one carrier's, which is why it survives the
+ *     carriers leaving;
+ *   * the hard-uninstall half removes the row and a soft one does not.
+ *
+ * W7's last step and the reason none of this is optional: with both carriers gone,
+ * `DeliveryMethodSeedApi` would otherwise have **zero consumers in this repository**
+ * — a published surface whose breaking change would type-check green here and red in
+ * a consumer's build days later (`extraction-procedure.md` refusal 6).
  *
  * Every row is written inside a transaction that is rolled back, and the
  * registration rows the install needs are written the same way.
  */
-
-/** Verbatim from `Migration20260824T083100DhlParcelSeedDeliveryMethods` before W7 emptied it. */
-const DHL_PARCEL_HISTORICAL_SEED = `
-  with inserted as (
-    insert into "delivery_methods" (
-      "id", "code", "name", "cost", "currency", "adapter", "status",
-      "status_on_success", "status_on_failure", "created_at", "updated_at"
-    )
-    values
-      (
-        gen_random_uuid(),
-        'dhl_parcel_courier',
-        '{"default":"DHL courier","pl-PL":"Kurier DHL","en-US":"DHL courier"}'::jsonb,
-        0,
-        'PLN',
-        'dhl_parcel_courier',
-        'inactive',
-        'shipment_sent',
-        'processing',
-        now(),
-        now()
-      ),
-      (
-        gen_random_uuid(),
-        'dhl_parcel_pickup',
-        '{"default":"DHL pickup point","pl-PL":"Punkt DHL POP/BOX","en-US":"DHL pickup point"}'::jsonb,
-        0,
-        'PLN',
-        'dhl_parcel_pickup',
-        'inactive',
-        'shipment_sent',
-        'processing',
-        now(),
-        now()
-      )
-    on conflict ("code") do nothing
-    returning "id"
-  )
-  insert into "sales_channel_delivery_methods" ("sales_channel_id", "delivery_method_id")
-  select "sales_channels"."id", inserted."id"
-  from inserted
-  cross join "sales_channels"
-  where "sales_channels"."system_default" = true
-  on conflict ("sales_channel_id", "delivery_method_id") do nothing;
-`;
-
-const DHL_PARCEL_CODES = ['dhl_parcel_courier', 'dhl_parcel_pickup'] as const;
 
 interface MethodRow {
   code: string;
@@ -126,7 +94,23 @@ interface MembershipRow {
   channel_code: string;
 }
 
-describe('Carrier delivery-method seeds — install hook, fresh vs upgraded (integration)', () => {
+/**
+ * The overlay module's registry entry, handed to the orchestrator rather than
+ * discovered: `manifest-index.generated.ts` carries module **packages**, and an
+ * overlay module is loaded at boot from `src/apps/<deployment>/modules/`.
+ *
+ * At module scope because two cases install it now that it is the file's only
+ * subject, and two copies of it would be two answers to what is being installed.
+ */
+const FIXTURE_ENTRY: DiscoveredLike = {
+  id: carrierFixtureManifest.id,
+  manifest: carrierFixtureManifest,
+  manifestPath: '<overlay:example/carrier_fixture>',
+  installHook: carrierFixtureInstallHook,
+  uninstallHook: carrierFixtureUninstallHook,
+};
+
+describe('Carrier delivery-method seeds — the install-hook seam (integration)', () => {
   let db: TestDb;
   let redis: Redis;
 
@@ -247,69 +231,20 @@ describe('Carrier delivery-method seeds — install hook, fresh vs upgraded (int
     return { methods, memberships };
   }
 
-  it('dhl_parcel: the hook seeds two INACTIVE methods in the default channel, and a fresh install matches an upgraded one', async () => {
-    await clearMethods(DHL_PARCEL_CODES);
-    await install('dhl_parcel');
-    const fresh = await snapshot(DHL_PARCEL_CODES);
-
-    expect(fresh.methods.map((r) => r.code)).toEqual([...DHL_PARCEL_CODES]);
-    // The one field where the seeder's default and the correct value disagree
-    // (§2.4): taking `'active'` would offer DHL to buyers on every new install.
-    expect(fresh.methods.map((r) => r.status)).toEqual(['inactive', 'inactive']);
-    expect(fresh.memberships.map((r) => r.method_code)).toEqual([...DHL_PARCEL_CODES]);
-
-    await db.rollbackTx();
-    await db.beginTx();
-    await clearMethods(DHL_PARCEL_CODES);
-    await db.em().execute(DHL_PARCEL_HISTORICAL_SEED);
-    await install('dhl_parcel');
-    const upgraded = await snapshot(DHL_PARCEL_CODES);
-
-    expect(JSON.stringify(upgraded)).toBe(JSON.stringify(fresh));
-  }, 120_000);
-
-  it('dhl_parcel: a method an operator unbound from every channel stays unbound (issue #96)', async () => {
-    await clearMethods(DHL_PARCEL_CODES);
-    await db.em().execute(DHL_PARCEL_HISTORICAL_SEED);
-    await db
-      .em()
-      .execute(
-        `delete from "sales_channel_delivery_methods" where "delivery_method_id" in (
-           select "id" from "delivery_methods" where "code" in (?, ?))`,
-        [...DHL_PARCEL_CODES],
-      );
-
-    await install('dhl_parcel');
-
-    // `created === false`, so `bindToDefaultChannel` is not called. An unguarded
-    // call is issue #96 verbatim: the method comes back bound to Default and
-    // nothing says so.
-    const after = await snapshot(DHL_PARCEL_CODES);
-    expect(after.methods).toHaveLength(2);
-    expect(after.memberships).toEqual([]);
-  }, 120_000);
-
   /**
-   * W7's last step, and the reason it is not optional: once both carriers leave,
-   * `DeliveryMethodSeedApi` has **zero consumers in this repository** — a
-   * published surface whose breaking change would type-check green here and red
-   * somewhere else, days later (`extraction-procedure.md` refusal 6, on the
-   * consumer side). The example deployment's fixture is the standing consumer, so
-   * it is installed here through the same orchestrator, with its overlay entry
-   * handed in rather than discovered.
+   * W7's last step, and since wave 1 closed it is the **only** consumer left: with
+   * both carriers out of this repository, `DeliveryMethodSeedApi` would otherwise have
+   * **zero** here — a published surface whose breaking change would type-check green
+   * here and red somewhere else, days later (`extraction-procedure.md` refusal 6, on
+   * the consumer side). The example deployment's fixture is that standing consumer, so
+   * it is installed through the same orchestrator, with its overlay entry handed in
+   * rather than discovered.
    */
   it('carrier_fixture: the standing consumer seeds one inactive method and binds it once', async () => {
-    const fixtureEntry: DiscoveredLike = {
-      id: carrierFixtureManifest.id,
-      manifest: carrierFixtureManifest,
-      manifestPath: '<overlay:example/carrier_fixture>',
-      installHook: carrierFixtureInstallHook,
-      uninstallHook: carrierFixtureUninstallHook,
-    };
     const code = CARRIER_FIXTURE_DELIVERY_METHOD.code;
 
     await clearMethods([code]);
-    await install('carrier_fixture', [fixtureEntry]);
+    await install('carrier_fixture', [FIXTURE_ENTRY]);
 
     const seeded = await snapshot([code]);
     expect(seeded.methods).toHaveLength(1);
@@ -325,7 +260,7 @@ describe('Carrier delivery-method seeds — install hook, fresh vs upgraded (int
            select "id" from "delivery_methods" where "code" = ?)`,
         [code],
       );
-    await install('carrier_fixture', [fixtureEntry]);
+    await install('carrier_fixture', [FIXTURE_ENTRY]);
     expect((await snapshot([code])).memberships).toEqual([]);
 
     // The hard-uninstall half, called directly: the orchestrator's uninstall also
@@ -341,31 +276,33 @@ describe('Carrier delivery-method seeds — install hook, fresh vs upgraded (int
     expect((await snapshot([code])).methods).toEqual([]);
   }, 120_000);
 
-  it('the hooks are idempotent: a second install leaves an admin edit alone', async () => {
-    // **Driven over `dhl_parcel` since wave 1.** It was `inpost`'s until
-    // `specs/134-paid-module-extraction/` T035 took that module out of this
-    // repository; the property is the seam's rather than either carrier's, and the
-    // other half of the guard it protects — `created === true`, issue #96 — is
-    // asserted per carrier in the two cases above. T036 takes the second carrier, and
-    // what is left then is `carrier_fixture`, which is FR-021's standing consumer and
-    // exists so that this file keeps a subject at all.
-    await clearMethods(DHL_PARCEL_CODES);
-    await install('dhl_parcel');
+  it('the hook is idempotent: a second install leaves an admin edit alone', async () => {
+    // **Driven over `carrier_fixture` since wave 1 closed.** It was `inpost`'s until
+    // `specs/134-paid-module-extraction/` T035 and `dhl_parcel`'s until T036; the
+    // property is the **seam's** rather than any one carrier's — `ensureMethodForAdapter`
+    // must not reconcile a row it did not create — so it survives both carriers leaving
+    // and is asked over the standing consumer FR-021 put here for exactly this.
+    //
+    // The other half of the guard it protects, `created === true` / issue #96, is the
+    // case above.
+    const code = CARRIER_FIXTURE_DELIVERY_METHOD.code;
+    await clearMethods([code]);
+    await install('carrier_fixture', [FIXTURE_ENTRY]);
     await db
       .em()
       .execute('update "delivery_methods" set "cost" = ?, "status" = ? where "code" = ?', [
         '19.99',
         'active',
-        'dhl_parcel_courier',
+        code,
       ]);
 
-    await install('dhl_parcel');
+    await install('carrier_fixture', [FIXTURE_ENTRY]);
 
-    const rows = await snapshot(DHL_PARCEL_CODES);
-    const courier = rows.methods.find((r) => r.code === 'dhl_parcel_courier');
-    expect(courier?.cost).toBe('19.99');
+    const rows = await snapshot([code]);
+    const seeded = rows.methods.find((r) => r.code === code);
+    expect(seeded?.cost).toBe('19.99');
     // Seeded `inactive`; an operator turned it on, and a second install may not turn
     // it back off.
-    expect(courier?.status).toBe('active');
+    expect(seeded?.status).toBe('active');
   }, 120_000);
 });

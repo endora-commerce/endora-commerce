@@ -180,18 +180,16 @@ import * as module67 from '@endora-commerce/mod-search/backend';
 import { manifest as manifest67 } from '@endora-commerce/mod-search';
 import * as module68 from '@endora-commerce/mod-shipments/backend';
 import { manifest as manifest68 } from '@endora-commerce/mod-shipments';
-import * as module69 from '@endora-commerce/mod-dhl-parcel/backend';
-import { manifest as manifest69 } from '@endora-commerce/mod-dhl-parcel';
-import * as module70 from '@endora-commerce/mod-shopping-lists/backend';
-import { manifest as manifest70 } from '@endora-commerce/mod-shopping-lists';
-import * as module71 from '@endora-commerce/mod-stripe/backend';
-import { manifest as manifest71 } from '@endora-commerce/mod-stripe';
-import * as module72 from '@endora-commerce/mod-tpay/backend';
-import { manifest as manifest72 } from '@endora-commerce/mod-tpay';
-import * as module73 from '@endora-commerce/mod-webhooks/backend';
-import { manifest as manifest73 } from '@endora-commerce/mod-webhooks';
-import * as module74 from '@endora-commerce/mod-wfirma/backend';
-import { manifest as manifest74 } from '@endora-commerce/mod-wfirma';
+import * as module69 from '@endora-commerce/mod-shopping-lists/backend';
+import { manifest as manifest69 } from '@endora-commerce/mod-shopping-lists';
+import * as module70 from '@endora-commerce/mod-stripe/backend';
+import { manifest as manifest70 } from '@endora-commerce/mod-stripe';
+import * as module71 from '@endora-commerce/mod-tpay/backend';
+import { manifest as manifest71 } from '@endora-commerce/mod-tpay';
+import * as module72 from '@endora-commerce/mod-webhooks/backend';
+import { manifest as manifest72 } from '@endora-commerce/mod-webhooks';
+import * as module73 from '@endora-commerce/mod-wfirma/backend';
+import { manifest as manifest73 } from '@endora-commerce/mod-wfirma';
 
 export const MODULES: readonly ModuleEntry[] = [
   { id: '_lifecycle', version: manifest0.version, registerModule: module0.registerModule },
@@ -263,10 +261,9 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'payu', version: manifest66.version, registerModule: module66.registerModule },
   { id: 'search', version: manifest67.version, registerModule: module67.registerModule },
   { id: 'shipments', version: manifest68.version, registerModule: module68.registerModule },
-  { id: 'dhl_parcel', version: manifest69.version, registerModule: module69.registerModule },
-  { id: 'shopping_lists', version: manifest70.version, registerModule: module70.registerModule },
-  { id: 'stripe', version: manifest71.version, registerModule: module71.registerModule },
-  { id: 'tpay', version: manifest72.version, registerModule: module72.registerModule },
-  { id: 'webhooks', version: manifest73.version, registerModule: module73.registerModule },
-  { id: 'wfirma', version: manifest74.version, registerModule: module74.registerModule },
+  { id: 'shopping_lists', version: manifest69.version, registerModule: module69.registerModule },
+  { id: 'stripe', version: manifest70.version, registerModule: module70.registerModule },
+  { id: 'tpay', version: manifest71.version, registerModule: module71.registerModule },
+  { id: 'webhooks', version: manifest72.version, registerModule: module72.registerModule },
+  { id: 'wfirma', version: manifest73.version, registerModule: module73.registerModule },
 ];

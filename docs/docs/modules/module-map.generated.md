@@ -43,7 +43,6 @@ of the platform, not of what happens to be written.
 | [customer_accounts](./customer_accounts.md) | Customer login, password reset, 2FA, role assignment | @endora-commerce/mod-customer-accounts |
 | [customers](./customers.md) | Customer lifecycle over `customer_accounts` — company and personal Organizations, sales-rep assignment and the admin customer surface | @endora-commerce/mod-customers |
 | [delivery_methods](./delivery_methods.md) | Configured delivery options | @endora-commerce/mod-delivery-methods |
-| [DHL Parcel](./dhl_parcel.md) | DHL eCommerce Poland (DHL24) shipping — door-courier and pickup-point adapters, labels and tracking | @endora-commerce/mod-dhl-parcel |
 | [Dictionary](./dictionaries/index.md) | Seeded reference data — Countries, Currencies, Languages — with admin reordering | @endora-commerce/mod-dictionaries |
 | `email` | _no page yet_ | @endora-commerce/mod-email |
 | `erp_connector` | _no page yet_ | @endora-commerce/mod-erp-connector |

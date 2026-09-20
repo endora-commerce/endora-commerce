@@ -132,7 +132,6 @@
     "@endora-commerce/mod-customer-accounts": "workspace:*",
     "@endora-commerce/mod-customers": "workspace:*",
     "@endora-commerce/mod-delivery-methods": "workspace:*",
-    "@endora-commerce/mod-dhl-parcel": "workspace:*",
     "@endora-commerce/mod-dictionaries": "workspace:*",
     "@endora-commerce/mod-email": "workspace:*",
     "@endora-commerce/mod-erp-connector": "workspace:*",
