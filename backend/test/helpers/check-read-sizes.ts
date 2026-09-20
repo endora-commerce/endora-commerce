@@ -3390,7 +3390,26 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // -> 2579 (-27).** this module's source leaving the walk. The header block above this table
     // carries the attribution — two pristine worktrees, per entry and per dimension, with the
     // base's own drift left to its owner — and nothing here widened a band.
-    files: 2579,
+    // **`specs/134-paid-module-extraction/` T064 — the ledger's vendor-independent error
+    // floor (D-256): files 2579 -> 2582 (+3).** Three co-located tests entering the module
+    // walk roots: `invoice_ledger`'s `mapped-delivery-error.test.ts`, which is the floor's
+    // first test, and a `delivery-sentences.test.ts` in each of `wfirma` and `infakt`, where
+    // the closed set the free module gave up now lives. Nothing moved and nothing was
+    // deleted, so every contribution is an arrival. The branch's fourth added file is a
+    // changeset, which this walk does not read — which is why the arithmetic is +3 and not
+    // +4. **This is the only dimension of the 46 recorded that agreed at the base and drifts
+    // here.** Measured in two pristine detached worktrees, base `340af67ed` and this tip,
+    // each after `pnpm install --frozen-lockfile` and `build:packages`, with
+    // `git clean -fX docs/docs/modules`, `docs/.module-docs-copies.json` and
+    // `storefront/tsconfig.tsbuildinfo` removed, an empty
+    // `git ls-files --others --exclude-standard` and `git add -A` before the run. Twelve
+    // further dimensions were moved further by this branch and are **not** re-recorded here:
+    // they already drift at the base — `check-admin-zones`, `check-class-vocabulary`,
+    // `check-container-imports`, `check-diacritic-folds`, `check-module-boundary` (both),
+    // `check-nul-bytes`, `check-root-dispositions`, `check-singleton-identity`,
+    // `check-test-ownership`, `check-language.sh` and `check-naming.sh` — and that drift is
+    // its owner's to re-record. Never computed from a delta.
+    files: 2582,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
