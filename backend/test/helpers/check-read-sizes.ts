@@ -5465,7 +5465,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **+1 site, this branch's; +1 file, already standing on `9a0e8e0d0`.** The site is in `test/unit/scripts/check-env-inputs.test.ts`, which this branch extends; the file is the base's own and not Phase 3's.
     // **`feat/129-t041-t042a-actions`: sites 610 -> 611.** Measured, not derived: the parity
     // test is the only file this branch adds that this signal reads.
-    sites: 611,
+    // **D-259's four copy-drift repairs (`feat/d-259-payment-method-orgdisable-org-scoped`):
+    // sites 611 -> 615 (+4).** The four route-level tenant-isolation proofs this branch adds
+    // under `test/integration/{payu,tpay,paypal,autopay}/tenant-isolation.test.ts`, one site
+    // each: every one resolves the seeded sales-representative role out of `admin_roles` on the
+    // harness entity manager, which this walk's read vocabulary recognises, and none of them
+    // defaults a fixture read. Measured on two pristine detached worktrees, base and tip, per
+    // entry and per dimension — this is the one dimension in the whole record that moved off
+    // agreement here, and `files` on this entry is deliberately **not** re-recorded: it was
+    // already drifted -15 at the base, which is somebody else's to attribute.
+    sites: 615,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
