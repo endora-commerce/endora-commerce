@@ -1,5 +1,12 @@
 # @endora-commerce/mod-inventory
 
+## 0.12.2
+
+### Patch Changes
+
+- Updated dependencies [80751c2]
+  - @endora-commerce/admin-kit@0.9.3
+
 ## 0.12.1
 
 ### Patch Changes

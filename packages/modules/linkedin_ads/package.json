@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-linkedin-ads",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "type": "module",
   "sideEffects": false,
   "description": "LinkedIn Ads integration: per-sales-channel Insight Tag, consent-gated tracking, configurable conversion mappings, and optional server-side reporting through the Conversions API.",

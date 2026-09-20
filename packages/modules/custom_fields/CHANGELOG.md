@@ -1,5 +1,12 @@
 # @endora-commerce/mod-custom-fields
 
+## 0.9.3
+
+### Patch Changes
+
+- Updated dependencies [80751c2]
+  - @endora-commerce/admin-kit@0.9.3
+
 ## 0.9.2
 
 ### Patch Changes

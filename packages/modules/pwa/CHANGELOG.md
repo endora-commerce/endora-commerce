@@ -1,5 +1,12 @@
 # @endora-commerce/mod-pwa
 
+## 0.10.3
+
+### Patch Changes
+
+- Updated dependencies [80751c2]
+  - @endora-commerce/admin-kit@0.9.3
+
 ## 0.10.2
 
 ### Patch Changes
