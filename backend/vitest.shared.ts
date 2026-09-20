@@ -111,10 +111,20 @@ export function mergeBackendConfig(base: UserConfig, override: UserConfig): User
  * goes on re-evaluating every module that registers into them once per test
  * file. Over 32 files importing `pim_ergonode`'s entities,
  * `tenantClassifications()` then holds 32 entries per class instead of one and
- * `test/unit/pim_ergonode/tenant-classification.test.ts` fails ten times.
+ * `test/unit/pim_ergonode/tenant-classification.test.ts` failed ten times.
  * Nothing about issue #199 needs that, and changing what a registry contains
  * for a whole run is a bigger decision than this one. The other four packages
  * are untouched because nothing measured them.
+ *
+ * **The witness is in the past tense on purpose, and re-measuring needs a new
+ * one.** Under D-257 that file stopped reading the registry and moved to
+ * `packages/modules/pim_ergonode/src/backend/entities/tenant-classification.test.ts`,
+ * where it runs under the package's own vitest and not under this rule at all.
+ * The measurement stands as a measurement; what no longer exists is the file
+ * that would red if the rule were widened, so anyone widening it must pick a
+ * witness out of the callers that remain
+ * (`git grep -l 'tenantClassifications()' -- test`) and measure again rather
+ * than cite this paragraph.
  * `test/unit/harness/workspace-package-externalization.test.ts` holds the scope
  * in both directions.
  *

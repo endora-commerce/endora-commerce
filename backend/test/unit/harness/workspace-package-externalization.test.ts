@@ -22,9 +22,13 @@
  * them — and externalizing it gives the whole shard **one** of each, while
  * vitest goes on re-evaluating every module that registers into them once per
  * test file. Measured over 32 files that import `pim_ergonode`'s entities:
- * inlined, `tenantClassifications()` holds one entry per class and
- * `test/unit/pim_ergonode/tenant-classification.test.ts` passes; externalized,
- * it holds 32 and that file fails ten times. Nothing about issue #199 requires
+ * inlined, `tenantClassifications()` held one entry per class and
+ * `test/unit/pim_ergonode/tenant-classification.test.ts` passed; externalized,
+ * it held 32 and that file failed ten times. **Past tense**: under D-257 that
+ * file stopped reading the registry and moved into its own package, so the
+ * measurement stands while its witness does not — widening this rule means
+ * choosing a witness out of the callers that remain and measuring again.
+ * Nothing about issue #199 requires
  * that change, and altering what a process-wide registry contains for a whole
  * run is a larger decision than this one — so the rule is the package the
  * measurement is about, and the platform is deliberately left where it was.
@@ -92,8 +96,10 @@ describe('the externalization rule covers what was measured, and no more', () =>
    * The direction a widening would take, and the one that costs something. See
    * the header: externalizing the platform gives the shard one tenant-scope
    * classification registry while vitest re-evaluates every entity module per
-   * file, and `test/unit/pim_ergonode/tenant-classification.test.ts` counts 32
-   * registrations where it expects 1.
+   * file, which counted 32 registrations where 1 was expected. The file that
+   * counted them has since moved into `pim_ergonode`'s own package and no
+   * longer reads the registry (D-257), so the header's witness is historical —
+   * see it for what re-measuring now requires.
    */
   it('does not match the platform build, whose registries are shared state', () => {
     expect(

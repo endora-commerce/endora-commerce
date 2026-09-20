@@ -265,12 +265,36 @@ export const UNPUBLISHED_PLATFORM_REACHES: Readonly<Record<string, LedgeredReach
  * under `backend/test/**`. The script names three symbols and exactly one of
  * them, `ErrorCodeCollision`, is named by nothing else:
  * `buildErrorTranslationTargets` is named by five of the tests and
- * `describeErrorCodeCollisions` by two. `org-scoped.decorator.ts` has ten, one
- * under `backend/scripts` and nine under `backend/test/**`, and the same shape —
- * the script names `tenantClassifications` and `ScopeClass`, and
- * `tenantClassifications` is named by seven of the tests. So moving the two
+ * `describeErrorCodeCollisions` by two. `org-scoped.decorator.ts` has **seven**,
+ * one under `backend/scripts` and six under `backend/test/**`, and the same
+ * shape — the script names `tenantClassifications` and `ScopeClass`, and
+ * `tenantClassifications` is called by **four** of the tests. So moving the two
  * checks takes **two symbols** out of the two holder sets and **no file** out of
  * either consumer set.
+ *
+ * **Both `org-scoped.decorator.ts` numbers are re-derived, and the pair they
+ * replace was stale before D-257 moved them** — this is a ledger derived *about*
+ * files rather than one any of them edits, so no targeted run over a changed
+ * path can flag it. Recorded here as *ten consumers, nine of them tests* and
+ * *named by seven of the tests*; measured 2026-09-20 before the repair at **13**
+ * consumers (1 script + 12 test files) and **10** callers, and after it at the
+ * seven and four above. The six that left are the module-owned tenancy tests of
+ * `pim_akeneo`, `pim_pimcore`, `pim_ergonode`, `pim_unopim`, `comarch_xl` and
+ * `product_feeds`, which under D-257 stopped reading the registry — the module
+ * asserts the classification it declares over its own entity sources, and
+ * `check-entity-tenant-classification`'s package-scope host asserts that exactly
+ * one survived into the artefact the platform loads — and then moved beside
+ * their subjects. The four callers left are all legitimately the host's:
+ * `integration/invoice_ledger/tenant-isolation.test.ts`,
+ * `integration/tenancy/customer-scoped-organization-completeness.test.ts`,
+ * `unit/tenancy/transitive-parent-chains.test.ts` and
+ * `unit/tenancy/transitive-parent-module-ownership.test.ts`. Commands, and both
+ * matter because they answer different questions:
+ * `git grep -l "src/tenancy/org-scoped.decorator.js" -- backend/test
+ * backend/scripts` for the consumer set, and `git grep -l
+ * "tenantClassifications()" -- backend/test` for the callers — the second
+ * over-counts by one, `unit/harness/workspace-package-externalization.test.ts`
+ * naming the accessor in prose rather than calling it.
  *
  * **And the move cannot supply an address either**, which is the larger half and
  * the reason this is a finding rather than an arithmetic slip.
@@ -516,9 +540,12 @@ export const RELATIVE_HOST_REACHES: Readonly<Record<string, LedgeredHostReach>> 
       '`tenantClassifications`. **T119d does not retire it and this entry no longer names ' +
       'it**, on the same re-derivation as the `error-translation.ts` entry above. T119d ' +
       'moves the one `backend/scripts` consumer, `lib/package-declarations.ts`, which names ' +
-      '`tenantClassifications` and `ScopeClass`; `tenantClassifications` is named by seven ' +
+      '`tenantClassifications` and `ScopeClass`; `tenantClassifications` is called by four ' +
       'further files under `backend/test/**`, so only `ScopeClass` leaves the holder set ' +
-      'and no file leaves the consumer set. Nor can the registry itself move to the estate ' +
+      'and no file leaves the consumer set. **That was seven until D-257**, which took the ' +
+      'six module-owned tenancy tests out of the caller set without publishing anything; ' +
+      'the shrink and both derivation commands are in the header above, because nothing a ' +
+      'targeted run reaches names this entry. Nor can the registry itself move to the estate ' +
       'that reads it: `tenantClassifications` is the accessor of a module-scope array the ' +
       'decorators in that same file write, and reading a classification recorded in some ' +
       'other copy of it is reading a classification the global filters never apply. ' +
