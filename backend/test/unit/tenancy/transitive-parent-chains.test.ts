@@ -64,10 +64,19 @@ describe('the committed platform’s transitive tenancy chains', () => {
     // as `KsefSubmission`, one link further out, and owned by the module that
     // owns its parent rather than by a dependant, so it does not repeat the
     // defect the paragraph above records.
+    // **A fourth, and the first one that is entirely intra-package (D-258).**
+    // `XlImportedOfferLine` takes `XlImportedOffer`'s chain. The other three
+    // each cross a module boundary, which is what made the `invoice_ledger`
+    // refusal above possible: a chain whose parent another module owns can be
+    // composed without that parent. This one cannot — both classes ship in one
+    // package's `entities` array, so the boot reconciliation has either both or
+    // neither, and it is the reason a chain hop was allowed here where
+    // `invoice_ledger` had to carry a column instead.
     expect(transitive.map((meta) => meta.className).sort()).toEqual([
       'Invoice',
       'InvoiceExternalAttachment',
       'KsefSubmission',
+      'XlImportedOfferLine',
     ]);
 
     const invoice = transitive.find((meta) => meta.className === 'Invoice');
@@ -75,15 +84,27 @@ describe('the committed platform’s transitive tenancy chains', () => {
     const attachment = transitive.find(
       (meta) => meta.className === 'InvoiceExternalAttachment',
     );
+    const offerLine = transitive.find((meta) => meta.className === 'XlImportedOfferLine');
     expect(invoice).toMatchObject({ parentClassName: 'Order', fk: 'orderId' });
     expect(submission).toMatchObject({ parentClassName: 'Invoice', fk: 'invoiceId' });
     expect(attachment).toMatchObject({ parentClassName: 'Invoice', fk: 'invoiceId' });
+    expect(offerLine).toMatchObject({ parentClassName: 'XlImportedOffer', fk: 'offer' });
 
     // KsefSubmission -> Invoice -> Order, and Order carries the org column.
     const middle = resolveTransitiveParent(submission!);
     expect(middle.className).toBe('Invoice');
     const root = resolveTransitiveParent(middle);
     expect(root).toMatchObject({ className: 'Order', scope: 'org', key: 'organizationId' });
+
+    // XlImportedOfferLine -> XlImportedOffer, one hop, and the offer carries
+    // the org column: the shortest chain in the population, and the only one
+    // whose terminus is in the child's own package.
+    const offerRoot = resolveTransitiveParent(offerLine!);
+    expect(offerRoot).toMatchObject({
+      className: 'XlImportedOffer',
+      scope: 'org',
+      key: 'organizationId',
+    });
 
     // `invoice_ledger`'s two tables are `@OrgScoped` and no longer in this
     // population at all, which is the assertion above; that they carry a
