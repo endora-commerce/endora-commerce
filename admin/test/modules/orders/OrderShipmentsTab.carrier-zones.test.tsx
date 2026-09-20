@@ -22,13 +22,19 @@ import { adminSession, modulePresence, withSession } from '../../helpers/render-
  * `order.shipments.tab.actions` now, so the subject here is what the **host**
  * owes a contributor and nothing about a carrier. The carrier halves moved to
  * the modules that own them, each with the four off-state cases Constitution XVII
- * item 6 asks for: `admin/test/modules/dhl_parcel/dhl-shipment-actions-zone.test.tsx`,
- * and — until `specs/134-paid-module-extraction/` T035 — `inpost`'s counterpart at
- * `admin/test/modules/inpost/inpost-shipment-row-zone.test.tsx`. That file left with its
- * module and is **owed to the paid repository**, which has no admin test host yet; it is
- * recorded as owed under T035 in that feature's `tasks.md` and recoverable in full at
- * `git show ddfa78304:admin/test/modules/inpost/inpost-shipment-row-zone.test.tsx`. This
- * file's own subject is unaffected — it is the host's half, and the host is still here.
+ * item 6 asks for — and **both of those files have now left this repository with
+ * their module** (`specs/134-paid-module-extraction/`, T035 for `inpost` and T036
+ * for `dhl_parcel`). Neither could travel *into* its package: no module package
+ * here ships a `.test.tsx`, every module package's `vitest.config.ts` collects
+ * `.test.ts` under `src` and nothing else, and the paid repository has no admin
+ * application and no jsdom. So both are **owed to the paid repository** and
+ * recorded as owed in that feature's `tasks.md` rather than dropped, each
+ * recoverable in full:
+ * `git show ddfa78304:admin/test/modules/inpost/inpost-shipment-row-zone.test.tsx`
+ * and
+ * `git show d699322fc:admin/test/modules/dhl_parcel/dhl-shipment-actions-zone.test.tsx`.
+ * This file's own subject is unaffected — it is the host's half, and the host is
+ * still here.
  *
  * ## What a host owes, and it is exactly two things
  *

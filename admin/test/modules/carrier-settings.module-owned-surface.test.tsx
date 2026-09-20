@@ -1,14 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import type { RenderResult } from '@testing-library/react';
-import type { AdminContributions } from '@endora-commerce/admin-kit/contributions';
-import { contributions as dhlParcelContributions } from '@endora-commerce/mod-dhl-parcel/admin';
-import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
-import { adminSession, modulePresence, withSession } from '../helpers/render-with-session';
-import { MODULE_ADMIN_CONTRIBUTIONS } from '../../src/modules.generated.js';
 
 /**
  * One of the admin's own source files, read as text.
@@ -24,36 +16,55 @@ function sourceOf(relativePath: string): string {
  * `dhl_parcel` and `inpost` own their admin surfaces — feature 091's Phase 4
  * batch five, and the batch's **carrier pair**.
  *
- * ## `inpost` left with wave 1, and what that did to this file
+ * ## Both carriers left with wave 1, and what is left here is the shell's half
  *
- * `specs/134-paid-module-extraction/` **T035**. This file has **two owners and
- * therefore none** (ownership §1, §1.1), so it stays here rather than moving into
- * either package — that much was ruled on 2026-09-19 and is unchanged. What the
- * extraction changes is that one of the two subjects is no longer in this tree, and
- * the treatment is **ruling α**'s: whatever this file asserted about `inpost`'s
- * **own declaration** goes with `inpost`, and whatever it asserts about the
- * **host's** machinery stays.
+ * `specs/134-paid-module-extraction/` **T035** took `inpost` and **T036** took
+ * `dhl_parcel`. This file has **two owners and therefore none** (ownership §1,
+ * §1.1), so it never moved into either package — that much was ruled on 2026-09-19
+ * and is unchanged. What the extraction changes is that **neither** subject is in
+ * this tree, and the treatment is **ruling α**'s: whatever this file asserted about
+ * a carrier's **own declaration** goes with that carrier, and whatever it asserts
+ * about the **host's** machinery stays.
  *
- * `CARRIERS` is therefore one entry. The five cases it drives are all about the
- * *host* — `App.tsx`'s `ModuleRoute` gating a contributed route on presence and on
- * permission, and the screen coming back with no rebuild — and `dhl_parcel`'s real
- * declaration still drives every one of them. Adding a hand-written `inpost` entry
- * beside it would have driven the same host code over a literal written in this
- * file, which is duplication rather than coverage; the two cases that were genuinely
- * `inpost`'s (*"declares one lazily-loaded route … and its zones"*, and the `@/`
- * reach read off the package's own source) have no subject here at all.
+ * ## The `describe.each(CARRIERS)` block is gone, and this is the argument, not an omission
  *
- * **T036 empties `CARRIERS`, and it must not answer that by narrowing this file to
- * nothing.** When the second carrier goes, the host machinery above loses its last
- * real contributor in this file and the question becomes whose the proof is — a
- * stand-in contributor here, or a free module's zone test that already has one. It
- * is the same question `integrations-zone.test.tsx` answers with a literal, and the
- * answer may legitimately differ, because *this* file's host is the router rather
- * than a screen. What it may not be is quietly deleted.
+ * T035 wrote down what T036 had to decide: *"T036 empties `CARRIERS`, and it must
+ * not answer that by narrowing this file to nothing. … the question becomes whose
+ * the proof is — a stand-in contributor here, or a free module's zone test that
+ * already has one … What it may not be is quietly deleted."*
  *
- * The second `describe` is untouched and keeps naming `inpost`: an absence assertion
- * about the shell stays true and stays useful after the module goes, because what it
- * refuses is a **host file naming a paid module**, and the shell can regain one.
+ * It is not quietly deleted; it is deleted for the reason this file's own previous
+ * revision gave when it refused a hand-written `inpost` entry: *"Adding a
+ * hand-written `inpost` entry beside it would have driven the same host code over a
+ * literal written in this file, which is duplication rather than coverage."* With
+ * the second carrier gone that sentence applies to the whole block.
+ *
+ * **And the host machinery it drove is proved elsewhere over real declarations that
+ * stay, which was measured rather than assumed.** Its five cases were
+ * `App.tsx`'s `ModuleRoute` gating a contributed route on presence and on
+ * permission, and the screen coming back with no rebuild. **22** sibling
+ * `*.module-owned-surface.test.tsx` files render the whole `App` and assert the
+ * admin's own `app.notFound` treatment; `admin/test/modules/carts.module-owned-surface.test.tsx`
+ * carries the same four case titles **verbatim** over
+ * `@endora-commerce/mod-carts/admin` — a **free** module whose declaration is still
+ * in this repository. So the gate keeps a real subject here; only this file's
+ * subject left.
+ *
+ * The two cases that were genuinely a carrier's own — *"declares one lazily-loaded
+ * route, one gate, no nav entry and its zones"* and the `@/`-reach assertion read
+ * off the package's own source — have no subject in this repository at all and are
+ * asked in the paid one.
+ *
+ * ## What stays, and why it is still worth running
+ *
+ * The `describe` below is untouched in substance and keeps naming both carriers:
+ * **an absence assertion about the shell stays true and stays useful after a module
+ * goes, because what it refuses is a *host file naming a paid module*, and the shell
+ * can regain one.** The two positive `toContain` halves are the ones that had to go
+ * as each package left — a positive assertion on a specifier that is no longer
+ * installed refuses the extraction rather than reporting a defect — and the rule
+ * they stated survives in `not.toContain('packages/modules')`, which is the half
+ * that keeps working whatever the installed population is.
  *
  * ## The original reason the two were one file
  *
@@ -64,314 +75,28 @@ function sourceOf(relativePath: string): string {
  * takes both or neither; a repair naming one is a repair that has not
  * understood the shape"*. `orders`' `OrderShipmentsTab.tsx`
  * imported `dhlParcelAdminClient` for the label, the handover protocol and the
- * courier booking, and `inpostAdminClient` for the label path; it now builds
- * all four from the published `apiClient` in its own
- * `api/carrier-documents-client.ts`, so neither carrier is named by a file it
- * does not own and both ledger entries are deleted.
+ * courier booking, and `inpostAdminClient` for the label path. Batch five drained
+ * both by having `orders` build those four calls itself, in
+ * `orders/api/carrier-documents-client.ts`; **P7d finished it and deleted that file**,
+ * because each carrier gained a zone to contribute to and took its own buttons —
+ * and its own `apiClient` calls — home. So `orders` names neither carrier and both
+ * ledger entries are deleted, which is what the last case below asserts.
  *
- * **Neither module contributes a sidebar entry, and neither is given one.**
+ * **Neither module contributed a sidebar entry, and neither was given one.**
  * That is `plan.md`'s Ruling 1 applied: the off-state test's subject is the
- * **route**, which `admin/src/App.tsx`'s `ModuleRoute` gates on
- * `useSurfaceVisibility` — presence *and* permission — rendering the admin's
- * own unknown-path answer. A hidden route is what an operator following a stale
- * deep link meets; a sidebar that omits an entry is not evidence that a screen
- * is unreachable. Adding a sidebar row to two carrier settings screens that
- * have never had one would be a product change bought to make a test
- * assertable.
+ * **route**, which `App.tsx`'s `ModuleRoute` gates on `useSurfaceVisibility` —
+ * presence *and* permission — rendering the admin's own unknown-path answer. A
+ * hidden route is what an operator following a stale deep link meets; a sidebar
+ * that omits an entry is not evidence that a screen is unreachable. Adding a
+ * sidebar row to two carrier settings screens that have never had one would be a
+ * product change bought to make a test assertable.
  *
- * **What each off-state case asserts, in this file's own words** — because
- * Ruling 1 asks a nav-less batch member's test to name the surfaces it does not
- * contribute and why, derived rather than asserted by omission:
- *
- *  * *the module is present and the operator holds the code the route
- *    enforces* — the screen's own heading is on the page. The positive control,
- *    and it is first, because an absence proves nothing until a presence has
- *    been seen;
- *  * *the module is switched off* — the admin's `app.notFound` treatment is on
- *    the page and the heading is not. The registry still names the module (it
- *    answers "what could be here"), so the withdrawal is at render and an
- *    operator's activation flip needs no rebuild;
- *  * *the operator holds no code the route enforces* — the same not-found
- *    treatment, driven on its own axis, because a test that only switched
- *    presence would pass with the permission gate missing entirely;
- *  * *the module comes back* — the heading again, with no rebuild between.
- *
- * The **sidebar** is asserted as an absence in the second `describe` below, and
- * the **palette** — the third surface Constitution XVII item 5 lists — is the
- * server's answer and is proved in
- * `backend/test/integration/dhl_parcel/module-owned-surface-off-state.test.ts` — and,
- * for `inpost` since wave 1, the paid repository's
- * `host/backend/test/modules/inpost/module-owned-surface-off-state.test.ts`, which is
- * the same file under **D-252**: it composes a server from the host's install, so it is
- * the host's wherever it sits. Both carriers do declare a palette action, so those
- * files drive it rather than assert an emptiness.
- *
- * The whole `App` is rendered rather than the screen, deliberately: the gate is
- * `App.tsx`'s, and a test that mounted the component directly would prove the
- * component renders, which nobody doubted.
+ * The **palette** — the third surface Constitution XVII item 5 lists — is the
+ * server's answer, and for both carriers it is now the paid repository's
+ * `host/backend/test/modules/<id>/module-owned-surface-off-state.test.ts`, the same
+ * file under **D-252**: it composes a server from the host's install, so it is the
+ * host's wherever it sits.
  */
-
-let presentModules = new Set<string>();
-let permissions = new Set<string>();
-
-
-
-vi.mock('../../../packages/admin-shell/src/lib/admin-actions/useAdminActions', () => ({
-  useAdminActions: () => ({ actions: [], loading: false }),
-}));
-
-vi.mock('../../../packages/admin-shell/src/lib/admin-actions/AdminActionsProvider', () => ({
-  AdminActionsProvider: ({ children }: { children: React.ReactNode }) => children,
-}));
-
-vi.mock('../../../packages/admin-shell/src/components/notifications', () => ({
-  NotificationBell: () => <span data-testid="notifications" />,
-}));
-
-vi.mock('../../../packages/admin-shell/src/components/LanguagePicker.js', () => ({
-  LanguagePicker: () => <span data-testid="language-picker" />,
-}));
-
-vi.mock('../../../packages/admin-shell/src/components/IdleLogout', () => ({
-  IdleLogout: () => null,
-}));
-
-vi.mock('../../../packages/admin-shell/src/lib/prompt-actions/api', () => ({
-  getPromptCapability: vi.fn(async () => ({ status: 'disabled', bulkLimit: 0 })),
-  listUnseenPromptRequests: vi.fn(async () => []),
-  submitPrompt: vi.fn(),
-  clarifyPrompt: vi.fn(),
-  confirmPrompt: vi.fn(),
-  cancelPrompt: vi.fn(),
-  getPromptRequest: vi.fn(),
-  markPromptRequestSeen: vi.fn(),
-}));
-
-/** A carrier configuration shaped enough for the screen to render its form. */
-const DHL_CONFIG = {
-  enabled: true,
-  mode: 'sandbox',
-  labelType: 'BLP',
-  sapClientNumber: '',
-  webapiUsername: '',
-  webapiPasswordIsSet: false,
-  apiPsUsername: '',
-  apiPsPasswordIsSet: false,
-  senderName: '',
-  senderStreet: '',
-  senderCity: '',
-  senderPostalCode: '',
-  senderCountry: 'PL',
-  senderPhone: '',
-  senderEmail: '',
-};
-
-
-// The screen calls its own config endpoint on mount. The mock sits on the kit's
-// barrel, which is the specifier the packaged screen resolves — the admin resolves
-// the same module, so one mock covers both sides of the move.
-//
-// One config since wave 1: the branch here read `url.includes('/inpost/')` and chose
-// between two shapes, and `inpost` is no longer a subject of this file.
-vi.mock('@endora-commerce/admin-kit/lib', async () => {
-  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
-    '@endora-commerce/admin-kit/lib',
-  );
-  return {
-    ...actual,
-    apiClient: {
-      get: vi.fn(async () => ({
-        data: DHL_CONFIG,
-      })),
-      post: vi.fn(),
-      put: vi.fn(),
-      patch: vi.fn(),
-      delete: vi.fn(),
-    },
-  };
-});
-
-/**
- * `@dnd-kit/dom` constructs a `ResizeObserver` at module scope, and jsdom has
- * none. This read *"`App.tsx` imports every host screen statically, and one of
- * them (`cms`' Puck editor)"* until feature 091's batch 16 moved that editor
- * into `@endora-commerce/mod-cms`; the stub stays because a lazily loaded
- * screen reaches the same constructor, and only the reason changed. The stub is a module-load accommodation and nothing
- * this file asserts touches it.
- */
-globalThis.ResizeObserver ??= class {
-  observe(): void {}
-  unobserve(): void {}
-  disconnect(): void {}
-} as unknown as typeof ResizeObserver;
-
-const { App } = await import('../../../packages/admin-shell/src/App');
-
-const bundle = {
-  ...passthroughBundle('core', [
-    'appShell.brand.text',
-    'appShell.section.pricing',
-    'app.moduleScreenLoading',
-    'app.notFound',
-  ]),
-  ...passthroughBundle('dhl_parcel', ['admin.page.title', 'admin.page.subtitle']),
-};
-
-function renderAt(path: string): RenderResult {
-  return renderWithI18n(
-    withSession(
-      <MemoryRouter initialEntries={[path]}>
-        <App contributions={MODULE_ADMIN_CONTRIBUTIONS} modulePresence={modulePresence({ present: [...presentModules] })} />
-      </MemoryRouter>,
-      { session: adminSession({ permissions: [...permissions] }) },
-    ),
-    bundle,
-  );
-}
-
-/** The admin's own unknown-path answer, rendered by `ModuleRoute`'s gate. */
-const notFoundIsRendered = (): boolean => screen.queryAllByText(/app\.notFound/).length > 0;
-
-interface Carrier {
-  readonly id: string;
-  readonly route: string;
-  /** The heading key the screen renders, as its passthrough placeholder. */
-  readonly headingKey: RegExp;
-  /** The code the screen's own configuration endpoint enforces. */
-  readonly code: string;
-  /** A real code of another module — held instead of `code`, never as well. */
-  readonly foreignCode: string;
-  /**
-   * The module's `./admin` contribution set, imported statically.
-   *
-   * Statically because a `import(carrier.specifier)` is a specifier Vite
-   * cannot analyse, and the registry's own rule is that a contribution set is
-   * enumerable without being executed — both entries here cost the two
-   * declaration objects and none of the screen code behind their factories.
-   */
-  readonly contributions: AdminContributions;
-  /**
-   * Every zone this carrier contributes to, in declaration order.
-   *
-   * Written down per carrier rather than compared to a single literal, because
-   * the two stopped agreeing at P7d: `dhl_parcel` contributes twice to the
-   * order's footer bar (its two actions split by permission code) and `inpost`
-   * once to the shipment row.
-   */
-  readonly zones: readonly string[];
-  readonly page: string;
-}
-
-const CARRIERS: readonly Carrier[] = [
-  {
-    id: 'dhl_parcel',
-    route: '/delivery-methods/dhl-parcel',
-    headingKey: /admin\.page\.title/,
-    // `requireAdmin('dhl_parcel:read')` on `GET /api/v1/admin/dhl-parcel/config`.
-    code: 'dhl_parcel:read',
-    // The module's own write code, and the codes are opaque strings: holding
-    // `dhl_parcel:write` does not satisfy a `dhl_parcel:read` gate. This is the
-    // near-miss an operator actually has, and the one a sloppy declaration
-    // would let through.
-    foreignCode: 'dhl_parcel:write',
-    contributions: dhlParcelContributions,
-    zones: [
-      'delivery_method.list.integrations',
-      // P7d: the label + protocol at `dhl_parcel:read`, the courier booking at
-      // `dhl_parcel:write`. Two contributions because one declares one code.
-      'order.shipments.tab.actions',
-      'order.shipments.tab.actions',
-    ],
-    page: '../packages/modules/dhl_parcel/src/admin/pages/DhlParcelSettingsPage.tsx',
-  },
-];
-
-describe.each(CARRIERS)('$id owns its admin surface, and its proof is the route', (carrier) => {
-  const headingIsRendered = (): boolean =>
-    screen.queryAllByText(carrier.headingKey).length > 0;
-
-  it('renders the screen while the module is present and the code is held', async () => {
-    presentModules = new Set([carrier.id]);
-    permissions = new Set([carrier.code]);
-    renderAt(carrier.route);
-    await waitFor(() => expect(headingIsRendered()).toBe(true));
-  });
-
-  it('renders the not-found treatment while the module is switched off', async () => {
-    presentModules = new Set();
-    permissions = new Set([carrier.code]);
-    renderAt(carrier.route);
-    await waitFor(() => expect(notFoundIsRendered()).toBe(true));
-    expect(headingIsRendered()).toBe(false);
-  });
-
-  it('renders the not-found treatment for an operator without the code the route enforces', async () => {
-    presentModules = new Set([carrier.id]);
-    permissions = new Set([carrier.foreignCode]);
-    renderAt(carrier.route);
-    await waitFor(() => expect(notFoundIsRendered()).toBe(true));
-    expect(headingIsRendered()).toBe(false);
-  });
-
-  it('restores the screen when the module comes back, with no rebuild', async () => {
-    presentModules = new Set();
-    permissions = new Set([carrier.code]);
-    const off = renderAt(carrier.route);
-    await waitFor(() => expect(notFoundIsRendered()).toBe(true));
-    off.unmount();
-
-    presentModules = new Set([carrier.id]);
-    renderAt(carrier.route);
-    await waitFor(() => expect(headingIsRendered()).toBe(true));
-  });
-
-  it('declares one lazily-loaded route, one gate, no nav entry and its zones', async () => {
-    // FR-013, and the declaration this whole file is about. `nav` being absent
-    // is the contribution set saying so, which is what Ruling 1 asks a nav-less
-    // batch member's test to derive rather than assert by omission.
-    const routes = carrier.contributions.routes ?? [];
-    expect(routes.map((route) => route.path)).toEqual([carrier.route]);
-    expect(routes.map((route) => route.requiredPermission)).toEqual([carrier.code]);
-    expect(carrier.contributions.nav ?? []).toEqual([]);
-    const loaded = await routes[0]!.component();
-    expect(typeof loaded.default).toBe('function');
-
-    // **One zone since feature 091's batch 8**, and this line read `toEqual([])`
-    // until then. `delivery_methods` used to render a hard-coded block naming
-    // this carrier — its title, its description, its route and its code, in a
-    // file its author does not own — which
-    // `backend/scripts/ledgers/foreign-module-ids.ts` recorded as a
-    // `visibility-gate` coupling with this conversion as its retiring
-    // condition. The card is the carrier's own contribution now, gated on the
-    // same code as the screen it links to so it never advertises a 403. The
-    // ordering of the two carriers' cards is asserted where it is observable:
-    // `admin/test/modules/delivery_methods/integrations-zone.test.tsx`.
-    //
-    // **P7d added the order-surface contributions**, so this assertion is the
-    // integrations card *plus* whatever that row gave each carrier, and it is
-    // written as a first-member check rather than as an equality: an equality
-    // here would make every future contribution of either carrier a failure in
-    // a file whose subject is the settings route. Each carrier's own zone test
-    // asserts its declaration in full —
-    // `admin/test/modules/dhl_parcel/dhl-shipment-actions-zone.test.tsx`. `inpost`'s
-    // counterpart left with the module in wave 1 and is owed to the paid repository,
-    // which has no admin test host yet — recorded under T035 in
-    // `specs/134-paid-module-extraction/tasks.md`, not silently dropped.
-    const zones = carrier.contributions.zones ?? [];
-    expect(zones[0]?.zone).toBe('delivery_method.list.integrations');
-    expect(zones[0]?.requiredPermission).toBe(carrier.code);
-    expect(zones.map((zone) => zone.zone)).toEqual(carrier.zones);
-    const card = await zones[0]!.component();
-    expect(typeof card.default).toBe('function');
-  });
-
-  it('takes no `@/` reach out of the package', () => {
-    // The alias resolves to `admin/src` and to nothing a package can reach, so
-    // a surviving one would be a screen that compiles here and not in a
-    // consumer's install.
-    expect(sourceOf(carrier.page)).not.toMatch(/^import .* from '@\//m);
-  });
-});
 
 describe('the shell no longer names either carrier by hand', () => {
   it('has no host route for either screen, and neither ever had a nav entry', () => {
@@ -404,9 +129,12 @@ describe('the shell no longer names either carrier by hand', () => {
     // Re-pointing it at a host-declared destination was refused: `/delivery-methods`
     // lists no DHL in an instance that does not install this module, so an operator
     // asking for DHL settings would land somewhere plausible and wrong, which is
-    // harder to diagnose than an absent route. If the legacy path is wanted, this
+    // harder to diagnose than an absent route. If the legacy path is wanted, the
     // module declares the redirect in its own admin layer and both ends travel
-    // together.
+    // together — which is what T036 did **not** do, and deliberately: the option
+    // `packages/modules/dhl_parcel/src/admin/index.ts` left open for the extraction
+    // merge request is an option rather than an obligation, because nothing
+    // measures how many deep links still point at the old path.
     //
     // Asserted as an absence in **both** spellings, so the route cannot come back
     // by either half.
@@ -415,19 +143,22 @@ describe('the shell no longer names either carrier by hand', () => {
     expect(app).not.toContain('to="/delivery-methods/dhl-parcel"');
   });
 
-  it('resolves the screen through the module package, never through admin/src', () => {
+  it('resolves a module screen through the module package, never through admin/src', () => {
     // R3 / D-149: a relative reach into a package's `src/` would evaluate its
     // source beside its `dist` — two copies of every module-scope value, which
     // is silent in a frontend.
     //
-    // **One positive assertion since wave 1.** `mod-inpost` is not installed here
-    // any more, so `toContain` on its specifier would refuse the extraction rather
-    // than report a defect. The `not.toContain('packages/modules')` line below is the
-    // half that keeps working whatever the population is, and it is the one that
-    // actually states the rule.
+    // **No positive assertion since wave 1 finished.** It named `mod-inpost` until
+    // T035 and `mod-dhl-parcel` until T036; neither is installed here any more, so a
+    // `toContain` on either specifier would refuse the extraction rather than report
+    // a defect. What is left is the half that actually states the rule, and it states
+    // it over the **whole** generated registry rather than over one entry — every
+    // module admin surface in the tree, not just a carrier's.
     const registry = sourceOf('src/modules.generated.ts');
-    expect(registry).toContain("from '@endora-commerce/mod-dhl-parcel/admin'");
     expect(registry).not.toContain('packages/modules');
+    // The registry must not be empty, or the absence above proves nothing: a file
+    // that imported nothing at all would pass it.
+    expect(registry).toContain("from '@endora-commerce/mod-");
   });
 
   it('leaves orders reaching neither carrier package', () => {
