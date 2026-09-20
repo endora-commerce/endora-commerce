@@ -9,8 +9,10 @@ The platform's **shipping-method framework** (feature 035 — _Metoda Dostawy_).
 The module hosts a pluggable adapter registry over the delivery-method catalog,
 the delivery-side twin of `payment_methods`. The first-class `Shipment` record
 and its lifecycle live in the sibling [`shipments`](./shipments.md) module.
-Carrier integrations such as [`inpost`](./inpost) register adapters into this
-framework.
+Carrier integration modules register adapters into this framework. Which ones your
+instance has depends on what is installed, so they are named rather than linked
+here: a link to a sibling page is a broken link in every instance that does not
+install that module, which is what `onBrokenLinks: 'throw'` says about it.
 
 A delivery method is never hard-coded: the platform discovers methods from
 whichever **adapter modules** are installed and enabled. Enabling a recognised

@@ -237,6 +237,28 @@ const INSTALL_SURFACE_LAYER_DIRECTORY = 'install';
 const LAYER_SUBPATHS: ReadonlyArray<readonly [directory: string, subpath: string]> = [
   ['backend', './backend'],
   ['migrations', './migrations'],
+  // The module's **own vendor contract module** (`specs/134-paid-module-extraction/`
+  // `contracts/extraction-procedure.md` **E5**, `spec.md` **FR-017**): the Zod
+  // schemas and inferred types describing one vendor's API and this module's own
+  // request/response shapes. It arrived with wave 1 — `packages/contracts/src/inpost.ts`
+  // became `packages/modules/inpost/src/contracts/` — and **fourteen more follow it**,
+  // so it is wave-1 infrastructure rather than one module's accommodation.
+  //
+  // A layer rather than a file beside `manifest.ts`, because {@link layerInventoryOf}'s
+  // stray-file refusal is right: a sibling of the manifest is reachable through no
+  // subpath at all. And a layer of its own rather than a directory under `src/backend/`,
+  // because both the backend and the admin layer consume these schemas, the two compile
+  // under two tsconfigs on purpose (`types: []` and the DOM lib on the admin side), and
+  // **no module in this repository has its admin layer reach into its own `src/backend/`**
+  // — measured before adding this entry. A schema module is neither layer's.
+  //
+  // **Deliberately NOT a member of {@link FOREIGN_CONSUMPTION_SUBPATHS}**, and the
+  // omission is the decision rather than an oversight. That set admits a cross-package
+  // *value* reach, and nothing outside a module reaches its vendor contract module: every
+  // consumer of wave 1's 21 symbols was inside the package, measured at every spelling
+  // over the whole tree. A third member of that set arrives by arguing its four
+  // conditions, which this layer has no reason to.
+  ['contracts', './contracts'],
   ['ports', './ports'],
   // FR-064's install surface, **adjacent to `./ports` on purpose**: the two are
   // the halves of one seam — the type a consumer compiles against and the factory

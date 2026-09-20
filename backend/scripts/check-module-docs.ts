@@ -443,14 +443,6 @@ export const DERIVED_FACTS_IN_PROSE: Readonly<Record<string, ProseLedgerEntry>> 
     'a template telling an author where to put a file. It spelled ' +
     '`backend/src/modules/<id>/` until F4 closed, which is the whole argument: the layout ' +
     'is derived and a page that restates it goes stale in silence.',
-  'modules/inpost#17d84bc5':
-    'cites `packages/modules/inpost/src/admin` by address. The file is real and the ' +
-    'sentence is worth keeping; the repair is to name the module and the file rather than ' +
-    'the path.',
-  'modules/inpost#846849a3':
-    'the page states `inpost`\'s own package directory. The generated reference page ' +
-    'carries the package that ships a module, so the sentence can link that instead of ' +
-    'restating it.',
   'modules/inventory#0ab317c1':
     'cites `packages/modules/inventory/src/backend/services/display-band-resolver.ts` by ' +
     'address. The file is real and the sentence is worth keeping; the repair is to name ' +

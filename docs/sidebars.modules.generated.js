@@ -286,14 +286,6 @@ const modules = [
   },
   {
     type: 'category',
-    label: 'InPost',
-    link: { type: 'doc', id: 'modules/inpost' },
-    items: [
-      'module-reference/inpost',
-    ],
-  },
-  {
-    type: 'category',
     label: 'inventory',
     link: { type: 'doc', id: 'modules/inventory' },
     items: [

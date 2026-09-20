@@ -119,6 +119,10 @@ const MODULE_SUBPATH_MEANINGS: ReadonlyMap<string, string> = new Map([
     'the composition root the platform calls, with the entities, services, routes and workers it registers',
   ],
   ['./migrations', 'the module’s own schema migrations, in the order the platform runs them'],
+  [
+    './contracts',
+    'the module’s own vendor contract module: the Zod schemas and inferred types for the API it integrates',
+  ],
   ['./ports', 'type-only — the port interfaces other modules resolve this one through'],
   [
     './install',

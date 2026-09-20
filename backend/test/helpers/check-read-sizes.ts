@@ -1203,6 +1203,53 @@ export interface RecordedReadSize {
  * attributable. `check-naming.sh` and `check-language.sh` take their population
  * from `git ls-files --cached`, so the new file was staged before either was
  * read.
+ *
+ * ## `specs/134-paid-module-extraction/` T035, 2026-09-19 — `inpost` leaves this repository
+ *
+ * **The first paid module to physically leave, and the first re-record whose cause is a
+ * deletion rather than an addition.** 16 dimensions across 11 entries are re-recorded below,
+ * every one of them **falling**.
+ *
+ * **The attribution is a diff of two pristine measurements, per entry AND per dimension —
+ * never reasoning.** The record was already stale on `origin/master`, so "the number moved"
+ * says nothing about whose move it was. Two detached `git worktree`s were stood up, one at
+ * `origin/master` `f27aae82d` and one at this branch's tip, each with
+ * `scripts/setup-worktree.sh` then `pnpm run build:packages`, then
+ * `git clean -fX docs/docs/modules`, `rm -f docs/.module-docs-copies.json
+ * storefront/tsconfig.tsbuildinfo`, `git ls-files --others --exclude-standard` confirmed
+ * **empty**, and `git add -A` before the run — the last because `check-naming.sh` and
+ * `check-language.sh` read the **index**. The base reproduced the settled census exactly:
+ * **36 drifted, 10 agree, 0 not measured, of 46 recorded**. The branch reports the same 36 and
+ * 10, which is a coincidence of counts and not of membership, and the membership is the point:
+ *
+ *   - **16 dimensions agree on `master` and drift here.** Those are wholly this branch's and
+ *     are the only ones re-recorded.
+ *   - **37 dimensions were already drifting on `master`.** They are left to their owner, *even
+ *     where this branch moved them further* — `check-nul-bytes` `files` is recorded 8635, reads
+ *     **8685** on `master` and **8617** here, so re-recording it would silently absorb
+ *     `master`'s +50 into a number attributed to this extraction.
+ *   - **14 dimensions drifted on `master` and AGREE here**, so they need nothing. Five of them
+ *     are the `2296 -> 2322` module-walk family, whose staleness this deletion happens to
+ *     cancel exactly.
+ *
+ * **The arithmetic, and it is self-confirming.** The branch deletes **71** tracked files and
+ * adds **3**, net **−68** — and the three whole-repository walks each move by exactly that:
+ * `check-nul-bytes` 8685 → 8617, `check-naming.sh` 8745 → 8677, `check-root-dispositions`
+ * 8746 → 8678. All three are in the "leave it to its owner" set, which is what makes them
+ * usable as a check on the measurement rather than as a thing to record.
+ *
+ * Every one of the 16 is one population's own unit, and each was counted off the deletion list
+ * rather than inferred: **5** files under `src/admin/` (`check-admin-surface` `files`), **2**
+ * i18n bundles (`check-bundle-pairing` and `check-error-translations` `files`), **2** entity
+ * classes (`check-entity-tenant-classification` `sites`), **2** zone contributions
+ * (`check-admin-zones` `sites`), **1** palette action — `open-inpost-settings`
+ * (`check-action-route-permissions` `sites`), **3** admin `.tsx` files
+ * (`i18n-hardcoded-strings` `files`), **1** collected module page (`check-module-docs`
+ * `files`), and **1** versionable package manifest, 85 → 84 (`check-release-intent` `files`,
+ * corroborated by `manifests:generate`'s own `publishable-members:84/84`).
+ *
+ * **No band was widened and no value was computed from a delta.** Nothing was measured in the
+ * checkout the work was done in.
  */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
@@ -1551,7 +1598,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 88 -> 90.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 92,
+    // **`specs/134-paid-module-extraction/` T035 — `inpost` leaves this repository:
+    // sites 92 -> 91 (-1).** this module's one palette action, `open-inpost-settings`. The header
+    // block above this table carries the attribution — two pristine worktrees, per-dimension,
+    // with `origin/master`'s own drift left to its owner — and nothing here widened a band.
+    sites: 91,
     // `emitted-manifests` is this check saying which artefact its manifest half
     // came from: the manifests are imported rather than walked, and a packaged
     // module's resolves at its build output. It is the disclosure half of the
@@ -3879,7 +3930,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
     files: 2296,
-    sites: 279,
+    // **`specs/134-paid-module-extraction/` T035 — `inpost` leaves this repository:
+    // sites 279 -> 277 (-2).** the module's 2 entity classes, `InpostShipmentLink` and `InpostWebhookEvent`. The header
+    // block above this table carries the attribution — two pristine worktrees, per-dimension,
+    // with `origin/master`'s own drift left to its owner — and nothing here widened a band.
+    sites: 277,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-entry-presence.ts': {
@@ -4927,7 +4982,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    files: 140,
+    // **`specs/134-paid-module-extraction/` T035 — `inpost` leaves this repository:
+    // files 140 -> 138 (-2).** the same `i18n/{en,pl}.json` pair `check-bundle-pairing` sees. The header
+    // block above this table carries the attribution — two pristine worktrees, per-dimension,
+    // with `origin/master`'s own drift left to its owner — and nothing here widened a band.
+    files: 138,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 867 -> 883.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -6422,7 +6481,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 56 -> 66.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 70,
+    // **`specs/134-paid-module-extraction/` T035 — `inpost` leaves this repository:
+    // sites 70 -> 68 (-2).** this module's 2 zone contributions — the integrations card and the shipment-row label button. The header
+    // block above this table carries the attribution — two pristine worktrees, per-dimension,
+    // with `origin/master`'s own drift left to its owner — and nothing here widened a band.
+    sites: 68,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
     // is the second declaration reconciled against it, so a member added
@@ -6735,7 +6798,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 5397 -> 5433.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 5527,
+    // **`specs/134-paid-module-extraction/` T035 — `inpost` leaves this repository:
+    // sites 5527 -> 5493 (-34).** the 34 class names the module's sources declared. The header
+    // block above this table carries the attribution — two pristine worktrees, per-dimension,
+    // with `origin/master`'s own drift left to its owner — and nothing here widened a band.
+    sites: 5493,
     // `manifest-index` is issue #215's shared floor over the module half of the
     // render walk. `design-system` is the `exports` maps' own answer to *"which
     // packages publish `./theme.css`"* against the stylesheets this run opened,
@@ -6791,7 +6858,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    files: 140,
+    // **`specs/134-paid-module-extraction/` T035 — `inpost` leaves this repository:
+    // files 140 -> 138 (-2).** the module's `i18n/{en,pl}.json` pair, which is why this one moves by exactly two. The header
+    // block above this table carries the attribution — two pristine worktrees, per-dimension,
+    // with `origin/master`'s own drift left to its owner — and nothing here widened a band.
+    files: 138,
     // Every registered module, shipping or not. It moves only with the module
     // set, so a run whose `sites` fell while `files` held is a module that left
     // the index rather than a translation that left a package.
@@ -6802,7 +6873,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): sites 74 -> 73.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
-    sites: 76,
+    // **`specs/134-paid-module-extraction/` T035 — `inpost` leaves this repository:
+    // sites 76 -> 75 (-1).** one module leaving the manifest index. The header
+    // block above this table carries the attribution — two pristine worktrees, per-dimension,
+    // with `origin/master`'s own drift left to its owner — and nothing here widened a band.
+    sites: 75,
     // `manifest-index` is issue #215's shared floor over the module walk, whose
     // unit here is the module's **own directory** — `dirname(manifestPath)`, the
     // anchor the boot reconciler joins `bundlesDir` to. `shipped-languages` is
@@ -6856,7 +6931,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    files: 112,
+    // **`specs/134-paid-module-extraction/` T035 — `inpost` leaves this repository:
+    // files 112 -> 111 (-1).** the module's own collected page under `docs/docs/modules/`. The header
+    // block above this table carries the attribution — two pristine worktrees, per-dimension,
+    // with `origin/master`'s own drift left to its owner — and nothing here widened a band.
+    files: 111,
     // The finer population, and it answers a different question: the navigation
     // entries the committed sidebar names, the rows the committed map carries,
     // and the relative links a module-owned page writes (R3.7). A page added and
@@ -6903,7 +6982,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // is not a documentation page.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): sites 261 -> 259.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
     // **`fix/instance-docs-foreign-link-catalog`: sites 259 -> 258 (-1), `files` unmoved at 108.** One relative link into a sibling module's page became prose — `catalog/attributes.md` -> `../promotions.md`, the last `foreign-module-link` a default instance's documentation build refuses, `promotions` not being in the set `endora new instance` writes. It is `../search.md`'s repair a second time and the shard is deleted with it, an empty one being a done signal that says nothing. 36 links -> 35; no page was written or deleted, which is why `files` does not move. Re-measured on the **merged** tree (`origin/master` at c99c2cd09) in a fresh detached `git worktree` of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and the resolution staged first — `check-naming.sh` and `check-language.sh` take their population from the index. This file's conflict was resolved wholly to the incoming side and every value was then re-measured rather than reconciled, per `specs/conventions/check-estate.md`. **The attribution is the whole of it and it is one cause**: the branch's own pre-merge run named eight entries, three of which were `docs(128)`'s +4 standing on `master` unrecorded, and `fix/availability-notification-existence-oracle` re-recorded those three before this merge — so five are left and every one of them is this branch's. The branch adds one `.changeset/*.md` and deletes one tracked `.ts`, which is why the two whole-repository walks net to zero and do not appear. No band was widened and no value was computed from a delta: the run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
-    sites: 263,
+    // **`specs/134-paid-module-extraction/` T035 — `inpost` leaves this repository:
+    // sites 263 -> 256 (-7).** the units that page and the two retired ledger entries held. The header
+    // block above this table carries the attribution — two pristine worktrees, per-dimension,
+    // with `origin/master`'s own drift left to its owner — and nothing here widened a band.
+    sites: 256,
     // Three authors, each seeing something the others cannot. `manifest-index`
     // is issue #215's shared floor over the module walk, whose unit is the
     // module's own directory. `sidebar-entries` is the **committed artefact's**
@@ -7438,7 +7521,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    files: 428,
+    // **`specs/134-paid-module-extraction/` T035 — `inpost` leaves this repository:
+    // files 428 -> 423 (-5).** the module's 5 files under `src/admin/`, counted off the deletion list. The header
+    // block above this table carries the attribution — two pristine worktrees, per-dimension,
+    // with `origin/master`'s own drift left to its owner — and nothing here widened a band.
+    files: 423,
     // **Batch 13 (feature 091, Phase 4): 2361 -> 2305, and the cause is the move's
     // spelling rather than its size.** A published-symbol reach is counted per
     // import statement, and the twenty-four moved screens rewrote thirty `@/…`
@@ -7483,7 +7570,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 2239 -> 2296.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 2361,
+    // **`specs/134-paid-module-extraction/` T035 — `inpost` leaves this repository:
+    // sites 2361 -> 2339 (-22).** the surface units those 5 files held. The header
+    // block above this table carries the attribution — two pristine worktrees, per-dimension,
+    // with `origin/master`'s own drift left to its owner — and nothing here widened a band.
+    sites: 2339,
     // **Three** derivations since Phase 5's T3, none of them the walk counting
     // itself: the generated manifest index for the modules a walked file is
     // attributed to; the kit's own `exports` map against the barrels on disk —
@@ -9162,7 +9253,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 202 -> 205.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 206,
+    // **`specs/134-paid-module-extraction/` T035 — `inpost` leaves this repository:
+    // sites 206 -> 200 (-6).** the off-state units of the module's own surfaces — and the check is GREEN, which is the half that matters: Constitution XVII lost no coverage, it lost a subject. The header
+    // block above this table carries the attribution — two pristine worktrees, per-dimension,
+    // with `origin/master`'s own drift left to its owner — and nothing here widened a band.
+    sites: 200,
     // Two independent authors, so the check computes no module list and no
     // call-name list of its own. `manifest-index` is every entry the generated
     // index carries against every entry whose manifest this run could classify
@@ -9680,7 +9775,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    sites: 228,
+    // **`specs/134-paid-module-extraction/` T035 — `inpost` leaves this repository:
+    // sites 228 -> 225 (-3).** the 3 gated-port catch sites the module held. The header
+    // block above this table carries the attribution — two pristine worktrees, per-dimension,
+    // with `origin/master`'s own drift left to its owner — and nothing here widened a band.
+    sites: 225,
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 2138 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
@@ -10883,14 +10982,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    files: 91,
+    // **`specs/134-paid-module-extraction/` T035 — `inpost` leaves this repository:
+    // files 91 -> 90 (-1).** one versionable package manifest, 85 -> 84, corroborated by `manifests:generate`'s own `publishable-members:84/84`. The header
+    // block above this table carries the attribution — two pristine worktrees, per-dimension,
+    // with `origin/master`'s own drift left to its owner — and nothing here widened a band.
+    files: 90,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 495 -> 501.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 501 -> 513.**
     // The header block above this table has the arithmetic; nothing here
     // widened a band.
-    sites: 525,
+    // **`specs/134-paid-module-extraction/` T035 — `inpost` leaves this repository:
+    // sites 525 -> 519 (-6).** the release-surface units that member contributed. The header
+    // block above this table carries the attribution — two pristine worktrees, per-dimension,
+    // with `origin/master`'s own drift left to its owner — and nothing here widened a band.
+    sites: 519,
     // **Feature 114 Phase 3 (FR-017, D-225): a second author, and neither count
     // moves.** `changeset-subjects` is the distinct package names the changeset
     // files name, reconciled against the members the workspace globs produce.
@@ -13160,7 +13267,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    files: 444,
+    // **`specs/134-paid-module-extraction/` T035 — `inpost` leaves this repository:
+    // files 444 -> 441 (-3).** the module's 3 admin `.tsx` files. The header
+    // block above this table carries the attribution — two pristine worktrees, per-dimension,
+    // with `origin/master`'s own drift left to its owner — and nothing here widened a band.
+    files: 441,
     sites: null,
     // `admin-ui` is the workspace manifests' own answer to "how many packages
     // ship a tree of admin UI", reconciled against how many of them the walk

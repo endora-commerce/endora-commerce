@@ -21,10 +21,14 @@ import { adminSession, modulePresence, withSession } from '../../helpers/render-
  * The host renders `order.shipment.row.actions` and
  * `order.shipments.tab.actions` now, so the subject here is what the **host**
  * owes a contributor and nothing about a carrier. The carrier halves moved to
- * the modules that own them:
- * `admin/test/modules/inpost/inpost-shipment-row-zone.test.tsx` and
- * `admin/test/modules/dhl_parcel/dhl-shipment-actions-zone.test.tsx`, each with
- * the four off-state cases Constitution XVII item 6 asks for.
+ * the modules that own them, each with the four off-state cases Constitution XVII
+ * item 6 asks for: `admin/test/modules/dhl_parcel/dhl-shipment-actions-zone.test.tsx`,
+ * and — until `specs/134-paid-module-extraction/` T035 — `inpost`'s counterpart at
+ * `admin/test/modules/inpost/inpost-shipment-row-zone.test.tsx`. That file left with its
+ * module and is **owed to the paid repository**, which has no admin test host yet; it is
+ * recorded as owed under T035 in that feature's `tasks.md` and recoverable in full at
+ * `git show ddfa78304:admin/test/modules/inpost/inpost-shipment-row-zone.test.tsx`. This
+ * file's own subject is unaffected — it is the host's half, and the host is still here.
  *
  * ## What a host owes, and it is exactly two things
  *
