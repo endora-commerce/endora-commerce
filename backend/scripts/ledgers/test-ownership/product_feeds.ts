@@ -18,8 +18,8 @@ import type { TestOwnershipLedgerEntry } from '../../check-test-ownership.js';
 /**
  * The batch that retires every entry below.
  *
- * One constant rather than 7 copies of one sentence: the files differ, the
- * reason does not, and a per-file paraphrase would be 7 chances to write a
+ * One constant rather than 6 copies of one sentence: the files differ, the
+ * reason does not, and a per-file paraphrase would be 6 chances to write a
  * different one.
  */
 const SCHEDULED: TestOwnershipLedgerEntry = {
@@ -40,5 +40,4 @@ export const entries: Readonly<Record<string, TestOwnershipLedgerEntry>> = {
   'backend/test/unit/product_feeds/gallery-comes-from-catalog.test.ts': SCHEDULED,
   'backend/test/unit/product_feeds/named-list-price-port.test.ts': SCHEDULED,
   'backend/test/unit/product_feeds/notification-presence.test.ts': SCHEDULED,
-  'backend/test/unit/product_feeds/tenant-classification.test.ts': SCHEDULED,
 };
