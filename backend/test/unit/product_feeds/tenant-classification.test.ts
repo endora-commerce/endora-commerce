@@ -2,12 +2,10 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { tenantClassifications } from '../../../src/tenancy/org-scoped.decorator.js';
 // The **published** array, not twelve side-effect imports of the package's
-// source. Both would run the decorators, and that is exactly the problem: a
-// source-reached entity class is a *second* class object beside the one the
-// ORM registered out of this array (D-160.6.1). Naming the array is also what
-// makes the coverage assertion real: it is the same array
+// source: a source-reached entity class is a *second* class object beside the
+// one the ORM registered out of this array (D-160.6.1). Naming the array is
+// also what makes the coverage assertion real — it is the same array
 // `db/entities-registry.generated.ts` spreads.
 import { entities } from '@endora-commerce/mod-product-feeds/backend';
 
@@ -26,6 +24,18 @@ import { entities } from '@endora-commerce/mod-product-feeds/backend';
  * provider taxonomy, the operator's category mapping and the history of the
  * checks that looked for a newer revision are all installation-wide reference
  * data and operational history, with no tenant dimension to scope by.
+ *
+ * The classification is asserted by two independent authors: *exactly one
+ * decorator, and that one* over the source text, and *no tenant key column
+ * sneaked in beside it*. The second is the substantive half — a
+ * `@GlobalEntity` carrying an `organizationId` is a classification that lies,
+ * and here it would also contradict FR-061 directly.
+ *
+ * *Exactly one classification survived into the artefact the platform loads* is
+ * a different claim with a different owner, and it is not made here (D-257):
+ * `check-entity-tenant-classification`'s package-scope host reads the emitted
+ * output, floors its coverage on this package's own `entities` array, and runs
+ * in both repositories.
  */
 
 const ENTITY_DIR = join(
@@ -69,15 +79,6 @@ describe('product_feeds entity tenant classification', () => {
     expect(declared).toEqual(published);
     expect(new Set(ENTITIES.map(([, fileName]) => fileName)).size).toBe(ENTITIES.length);
   });
-
-  it.each(ENTITIES.map(([className]) => className))(
-    '%s is registered as a global entity',
-    (className) => {
-      const meta = tenantClassifications().find((c) => c.className === className);
-      expect(meta, `${className} carries no tenant-scope classification`).toBeDefined();
-      expect(meta?.scope).toBe('global');
-    },
-  );
 
   it.each(ENTITIES)('%s applies exactly one classification decorator', (_className, fileName) => {
     const source = readFileSync(join(ENTITY_DIR, fileName), 'utf8');
