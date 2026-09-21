@@ -22,7 +22,7 @@ describe('invoices — mode B waits for the Infakt number [integration]', () => 
   beforeAll(async () => {
     process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] =
       process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] ?? randomBytes(32).toString('base64');
-    h = await setupBackendServer({ infaktHttp });
+    h = await setupBackendServer({ moduleOverrides: { infaktHttp } });
     channelId = await prepareInfaktVatCopy(h, 'il-mode-b', 'FVMB {seq}/{YYYY}');
     await setSellerSettings(h);
     await h.settings.adminService.setValueForSubset(

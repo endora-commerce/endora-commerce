@@ -40,7 +40,7 @@ describe('invoice_ledger — deliveries list and retry [contract]', () => {
   beforeAll(async () => {
     process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] =
       process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] ?? randomBytes(32).toString('base64');
-    h = await setupBackendServer({ infaktHttp });
+    h = await setupBackendServer({ moduleOverrides: { infaktHttp } });
     channelId = await prepareInfaktVatCopy(h, 'il-deliveries', 'FVD {seq}/{YYYY}');
 
     await withSystemScope('seed scoped ledger reader', async () => {
