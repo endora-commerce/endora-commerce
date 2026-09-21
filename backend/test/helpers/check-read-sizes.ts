@@ -5493,7 +5493,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // entry and per dimension — this is the one dimension in the whole record that moved off
     // agreement here, and `files` on this entry is deliberately **not** re-recorded: it was
     // already drifted -15 at the base, which is somebody else's to attribute.
-    sites: 615,
+    // **`feat/134-wave3-pim-akeneo-w2-slice`: sites 615 -> 614 (-1).** D-218's move takes
+    // `backend/test/unit/pim_akeneo/hmac-signature.test.ts` into
+    // `packages/modules/pim_akeneo/src/backend/services/`, and this walk's `TEST_ROOT` is
+    // `backend/test/` alone — so the site leaves with the file rather than being read from its
+    // new home, which is the same `files` and `sites` move by one together. Measured as the
+    // entry above measures, one tree at two refs — base `dcf676dd9`, tip — with
+    // `git clean -fX docs/docs/modules`, no `docs/.module-docs-copies.json` and an empty
+    // `git ls-files --others --exclude-standard` on both sides, so the delta carries no
+    // checkout residue. Thirteen entries move between those two trees and this is again the
+    // only dimension that moves off *agreement*; the other twelve were already drifted at the
+    // base and stay with their owner, `files` on this entry among them. No band was widened.
+    sites: 614,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
