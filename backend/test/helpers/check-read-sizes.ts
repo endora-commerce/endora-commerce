@@ -1349,6 +1349,69 @@ export interface RecordedReadSize {
  *
  * **No band was widened and no value was computed from a delta.** Neither number was measured in
  * the checkout the work was done in.
+ *
+ * ## `specs/134-paid-module-extraction/` T069, 2026-09-21 — `wfirma` leaves this repository
+ *
+ * Wave 4's first extraction, and the third paid module to physically leave. **18 dimensions
+ * across 13 entries are re-recorded below**, every one of them falling.
+ *
+ * **The attribution is a diff of two pristine measurements, per entry AND per dimension —
+ * never reasoning.** The record was already stale on `origin/master`, so "the number moved"
+ * says nothing about whose move it was. Two detached `git worktree`s were stood up, one at
+ * `origin/master` `e6034c17e` and one at this branch's tip, each with
+ * `scripts/setup-worktree.sh` then `pnpm run build:packages`, then
+ * `git clean -fX docs/docs/modules` and `rm -f docs/.module-docs-copies.json`, with
+ * `git ls-files --others --exclude-standard` confirmed **empty** and `git status --porcelain`
+ * clean on both sides, and `git add -A` before the run — the last because `check-naming.sh` and
+ * `check-language.sh` read the **index**. Both censuses are the ones taken **before** this
+ * commit's re-record, which is what makes them an attribution rather than a restatement: the
+ * base reads **36 drifted, 10 agree, 0 not measured, of 46 recorded** — 49 drifting dimensions
+ * — and the tip reads **42 drifted, 4 agree, of 46**, 66 drifting dimensions.
+ *
+ *   - **18 dimensions agree on `origin/master` and drift here.** Those are wholly this
+ *     branch's and are the only ones re-recorded.
+ *   - **48 dimensions were already drifting on the base.** They are left to their owner, *even
+ *     where this branch moved them further* — `check-nul-bytes` `files` is recorded 8635, reads
+ *     **8611** on the base and **8553** here, so re-recording it would fold the base's −24 into
+ *     a number attributed to this extraction.
+ *   - **One dimension drifted on the base and AGREES here.** `check-diacritic-folds`' `sites`
+ *     is recorded 571, reads 574 on the base and 571 at the tip, so it needs nothing: this
+ *     deletion happens to cancel its staleness exactly.
+ *
+ * **This census was taken twice, and the second time is the one that counts.** The first was
+ * against `ecef4779f`; `origin/master` then advanced to `e6034c17e` with T043's fixture payment
+ * gateway, which **adds three tracked files**, so every whole-tree number moved underneath the
+ * measurement. The whole census was re-derived from scratch against the new base rather than
+ * adjusted — a re-recorded value taken at one file count is not the value at another, which is
+ * `specs/conventions/check-estate.md`'s named trap. The 18 and their values came back
+ * **identical**, because T043's three files land in `backend/src/apps/example/` and every walk
+ * that sees them was already adrift; the one dimension T043 itself re-recorded,
+ * `check-divergence`'s `sites`, is not among these 18. That the answer did not move is the
+ * measurement's own corroboration and not a reason to have skipped it.
+ *
+ * **The arithmetic, and it is self-confirming.** The branch deletes **60** tracked files and
+ * adds **2** — the E1 baseline and the changeset — net **−58**, and the three whole-repository
+ * walks each move by exactly that: `check-nul-bytes` `files` 8611 → 8553,
+ * `scripts/check-naming.sh` 8671 → 8613, `check-root-dispositions` `files` 8672 → 8614. All
+ * three are in the leave-alone set, which is what makes them usable as a check on the
+ * measurement rather than as something to record.
+ *
+ * Each of the 18 is one population's own unit, counted off the deletion list: 4 files under
+ * `src/admin/`, 2 i18n bundles, 2 error codes, 1 module documentation page and its sidebar
+ * entry, 1 permission-gated admin route, 1 composition entry point, 1 queue with its worker, 1
+ * versionable package manifest (83 → 82, corroborated by `check:release-intent`'s own
+ * `versionable=82`), and — the only one that is not a deletion — one changeset **subject**,
+ * `@endora-commerce/mod-wfirma` removed from D-256's still-pending prologue, which cannot be
+ * versioned from a workspace it has left.
+ *
+ * **`check-off-state-coverage` is worth its own sentence**: its `sites` falls by 2 and the
+ * check is **green**, at `switchable=47 proven=47 exempt=0 findings=0` where it read 48/48.
+ * Constitution XVII lost no coverage here — it lost a subject, which is what an extraction is.
+ * Its `files` moved too and is **not** re-recorded: that dimension was already adrift on the
+ * base.
+ *
+ * **No band was widened and no value was computed from a delta.** Neither number was measured
+ * in the checkout the work was done in.
  */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
@@ -1710,7 +1773,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // whole of what it declared to this check. The header block above this table carries the
     // attribution — two pristine worktrees, per entry and per dimension, with the base's own drift
     // left to its owner — and nothing here widened a band.
-    sites: 90,
+    // **`specs/134-paid-module-extraction/` T069 — `wfirma` leaves this repository: sites 90 -> 89
+    // (-1).** The module's one permission-gated admin route registration. The header block above
+    // this table carries the attribution — two pristine worktrees, per dimension, with
+    // `origin/master`'s own drift left to its owner — and nothing here widened a band.
+    sites: 89,
     // `emitted-manifests` is this check saying which artefact its manifest half
     // came from: the manifests are imported rather than walked, and a packaged
     // module's resolves at its build output. It is the disclosure half of the
@@ -4894,7 +4961,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // -> 46 (-1).** this module's package entry. The header block above this table carries the
     // attribution — two pristine worktrees, per entry and per dimension, with the base's own drift
     // left to its owner — and nothing here widened a band.
-    sites: 46,
+    // **`specs/134-paid-module-extraction/` T069 — `wfirma` leaves this repository: sites 46 -> 45
+    // (-1).** The module's one composition entry point. The header block above this table carries
+    // the attribution — two pristine worktrees, per dimension, with `origin/master`'s own drift
+    // left to its owner — and nothing here widened a band.
+    sites: 45,
     sources: ['manifest-index', 'package-scripts'],
   },
   'backend/scripts/check-env-inputs.ts': {
@@ -5209,7 +5280,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // -> 136 (-2).** exactly this module's two i18n bundles. The header block above this table
     // carries the attribution — two pristine worktrees, per entry and per dimension, with the
     // base's own drift left to its owner — and nothing here widened a band.
-    files: 136,
+    // **`specs/134-paid-module-extraction/` T069 — `wfirma` leaves this repository: files 136 ->
+    // 134 (-2).** The same two i18n bundles. The header block above this table carries the
+    // attribution — two pristine worktrees, per dimension, with `origin/master`'s own drift left
+    // to its owner — and nothing here widened a band.
+    files: 134,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 867 -> 883.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -5226,7 +5301,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // -> 940 (-4).** this module's translated error strings. The header block above this table
     // carries the attribution — two pristine worktrees, per entry and per dimension, with the
     // base's own drift left to its owner — and nothing here widened a band.
-    sites: 940,
+    // **`specs/134-paid-module-extraction/` T069 — `wfirma` leaves this repository: sites 940 ->
+    // 934 (-6).** The module's two error codes and the sentences that translated them, leaving
+    // with its two i18n bundles. The codes came off `ERROR_CODES` in the same merge request rather
+    // than being left behind: a member no installed manifest declares routes nowhere, which is
+    // this check's own `undeclared-enum-member`, and it is how their departure was found rather
+    // than reasoned about. The header block above this table carries the attribution — two
+    // pristine worktrees, per dimension, with `origin/master`'s own drift left to its owner — and
+    // nothing here widened a band.
+    sites: 934,
     // Feature 080's T010, and feature 090's Phase 4 for the second entry.
     // `manifest-index` expects the module directories that declare a code:
     // every id the generated index registers, less the ones whose manifest
@@ -6741,7 +6824,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // order-footer actions P7d split by permission code. The header block above this table carries
     // the attribution — two pristine worktrees, per entry and per dimension, with the base's own
     // drift left to its owner — and nothing here widened a band.
-    sites: 65,
+    // **`specs/134-paid-module-extraction/` T069 — `wfirma` leaves this repository: sites 65 -> 61
+    // (-4).** The module's zone contributions and their registry entries. The header block above
+    // this table carries the attribution — two pristine worktrees, per dimension, with
+    // `origin/master`'s own drift left to its owner — and nothing here widened a band.
+    sites: 61,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
     // is the second declaration reconciled against it, so a member added
@@ -7062,7 +7149,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // -> 5473 (-20).** this module's declarations. The header block above this table carries the
     // attribution — two pristine worktrees, per entry and per dimension, with the base's own drift
     // left to its owner — and nothing here widened a band.
-    sites: 5473,
+    // **`specs/134-paid-module-extraction/` T069 — `wfirma` leaves this repository: sites 5473 ->
+    // 5446 (-27).** The vocabulary units of the module's own classes and of the 22 host tests that
+    // left with it. The header block above this table carries the attribution — two pristine
+    // worktrees, per dimension, with `origin/master`'s own drift left to its owner — and nothing
+    // here widened a band.
+    sites: 5446,
     // `manifest-index` is issue #215's shared floor over the module half of the
     // render walk. `design-system` is the `exports` maps' own answer to *"which
     // packages publish `./theme.css`"* against the stylesheets this run opened,
@@ -7126,7 +7218,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // -> 136 (-2).** exactly this module's two i18n bundles, `en.json` and `pl.json`. The header
     // block above this table carries the attribution — two pristine worktrees, per entry and per
     // dimension, with the base's own drift left to its owner — and nothing here widened a band.
-    files: 136,
+    // **`specs/134-paid-module-extraction/` T069 — `wfirma` leaves this repository: files 136 ->
+    // 134 (-2).** The module's two i18n bundles, `en.json` and `pl.json`. The header block above
+    // this table carries the attribution — two pristine worktrees, per dimension, with
+    // `origin/master`'s own drift left to its owner — and nothing here widened a band.
+    files: 134,
     // Every registered module, shipping or not. It moves only with the module
     // set, so a run whose `sites` fell while `files` held is a module that left
     // the index rather than a translation that left a package.
@@ -7145,7 +7241,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // -> 74 (-1).** this module's bundle pair. The header block above this table carries the
     // attribution — two pristine worktrees, per entry and per dimension, with the base's own drift
     // left to its owner — and nothing here widened a band.
-    sites: 74,
+    // **`specs/134-paid-module-extraction/` T069 — `wfirma` leaves this repository: sites 74 -> 73
+    // (-1).** The pair those two bundles formed. The header block above this table carries the
+    // attribution — two pristine worktrees, per dimension, with `origin/master`'s own drift left
+    // to its owner — and nothing here widened a band.
+    sites: 73,
     // `manifest-index` is issue #215's shared floor over the module walk, whose
     // unit here is the module's **own directory** — `dirname(manifestPath)`, the
     // anchor the boot reconciler joins `bundlesDir` to. `shipped-languages` is
@@ -7221,7 +7321,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `eaf8f1798` reads `27 drifted, 19 agree, 0 not measured, of 46`, reproducing the figure the
     // base commit recorded, and this tip reads `28 drifted, 18 agree, 0 not measured, of 46` — the
     // single entry crossing between them is this one, in both dimensions.
-    files: 106,
+    // **`specs/134-paid-module-extraction/` T069 — `wfirma` leaves this repository: files 106 ->
+    // 105 (-1).** The module's own `docs/wfirma.md`. The header block above this table carries the
+    // attribution — two pristine worktrees, per dimension, with `origin/master`'s own drift left
+    // to its owner — and nothing here widened a band.
+    files: 105,
     // The finer population, and it answers a different question: the navigation
     // entries the committed sidebar names, the rows the committed map carries,
     // and the relative links a module-owned page writes (R3.7). A page added and
@@ -7292,7 +7396,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // in one pristine worktree at two refs, `git clean -fX docs/docs/modules` and no
     // `docs/.module-docs-copies.json` on both sides, zero unignored residue; nothing here was
     // computed from a delta and no band was widened.
-    sites: 246,
+    // **`specs/134-paid-module-extraction/` T069 — `wfirma` leaves this repository: sites 246 ->
+    // 244 (-2).** That page and its sidebar entry. The header block above this table carries the
+    // attribution — two pristine worktrees, per dimension, with `origin/master`'s own drift left
+    // to its owner — and nothing here widened a band.
+    sites: 244,
     // Three authors, each seeing something the others cannot. `manifest-index`
     // is issue #215's shared floor over the module walk, whose unit is the
     // module's own directory. `sidebar-entries` is the **committed artefact's**
@@ -7836,7 +7944,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // page, its API client, its three zone components and `download-pdf.ts`. The header block
     // above this table carries the attribution — two pristine worktrees, per entry and per
     // dimension, with the base's own drift left to its owner — and nothing here widened a band.
-    files: 416,
+    // **`specs/134-paid-module-extraction/` T069 — `wfirma` leaves this repository: files 416 ->
+    // 412 (-4).** The four files of the module's admin layer — its `index.ts`, its connection
+    // page, its ledger-tab zone and its API client. The header block above this table carries the
+    // attribution — two pristine worktrees, per dimension, with `origin/master`'s own drift left
+    // to its owner — and nothing here widened a band.
+    files: 412,
     // **Batch 13 (feature 091, Phase 4): 2361 -> 2305, and the cause is the move's
     // spelling rather than its size.** A published-symbol reach is counted per
     // import statement, and the twenty-four moved screens rewrote thirty `@/…`
@@ -7889,7 +8002,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // -> 2309 (-30).** this module's admin layer. The header block above this table carries the
     // attribution — two pristine worktrees, per entry and per dimension, with the base's own drift
     // left to its owner — and nothing here widened a band.
-    sites: 2309,
+    // **`specs/134-paid-module-extraction/` T069 — `wfirma` leaves this repository: sites 2309 ->
+    // 2293 (-16).** The admin-surface units those four files declared. The header block above this
+    // table carries the attribution — two pristine worktrees, per dimension, with
+    // `origin/master`'s own drift left to its owner — and nothing here widened a band.
+    sites: 2293,
     // **Three** derivations since Phase 5's T3, none of them the walk counting
     // itself: the generated manifest index for the modules a walked file is
     // attributed to; the kit's own `exports` map against the barrels on disk —
@@ -9580,7 +9697,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // XVII lost a subject rather than coverage. The header block above this table carries the
     // attribution — two pristine worktrees, per entry and per dimension, with the base's own drift
     // left to its owner — and nothing here widened a band.
-    sites: 197,
+    // **`specs/134-paid-module-extraction/` T069 — `wfirma` leaves this repository: sites 197 ->
+    // 195 (-2).** The two harness call sites in the D-252 host files that left for the paid
+    // repository — `contract/wfirma/off-state.test.ts` and
+    // `integration/wfirma/off-no-http.test.ts`. The check stays green at `switchable=47 proven=47
+    // exempt=0 findings=0`, one below the 48 it read before, which is the only shape of that pair
+    // an extraction may produce: Constitution XVII lost no coverage here, it lost a subject. This
+    // entry's `files` moved too and is deliberately not re-recorded — that dimension was already
+    // adrift on the base. The header block above this table carries the attribution — two pristine
+    // worktrees, per dimension, with `origin/master`'s own drift left to its owner — and nothing
+    // here widened a band.
+    sites: 195,
     // Two independent authors, so the check computes no module list and no
     // call-name list of its own. `manifest-index` is every entry the generated
     // index carries against every entry whose manifest this run could classify
@@ -9756,7 +9883,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // -> 89 (-1).** this module's package manifest. The header block above this table carries the
     // attribution — two pristine worktrees, per entry and per dimension, with the base's own drift
     // left to its owner — and nothing here widened a band.
-    files: 89,
+    // **`specs/134-paid-module-extraction/` T069 — `wfirma` leaves this repository: files 89 -> 88
+    // (-1).** One generated-artefact input fewer, the module's package manifest. The header block
+    // above this table carries the attribution — two pristine worktrees, per dimension, with
+    // `origin/master`'s own drift left to its owner — and nothing here widened a band.
+    files: 88,
     sources: [],
   },
   'backend/scripts/check-port-catches.ts': {
@@ -11204,7 +11335,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // worker leaving together. The header block above this table carries the attribution — two
     // pristine worktrees, per entry and per dimension, with the base's own drift left to its owner
     // — and nothing here widened a band.
-    sites: 50,
+    // **`specs/134-paid-module-extraction/` T069 — `wfirma` leaves this repository: sites 50 -> 48
+    // (-2).** The module's delivery queue and its worker registration. The header block above this
+    // table carries the attribution — two pristine worktrees, per dimension, with
+    // `origin/master`'s own drift left to its owner — and nothing here widened a band.
+    sites: 48,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-release-intent.ts': {
@@ -11334,7 +11469,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // -> 89 (-1).** this module's package manifest. The header block above this table carries the
     // attribution — two pristine worktrees, per entry and per dimension, with the base's own drift
     // left to its owner — and nothing here widened a band.
-    files: 89,
+    // **`specs/134-paid-module-extraction/` T069 — `wfirma` leaves this repository: files 89 -> 88
+    // (-1).** A versionable package manifest, 82 where it was 83. The header block above this
+    // table carries the attribution — two pristine worktrees, per dimension, with
+    // `origin/master`'s own drift left to its owner — and nothing here widened a band.
+    files: 88,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 495 -> 501.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -11349,7 +11488,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // -> 513 (-6).** this module's versionable surface. The header block above this table carries
     // the attribution — two pristine worktrees, per entry and per dimension, with the base's own
     // drift left to its owner — and nothing here widened a band.
-    sites: 513,
+    // **`specs/134-paid-module-extraction/` T069 — `wfirma` leaves this repository: sites 513 ->
+    // 507 (-6).** Measured, and deliberately not decomposed: the run's own counters move three
+    // ways at once — `versionable` 83 -> 82 as the package manifest leaves the workspace,
+    // `changeset-subjects` 12 -> 11 as `@endora-commerce/mod-wfirma` comes off D-256's
+    // still-pending prologue (it cannot be versioned from a workspace it has left), and
+    // `changesets` 14 -> 15 with this merge request's own. Attributing the -6 to one of the three
+    // would be arithmetic on a population nobody measured. The header block above this table
+    // carries the attribution — two pristine worktrees, per dimension, with `origin/master`'s own
+    // drift left to its owner — and nothing here widened a band.
+    sites: 507,
     // **Feature 114 Phase 3 (FR-017, D-225): a second author, and neither count
     // moves.** `changeset-subjects` is the distinct package names the changeset
     // files name, reconciled against the members the workspace globs produce.
@@ -13635,7 +13783,11 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // -> 437 (-4).** this module's four translatable admin files. The header block above this
     // table carries the attribution — two pristine worktrees, per entry and per dimension, with
     // the base's own drift left to its owner — and nothing here widened a band.
-    files: 437,
+    // **`specs/134-paid-module-extraction/` T069 — `wfirma` leaves this repository: files 437 ->
+    // 435 (-2).** The two admin-layer files the walk reads. The header block above this table
+    // carries the attribution — two pristine worktrees, per dimension, with `origin/master`'s own
+    // drift left to its owner — and nothing here widened a band.
+    files: 435,
     sites: null,
     // `admin-ui` is the workspace manifests' own answer to "how many packages
     // ship a tree of admin UI", reconciled against how many of them the walk
