@@ -36,6 +36,7 @@ import type { ApiKey as ApiKeyRow } from '../../../packages/modules/api_keys/src
 import type { CmsPage as CmsPageRow } from '../../../packages/modules/cms/src/backend/entities/cms-page.entity.js';
 import type { DeliveryMethod as DeliveryMethodRow } from '../../../packages/modules/delivery_methods/src/backend/entities/delivery-method.entity.js';
 import type { MfaEnrolment as MfaEnrolmentRow } from '../../../packages/modules/mfa/src/backend/entities/mfa-enrolment.entity.js';
+import type { MfaOrganizationPolicy as MfaOrganizationPolicyRow } from '../../../packages/modules/mfa/src/backend/entities/mfa-organization-policy.entity.js';
 import type { MfaSocialIdentity as MfaSocialIdentityRow } from '../../../packages/modules/mfa/src/backend/entities/mfa-social-identity.entity.js';
 import type { NewsletterAutomationRun as NewsletterAutomationRunRow } from '../../../packages/modules/newsletter/src/backend/entities/newsletter-automation-run.entity.js';
 import type { NewsletterCampaign as NewsletterCampaignRow } from '../../../packages/modules/newsletter/src/backend/entities/newsletter-campaign.entity.js';
@@ -508,6 +509,11 @@ export const MfaEnrolment = classNamed<MfaEnrolmentRow>(
   'mfa',
   'MfaEnrolment',
 );
+export const MfaOrganizationPolicy = classNamed<MfaOrganizationPolicyRow>(
+  installedModuleEntities,
+  'mfa',
+  'MfaOrganizationPolicy',
+);
 export const MfaSocialIdentity = classNamed<MfaSocialIdentityRow>(
   installedModuleEntities,
   'mfa',
@@ -685,6 +691,7 @@ export type {
   CmsPageRow,
   DeliveryMethodRow,
   MfaEnrolmentRow,
+  MfaOrganizationPolicyRow,
   MfaSocialIdentityRow,
   NewsletterAutomationRunRow,
   NewsletterCampaignRow,

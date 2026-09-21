@@ -831,6 +831,24 @@ export async function registerOrganizationsAdminRoutes(
         schema: { body: assignOrganizationParentRequestSchema },
       },
       async (request) => {
+        // D-260 — **a write that changes the acting principal's own authority
+        // cannot be authorised by that authority.** Parentage is the tenancy
+        // graph: feature 056's roll-up expands each assigned node to its
+        // subtree (`sales-rep-assignment-service.ts:110-141`), so a scoped
+        // admin holding `customers:manage` could hang a foreign organization
+        // under one it already holds and widen its own
+        // `allowedOrganizationIds` — measured at 200, `[orgA] → [orgA, orgB]`.
+        // `Organization` is `@GlobalEntity` and correctly so, so no filter
+        // narrowed the read and no classification could. Same idiom, and the
+        // same reason, as the credit-inheritance-mode handler below.
+        const ctx = getTenantContext();
+        if (!ctx || ctx.mode !== 'all') {
+          throw new HttpError(
+            403,
+            ERROR_CODES.FORBIDDEN,
+            'Only a platform administrator can change an organization parent.',
+          );
+        }
         const body = assignOrganizationParentRequestSchema.parse(request.body);
         const em = emFactory();
         const org = await em.findOne(Organization, { id: request.params.id, deletedAt: null });

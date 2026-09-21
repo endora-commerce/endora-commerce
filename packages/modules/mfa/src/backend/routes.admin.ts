@@ -1,5 +1,11 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { mfaResetBulkRequestSchema, mfaOrgPolicyRequestSchema } from '@endora-commerce/contracts';
+import {
+  ERROR_CODES,
+  mfaResetBulkRequestSchema,
+  mfaOrgPolicyRequestSchema,
+} from '@endora-commerce/contracts';
+import { HttpError } from '@endora-commerce/platform/http';
+import { isOrgInScope } from '@endora-commerce/platform/tenancy';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { MfaEnrolmentService } from './services/mfa-enrolment-service.js';
 import type { MfaOrgPolicyService } from './services/mfa-org-policy-service.js';
@@ -97,6 +103,24 @@ export async function registerMfaAdminRoutes(
     async (request) => {
       const body = mfaOrgPolicyRequestSchema.parse(request.body);
       const { organizationId } = request.params;
+      // D-260/B — the organization id arrives from the caller and selects whose
+      // 2FA enforcement is written, so no column filter reaches it:
+      // `MfaOrganizationPolicy` is `@GlobalEntity()` and correctly so (D-259
+      // category 2 — the row *is* the per-organization rule, keyed by an id it
+      // does not own). A `sales_representative` holding `mfa:manage` therefore
+      // forced and lifted TOTP for an organization it was never assigned;
+      // measured at 200 on both.
+      //
+      // 404 rather than 403 because the id **addresses the resource** — it is
+      // the path parameter and the row's own key — which is FR-008's
+      // indistinguishable answer, modelled on `credit_limits/routes.ts:135-141`.
+      // This is not the `mode: 'all'` arm of D-260's criterion: that arm is for
+      // a write that changes the *actor's* own authority, and this one changes
+      // an organization's login policy while leaving `allowedOrganizationIds`
+      // untouched. A scoped admin keeps the capability for its own assignments.
+      if (!isOrgInScope(organizationId)) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
+      }
       const actor = resolveAdminActor(request).adminUserId;
       const res = await deps.orgPolicyService.setEnforcement(organizationId, body.enforceTotp, actor);
       await auditLogService.record({

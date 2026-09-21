@@ -6,6 +6,7 @@ import {
 } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '@endora-commerce/platform/http';
+import { getTenantContext } from '@endora-commerce/platform/tenancy';
 import { Organization } from './entities/organization.entity.js';
 import type { SalesRepAssignmentPort } from './services/sales-rep-assignment-service.js';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -51,6 +52,42 @@ export interface SalesRepRoutesDeps {
   adminUsers: AdminUserReadPort;
 }
 
+/**
+ * D-260 — **a write that changes the acting principal's own authority cannot be
+ * authorised by that authority.**
+ *
+ * `OrganizationSalesRepAssignment` is the table that *defines* `allowed-set`, so
+ * a scoped admin holding `organizations:assign-sales-rep` could `POST` itself on
+ * to any organization and widen its own `allowedOrganizationIds` — measured at
+ * 201, `[orgA] → [orgA, orgB]`. No classification can save the write:
+ * `@OrgScoped` on this entity would be circular (D-259 category 2), and the id
+ * arrives from the path rather than from the actor, so no column filter reaches
+ * it. Nor is "the scoped role does not hold the code" a boundary —
+ * `PUT /admin/admin-roles/:code` upserts an arbitrary permission array onto any
+ * role, and the seed that grants this role its codes is a demo fixture.
+ *
+ * The refusal is therefore `mode: 'all'` / 403 and not the FR-008 not-found arm
+ * of the criterion: nothing about the organization's existence is being
+ * concealed, the actor is being told it may not write the graph at all. The
+ * idiom is `routes.admin.ts`'s credit-inheritance-mode handler, which already
+ * reaches for it on the weaker argument of a money-behaviour switch.
+ *
+ * It is categorical — the actor's *own* organization included. Assigning a
+ * second representative to an organization the actor holds still edits the graph
+ * that decides who holds what, and the graph is the boundary rather than an
+ * operation inside it.
+ */
+function requireUnscopedActor(): void {
+  const ctx = getTenantContext();
+  if (!ctx || ctx.mode !== 'all') {
+    throw new HttpError(
+      403,
+      ERROR_CODES.FORBIDDEN,
+      'Only a platform administrator can change sales-representative assignments.',
+    );
+  }
+}
+
 export async function registerOrganizationsSalesRepRoutes(
   app: FastifyInstance,
   deps: SalesRepRoutesDeps,
@@ -92,6 +129,7 @@ export async function registerOrganizationsSalesRepRoutes(
     '/api/v1/admin/organizations/:organizationId/sales-reps',
     { preHandler: guard, schema: { body: assignSalesRepRequestSchema } },
     async (request, reply) => {
+      requireUnscopedActor(); // D-260 — the graph is the boundary.
       const body = assignSalesRepRequestSchema.parse(request.body);
       const em = emFactory();
       const org = await em.findOne(Organization, { id: request.params.organizationId });
@@ -132,6 +170,7 @@ export async function registerOrganizationsSalesRepRoutes(
     '/api/v1/admin/organizations/:organizationId/sales-reps/:adminUserId',
     { preHandler: guard },
     async (request, reply) => {
+      requireUnscopedActor(); // D-260 — the graph is the boundary.
       const removed = await salesRepAssignment.unassign({
         organizationId: request.params.organizationId,
         adminUserId: request.params.adminUserId,
