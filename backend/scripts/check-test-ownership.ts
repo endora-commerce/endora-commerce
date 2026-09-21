@@ -140,15 +140,17 @@
  *
  * Stated here rather than discovered later. It reads specifiers, so a module a
  * test reaches through a **helper** in another file is invisible — the helper's
- * owners are the helper's. It reads `setupBackendServer` as a call node, which
- * is the predicate `check:harness-teardown` and `check:fixture-substitution`
- * already key on, and it is not widened to "imports anything from
- * `backend/test/helpers/`": a helper that is not the server composer is a
- * different question and reporting them together would let each go blind behind
- * the other's red. And it says nothing about whether a test is good, current or
- * complete.
+ * owners are the helper's. It reads {@link HOST_COMPOSERS} as call nodes, and
+ * that list is not widened to "imports anything from `backend/test/helpers/`":
+ * a helper that is not a host composer is a different question and reporting
+ * them together would let each go blind behind the other's red. And it says
+ * nothing about whether a test is good, current or complete.
  *
- * Usage: `tsx scripts/check-test-ownership.ts [--list]`
+ * Usage: `tsx scripts/check-test-ownership.ts [--list [<module-id>]]`
+ * `--list` prints the misplaced count per module; `--list <module-id>` prints
+ * one `misplaced`/`host`/`shared` line per test file that module owns and
+ * exits — the query `scripts/extract-paid-module.sh`'s W2 asks instead of
+ * carrying a predicate of its own (D-262 clause 1).
  * Exit 0 = every test file is where the table puts it; exit 1 = at least one is
  * not, or a shard is stale; exit 2 = the run could not see the population it
  * judges — see {@link vacuousTestOwnership}.
@@ -357,32 +359,60 @@ export function ownersOf(
   return { owners: [...owners].sort(), attributions };
 }
 
+/** One member of the host-composition set: a call name and the file declaring it. */
+export interface HostComposer {
+  /** The call name a test file writes. */
+  readonly name: string;
+  /** The file that declares it, relative to the repository root. §7 case 6's subject. */
+  readonly declaredIn: string;
+}
+
 /**
- * The composer names a test file may call to boot a platform.
+ * The host-composition set — the calls that make a test file the **host's**.
  *
- * One name, and it is the harness's own export rather than a family: §7 case 6
- * requires the declaring file to be at its exact path and to export it, so the
- * predicate and its refusal have one subject. Widening this to "anything from
- * `backend/test/helpers/`" is refused in §1 of the contract and here: a helper
- * that is not the composer is `outward-reach`'s question.
+ * **Three names, and the list is the one every instrument reads** (§1, D-262
+ * clause 1). It read one until 2026-09-21, while D-252 stated two and
+ * `scripts/extract-paid-module.sh` grepped those two: the premise that the two
+ * sides shared a predicate was false in both halves, and two instruments
+ * carrying two predicates is worse than either being wrong. Each member is
+ * justified in §1's table by what it composes from the host's install, and
+ * `setupTestDb` is the third because one call of it awaits `mikroOrmConfig()`,
+ * which awaits `configuredEntities()` (`ALL_ENTITIES`, generated about **this**
+ * tree) and `configuredMigrations()` — two of the three generated per-host
+ * artefacts, where `setupBackendServer` reads all three.
+ *
+ * `declaredIn` is per member rather than per harness, because the members are
+ * not all declared in one file: §7 case 6 requires each declaring file to be at
+ * its exact path and to still export its name, so a rename is a refusal rather
+ * than a silent reclassification of that member's whole population. The kit's
+ * `composeTestServer` is declared in `@endora-commerce/test-kit`'s own source,
+ * which `backend/test/helpers/test-server.ts` imports and does not re-export.
+ *
+ * Widening the list to "anything from `backend/test/helpers/`" is refused in §1
+ * of the contract and here: a helper that is not a host composer is
+ * `outward-reach`'s question, and the widening would sweep module fixtures such
+ * as `backend/test/helpers/unopim-import-fixtures.ts` into the host.
  */
-export const SERVER_COMPOSER = 'setupBackendServer';
-
-/** The harness's path, relative to `backend/`. The subject of §7 case 6. */
-export const HARNESS_RELATIVE_PATH = 'test/helpers/test-server.ts';
+export const HOST_COMPOSERS: readonly HostComposer[] = [
+  { name: 'setupBackendServer', declaredIn: 'backend/test/helpers/test-server.ts' },
+  { name: 'composeTestServer', declaredIn: 'packages/test-kit/src/server/compose-test-server.ts' },
+  { name: 'setupTestDb', declaredIn: 'backend/test/helpers/test-db.ts' },
+];
 
 /**
- * Whether the source calls the server composer, read as a call node.
+ * Which member of the host-composition set the source calls, or `null`.
  *
  * A call node and not a text match: `test-server.ts` names its own export in
  * prose a dozen times, and a run that counted those would classify the harness
- * as its own caller.
+ * as its own caller. The name is returned rather than a boolean so a finding can
+ * report the call it actually found.
  */
-export function composesServer(source: string, key: string): boolean {
+export function composerCalledBy(source: string, key: string): string | null {
   const sourceFile = ts.createSourceFile(key, source, ts.ScriptTarget.Latest, true);
-  let found = false;
+  const names = new Set(HOST_COMPOSERS.map((composer) => composer.name));
+  let found: string | null = null;
   const visit = (node: ts.Node): void => {
-    if (found) return;
+    if (found !== null) return;
     if (ts.isCallExpression(node)) {
       const callee = node.expression;
       const name = ts.isIdentifier(callee)
@@ -390,8 +420,8 @@ export function composesServer(source: string, key: string): boolean {
         : ts.isPropertyAccessExpression(callee)
           ? callee.name.text
           : null;
-      if (name === SERVER_COMPOSER) {
-        found = true;
+      if (name !== null && names.has(name)) {
+        found = name;
         return;
       }
     }
@@ -399,6 +429,11 @@ export function composesServer(source: string, key: string): boolean {
   };
   sourceFile.forEachChild(visit);
   return found;
+}
+
+/** Whether the source calls any member of the host-composition set. */
+export function composesServer(source: string, key: string): boolean {
+  return composerCalledBy(source, key) !== null;
 }
 
 /**
@@ -417,6 +452,16 @@ export function parseFailure(source: string, key: string): string | null {
   if (diagnostics === undefined || diagnostics.length === 0) return null;
   return String(ts.flattenDiagnosticMessageText(diagnostics[0]!.messageText, ' '));
 }
+
+/**
+ * This repository's application roots — §3's last row, all three of them.
+ *
+ * Written down rather than derived because the rule is about *this* repository's
+ * shape: a module package must be testable without any of the three
+ * applications, and a fourth arriving is a contract amendment before it is a
+ * list edit.
+ */
+export const APPLICATION_ROOTS: readonly string[] = ['backend', 'admin', 'storefront'];
 
 /**
  * §3's refusals for one specifier written in a module package's test, or `null`.
@@ -445,10 +490,21 @@ export function outwardReachOf(input: {
   }
   // The application root is the **leading** segment of a repository-relative
   // path, and the anchor is load-bearing: every module package keeps its own
-  // sources under `src/backend/`, so a rule matching the segment anywhere
-  // reports all 211 package tests as reaching the application while none of
-  // them does. Measured, on the first run of this check.
-  if (target === 'backend' || target.startsWith('backend/')) {
+  // sources under `src/backend/` and its own screens under `src/admin/`, so a
+  // rule matching the segment anywhere reports all 211 package tests as reaching
+  // the application while none of them does. Measured, on the first run of this
+  // check.
+  //
+  // **Three roots, not one** (§3, D-262 clause 3). The row said `backend/` alone
+  // until 2026-09-21 and so did this branch, which left the exact route by which
+  // a module's rendered admin case would be "moved into the package" while still
+  // pointing at an unpublished React harness under `admin/test/helpers/` — a
+  // file that resolves in this checkout and nowhere else, which is the one thing
+  // the row exists to refuse.
+  const application = APPLICATION_ROOTS.find(
+    (root) => target === root || target.startsWith(`${root}/`),
+  );
+  if (application !== undefined) {
     return `names \`${target}\` — the package must be testable without the application`;
   }
   const sibling = /(?:^|\/)packages\/modules\/([^/]+)(?:\/|$)/.exec(target);
@@ -561,12 +617,13 @@ export function checkTestOwnership(input: TestOwnershipInput): TestOwnershipResu
             });
           }
         }
-        if (composesServer(file.text, file.key) && !input.serverBoundHosts.has(moduleId)) {
+        const composer = composerCalledBy(file.text, file.key);
+        if (composer !== null && !input.serverBoundHosts.has(moduleId)) {
           findings.push({
             kind: 'harness-bound-move',
             moduleId,
             file: file.key,
-            detail: `calls \`${SERVER_COMPOSER}(\` from inside \`${moduleId}\`'s package, which cannot host a server-bound test in this checkout`,
+            detail: `calls \`${composer}(\` from inside \`${moduleId}\`'s package, which cannot host a server-bound test in this checkout`,
           });
         }
       }
@@ -723,8 +780,15 @@ export interface VacuousInput {
   readonly packagesDeclaringTests: number;
   /** Whether the ledger directory exists — empty is fine, absent is not. */
   readonly ledgerDirectoryExists: boolean;
-  /** The harness's source at its exact path, or `null`. */
-  readonly harnessSource: string | null;
+  /**
+   * Each host composer's declaring source at its exact path, keyed by the
+   * composer's name, `null` where the file is not there.
+   *
+   * A record and not one string: §7 case 6's refusal applies to **every** member
+   * of {@link HOST_COMPOSERS} (D-262 clause 1), and the members are declared in
+   * different files, so one source could not be the subject of all three.
+   */
+  readonly composerSources: Readonly<Record<string, string | null>>;
 }
 
 /**
@@ -779,22 +843,30 @@ export function vacuousTestOwnership(input: VacuousInput): VacuousReason | null 
         'missing one is a run that could not read the baseline it judges against',
     };
   }
-  if (input.harnessSource === null) {
-    return {
-      kind: 'harness-not-found',
-      message:
-        `\`backend/${HARNESS_RELATIVE_PATH}\` is not at its exact path — it is the subject of ` +
-        'the `composesServer` predicate, and a harness that moved must be a refusal rather ' +
-        'than a reclassification of every server-bound file in the tree',
-    };
-  }
-  if (!new RegExp(`export\\s+(?:async\\s+)?function\\s+${SERVER_COMPOSER}\\b`).test(input.harnessSource)) {
-    return {
-      kind: 'harness-not-found',
-      message:
-        `\`backend/${HARNESS_RELATIVE_PATH}\` no longer exports \`${SERVER_COMPOSER}\` — the ` +
-        'predicate has lost its subject and every server-bound file would reclassify at once',
-    };
+  // Every member, in order, and not only the first: a member whose declaring
+  // file moved or whose name changed stops matching silently, and its own
+  // population — 51 ledgered files for `setupTestDb` — reclassifies at once.
+  for (const composer of HOST_COMPOSERS) {
+    const source = input.composerSources[composer.name] ?? null;
+    if (source === null) {
+      return {
+        kind: 'harness-not-found',
+        message:
+          `\`${composer.declaredIn}\` is not at its exact path — it declares ` +
+          `\`${composer.name}\`, a member of the \`composesServer\` predicate, and a harness ` +
+          'that moved must be a refusal rather than a reclassification of every file that ' +
+          'calls it',
+      };
+    }
+    if (!new RegExp(`export\\s+(?:async\\s+)?function\\s+${composer.name}\\b`).test(source)) {
+      return {
+        kind: 'harness-not-found',
+        message:
+          `\`${composer.declaredIn}\` no longer exports \`${composer.name}\` — the predicate ` +
+          'has lost one of its subjects and every file composing through it would ' +
+          'reclassify at once',
+      };
+    }
   }
   return null;
 }
@@ -835,9 +907,15 @@ export function testFilesUnder(dir: string, out: string[] = []): string[] {
  * Modules able to host a server-bound test — 109 R5.1, derived and empty.
  *
  * The derivation, in full: a module package may host one when it can call a
- * server composer without an `outward-reach`. The only composer in this
- * checkout is `backend/${HARNESS_RELATIVE_PATH}`, contract §3 refuses a package
- * naming `backend/`, and therefore no module can. It is written as a function
+ * member of {@link HOST_COMPOSERS} without an `outward-reach`. Two of the three
+ * are declared under `backend/` — `test/helpers/test-server.ts` and
+ * `test/helpers/test-db.ts` — and contract §3 refuses a package naming
+ * `backend/`, so neither is reachable. The third, the kit's `composeTestServer`,
+ * is published surface and *is* nameable, and that is precisely the seam
+ * `specs/109-backend-test-kit/`'s Phase 4 opens rather than a capability this
+ * checkout has: until it lands no module package declares the kit, the set is
+ * empty, and a package calling that member today is the `harness-bound-move`
+ * this check reports. It is written as a function
  * over the layout rather than as a constant because that is the seam
  * `specs/109-backend-test-kit/`'s Phase 4 widens — to the modules declaring
  * `@endora-commerce/test-kit` and the closure §6 derives — and because a
@@ -922,8 +1000,25 @@ function readIfPresent(path: string): string | null {
   }
 }
 
+/**
+ * `--list [<module-id>]`'s per-file tag, and the vocabulary is the table's.
+ *
+ * `misplaced` is §1's first row — the file belongs in the package. `host` is a
+ * file this module owns that composes from the host's install, which is the
+ * host's by **kind** (D-252) and travels to the paid repository's
+ * `host/backend/test/modules/<id>/` rather than into the package. `shared` is
+ * the `≥ 2` row: it is **reported and never decided**, because §1.1's question
+ * — *is this test's subject one module, or the boundary between two?* — is put
+ * to a human and no instrument may answer it (D-262 clause 2).
+ */
+type ListedVerdict = 'misplaced' | 'host' | 'shared';
+
 async function main(): Promise<void> {
-  const listMode = process.argv.includes('--list');
+  const listAt = process.argv.indexOf('--list');
+  const listMode = listAt !== -1;
+  const listArgument = listMode ? (process.argv[listAt + 1] ?? null) : null;
+  const listModule =
+    listArgument !== null && !listArgument.startsWith('-') ? listArgument : null;
   const layout = await requireModuleLayout(PREFIX);
   const backendRoot = resolve(dirname(new URL(import.meta.url).pathname), '..');
   const keyOf = (path: string): string =>
@@ -982,7 +1077,12 @@ async function main(): Promise<void> {
   const packageFiles = files.length - applicationFiles;
 
   const ledger = await loadLedger(join(backendRoot, 'scripts', 'ledgers', 'test-ownership'));
-  const harnessSource = readIfPresent(join(backendRoot, HARNESS_RELATIVE_PATH));
+  const composerSources = Object.fromEntries(
+    HOST_COMPOSERS.map((composer) => [
+      composer.name,
+      readIfPresent(join(layout.repoRoot, composer.declaredIn)),
+    ]),
+  );
 
   const hosts = serverBoundHosts(layout);
   const attributions = files
@@ -999,7 +1099,7 @@ async function main(): Promise<void> {
     attributions,
     packagesDeclaringTests: packages.filter((pkg) => pkg.testScript !== null).length,
     ledgerDirectoryExists: ledger.directoryExists,
-    harnessSource,
+    composerSources,
   });
   if (vacuous !== null) {
     console.error(`${PREFIX} ${vacuous.message}; refusing to report a vacuous pass`);
@@ -1013,6 +1113,37 @@ async function main(): Promise<void> {
     serverBoundHosts: hosts,
     ledger: ledger.shards,
   });
+
+  // `--list <module-id>` — the query `scripts/extract-paid-module.sh`'s W2 asks,
+  // so that the extraction gate and this check cannot come to disagree about
+  // which of a module's tests are the host's (D-262 clause 1; W2.1 of
+  // `specs/134-paid-module-extraction/contracts/extraction-procedure.md`). One
+  // tagged line per file and nothing else on stdout, because the caller is a
+  // shell. The vacuity guard above has already run, so an unreadable tree
+  // refuses here as it does anywhere else rather than answering "no tests".
+  if (listModule !== null) {
+    if (!directories.some(([moduleId]) => moduleId === listModule)) {
+      console.error(
+        `${PREFIX} \`${listModule}\` is not a module in this tree — an answer about a module ` +
+          'that does not exist is an empty list, which reads exactly like a clean one',
+      );
+      process.exit(2);
+    }
+    for (const file of files) {
+      if (file.root !== 'application') continue;
+      const owners = ownersOf(file.text, file.key, layout.modulePackageNames).owners;
+      if (!owners.includes(listModule)) continue;
+      const verdict = ownershipOf({
+        owners,
+        composesServer: composesServer(file.text, file.key),
+        serverBoundHosts: hosts,
+      });
+      const tag: ListedVerdict =
+        verdict.verdict === 'the-module' ? 'misplaced' : owners.length > 1 ? 'shared' : 'host';
+      console.log(`${tag} ${file.key}`);
+    }
+    process.exit(0);
+  }
 
   if (listMode) {
     for (const [moduleId, misplaced] of [...result.misplacedByModule].sort(

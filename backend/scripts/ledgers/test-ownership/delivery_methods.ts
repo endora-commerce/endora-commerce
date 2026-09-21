@@ -21,9 +21,6 @@ import type { TestOwnershipLedgerEntry } from '../../check-test-ownership.js';
  * One constant rather than 2 copies of one sentence: the files differ, the
  * reason does not, and a per-file paraphrase would be 2 chances to write a
  * different one.
- *
- * The third entry needs a reason of its own and has one below: it is not
- * harness-free in the sense the batch can act on.
  */
 const SCHEDULED: TestOwnershipLedgerEntry = {
   scheduled: true,
@@ -36,34 +33,16 @@ const SCHEDULED: TestOwnershipLedgerEntry = {
     'feature 106\'s residue, tracked as `specs/109-backend-test-kit/` Phase 5.',
 };
 
+/**
+ * One entry stood here and is gone (**D-262** clause 1, 2026-09-21).
+ *
+ * It was not moved: the placement predicate took a third member. It calls
+ * `setupTestDb`, which awaits the generated entity index and the migration registry,
+ * so contract §1 reads it as the **host's** file wherever it sits. The entry promised a
+ * batch that would move it into the package, and that is a move D-252 forbids — an entry
+ * scheduling an impossible move is worse than no entry.
+ */
 export const entries: Readonly<Record<string, TestOwnershipLedgerEntry>> = {
   'backend/test/unit/delivery_methods/eligibility.test.ts': SCHEDULED,
   'backend/test/unit/delivery_methods/shipment-usage-guard.test.ts': SCHEDULED,
-  /**
-   * **It reads as harness-free and is not** (feature 134, W7).
-   *
-   * This check's predicate is `setupBackendServer`, and the file stopped calling it
-   * when the published install surface gave it something to test transactionally:
-   * the seam writes a `sales_channel_delivery_methods` row and deletes a
-   * `delivery_methods` one, and both belong inside a transaction that is rolled
-   * back rather than in the shared database. It calls `setupTestDb` instead, so it
-   * needs a **real Postgres** and cannot run in a module package's `vitest run`,
-   * which collects the `.test.ts` files under `src` with no database at all.
-   *
-   * So it is scheduled on a different batch from the two above: what moves it is
-   * not "someone gets round to it" but a package-side harness that can open a
-   * transaction — `specs/109-backend-test-kit/` Phase 5, which is also what W2 of
-   * `specs/134-paid-module-extraction/contracts/extraction-procedure.md` waits on.
-   */
-  'backend/test/integration/delivery_methods/reconciler.test.ts': {
-    scheduled: true,
-    reason:
-      'Single-owner — it judges `delivery_methods`\' `DeliveryMethodSeedApi` and names no other ' +
-      'module — and harness-free only by this check\'s predicate: it needs a real Postgres ' +
-      'through `setupTestDb`, which a module package cannot open today.',
-    retiredBy:
-      'The package-side transactional harness `specs/109-backend-test-kit/` Phase 5 publishes. ' +
-      'Until a package can reach a database, moving this file would delete the assertions ' +
-      'rather than relocate them.',
-  },
 };
