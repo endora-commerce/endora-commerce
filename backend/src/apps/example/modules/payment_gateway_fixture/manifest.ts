@@ -1,5 +1,16 @@
-import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-commerce/contracts';
-import { PAYMENT_GATEWAY_FIXTURE_MODULE_ID } from './backend.js';
+import {
+  defineModuleManifest,
+  defineModuleSettingsManifest,
+  type ModuleInstallHook,
+  type ModuleUninstallHook,
+} from '@endora-commerce/contracts';
+import type { EntityManager } from '@mikro-orm/postgresql';
+import { createPaymentMethodSeeder } from '@endora-commerce/mod-payment-methods/install';
+import type { PaymentMethodSeedDefaults } from '@endora-commerce/mod-payment-methods/ports';
+import {
+  PAYMENT_GATEWAY_FIXTURE_ADAPTER_KEYS,
+  PAYMENT_GATEWAY_FIXTURE_MODULE_ID,
+} from './backend.js';
 
 /**
  * Example deployment — the payment gateway that stands in for a real one
@@ -41,12 +52,9 @@ import { PAYMENT_GATEWAY_FIXTURE_MODULE_ID } from './backend.js';
  * `ledger_vendor_fixture`'s `default: false` is the other answer to a different
  * question.
  *
- * ## W7's last step is owed here, and it is not optional
+ * ## It seeds one payment method, and that is what makes it W7's consumer
  *
- * Written in this file rather than only in the feature's documents, on
- * `carrier_fixture`'s precedent, because a `tasks.md` merge cannot lose the
- * manifest copy.
- *
+ * **Done as W7's last step, which is what this section used to ask for.**
  * `contracts/foreign-write-repair.md` §2 makes the five gateways seed
  * `payment_methods` from their own `installHook` through the owner's published
  * install surface instead of by raw SQL — and then all five **leave**, so
@@ -56,12 +64,8 @@ import { PAYMENT_GATEWAY_FIXTURE_MODULE_ID } from './backend.js';
  * `PaymentAdapter`. This module is the standing consumer, exactly as
  * `carrier_fixture` is for `DeliveryMethodSeedApi`, and W7 ends by wiring it.
  *
- * It cannot be wired yet: `payment_methods` publishes neither `./ports` nor
- * `./install` today — `ls packages/modules/payment_methods/src` answers
- * `admin backend migrations manifest.ts` — and that owner half is the wave's
- * repair rather than this task's. When it lands, the hooks added here carry the
- * three obligations `carrier_fixture`'s already do, and the reason for each stays
- * beside it:
+ * The hooks below carry all four obligations this section named before the owner
+ * half existed, and the reason each one is written the way it is stays beside it:
  *
  *  * `bindToDefaultChannel` runs **only** when `created === true`, never as a
  *    reconcile — an unguarded call is issue #96 verbatim, a method an operator
@@ -74,7 +78,7 @@ import { PAYMENT_GATEWAY_FIXTURE_MODULE_ID } from './backend.js';
  *  * `statusOnFailure` is **never** `'cancelled'` — §4's whole premise is that
  *    the reconciler already defaults it to `'on_hold'`, so a fresh install
  *    produces nothing for the five `*_failure_status_on_hold` migrations to
- *    correct;
+ *    correct, and this hook passes no value at all;
  *  * and the `uninstallHook` sits behind `if (!ctx.hard) return;`, so a soft
  *    uninstall and a deactivation both remove nothing (Principle XVII, §2.6).
  */
@@ -123,3 +127,86 @@ export const manifest = defineModuleManifest({
   },
   settings,
 });
+
+/**
+ * The one `payment_methods` row this fixture ships, for its redirect adapter.
+ *
+ * **One, not two.** The fixture's second adapter deliberately gets no row: a
+ * contributed adapter whose `payment_methods` row nothing wrote is a real state
+ * — the registry is a per-process table and the row is durable state, written at
+ * install — and this module and `carrier_fixture` are the only places in the
+ * repository where that state is reachable on purpose.
+ *
+ * `status: 'inactive'` is passed **explicitly**, mirroring all five real
+ * gateways. The seeder's default is `'active'`, so taking the default would
+ * offer a payment method at checkout for every install of the example deployment
+ * — and a fixture that took the default would exercise neither the argument nor
+ * the defect (`contracts/foreign-write-repair.md` §2.4).
+ *
+ * `statusOnFailure` is passed **not at all**, which is the other half of §4: the
+ * seeder defaults it to `'on_hold'`, and `'cancelled'` is the value the five
+ * retiring `*_failure_status_on_hold` migrations exist to remove.
+ */
+export const PAYMENT_GATEWAY_FIXTURE_PAYMENT_METHOD: PaymentMethodSeedDefaults = {
+  code: PAYMENT_GATEWAY_FIXTURE_ADAPTER_KEYS.REDIRECT,
+  type: 'gateway',
+  name: {
+    default: 'Payment gateway fixture (redirect)',
+    'en-US': 'Payment gateway fixture (redirect)',
+  },
+  status: 'inactive',
+};
+
+/**
+ * The fixture's seed, through `payment_methods`' published install surface
+ * (feature 134, FR-064 / W7's last step).
+ *
+ * It is the **consumer** half of FR-021's argument: the five gateways that call
+ * this surface stop being workspace peers, and a published surface with no caller
+ * in this workspace is a breaking change to it that type-checks green here and
+ * reds in a consumer's build, days later. So the fixture calls it, over `ctx.em`,
+ * exactly as a real gateway does — a hook has no container, so there is nothing
+ * to resolve the owner's service from and the factory import is the seam
+ * (`specs/conventions/module-composition.md` item 9a).
+ *
+ * **`bindToDefaultChannel` runs only when `created === true`.** Never as a
+ * reconcile: an unguarded call is issue #96 verbatim, a method an operator
+ * deliberately unbound from every channel coming back bound with nothing saying
+ * so. "Unbound" is a state an operator is entitled to reach and to keep.
+ */
+export const installHook: ModuleInstallHook = async (ctx) => {
+  const em = ctx.em as EntityManager;
+  const seeder = createPaymentMethodSeeder();
+  const { row, created } = await seeder.ensureMethodForAdapter(
+    em,
+    PAYMENT_GATEWAY_FIXTURE_ADAPTER_KEYS.REDIRECT,
+    PAYMENT_GATEWAY_FIXTURE_PAYMENT_METHOD,
+  );
+  if (!created) return;
+  await seeder.bindToDefaultChannel(em, row.id);
+  ctx.log.info(
+    `payment_gateway_fixture: seeded payment method ${PAYMENT_GATEWAY_FIXTURE_PAYMENT_METHOD.code} in the default channel`,
+  );
+};
+
+/**
+ * Hard-uninstall cleanup only.
+ *
+ * A soft uninstall removes nothing and a deactivation removes nothing, which is
+ * the same Principle XVII shape a real gateway has: the registry filters the
+ * contributed adapter by this module's effective state, so an off module is
+ * answered at the read while the row and the operator's edits to it survive.
+ */
+export const uninstallHook: ModuleUninstallHook = async (ctx) => {
+  if (!ctx.hard) return;
+  const em = ctx.em as EntityManager;
+  const removed = await createPaymentMethodSeeder().removeMethodForAdapter(
+    em,
+    PAYMENT_GATEWAY_FIXTURE_PAYMENT_METHOD.code,
+  );
+  if (removed) {
+    ctx.log.info(
+      `payment_gateway_fixture: removed payment method ${PAYMENT_GATEWAY_FIXTURE_PAYMENT_METHOD.code}`,
+    );
+  }
+};
