@@ -115,7 +115,7 @@ export const invoiceLedgerDeliveryAttemptSchema = z.object({
   status: invoiceLedgerDeliveryStatusSchema,
   at: z.string().datetime(),
   error: z.string().nullable(),
-  /** wFirma-assigned fullnumber on succeeded attempts (feature 129). */
+  /** The vendor-assigned document number on a succeeded attempt (feature 129). */
   remoteVendorNumber: z.string().nullable().optional(),
 });
 export type InvoiceLedgerDeliveryAttempt = z.infer<typeof invoiceLedgerDeliveryAttemptSchema>;

@@ -415,17 +415,17 @@ export interface BackendServerHandle {
   };
   /** Feature 119 — drive the Infakt delivery processor (no BullMQ in this harness). */
   infakt: { processDelivery: (deliveryId: string) => Promise<void> };
-  /** Feature 129 — drive the wFirma delivery processor (no BullMQ in this harness). */
-  wfirma: { processDelivery: (deliveryId: string) => Promise<void> };
   /**
    * Feature 134 / D-256 — drive **any** composed ledger vendor's delivery
    * processor, by its container registration name.
    *
-   * The two accessors above name a vendor each and leave this repository with
-   * the package that answers them; this one names none, so the free ledger suite
-   * can drive the vendor it is given. It refuses rather than returning
-   * `undefined` when nothing is registered under the name — a composition that
-   * silently has no vendor is the state the assertion is about.
+   * The accessor above names a vendor and leaves this repository with the
+   * package that answers it. Its twin has: `wfirma` was the first of the two to
+   * go, and `h.wfirma` went in the same merge request rather than being left to
+   * resolve a registration nothing makes. This one names no vendor, so the free
+   * ledger suite can drive the vendor it is given. It refuses rather than
+   * returning `undefined` when nothing is registered under the name — a
+   * composition that silently has no vendor is the state the assertion is about.
    */
   ledgerDeliveryProcessor: (registrationName: string) => (deliveryId: string) => Promise<void>;
   /** Feature 119 — shared invoice-ledger vendor mutex port. */
@@ -2780,14 +2780,6 @@ export async function setupBackendServer(
             infaktDeliveryProcessor: { process: (id: string) => Promise<void> };
           }
         ).infaktDeliveryProcessor.process(deliveryId),
-    },
-    wfirma: {
-      processDelivery: (deliveryId: string) =>
-        (
-          container.cradle as unknown as {
-            wfirmaDeliveryProcessor: { process: (id: string) => Promise<void> };
-          }
-        ).wfirmaDeliveryProcessor.process(deliveryId),
     },
     ledgerDeliveryProcessor: (registrationName: string) => (deliveryId: string) =>
       (

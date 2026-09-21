@@ -90,4 +90,3 @@ of the platform, not of what happens to be written.
 | [TPay](./tpay.md) | TPay payment gateway (BLIK, cards, transfers) | @endora-commerce/mod-tpay |
 | [transactional_emails](./transactional-emails.md) | Admin-editable transactional emails — subject, content and look, globally and per sales channel | @endora-commerce/mod-transactional-emails |
 | [webhooks](./webhooks.md) | Outbound HMAC-signed event subscriptions | @endora-commerce/mod-webhooks |
-| [wFirma](./wfirma.md) | Thin wFirma adapter on the invoice ledger — credentials, synchronous VAT copy, webhooks, and optional vendor KSeF. | @endora-commerce/mod-wfirma |

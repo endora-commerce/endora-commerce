@@ -6687,31 +6687,6 @@
         }
       }
     },
-    "/api/v1/admin/wfirma/connection": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      },
-      "put": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/admin/wfirma/connection/test": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
     "/api/v1/analytics/events": {
       "post": {
         "responses": {
@@ -7369,15 +7344,6 @@
       }
     },
     "/api/v1/integrations/unopim/webhook": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/integrations/wfirma/webhook/{webhookPathToken}": {
       "post": {
         "responses": {
           "200": {
