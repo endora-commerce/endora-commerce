@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type {
-  CustomerAccountReadPort,
-  OrderReadPort,
-  PaymentMethodReadPort,
-  PaymentReadPort,
-  PaymentReferencePort,
+import {
+  storefrontPaymentReturnUrl,
+  type CustomerAccountReadPort,
+  type OrderReadPort,
+  type PaymentMethodReadPort,
+  type PaymentReadPort,
+  type PaymentReferencePort,
 } from '@endora-commerce/contracts';
+import {
+  PAYMENT_GATEWAY_FIXTURE_STOREFRONT_BASE_URL,
+  paymentGatewayFixtureAdapters,
+} from '../../../src/apps/example/modules/payment_gateway_fixture/backend.js';
 import { AutopayTransactionService } from '../../../../packages/modules/autopay/src/backend/services/autopay-transaction-service.js';
 import type { AutopayClient } from '../../../../packages/modules/autopay/src/backend/services/autopay-client.js';
 import { StripeIntentService } from '../../../../packages/modules/stripe/src/backend/services/stripe-intent-service.js';
@@ -34,6 +39,19 @@ import type { TpayEligibility } from '../../../../packages/modules/tpay/src/back
  * the defect was never the helper — it was which page each gateway named, and
  * two of the six hooks (Stripe's `success_url`, TPay's `successUrl`) were
  * never covered here at all and went on naming the success page directly.
+ *
+ * ## The rule outlives the four gateways, and the last `describe` is why
+ *
+ * Feature 134's wave 2 takes all four of them out of this repository, so every
+ * call site above leaves and the rule would be left with no subject here — a
+ * platform rule whose only proof travels with the vendors it was written
+ * against. `payment_gateway_fixture` is FR-021's answer
+ * (`backend/src/apps/example/modules/payment_gateway_fixture/`): a synthetic
+ * gateway that is not going anywhere, whose redirect adapter builds its landing
+ * the way every hook above must. That case is the one that stays green on the
+ * day the four leave, and it is deliberately written **beside** them rather
+ * than instead of them — the vendor hooks are still here, and a fixture cannot
+ * prove what Stripe's `success_url` says.
  */
 
 /** The one landing, as every hook must build it. */
@@ -237,5 +255,39 @@ describe('TPay return URLs (issue #287)', () => {
     // nobody had confirmed.
     expect(sent.successUrl).toBe(landing(ORDER_ID, 'returned'));
     expect(String(sent.successUrl)).not.toContain('/checkout/success');
+  });
+});
+
+describe('the fixture gateway’s landing (issue #287, FR-021)', () => {
+  /**
+   * The rule's standing subject in this repository.
+   *
+   * It builds on its own origin rather than on `BASE`, because the fixture
+   * configures nothing: what the rule is about is the **path**, and an origin a
+   * deployment supplies is not part of it. So the assertion is written against
+   * `storefrontPaymentReturnUrl` — the free contract helper the rule lives in —
+   * applied to the fixture's own base, which is the same equality the four
+   * `landing(…)` assertions above make against theirs.
+   */
+  it('hands the buyer to the resolving landing, and never to the success page', async () => {
+    const [redirect] = paymentGatewayFixtureAdapters();
+    const started = await redirect!.onStorefrontOrderCreated({
+      orderId: ORDER_ID,
+      paymentId: PAYMENT_ID,
+      amount: 100,
+      currency: 'PLN',
+    });
+
+    expect(started.kind).toBe('redirect');
+    const url = (started as { kind: 'redirect'; url: string }).url;
+    expect(url).toBe(
+      storefrontPaymentReturnUrl(
+        PAYMENT_GATEWAY_FIXTURE_STOREFRONT_BASE_URL,
+        ORDER_ID,
+        'returned',
+      ),
+    );
+    expect(url).toContain('/checkout/return?');
+    expect(url).not.toContain('/checkout/success');
   });
 });
