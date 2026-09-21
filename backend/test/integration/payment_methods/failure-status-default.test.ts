@@ -40,6 +40,17 @@ import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
  * `setupTestDb` rather than `setupMigratorTestDb`: the rows are written by this
  * file, inside a transaction that is rolled back, so there is nothing to clone a
  * template for.
+ *
+ * ### Every assertion is scoped to the rows the seeds wrote, and that is not a weakening
+ *
+ * The previous shape read the **whole** `payment_methods` table, which was sound
+ * only because its fixture was a pristine clone of the migrated template. On the
+ * shared harness database the table also holds whatever earlier files in the
+ * invocation left there — measured: a `bank_transfer` row at a terminal failure
+ * status, written by another file and correctly none of this file's business. The
+ * subject is *what a fresh install ships*, so the population is the codes that
+ * were not there before `runEverySeed()` and are after it, and a floor below
+ * refuses a run in which that set is empty.
  */
 
 /** A module that can seed a `payment_methods` row at install time. */
@@ -66,21 +77,21 @@ async function failureStatusByCode(em: EntityManager): Promise<Map<string, strin
 }
 
 /**
- * The methods whose failure status is a **terminal** order status — the actual
- * invariant. `cancelled` is the one that shipped, but `completed` is terminal too
- * and any operator-defined status can be, so this is read off
- * `order_statuses.is_terminal` rather than off a literal.
+ * The **terminal** order statuses — the actual invariant. `cancelled` is the one
+ * that shipped, but `completed` is terminal too and any operator-defined status
+ * can be, so this is read off `order_statuses.is_terminal` rather than off a
+ * literal.
  */
-async function methodsFailingIntoATerminalStatus(
-  em: EntityManager,
-): Promise<{ code: string; status_on_failure: string }[]> {
-  return em.execute<{ code: string; status_on_failure: string }[]>(`
-    select "payment_methods"."code", "payment_methods"."status_on_failure"
-    from "payment_methods"
-    join "order_statuses" on "order_statuses"."code" = "payment_methods"."status_on_failure"
-    where "order_statuses"."is_terminal" = true
-    order by "payment_methods"."code" asc
-  `);
+async function terminalStatusCodes(em: EntityManager): Promise<Set<string>> {
+  const rows = await em.execute<{ code: string }[]>(
+    'select "code" from "order_statuses" where "is_terminal" = true',
+  );
+  return new Set(rows.map((row) => row.code));
+}
+
+async function knownStatusCodes(em: EntityManager): Promise<Set<string>> {
+  const rows = await em.execute<{ code: string }[]>('select "code" from "order_statuses"');
+  return new Set(rows.map((row) => row.code));
 }
 
 describe('shipped status_on_failure default [integration]', () => {
@@ -113,8 +124,20 @@ describe('shipped status_on_failure default [integration]', () => {
     }
   }
 
+  /**
+   * The rows a fresh install would hold, isolated from whatever else is in the
+   * shared table: the codes that were absent before every seed hook ran and
+   * present after.
+   */
+  async function seedAndCollect(): Promise<Map<string, string>> {
+    const before = new Set((await failureStatusByCode(db.em())).keys());
+    await runEverySeed();
+    const after = await failureStatusByCode(db.em());
+    return new Map([...after].filter(([code]) => !before.has(code)));
+  }
+
   it('has a non-empty population of seeding modules', () => {
-    // The non-vacuity floor. With no seeding module the two assertions below are
+    // The non-vacuity floor. With no seeding module the assertions below are
     // statements about nothing, and "read nothing" would print the same green as
     // "found nothing" — the failure this file's previous shape was rewritten to
     // avoid and then, at FR-064, inherited in a new form.
@@ -126,37 +149,35 @@ describe('shipped status_on_failure default [integration]', () => {
   });
 
   it('leaves no payment method whose failed payment ends the order', async () => {
-    await runEverySeed();
-
-    // The join is only sound if every `status_on_failure` names a status that
-    // exists, or a bad value would be dropped by the join rather than reported.
-    const byCode = await failureStatusByCode(db.em());
-    const known = new Set(
-      (await db.em().execute<{ code: string }[]>('select "code" from "order_statuses"')).map(
-        (row) => row.code,
-      ),
+    const seeded = await seedAndCollect();
+    // Each seeding module writes at least one row, or the assertions are about an
+    // empty set.
+    expect(seeded.size, 'the seeding modules wrote no rows').toBeGreaterThanOrEqual(
+      modules.length,
     );
-    const dangling = [...byCode].filter(([, status]) => !known.has(status));
-    expect(dangling, 'a payment method names an order status that does not exist').toEqual([]);
 
+    // The terminal check is only sound if every `status_on_failure` names a status
+    // that exists, or a bad value would be missed rather than reported.
+    const known = await knownStatusCodes(db.em());
+    const dangling = [...seeded].filter(([, status]) => !known.has(status));
+    expect(dangling, 'a seeded payment method names an order status that does not exist').toEqual(
+      [],
+    );
+
+    const terminal = await terminalStatusCodes(db.em());
     expect(
-      await methodsFailingIntoATerminalStatus(db.em()),
+      [...seeded].filter(([, status]) => terminal.has(status)),
       'A freshly installed platform still has payment methods whose failure status is ' +
         'terminal. A terminal status cannot be left, so the buyer cannot pay again.',
     ).toEqual([]);
   }, 120_000);
 
   it('holds every row a seeding module writes at the on-hold failure status', async () => {
-    const before = new Set((await failureStatusByCode(db.em())).keys());
-    await runEverySeed();
-    const after = await failureStatusByCode(db.em());
-
-    const seeded = [...after].filter(([code]) => !before.has(code));
-    // Each seeding module writes at least one row, or the assertion below is a
-    // statement about an empty list.
-    expect(seeded.length, 'the seeding modules wrote no rows').toBeGreaterThanOrEqual(
-      modules.length,
-    );
+    // Stronger than the terminal check above and the reason the five
+    // `*_failure_status_on_hold` migrations retire: not merely "not terminal", but
+    // the exact value the correction used to write.
+    const seeded = await seedAndCollect();
+    expect(seeded.size).toBeGreaterThanOrEqual(modules.length);
     for (const [code, status] of seeded) expect(status, code).toBe('on_hold');
   }, 120_000);
 
