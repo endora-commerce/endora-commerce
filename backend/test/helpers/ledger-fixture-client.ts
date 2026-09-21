@@ -63,3 +63,11 @@ export class ScriptedLedgerFixtureClient implements LedgerFixtureHttpPort {
     this.nextKsefReferenceNumber = null;
   }
 }
+
+/** The module id, the credential code and the container registration, in one place. */
+export const LEDGER_FIXTURE = {
+  moduleId: 'ledger_vendor_fixture',
+  credentialCode: 'ledger_vendor_fixture',
+  deliveryProcessor: 'ledgerFixtureDeliveryProcessor',
+  apiKey: 'ledger-fixture-api-key-256',
+} as const;

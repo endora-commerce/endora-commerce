@@ -9,7 +9,8 @@ import {
 } from '../../helpers/test-server.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import { seedInvoiceableOrder, setSellerSettings } from './helpers.js';
-import { ADMIN, prepareInfaktVatCopy, waitForDelivery } from '../invoice_ledger/helpers.js';
+import { ADMIN, waitForDelivery } from '../invoice_ledger/helpers.js';
+import { prepareInfaktVatCopy } from '../infakt/helpers.js';
 
 const VENDOR_NUMBER = 'FV/INF/42';
 const AUDIT = { actorAdminUserId: '00000000-0000-0000-0000-000000000000' };

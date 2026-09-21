@@ -286,8 +286,8 @@ export interface BackendServerOptions {
    *
    * **It was two named options, `infaktHttp` and `wfirmaHttp`, and D-256's wave-4
    * prologue is why it is one map.** Each named option had to annotate itself
-   * with the vendor's port type, which put `InfaktHttpPort` and `WfirmaHttpPort`
-   * — two symbols out of `packages/contracts/src/{infakt,wfirma}.ts` — into a
+   * with the vendor's own HTTP port type — a symbol out of
+   * `packages/contracts/src/{infakt,wfirma}.ts` — which put two of them into a
    * **free** harness file that stays in this repository when the two vendors
    * leave it. `contracts/extraction-procedure.md` **E5** stops on exactly that:
    * *"if `git grep -w <Symbol>` outside the module still answers, W1 was

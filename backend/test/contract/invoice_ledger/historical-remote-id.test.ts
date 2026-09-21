@@ -5,10 +5,11 @@ import {
   InvoiceLedgerDelivery,
   InvoiceLedgerDocumentMap,
 } from '../../helpers/package-entities.js';
+import { LEDGER_FIXTURE } from '../../helpers/ledger-fixture-client.js';
 import {
-  activateInfakt,
-  deactivateInfakt,
-} from '../../integration/invoice_ledger/helpers.js';
+  activateLedgerFixture,
+  deactivateLedgerFixture,
+} from '../../integration/invoice_ledger/fixture-vendor.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -23,7 +24,16 @@ const REMOTE_ID = 'inv-us9-ledger-read-1';
 
 /**
  * T077 / FR-040 / C1. Historical remote ids stay on invoice admin through a
- * ledger read. Infakt off must not hide them and must not delete the map.
+ * ledger read: **the vendor being off must not hide them and must not delete the
+ * map**, because a row outlives the module that wrote it and hiding it would look
+ * like data loss.
+ *
+ * Feature 134 / D-256 — the vendor is `ledger_vendor_fixture`, the example
+ * deployment's synthetic one, where it used to be `infakt`. Nothing about the
+ * assertion is a vendor's: the two rows are seeded directly and the subject is
+ * the free ledger's own admin list. Driving it through a paid module is what
+ * `contracts/extraction-procedure.md` E5 refuses, and this file is the free
+ * module's own API contract, so it is re-pointed rather than moved.
  */
 describe('invoice_ledger — historical remote id [contract]', () => {
   let h: BackendServerHandle;
@@ -32,8 +42,8 @@ describe('invoice_ledger — historical remote id [contract]', () => {
   beforeAll(async () => {
     process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] =
       process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] ?? randomBytes(32).toString('base64');
-    h = await setupBackendServer();
-    await activateInfakt(h);
+    h = await setupBackendServer({ deployment: 'example' });
+    await activateLedgerFixture(h);
     await withSystemScope('seed historical ledger remote id', async () => {
       const em = h.em();
       // Both rows carry their own organization since the two ledger tables
@@ -41,25 +51,25 @@ describe('invoice_ledger — historical remote id [contract]', () => {
       // the fixture seeds an organization rather than inventing a UUID.
       const org = await seedAdHocOrganization(em, 'Historical Remote Id Fixture');
       em.create(InvoiceLedgerDocumentMap, {
-        adapterId: 'infakt',
+        adapterId: LEDGER_FIXTURE.moduleId,
         invoiceId,
         organizationId: org.id,
         remoteDocumentId: REMOTE_ID,
         environment: 'sandbox',
-        credentialCode: 'infakt',
+        credentialCode: LEDGER_FIXTURE.credentialCode,
       });
       em.create(InvoiceLedgerDelivery, {
-        adapterId: 'infakt',
+        adapterId: LEDGER_FIXTURE.moduleId,
         invoiceId,
         organizationId: org.id,
         kind: 'invoice',
-        credentialCode: 'infakt',
+        credentialCode: LEDGER_FIXTURE.credentialCode,
         environment: 'sandbox',
         numberingMode: 'endora',
         ksefRouting: 'native',
         status: 'succeeded',
         remoteDocumentId: REMOTE_ID,
-        idempotencyKey: `infakt:${invoiceId}`,
+        idempotencyKey: `${LEDGER_FIXTURE.moduleId}:${invoiceId}`,
       });
       await em.flush();
     });
@@ -69,8 +79,8 @@ describe('invoice_ledger — historical remote id [contract]', () => {
     await teardownBackendServer(h);
   });
 
-  it('returns the remote document id from the ledger while Infakt is off', async () => {
-    await deactivateInfakt(h);
+  it('returns the remote document id from the ledger while the vendor is off', async () => {
+    await deactivateLedgerFixture(h);
 
     const maps = await withSystemScope('count historical maps after deactivate', () =>
       h.em().fork().count(InvoiceLedgerDocumentMap, { invoiceId, remoteDocumentId: REMOTE_ID }),
