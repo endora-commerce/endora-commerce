@@ -124,18 +124,6 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
       "reason": "The fixture’s API key and webhook secret, resolved by the frozen credential code the delivery row carries rather than by a live settings read — freezing is the property the free ledger’s retry assertions are about, and a fixture that read live values would exercise the opposite of it."
     },
     {
-      "key": "port-consumed:ledger_vendor_fixture:credentialsService",
-      "kind": "port-consumed",
-      "module": "ledger_vendor_fixture",
-      "subject": "credentialsService",
-      "owner": "credentials",
-      "rung": 3,
-      "detail": {
-        "kind": "port-consumed"
-      },
-      "reason": "The fixture’s API key and webhook secret, resolved by the frozen credential code the delivery row carries rather than by a live settings read — freezing is the property the free ledger’s retry assertions are about, and a fixture that read live values would exercise the opposite of it."
-    },
-    {
       "key": "port-consumed:ledger_vendor_fixture:invoiceCopyHostPort",
       "kind": "port-consumed",
       "module": "ledger_vendor_fixture",
@@ -230,6 +218,18 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
         "kind": "registration"
       },
       "reason": "Core registers no service of this name — it is this deployment’s own, and it exists so that the container’s ownership ledger has an overlay claimant to answer for. A core module registering `exampleOverlayService` would collide loudly, which is the property being demonstrated."
+    },
+    {
+      "key": "registration:ledger_vendor_fixture:ledgerFixtureConnection",
+      "kind": "registration",
+      "module": "ledger_vendor_fixture",
+      "subject": "ledgerFixtureConnection",
+      "owner": "ledger_vendor_fixture",
+      "rung": null,
+      "detail": {
+        "kind": "registration"
+      },
+      "reason": "Where this vendor resolves `credentials` from, and it is a registration rather than a closure inside the boot hook for a reason `check:port-dependencies` states better than prose would: `credentialsService` is a gated port, a boot hook runs whatever the owning module’s effective state is, and a resolution written there would let an operator switching `credentials` off stop the next start with the screen they would undo it from unreachable. Registered, the resolution happens in a factory the container calls at use, so the same “no” stops one enqueue. It is the shape both real vendors already have."
     },
     {
       "key": "registration:ledger_vendor_fixture:ledgerFixtureDeliveryProcessor",

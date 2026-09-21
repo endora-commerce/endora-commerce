@@ -92,6 +92,15 @@ export const divergence: DeploymentDivergenceDeclaration = {
       'a client that **refuses** every call, for the same reason `product_feeds`’ delivery ' +
       'adapters do: there is no remote here, so a code path that starts reaching for one has to ' +
       'fail loudly rather than quietly succeed.',
+    'registration:ledger_vendor_fixture:ledgerFixtureConnection':
+      'Where this vendor resolves `credentials` from, and it is a registration rather than a ' +
+      'closure inside the boot hook for a reason `check:port-dependencies` states better than ' +
+      'prose would: `credentialsService` is a gated port, a boot hook runs whatever the owning ' +
+      'module\u2019s effective state is, and a resolution written there would let an operator ' +
+      'switching `credentials` off stop the next start with the screen they would undo it from ' +
+      'unreachable. Registered, the resolution happens in a factory the container calls at use, ' +
+      'so the same \u201cno\u201d stops one enqueue. It is the shape both real vendors already ' +
+      'have.',
     'registration:ledger_vendor_fixture:ledgerFixtureDeliveryProcessor':
       'The vendor half of a delivery: the sequence of calls a ledger vendor makes between ' +
       'picking a queued row up and marking it delivered. It owns no queue and no worker, ' +

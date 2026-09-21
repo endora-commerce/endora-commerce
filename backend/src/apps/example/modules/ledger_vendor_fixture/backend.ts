@@ -7,6 +7,7 @@ import {
   type InvoiceKsefAssignmentPort,
   type InvoiceLedgerDeliveryPort,
   type InvoiceLedgerRegistryPort,
+  type InvoiceLedgerVendorFreeze,
   type InvoiceLedgerVendorFreezeRegistryPort,
   type InvoiceLedgerWebhookPort,
   type InvoiceNumberingHostPort,
@@ -57,6 +58,26 @@ export const LEDGER_FIXTURE_WEBHOOK_SECRET_HEADER = 'x-ledger-fixture-secret';
 interface LedgerFixtureCradle {
   readonly ledgerFixtureHttp: LedgerFixtureHttpPort;
   readonly ledgerFixtureDeliveryProcessor: ReturnType<typeof bindLedgerFixtureDeliveryProcessor>;
+  readonly ledgerFixtureConnection: LedgerFixtureConnection;
+}
+
+/**
+ * What the boot hook hands the freeze registry, and the reason it is a
+ * registration rather than a closure written inside `onBoot`.
+ *
+ * `credentialsService` is a **gated** port, and a boot hook runs whatever the
+ * owning module's effective state is — `runBootHooks()` does not consult
+ * presence. So resolving it beside the contribution would let an operator
+ * switching `credentials` off stop the next start, with the API down and the
+ * screen they would undo it from unreachable; `check:port-dependencies` reports
+ * exactly that, and it reads the resolution's **lexical position** rather than
+ * when it runs. Registering the resolver moves the resolution into a factory the
+ * container calls at use, which is the shape both real vendors already have
+ * (`infakt`'s `infaktConnection`, `wfirma`'s `wfirmaConnection`).
+ */
+interface LedgerFixtureConnection {
+  resolveEnqueueFreeze(salesChannelId: string | null): Promise<InvoiceLedgerVendorFreeze>;
+  resolveWebhookSecret(): Promise<string | null>;
 }
 
 function headerString(value: string | string[] | undefined): string | null {
@@ -75,6 +96,22 @@ function secretsMatch(expected: string, received: string): boolean {
 export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     ledgerFixtureHttp: ctx.asFunction(() => refusingLedgerFixtureHttp()).singleton(),
+    ledgerFixtureConnection: ctx
+      .asFunction((): LedgerFixtureConnection => {
+        const credentials = (): CredentialsPort =>
+          lazyPort<CredentialsPort>(ctx, 'credentialsService');
+        return {
+          resolveEnqueueFreeze: (salesChannelId) =>
+            resolveLedgerFixtureFreeze(credentials(), salesChannelId),
+          resolveWebhookSecret: async () => {
+            const resolved = await credentials().resolve(LEDGER_FIXTURE_CREDENTIAL_CODE);
+            if (resolved.status !== 'ok') return null;
+            const secret = resolved.values['webhookSecret'];
+            return typeof secret === 'string' && secret.length > 0 ? secret : null;
+          },
+        };
+      })
+      .singleton(),
     ledgerFixtureDeliveryProcessor: ctx
       .asFunction(({ ledgerFixtureHttp }: LedgerFixtureCradle) =>
         bindLedgerFixtureDeliveryProcessor({
@@ -93,11 +130,11 @@ export function registerModule(ctx: ModuleContext): void {
     lazyPort<ConfigurationTypeRegistryPort>(ctx, 'configurationTypeRegistry').register(
       ledgerFixtureConfigurationType,
     );
-    const credentials = lazyPort<CredentialsPort>(ctx, 'credentialsService');
+    const cradle = ctx.cradle<LedgerFixtureCradle>();
     lazyPort<InvoiceLedgerVendorFreezeRegistryPort>(ctx, 'invoiceLedgerVendorFreezeRegistry')
       .register(
         LEDGER_VENDOR_FIXTURE_MODULE_ID,
-        (salesChannelId) => resolveLedgerFixtureFreeze(credentials, salesChannelId),
+        (salesChannelId) => cradle.ledgerFixtureConnection.resolveEnqueueFreeze(salesChannelId),
         LEDGER_VENDOR_FIXTURE_MODULE_ID,
       );
   });
@@ -149,11 +186,11 @@ export function registerModule(ctx: ModuleContext): void {
    */
   ctx.routes(async (app) => {
     app.post('/api/v1/integrations/ledger-vendor-fixture/webhook', async (request, reply) => {
-      const credentials = lazyPort<CredentialsPort>(ctx, 'credentialsService');
-      const resolved = await credentials.resolve(LEDGER_FIXTURE_CREDENTIAL_CODE);
-      const stored = resolved.status === 'ok' ? resolved.values['webhookSecret'] : undefined;
+      const stored = await ctx
+        .cradle<LedgerFixtureCradle>()
+        .ledgerFixtureConnection.resolveWebhookSecret();
       const received = headerString(request.headers[LEDGER_FIXTURE_WEBHOOK_SECRET_HEADER]);
-      if (typeof stored !== 'string' || stored === '' || !received || !secretsMatch(stored, received)) {
+      if (stored === null || !received || !secretsMatch(stored, received)) {
         throw new HttpError(
           401,
           ERROR_CODES.UNAUTHORIZED,
