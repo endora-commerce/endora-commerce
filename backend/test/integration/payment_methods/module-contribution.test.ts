@@ -38,13 +38,13 @@ describe('payment-method module contribution', () => {
 
   it('a registered adapter is recognised and backs a configurable entry', async () => {
     const registry = new PaymentAdapterRegistry();
-    const reconciler = new PaymentMethodReconciler(h.em);
+    const reconciler = new PaymentMethodReconciler();
     const key = `vendor_${randomUUID().slice(0, 8)}`;
     const code = `vendor_code_${randomUUID().slice(0, 8)}`;
 
     // The module's install hook would do exactly this:
     registry.register(myAdapter(key), 'vendor_module');
-    await reconciler.ensureMethodForAdapter(key, {
+    await reconciler.ensureMethodForAdapter(h.em(), key, {
       code,
       type: 'gateway',
       name: { default: 'Vendor Gateway' },

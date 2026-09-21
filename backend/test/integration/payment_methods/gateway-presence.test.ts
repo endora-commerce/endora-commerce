@@ -250,20 +250,24 @@ describe('payment methods of an absent gateway [integration]', () => {
     // Seeding is a migration now and this call — the one the boot used to make
     // per method code — must leave the operator's unbind alone.
     const unboundCode = `unbound_probe_${randomUUID().slice(0, 8)}`;
-    const reconciler = new PaymentMethodReconciler(h.em);
-    const row = await reconciler.ensureMethodForAdapter('bank_transfer', {
+    const reconciler = new PaymentMethodReconciler();
+    const { row, created } = await reconciler.ensureMethodForAdapter(h.em(), 'bank_transfer', {
       code: unboundCode,
       type: 'bank_transfer',
       name: { default: 'Unbound probe' },
     });
 
+    // `ensureMethodForAdapter` binds nothing, whoever calls it: the binding is
+    // `bindToDefaultChannel`'s, and a caller issues it once, on `created === true`.
+    expect(created).toBe(true);
     expect(await channelCount(h, row.id)).toBe(0);
 
-    await reconciler.ensureMethodForAdapter('bank_transfer', {
+    const again = await reconciler.ensureMethodForAdapter(h.em(), 'bank_transfer', {
       code: unboundCode,
       type: 'bank_transfer',
       name: { default: 'Unbound probe' },
     });
+    expect(again.created).toBe(false);
     expect(await channelCount(h, row.id)).toBe(0);
   });
 });
