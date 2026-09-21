@@ -14,7 +14,8 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
     "comarch_xl_example_overlay",
     "erp_incumbent_fixture",
     "example_overlay",
-    "ledger_vendor_fixture"
+    "ledger_vendor_fixture",
+    "payment_gateway_fixture"
   ],
   "entries": [
     {
@@ -206,6 +207,18 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
         "kind": "port-consumed"
       },
       "reason": "The write a vendor makes back onto an invoice when the ledger’s numbering mode hands numbering to the vendor. Consumed rather than simulated, because `applyVendorAssignedNumber` would otherwise have no caller in this repository after wave 4."
+    },
+    {
+      "key": "port-consumed:payment_gateway_fixture:paymentAdapterRegistry",
+      "kind": "port-consumed",
+      "module": "payment_gateway_fixture",
+      "subject": "paymentAdapterRegistry",
+      "owner": "payment_methods",
+      "rung": 3,
+      "detail": {
+        "kind": "port-consumed"
+      },
+      "reason": "The contribution seam `payment_methods` publishes for a module that settles a payment, reached from this fixture’s boot hook so that the gateway port keeps an implementor in this repository after feature 134’s wave 2 removes `autopay`, `paypal`, `payu`, `stripe` and `tpay` (FR-021, FR-063). It is the carrier fixture’s entry above one family over, and rung 3 read exactly as the ladder intends: the owner published the seam, the consumer declares the dependency, and nothing of `payment_methods` is wrapped or replaced. The fixture is a reference implementor rather than a payment capability — it seeds no method, owns no table and serves no route — so what this deployment gains is a contributor to an existing registry and no behaviour a shop would notice."
     },
     {
       "key": "registration:example_overlay:exampleOverlayService",
