@@ -18,8 +18,8 @@ import type { TestOwnershipLedgerEntry } from '../../check-test-ownership.js';
 /**
  * The batch that retires every entry below.
  *
- * One constant rather than 6 copies of one sentence: the files differ, the
- * reason does not, and a per-file paraphrase would be 6 chances to write a
+ * One constant rather than 1 copies of one sentence: the files differ, the
+ * reason does not, and a per-file paraphrase would be 1 chances to write a
  * different one.
  */
 const SCHEDULED: TestOwnershipLedgerEntry = {
@@ -33,11 +33,15 @@ const SCHEDULED: TestOwnershipLedgerEntry = {
     'feature 106\'s residue, tracked as `specs/109-backend-test-kit/` Phase 5.',
 };
 
+/**
+ * Five entries stood here and are gone (**D-262** clause 1, 2026-09-21).
+ *
+ * They were not moved: the placement predicate took a third member. Each of them calls
+ * `setupTestDb`, which awaits the generated entity index and the migration registry,
+ * so contract §1 reads each as the **host's** file wherever it sits. The entries promised a
+ * batch that would move them into the package, and that is a move D-252 forbids — an entry
+ * scheduling an impossible move is worse than no entry.
+ */
 export const entries: Readonly<Record<string, TestOwnershipLedgerEntry>> = {
-  'backend/test/integration/dictionaries/language-country-service.test.ts': SCHEDULED,
-  'backend/test/integration/dictionaries/translations.polymorphic-fk.test.ts': SCHEDULED,
-  'backend/test/unit/dictionaries/label-resolver.test.ts': SCHEDULED,
   'backend/test/unit/dictionaries/plugin-skeleton.test.ts': SCHEDULED,
-  'backend/test/unit/dictionaries/validator-lru-invalidation.test.ts': SCHEDULED,
-  'backend/test/unit/dictionaries/validator-port.test.ts': SCHEDULED,
 };

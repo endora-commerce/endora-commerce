@@ -18,8 +18,8 @@ import type { TestOwnershipLedgerEntry } from '../../check-test-ownership.js';
 /**
  * The batch that retires every entry below.
  *
- * One constant rather than 4 copies of one sentence: the files differ, the
- * reason does not, and a per-file paraphrase would be 4 chances to write a
+ * One constant rather than 1 copies of one sentence: the files differ, the
+ * reason does not, and a per-file paraphrase would be 1 chances to write a
  * different one.
  */
 const SCHEDULED: TestOwnershipLedgerEntry = {
@@ -33,9 +33,15 @@ const SCHEDULED: TestOwnershipLedgerEntry = {
     'feature 106\'s residue, tracked as `specs/109-backend-test-kit/` Phase 5.',
 };
 
+/**
+ * Three entries stood here and are gone (**D-262** clause 1, 2026-09-21).
+ *
+ * They were not moved: the placement predicate took a third member. Each of them calls
+ * `setupTestDb`, which awaits the generated entity index and the migration registry,
+ * so contract §1 reads each as the **host's** file wherever it sits. The entries promised a
+ * batch that would move them into the package, and that is a move D-252 forbids — an entry
+ * scheduling an impossible move is worse than no entry.
+ */
 export const entries: Readonly<Record<string, TestOwnershipLedgerEntry>> = {
-  'backend/test/integration/sales_channels/admin-default-undeletable.test.ts': SCHEDULED,
-  'backend/test/integration/sales_channels/audit-trail-coverage.test.ts': SCHEDULED,
-  'backend/test/integration/sales_channels/set-default-flag-move.test.ts': SCHEDULED,
   'backend/test/unit/sales_channels/set-default-command.test.ts': SCHEDULED,
 };

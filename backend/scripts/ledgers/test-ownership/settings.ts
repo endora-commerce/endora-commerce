@@ -18,8 +18,8 @@ import type { TestOwnershipLedgerEntry } from '../../check-test-ownership.js';
 /**
  * The batch that retires every entry below.
  *
- * One constant rather than 12 copies of one sentence: the files differ, the
- * reason does not, and a per-file paraphrase would be 12 chances to write a
+ * One constant rather than 6 copies of one sentence: the files differ, the
+ * reason does not, and a per-file paraphrase would be 6 chances to write a
  * different one.
  */
 const SCHEDULED: TestOwnershipLedgerEntry = {
@@ -33,17 +33,20 @@ const SCHEDULED: TestOwnershipLedgerEntry = {
     'feature 106\'s residue, tracked as `specs/109-backend-test-kit/` Phase 5.',
 };
 
+/**
+ * Six entries stood here and are gone (**D-262** clause 1, 2026-09-21).
+ *
+ * They were not moved: the placement predicate took a third member. Each of them calls
+ * `setupTestDb`, which awaits the generated entity index and the migration registry,
+ * so contract §1 reads each as the **host's** file wherever it sits. The entries promised a
+ * batch that would move them into the package, and that is a move D-252 forbids — an entry
+ * scheduling an impossible move is worse than no entry.
+ */
 export const entries: Readonly<Record<string, TestOwnershipLedgerEntry>> = {
-  'backend/test/integration/settings/boot-time-sync.test.ts': SCHEDULED,
-  'backend/test/integration/settings/group-delete-cascades-to-general.test.ts': SCHEDULED,
-  'backend/test/integration/settings/sales-channel-removal.test.ts': SCHEDULED,
-  'backend/test/integration/settings/write-validators.test.ts': SCHEDULED,
   'backend/test/unit/settings/boot-reconcile-parity.test.ts': SCHEDULED,
   'backend/test/unit/settings/boot-reconcile-population.test.ts': SCHEDULED,
   'backend/test/unit/settings/cache-admin-service.test.ts': SCHEDULED,
   'backend/test/unit/settings/homepage-resolver.test.ts': SCHEDULED,
-  'backend/test/unit/settings/manifest-reconciler.test.ts': SCHEDULED,
-  'backend/test/unit/settings/settings-resolver.test.ts': SCHEDULED,
   'backend/test/unit/settings/shop-info-resolver.test.ts': SCHEDULED,
   'backend/test/unit/settings/storefront-resolver-channel-scope.test.ts': SCHEDULED,
 };

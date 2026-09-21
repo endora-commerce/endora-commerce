@@ -18,8 +18,8 @@ import type { TestOwnershipLedgerEntry } from '../../check-test-ownership.js';
 /**
  * The batch that retires every entry below.
  *
- * One constant rather than 9 copies of one sentence: the files differ, the
- * reason does not, and a per-file paraphrase would be 9 chances to write a
+ * One constant rather than 1 copies of one sentence: the files differ, the
+ * reason does not, and a per-file paraphrase would be 1 chances to write a
  * different one.
  */
 const SCHEDULED: TestOwnershipLedgerEntry = {
@@ -33,14 +33,15 @@ const SCHEDULED: TestOwnershipLedgerEntry = {
     'feature 106\'s residue, tracked as `specs/109-backend-test-kit/` Phase 5.',
 };
 
+/**
+ * Eight entries stood here and are gone (**D-262** clause 1, 2026-09-21).
+ *
+ * They were not moved: the placement predicate took a third member. Each of them calls
+ * `setupTestDb`, which awaits the generated entity index and the migration registry,
+ * so contract §1 reads each as the **host's** file wherever it sits. The entries promised a
+ * batch that would move them into the package, and that is a move D-252 forbids — an entry
+ * scheduling an impossible move is worse than no entry.
+ */
 export const entries: Readonly<Record<string, TestOwnershipLedgerEntry>> = {
-  'backend/test/integration/customers/customer-group-pricing.test.ts': SCHEDULED,
   'backend/test/integration/kernel/decoration.test.ts': SCHEDULED,
-  'backend/test/integration/price_lists/bracket-pricing-end-to-end.test.ts': SCHEDULED,
-  'backend/test/integration/price_lists/listing-price-per-organization.test.ts': SCHEDULED,
-  'backend/test/integration/price_lists/rule-builder-normalisation.test.ts': SCHEDULED,
-  'backend/test/integration/price_lists/status-lifecycle.test.ts': SCHEDULED,
-  'backend/test/integration/price_lists/status-sweeper-gating.test.ts': SCHEDULED,
-  'backend/test/integration/price_lists/system-price-list-singleton.test.ts': SCHEDULED,
-  'backend/test/unit/price_lists/price-list-status-worker.test.ts': SCHEDULED,
 };

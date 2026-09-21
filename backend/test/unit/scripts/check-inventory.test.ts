@@ -95,7 +95,7 @@ import {
   SERVER_BOUND_BLOG_TEST,
   shard as testOwnershipShard,
 } from '../../helpers/test-ownership-fixture.js';
-import { vacuousTestOwnership } from '../../../scripts/check-test-ownership.js';
+import { HOST_COMPOSERS, vacuousTestOwnership } from '../../../scripts/check-test-ownership.js';
 import { ADMIN_HOST_OWNER } from '../../../scripts/lib/admin-surfaces.js';
 import { checkEmittedFreshness } from '../../../scripts/lib/emitted-freshness.js';
 import {
@@ -639,6 +639,21 @@ function applicationReachInput(sources: Record<string, string>): ApplicationReac
 
 /** The fixture enters the check where a real run does: source text in, findings out. */
 const top = (prove: () => number): RedProof => ({ enters: 'top', prove });
+
+/**
+ * `check:test-ownership` — a sound §7 record: every member of the
+ * host-composition set declared, at its own path, by its own file.
+ *
+ * Derived from {@link HOST_COMPOSERS} rather than written out, so a fourth
+ * member arrives in this record with the list (D-262 clause 1) instead of
+ * leaving the `harness-not-found` proof silently short of one subject.
+ */
+const SOUND_COMPOSER_SOURCES: Readonly<Record<string, string | null>> = Object.fromEntries(
+  HOST_COMPOSERS.map((composer) => [
+    composer.name,
+    `export async function ${composer.name}() {}\n`,
+  ]),
+);
 
 /**
  * `check:env-inputs` — a declaration and the source text it is reconciled
@@ -11028,7 +11043,7 @@ const CHECKS: readonly CheckEntry[] = [
           attributions: 1090,
           packagesDeclaringTests: 56,
           ledgerDirectoryExists: true,
-          harnessSource: 'export async function setupBackendServer() {}\n',
+          composerSources: SOUND_COMPOSER_SOURCES,
         }) === null
           ? 0
           : 1,
@@ -11040,7 +11055,7 @@ const CHECKS: readonly CheckEntry[] = [
           attributions: 1090,
           packagesDeclaringTests: 56,
           ledgerDirectoryExists: true,
-          harnessSource: 'export async function setupBackendServer() {}\n',
+          composerSources: SOUND_COMPOSER_SOURCES,
         }) === null
           ? 0
           : 1,
@@ -11054,7 +11069,7 @@ const CHECKS: readonly CheckEntry[] = [
           attributions: 0,
           packagesDeclaringTests: 56,
           ledgerDirectoryExists: true,
-          harnessSource: 'export async function setupBackendServer() {}\n',
+          composerSources: SOUND_COMPOSER_SOURCES,
         }) === null
           ? 0
           : 1,
@@ -11066,7 +11081,7 @@ const CHECKS: readonly CheckEntry[] = [
           attributions: 1090,
           packagesDeclaringTests: 0,
           ledgerDirectoryExists: true,
-          harnessSource: 'export async function setupBackendServer() {}\n',
+          composerSources: SOUND_COMPOSER_SOURCES,
         }) === null
           ? 0
           : 1,
@@ -11080,14 +11095,16 @@ const CHECKS: readonly CheckEntry[] = [
           attributions: 1090,
           packagesDeclaringTests: 56,
           ledgerDirectoryExists: false,
-          harnessSource: 'export async function setupBackendServer() {}\n',
+          composerSources: SOUND_COMPOSER_SOURCES,
         }) === null
           ? 0
           : 1,
       ),
-      // The `composesServer` predicate's subject. A harness that moved or was
-      // renamed must be a refusal, never a reclassification of every
-      // server-bound file in the tree at once.
+      // The `composesServer` predicate's subjects — **all three of them**
+      // (D-262 clause 1). A declaring file that moved or a member that was
+      // renamed must be a refusal, never a reclassification of every file
+      // composing through it at once. Proven over the member added last,
+      // because a refusal written for the first alone is what this fixes.
       'harness-not-found': top(() =>
         vacuousTestOwnership({
           applicationFiles: 1428,
@@ -11095,7 +11112,7 @@ const CHECKS: readonly CheckEntry[] = [
           attributions: 1090,
           packagesDeclaringTests: 56,
           ledgerDirectoryExists: true,
-          harnessSource: 'export async function bootServer() {}\n',
+          composerSources: { ...SOUND_COMPOSER_SOURCES, setupTestDb: null },
         }) === null
           ? 0
           : 1,

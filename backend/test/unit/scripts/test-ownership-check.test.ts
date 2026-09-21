@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   checkTestOwnership,
+  composerCalledBy,
   composesServer,
   declaredEntryType,
+  HOST_COMPOSERS,
   mergesBaseConfig,
   outwardReachOf,
   ownersOf,
@@ -160,6 +162,34 @@ describe('`composesServer` is a call node, not a mention', () => {
     expect(composesServer('await harness.setupBackendServer();\n', key)).toBe(true);
   });
 
+  it("sees the kit's composer, which D-252 names and this check never carried", () => {
+    // One of D-262 clause 1's two measured disagreements: the extraction script
+    // read two names, D-252 states two, and this predicate read one.
+    expect(composesServer('const handle = await composeTestServer({});\n', key)).toBe(true);
+  });
+
+  it("sees the database fixture — D-262 clause 1's third member", () => {
+    // `setupTestDb` awaits `mikroOrmConfig()`, which awaits `configuredEntities()`
+    // and `configuredMigrations()`: one call reads two of the three generated
+    // per-host artefacts D-252 enumerates, so it is the same species.
+    expect(composesServer('const db = await setupTestDb();\n', key)).toBe(true);
+  });
+
+  it('names which member it found, so a finding cannot misreport the call', () => {
+    expect(composerCalledBy('const db = await setupTestDb();\n', key)).toBe('setupTestDb');
+    expect(composerCalledBy('await setupBackendServer();\n', key)).toBe('setupBackendServer');
+    expect(composerCalledBy('export {};\n', key)).toBeNull();
+  });
+
+  it('does not see a member named in prose or in a string either', () => {
+    expect(
+      composesServer(
+        "// setupTestDb opens the ORM\nconst name = 'composeTestServer';\nexport { name };\n",
+        key,
+      ),
+    ).toBe(false);
+  });
+
   it('does not see the harness naming its own export in prose', () => {
     // `test-server.ts` names `setupBackendServer` a dozen times in comments and
     // in its own type text; a run that counted those would classify the harness
@@ -198,8 +228,31 @@ describe('§3 — what a module package\'s test may name', () => {
     expect(reach('@endora-commerce/mod-orders/backend')).toBeNull();
   });
 
+  it('allows a package naming its own `src/admin` through a longer path', () => {
+    // The same anchor the `backend` row needs, on the root D-262 clause 3 adds:
+    // every module package keeps its screens under `src/admin/`, so a rule
+    // matching the segment anywhere would report each of those as reaching the
+    // application.
+    expect(reach('../../admin/pages/BlogListPage.js')).toBeNull();
+  });
+
   it('refuses a reach into the application', () => {
     expect(reach('../../../../../backend/test/helpers/test-server.js')).toMatch(
+      /testable without the application/,
+    );
+  });
+
+  it('refuses a reach into the admin application (D-262 clause 3)', () => {
+    // The route by which a module's rendered admin case would be "moved into the
+    // package" while still depending on an unpublished React harness: it
+    // resolves in this checkout and in no other, and it passed until now.
+    expect(reach('../../../../../admin/test/helpers/render-with-i18n.js')).toMatch(
+      /testable without the application/,
+    );
+  });
+
+  it('refuses a reach into the storefront application (D-262 clause 3)', () => {
+    expect(reach('../../../../../storefront/test/helpers/render.js')).toMatch(
       /testable without the application/,
     );
   });
@@ -269,6 +322,23 @@ describe('the five findings, one red proof each', () => {
           packages: {
             'packages/modules/blog/src/backend/cache.test.ts':
               "import { helper } from '../../../../../backend/test/helpers/fixtures.js';\nexport { helper };\n",
+          },
+        },
+        'outward-reach',
+      ),
+    ).toBe(1);
+  });
+
+  it('outward-reach — a package test naming the *admin* application', () => {
+    // Driven through the check and not only through `outwardReachOf`, because
+    // this is the shape W2.2 forbids and the one that reached the package by
+    // passing: a rendered admin case relocated with its harness left behind.
+    expect(
+      findingsOfKind(
+        {
+          packages: {
+            'packages/modules/blog/src/admin/surface.test.ts':
+              "import { renderWithI18n } from '../../../../../admin/test/helpers/render-with-i18n.js';\nexport { renderWithI18n };\n",
           },
         },
         'outward-reach',
@@ -442,13 +512,17 @@ describe('the ledger fails in seven ways (§4)', () => {
 });
 
 describe('exit 2 — the run could not see (§7)', () => {
+  const declaring = (name: string): string =>
+    `export async function ${name}(): Promise<void> {}\n`;
   const sound: VacuousInput = {
     applicationFiles: 1428,
     packageFiles: 211,
     attributions: 1090,
     packagesDeclaringTests: 56,
     ledgerDirectoryExists: true,
-    harnessSource: 'export async function setupBackendServer(): Promise<void> {}\n',
+    composerSources: Object.fromEntries(
+      HOST_COMPOSERS.map((composer) => [composer.name, declaring(composer.name)]),
+    ),
   };
 
   const refusalOf = (over: Partial<VacuousInput>): VacuousReasonKind | null =>
@@ -484,16 +558,46 @@ describe('exit 2 — the run could not see (§7)', () => {
     expect(refusalOf({})).toBeNull();
   });
 
+  const withComposer = (name: string, source: string | null): Partial<VacuousInput> => ({
+    composerSources: { ...sound.composerSources, [name]: source },
+  });
+
   it('refuses a harness that is not at its exact path', () => {
-    expect(refusalOf({ harnessSource: null })).toBe('harness-not-found');
+    expect(refusalOf(withComposer('setupBackendServer', null))).toBe('harness-not-found');
   });
 
   it('refuses a harness that no longer exports the composer', () => {
     // The predicate's subject. Reclassifying every server-bound file in the tree
     // because a symbol was renamed is the one answer this must never give.
-    expect(refusalOf({ harnessSource: 'export async function bootServer() {}\n' })).toBe(
-      'harness-not-found',
-    );
+    expect(
+      refusalOf(
+        withComposer('setupBackendServer', 'export async function bootServer() {}\n'),
+      ),
+    ).toBe('harness-not-found');
+  });
+
+  it('refuses on **every** member, not only the first (D-262 clause 1)', () => {
+    // §1: "§7 case 6's refusal applies to every member". A second member that
+    // could go missing silently would reclassify its own population at once —
+    // the 51 files this clause drains from the ledger, for `setupTestDb`.
+    for (const composer of HOST_COMPOSERS) {
+      expect(refusalOf(withComposer(composer.name, null))).toBe('harness-not-found');
+      expect(
+        refusalOf(withComposer(composer.name, 'export async function renamed() {}\n')),
+      ).toBe('harness-not-found');
+    }
+    expect(HOST_COMPOSERS).toHaveLength(3);
+  });
+
+  it('names the declaring file each member is read from', () => {
+    // The mapping is per member and not per harness: two members are declared in
+    // `backend/test/helpers/test-server.ts`'s neighbourhood and the third is the
+    // database fixture, so one path could not be the subject of all three.
+    expect(HOST_COMPOSERS.map((composer) => composer.declaredIn)).toEqual([
+      'backend/test/helpers/test-server.ts',
+      'packages/test-kit/src/server/compose-test-server.ts',
+      'backend/test/helpers/test-db.ts',
+    ]);
   });
 });
 

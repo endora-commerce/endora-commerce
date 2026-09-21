@@ -41,12 +41,15 @@
 #   * nothing tracked under `packages/modules/<id>/` — which is an exit **0**, not a refusal:
 #     the module is already out, and a second run over the same module is how that path is
 #     exercised
-#   * **W2**: a test of this module still under `backend/test/` or `admin/test/` that is NOT
-#     server-bound. A server-bound file is the **host's** under **D-252** — it composes from the
-#     host's install — so its presence is expected and is not a W2 failure; it is the operator's
-#     job to move it to the paid repository's `host/backend/test/modules/<id>/`. Anything else is
-#     a test with no harness in the repository it is about to land in, in the merge request that
-#     is also moving the code, and the two failures are indistinguishable
+#   * **W2**: a test of this module still under `backend/test/` or `admin/test/` that is not
+#     the host's. The backend half is **asked of `check:test-ownership`** and not re-derived
+#     here (W2.1, D-262 clause 1): a file it calls the host's is the host's here too — its
+#     presence is expected and it is the operator's job to move it to the paid repository's
+#     `host/backend/test/modules/<id>/` — and a file it calls the module's is a test with no
+#     harness in the repository it is about to land in, in the merge request that is also
+#     moving the code, where the two failures are indistinguishable. The admin half is the
+#     files under `admin/test/` naming the module by **specifier**, in either spelling; each
+#     is dispositioned by subject under W2.2 and most of it moves into the package
 #   * **W1**: a *free* package still naming this module in code that runs. Comments are prose and
 #     are left in place deliberately (E9, D-247); a specifier is coupling
 #   * a `migration-foreign-writes` shard for this module (E2 / W7: a paid module writing a free
@@ -104,26 +107,57 @@ fi
 FOREIGN_WRITES="backend/scripts/ledgers/migration-foreign-writes/$MODULE_ID.ts"
 [ -f "$FOREIGN_WRITES" ] && die "$FOREIGN_WRITES exists. It records this module writing another module's table, and a paid module writing a free module's table across the split is a schema dependency with no owner. Design the repair first — \`contracts/foreign-write-repair.md\` is normative — and delete the shard in the same merge request as the repair, not as part of this move."
 
-# W2, with D-252's carve-out. `composesServer` is read as a literal call node, which is the
-# predicate `check:test-ownership`, `check:harness-teardown` and `check:fixture-substitution`
-# already key on — so the two sides of the boundary cannot disagree.
-say 'W2 — checking no harness-free test of this module is left under backend/test or admin/test'
+KEBAB=${MODULE_ID//_/-}
+
+# W2 — **this step carries no predicate of its own** (W2.1, D-262 clause 1).
+#
+# It read `grep -E "/(<id>|<kebab>)/"` over `backend/test` and `admin/test` until 2026-09-21 —
+# a path **segment** — and enumerated two call names of its own beside it. Both halves
+# disagreed with `check:test-ownership`, which reads module **specifiers** and, until the same
+# day, one call name: `backend/test/integration/pim_pimcore/delivered-record-column-parity.test.ts`
+# was refused here as `pim_pimcore`'s and classified there as nobody's, while
+# `admin/test/modules/pim-akeneo.module-owned-surface.test.tsx` was seen by neither, because it
+# sits flat rather than in a per-module directory. Three files of one class, two verdicts,
+# decided by a filename convention nothing enforces.
+#
+# So the backend half **asks the instrument**: one list, in one place, read by every instrument
+# that asks the question (`module-test-ownership.md` §1). The admin half is the same predicate
+# spelled for a tree the instrument does not walk — the module's specifier in either spelling,
+# never a directory segment and never a filename prefix.
+#
+# And there is deliberately **no `≥ 2` carve-out** (D-262 clause 2): whether a two-owner file's
+# subject is one module or the boundary between two is §1.1's question, it is put to a human,
+# and mechanising it produced two wrong repairs in a row. Such a file is *reported* below and
+# never decided.
+say 'W2 — asking check:test-ownership which of this module'"'"'s backend tests are still here'
+if ! LISTED=$(pnpm --filter backend exec tsx scripts/check-test-ownership.ts --list "$MODULE_ID" 2>/dev/null); then
+  die "check:test-ownership could not answer for \`$MODULE_ID\`. It exits 2 when it cannot see the population it judges — a refusal, never an empty list — so W2 has no answer rather than a clean one. Run \`pnpm --filter backend exec tsx scripts/check-test-ownership.ts --list $MODULE_ID\` and read what it says."
+fi
+
 LEFTOVER=""
+while IFS=' ' read -r tag f; do
+  [ -z "${tag:-}" ] && continue
+  case "$tag" in
+    host)   say "  host file (D-252, expected): $f" ;;
+    shared) say "  two-owner file (§1.1 — a judgement, not a predicate; disposition it by hand): $f" ;;
+    *)      LEFTOVER="$LEFTOVER  $f"$'\n' ;;
+  esac
+done <<< "$LISTED"
+
+say 'W2 — checking no admin test of this module is left under admin/test'
+ADMIN_LEFTOVER=""
 while IFS= read -r f; do
   [ -z "$f" ] && continue
-  if grep -q 'setupBackendServer(\|composeTestServer(' "$f"; then
-    say "  host file (D-252, expected): $f"
-  else
-    LEFTOVER="$LEFTOVER  $f"$'\n'
-  fi
-done < <(git ls-files 'backend/test' 'admin/test' | grep -E "/(${MODULE_ID}|${MODULE_ID//_/-})/.*\.test\.tsx?$" || true)
+  ADMIN_LEFTOVER="$ADMIN_LEFTOVER  $f"$'\n'
+done < <(git grep -l -E "@endora-commerce/mod-${KEBAB}([^a-z0-9-]|\$)|packages/modules/${MODULE_ID}/" -- 'admin/test' | grep -E '\.test\.tsx?$' || true)
 
-[ -n "$LEFTOVER" ] && die $'W2 is incomplete. These are harness-free tests of this module still under the application test trees:\n'"$LEFTOVER"$'A package extracted with its tests still here arrives in a repository that has no harness for them, in the merge request that is also moving the code, and the two failures are indistinguishable. Move them into packages/modules/'"$MODULE_ID"$'/src/** first (specs/109-backend-test-kit/ Phase 5).'
+[ -n "$LEFTOVER" ] && die $'W2 is incomplete. `check:test-ownership` places these tests of this module inside its package:\n'"$LEFTOVER"$'A package extracted with its tests still here arrives in a repository that has no harness for them, in the merge request that is also moving the code, and the two failures are indistinguishable. Move them into packages/modules/'"$MODULE_ID"$'/src/** first (specs/109-backend-test-kit/ Phase 5).'
+
+[ -n "$ADMIN_LEFTOVER" ] && die $'W2 is incomplete. These admin tests name this module by specifier:\n'"$ADMIN_LEFTOVER"$'Each is dispositioned by **subject** and not carried, moved wholesale or deleted (W2.2, D-262 clause 3): the module\'s declaration and its own source hygiene move into the package as co-located `.test.ts` under the existing `environment: \'node\'` config; the host-hygiene assertions about App.tsx, AppShell.tsx and modules.generated.ts stay here; the rendered off-state and permission cases are deleted only against a surviving free driver, named in the merge request (W2.3), with a `git show <sha>:<path>` recovery address for every deleted file.'
 
 # W1. Deliberately narrow: a *specifier* naming the package, in a package that is not this one.
 # A module id inside a comment is prose and is left in place (E9, D-247).
 say 'W1 — checking no free package still resolves this module by specifier'
-KEBAB=${MODULE_ID//_/-}
 COUPLED=$(git grep -l -E "from '(@endora-commerce/mod-${KEBAB}|.*packages/modules/${MODULE_ID})" -- 'packages/*' ":(exclude)$PKG" || true)
 [ -n "$COUPLED" ] && die $'W1 is incomplete. These packages still resolve this module by specifier:\n'"$COUPLED"$'\nA free package naming a wave member in code that runs is W1\'s refusal verbatim.'
 
