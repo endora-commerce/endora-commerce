@@ -3497,7 +3497,25 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // count stands still (#235/#237's shape), and here the file count cannot
     // move with the overlay tree at all — 2160 of the 2162 files are the owner
     // map's.
-    sites: 20,
+    //
+    // **`specs/134-paid-module-extraction/` T043: sites 20 -> 21 (+1).** The
+    // example deployment's new `payment_gateway_fixture` consumes exactly one
+    // seam — `paymentAdapterRegistry`, `payment_methods`' contribution registry,
+    // from its boot hook — so the walk sees one more resolved call and the
+    // declaration gains one `reasons` key for it. It is the carrier fixture's
+    // arrival one family over, and that one moved this number the same way.
+    //
+    // **`files` is deliberately left at its recorded value**, and this says so
+    // rather than leaving the omission to be read as an oversight. It was
+    // already off agreement at this branch's base — measured in a pristine
+    // worktree at `ecef4779f`: files 2582 -> 2612, thirty of which are nobody
+    // here's — so re-recording it would fold another author's drift into this
+    // merge request and sign it with a fixture that accounts for six of the
+    // thirty-six. `sites` is the only dimension in the whole record that came
+    // **off agreement** between that base and this branch's tip, both measured
+    // in fresh worktrees after `setup-worktree.sh`, `build:packages` and
+    // `git clean -fX docs/docs/modules`.
+    sites: 21,
     // Three independent authors, none of them the check's own count.
     // `overlay-modules` is `resolveOverlay()`'s directory walk against the
     // modules the walk actually opened a source for, so a discovered overlay

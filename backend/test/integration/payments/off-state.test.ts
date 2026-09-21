@@ -9,12 +9,19 @@ import { expectModuleAbsent } from '../../helpers/off-state.js';
 /**
  * `payments` off-state — Constitution XVII item 6.
  *
- * The module is named by six `withModuleOff` callers and **none of them sits
- * under `payments/`** — they are the five gateway modules (`autopay`, `paypal`,
- * `payu`, `stripe`, `tpay`) and `payment_methods`, each asserting that *it*
- * degrades correctly when the payments module is absent. That is a consumer's
- * question. Item 6's is this module's own surfaces, which nothing asserted,
- * and the six files are exactly why a path predicate cannot find that out.
+ * The module is named by several `withModuleOff` callers and **none of them
+ * sits under `payments/`**: each is a *consumer* asserting that it degrades
+ * correctly when the payments module is absent. That is a consumer's question.
+ * Item 6's is this module's own surfaces, which nothing asserted, and those
+ * files are exactly why a path predicate cannot find that out.
+ *
+ * The population is deliberately not enumerated here.
+ * `git grep -l "withModuleOff('payments'" backend/test` answers it, and it is
+ * about to move: feature 134's wave 2 takes the five vendor gateways out of
+ * this repository, so a count and a list written down in this comment would go
+ * stale in silence on the day of the extraction (D-100). What survives the wave
+ * is the sentence above — a consumer's proof is not this module's — and that is
+ * what this file is here to supply.
  *
  * The four surfaces item 6 asks for map onto this module as follows:
  *

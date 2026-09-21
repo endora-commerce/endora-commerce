@@ -44,6 +44,24 @@ import {
  * additions only, all under the converted module's own prefix. Anything else —
  * a removal, a renamed parameter, a moved schema — is the bug this test exists
  * to catch.
+ *
+ * **The mirror image of that exception is coming, and this is where it is
+ * written down** (feature 134, T043 recording it for T046). Wave 2 takes
+ * `autopay`, `paypal`, `payu`, `stripe` and `tpay` out of this repository, so
+ * the same thirty-odd paths the conversion added **leave** — and under the
+ * paragraph above a removal reads as the bug. It is not one here, on exactly
+ * the symmetric condition: **deletions only, every deleted path under the
+ * departing module's own prefix, and no change to any surviving path,
+ * parameter, body or schema.** A single edit to something that stays is the
+ * defect, and is what makes regenerating without reading the diff the wrong
+ * move in either direction.
+ *
+ * FR-021's fixture gateway
+ * (`backend/src/apps/example/modules/payment_gateway_fixture/`) does **not**
+ * offset that and was deliberately not built to: it is an overlay module, this
+ * document is recorded from a bare-core composition, and the fixture serves no
+ * route in any case. So the wave's diff here is pure deletion, with nothing of
+ * the fixture's in it.
  */
 
 const FIXTURE_PATH = join(

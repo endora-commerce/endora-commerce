@@ -35,9 +35,43 @@ import { paymentAdapterRegistryOf } from '../../helpers/package-singletons.js';
  * disappears can only have disappeared for the reason under test. The vendor
  * gateways are covered by the ownership assertion below, which is the same fact
  * one seam earlier.
+ *
+ * ## The contributed half is driven over the fixture, and that is deliberate
+ *
+ * The two cases about a *contributed* adapter — one owner per registered key,
+ * and a contributed key withdrawn from enumeration while its contributor is off
+ * — named `stripe`, `payu`, `tpay` and `autopay` until feature 134's **T043**.
+ * All four leave in wave 2, and with them the last foreign contributor to this
+ * registry, so the seam would be left with `payments` registering under its own
+ * id and nothing to filter at all. `payment_gateway_fixture` is FR-021's answer
+ * (`backend/src/apps/example/modules/payment_gateway_fixture/`) and is now the
+ * subject of both.
+ *
+ * **Nothing is lost by the swap, and it was measured rather than assumed.** Each
+ * of the five gateways asserts `ownerOf('<id>') === '<id>'` in its **own**
+ * `backend/test/integration/<id>/payments-off.test.ts`, and four of the five
+ * drive `list` / `listAll` while off there too — over the whole route surface,
+ * which is more than this file ever did. Those files are the host's under D-252
+ * and travel with their packages. What was here was the same fact, five times,
+ * in a file that is not any gateway's.
  */
 
-const ALL_IDS = REGISTERED_MANIFESTS.map((e) => e.manifest.id);
+/**
+ * The composed enabled-set, and the one thing an overlay module needs said about
+ * it.
+ *
+ * `REGISTERED_MANIFESTS` is resolved at **import** time with no `DEPLOYMENT`
+ * selected, so it is bare core (D-104) and an overlay module is **not** in it —
+ * while `setupBackendServer({ deployment: 'example' })` below composes one. A
+ * bare `__setEnabledForTesting(ALL_IDS)` would therefore switch the fixture
+ * *off* and every assertion about it would read as a correct withdrawal. So the
+ * id is appended explicitly, which is what
+ * `integration/shipments/carrier-module-off.test.ts` does for its own synthetic
+ * module and for the same reason.
+ */
+const FIXTURE_MODULE = 'payment_gateway_fixture';
+const FIXTURE_ADAPTER_KEY = 'payment_gateway_fixture_redirect';
+const ALL_IDS = [...REGISTERED_MANIFESTS.map((e) => e.manifest.id), FIXTURE_MODULE];
 const ADMIN = { b2b_session: 'stub-admin-session' };
 
 interface PublicMethod {
@@ -61,7 +95,9 @@ describe('payment methods of an absent gateway [integration]', () => {
   let code: string;
 
   beforeAll(async () => {
-    h = await setupBackendServer();
+    // The fixture is an overlay module, so it composes only when the deployment
+    // that owns it is selected — exactly as a `DEPLOYMENT=example` build does.
+    h = await setupBackendServer({ deployment: 'example' });
     code = `builtin_probe_${randomUUID().slice(0, 8)}`;
     const em = h.em();
     em.create(PaymentMethod, {
@@ -151,28 +187,29 @@ describe('payment methods of an absent gateway [integration]', () => {
     for (const key of paymentAdapterRegistry().listAll()) {
       expect(paymentAdapterRegistry().ownerOf(key), `adapter "${key}" has no owner`).toBeTruthy();
     }
+    // The two anchors that keep the loop above from passing over an empty
+    // table: the owner's own built-in, and a **contributed** key, which is the
+    // half the loop exists for. The contributed one is the fixture's, so the
+    // anchor does not leave with wave 2 — see the header.
     expect(paymentAdapterRegistry().ownerOf('bank_transfer')).toBe('payments');
-    expect(paymentAdapterRegistry().ownerOf('stripe')).toBe('stripe');
-    expect(paymentAdapterRegistry().ownerOf('payu')).toBe('payu');
-    expect(paymentAdapterRegistry().ownerOf('tpay')).toBe('tpay');
-    expect(paymentAdapterRegistry().ownerOf('autopay')).toBe('autopay');
+    expect(paymentAdapterRegistry().ownerOf(FIXTURE_ADAPTER_KEY)).toBe(FIXTURE_MODULE);
   });
 
-  it('hides a vendor gateway adapter from enumeration while its module is off', () => {
-    expect(paymentAdapterRegistry().get('stripe')).toBeDefined();
-    expect(paymentAdapterRegistry().list()).toContain('stripe');
+  it('hides a contributed gateway adapter from enumeration while its module is off', () => {
+    expect(paymentAdapterRegistry().get(FIXTURE_ADAPTER_KEY)).toBeDefined();
+    expect(paymentAdapterRegistry().list()).toContain(FIXTURE_ADAPTER_KEY);
 
-    registryCache.__setEnabledForTesting(ALL_IDS, { deactivated: ['stripe'] });
+    registryCache.__setEnabledForTesting(ALL_IDS, { deactivated: [FIXTURE_MODULE] });
     try {
-      expect(paymentAdapterRegistry().get('stripe')).toBeUndefined();
-      expect(paymentAdapterRegistry().list()).not.toContain('stripe');
+      expect(paymentAdapterRegistry().get(FIXTURE_ADAPTER_KEY)).toBeUndefined();
+      expect(paymentAdapterRegistry().list()).not.toContain(FIXTURE_ADAPTER_KEY);
       // Registration is untouched — off is not uninstall.
-      expect(paymentAdapterRegistry().listAll()).toContain('stripe');
+      expect(paymentAdapterRegistry().listAll()).toContain(FIXTURE_ADAPTER_KEY);
     } finally {
       registryCache.__setEnabledForTesting(ALL_IDS);
     }
 
-    expect(paymentAdapterRegistry().get('stripe')).toBeDefined();
+    expect(paymentAdapterRegistry().get(FIXTURE_ADAPTER_KEY)).toBeDefined();
   });
 
   it('refuses a direct order submission naming an absent gateway method', async () => {
