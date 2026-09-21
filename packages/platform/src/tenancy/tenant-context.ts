@@ -107,6 +107,38 @@ export class MissingTenantContextError extends Error {
 }
 
 /**
+ * Thrown when a write carries an `organizationId` the ambient scope may not act
+ * on (D-260/A). It sits beside {@link MissingTenantContextError} because the two
+ * are one guarantee failing in the two directions the data layer has: that one
+ * is "no scope was established", this one is "a scope was established and this
+ * row is outside it".
+ *
+ * **It names no organization** — neither the one the write carried nor the set
+ * the actor holds. The refusal reaches a caller that supplied the id, so
+ * "outside your scope" tells it nothing it did not already know, while echoing
+ * the *set* would put the actor's reach into a log and an HTTP body. The entity
+ * class is carried because a flush-time refusal is otherwise undiagnosable: the
+ * stack frame belongs to MikroORM's unit of work and names no caller.
+ *
+ * Thrown by `org-write-guard.ts`; mapped to `403 FORBIDDEN` in
+ * `http/error-envelope.ts`, which explains there why 403 and not 404.
+ */
+export class OrgWriteOutOfScopeError extends Error {
+  /** The entity class whose write was refused. Never the organization id. */
+  readonly entityName: string;
+
+  constructor(entityName: string) {
+    super(
+      `A write to ${entityName} carries an organization outside the active tenant scope ` +
+        '(feature 050 FR-003, D-260/A). Writing for another organization needs an explicit ' +
+        'widening — withSystemScope() / withOrgScope() — or it is a scope defect.',
+    );
+    this.name = 'OrgWriteOutOfScopeError';
+    this.entityName = entityName;
+  }
+}
+
+/**
  * The store is `TenantContext | undefined` rather than `TenantContext` so that
  * `runWithoutTenantContext` can express "no context" as a value it *runs* with
  * — see the note on that function for why it may not use `exit()`.

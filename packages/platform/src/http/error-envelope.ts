@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { LANGUAGE_FALLBACK, ERROR_CODES, type ErrorCode, type ErrorEnvelope, type ModuleErrorCode, type SupportedLanguage } from '@endora-commerce/contracts';
 import { ZodError, type core as zodCore } from 'zod';
 import { hasZodFastifySchemaValidationErrors } from '@fastify/type-provider-zod';
+import { OrgWriteOutOfScopeError } from '../tenancy/tenant-context.js';
 
 /**
  * Fastify plugin that converts every error — Zod validation failures, MikroORM unique-constraint
@@ -260,8 +261,48 @@ export function registerErrorEnvelope(app: FastifyInstance, options: ErrorEnvelo
       return;
     }
 
+    // The tenant write guard's refusal (D-260/A). Raised by
+    // `tenancy/org-write-guard.ts` from inside `em.flush()`, so it arrives here
+    // having rolled the whole transaction back — including the audit row.
+    //
+    // **403 and not 404, and this is deliberate** — a future reader will
+    // otherwise "fix" it to a 404 by citing FR-008. FR-008 is about not
+    // disclosing whether a *record* exists, and this is not that answer: it is a
+    // **backstop** behind the surface's own gate (D-260/B), reached only when a
+    // route accepted an organization id it never authorised. The caller supplied
+    // the id, so "outside your scope" tells it nothing it did not already know,
+    // and the error carries no organization and no set — see
+    // `OrgWriteOutOfScopeError`. A 404 here would also be a lie about the one
+    // thing the operator needs: that the request was refused rather than lost.
+    // The indistinguishable-from-not-found answer is the *surface's* to give,
+    // upstream, before the command runs.
+    if (error instanceof OrgWriteOutOfScopeError) {
+      const envelope: ErrorEnvelope = {
+        error: {
+          code: ERROR_CODES.FORBIDDEN,
+          message: 'This write is outside your organization scope.',
+          requestId,
+        },
+      };
+      reply.status(403).send(envelope);
+      return;
+    }
+
     // MikroORM unique-constraint violation: `UniqueConstraintViolationException` has a
     // stable class name we can test without importing the full ORM type.
+    //
+    // **A 409 arriving from a tenant-keyed unique constraint is a missing scope
+    // gate upstream, not a lost race** (D-260, corollary 1). The mapping is
+    // right and stays: for a genuine duplicate, 409 and *"the resource was
+    // changed by another process"* are the correct answer. What used to arrive
+    // through it was a *refusal* — a scoped actor inserting a row for an
+    // organization whose existing row its own narrowed read could not see, so
+    // the composite primary key collided. Measured twice on the same shape, in
+    // `quick_order` (087 §2.2) and in the five payment gateways. Both authors
+    // delete it at its cause — the branch above refuses before the insert, and
+    // the surface's own gate answers before the command runs — so a 409 on such
+    // a path today means one of those two is missing, and the repair is
+    // upstream rather than here.
     if ((error as { constructor?: { name?: string } }).constructor?.name === 'UniqueConstraintViolationException') {
       const envelope: ErrorEnvelope = {
         error: {
