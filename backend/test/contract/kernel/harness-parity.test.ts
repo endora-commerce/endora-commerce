@@ -696,7 +696,23 @@ describe('083 — both roots resolve a request language through one function', (
     const declarations = body ?? '';
     const declared = [...declarations.matchAll(/^ {2}(\w+)\??:/gm)].map((m) => m[1] ?? '');
     // A floor, so that a regex which silently stops matching cannot pass.
-    expect(declared.length).toBeGreaterThan(15);
+    //
+    // **16 -> 15, and the floor moves with it** (feature 134 / D-256,
+    // 2026-09-21). `infaktHttp` and `wfirmaHttp` became one `moduleOverrides`
+    // map keyed by registration name, because each named option had to annotate
+    // itself with a paid vendor's port type, and that put two
+    // `packages/contracts/src/{infakt,wfirma}.ts` symbols into a **free** harness
+    // file which stays here when those two vendors leave —
+    // `contracts/extraction-procedure.md` E5's stop condition verbatim.
+    //
+    // The floor is lowered rather than the count padded, and the reason is what
+    // the floor is **for**: it catches a regex that has stopped matching, which
+    // reads **0**, not a population that consolidated. It was never a ratchet on
+    // how many seams the harness offers, and making it one would price every
+    // future consolidation at an argument. So it sits below the real count with
+    // room for the next one. The assertion that bites is `unread` below, and
+    // that one is exact.
+    expect(declared.length).toBeGreaterThan(12);
 
     // The interface body itself is removed before the search: a field is
     // "read" only if `options.<name>` appears somewhere that is not its own

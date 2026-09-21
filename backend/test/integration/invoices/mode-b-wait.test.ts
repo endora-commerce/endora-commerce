@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Invoice } from '../../helpers/package-entities.js';
-import { ScriptedInfaktClient } from '@endora-commerce/mod-infakt/test-support';
+import { ScriptedLedgerFixtureClient } from '../../helpers/ledger-fixture-client.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -10,21 +10,34 @@ import {
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import { seedInvoiceableOrder, setSellerSettings } from './helpers.js';
 import { ADMIN, waitForDelivery } from '../invoice_ledger/helpers.js';
-import { prepareInfaktVatCopy } from '../infakt/helpers.js';
+import { prepareLedgerFixtureVatCopy } from '../invoice_ledger/fixture-vendor.js';
 
-const VENDOR_NUMBER = 'FV/INF/42';
+const VENDOR_NUMBER = 'FV/FIX/42';
+
+/**
+ * Feature 134 / D-256 — this is `invoices`' own test and `invoices` is free, so
+ * the vendor it drives is `ledger_vendor_fixture` rather than `infakt`. Nothing
+ * here was ever a vendor's: the subject is that mode B holds an invoice
+ * `pending` and sends no e-mail until `applyVendorAssignedNumber` arrives, and
+ * the scripted client is never even called. A free module's test reaching a paid
+ * package by bare specifier is what `contracts/extraction-procedure.md` E7 stops
+ * on, and it was the last one outside the two vendors' own host directories.
+ */
 const AUDIT = { actorAdminUserId: '00000000-0000-0000-0000-000000000000' };
 
-describe('invoices — mode B waits for the Infakt number [integration]', () => {
+describe('invoices — mode B waits for the vendor number [integration]', () => {
   let h: BackendServerHandle;
   let channelId: string;
-  const infaktHttp = new ScriptedInfaktClient();
+  const ledgerFixtureHttp = new ScriptedLedgerFixtureClient();
 
   beforeAll(async () => {
     process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] =
       process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] ?? randomBytes(32).toString('base64');
-    h = await setupBackendServer({ moduleOverrides: { infaktHttp } });
-    channelId = await prepareInfaktVatCopy(h, 'il-mode-b', 'FVMB {seq}/{YYYY}');
+    h = await setupBackendServer({
+      deployment: 'example',
+      moduleOverrides: { ledgerFixtureHttp },
+    });
+    channelId = await prepareLedgerFixtureVatCopy(h, 'il-mode-b', 'FVMB {seq}/{YYYY}');
     await setSellerSettings(h);
     await h.settings.adminService.setValueForSubset(
       'invoices.email.send_on_issue',
