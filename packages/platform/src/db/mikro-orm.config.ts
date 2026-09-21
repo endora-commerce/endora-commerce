@@ -1,6 +1,7 @@
 import { defineConfig, type Options } from '@mikro-orm/postgresql';
 import { Migrator } from '@mikro-orm/migrations';
 import { PluralizingNamingStrategy } from './pluralizing-naming-strategy.js';
+import { OrgWriteGuardSubscriber } from '../tenancy/org-write-guard.js';
 import type { ConfiguredEntity } from './configured-entities.js';
 import type { ConfiguredMigrations } from './configured-migrations.js';
 
@@ -92,6 +93,14 @@ export function mikroOrmConfigFrom(inputs: OrmConfigurationInputs): Options {
     // backend/src/db/entities-registry.generated.ts for the rationale and for
     // what emits it, and ./configured-entities.ts for the package half.
     entities: [...inputs.entities],
+    // The tenant guard on the write side (D-260/A). One subscriber, over the
+    // classification registry the `@OrgScoped()` decorators already write, so
+    // there is nothing per entity and nothing per module to declare here as
+    // classes arrive. It is constructed rather than passed in because it takes
+    // no input: its subscribed set and its predicate are both `tenancy/`'s, and
+    // a host that could substitute it could switch the guard off.
+    // See ../tenancy/org-write-guard.ts for what it does and does not catch.
+    subscribers: [new OrgWriteGuardSubscriber()],
     debug: process.env['NODE_ENV'] === 'development' && process.env['DB_DEBUG'] === 'true',
     allowGlobalContext: false,
     forceUndefined: true,
