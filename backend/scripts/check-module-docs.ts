@@ -291,40 +291,21 @@ export const DERIVED_FACTS_IN_PROSE: Readonly<Record<string, ProseLedgerEntry>> 
     '`packages/modules/admin_roles/src/backend/services/permission-catalogue.service.ts` ' +
     'by address. The file is real and the sentence is worth keeping; the repair is to ' +
     'name the module and the file rather than the path.',
-  'architecture/pim-connector#adf261f0':
-    'cites `packages/modules/pim_ergonode/README.md` by address. The file is real and the ' +
-    'sentence is worth keeping; the repair is to name the module and the file rather than ' +
-    'the path.',
-  'architecture/pim-connector#c0df1fee':
-    'cites `packages/modules/pim_unopim/src/admin/components` by address. The file is ' +
-    'real and the sentence is worth keeping; the repair is to name the module and the ' +
-    'file rather than the path.',
+  // Feature 134 / T053 — seven entries left with the pages they were keyed on.
+  // `architecture/pim-{ergonode,pimcore,unopim}` and `integrations/akeneo-pim` moved to
+  // the paid repository under FR-027, and the two `architecture/pim-connector` sentences
+  // that cited `pim_ergonode/README.md` and `pim_unopim/src/admin/components` by address
+  // went with the rewrite that made that page describe the free layer — a free page may
+  // not name a paid connector, so those two drained by repair rather than by relocation.
+  // This is the ledger working as designed and it is the trap AGENTS.md records: the
+  // batch that frees an entry is structurally the batch that cannot see it go stale, and
+  // only the check's own two-way report names them. `architecture/pim-connector#e19b92db`
+  // below **stays** — that page still states its own package directory, in the "Where the
+  // code lives" block, which is this module's own address rather than a sibling's.
   'architecture/pim-connector#e19b92db':
     'the page states `pim_connector`\'s own package directory. The generated reference ' +
     'page carries the package that ships a module, so the sentence can link that instead ' +
     'of restating it.',
-  'architecture/pim-ergonode#640040aa':
-    'cites ' +
-    '`packages/modules/pim_ergonode/src/backend/services/import/import-orchestrator.ts` ' +
-    'by address. The file is real and the sentence is worth keeping; the repair is to ' +
-    'name the module and the file rather than the path.',
-  'architecture/pim-ergonode#aa8a797f':
-    'the page states `pim_ergonode`\'s own package directory. The generated reference page ' +
-    'carries the package that ships a module, so the sentence can link that instead of ' +
-    'restating it.',
-  'architecture/pim-ergonode#e225df0b':
-    'cites ' +
-    '`packages/modules/pim_ergonode/src/migrations/20260804T190439_pim_ergonode_init.ts` ' +
-    'by address. The file is real and the sentence is worth keeping; the repair is to ' +
-    'name the module and the file rather than the path.',
-  'architecture/pim-pimcore#bc28b16e':
-    'the page states `pim_pimcore`\'s own package directory. The generated reference page ' +
-    'carries the package that ships a module, so the sentence can link that instead of ' +
-    'restating it.',
-  'architecture/pim-unopim#2fb8ac15':
-    'the page states `pim_unopim`\'s own package directory. The generated reference page ' +
-    'carries the package that ships a module, so the sentence can link that instead of ' +
-    'restating it.',
   'contributing/translations#243c1fee':
     'cites `packages/modules/_i18n/i18n` by address. The file is real and the sentence is ' +
     'worth keeping; the repair is to name the module and the file rather than the path.',

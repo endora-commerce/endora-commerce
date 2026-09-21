@@ -1308,6 +1308,47 @@ export interface RecordedReadSize {
  *
  * **No band was widened and no value was computed from a delta.** Nothing was measured in the
  * checkout the work was done in.
+ *
+ * ## `specs/134-paid-module-extraction/` T053, 2026-09-21 — the four PIM pages leave this repository
+ *
+ * Wave 3's documentation move, and the smallest re-record this feature has produced: **two
+ * dimensions on one entry**, `check-module-docs`' `files` and `sites`. The branch deletes
+ * **four** tracked files — `docs/docs/architecture/pim-{ergonode,pimcore,unopim}.md` and
+ * `docs/docs/integrations/akeneo-pim.md`, every one of them wholly about a paid module under
+ * FR-027 — and adds none, so the arithmetic is as short as it gets.
+ *
+ * **The base is the W2 slice branch, not `master`.** This work is stacked on
+ * `feat/134-wave3-pim-akeneo-w2-slice` (`eaf8f1798`), which is unmerged as MR !1753, so
+ * `origin/master` is the wrong reference for the same reason it was wrong for T036. Both
+ * censuses were taken in **one** detached `git worktree` stood up for the measurement and worked
+ * in nowhere else, at two refs, each side prepared identically: `scripts/setup-worktree.sh`, then
+ * `pnpm run build:packages`, then `git clean -fX docs/docs/modules` and
+ * `rm -f docs/.module-docs-copies.json`, with `git ls-files --others --exclude-standard`
+ * confirmed **empty** and `git status --porcelain` clean on both sides. The base reproduced the
+ * figure its own commit recorded — **27 drifted, 19 agree, 0 not measured, of 46** — which is the
+ * check on the method rather than a restatement, and the tip reads **28 drifted, 18 agree, 0 not
+ * measured, of 46**.
+ *
+ * **One dimension pair crossed, and the census names it rather than the arithmetic inferring
+ * it.** `check-module-docs` agrees at the base in both dimensions and drifts here in both; no
+ * other entry changes side, in either direction. `files` 110 → 106 is the four pages. `sites`
+ * 253 → 246 is **not** the four pages — it is the seven `DERIVED_FACTS_IN_PROSE` entries that
+ * drained, five keyed on the moved pages and two on the free `architecture/pim-connector.md`,
+ * whose rewrite stopped it citing two paid connectors by address. One entry, two dimensions, two
+ * causes: the #235/#237 shape this entry records both numbers for.
+ *
+ * **Six dimensions this branch moved are deliberately left alone**, every one of them already
+ * adrift on the base and every one moved by **exactly −4**, which is what makes them a check on
+ * the measurement instead of something to record: `check-nul-bytes` `files` 8585 → 8581,
+ * `check-root-dispositions` `files` 8646 → 8642, `scripts/check-naming.sh` 8645 → 8641,
+ * `scripts/check-language.sh` 6473 → 6469, `check-doc-snippets` `files` 1387 → 1383, and
+ * `check-module-docs`' own `files` among them only in the sense that it is the fifth walk to see
+ * the same four deletions. Re-recording any of the five would absorb the base's own drift into a
+ * number attributed to this move — 8635 is what `check-nul-bytes` has recorded and 8585 is what
+ * the base reads, so the −50 is not this branch's to claim.
+ *
+ * **No band was widened and no value was computed from a delta.** Neither number was measured in
+ * the checkout the work was done in.
  */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
@@ -7107,7 +7148,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // -> 110 (-1).** this module's own `docs/dhl_parcel.md`. The header block above this table
     // carries the attribution — two pristine worktrees, per entry and per dimension, with the
     // base's own drift left to its owner — and nothing here widened a band.
-    files: 110,
+    // **`specs/134-paid-module-extraction/` T053 — the four PIM pages leave this repository:
+    // files 110 -> 106 (-4).** `architecture/pim-{ergonode,pimcore,unopim}.md` and
+    // `integrations/akeneo-pim.md`, all four wholly about a paid module under FR-027. Those four
+    // deletions are the *only* files this branch removes, which is what makes the arithmetic
+    // checkable from the other side: **every** whole-repository walk moved by exactly −4 across the
+    // same pair of runs — `check-nul-bytes` 8585 -> 8581, `check-root-dispositions` 8646 -> 8642,
+    // `check-naming.sh` 8645 -> 8641, `check-language.sh` 6473 -> 6469 and `check-doc-snippets`
+    // 1387 -> 1383 — and not one of those five is re-recorded here, every one of them having
+    // already been adrift on the base. **This entry is re-recorded because it is the one that was
+    // in agreement**, which is the shape `f6d9fb136` set on `check-fixture-substitution` two
+    // commits earlier on this same branch. The census is what says so, not the arithmetic: base
+    // `eaf8f1798` reads `27 drifted, 19 agree, 0 not measured, of 46`, reproducing the figure the
+    // base commit recorded, and this tip reads `28 drifted, 18 agree, 0 not measured, of 46` — the
+    // single entry crossing between them is this one, in both dimensions.
+    files: 106,
     // The finer population, and it answers a different question: the navigation
     // entries the committed sidebar names, the rows the committed map carries,
     // and the relative links a module-owned page writes (R3.7). A page added and
@@ -7163,7 +7218,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // The header block above this table carries the attribution — two pristine worktrees, per
     // entry and per dimension, with the base's own drift left to its owner — and nothing here
     // widened a band.
-    sites: 253,
+    // **`specs/134-paid-module-extraction/` T053 — the four PIM pages leave this repository:
+    // sites 253 -> 246 (-7).** Not the four pages — this dimension counts the units, and the seven
+    // are the `DERIVED_FACTS_IN_PROSE` entries that drained with them: **five** keyed on the four
+    // moved pages, and **two** on `architecture/pim-connector.md`, which cited
+    // `pim_ergonode/README.md` and `pim_unopim/src/admin/components` until the rewrite that made
+    // that page describe the free layer took them out — a free page may not name a paid connector,
+    // so those two drained by repair and not by relocation. The two halves of this entry therefore
+    // move for **different** reasons in one merge request, which is the #235/#237 shape the header
+    // gives as this entry's whole reason for recording both. Net −7 and not −6: the rewrite also
+    // introduced one new derived-fact sentence, the check reported it as an unledgered finding
+    // rather than letting it pass, and it was repaired in place by naming the module instead of its
+    // address — a run that read 247 is the intermediate state and not a measurement. Two censuses
+    // in one pristine worktree at two refs, `git clean -fX docs/docs/modules` and no
+    // `docs/.module-docs-copies.json` on both sides, zero unignored residue; nothing here was
+    // computed from a delta and no band was widened.
+    sites: 246,
     // Three authors, each seeing something the others cannot. `manifest-index`
     // is issue #215's shared floor over the module walk, whose unit is the
     // module's own directory. `sidebar-entries` is the **committed artefact's**

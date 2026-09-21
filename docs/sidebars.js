@@ -22,10 +22,7 @@ const sidebars = {
         'architecture/overlay-pattern',
         'architecture/customisation-ladder',
         'architecture/permissions',
-        'architecture/pim-ergonode',
         'architecture/pim-connector',
-        'architecture/pim-unopim',
-        'architecture/pim-pimcore',
       ],
     },
     {
