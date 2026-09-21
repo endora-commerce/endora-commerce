@@ -161,10 +161,8 @@ import type { FeedDeliveryAdapter } from '../../../packages/modules/product_feed
 import { FeedDeliveryError, type FeedDeliveryProtocol } from '@endora-commerce/contracts';
 import type {
   ErpConnectorRegistryPort,
-  InfaktHttpPort,
   InvoiceLedgerRegistryPort,
   PimConnectorRegistryPort,
-  WfirmaHttpPort,
 } from '@endora-commerce/contracts';
 import type { LedgerActivationPresenceReader } from '../../../packages/modules/invoice_ledger/src/backend/services/invoice-ledger-registry.service.js';
 import type { PwaCradle } from '../../../packages/modules/pwa/src/backend/index.js';
@@ -282,15 +280,32 @@ export interface BackendServerOptions {
    */
   feedDeliveryAdapters?: Map<FeedDeliveryProtocol, FeedDeliveryAdapter>;
   /**
-   * Feature 119 — Infakt HTTP. Defaults to the module's refusing port. US1
-   * connection-test scripts pass a stub that answers account details.
+   * Container registrations this run substitutes, by registration name — the
+   * one seam a test uses to hand a module a scripted remote client instead of
+   * its refusing default.
+   *
+   * **It was two named options, `infaktHttp` and `wfirmaHttp`, and D-256's wave-4
+   * prologue is why it is one map.** Each named option had to annotate itself
+   * with the vendor's own HTTP port type — a symbol out of
+   * `packages/contracts/src/{infakt,wfirma}.ts` — which put two of them into a
+   * **free** harness file that stays in this repository when the two vendors
+   * leave it. `contracts/extraction-procedure.md` **E5** stops on exactly that:
+   * *"if `git grep -w <Symbol>` outside the module still answers, W1 was
+   * incomplete and this step stops"*. A map keyed by registration name names no
+   * vendor and no vendor type.
+   *
+   * **What is given up, named rather than absorbed**: the value is `unknown` here,
+   * so this file no longer checks that what a caller passes satisfies the port it
+   * is substituting. That check moves to the caller, where it is cheaper and
+   * closer — every scripted client in the tree is already declared
+   * `implements <Vendor>HttpPort` inside its own package, which is where `tsc`
+   * verifies it and where it travels to. What is lost is the assertion at the
+   * *call site*, and a caller that wants it back writes a typed local.
+   *
+   * Values are contributed into the composed container after the modules
+   * register, so a name here wins over the module's own registration.
    */
-  infaktHttp?: InfaktHttpPort;
-  /**
-   * Feature 129 — wFirma HTTP. Defaults to the module's refusing port. US1
-   * connection-test scripts pass a stub that answers company probes.
-   */
-  wfirmaHttp?: WfirmaHttpPort;
+  moduleOverrides?: Record<string, unknown>;
   /**
    * Feature 119 / US10 — extra invoice-ledger vendor ids for the mutex registry.
    *
@@ -402,6 +417,17 @@ export interface BackendServerHandle {
   infakt: { processDelivery: (deliveryId: string) => Promise<void> };
   /** Feature 129 — drive the wFirma delivery processor (no BullMQ in this harness). */
   wfirma: { processDelivery: (deliveryId: string) => Promise<void> };
+  /**
+   * Feature 134 / D-256 — drive **any** composed ledger vendor's delivery
+   * processor, by its container registration name.
+   *
+   * The two accessors above name a vendor each and leave this repository with
+   * the package that answers them; this one names none, so the free ledger suite
+   * can drive the vendor it is given. It refuses rather than returning
+   * `undefined` when nothing is registered under the name — a composition that
+   * silently has no vendor is the state the assertion is about.
+   */
+  ledgerDeliveryProcessor: (registrationName: string) => (deliveryId: string) => Promise<void>;
   /** Feature 119 — shared invoice-ledger vendor mutex port. */
   invoiceLedgerRegistry: InvoiceLedgerRegistryPort;
   /** Feature 067 — Product Feed handle (feeds, generation, runs, token cache). */
@@ -2142,11 +2168,12 @@ export async function setupBackendServer(
           taxonomySourceFetcher: options.taxonomySourceFetcher ?? refusingTaxonomyFetcher(),
           deliveryAdapters: options.feedDeliveryAdapters ?? refusingDeliveryAdapters(),
         },
-        // Feature 119 / 129 — `invoice_ledger`, `infakt` and `wfirma` compose
-        // through MODULES. These contributions only replace vendor HTTP when a
-        // test scripts it.
-        ...(options.infaktHttp ? { infaktHttp: options.infaktHttp } : {}),
-        ...(options.wfirmaHttp ? { wfirmaHttp: options.wfirmaHttp } : {}),
+        // A module's own registrations, substituted by name. This is where a
+        // scripted remote client replaces the refusing default a ledger vendor,
+        // a PIM connector or any other outward-facing module composes with. The
+        // map names no module: see `moduleOverrides` above for why that matters
+        // to a module that is about to leave this repository.
+        ...(options.moduleOverrides ?? {}),
         // US10 — mutex extras stay off the production table. Tests that need
         // a sibling inject it here (`ledger_fixture` / `other_ledger_vendor`).
         ...(options.invoiceLedgerPresence
@@ -2762,6 +2789,18 @@ export async function setupBackendServer(
           }
         ).wfirmaDeliveryProcessor.process(deliveryId),
     },
+    ledgerDeliveryProcessor: (registrationName: string) => (deliveryId: string) =>
+      (
+        container.cradle as unknown as Record<
+          string,
+          { process: (id: string) => Promise<void> } | undefined
+        >
+      )[registrationName]?.process(deliveryId) ??
+      Promise.reject(
+        new Error(
+          `No ledger delivery processor is registered as \`${registrationName}\` in this composition.`,
+        ),
+      ),
     invoiceLedgerRegistry: (
       container.cradle as unknown as { invoiceLedgerRegistryPort: InvoiceLedgerRegistryPort }
     ).invoiceLedgerRegistryPort,

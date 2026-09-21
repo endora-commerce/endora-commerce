@@ -13,7 +13,8 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
     "carrier_fixture",
     "comarch_xl_example_overlay",
     "erp_incumbent_fixture",
-    "example_overlay"
+    "example_overlay",
+    "ledger_vendor_fixture"
   ],
   "entries": [
     {
@@ -59,6 +60,22 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
       "reason": "Core serves nothing on this endpoint: the route is this deployment’s own, and the interceptor stamps its response so that the reference deployment demonstrates the rung-2 seam end to end. It runs after the handler and adds a field; it vetoes nothing and writes nothing, which is what a `post` interceptor may do."
     },
     {
+      "key": "interceptor:ledger_vendor_fixture:POST /api/v1/admin/modules/:id/activation#pre",
+      "kind": "interceptor",
+      "module": "ledger_vendor_fixture",
+      "subject": "POST /api/v1/admin/modules/:id/activation",
+      "owner": "_lifecycle",
+      "rung": 2,
+      "detail": {
+        "kind": "interceptor",
+        "phase": "pre",
+        "order": 0,
+        "id": "refuse-when-sibling-ledger-vendor-active",
+        "targetMatched": true
+      },
+      "reason": "The exclusive capability’s enforcement, which is each member’s own. It runs before the kernel’s activation handler, asks `invoice_ledger` whether a sibling vendor is already active, and refuses with the owner’s code when one is. It vetoes only a request naming this module and only when that request switches it on; every other activation, and every deactivation, passes through untouched."
+    },
+    {
       "key": "port-consumed:carrier_fixture:shippingAdapterRegistry",
       "kind": "port-consumed",
       "module": "carrier_fixture",
@@ -71,6 +88,126 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
       "reason": "The contribution seam `delivery_methods` publishes for a module that ships parcels, reached from this fixture’s boot hook so that the carrier port keeps an implementor in this repository after feature 134’s wave 1 removes `inpost` and `dhl_parcel` (FR-021, FR-063). It is rung 3 read exactly as the ladder intends: the owner published the seam, the consumer declares the dependency, and nothing of `delivery_methods` is wrapped or replaced. The fixture is a reference implementor rather than a delivery capability — it seeds no method, owns no table and serves no route — so what this deployment gains is a contributor to an existing registry and no behaviour a shop would notice."
     },
     {
+      "key": "port-consumed:ledger_vendor_fixture:configurationTypeRegistry",
+      "kind": "port-consumed",
+      "module": "ledger_vendor_fixture",
+      "subject": "configurationTypeRegistry",
+      "owner": "credentials",
+      "rung": 3,
+      "detail": {
+        "kind": "port-consumed"
+      },
+      "reason": "The credential shape this vendor’s connection takes, described to `credentials` from a boot hook so that its admin screen can render a form for it. A contribution, not a gate: the owner filters by contributor when it enumerates, so switching this module off withdraws the type while leaving any stored row visible."
+    },
+    {
+      "key": "port-consumed:ledger_vendor_fixture:credentialsService",
+      "kind": "port-consumed",
+      "module": "ledger_vendor_fixture",
+      "subject": "credentialsService",
+      "owner": "credentials",
+      "rung": 3,
+      "detail": {
+        "kind": "port-consumed"
+      },
+      "reason": "The fixture’s API key and webhook secret, resolved by the frozen credential code the delivery row carries rather than by a live settings read — freezing is the property the free ledger’s retry assertions are about, and a fixture that read live values would exercise the opposite of it."
+    },
+    {
+      "key": "port-consumed:ledger_vendor_fixture:credentialsService",
+      "kind": "port-consumed",
+      "module": "ledger_vendor_fixture",
+      "subject": "credentialsService",
+      "owner": "credentials",
+      "rung": 3,
+      "detail": {
+        "kind": "port-consumed"
+      },
+      "reason": "The fixture’s API key and webhook secret, resolved by the frozen credential code the delivery row carries rather than by a live settings read — freezing is the property the free ledger’s retry assertions are about, and a fixture that read live values would exercise the opposite of it."
+    },
+    {
+      "key": "port-consumed:ledger_vendor_fixture:invoiceCopyHostPort",
+      "kind": "port-consumed",
+      "module": "ledger_vendor_fixture",
+      "subject": "invoiceCopyHostPort",
+      "owner": "invoices",
+      "rung": 3,
+      "detail": {
+        "kind": "port-consumed"
+      },
+      "reason": "The buyer snapshot and lines a VAT copy is built from — the only way any ledger vendor learns anything about an invoice, and read-only by construction. The fixture builds no document from it; it reads the same fields a real vendor reads so that the record shape stays compiled against from the consumer side."
+    },
+    {
+      "key": "port-consumed:ledger_vendor_fixture:invoiceKsefAssignmentPort",
+      "kind": "port-consumed",
+      "module": "ledger_vendor_fixture",
+      "subject": "invoiceKsefAssignmentPort",
+      "owner": "invoices",
+      "rung": 3,
+      "detail": {
+        "kind": "port-consumed"
+      },
+      "reason": "The same argument one field over: when the ledger delegates KSeF to the vendor, the vendor records the reference it got back. KSeF is a legal clearing system rather than a vendor (FR-024), so this port stays in the free tier and keeps a caller here."
+    },
+    {
+      "key": "port-consumed:ledger_vendor_fixture:invoiceLedgerDeliveryPort",
+      "kind": "port-consumed",
+      "module": "ledger_vendor_fixture",
+      "subject": "invoiceLedgerDeliveryPort",
+      "owner": "invoice_ledger",
+      "rung": 3,
+      "detail": {
+        "kind": "port-consumed"
+      },
+      "reason": "The ledger’s own delivery row, read and advanced by the vendor that is delivering it. This is the port with the widest consumer surface of the four — `markAwaitingRemote`, `markSucceeded`, `markFailed`, `recordQueuedWait`, `rememberClient`, `findClientRemoteId` and `findDocumentRemoteId` — and after feature 134’s wave 4 removes `wfirma` and `infakt` it has no other caller in this repository, so a breaking change to it would type-check green here and red in another repository days later (FR-063). Rung 3 exactly as the ladder intends: the owner published the port, the consumer declares the dependency, and nothing of `invoice_ledger` is wrapped or replaced."
+    },
+    {
+      "key": "port-consumed:ledger_vendor_fixture:invoiceLedgerRegistryPort",
+      "kind": "port-consumed",
+      "module": "ledger_vendor_fixture",
+      "subject": "invoiceLedgerRegistryPort",
+      "owner": "invoice_ledger",
+      "rung": 3,
+      "detail": {
+        "kind": "port-consumed"
+      },
+      "reason": "The vendor mutex. `invoice-ledger-vendor` is an exclusive capability, and the refusal is minted by `invoice_ledger` while the question is asked by each member’s own activation interceptor — only the vendor knows which activation request is about it. Consuming it here is what keeps that shape exercised after the two real members leave."
+    },
+    {
+      "key": "port-consumed:ledger_vendor_fixture:invoiceLedgerVendorFreezeRegistry",
+      "kind": "port-consumed",
+      "module": "ledger_vendor_fixture",
+      "subject": "invoiceLedgerVendorFreezeRegistry",
+      "owner": "invoice_ledger",
+      "rung": 3,
+      "detail": {
+        "kind": "port-consumed"
+      },
+      "reason": "The contribution seam `invoice_ledger` publishes so that a vendor can say, at enqueue time, which credential and which environment a delivery will be frozen against. The push is keyed by this module’s own id and happens in a boot hook that does not probe its own presence (D-67/D-68), because the owner filters by contributor at the read."
+    },
+    {
+      "key": "port-consumed:ledger_vendor_fixture:invoiceLedgerWebhookPort",
+      "kind": "port-consumed",
+      "module": "ledger_vendor_fixture",
+      "subject": "invoiceLedgerWebhookPort",
+      "owner": "invoice_ledger",
+      "rung": 3,
+      "detail": {
+        "kind": "port-consumed"
+      },
+      "reason": "What the ledger does with an authenticated vendor event, reached from this module’s one route. The signature scheme is the vendor’s own and is deliberately not reproduced: the fixture authenticates with a shared secret, because what the free ledger owns is everything after authentication and that is the only part this call exercises."
+    },
+    {
+      "key": "port-consumed:ledger_vendor_fixture:invoiceNumberingHostPort",
+      "kind": "port-consumed",
+      "module": "ledger_vendor_fixture",
+      "subject": "invoiceNumberingHostPort",
+      "owner": "invoices",
+      "rung": 3,
+      "detail": {
+        "kind": "port-consumed"
+      },
+      "reason": "The write a vendor makes back onto an invoice when the ledger’s numbering mode hands numbering to the vendor. Consumed rather than simulated, because `applyVendorAssignedNumber` would otherwise have no caller in this repository after wave 4."
+    },
+    {
       "key": "registration:example_overlay:exampleOverlayService",
       "kind": "registration",
       "module": "example_overlay",
@@ -81,6 +218,42 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
         "kind": "registration"
       },
       "reason": "Core registers no service of this name — it is this deployment’s own, and it exists so that the container’s ownership ledger has an overlay claimant to answer for. A core module registering `exampleOverlayService` would collide loudly, which is the property being demonstrated."
+    },
+    {
+      "key": "registration:ledger_vendor_fixture:ledgerFixtureConnection",
+      "kind": "registration",
+      "module": "ledger_vendor_fixture",
+      "subject": "ledgerFixtureConnection",
+      "owner": "ledger_vendor_fixture",
+      "rung": null,
+      "detail": {
+        "kind": "registration"
+      },
+      "reason": "Where this vendor resolves `credentials` from, and it is a registration rather than a closure inside the boot hook for a reason `check:port-dependencies` states better than prose would: `credentialsService` is a gated port, a boot hook runs whatever the owning module’s effective state is, and a resolution written there would let an operator switching `credentials` off stop the next start with the screen they would undo it from unreachable. Registered, the resolution happens in a factory the container calls at use, so the same “no” stops one enqueue. It is the shape both real vendors already have."
+    },
+    {
+      "key": "registration:ledger_vendor_fixture:ledgerFixtureDeliveryProcessor",
+      "kind": "registration",
+      "module": "ledger_vendor_fixture",
+      "subject": "ledgerFixtureDeliveryProcessor",
+      "owner": "ledger_vendor_fixture",
+      "rung": null,
+      "detail": {
+        "kind": "registration"
+      },
+      "reason": "The vendor half of a delivery: the sequence of calls a ledger vendor makes between picking a queued row up and marking it delivered. It owns no queue and no worker, deliberately — a queue is a vendor’s own scaling decision and nothing in the ledger’s contract is expressed through one, so a fixture with a queue would add Redis to this deployment’s boot and prove nothing the free module owns."
+    },
+    {
+      "key": "registration:ledger_vendor_fixture:ledgerFixtureHttp",
+      "kind": "registration",
+      "module": "ledger_vendor_fixture",
+      "subject": "ledgerFixtureHttp",
+      "owner": "ledger_vendor_fixture",
+      "rung": null,
+      "detail": {
+        "kind": "registration"
+      },
+      "reason": "This vendor’s one outward port, declared in the module’s own directory rather than in `@endora-commerce/contracts` because nobody outside the module speaks it. It composes to a client that **refuses** every call, for the same reason `product_feeds`’ delivery adapters do: there is no remote here, so a code path that starts reaching for one has to fail loudly rather than quietly succeed."
     }
   ],
   "boundary": {
