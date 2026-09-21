@@ -3450,13 +3450,41 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `check-nul-bytes`, `check-root-dispositions`, `check-singleton-identity`,
     // `check-test-ownership`, `check-language.sh` and `check-naming.sh` — and that drift is
     // its owner's to re-record. Never computed from a delta.
+    // **`specs/134-paid-module-extraction/` wave 4's fixture ledger vendor (D-256):
+    // `sites` 5 -> 20, re-recorded; `files` deliberately left alone.** Measured
+    // 2026-09-21 on two pristine `git worktree`s — `origin/master` at `78cfe8428`
+    // and this tip — each after `setup-worktree.sh`, `build:packages`,
+    // `git clean -fX docs/docs/modules`, `rm -f docs/.module-docs-copies.json`, with
+    // `git ls-files --others --exclude-standard` empty on both. Neither figure is a
+    // computed delta and no band was widened.
+    //
+    // **Why `sites` is re-recorded and `files` is not, which is the whole of the
+    // decision.** Both dimensions were **already drifted** on the base — `sites` read
+    // **6** there against the recorded 5, and `files` read **2600** against 2582 — and
+    // a drifted entry belongs to whoever drifted it. What is different about `sites` is
+    // that 20 is **outside the band**: the ceiling over a recorded 5 is 8, and
+    // `check-read-size.test.ts` goes red on the tip while it passed on the base.
+    // Leaving it would take `master` red, which is not a thing a census may choose to
+    // do; `files` at 2612 is inside a ceiling of 3873 and is left where it is, drifted,
+    // for its owner. That is the shape `tasks.md`'s own read-size paragraph set —
+    // re-record one dimension and say in as many words why the other was left.
+    //
+    // **What the +14 is, and it is one deployment's own arithmetic.** This check's
+    // `sites` is the derived divergence entries across all three deployments. The
+    // `example` deployment's generated report goes from **5** entries to **19**, and
+    // every one of the fourteen belongs to `ledger_vendor_fixture`: nine
+    // `port-consumed` (the four seams `invoice_ledger` publishes for a vendor, the
+    // three `invoices` publishes, `credentialsService` — which is two sites, one per
+    // resolution — and `configurationTypeRegistry`), three `registration` and one
+    // `interceptor`. Thirteen distinct keys, fourteen sites. Nothing else in the tree
+    // contributes and the other two deployments do not move.
     files: 2582,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
     // move with the overlay tree at all — 2160 of the 2162 files are the owner
     // map's.
-    sites: 5,
+    sites: 20,
     // Three independent authors, none of them the check's own count.
     // `overlay-modules` is `resolveOverlay()`'s directory walk against the
     // modules the walk actually opened a source for, so a discovered overlay
