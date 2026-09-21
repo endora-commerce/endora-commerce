@@ -3452,11 +3452,24 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // its owner's to re-record. Never computed from a delta.
     // **`specs/134-paid-module-extraction/` wave 4's fixture ledger vendor (D-256):
     // `sites` 5 -> 20, re-recorded; `files` deliberately left alone.** Measured
-    // 2026-09-21 on two pristine `git worktree`s — `origin/master` at `78cfe8428`
+    // 2026-09-21 on two pristine `git worktree`s — `origin/master` at `0651f6657`
     // and this tip — each after `setup-worktree.sh`, `build:packages`,
     // `git clean -fX docs/docs/modules`, `rm -f docs/.module-docs-copies.json`, with
     // `git ls-files --others --exclude-standard` empty on both. Neither figure is a
     // computed delta and no band was widened.
+    //
+    // **Taken twice, because the base moved under it and the second base deleted two
+    // files.** The first pair was measured against `78cfe8428`; `0651f6657` then
+    // landed D-262's gate repairs, which delete
+    // `backend/scripts/ledgers/test-ownership/{currencies,languages}.ts`, so every
+    // whole-tree walk moved and a number carried across that rebase would have been a
+    // measurement of a tree that no longer exists. Re-measured rather than carried, and
+    // **this entry's two base figures are unchanged** — `sites` 6 and `files` 2600 on
+    // both bases, because neither deleted file is in this walk's population. Seven
+    // other entries did move by −2, all of them already drifted, none of them breaching
+    // a band and none of them this branch's: `check-lock-claims`, `check-nul-bytes`,
+    // `check-platform-surface`, `check-root-dispositions`, `check-singleton-identity`,
+    // `check-language.sh` and `check-naming.sh`. They are left to their owner.
     //
     // **Why `sites` is re-recorded and `files` is not, which is the whole of the
     // decision.** Both dimensions were **already drifted** on the base — `sites` read
