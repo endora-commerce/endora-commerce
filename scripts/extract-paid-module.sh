@@ -54,6 +54,10 @@
 #     are left in place deliberately (E9, D-247); a specifier is coupling
 #   * a `migration-foreign-writes` shard for this module (E2 / W7: a paid module writing a free
 #     module's table after the split is a cross-repository schema dependency with no owner)
+#   * **E3p**, and this one is the export's own completeness: a path of this history carrying the
+#     module's id that the resolved path set did not carry and no standing disposition covers.
+#     The path set is **resolved, never enumerated** (D-263, refusal 14) — see
+#     `backend/scripts/derive-extraction-path-set.ts` and the E3p section below
 #
 set -euo pipefail
 
@@ -68,7 +72,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --out) OUT="$2"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
-    -h|--help) sed -n '2,50p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,61p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*) printf 'unknown option: %s\n' "$1" >&2; exit 2 ;;
     *) MODULE_ID="$1"; shift ;;
   esac
@@ -161,50 +165,50 @@ say 'W1 — checking no free package still resolves this module by specifier'
 COUPLED=$(git grep -l -E "from '(@endora-commerce/mod-${KEBAB}|.*packages/modules/${MODULE_ID})" -- 'packages/*' ":(exclude)$PKG" || true)
 [ -n "$COUPLED" ] && die $'W1 is incomplete. These packages still resolve this module by specifier:\n'"$COUPLED"$'\nA free package naming a wave member in code that runs is W1\'s refusal verbatim.'
 
+# ---------------------------------------------------------------------------
+# E3p — the path set, resolved over the history and never written down
+# ---------------------------------------------------------------------------
+#
+# **The path set is resolved, never enumerated** (**E3p**, ruled by **D-263** on 2026-09-22;
+# normative in `specs/134-paid-module-extraction/contracts/extraction-procedure.md`). This step
+# named four roots and the vendor contract module until that day, and the enumeration was measured
+# incomplete on **all fifteen** modules — the third root list this estate has measured incomplete,
+# the third measurement being of the list written by the step that cites the second. Refusal 14
+# now refuses an export taken from an enumerated list at all, which is why no root is named
+# anywhere in this file.
+#
+# What made the shortfall invisible rather than merely present: `git log --diff-filter=R` **under
+# a pathspec reports no inbound rename at all**, so the gap cannot be seen from inside the export,
+# and the tip-level stray check below passes with it.
+#
+# `backend/scripts/derive-extraction-path-set.ts` is the whole of it — R1 over the manifests, R2
+# over the rename closure, the ownership tie-break and the completeness refusal — and it prints
+# what it resolved, what it refused and whose lineage it declined to carry. It runs **before** the
+# dry-run exit, because the refusal is a precondition of the move and not a part of it.
+say 'E3p — resolving the path set over the history'
+command -v git-filter-repo >/dev/null 2>&1 || die 'git-filter-repo is not installed. `git subtree split` is the contract'"'"'s other option; a squashed import is refused (FR-015).'
+
+# Outside the working tree on purpose: the file is a derived fact (D-100) and must never be
+# committed, and a whole-tree walk that counted it would move a recorded read size.
+PATHS_FILE=$(mktemp -t "endora-path-set-$MODULE_ID-XXXXXX")
+trap 'rm -f "$PATHS_FILE"' EXIT
+if ! pnpm --filter backend exec tsx scripts/derive-extraction-path-set.ts "$MODULE_ID" \
+  --ref HEAD --package "$PKG" --paths-file "$PATHS_FILE"; then
+  die $'E3p refused, and the paths are printed above. Each is a path of this history carrying `'"$MODULE_ID"$'` that the resolution did not carry and that no standing disposition covers. Widen the resolution or record the path as deliberately left, in the merge request: there is no default, because both answers are real and the wrong one is unrecoverable (E3p, refusal 14).'
+fi
+
 if [ "$DRY_RUN" -eq 1 ]; then
-  say 'dry run: every refusal passed. Nothing was changed.'
+  say 'dry run: the path set resolved and every refusal passed. Nothing was changed.'
   exit 0
 fi
 
 # ---------------------------------------------------------------------------
 # E3 — the history, at the paid repository's path
 # ---------------------------------------------------------------------------
-#
-# **Four roots are derived, not one.** `--path packages/modules/<id>/` alone carries only the
-# history since the packaging migration, because that migration moved these modules by
-# **rename** and a single-path filter does not follow one. `inpost` measured 50 commits that way,
-# oldest eight days after the module was written. The roots below are derived the way §3 derives
-# the publication filter's: over the history, never over the tip.
 say "E3 — exporting the package with its history into $OUT"
-command -v git-filter-repo >/dev/null 2>&1 || die 'git-filter-repo is not installed. `git subtree split` is the contract'"'"'s other option; a squashed import is refused (FR-015).'
-
-HISTORICAL_ROOTS=()
-for root in \
-  "$PKG/" \
-  "backend/src/modules/$MODULE_ID/" \
-  "admin/src/modules/$MODULE_ID/" \
-  "admin/src/modules/$KEBAB/"
-do
-  if git log --oneline --all -1 -- "$root" | grep -q .; then HISTORICAL_ROOTS+=("$root"); fi
-done
-VENDOR_CONTRACTS=""
-for candidate in "packages/contracts/src/$MODULE_ID.ts" "packages/contracts/src/$KEBAB.ts"; do
-  if git log --oneline --all -1 -- "$candidate" | grep -q .; then VENDOR_CONTRACTS="$candidate"; fi
-done
-
-FILTER_ARGS=()
-for root in "${HISTORICAL_ROOTS[@]}"; do FILTER_ARGS+=(--path "$root"); done
-[ -n "$VENDOR_CONTRACTS" ] && FILTER_ARGS+=(--path "$VENDOR_CONTRACTS")
-# `--path-rename` is order-sensitive: the longest source first, or a shorter prefix eats it.
-[ -n "$VENDOR_CONTRACTS" ] && FILTER_ARGS+=(--path-rename "$VENDOR_CONTRACTS:modules/$MODULE_ID/src/contracts/index.ts")
-FILTER_ARGS+=(--path-rename "admin/src/modules/$MODULE_ID/:modules/$MODULE_ID/src/admin/")
-FILTER_ARGS+=(--path-rename "admin/src/modules/$KEBAB/:modules/$MODULE_ID/src/admin/")
-FILTER_ARGS+=(--path-rename "backend/src/modules/$MODULE_ID/:modules/$MODULE_ID/")
-FILTER_ARGS+=(--path-rename "$PKG/:modules/$MODULE_ID/")
-
 rm -rf "$OUT"
 git clone --no-local --single-branch --branch "$(git branch --show-current)" . "$OUT" >/dev/null 2>&1
-git -C "$OUT" filter-repo --force "${FILTER_ARGS[@]}" >/dev/null
+git -C "$OUT" filter-repo --force --paths-from-file "$PATHS_FILE" >/dev/null
 say "E3 — $(git -C "$OUT" rev-list --count HEAD) commit(s), oldest $(git -C "$OUT" log --reverse --format=%ci HEAD | head -1)"
 STRAY=$(git -C "$OUT" ls-tree -r --name-only HEAD | grep -v "^modules/$MODULE_ID/" || true)
 [ -n "$STRAY" ] && die $'the export'"'"$'s tip holds files outside modules/'"$MODULE_ID"$'/:\n'"$STRAY"
