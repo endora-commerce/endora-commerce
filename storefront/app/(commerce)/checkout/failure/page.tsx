@@ -110,10 +110,9 @@ async function payAgainAction(formData: FormData): Promise<void> {
 
   let target: string;
   try {
-    const order = await getMyOrder(session, id);
     const result = await retryOrderPayment(session, id);
     target =
-      paymentRetryDestination(id, result, order.paymentMethod.code) ??
+      paymentRetryDestination(result) ??
       `/orders/${id}?error=${encodeURIComponent(
         result.opened ? t('order.payment.retry.failed') : t('order.payment.retry.inProgress'),
       )}`;

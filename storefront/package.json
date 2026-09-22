@@ -22,8 +22,6 @@
     "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/page-builder-core": "workspace:^",
     "@measured/puck": "^0.20.2",
-    "@stripe/react-stripe-js": "^6.7.0",
-    "@stripe/stripe-js": "^9.9.0",
     "@tailwindcss/postcss": "^4.2.4",
     "@tiptap/core": "^3.22.5",
     "@tiptap/extension-color": "3.22.5",

@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import type { PaymentMethodSummary } from '../api/methods';
-import { PaymentMethodIcon, StripeMark } from './icons';
-import { tForLocale } from '../i18n/messages';
+import { PaymentMethodIcon } from './icons';
 
 /**
  * Storefront payment-method renderer registry (feature 034, FR-016/FR-017).
@@ -11,6 +10,15 @@ import { tForLocale } from '../i18n/messages';
  * the key is unknown), the platform default renderer is used — so every
  * eligible method always renders (the radio-row picker matching
  * `specs/b2b-platform-storefront-ui/examples/checkout/one-step-checkout.png`).
+ *
+ * **This file registers no gateway, deliberately.** A gateway's checkout UI is
+ * the gateway's own storefront code: for a module distributed separately it
+ * arrives as a fragment the shop copies into its scaffolded storefront, which
+ * then calls `registerPaymentMethodRenderer` here
+ * (`specs/134-paid-module-extraction/`, ruling O-1(b); D-195 makes the
+ * storefront the client's). Until a shop does that, its gateway methods render
+ * through the default row — which is FR-017's fallback doing exactly the job it
+ * was written for, not a degradation.
  */
 export interface PaymentMethodRenderProps {
   method: PaymentMethodSummary;
@@ -40,125 +48,11 @@ export const DefaultPaymentMethodRenderer: PaymentMethodRenderer = ({
   </label>
 );
 
-/**
- * Renderer key for the single collapsed "Stripe" option shown at checkout when
- * the Stripe display mode is `redirect` (feature 049). The concrete payment
- * method (card, BLIK, P24, wallets) is chosen on Stripe's hosted page, so we
- * present one option plus an informational note instead of the sub-methods.
- */
-export const STRIPE_REDIRECT_RENDERER_KEY = 'stripe_redirect';
-export const TPAY_REDIRECT_RENDERER_KEY = 'tpay_redirect';
-export const PAYU_REDIRECT_RENDERER_KEY = 'payu_redirect';
-export const AUTOPAY_REDIRECT_RENDERER_KEY = 'autopay_redirect';
-export const PAYPAL_REDIRECT_RENDERER_KEY = 'paypal_redirect';
-
-export const StripeRedirectRenderer: PaymentMethodRenderer = ({ method, defaultChecked }) => (
-  <label style={{ display: 'block' }}>
-    <span style={{ display: 'flex', alignItems: 'center' }}>
-      <input type="radio" name="paymentMethodId" value={method.id} defaultChecked={defaultChecked} />{' '}
-      <span
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          width: 34,
-          marginRight: 8,
-          verticalAlign: 'middle',
-        }}
-      >
-        <StripeMark />
-      </span>
-      {pickName(method.name)}
-    </span>
-    <p className="muted" style={{ margin: '4px 0 0 24px', fontSize: '0.85em' }}>
-      After you click “Place order”, you’ll be redirected to Stripe to complete your payment
-      securely.
-    </p>
-  </label>
-);
-
-export const TpayRedirectRenderer: PaymentMethodRenderer = ({ method, defaultChecked, locale }) => {
-  const t = tForLocale(locale ?? 'en-US');
-  return (
-    <label style={{ display: 'block' }}>
-      <span style={{ display: 'flex', alignItems: 'center' }}>
-        <input type="radio" name="paymentMethodId" value={method.id} defaultChecked={defaultChecked} />{' '}
-        <PaymentMethodIcon method={method} />
-        {pickName(method.name)}
-      </span>
-      <p className="muted" style={{ margin: '4px 0 0 24px', fontSize: '0.85em' }}>
-        {t('tpay.redirect.notice')}
-      </p>
-    </label>
-  );
-};
-
-export const PayuRedirectRenderer: PaymentMethodRenderer = ({ method, defaultChecked, locale }) => {
-  const t = tForLocale(locale ?? 'en-US');
-  return (
-    <label style={{ display: 'block' }}>
-      <span style={{ display: 'flex', alignItems: 'center' }}>
-        <input type="radio" name="paymentMethodId" value={method.id} defaultChecked={defaultChecked} />{' '}
-        <PaymentMethodIcon method={method} />
-        {pickName(method.name)}
-      </span>
-      <p className="muted" style={{ margin: '4px 0 0 24px', fontSize: '0.85em' }}>
-        {t('payu.redirect.notice')}
-      </p>
-    </label>
-  );
-};
-
-export const AutopayRedirectRenderer: PaymentMethodRenderer = ({
-  method,
-  defaultChecked,
-  locale,
-}) => {
-  const t = tForLocale(locale ?? 'en-US');
-  return (
-    <label style={{ display: 'block' }}>
-      <span style={{ display: 'flex', alignItems: 'center' }}>
-        <input type="radio" name="paymentMethodId" value={method.id} defaultChecked={defaultChecked} />{' '}
-        <PaymentMethodIcon method={method} />
-        {pickName(method.name)}
-      </span>
-      <p className="muted" style={{ margin: '4px 0 0 24px', fontSize: '0.85em' }}>
-        {t('autopay.redirect.notice')}
-      </p>
-    </label>
-  );
-};
-
-export const PaypalRedirectRenderer: PaymentMethodRenderer = ({
-  method,
-  defaultChecked,
-  locale,
-}) => {
-  const t = tForLocale(locale ?? 'en-US');
-  return (
-    <label style={{ display: 'block' }}>
-      <span style={{ display: 'flex', alignItems: 'center' }}>
-        <input type="radio" name="paymentMethodId" value={method.id} defaultChecked={defaultChecked} />{' '}
-        <PaymentMethodIcon method={method} />
-        {pickName(method.name)}
-      </span>
-      <p className="muted" style={{ margin: '4px 0 0 24px', fontSize: '0.85em' }}>
-        {t('paypal.redirect.notice')}
-      </p>
-    </label>
-  );
-};
-
 const registry = new Map<string, PaymentMethodRenderer>();
 
 export function registerPaymentMethodRenderer(key: string, renderer: PaymentMethodRenderer): void {
   registry.set(key, renderer);
 }
-
-registerPaymentMethodRenderer(STRIPE_REDIRECT_RENDERER_KEY, StripeRedirectRenderer);
-registerPaymentMethodRenderer(TPAY_REDIRECT_RENDERER_KEY, TpayRedirectRenderer);
-registerPaymentMethodRenderer(PAYU_REDIRECT_RENDERER_KEY, PayuRedirectRenderer);
-registerPaymentMethodRenderer(AUTOPAY_REDIRECT_RENDERER_KEY, AutopayRedirectRenderer);
-registerPaymentMethodRenderer(PAYPAL_REDIRECT_RENDERER_KEY, PaypalRedirectRenderer);
 
 export function resolvePaymentMethodRenderer(rendererKey: string | null): PaymentMethodRenderer {
   if (rendererKey) {

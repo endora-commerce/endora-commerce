@@ -9,7 +9,7 @@ import type { MessageKey } from '../i18n/messages';
  * tree writes `?payment=` any more. It is kept, and kept working, because the
  * marker rides in URLs this platform does not control: a bookmarked link, and
  * an `/orders/:id?payment=returned` still registered in an operator's gateway
- * portal (`docs/docs/modules/autopay.md` documented registering exactly that).
+ * portal — a gateway module's own documentation used to instruct exactly that.
  * Such a buyer lands on their order and is told where the payment stands,
  * rather than on a page that says nothing about why they are back.
  *

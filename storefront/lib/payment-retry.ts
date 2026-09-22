@@ -47,27 +47,22 @@ export function offersPaymentRetry(order: {
 /**
  * Where the buyer goes after the retry call answers.
  *
- * `redirect` is the gateway's own hosted page. Otherwise the attempt is open
- * with no provider session of its own to send them to — either because one was
- * already running (`opened: false`) or because the adapter settles inline — and
- * the destination is this platform's payment step for that order, which is
- * where each gateway module renders its own form.
+ * One rule: the gateway's own hosted page, when the adapter opened a session
+ * and handed us its URL. `null` means there is nowhere to send them and the
+ * page should say so rather than navigate — both call sites fall back to the
+ * order page's own `?error=` sentence.
  *
- * `null` means there is nowhere to send them and the page should say so rather
- * than navigate.
+ * **There used to be a second rule, and it left with the fragments.** An
+ * adapter that settles inline returns no redirect, and the buyer was sent to
+ * `/checkout/pay?id=…&gateway=…` — this platform's inline payment step, which
+ * `specs/134-paid-module-extraction/` T041 (ruling O-1(b)) moves out of this
+ * repository along with the four forms it routed between. Routing a buyer there
+ * from a storefront that has copied no fragment in would be a 404 at the worst
+ * possible moment, so the free rule is the honest one: a URL, or nowhere. A
+ * shop that copies an inline gateway's fragment back in re-adds its own step
+ * routing here.
  */
-export function paymentRetryDestination(
-  orderId: string,
-  result: PaymentRetryResult,
-  paymentMethodCode: string,
-): string | null {
+export function paymentRetryDestination(result: PaymentRetryResult): string | null {
   if (result.nextAction.kind === 'redirect') return result.nextAction.url;
-  const gateway = paymentMethodCode.split('_')[0] ?? '';
-  // The same three prefixes `/checkout` routes on after placement. A code from
-  // any other adapter has no inline step and belongs back on the order page.
-  if (gateway === 'stripe') return `/checkout/pay?id=${encodeURIComponent(orderId)}`;
-  if (gateway === 'tpay' || gateway === 'payu' || gateway === 'paypal') {
-    return `/checkout/pay?id=${encodeURIComponent(orderId)}&gateway=${gateway}`;
-  }
   return null;
 }
