@@ -26,17 +26,19 @@ import type { ClientFetchLedgerEntry } from '../../check-rsc-discipline.js';
  * contract asks a `false` entry for a retiring condition as well.
  *
  * The `noindex` claims below are Phase 2's declarations, not this file's
- * reading: `app/(commerce)/checkout/page.tsx`, `.../checkout/pay/page.tsx`,
- * `app/compare/page.tsx`, `app/compare/share/[token]/page.tsx` and
+ * reading: `app/(commerce)/checkout/page.tsx`, `app/compare/page.tsx`,
+ * `app/compare/share/[token]/page.tsx` and
  * `app/(commerce)/quote-request/page.tsx` each carry
  * `robots: { index: false, follow: false }`, and `check:storefront-indexability`
  * is what keeps that true.
  *
- * **Three entries left with their subject** (`specs/134-paid-module-extraction/`
- * T031): a carrier's locker picker is the carrier's own storefront code and is no
- * longer a file in this repository, so those entries described nothing and
- * `stale-ledger-entry` is what would have said so. Deleting an entry whose
- * subject is gone is the ledger working, not an exemption being dropped.
+ * **Ten entries left with their subject** (`specs/134-paid-module-extraction/`,
+ * T031 then T041): a carrier's locker picker and a gateway's payment form are
+ * that module's own storefront code and are no longer files in this repository,
+ * so those entries described nothing and `stale-ledger-entry` is what would have
+ * said so. Deleting an entry whose subject is gone is the ledger working, not an
+ * exemption being dropped. `/checkout/pay` left with the seven of T041's, which
+ * is why `STILL_NOINDEX` is now named by one checkout route rather than two.
  */
 const NOT_PAGE_CONTENT =
   'this entry is wrong the moment the component renders anything a crawler is owed — page ' +
@@ -49,44 +51,6 @@ const STILL_NOINDEX = (route: string): string =>
 
 export const entries: Readonly<Record<string, ClientFetchLedgerEntry>> = {
   // --- Checkout. Every one of these is on a route Phase 2 declared `noindex`.
-  'storefront/app/(commerce)/checkout/pay/PaypalPayForm.tsx#error': {
-    firstPaint: false,
-    reason:
-      'FR-020 — a PayPal payment failure message on `/checkout/pay`. A payment form is not ' +
-      'content and the route is `noindex`.',
-    retiredBy: STILL_NOINDEX('/checkout/pay'),
-  },
-  'storefront/app/(commerce)/checkout/pay/PaypalPayForm.tsx#loading': {
-    firstPaint: false,
-    reason:
-      'FR-020 — the gate while the PayPal SDK and the order are fetched. Nothing behind it is ' +
-      'crawlable content, and the route is `noindex`.',
-    retiredBy: STILL_NOINDEX('/checkout/pay'),
-  },
-  'storefront/app/(commerce)/checkout/pay/PaypalPayForm.tsx#processing': {
-    firstPaint: false,
-    reason: 'FR-020 — the in-flight state of a payment capture on a `noindex` route.',
-    retiredBy: STILL_NOINDEX('/checkout/pay'),
-  },
-  'storefront/app/(commerce)/checkout/pay/PayuPayForm.tsx#applePayReady': {
-    firstPaint: false,
-    reason:
-      'FR-020 — whether PayU’s Apple Pay widget reported itself available. It is a capability ' +
-      'of the visitor’s browser, so it cannot be decided on the server at all.',
-    retiredBy: STILL_NOINDEX('/checkout/pay'),
-  },
-  'storefront/app/(commerce)/checkout/pay/PayuPayForm.tsx#cardWidgetStatus': {
-    firstPaint: false,
-    reason:
-      'FR-020 — the PayU card widget’s own load state, reported by a third-party script in the ' +
-      'browser.',
-    retiredBy: STILL_NOINDEX('/checkout/pay'),
-  },
-  'storefront/app/(commerce)/checkout/pay/PayuPayForm.tsx#googlePayReady': {
-    firstPaint: false,
-    reason: 'FR-020 — as `applePayReady`: a browser capability, on a `noindex` route.',
-    retiredBy: STILL_NOINDEX('/checkout/pay'),
-  },
   'storefront/components/checkout/PaymentMethods.tsx#visibleMethods': {
     firstPaint: false,
     reason:
@@ -94,12 +58,6 @@ export const entries: Readonly<Record<string, ClientFetchLedgerEntry>> = {
       'a `noindex` route.',
     retiredBy: STILL_NOINDEX('/checkout'),
   },
-  'storefront/components/checkout/StripeInlinePaymentMethods.tsx#visibleMethods': {
-    firstPaint: false,
-    reason: 'FR-020 — as `PaymentMethods`, for the Stripe inline element set.',
-    retiredBy: STILL_NOINDEX('/checkout'),
-  },
-
   // --- Comparison. Both routes are `noindex`; the header toggle is not.
   'storefront/components/ComparisonTable.tsx#error': {
     firstPaint: false,

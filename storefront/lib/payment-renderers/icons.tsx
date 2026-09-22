@@ -4,10 +4,18 @@ import type { PaymentMethodSummary } from '../api/methods';
 
 /**
  * Small inline-SVG marks shown next to a payment method at checkout (feature
- * 049). Brand methods (Stripe, BLIK, Przelewy24, Apple Pay, Google Pay) get a
- * recognizable badge; generic kinds (card, bank transfer, pickup, credit) get a
- * neutral line icon in `currentColor`. All SVG is self-contained (no external
- * assets), so it renders under SSR and any CSP.
+ * 049). Scheme methods (BLIK, Apple Pay, Google Pay) get a recognizable badge;
+ * generic kinds (card, bank transfer, pickup, credit) get a neutral line icon
+ * in `currentColor`. All SVG is self-contained bar the BLIK logo, so it renders
+ * under SSR and any CSP.
+ *
+ * **The badge is chosen by the method-code suffix, not by the gateway.**
+ * `specs/134-paid-module-extraction/` T041, ruling O-1(b) — the gateways'
+ * checkout UI leaves this repository as fragments a shop copies in, so a switch
+ * enumerating `stripe_blik`, `payu_blik`, `autopay_blik` … would give the badge
+ * to the five ids this tree used to carry and a blank card icon to every
+ * fragment copied in under any other adapter. `<vendor>_blik` is BLIK whoever
+ * the vendor is; the scheme is the fact, and the vendor is not.
  */
 
 const BADGE_W = 34;
@@ -38,25 +46,6 @@ function Line({ children }: { children: ReactNode }): ReactNode {
     >
       {children}
     </svg>
-  );
-}
-
-/** The Stripe wordmark badge (used for the collapsed "Stripe" redirect option). */
-export function StripeMark(): ReactNode {
-  return (
-    <Badge bg="#635BFF">
-      <text
-        x="17"
-        y="15"
-        textAnchor="middle"
-        fontFamily="system-ui, sans-serif"
-        fontSize="10"
-        fontWeight="700"
-        fill="#ffffff"
-      >
-        stripe
-      </text>
-    </Badge>
   );
 }
 
@@ -116,24 +105,6 @@ function BlikMark(): ReactNode {
   );
 }
 
-function P24Mark(): ReactNode {
-  return (
-    <Badge bg="#ffffff">
-      <text
-        x="17"
-        y="15"
-        textAnchor="middle"
-        fontFamily="system-ui, sans-serif"
-        fontSize="10"
-        fontWeight="800"
-        fill="#d1112b"
-      >
-        P24
-      </text>
-    </Badge>
-  );
-}
-
 function ApplePayMark(): ReactNode {
   return (
     <Badge bg="#ffffff">
@@ -185,48 +156,25 @@ function GooglePayMark(): ReactNode {
   );
 }
 
+/**
+ * The scheme a method code names, read off its suffix. The seeded codes are
+ * `<adapter>_<scheme>` by convention across every gateway this platform has
+ * carried, and a fragment copied in keeps that shape because the backend's own
+ * method seeding does.
+ */
+const SCHEME_MARKS: ReadonlyArray<readonly [suffix: string, mark: () => ReactNode]> = [
+  ['_apple_pay', ApplePayMark],
+  ['_google_pay', GooglePayMark],
+  ['_blik', BlikMark],
+  ['_card', CardIcon],
+  ['_bank_transfer', BankIcon],
+  // "Pay-by-link" — a bank-transfer redirect, which is what the bank icon says.
+  ['_pbl', BankIcon],
+];
+
 function iconFor(method: Pick<PaymentMethodSummary, 'code' | 'kind'>): ReactNode {
-  switch (method.code) {
-    case 'stripe_card':
-      return <CardIcon />;
-    case 'stripe_blik':
-      return <BlikMark />;
-    case 'stripe_bank_transfer':
-      return <P24Mark />;
-    case 'stripe_apple_pay':
-      return <ApplePayMark />;
-    case 'stripe_google_pay':
-      return <GooglePayMark />;
-    case 'tpay_card':
-      return <CardIcon />;
-    case 'tpay_blik':
-      return <BlikMark />;
-    case 'tpay_bank_transfer':
-      return <BankIcon />;
-    case 'payu_card':
-      return <CardIcon />;
-    case 'payu_blik':
-      return <BlikMark />;
-    case 'payu_pbl':
-      return <BankIcon />;
-    case 'payu_apple_pay':
-      return <ApplePayMark />;
-    case 'payu_google_pay':
-      return <GooglePayMark />;
-    case 'autopay_card':
-      return <CardIcon />;
-    case 'autopay_blik':
-      return <BlikMark />;
-    case 'autopay_pbl':
-      return <BankIcon />;
-    case 'autopay_apple_pay':
-      return <ApplePayMark />;
-    case 'autopay_google_pay':
-      return <GooglePayMark />;
-    case 'paypal_checkout':
-      return <WalletIcon />;
-    default:
-      break;
+  for (const [suffix, Mark] of SCHEME_MARKS) {
+    if (method.code.endsWith(suffix)) return <Mark />;
   }
   switch (method.kind) {
     case 'bank_transfer':

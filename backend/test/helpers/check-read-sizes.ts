@@ -11745,7 +11745,26 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // at this branch's tip — so the figures below carry no part of that 35 and
     // absorb no earlier merge. The entries this branch moved jointly with `master`
     // are left for their owners.
-    files: 331,
+    // **T041: files 331 -> 324, sites 83 -> 73.** Seven `.tsx` leave the walk with
+    // the gateway payment fragments — the four `*PayForm.tsx`, the `/checkout/pay`
+    // step, the saved-card `account/payments/page.tsx` and
+    // `StripeInlinePaymentMethods.tsx` — and this entry moves in both dimensions for
+    // the same reason T031's did, where the same batch's ten deleted `.ts` files move
+    // it in neither. **Attributed the same way, and the base is worse than T031's
+    // was**: `origin/master` at `b64b4e803` is drifted on **36** of the 46 recorded
+    // entries, so a value read off the tree cannot be assumed to be this branch's.
+    // Measured on two pristine worktrees — 331/83 at `b64b4e803`, agreeing with the
+    // recorded value, and 324/73 at this branch's tip — so these figures carry no
+    // part of that 36. The census was **retaken** rather than carried across a
+    // rebase: `origin/master` moved from `c8a6a7bcc` to `b64b4e803` mid-task and
+    // added two files, which moves every whole-tree walk. Both dimensions read the
+    // same numbers at the new base as at the old one, and that is a measurement
+    // rather than the inference it looks like. Six entries this branch moved jointly
+    // with `master`
+    // (`check-nul-bytes`, `check-naming.sh`, `check-language.sh`,
+    // `check-root-dispositions`, `check-diacritic-folds`, `check-env-inputs`) were
+    // already drifted at the base, breach nothing, and are left for their owners.
+    files: 324,
     // The `useEffect` callbacks classified inside those client components, and
     // this is the number that matters. #237's shape for this check is a syntax
     // walk that stops recognising an effect while the file count stands still:
@@ -11765,7 +11784,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // *state names* and are a different count from these seven; they go in this
     // same merge request because an entry naming a file that is gone is a
     // `stale-ledger-entry`.
-    sites: 83,
+    // **T041: 83 -> 73**, measured with `files` above and attributed the same way.
+    // Split rather than attributed to the file the ledger happens to name, which is
+    // the shape that makes a re-record read as explained when it is not: six are
+    // `StripeInlinePaymentMethods.tsx`'s `useEffect` callbacks, three are
+    // `PayuPayForm.tsx`'s and one is `PaypalPayForm.tsx`'s. `StripePayForm.tsx` and
+    // `TpayPayForm.tsx` are client components that classify none, and the two deleted
+    // `page.tsx` are Server Components — so four of the seven deleted files move
+    // `files` alone. The ledger's seven deleted entries are keyed on **state names**
+    // and are a different count from these ten; they ride in the same merge request
+    // because an entry naming a file that is gone is a `stale-ledger-entry`.
+    sites: 73,
     // `storefront-deps` is `storefront/package.json`'s own dependency list —
     // the `@endora-commerce/*` workspace members declaring `react` — against
     // how many of them contributed a file to the walk. It is #215's predicate
@@ -12057,7 +12086,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // only: the notice is `noindex`, so it declares no `seo.ts` for the walk to
     // open beside it. The pair moving by one each — see `sites` — is what says
     // a page arrived rather than a declaration.
-    files: 68,
+    // **`specs/134-paid-module-extraction/` T041: 68 -> 66.** Two `page.tsx` leave
+    // with the gateway fragments — `checkout/pay/` and `account/payments/` — and
+    // neither declared an `seo.ts`, both being `noindex`. `files` and `sites` falling
+    // by the same two is what says two route *files* left rather than two
+    // declarations: the pair moving unequally is the case this entry exists to show.
+    // Measured on two pristine worktrees, 68/57 at `b64b4e803` and 66/55 at this
+    // branch's tip; this entry agreed with its record at the base, before and after
+    // the mid-task rebase that moved `origin/master` from `c8a6a7bcc`.
+    files: 66,
     // Routes classified either way: 8 indexable + 48 `noindex`. It moves only
     // when a page is added or removed, so a run whose `sites` fell while `files`
     // held is a route file that left the tree rather than a declaration that
@@ -12068,7 +12105,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **The service-unavailable notice: 56 -> 57.** The `noindex` count goes
     // 48 -> 49 and the indexable eight do not move: a page nobody may index is
     // still a page this check classifies, and silence would have been a finding.
-    sites: 57,
+    // **T041: 57 -> 55.** The `noindex` count goes 49 -> 47 and the indexable eight
+    // do not move — Constitution VII is untouched by this deletion, and this number
+    // is the evidence rather than the claim.
+    sites: 55,
     // `sitemap` is `storefront/app/sitemap.ts`'s own declared route set — the
     // five static URLs plus the three dynamic patterns — against how many of
     // them the route walk could match to a page file. It is #215's predicate for

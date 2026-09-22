@@ -8,10 +8,10 @@ import type { OrderSummary } from '../../lib/api/orders';
  *
  * Issue #274 moved the *redirect* returns to `/orders/:id`, and left this page
  * with everything else: an offline placement (bank transfer, cash on pickup,
- * credit limit), Stripe's `success_url`, TPay's `successUrl`, and every inline
- * `/checkout/pay` form — PayU, TPay and Stripe — that succeeds. Adding the
- * tracker to the order page must not take the tracker off this one, and must
- * not let an order be counted on both.
+ * credit limit), a gateway whose hosted page names this route as its success
+ * hook, and an inline payment step that settles without leaving the shop.
+ * Adding the tracker to the order page must not take the tracker off this one,
+ * and must not let an order be counted on both.
  */
 
 const order: OrderSummary = {

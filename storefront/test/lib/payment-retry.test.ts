@@ -84,50 +84,44 @@ describe('offersPaymentRetry', () => {
 describe('paymentRetryDestination', () => {
   it('sends the buyer to the gateway when the adapter returned one', () => {
     const target = paymentRetryDestination(
-      'o1',
       result({ nextAction: { kind: 'redirect', url: 'https://psp.example/pay' } }),
-      'autopay_pbl',
     );
     expect(target).toBe('https://psp.example/pay');
   });
 
-  it('sends an inline gateway to this platform`s own payment step', () => {
-    expect(paymentRetryDestination('o1', result(), 'stripe_card')).toBe('/checkout/pay?id=o1');
-    expect(paymentRetryDestination('o1', result(), 'tpay_blik')).toBe(
-      '/checkout/pay?id=o1&gateway=tpay',
-    );
-    expect(paymentRetryDestination('o1', result(), 'payu_card')).toBe(
-      '/checkout/pay?id=o1&gateway=payu',
-    );
-    expect(paymentRetryDestination('o1', result(), 'paypal_checkout')).toBe(
-      '/checkout/pay?id=o1&gateway=paypal',
-    );
+  /**
+   * `specs/134-paid-module-extraction/` T041, ruling O-1(b) — the inline
+   * payment step (`/checkout/pay` and the four forms it routed between) is a
+   * paid fragment and is not in this repository. So the only destination this
+   * platform can name is the one the adapter handed it, and there is exactly
+   * one rule left: a redirect URL, or nowhere.
+   *
+   * `null` is the page's cue to say so rather than navigate; both call sites
+   * fall back to the order page's own `?error=` sentence. A shop that copies an
+   * inline gateway's fragment back in re-adds its step routing here — that is
+   * the copy-paste cost §11.1 accepted, and it is written down in the fragment's
+   * own notes rather than left to be discovered.
+   */
+  it('has no destination when the adapter opened no provider session', () => {
+    for (const code of ['stripe_card', 'tpay_blik', 'payu_card', 'paypal_checkout', 'autopay_pbl']) {
+      expect(paymentRetryDestination(result()), code).toBeNull();
+    }
   });
 
   /**
-   * A resumed attempt has no new provider session, so the buyer goes to the
-   * payment step for the one that is already running — the gateway module's own
-   * form reads its existing mapping there. It is the *`redirect` absence* that
-   * decides this, not `opened`, which is why the two are asserted apart.
+   * A resumed attempt has no new provider session either. It is the *`redirect`
+   * absence* that decides this, not `opened`, which is why the two are
+   * asserted apart.
    */
-  it('routes a resumed attempt to the same inline step', () => {
-    expect(paymentRetryDestination('o1', result({ opened: false }), 'payu_blik')).toBe(
-      '/checkout/pay?id=o1&gateway=payu',
-    );
+  it('routes a resumed attempt nowhere, for the same reason', () => {
+    expect(paymentRetryDestination(result({ opened: false }))).toBeNull();
   });
 
-  /**
-   * A redirect-only gateway that gave us nothing has nowhere to send the buyer.
-   * `null` is the page's cue to say so rather than navigate somewhere useless —
-   * `/checkout/pay` renders no form for Autopay.
-   */
-  it('has no destination for a redirect-only gateway with no URL', () => {
-    expect(paymentRetryDestination('o1', result({ opened: false }), 'autopay_pbl')).toBeNull();
-  });
-
-  it('escapes the order id it puts in the query', () => {
-    expect(paymentRetryDestination('o 1&x', result(), 'stripe_card')).toBe(
-      '/checkout/pay?id=o%201%26x',
-    );
+  it('hands back the adapter URL untouched, whatever it carries', () => {
+    expect(
+      paymentRetryDestination(
+        result({ nextAction: { kind: 'redirect', url: 'https://psp.example/pay?o=o%201%26x' } }),
+      ),
+    ).toBe('https://psp.example/pay?o=o%201%26x');
   });
 });

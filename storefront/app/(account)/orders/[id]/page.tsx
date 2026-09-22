@@ -177,7 +177,6 @@ export default async function OrderConfirmationPage({
           <p className="b2b-auth__hint">{t('order.payment.retry.hint')}</p>
           <form action={retryPaymentAction} className="mt-2 inline">
             <input type="hidden" name="id" value={order.id} />
-            <input type="hidden" name="code" value={order.paymentMethod.code} />
             <button type="submit" className="btn btn--primary btn--sm">
               {t('order.payment.retry.cta')}
             </button>
@@ -418,7 +417,6 @@ async function retryPaymentAction(formData: FormData): Promise<void> {
   const session = await getSessionCookie();
   if (!session) redirect('/login');
   const id = (formData.get('id') as string) ?? '';
-  const code = (formData.get('code') as string) ?? '';
   const { locale } = await getServerContext();
   const t = tForLocale(locale);
 
@@ -426,7 +424,7 @@ async function retryPaymentAction(formData: FormData): Promise<void> {
   try {
     const result = await retryOrderPayment(session, id);
     target =
-      paymentRetryDestination(id, result, code) ??
+      paymentRetryDestination(result) ??
       `/orders/${id}?error=${encodeURIComponent(
         result.opened ? t('order.payment.retry.failed') : t('order.payment.retry.inProgress'),
       )}`;
