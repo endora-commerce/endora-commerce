@@ -7956,7 +7956,27 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // fifteen admin-surface sites they assert. Both dimensions **agreed** before this
     // branch and came off agreement together, which is why both are re-recorded here
     // and nothing else in this record is.
-    files: 417,
+    // **W2.2 for the three PIM connectors, 2026-09-22: 417 -> 421, and 2308 -> 2322 below.**
+    // The same disposition one wave over, and the same shape: `pim_akeneo` and `pim_unopim`
+    // each gain one co-located `src/admin/index.test.ts`, `pim_pimcore` gains two — its
+    // `index.test.ts` and `issue-reasons.test.ts`, the latter being the non-DOM half of a
+    // deleted rendered case — so this walk gains exactly four files. A packaged module's
+    // `src/admin` is this walk's root whatever a file's suffix, and the reaches the four add
+    // are `node:*`, `vitest`, relative and `@endora-commerce/contracts`, none of them a
+    // judgeable kit reach: the check still reports `findings=0`.
+    //
+    // **Attributed by parking rather than by arithmetic.** In a pristine worktree at this
+    // branch's tip, removing the four added files and restoring the four deleted
+    // `admin/test/**` ones returns both dimensions to the base's own figures exactly, which
+    // is what says the whole move is this branch's. **Re-measured after two rebases, never
+    // carried across one**: this entry conflicted with T069's re-record and then with T040's,
+    // was resolved to the incoming side both times per `specs/conventions/check-estate.md`,
+    // and the values here are fresh readings of the tree rebased onto `525b1277f`. Both
+    // dimensions agreed at that base, so — as with T040 — they came off agreement together
+    // and they are the only two this branch re-records; the twelve other dimensions it moves
+    // were already drifted at the base and are left to their owners. Nothing here widened a
+    // band.
+    files: 421,
     // **Batch 13 (feature 091, Phase 4): 2361 -> 2305, and the cause is the move's
     // spelling rather than its size.** A published-symbol reach is counted per
     // import statement, and the twenty-four moved screens rewrote thirty `@/…`
@@ -8013,7 +8033,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // 2293 (-16).** The admin-surface units those four files declared. The header block above this
     // table carries the attribution — two pristine worktrees, per dimension, with
     // `origin/master`'s own drift left to its owner — and nothing here widened a band.
-    sites: 2308,
+    sites: 2322,
     // **Three** derivations since Phase 5's T3, none of them the walk counting
     // itself: the generated manifest index for the modules a walked file is
     // attributed to; the kit's own `exports` map against the barrels on disk —
