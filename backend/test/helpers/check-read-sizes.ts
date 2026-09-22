@@ -11751,11 +11751,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `StripeInlinePaymentMethods.tsx` — and this entry moves in both dimensions for
     // the same reason T031's did, where the same batch's ten deleted `.ts` files move
     // it in neither. **Attributed the same way, and the base is worse than T031's
-    // was**: `origin/master` at `c8a6a7bcc` is drifted on **36** of the 46 recorded
+    // was**: `origin/master` at `b64b4e803` is drifted on **36** of the 46 recorded
     // entries, so a value read off the tree cannot be assumed to be this branch's.
-    // Measured on two pristine worktrees — 331/83 at `c8a6a7bcc`, agreeing with the
+    // Measured on two pristine worktrees — 331/83 at `b64b4e803`, agreeing with the
     // recorded value, and 324/73 at this branch's tip — so these figures carry no
-    // part of that 36. Six entries this branch moved jointly with `master`
+    // part of that 36. The census was **retaken** rather than carried across a
+    // rebase: `origin/master` moved from `c8a6a7bcc` to `b64b4e803` mid-task and
+    // added two files, which moves every whole-tree walk. Both dimensions read the
+    // same numbers at the new base as at the old one, and that is a measurement
+    // rather than the inference it looks like. Six entries this branch moved jointly
+    // with `master`
     // (`check-nul-bytes`, `check-naming.sh`, `check-language.sh`,
     // `check-root-dispositions`, `check-diacritic-folds`, `check-env-inputs`) were
     // already drifted at the base, breach nothing, and are left for their owners.
@@ -12086,8 +12091,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // neither declared an `seo.ts`, both being `noindex`. `files` and `sites` falling
     // by the same two is what says two route *files* left rather than two
     // declarations: the pair moving unequally is the case this entry exists to show.
-    // Measured on two pristine worktrees, 68/57 at `c8a6a7bcc` and 66/55 at this
-    // branch's tip; this entry agreed with its record at the base.
+    // Measured on two pristine worktrees, 68/57 at `b64b4e803` and 66/55 at this
+    // branch's tip; this entry agreed with its record at the base, before and after
+    // the mid-task rebase that moved `origin/master` from `c8a6a7bcc`.
     files: 66,
     // Routes classified either way: 8 indexable + 48 `noindex`. It moves only
     // when a page is added or removed, so a run whose `sites` fell while `files`
