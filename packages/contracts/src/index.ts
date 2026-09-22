@@ -29,11 +29,6 @@ export * from './invoices.js';
 export * from './payments.js';
 export * from './payment-methods.js';
 export * from './payment-return-url.js';
-export * from './stripe.js';
-export * from './tpay.js';
-export * from './payu.js';
-export * from './autopay.js';
-export * from './paypal.js';
 export * from './shipping-methods.js';
 export * from './admin.js';
 export * from './credit-limits.js';
@@ -184,10 +179,7 @@ export * from './pim-akeneo.js';
 export * from './pim-connector.js';
 export * from './erp-connector.js';
 export * from './comarch-xl.js';
-export {
-  canonicalisePimFieldPath,
-  isValidPimFieldPath,
-} from './pim-field-path.js';
+export { canonicalisePimFieldPath, isValidPimFieldPath } from './pim-field-path.js';
 export * from './pim-unopim.js';
 export * from './pim-pimcore.js';
 export * from './kernel.js';
