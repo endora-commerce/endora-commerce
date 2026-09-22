@@ -7949,7 +7949,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // page, its ledger-tab zone and its API client. The header block above this table carries the
     // attribution — two pristine worktrees, per dimension, with `origin/master`'s own drift left
     // to its owner — and nothing here widened a band.
-    files: 412,
+    // **T040, 2026-09-22: 412 -> 417, and 2293 -> 2308 below.** W2.2's disposition of
+    // `payment-gateway-settings.module-owned-surface.test.tsx` gives each of the five
+    // gateways a co-located `src/admin/index.test.ts` carrying that file's declaration
+    // and source-hygiene subjects, so this walk gains exactly five files and the
+    // fifteen admin-surface sites they assert. Both dimensions **agreed** before this
+    // branch and came off agreement together, which is why both are re-recorded here
+    // and nothing else in this record is.
+    files: 417,
     // **Batch 13 (feature 091, Phase 4): 2361 -> 2305, and the cause is the move's
     // spelling rather than its size.** A published-symbol reach is counted per
     // import statement, and the twenty-four moved screens rewrote thirty `@/…`
@@ -8006,7 +8013,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // 2293 (-16).** The admin-surface units those four files declared. The header block above this
     // table carries the attribution — two pristine worktrees, per dimension, with
     // `origin/master`'s own drift left to its owner — and nothing here widened a band.
-    sites: 2293,
+    sites: 2308,
     // **Three** derivations since Phase 5's T3, none of them the walk counting
     // itself: the generated manifest index for the modules a walked file is
     // attributed to; the kit's own `exports` map against the barrels on disk —
@@ -13678,7 +13685,25 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which resolves it out of the composed `entities` array. A helper import is no
     // reach, so 81 sites go and none arrives.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The value reaches into a package's source that the module's tests make.
-    sites: 873,
+    // **T040, 2026-09-22: 873 -> 775, and this one is a breach, not a drift.** The
+    // recorded band's floor was 785 and the tree now reads 775, so leaving it takes
+    // `master` red — which is the only condition besides coming off agreement under
+    // which this record is rewritten. `files` is **not** touched: it was already
+    // drifted at `origin/master` (4867 recorded, 4800 measured there) and at 4809 here
+    // it is inside its band, so it belongs to whoever drifted it.
+    //
+    // What moved it: W2.2 takes nine backend test files out of `backend/test/unit/<id>/`
+    // into the five gateway packages and splits four `<id>-core.test.ts` bodies, so the
+    // singleton sites this walk counts fall with the files that held them.
+    //
+    // Attributed by **parking** rather than by arithmetic, and measured twice: an
+    // earlier census against this branch's pre-rebase base `7d6b1500b` read the same
+    // **775**, independently of the four merges that landed between them. The rebase
+    // discarded that census wholesale rather than adjusting it —
+    // `specs/conventions/check-estate.md` requires a conflict here to resolve to the
+    // incoming side and be re-measured on the merged tree — and the re-measurement
+    // produced the identical figure.
+    sites: 775,
     sources: ['manifest-index', 'entities-registry', 'tenant-chains'],
     //
     // **852 -> 851 sites, 4336 -> 4337 files, and the two have different causes.**
