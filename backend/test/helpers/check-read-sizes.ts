@@ -8044,7 +8044,37 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // 2293 (-16).** The admin-surface units those four files declared. The header block above this
     // table carries the attribution — two pristine worktrees, per dimension, with
     // `origin/master`'s own drift left to its owner — and nothing here widened a band.
-    sites: 2326,
+    // **`specs/134-paid-module-extraction/` T041b — E5 for the five payment gateways: sites 2326
+    // -> 2329 (+3).** The vendor contract modules move into their packages and three admin layers
+    // reach them: `payu`, `autopay` and `paypal` each have an `src/admin/api/<id>-client.ts` that
+    // took some of its types from `@endora-commerce/contracts` and now takes the vendor half from
+    // a relative `../../contracts/index.js` **beside** the statement that keeps the free symbols.
+    // A site is one `from '…'`, so a split import is +1 wherever both halves survive, and three
+    // files split. `stripe`'s and `tpay`'s admin clients declare their own local interfaces and
+    // import no vendor symbol from either side, so they move nothing: the +3 is exactly three
+    // files and not five.
+    // **`files` does not move**, at 422, and that half is worth stating because "five files moved
+    // into module packages" reads like it should move a module-package file count. The five
+    // schema modules land in `src/contracts/`, which is not `src/admin/` and is not this walk's
+    // population.
+    // **Attributed by parking rather than by arithmetic.** In a pristine worktree at this
+    // branch's tip, restoring those three files alone from `7f44abbdf` returns the walk to 2326
+    // exactly — which is also what that base reads on its own. `sites` **agreed** at the base and
+    // came off agreement here, which is why it is re-recorded and why it is the only dimension of
+    // this record the branch touches: the twelve others it perturbs were already drifted at the
+    // base and are left to their owners.
+    // **Measured three times, against three bases, and never carried across a rebase.** The first
+    // census was taken at `c8a6a7bcc` and read 2322 -> 2325; `b64b4e803` then re-recorded this
+    // entry to 2326 and the conflict here was resolved **wholly to the incoming side** per
+    // `specs/conventions/check-estate.md`, giving 2326 -> 2329 on a census retaken from scratch;
+    // `7f44abbdf` then added and deleted eighteen files without touching this entry, and the
+    // census was retaken from scratch **again** rather than carried, reading 2326 -> 2329 once
+    // more. That the second and third agree is a result and not a reason: the branch's own +3 is
+    // three import statements and nothing in either merge could move it, which is what the
+    // parking measurement says independently. Every worktree was measured after
+    // `setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the
+    // copy stamp, each reporting no unignored residue. Nothing here widened a band.
+    sites: 2329,
     // **Three** derivations since Phase 5's T3, none of them the walk counting
     // itself: the generated manifest index for the modules a walked file is
     // attributed to; the kit's own `exports` map against the barrels on disk —
