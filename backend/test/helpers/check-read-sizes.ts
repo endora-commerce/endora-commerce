@@ -7976,7 +7976,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and they are the only two this branch re-records; the twelve other dimensions it moves
     // were already drifted at the base and are left to their owners. Nothing here widened a
     // band.
-    files: 421,
+    // **T051b, 2026-09-22: 421 -> 422, and 2322 -> 2326 below.** `infakt`'s W2
+    // disposition adds `packages/modules/infakt/src/admin/index.test.ts`, which is
+    // one file and three `from '…'` specifiers; the fourth site is the `node:fs` the
+    // free ledger's own admin test gains when its source-hygiene half moves into the
+    // package. Both dimensions agreed at the base and came off agreement together.
+    //
+    // Re-measured on the merged tree rather than carried across the rebase. T040
+    // re-recorded this same entry to 417/2308 and T051 to 421/2322 while this branch
+    // was open, so the figures it measured against `525b1277f` were void twice over —
+    // `specs/conventions/check-estate.md` requires a conflict here to resolve wholly
+    // to the incoming side and be re-measured afterwards, and that is what these are.
+    files: 422,
     // **Batch 13 (feature 091, Phase 4): 2361 -> 2305, and the cause is the move's
     // spelling rather than its size.** A published-symbol reach is counted per
     // import statement, and the twenty-four moved screens rewrote thirty `@/…`
@@ -8033,7 +8044,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // 2293 (-16).** The admin-surface units those four files declared. The header block above this
     // table carries the attribution — two pristine worktrees, per dimension, with
     // `origin/master`'s own drift left to its owner — and nothing here widened a band.
-    sites: 2322,
+    sites: 2326,
     // **Three** derivations since Phase 5's T3, none of them the walk counting
     // itself: the generated manifest index for the modules a walked file is
     // attributed to; the kit's own `exports` map against the barrels on disk —
