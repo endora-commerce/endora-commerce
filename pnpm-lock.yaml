@@ -224,9 +224,6 @@ importers:
       '@endora-commerce/mod-webhooks':
         specifier: workspace:*
         version: link:../packages/modules/webhooks
-      '@endora-commerce/mod-wfirma':
-        specifier: workspace:*
-        version: link:../packages/modules/wfirma
       '@endora-commerce/page-builder-admin':
         specifier: workspace:^
         version: link:../packages/page-builder-admin
@@ -570,9 +567,6 @@ importers:
       '@endora-commerce/mod-webhooks':
         specifier: workspace:*
         version: link:../packages/modules/webhooks
-      '@endora-commerce/mod-wfirma':
-        specifier: workspace:*
-        version: link:../packages/modules/wfirma
       '@endora-commerce/page-builder-core':
         specifier: workspace:^
         version: link:../packages/page-builder-core
@@ -4266,45 +4260,6 @@ importers:
       '@mikro-orm/postgresql':
         specifier: ^6.6.13
         version: 6.6.13(@mikro-orm/core@6.6.13)
-      '@types/node':
-        specifier: ^22.9.0
-        version: 22.19.17
-      '@types/react':
-        specifier: ^19.2.14
-        version: 19.2.14
-      bullmq:
-        specifier: ^5.76.1
-        version: 5.76.1
-      fastify:
-        specifier: ^5.8.5
-        version: 5.8.5
-      ioredis:
-        specifier: ^5.10.1
-        version: 5.10.1
-      lucide-react:
-        specifier: ^1.11.0
-        version: 1.11.0(react@19.2.5)
-      react:
-        specifier: ^19.2.5
-        version: 19.2.5
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^2.1.4
-        version: 2.1.9(@types/node@22.19.17)(jsdom@29.1.1(@noble/hashes@2.0.1))(lightningcss@1.32.0)(terser@5.46.2)
-
-  packages/modules/wfirma:
-    devDependencies:
-      '@endora-commerce/admin-kit':
-        specifier: workspace:*
-        version: link:../../admin-kit
-      '@endora-commerce/contracts':
-        specifier: workspace:*
-        version: link:../../contracts
-      '@endora-commerce/platform':
-        specifier: workspace:*
-        version: link:../../platform
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17

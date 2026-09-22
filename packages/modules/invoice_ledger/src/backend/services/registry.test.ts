@@ -29,10 +29,20 @@ import { InvoiceLedgerRegistryService } from './invoice-ledger-registry.service.
 const OTHER_VENDOR = { id: 'other_ledger_vendor' };
 const LEDGER_FIXTURE = { id: 'ledger_fixture' };
 const INFAKT = { id: 'infakt' };
-const WFIRMA = { id: 'wfirma' };
+const SECOND_VENDOR = { id: 'second_ledger_vendor' };
 
-/** The two vendors this tree ships, as a family the fixture states rather than imports. */
-const SHIPPED_VENDORS = [INFAKT, WFIRMA];
+/**
+ * A two-member family, stated by this fixture rather than imported.
+ *
+ * The second member was `wfirma` until feature 134's wave 4 took that module out of
+ * this repository, and the comment here said *"the two vendors this tree ships"* —
+ * a derived fact written down (D-100), which the extraction made false on the day.
+ * Nothing in these cases ever needed a real second vendor: the service is handed its
+ * family through the constructor seam, so the id is an arbitrary literal and naming a
+ * paid module bought only the staleness. It is synthetic now, and a sixth vendor
+ * changes nothing here.
+ */
+const SHIPPED_VENDORS = [INFAKT, SECOND_VENDOR];
 
 function unusedEmFactory(): never {
   throw new Error('emFactory not used');
@@ -128,14 +138,14 @@ describe('invoice_ledger registry', () => {
     });
   });
 
-  it('refuses wFirma when Infakt is present', async () => {
+  it('refuses the second vendor when Infakt is present', async () => {
     const service = new InvoiceLedgerRegistryService(
       unusedEmFactory,
       { isOperatorActivated: (moduleId) => moduleId === 'infakt' },
       SHIPPED_VENDORS,
     );
 
-    await expect(service.assertCanActivate('wfirma')).rejects.toSatisfy((error: unknown) => {
+    await expect(service.assertCanActivate('second_ledger_vendor')).rejects.toSatisfy((error: unknown) => {
       expect(error).toBeInstanceOf(HttpError);
       const httpError = error as HttpError;
       expect(httpError.statusCode).toBe(409);
@@ -146,10 +156,10 @@ describe('invoice_ledger registry', () => {
     });
   });
 
-  it('refuses Infakt when wFirma is present', async () => {
+  it('refuses Infakt when the second vendor is present', async () => {
     const service = new InvoiceLedgerRegistryService(
       unusedEmFactory,
-      { isOperatorActivated: (moduleId) => moduleId === 'wfirma' },
+      { isOperatorActivated: (moduleId) => moduleId === 'second_ledger_vendor' },
       SHIPPED_VENDORS,
     );
 
@@ -158,7 +168,7 @@ describe('invoice_ledger registry', () => {
       const httpError = error as HttpError;
       expect(httpError.statusCode).toBe(409);
       expect(httpError.code).toBe(ERROR_CODES.INVOICE_LEDGER_VENDOR_ALREADY_ACTIVE);
-      expect(httpError.details).toEqual({ activeModuleId: 'wfirma' });
+      expect(httpError.details).toEqual({ activeModuleId: 'second_ledger_vendor' });
       expect(httpError.details).not.toHaveProperty('salesChannelId');
       return true;
     });
@@ -192,10 +202,10 @@ describe('invoice_ledger registry', () => {
     it('getActiveModuleId reads the same family', async () => {
       const service = new InvoiceLedgerRegistryService(
         unusedEmFactory,
-        { isOperatorActivated: (moduleId) => moduleId === 'wfirma' },
+        { isOperatorActivated: (moduleId) => moduleId === 'second_ledger_vendor' },
         () => SHIPPED_VENDORS,
       );
-      await expect(service.getActiveModuleId()).resolves.toBe('wfirma');
+      await expect(service.getActiveModuleId()).resolves.toBe('second_ledger_vendor');
     });
   });
 });

@@ -78,7 +78,6 @@
     "@endora-commerce/mod-tpay": "workspace:*",
     "@endora-commerce/mod-transactional-emails": "workspace:*",
     "@endora-commerce/mod-webhooks": "workspace:*",
-    "@endora-commerce/mod-wfirma": "workspace:*",
     "@endora-commerce/page-builder-admin": "workspace:^",
     "@endora-commerce/page-builder-core": "workspace:^",
     "@measured/puck": "^0.20.2",

@@ -17,13 +17,30 @@ import {
  *
  * Feature 132 — the shipped vendor family is **derived** from the members' own
  * manifest declarations rather than read off `INVOICE_LEDGER_MODULES`, which is
- * deleted. The `ledger_fixture` entry is still injected for Infakt-only cases that
- * need a sibling without activating the real wFirma package.
+ * deleted. The `ledger_fixture` entry is still injected for the Infakt-only case
+ * that needs a sibling whose presence is asserted rather than activated.
+ *
+ * ## The second **real** member is `ledger_vendor_fixture` — feature 134, D-256
+ *
+ * This file is `invoice_ledger`'s own contract, so it stays here when a vendor
+ * leaves; what it needs and cannot own is a second real member, because half of
+ * what it proves is that the interceptor sits on **each member's** route rather
+ * than only on the one the family was built with. That second member was
+ * `wfirma` until 2026-09-21 and is now the example deployment's synthetic
+ * vendor, on the same re-pointing `deliveries.test.ts` and
+ * `historical-remote-id.test.ts` already took.
+ *
+ * `deployment: 'example'` is therefore load-bearing twice over: it composes the
+ * fixture, and it is the value `shippedLedgerVendors` derives the family under —
+ * an overlay module's capability declaration is invisible to a resolution taken
+ * under any other deployment, which is why the env is passed rather than read.
  */
 
+const DEPLOYMENT = 'example';
 const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
 const INFAKT_ACTIVATION_URL = '/api/v1/admin/modules/infakt/activation';
-const WFIRMA_ACTIVATION_URL = '/api/v1/admin/modules/wfirma/activation';
+const FIXTURE_VENDOR_ID = 'ledger_vendor_fixture';
+const FIXTURE_ACTIVATION_URL = `/api/v1/admin/modules/${FIXTURE_VENDOR_ID}/activation`;
 const CHANNEL_API_KEY = 'infakt-mutex-channel-key-008';
 const LEDGER_FIXTURE = {
   id: 'ledger_fixture',
@@ -34,7 +51,7 @@ const extraActive = new Set<string>();
 
 /** The vendors this tree ships, from their own declarations. Never a written-down list (D-100). */
 async function shippedLedgerVendors(): Promise<readonly { id: string }[]> {
-  const entries = await resolvedManifestEntries();
+  const entries = await resolvedManifestEntries({ ...process.env, DEPLOYMENT });
   const vendors = entries
     .filter((entry) =>
       (entry.manifest.capabilities ?? []).includes(CAPABILITY_KEYS.INVOICE_LEDGER_VENDOR),
@@ -52,8 +69,10 @@ describe('invoice_ledger — vendor mutex [contract]', () => {
     process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] =
       process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] ?? randomBytes(32).toString('base64');
     extraActive.clear();
+    const vendors = await shippedLedgerVendors();
     h = await setupBackendServer({
-      invoiceLedgerVendorModules: [...(await shippedLedgerVendors()), LEDGER_FIXTURE],
+      deployment: DEPLOYMENT,
+      invoiceLedgerVendorModules: [...vendors, LEDGER_FIXTURE],
       invoiceLedgerPresence: {
         isOperatorActivated(moduleId) {
           if (extraActive.has(moduleId)) return true;
@@ -61,15 +80,21 @@ describe('invoice_ledger — vendor mutex [contract]', () => {
         },
       },
     });
-    // The harness seeds every module operator-active. wFirma must start off so
-    // Infakt can become the instance vendor (Phase 2 checkpoint).
-    const wfirmaOff = await h.app.inject({
-      method: 'POST',
-      url: WFIRMA_ACTIVATION_URL,
-      ...ADMIN,
-      payload: { active: false },
-    });
-    expect(wfirmaOff.statusCode, wfirmaOff.body).toBe(200);
+    // The harness seeds every module operator-active, and the suite shares one
+    // database, so a member left on by an earlier file is a real state rather
+    // than a hypothetical one. Every member off first — over the derived family,
+    // so no sibling is named here and a fifth vendor is handled by existing
+    // (D-100). Infakt is then switched on by the first case, as the Phase 2
+    // checkpoint has it.
+    for (const vendor of vendors) {
+      const off = await h.app.inject({
+        method: 'POST',
+        url: `/api/v1/admin/modules/${vendor.id}/activation`,
+        ...ADMIN,
+        payload: { active: false },
+      });
+      expect(off.statusCode, `deactivating '${vendor.id}': ${off.body}`).toBe(200);
+    }
     channelId = (await ensureSalesChannel(h.em(), 'il-mutex-ch')).id;
   }, 60_000);
 
@@ -157,7 +182,7 @@ describe('invoice_ledger — vendor mutex [contract]', () => {
     extraActive.delete('ledger_fixture');
   });
 
-  it('POST wFirma activate 409s when Infakt is operator-active', async () => {
+  it('POST the second vendor activate 409s when Infakt is operator-active', async () => {
     const infaktOn = await h.app.inject({
       method: 'POST',
       url: INFAKT_ACTIVATION_URL,
@@ -168,7 +193,7 @@ describe('invoice_ledger — vendor mutex [contract]', () => {
 
     const refused = await h.app.inject({
       method: 'POST',
-      url: WFIRMA_ACTIVATION_URL,
+      url: FIXTURE_ACTIVATION_URL,
       ...ADMIN,
       payload: { active: true },
     });
@@ -181,7 +206,7 @@ describe('invoice_ledger — vendor mutex [contract]', () => {
     expect(body.error.details).not.toHaveProperty('salesChannelId');
   });
 
-  it('POST Infakt activate 409s when wFirma is operator-active', async () => {
+  it('POST Infakt activate 409s when the second vendor is operator-active', async () => {
     await h.app.inject({
       method: 'POST',
       url: INFAKT_ACTIVATION_URL,
@@ -189,13 +214,13 @@ describe('invoice_ledger — vendor mutex [contract]', () => {
       payload: { active: false },
     });
 
-    const wfirmaOn = await h.app.inject({
+    const fixtureOn = await h.app.inject({
       method: 'POST',
-      url: WFIRMA_ACTIVATION_URL,
+      url: FIXTURE_ACTIVATION_URL,
       ...ADMIN,
       payload: { active: true },
     });
-    expect(wfirmaOn.statusCode, wfirmaOn.body).toBe(200);
+    expect(fixtureOn.statusCode, fixtureOn.body).toBe(200);
 
     const refused = await h.app.inject({
       method: 'POST',
@@ -208,7 +233,16 @@ describe('invoice_ledger — vendor mutex [contract]', () => {
       error: { code: string; details?: { activeModuleId?: string; salesChannelId?: string } };
     };
     expect(body.error.code).toBe(ERROR_CODES.INVOICE_LEDGER_VENDOR_ALREADY_ACTIVE);
-    expect(body.error.details?.activeModuleId).toBe('wfirma');
+    expect(body.error.details?.activeModuleId).toBe(FIXTURE_VENDOR_ID);
     expect(body.error.details).not.toHaveProperty('salesChannelId');
+
+    // Leave the family clear for whatever file runs next against this database.
+    const fixtureOff = await h.app.inject({
+      method: 'POST',
+      url: FIXTURE_ACTIVATION_URL,
+      ...ADMIN,
+      payload: { active: false },
+    });
+    expect(fixtureOff.statusCode, fixtureOff.body).toBe(200);
   });
 });

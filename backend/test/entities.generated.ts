@@ -107,7 +107,6 @@ import { entities as entities68 } from '@endora-commerce/mod-taxes/backend';
 import { entities as entities69 } from '@endora-commerce/mod-tpay/backend';
 import { entities as entities70 } from '@endora-commerce/mod-transactional-emails/backend';
 import { entities as entities71 } from '@endora-commerce/mod-webhooks/backend';
-import { entities as entities72 } from '@endora-commerce/mod-wfirma/backend';
 
 /**
  * What a module package publishes in its `entities` array.
@@ -209,5 +208,4 @@ export const installedModuleEntities: Readonly<
   tpay: entities69,
   transactional_emails: entities70,
   webhooks: entities71,
-  wfirma: entities72,
 };

@@ -1,6 +1,5 @@
 ---
 '@endora-commerce/mod-invoice-ledger': minor
-'@endora-commerce/mod-wfirma': minor
 '@endora-commerce/contracts': patch
 ---
 
@@ -40,8 +39,16 @@ path a deactivated vendor's historical rows would re-read as *unreadable*, and o
 the caller **is** the vendor, so the ledger would be asking a registry the vendor populated
 whether the vendor's sentence is one of the vendor's sentences.
 
-**`@endora-commerce/mod-wfirma`: `formatWfirmaValidationError` now bounds its own composed
-tail, and exports the bound.** The composed sentence is `wFirma rejected the invoice.` followed
+**`@endora-commerce/mod-wfirma` is no longer named here, and the release it was promised is
+the paid repository's to make.** Feature 134's wave 4 took that package out of this workspace
+between this changeset being written and this release going out, so `changeset version` can no
+longer honour an intent for it — `check:release-intent`'s `unversionable-changeset`, which is
+the finding that exists because a changeset naming a non-member exits 0 from `changeset status`
+and is byte-identical to a clean branch. The behaviour below is real and unreleased; whoever
+cuts `@endora-commerce/mod-wfirma` next, from the repository that now holds its source, owes it
+a `minor` and this paragraph as its body.
+
+**`formatWfirmaValidationError` now bounds its own composed tail, and exports the bound.** The composed sentence is `wFirma rejected the invoice.` followed
 by the field messages lifted out of wFirma's own JSON or XML body, which was unbounded. A field
 message carrying markup or a control character is now dropped whole; a composition whose tail
 exceeds `WFIRMA_VALIDATION_TAIL_MAX_LENGTH` (300, newly exported from
@@ -49,10 +56,12 @@ exceeds `WFIRMA_VALIDATION_TAIL_MAX_LENGTH` (300, newly exported from
 never truncated and never exceeds the ledger's floor.
 
 **`@endora-commerce/contracts`: a comment, and nothing else.** The doc-blocks on
-`WFIRMA_DELIVERY_MESSAGES` and `INFAKT_DELIVERY_MESSAGES` said *"Operator sentences the … worker
-and ledger mapper share"*, which is the design this release overturns. No exported value, type
-or schema changes; the bump is `patch` because a `.d.ts` comment is part of what the package
-emits and nothing more than that moved.
+`INFAKT_DELIVERY_MESSAGES` and, at the time, `WFIRMA_DELIVERY_MESSAGES` said *"Operator
+sentences the … worker and ledger mapper share"*, which is the design this release overturns.
+The wFirma half of that sentence has since left this package altogether — the sibling changeset
+in this same release removes it — so what this `patch` still describes is the Infakt doc-block.
+No exported value, type or schema changes for it; the bump is `patch` because a `.d.ts` comment
+is part of what the package emits and nothing more than that moved.
 
 **No changeset names `@endora-commerce/mod-infakt`.** Its only change is a co-located
 `*.test.ts`, and `src/**/*.test.ts` is excluded from that package's `tsconfig.json` and
