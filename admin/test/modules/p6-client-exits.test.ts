@@ -23,8 +23,12 @@ import { resolve } from 'node:path';
  * clears every boundary rule while fetching nothing. That is the one defect
  * this repair can introduce, so it is the one this file measures, at the
  * granularity where it can happen: the endpoint each caller now names. It is
- * the shape `payment-gateway-settings.module-owned-surface.test.tsx` uses for
- * the same repair, for the same reason.
+ * the shape the five payment gateways use for the same repair, for the same
+ * reason — written in
+ * `payment-gateway-settings.module-owned-surface.test.tsx` until feature 134's
+ * W2.2 moved each gateway's half of it into
+ * `packages/modules/<id>/src/admin/index.test.ts`, where a package answers it
+ * about its own sources.
  *
  * The behavioural half lives where each caller already had a test —
  * `components/IdleLogout.test.tsx`, `sales_channels/ChannelIdentityForm.theme
