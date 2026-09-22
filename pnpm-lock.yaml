@@ -1410,6 +1410,9 @@ importers:
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
+      '@endora-commerce/mod-payment-methods':
+        specifier: workspace:*
+        version: link:../payment_methods
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform
@@ -3099,6 +3102,9 @@ importers:
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
+      '@endora-commerce/mod-payment-methods':
+        specifier: workspace:*
+        version: link:../payment_methods
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform
@@ -3141,6 +3147,9 @@ importers:
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
+      '@endora-commerce/mod-payment-methods':
+        specifier: workspace:*
+        version: link:../payment_methods
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform
@@ -4050,6 +4059,9 @@ importers:
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
+      '@endora-commerce/mod-payment-methods':
+        specifier: workspace:*
+        version: link:../payment_methods
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform
@@ -4137,6 +4149,9 @@ importers:
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
+      '@endora-commerce/mod-payment-methods':
+        specifier: workspace:*
+        version: link:../payment_methods
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform

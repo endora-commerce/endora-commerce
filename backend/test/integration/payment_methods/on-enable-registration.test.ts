@@ -44,7 +44,7 @@ describe('payment adapter on-enable registration (singleton)', () => {
     // registry skips an adapter whose owner is not effectively present, so a
     // made-up id would (correctly) make the adapter invisible.
     paymentAdapterRegistry().register(vendorAdapter, 'payments');
-    await new PaymentMethodReconciler(h.em).ensureMethodForAdapter(VENDOR_KEY, {
+    await new PaymentMethodReconciler().ensureMethodForAdapter(h.em(), VENDOR_KEY, {
       code: VENDOR_KEY,
       type: 'gateway',
       name: { default: 'Vendor Gateway' },

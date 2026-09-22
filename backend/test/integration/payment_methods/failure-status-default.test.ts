@@ -1,131 +1,73 @@
-import { afterAll, beforeEach, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { Migration } from '@mikro-orm/migrations';
-import { setupMigratorTestDb, type TestDb } from '../../helpers/test-db.js';
-import mikroOrmConfig from '../../../src/db/mikro-orm.config.js';
-import { Migration20260821T084920PaymentMethodsFailureStatusOnHold } from '../../../../packages/modules/payment_methods/src/migrations/20260821T084920_payment_methods_failure_status_on_hold.js';
-import { Migration20260821T084922StripeFailureStatusOnHold } from '../../../../packages/modules/stripe/src/migrations/20260821T084922_stripe_failure_status_on_hold.js';
-import { Migration20260821T084923PayuFailureStatusOnHold } from '../../../../packages/modules/payu/src/migrations/20260821T084923_payu_failure_status_on_hold.js';
-import { Migration20260821T084924TpayFailureStatusOnHold } from '../../../../packages/modules/tpay/src/migrations/20260821T084924_tpay_failure_status_on_hold.js';
-import { Migration20260821T084925AutopayFailureStatusOnHold } from '../../../../packages/modules/autopay/src/migrations/20260821T084925_autopay_failure_status_on_hold.js';
-import { Migration20260821T164749PaypalFailureStatusOnHold } from '../../../../packages/modules/paypal/src/migrations/20260821T164749_paypal_failure_status_on_hold.js';
+import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
+import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
 
 /**
- * Feature 085 (FR-005 / SC-003) — no payment method a freshly installed
- * platform ships cancels an order on a failed payment.
+ * Feature 085 (FR-005 / SC-003) — no payment method a freshly installed platform
+ * ships cancels an order on a failed payment.
  *
- * ### Why this file takes a database of its own
+ * ### This file's subject moved, and the move is the point
  *
- * The fact under test is a property of the **migrated** database, and
- * `payment_methods` is in the harness truncate list — so the first
- * `setupBackendServer` in the invocation deletes exactly the rows this file is
- * here to read, and a file scheduled after it would assert over an empty table
- * and report clean. `setupMigratorTestDb()` clones the same migrated template
- * the run was cloned from, which is a `db:fresh` and nothing else has touched.
+ * It used to read a **migrated** database: every gateway seeded its
+ * `payment_methods` rows from its own migration with
+ * `status_on_failure = 'cancelled'`, a `payment_methods` normalisation ran
+ * *before* all of them because feature 081 orders migrations along the manifest
+ * graph, and each gateway therefore shipped a second migration after its own seed
+ * to undo the value. The ordering trap that made those six files necessary, and
+ * the derivations this file grew to stop a seventh gateway arriving un-covered,
+ * are in the history of this file at `d0bb67435`.
  *
- * It is deliberately **not** in `MIGRATOR_DRIVING_TESTS`: that ledger's
- * population is files that reach for the ORM's migrator handle, this file
- * reaches for it nowhere, and an entry for it would be reported stale by
- * `test/unit/harness/migrator-driving-ledger.test.ts`. It borrows the seam for
- * the clone, not for the migrator — it reads a migrated database, it does not
- * migrate one.
+ * **Feature 134's FR-064 dissolved all of it**
+ * (`specs/134-paid-module-extraction/contracts/foreign-write-repair.md` §4). The
+ * seeds are install hooks now and go through
+ * `PaymentMethodReconciler.ensureMethodForAdapter`, whose `statusOnFailure`
+ * default has been `'on_hold'` since feature 085 — so a fresh install cannot
+ * produce `'cancelled'`, the five `*_failure_status_on_hold` migrations have no
+ * subject, and their bodies are empty. A migrated database now holds **no**
+ * gateway rows at all, which is why reading one would be the "found nothing and
+ * read nothing print the same green" failure rather than a passing test.
  *
- * ### The ordering trap this is really guarding
+ * ### So the subject is the install hooks, and it is still derived
  *
- * Every gateway module declares `payment_methods` in its manifest
- * `dependencies`, and feature 081 orders migrations module by module along that
- * graph. A single normalisation owned by `payment_methods` therefore runs
- * *before* every gateway seed: on a fresh database it normalises nothing and
- * the gateways insert `'cancelled'` right after it. That failure is invisible
- * to every unit test of the SQL and to any test that seeds its own method —
- * only the migrated database shows it.
+ * The population is every module in the generated manifest index that declares
+ * `payment_methods` in its `dependencies` **and** exports an `installHook`. That
+ * is the set of modules that can write a `payment_methods` row at install, read
+ * off the registry the platform actually composes from — so a sixth gateway is
+ * covered the day it is added, without anybody editing a list. PayPal arrived
+ * exactly that way and was un-covered for a release.
  *
- * **A migration that sweeps existing rows cannot fix rows a later migration
- * inserts**, so the trap re-arms itself for every gateway added after Phase C.
- * It did: feature 086's PayPal merged from a branch that predated the sweep and
- * shipped `status_on_failure = 'cancelled'` at order position 146, twenty-six
- * positions after the sweep at 120. Its repair is
- * `20260821T164749_paypal_failure_status_on_hold.ts`, the sixth file of a shape
- * there will be one of per gateway.
+ * `setupTestDb` rather than `setupMigratorTestDb`: the rows are written by this
+ * file, inside a transaction that is rolled back, so there is nothing to clone a
+ * template for.
  *
- * ### What that cost this file, and what it derives now
+ * ### Every assertion is scoped to the rows the seeds wrote, and that is not a weakening
  *
- * The assertions below used to be four hand-written lists — the seeded codes,
- * the normalisation classes, the gateway names checked for ordering, and the
- * literal `'cancelled'`. Three of the four say nothing about a gateway nobody
- * remembered to add them to, which is the position PayPal was in. So:
- *
- * - the invariant is read off `order_statuses.is_terminal` over the **whole**
- *   table, not off the string `'cancelled'` over a list of codes. It fails for
- *   any method a migration seeds into any terminal status, today's or not;
- * - the ordering claim derives its gateway set from the configured migration
- *   order, so a gateway that ships a normalisation stamped before its own seed
- *   is named without anybody editing a list;
- * - `SEEDED_GATEWAY_CODES` is still hand-written, because it is the
- *   non-vacuity floor and there is nothing to derive it from — but a test below
- *   fails when a derived gateway module contributes no code to it, so it cannot
- *   go stale in silence.
+ * The previous shape read the **whole** `payment_methods` table, which was sound
+ * only because its fixture was a pristine clone of the migrated template. On the
+ * shared harness database the table also holds whatever earlier files in the
+ * invocation left there — measured: a `bank_transfer` row at a terminal failure
+ * status, written by another file and correctly none of this file's business. The
+ * subject is *what a fresh install ships*, so the population is the codes that
+ * were not there before `runEverySeed()` and are after it, and a floor below
+ * refuses a run in which that set is empty.
  */
 
-/** The codes the gateway seed migrations create. Non-vacuity floor; see below. */
-const SEEDED_GATEWAY_CODES = [
-  'stripe_card',
-  'stripe_blik',
-  'stripe_bank_transfer',
-  'stripe_apple_pay',
-  'stripe_google_pay',
-  'payu_blik',
-  'payu_card',
-  'payu_pbl',
-  'payu_apple_pay',
-  'payu_google_pay',
-  'tpay_blik',
-  'tpay_card',
-  'tpay_bank_transfer',
-  'autopay_pbl',
-  'paypal_checkout',
-] as const;
-
-type MigrationClass = new (...args: ConstructorParameters<typeof Migration>) => Migration;
-
-/** The `payment_methods` normalisation, then the ones that follow their own seed. */
-const NORMALISATIONS: ReadonlyArray<readonly [string, MigrationClass]> = [
-  ['payment_methods', Migration20260821T084920PaymentMethodsFailureStatusOnHold],
-  ['stripe', Migration20260821T084922StripeFailureStatusOnHold],
-  ['payu', Migration20260821T084923PayuFailureStatusOnHold],
-  ['tpay', Migration20260821T084924TpayFailureStatusOnHold],
-  ['autopay', Migration20260821T084925AutopayFailureStatusOnHold],
-  ['paypal', Migration20260821T164749PaypalFailureStatusOnHold],
-];
-
-const SEED_CLASS_RE = /^Migration\d{8}T\d{6}(.+)SeedPaymentMethods$/;
-const NORMALISATION_CLASS_RE = /^Migration\d{8}T\d{6}(.+)FailureStatusOnHold$/;
-
-/**
- * The migration order the migrator will actually run, read off the ORM config.
- *
- * The owner segment of a migration class name is its module (feature 081's
- * `unscoped-name` rule makes that a contract, not a convention), so the gateway
- * set is derivable and nothing here is a list somebody has to remember.
- */
-async function configuredOrder(): Promise<string[]> {
-  const names = ((await mikroOrmConfig()).migrations?.migrationsList ?? []).map(
-    (entry) => entry.name,
-  );
-  // Exit-2 equivalent: an empty list would make every assertion below vacuous.
-  expect(names.length, 'the configured migration order is empty').toBeGreaterThan(0);
-  return names;
+/** A module that can seed a `payment_methods` row at install time. */
+interface SeedingModule {
+  readonly id: string;
+  readonly installHook: NonNullable<(typeof DISCOVERED_MANIFESTS)[number]['installHook']>;
 }
 
-/** `owner segment` → position, for every migration matching `pattern`. */
-function positionsBySegment(names: readonly string[], pattern: RegExp): Map<string, number> {
-  const found = new Map<string, number>();
-  names.forEach((name, index) => {
-    const match = pattern.exec(name);
-    if (match) found.set(match[1]!, index);
+function seedingModules(): SeedingModule[] {
+  return DISCOVERED_MANIFESTS.flatMap((entry) => {
+    if (!entry.installHook) return [];
+    if (!(entry.manifest.dependencies ?? []).includes('payment_methods')) return [];
+    return [{ id: entry.id, installHook: entry.installHook }];
   });
-  return found;
 }
+
+const NO_OP_LOG = { info: () => {}, warn: () => {}, error: () => {} };
 
 async function failureStatusByCode(em: EntityManager): Promise<Map<string, string>> {
   const rows = await em.execute<{ code: string; status_on_failure: string }[]>(
@@ -135,43 +77,31 @@ async function failureStatusByCode(em: EntityManager): Promise<Map<string, strin
 }
 
 /**
- * The methods whose failure status is a **terminal** order status — the actual
- * invariant. `cancelled` is the one that shipped, but `completed` is terminal
- * too and any operator-defined status can be, so this is read off
- * `order_statuses.is_terminal` rather than off a literal.
+ * The **terminal** order statuses — the actual invariant. `cancelled` is the one
+ * that shipped, but `completed` is terminal too and any operator-defined status
+ * can be, so this is read off `order_statuses.is_terminal` rather than off a
+ * literal.
  */
-async function methodsFailingIntoATerminalStatus(
-  em: EntityManager,
-): Promise<{ code: string; status_on_failure: string }[]> {
-  return em.execute<{ code: string; status_on_failure: string }[]>(`
-    select "payment_methods"."code", "payment_methods"."status_on_failure"
-    from "payment_methods"
-    join "order_statuses" on "order_statuses"."code" = "payment_methods"."status_on_failure"
-    where "order_statuses"."is_terminal" = true
-    order by "payment_methods"."code" asc
-  `);
+async function terminalStatusCodes(em: EntityManager): Promise<Set<string>> {
+  const rows = await em.execute<{ code: string }[]>(
+    'select "code" from "order_statuses" where "is_terminal" = true',
+  );
+  return new Set(rows.map((row) => row.code));
 }
 
-/**
- * Replay a migration's own statements against this transaction. The SQL is read
- * off the migration object rather than copied here, so a test that passes is a
- * statement about the file that will actually run on a deployment.
- */
-async function replay(db: TestDb, ctor: MigrationClass): Promise<void> {
-  const migration = new ctor(db.orm.em.getDriver(), db.orm.config);
-  await migration.up();
-  for (const query of migration.getQueries()) {
-    if (typeof query !== 'string') throw new Error('Expected a plain SQL statement.');
-    await db.em().execute(query);
-  }
+async function knownStatusCodes(em: EntityManager): Promise<Set<string>> {
+  const rows = await em.execute<{ code: string }[]>('select "code" from "order_statuses"');
+  return new Set(rows.map((row) => row.code));
 }
 
 describe('shipped status_on_failure default [integration]', () => {
   let db: TestDb;
+  let modules: SeedingModule[];
 
   beforeAll(async () => {
-    db = await setupMigratorTestDb();
-  });
+    db = await setupTestDb();
+    modules = seedingModules();
+  }, 60_000);
   afterAll(async () => {
     await db.close();
   });
@@ -182,128 +112,79 @@ describe('shipped status_on_failure default [integration]', () => {
     await db.rollbackTx();
   });
 
-  it('leaves no payment method whose failed payment ends the order', async () => {
-    // Not vacuous, two ways: the gateway seeds are the rows a fresh install
-    // has, and a table this file found empty would pass the assertion below
-    // while proving nothing; and the join is only sound if every
-    // `status_on_failure` names a status that exists, or a bad value would be
-    // dropped by the join rather than reported.
-    const byCode = await failureStatusByCode(db.em());
-    for (const code of SEEDED_GATEWAY_CODES) {
-      expect(byCode.get(code), `${code} is missing from the migrated database`).toBeDefined();
+  /** Every install hook that can seed a payment method, run over one transaction. */
+  async function runEverySeed(): Promise<void> {
+    for (const module of modules) {
+      await module.installHook({
+        em: db.em(),
+        redis: undefined,
+        log: NO_OP_LOG,
+        module: { id: module.id, version: '0.0.0-test' },
+      });
     }
-    const known = new Set(
-      (await db.em().execute<{ code: string }[]>('select "code" from "order_statuses"')).map(
-        (row) => row.code,
-      ),
-    );
-    const dangling = [...byCode].filter(([, status]) => !known.has(status));
-    expect(dangling, 'a payment method names an order status that does not exist').toEqual([]);
+  }
 
+  /**
+   * The rows a fresh install would hold, isolated from whatever else is in the
+   * shared table: the codes that were absent before every seed hook ran and
+   * present after.
+   */
+  async function seedAndCollect(): Promise<Map<string, string>> {
+    const before = new Set((await failureStatusByCode(db.em())).keys());
+    await runEverySeed();
+    const after = await failureStatusByCode(db.em());
+    return new Map([...after].filter(([code]) => !before.has(code)));
+  }
+
+  it('has a non-empty population of seeding modules', () => {
+    // The non-vacuity floor. With no seeding module the assertions below are
+    // statements about nothing, and "read nothing" would print the same green as
+    // "found nothing" — the failure this file's previous shape was rewritten to
+    // avoid and then, at FR-064, inherited in a new form.
     expect(
-      await methodsFailingIntoATerminalStatus(db.em()),
-      'A freshly migrated platform still has payment methods whose failure status is ' +
+      modules.map((m) => m.id),
+      'no module in the manifest index both depends on payment_methods and exports an ' +
+        'installHook — the derivation found nothing and every assertion below is vacuous',
+    ).not.toEqual([]);
+  });
+
+  it('leaves no payment method whose failed payment ends the order', async () => {
+    const seeded = await seedAndCollect();
+    // Each seeding module writes at least one row, or the assertions are about an
+    // empty set.
+    expect(seeded.size, 'the seeding modules wrote no rows').toBeGreaterThanOrEqual(
+      modules.length,
+    );
+
+    // The terminal check is only sound if every `status_on_failure` names a status
+    // that exists, or a bad value would be missed rather than reported.
+    const known = await knownStatusCodes(db.em());
+    const dangling = [...seeded].filter(([, status]) => !known.has(status));
+    expect(dangling, 'a seeded payment method names an order status that does not exist').toEqual(
+      [],
+    );
+
+    const terminal = await terminalStatusCodes(db.em());
+    expect(
+      [...seeded].filter(([, status]) => terminal.has(status)),
+      'A freshly installed platform still has payment methods whose failure status is ' +
         'terminal. A terminal status cannot be left, so the buyer cannot pay again.',
     ).toEqual([]);
-  });
+  }, 120_000);
 
-  it('holds every seeded gateway method at the on-hold failure status', async () => {
-    const byCode = await failureStatusByCode(db.em());
-    for (const code of SEEDED_GATEWAY_CODES) {
-      expect(byCode.get(code), code).toBe('on_hold');
-    }
-  });
+  it('holds every row a seeding module writes at the on-hold failure status', async () => {
+    // Stronger than the terminal check above and the reason the five
+    // `*_failure_status_on_hold` migrations retire: not merely "not terminal", but
+    // the exact value the correction used to write.
+    const seeded = await seedAndCollect();
+    expect(seeded.size).toBeGreaterThanOrEqual(modules.length);
+    for (const [code, status] of seeded) expect(status, code).toBe('on_hold');
+  }, 120_000);
 
-  /**
-   * The ordering trap, asserted where it bites: a gateway's normalisation must
-   * sit after that gateway's seed in the order feature 081 computes, or a fresh
-   * database ends with the seeded value whatever the SQL says.
-   *
-   * The gateway set is **derived** from the configured order rather than
-   * listed. A gateway that ships no normalisation at all is not a violation
-   * here — seeding a non-terminal status directly is the better answer and
-   * needs no second file — and it is the first test above that catches one
-   * which seeds a terminal status and forgets.
-   */
-  it('runs each gateway normalisation after that gateway`s own seed', async () => {
-    const names = await configuredOrder();
-    const seeds = positionsBySegment(names, SEED_CLASS_RE);
-    const normalisations = positionsBySegment(names, NORMALISATION_CLASS_RE);
-
-    expect(seeds.size, 'no module seeds payment methods — the derivation found nothing').toBeGreaterThan(0);
-
-    for (const [segment, seedAt] of seeds) {
-      const normaliseAt = normalisations.get(segment);
-      if (normaliseAt === undefined) continue;
-      expect(
-        normaliseAt,
-        `${segment} normalises at ${normaliseAt} but seeds at ${seedAt} — on a fresh ` +
-          `database it normalises nothing and the seed stands`,
-      ).toBeGreaterThan(seedAt);
-    }
-
-    // And the trap itself: the `payment_methods` normalisation is before every
-    // seed, which is why it cannot be the only one.
-    const base = normalisations.get('PaymentMethods');
-    expect(base, 'the payment_methods normalisation is not in the configured order').toBeDefined();
-    for (const [segment, seedAt] of seeds) {
-      expect(base!, `payment_methods normalises after ${segment} seeds`).toBeLessThan(seedAt);
-    }
-  });
-
-  /**
-   * `SEEDED_GATEWAY_CODES` and `NORMALISATIONS` above are hand-written and are
-   * the non-vacuity floor for the first two tests — a gateway missing from them
-   * is a gateway those tests say nothing about, which is exactly how PayPal
-   * arrived. Neither can be derived (a code is inside SQL text, a class is an
-   * import), so this test is what stops them going stale in silence: every
-   * module the configured order shows seeding payment methods must appear in
-   * both.
-   */
-  it('keeps its own lists covering every module that seeds a payment method', async () => {
-    const seeds = positionsBySegment(await configuredOrder(), SEED_CLASS_RE);
-    const moduleIds = [...seeds.keys()].map((segment) =>
-      segment.replace(/(?<!^)([A-Z])/g, '_$1').toLowerCase(),
-    );
-    expect(moduleIds.length).toBeGreaterThan(0);
-
-    const listed = new Set(NORMALISATIONS.map(([owner]) => owner));
-    for (const moduleId of moduleIds) {
-      expect(
-        listed.has(moduleId),
-        `${moduleId} seeds payment methods but has no entry in NORMALISATIONS — the ` +
-          `idempotence and reach tests below say nothing about it`,
-      ).toBe(true);
-      expect(
-        SEEDED_GATEWAY_CODES.some((code) => code.startsWith(`${moduleId}_`)),
-        `${moduleId} seeds payment methods but contributes no code to ` +
-          `SEEDED_GATEWAY_CODES — the tests above say nothing about its rows`,
-      ).toBe(true);
-    }
-  });
-
-  it('changes nothing when its migrations run a second time', async () => {
+  it('changes nothing when every seed runs a second time', async () => {
+    await runEverySeed();
     const before = await failureStatusByCode(db.em());
-    for (const [, ctor] of NORMALISATIONS) await replay(db, ctor);
+    await runEverySeed();
     expect(await failureStatusByCode(db.em())).toEqual(before);
-  });
-
-  /**
-   * The other direction of the same fact: put every row back to `'cancelled'`
-   * and run only the **gateway** normalisations. Each must reach its own rows —
-   * that is what a fresh database depends on, since `payment_methods` has
-   * already run by the time the gateways seed.
-   */
-  it('has each gateway normalisation reaching its own rows', async () => {
-    await db.em().execute(`update "payment_methods" set "status_on_failure" = 'cancelled'`);
-    for (const [owner, ctor] of NORMALISATIONS) {
-      if (owner === 'payment_methods') continue;
-      await replay(db, ctor);
-    }
-
-    const byCode = await failureStatusByCode(db.em());
-    for (const code of SEEDED_GATEWAY_CODES) {
-      expect(byCode.get(code), code).toBe('on_hold');
-    }
-  });
+  }, 120_000);
 });

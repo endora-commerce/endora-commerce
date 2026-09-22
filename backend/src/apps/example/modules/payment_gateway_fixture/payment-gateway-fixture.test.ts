@@ -6,7 +6,12 @@ import type {
   PaymentMethodAdmin,
 } from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
-import { manifest, PAYMENT_GATEWAY_FIXTURE_SETTING_CODES } from './manifest.js';
+import {
+  manifest,
+  PAYMENT_GATEWAY_FIXTURE_PAYMENT_METHOD,
+  PAYMENT_GATEWAY_FIXTURE_SETTING_CODES,
+  uninstallHook,
+} from './manifest.js';
 import {
   PAYMENT_GATEWAY_FIXTURE_ADAPTER_KEYS,
   PAYMENT_GATEWAY_FIXTURE_MODULE_ID,
@@ -313,5 +318,64 @@ describe('payment_gateway_fixture — the contribution seam', () => {
     registerModule(ctx);
     expect(() => runBootHooks()).not.toThrow();
     expect(registry.pushes).toHaveLength(2);
+  });
+});
+
+/**
+ * W7's last step, from the side a unit test can judge (feature 134, FR-064).
+ *
+ * What the hooks *write* needs a database and is in
+ * `backend/test/integration/_lifecycle/gateway-seed-install-hook.integration.test.ts`,
+ * beside `stripe`'s. What belongs here is the three facts that need no database
+ * and that a reader would otherwise take on trust: the seeded row is
+ * **explicitly** inactive, it passes no `statusOnFailure` at all, and a soft
+ * uninstall touches nothing.
+ */
+describe('payment_gateway_fixture — the install surface it consumes', () => {
+  it('seeds an explicitly inactive method for its redirect adapter', () => {
+    // The one field where the seeder's default and the correct value disagree:
+    // omitting it offers a payment method at checkout for every install of this
+    // deployment (`contracts/foreign-write-repair.md` §2.4).
+    expect(PAYMENT_GATEWAY_FIXTURE_PAYMENT_METHOD.status).toBe('inactive');
+    expect(PAYMENT_GATEWAY_FIXTURE_PAYMENT_METHOD.code).toBe(
+      PAYMENT_GATEWAY_FIXTURE_ADAPTER_KEYS.REDIRECT,
+    );
+    expect(PAYMENT_GATEWAY_FIXTURE_PAYMENT_METHOD.type).toBe('gateway');
+  });
+
+  it('passes no statusOnFailure, so it cannot reintroduce the terminal value', () => {
+    // §4 — the five `*_failure_status_on_hold` migrations retire because the
+    // reconciler defaults `statusOnFailure` to `'on_hold'` and no seed overrides
+    // it. A fixture that passed `'cancelled'` would be the one row in the
+    // repository the retired correction still had a subject for.
+    expect(PAYMENT_GATEWAY_FIXTURE_PAYMENT_METHOD.statusOnFailure).toBeUndefined();
+  });
+
+  it('removes nothing on a soft uninstall — the em is never touched', async () => {
+    // A proxy rather than a spy: the claim is that `if (!ctx.hard) return;` is the
+    // first line, so *any* use of the EntityManager is the violation rather than
+    // one particular call. A spy would have to enumerate the calls it forbids.
+    const forbidden = new Proxy(
+      {},
+      {
+        get(_target, property) {
+          throw new Error(
+            `soft uninstall touched the EntityManager (${String(property)}); the row must ` +
+              `survive it (Principle XVII)`,
+          );
+        },
+      },
+    );
+    const log = { info: () => {}, warn: () => {}, error: () => {} };
+
+    await expect(
+      uninstallHook({
+        em: forbidden,
+        redis: undefined,
+        log,
+        module: { id: PAYMENT_GATEWAY_FIXTURE_MODULE_ID, version: '1.0.0' },
+        hard: false,
+      }),
+    ).resolves.toBeUndefined();
   });
 });
