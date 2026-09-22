@@ -390,19 +390,29 @@ export const AdminZoneNameSchema = z.enum([
    * connection screens.
    *
    * **A tab strip**, same renderer as `order.entry.tabs`: `<RouteTabsZone>`.
-   * `invoice_ledger` contributes Deliveries and Routing. A vendor adapter
-   * (`infakt` today) contributes its connection tab. The sidebar keeps one
-   * **Invoice ledger** row. Props: {@link LedgerSectionTabsZoneProps}.
+   * `invoice_ledger` contributes Deliveries and Routing, and asks a vendor
+   * adapter's connection tab to weigh more than its own two so that it sorts
+   * after the screens it is a vendor of. The sidebar keeps one **Invoice
+   * ledger** row. Props: {@link LedgerSectionTabsZoneProps}.
+   *
+   * **No vendor is named here.** One was until 2026-09-22, and the vendors are
+   * what feature 134's wave 4 takes out of this repository — a free package's
+   * source naming a paid module id is the reach that sweep exists to remove
+   * (and a string literal is the spelling no instrument sees).
    *
    * The name is `ledger.section.tabs` and not `invoice_ledger.section.tabs`
    * so an adapter file that mounts the strip does not spell a sibling module
    * id (`check:admin-zones` `foreign-module-id`).
    *
-   * **Three hosts and one place**, the same Z13 exception `order.entry.tabs`
+   * **Many hosts and one place**, the same Z13 exception `order.entry.tabs`
    * records: the switch must appear on every page it switches between or it
-   * is not a switch. `unrendered-zone` is per member, so
-   * `admin/test/modules/invoice_ledger/ledger-section-tabs-zone.test.tsx`
-   * asserts all three mounts by name.
+   * is not a switch. `unrendered-zone` is per zone rather than per host, so
+   * that is asserted **per contributing package**, in each one's own
+   * `src/admin/index.test.ts` over a relative read of its own screens — which
+   * is where it keeps working once the vendors are installed from tarballs
+   * rather than resolved in this workspace (feature 134 W2.2, D-262 clause 3).
+   * The strip's own mechanism is driven in
+   * `admin/test/modules/invoice_ledger/ledger-section-tabs-zone.test.tsx`.
    */
   'ledger.section.tabs',
 ])
