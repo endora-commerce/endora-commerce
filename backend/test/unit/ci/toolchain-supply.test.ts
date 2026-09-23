@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { readJobs } from '../../helpers/ci-jobs.js';
+import { commandLines, readJobs, type CiJob } from '../../helpers/ci-jobs.js';
 
 /**
  * What a CI job has to be given before it runs this repository's code.
@@ -84,7 +84,9 @@ describe('the CI file gives every job what its script needs', () => {
    */
   it('parsed a population that looks like this pipeline', () => {
     const named = JOBS.map((job) => job.name);
-    expect(named).toEqual(expect.arrayContaining(['quality', 'release:changeset', 'deploy']));
+    expect(named).toEqual(
+      expect.arrayContaining(['quality', 'release:changeset', 'deploy', 'publish:docs']),
+    );
     expect(JOBS.filter((job) => job.script !== '').length).toBeGreaterThanOrEqual(8);
     expect(JOBS.filter((job) => runsWorkspaceCode(job.script)).length).toBeGreaterThanOrEqual(6);
   });
@@ -227,5 +229,96 @@ describe('the CI file names the jobs the release gate is wired into', () => {
     expect(job).toBeDefined();
     expect(job?.script).toContain('pnpm --filter backend run check:release-intent');
     expect(job?.script).toContain('pnpm --filter backend run test:release-gate');
+  });
+});
+
+/**
+ * ## 4. A job that transfers over ssh is given ssh, and rsync if it transfers
+ *
+ * `alpine:3.20` ships neither an ssh client nor rsync, and both deployment jobs
+ * run on it. `deploy` has installed `openssh-client` in its `before_script`
+ * since it was written; `publish:docs` (feature 133) needs rsync as well,
+ * because the documentation site is transferred file by file into a fresh
+ * release directory rather than pulled as an image.
+ *
+ * The failure this refuses is the file's own shape one tool over: a job whose
+ * *environment* does not supply what its *script* needs, arriving as
+ * `rsync: not found` in the middle of a deploy stage rather than as a sentence
+ * naming the missing package. It is written as a rule over a derived
+ * population — every job whose commands invoke the tool — rather than as a list
+ * of two job names, so the next job that transfers something is covered by
+ * having been added to the pipeline.
+ */
+interface TransferTool {
+  /** The package an image is asked for. */
+  readonly pkg: string;
+  /** What using it looks like in a command line. */
+  readonly used: RegExp;
+}
+
+const TRANSFER_TOOLS: readonly TransferTool[] = [
+  { pkg: 'openssh-client', used: /(^|[\s;&|"'(])(ssh|scp|ssh-add|ssh-agent|ssh-keyscan)\b/ },
+  { pkg: 'rsync', used: /(^|[\s;&|"'(])rsync\b/ },
+];
+
+/** An image is asked for a package by an install command, not by mentioning it. */
+function installs(beforeScript: string, pkg: string): boolean {
+  return new RegExp(`(apk add|apt-get install)[^\\n]*\\b${pkg}\\b`).test(beforeScript);
+}
+
+/** Which tools a job uses without having been given them. */
+function missingTools(job: CiJob): readonly string[] {
+  const commands = commandLines([job]).join('\n');
+  return TRANSFER_TOOLS.filter(
+    (tool) => tool.used.test(commands) && !installs(job.beforeScript, tool.pkg),
+  ).map((tool) => tool.pkg);
+}
+
+describe('a job that ships files to the VPS is given the tools to ship them', () => {
+  /** The floor: everything below is also what an empty population says. */
+  it('found the jobs that transfer', () => {
+    const transferring = JOBS.filter((job) =>
+      TRANSFER_TOOLS.some((tool) => tool.used.test(commandLines([job]).join('\n'))),
+    ).map((job) => job.name);
+
+    expect(transferring).toEqual(expect.arrayContaining(['deploy', 'publish:docs']));
+  });
+
+  it('installs every transfer tool its commands use', () => {
+    const offenders = JOBS.filter((job) => missingTools(job).length > 0).map(
+      (job) => `${job.name} (${missingTools(job).join(', ')})`,
+    );
+
+    expect(
+      offenders,
+      `${offenders.join(', ')}: uses a transfer tool the job never installs. \`alpine:3.20\` ` +
+        'ships neither an ssh client nor rsync, so this arrives as `not found` in the middle of ' +
+        'the deploy stage — after the artefact has been downloaded and, for the documentation ' +
+        'site, with the release directory half-made.',
+    ).toEqual([]);
+  });
+
+  /**
+   * The rule reads the install line rather than the job text, so a job that
+   * merely names a package in a comment — or installs the other one — is still
+   * an offender. Without this the assertion above is a substring test wearing a
+   * toolchain costume.
+   */
+  it('is not satisfied by the other package, or by a mention', () => {
+    const invented = readJobs(
+      [
+        'ships:',
+        '  before_script:',
+        '    - apk add --no-cache openssh-client',
+        '  script:',
+        '    # rsync would be needed here',
+        '    - rsync -a build/ user@host:/srv/site/',
+        '    - ssh user@host "true"',
+        '',
+      ].join('\n'),
+    );
+
+    expect(invented).toHaveLength(1);
+    expect(missingTools(invented[0]!)).toEqual(['rsync']);
   });
 });

@@ -2298,6 +2298,47 @@ acceptance:instance:
 # branch and this has to fail on the merge request that breaks a link. The
 # `changes:` list is what the site is made of: its own tree, the generated
 # sidebar fragment, and the generator that writes it.
+# The rules the build and the publication share, written once
+# (`specs/133-docs-site-publication/` FR-020, T056), in the idiom
+# `.backend-test-rules` above already establishes.
+#
+# **Why one block rather than two.** `publish:docs` declares
+# `needs: [build:docs]`, so a pipeline that creates the publication without the
+# build fails on an unresolvable `needs:` — which is what two rules blocks free
+# to drift apart eventually produce. Sharing makes that impossible in the
+# direction it can hurt: `publish:docs`'s rule set is this block **narrowed**,
+# never widened, so there is no pipeline in which it is created and the build is
+# not.
+#
+# **The `changes:` list is every input the build reads**, which is wider than
+# "the docs tree": the site's own tree and its translation state, every module
+# package's `docs/` layer, the generator that writes the sidebar fragment, the
+# artefact helper the generator shares with the CLI, the verifier that judges
+# the emitted build, and the publication script itself — a change to any of them
+# changes what is published, so a pipeline that skipped the build for one would
+# publish a site nothing had judged.
+.docs-rules:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - docs/**/*
+        - docs/static/**/*
+        - docs/translation-cache/**/*
+        - docs/i18n/**/*
+        - docs/locales.config.json
+        - docs/translation-skip.json
+        - packages/modules/*/docs/**/*
+        - backend/scripts/generate-composer.ts
+        - backend/scripts/check-docs-translations.ts
+        - backend/scripts/verify-docs-build.ts
+        - backend/scripts/lib/docs-*.ts
+        - packages/cli/src/lib/module-docs.ts
+        - packages/cli/src/lib/docs-artefacts.ts
+        - deploy/publish-docs.sh
+        - pnpm-lock.yaml
+        - .gitlab-ci.yml
+
 build:docs:
   stage: test
   image: node:22.18-slim
@@ -2312,22 +2353,28 @@ build:docs:
     - pnpm run build:packages
   script:
     - pnpm --filter docs run build
-  rules:
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-      changes:
-        - docs/**/*
-        - docs/translation-cache/**/*
-        - docs/i18n/**/*
-        - docs/locales.config.json
-        - docs/translation-skip.json
-        - packages/modules/*/docs/**/*
-        - backend/scripts/generate-composer.ts
-        - backend/scripts/check-docs-translations.ts
-        - backend/scripts/lib/docs-*.ts
-        - packages/cli/src/lib/module-docs.ts
-        - pnpm-lock.yaml
-        - .gitlab-ci.yml
+    # The build succeeding says the site compiled; this says what it emitted is
+    # publishable — twelve assertion families over `docs/build` itself, the
+    # canonical and `og:url` origin, the `hreflang` set, both sitemaps and the
+    # absence of any development origin (feature 133 FR-008, T046–T048). It runs
+    # here rather than in `publish:docs` because the merge request is where a
+    # finding is cheap, and because `gate-coverage.test.ts` holds every
+    # repository script to being run by some job.
+    - pnpm --filter backend run verify:docs-build
+  # The build must survive the job that produced it, so the publication consumes
+  # a tree that has already passed the gate rather than rebuilding unverified
+  # (FR-019). **Measured before `expire_in` was set**: 830 files, 40 MB on disk
+  # — the whole bilingual tree plus the two search indexes (4.7 MB `en`, 5.2 MB
+  # `pl`) — and 8.7 MiB compressed, which is what GitLab stores. One week at the
+  # default branch's cadence is single-digit gigabytes of artefact storage at the
+  # worst, and it is what makes a re-publication of yesterday's build possible
+  # without a rebuild.
+  artifacts:
+    paths:
+      - docs/build
+    expire_in: 1 week
+    when: on_success
+  rules: !reference [.docs-rules, rules]
 
 # ---------------------------------------------------------------------------
 # The storefront conformance job — the served HTML is asserted, and the
@@ -2693,6 +2740,100 @@ deploy:
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       when: manual
+  allow_failure: false
+
+# ---------------------------------------------------------------------------
+# Publish the documentation site — an rsync and a symlink flip, and nothing else
+# (`specs/133-docs-site-publication/contracts/publication-pipeline.md` §2)
+# ---------------------------------------------------------------------------
+#
+# It shares the credentials with `deploy` above and nothing else. There is no
+# image to pull, no container to recreate, no application to restart: the site
+# is static files under `$DOCS_DEPLOY_PATH`, served by the host's own nginx from
+# a `current` symlink. A documentation release and an application release are
+# independent events (FR-023), which is why `$DEPLOY_PATH` — the application
+# stack's directory — is deliberately not read here, and why a new
+# `DOCS_DEPLOY_PATH` variable has to be set on the project before the first run.
+#
+# **It publishes an artefact it did not build** (FR-019). `needs: [build:docs]`
+# consumes that job's `docs/build`, which `verify:docs-build` has already judged
+# across its twelve assertion families. A failed build therefore publishes
+# nothing structurally, because an unsatisfiable `needs:` never starts this job
+# — not because anything here checks.
+#
+# **Automatic, and deliberately not `when: manual`** (FR-020). `deploy` above is
+# manual because it recreates the application stack; this writes files, and a
+# documentation typo corrected on the default branch must not wait for somebody
+# to click a button.
+#
+# **Its rules are `.docs-rules` narrowed, never widened.** The one rung it adds
+# refuses every ref that is not the default branch — true in a merge-request
+# pipeline, where `$CI_COMMIT_BRANCH` is unset — so this job's rule set is a
+# strict subset of `build:docs`'s and no pipeline can create it without the
+# build it needs, which is the whole reason the block is shared. That narrowing
+# is the one deviation from the contract's "identical rules", and it is the
+# direction that matters: literally identical rules would create this job on
+# every documentation merge request and publish an unmerged branch to the live
+# site.
+#
+# `resource_group` stops two publications interleaving and `interruptible:
+# false` stops a newer pipeline cancelling a transfer halfway and leaving a
+# partial release (the pipeline default at the top of this file is
+# `interruptible: true`). Neither of them *orders* two publications — that is
+# `publish-docs.sh`'s `.published` comparison, FR-026.
+publish:docs:
+  stage: deploy
+  image: alpine:3.20
+  needs:
+    - job: build:docs
+      artifacts: true
+  before_script:
+    # SSH_PRIVATE_KEY and SSH_KNOWN_HOSTS are "File" type CI/CD variables, so
+    # each resolves to a PATH to a file holding the content — not the content
+    # (the same two the application deploy uses, read the same way).
+    # `alpine:3.20` ships neither an ssh client nor rsync.
+    - apk add --no-cache openssh-client rsync
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - cp "$SSH_KNOWN_HOSTS" ~/.ssh/known_hosts && chmod 644 ~/.ssh/known_hosts
+    - eval "$(ssh-agent -s)"
+    - chmod 600 "$SSH_PRIVATE_KEY"
+    - ssh-add "$SSH_PRIVATE_KEY"
+  script:
+    # rsync creates the release directory but not its parents, so the layout's
+    # one fixed directory is made first.
+    - ssh "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p '$DOCS_DEPLOY_PATH/releases'"
+    - scp deploy/publish-docs.sh "$DEPLOY_USER@$DEPLOY_HOST:$DOCS_DEPLOY_PATH/publish-docs.sh"
+    # A fresh release directory per commit, hard-linked against the live tree,
+    # so a page the new build no longer contains stops being served (FR-025) at
+    # the cost of only the files that changed. `--delete` is what makes a re-run
+    # of the *same* commit correct: the second attempt rsyncs into a directory
+    # the first already populated, and it is the one case in this design where
+    # the flag alone decides whether a deleted page keeps being served.
+    #
+    # `--link-dest` is **`../../current`, not `../current`**: rsync resolves a
+    # relative `--link-dest` against the *destination directory*, which is
+    # `releases/<sha>/`, and `current` sits one level above `releases/`. The
+    # contract's §3 writes `../current`; that is off by one against its own
+    # layout drawing, and the failure is silent — a `--link-dest` naming a
+    # directory that does not exist is not an error, it simply hard-links
+    # nothing and transfers the whole 40 MB tree every time.
+    - rsync -a --delete --link-dest=../../current docs/build/ "$DEPLOY_USER@$DEPLOY_HOST:$DOCS_DEPLOY_PATH/releases/$CI_COMMIT_SHA/"
+    # The flip, the `.published` record and the prune, on the host. The three
+    # inputs are passed as environment assignments because ssh carries none.
+    - ssh "$DEPLOY_USER@$DEPLOY_HOST"
+      "DOCS_DEPLOY_PATH='$DOCS_DEPLOY_PATH'
+       CI_COMMIT_SHA='$CI_COMMIT_SHA'
+       CI_COMMIT_TIMESTAMP='$CI_COMMIT_TIMESTAMP'
+       bash '$DOCS_DEPLOY_PATH/publish-docs.sh'"
+  environment:
+    name: docs
+    url: https://docs.commerce.endora.software
+  resource_group: docs-publish
+  interruptible: false
+  rules:
+    - if: '$CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH'
+      when: never
+    - !reference [.docs-rules, rules]
   allow_failure: false
 
 # ---------------------------------------------------------------------------
