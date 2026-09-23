@@ -539,14 +539,6 @@ const modules = [
   },
   {
     type: 'category',
-    label: 'TPay',
-    link: { type: 'doc', id: 'modules/tpay' },
-    items: [
-      'module-reference/tpay',
-    ],
-  },
-  {
-    type: 'category',
     label: 'transactional_emails',
     link: { type: 'doc', id: 'modules/transactional-emails' },
     items: [

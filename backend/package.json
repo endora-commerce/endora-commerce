@@ -176,7 +176,6 @@
     "@endora-commerce/mod-shipments": "workspace:*",
     "@endora-commerce/mod-shopping-lists": "workspace:*",
     "@endora-commerce/mod-taxes": "workspace:*",
-    "@endora-commerce/mod-tpay": "workspace:*",
     "@endora-commerce/mod-transactional-emails": "workspace:*",
     "@endora-commerce/mod-webhooks": "workspace:*",
     "@endora-commerce/page-builder-core": "workspace:^",

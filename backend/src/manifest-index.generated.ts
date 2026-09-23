@@ -103,9 +103,8 @@ import { manifest as manifest65, cliCommands as cliCommands65 } from '@endora-co
 import { manifest as manifest66 } from '@endora-commerce/mod-shipments';
 import { manifest as manifest67 } from '@endora-commerce/mod-shopping-lists';
 import { manifest as manifest68 } from '@endora-commerce/mod-taxes';
-import { manifest as manifest69, installHook as installHook69, uninstallHook as uninstallHook69 } from '@endora-commerce/mod-tpay';
-import { manifest as manifest70 } from '@endora-commerce/mod-transactional-emails';
-import { manifest as manifest71 } from '@endora-commerce/mod-webhooks';
+import { manifest as manifest69 } from '@endora-commerce/mod-transactional-emails';
+import { manifest as manifest70 } from '@endora-commerce/mod-webhooks';
 
 export interface DiscoveredManifestEntry {
   id: string;
@@ -193,7 +192,6 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'shipments', manifest: manifest66, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-shipments') },
   { id: 'shopping_lists', manifest: manifest67, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-shopping-lists') },
   { id: 'taxes', manifest: manifest68, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-taxes') },
-  { id: 'tpay', manifest: manifest69, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-tpay'), installHook: installHook69, uninstallHook: uninstallHook69 },
-  { id: 'transactional_emails', manifest: manifest70, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-transactional-emails') },
-  { id: 'webhooks', manifest: manifest71, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-webhooks') },
+  { id: 'transactional_emails', manifest: manifest69, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-transactional-emails') },
+  { id: 'webhooks', manifest: manifest70, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-webhooks') },
 ];

@@ -337,11 +337,6 @@ import { Migration20260611T140418ShoppingListsDefault } from '@endora-commerce/m
 import { Migration20260426T081516TaxesPromotionsInit } from '@endora-commerce/mod-taxes/migrations';
 import { Migration20260912T094654TaxesSalesChannelTaxes } from '@endora-commerce/mod-taxes/migrations';
 
-// ── tpay ────────────────────────────────────────────────────────────────────
-import { Migration20260729T132507TpayInit } from '@endora-commerce/mod-tpay/migrations';
-import { Migration20260816T053834TpaySeedPaymentMethods } from '@endora-commerce/mod-tpay/migrations';
-import { Migration20260821T084924TpayFailureStatusOnHold } from '@endora-commerce/mod-tpay/migrations';
-
 // ── transactional_emails ────────────────────────────────────────────────────
 import { Migration20260629T113442TransactionalEmailsInit } from '@endora-commerce/mod-transactional-emails/migrations';
 import { Migration20260801T111001TransactionalEmailsEmailDefaultsReseed } from '@endora-commerce/mod-transactional-emails/migrations';
@@ -663,11 +658,6 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── taxes ───────────────────────────────────────────────────────────────────
   migration('taxes', Migration20260426T081516TaxesPromotionsInit),
   migration('taxes', Migration20260912T094654TaxesSalesChannelTaxes),
-
-  // ── tpay ────────────────────────────────────────────────────────────────────
-  migration('tpay', Migration20260729T132507TpayInit),
-  migration('tpay', Migration20260816T053834TpaySeedPaymentMethods),
-  migration('tpay', Migration20260821T084924TpayFailureStatusOnHold),
 
   // ── transactional_emails ────────────────────────────────────────────────────
   migration('transactional_emails', Migration20260629T113442TransactionalEmailsInit),

@@ -132,5 +132,4 @@ export const BASELINE_MIGRATIONS: readonly string[] = [
   'Migration20260727T200555WebhooksDropExternalIntegrations',
   'Migration20260727T233211LinkedinAdsInit',
   'Migration20260728T002715MetaAdsInit',
-  'Migration20260729T132507TpayInit',
 ];

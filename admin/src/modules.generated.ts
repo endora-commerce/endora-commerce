@@ -85,9 +85,8 @@ import { contributions as contributions49 } from '@endora-commerce/mod-sales-cha
 import { contributions as contributions50 } from '@endora-commerce/mod-seo/admin';
 import { contributions as contributions51 } from '@endora-commerce/mod-settings/admin';
 import { contributions as contributions52 } from '@endora-commerce/mod-taxes/admin';
-import { contributions as contributions53 } from '@endora-commerce/mod-tpay/admin';
-import { contributions as contributions54 } from '@endora-commerce/mod-transactional-emails/admin';
-import { contributions as contributions55 } from '@endora-commerce/mod-webhooks/admin';
+import { contributions as contributions53 } from '@endora-commerce/mod-transactional-emails/admin';
+import { contributions as contributions54 } from '@endora-commerce/mod-webhooks/admin';
 
 /** One module's contribution set, keyed by the module id that shipped it. */
 export interface AdminRegistryEntry {
@@ -149,7 +148,6 @@ export const MODULE_ADMIN_CONTRIBUTIONS: readonly AdminRegistryEntry[] = [
   { moduleId: 'seo', contributions: contributions50 },
   { moduleId: 'settings', contributions: contributions51 },
   { moduleId: 'taxes', contributions: contributions52 },
-  { moduleId: 'tpay', contributions: contributions53 },
-  { moduleId: 'transactional_emails', contributions: contributions54 },
-  { moduleId: 'webhooks', contributions: contributions55 },
+  { moduleId: 'transactional_emails', contributions: contributions53 },
+  { moduleId: 'webhooks', contributions: contributions54 },
 ];

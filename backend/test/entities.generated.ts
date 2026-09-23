@@ -103,9 +103,8 @@ import { entities as entities64 } from '@endora-commerce/mod-settings/backend';
 import { entities as entities65 } from '@endora-commerce/mod-shipments/backend';
 import { entities as entities66 } from '@endora-commerce/mod-shopping-lists/backend';
 import { entities as entities67 } from '@endora-commerce/mod-taxes/backend';
-import { entities as entities68 } from '@endora-commerce/mod-tpay/backend';
-import { entities as entities69 } from '@endora-commerce/mod-transactional-emails/backend';
-import { entities as entities70 } from '@endora-commerce/mod-webhooks/backend';
+import { entities as entities68 } from '@endora-commerce/mod-transactional-emails/backend';
+import { entities as entities69 } from '@endora-commerce/mod-webhooks/backend';
 
 /**
  * What a module package publishes in its `entities` array.
@@ -203,7 +202,6 @@ export const installedModuleEntities: Readonly<
   shipments: entities65,
   shopping_lists: entities66,
   taxes: entities67,
-  tpay: entities68,
-  transactional_emails: entities69,
-  webhooks: entities70,
+  transactional_emails: entities68,
+  webhooks: entities69,
 };

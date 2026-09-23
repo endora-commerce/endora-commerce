@@ -182,10 +182,8 @@ import * as module68 from '@endora-commerce/mod-shipments/backend';
 import { manifest as manifest68 } from '@endora-commerce/mod-shipments';
 import * as module69 from '@endora-commerce/mod-shopping-lists/backend';
 import { manifest as manifest69 } from '@endora-commerce/mod-shopping-lists';
-import * as module70 from '@endora-commerce/mod-tpay/backend';
-import { manifest as manifest70 } from '@endora-commerce/mod-tpay';
-import * as module71 from '@endora-commerce/mod-webhooks/backend';
-import { manifest as manifest71 } from '@endora-commerce/mod-webhooks';
+import * as module70 from '@endora-commerce/mod-webhooks/backend';
+import { manifest as manifest70 } from '@endora-commerce/mod-webhooks';
 
 export const MODULES: readonly ModuleEntry[] = [
   { id: '_lifecycle', version: manifest0.version, registerModule: module0.registerModule },
@@ -258,6 +256,5 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'search', version: manifest67.version, registerModule: module67.registerModule },
   { id: 'shipments', version: manifest68.version, registerModule: module68.registerModule },
   { id: 'shopping_lists', version: manifest69.version, registerModule: module69.registerModule },
-  { id: 'tpay', version: manifest70.version, registerModule: module70.registerModule },
-  { id: 'webhooks', version: manifest71.version, registerModule: module71.registerModule },
+  { id: 'webhooks', version: manifest70.version, registerModule: module70.registerModule },
 ];
