@@ -199,7 +199,9 @@ Moduł blog nigdy nie importuje wnętrza innego modułu — każdy odczyt cross-
 
 ## Zobacz też
 
-- [Specification](https://gitlab.endora.pl/b2b-platform-ai/monorepo/-/blob/master/specs/016-blog/spec.md)
-- [Implementation Plan](https://gitlab.endora.pl/b2b-platform-ai/monorepo/-/blob/master/specs/016-blog/plan.md)
-- [Data Model](https://gitlab.endora.pl/b2b-platform-ai/monorepo/-/blob/master/specs/016-blog/data-model.md)
-- [Contracts](https://gitlab.endora.pl/b2b-platform-ai/monorepo/-/tree/master/specs/016-blog/contracts)
+Artefakty feature tego modułu, cytowane jako ścieżki w repozytorium, a nie odnośniki:
+
+- Specyfikacja — `specs/016-blog/spec.md`
+- Plan implementacji — `specs/016-blog/plan.md`
+- Model danych — `specs/016-blog/data-model.md`
+- Kontrakty — `specs/016-blog/contracts/`

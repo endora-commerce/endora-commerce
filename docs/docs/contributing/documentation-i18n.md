@@ -33,10 +33,50 @@ file for each locale in `docs/locales.config.json` → `translateLocales`
 Paths listed in `docs/translation-skip.json` are excluded (today:
 `docs/docs/contributing/translations.md`, which is the Admin UI glossary).
 
-Sidebar category and doc labels from `docs/sidebars.js` and
-`docs/sidebars.modules.generated.js` need matching message ids in
-`docs/i18n/<locale>/code.json` (`sidebar.main.category.<key>`,
-`sidebar.main.doc.<key>`).
+Chrome — the navbar, the footer and the sidebar **category** labels declared in
+`docs/sidebars.js` and `docs/sidebars.modules.generated.js` — is translated in
+the files Docusaurus reads it from, which are **not** `code.json`. The next
+section is that rule; getting it wrong translates nothing and says nothing,
+which is how a whole Polish chrome once shipped rendering in English.
+
+## Where a message id belongs
+
+Every message id has exactly one file Docusaurus will read it from. Writing it
+anywhere else is inert: the build succeeds, the page renders, and the string
+stays in the source language.
+
+**Config-derived ids belong in the theme and plugin translation files.** These
+are the ids Docusaurus derives from `docs/docusaurus.config.js`'s `themeConfig`
+and from `docs/sidebars.js`:
+
+| Ids | File, under `docs/i18n/<locale>/` |
+| --- | --- |
+| `title`, `logo.alt`, `item.label.<Label>` — navbar | `docusaurus-theme-classic/navbar.json` |
+| `copyright`, `logo.alt`, `link.title.<Title>`, `link.item.label.<Label>` — footer | `docusaurus-theme-classic/footer.json` |
+| `sidebar.<name>.category.<key>` and its `.link.generated-index.title` / `.description`, `sidebar.<name>.link.<key>` | `docusaurus-plugin-content-docs/current.json` |
+
+A category's `<key>` is `category.key ?? category.label`, and the navbar and
+footer ids are keyed **plain** inside their own file — `title`, never
+`theme.navbar.title`.
+
+**Component-emitted ids belong in `code.json`.** Those are the strings theme and
+plugin *components* emit — Docusaurus's own theme strings such as
+`theme.navbar.mobileLanguageDropdown.label`, and the search plugin's.
+`docs/i18n/<locale>/code.json` is their correct home and holds nothing else.
+
+**`sidebar.<name>.doc.*` is inert everywhere.** A bare `'some/doc'` entry in
+either sidebar file is normalised by the content-docs plugin with
+`translatable: false`, so no such id is read from any file: a Polish sidebar doc
+label comes from the Polish page's own title — the `sidebar_label` or `title` in
+the materialised page's front matter. Doc entries owe no translation file entry
+at all.
+
+`pnpm --filter backend run check:docs-translations` **derives** the expected id
+set from the two config files rather than from a list
+(`backend/scripts/lib/docs-chrome-messages.ts`), so a new navbar item or
+category is reported the first time it appears — as `chrome-message-missing`
+when its own file lacks it, and as `chrome-message-inert` when it is parked in
+`code.json` instead.
 
 ## Three-step edit sequence
 
@@ -58,17 +98,20 @@ Use this sequence when you change one English page and its Polish translation
      `docs/i18n/pl/docusaurus-plugin-content-docs/current/<docId>.md`
      (e.g. `packages/modules/catalog/docs/catalog.md` →
      `.../current/modules/catalog.md`).
-   - If you changed a sidebar label or added a sidebar entry, add the matching
-     key to `docs/i18n/pl/code.json`.
+   - If you changed a sidebar **category** label, or a navbar or footer string,
+     add the matching id to the file named for it in *Where a message id
+     belongs* above. A sidebar **doc** entry owes no id.
 3. **Run the completeness check**:
 
    ```bash
    pnpm --filter backend run check:docs-translations
    ```
 
-   Exit code `0` = every source has a fresh cache entry, materialised file, and
-   sidebar message. Exit code `2` lists `missing-translation`,
-   `stale-translation`, or `missing-sidebar-message` findings.
+   Exit code `0` = every source has a fresh cache entry, a materialised file
+   from which Docusaurus can resolve a title, and every chrome id in the file
+   that reads it. Exit code `2` lists `missing-translation`,
+   `stale-translation`, `missing-sidebar-message`, `chrome-message-missing`,
+   `chrome-message-inert` or `doc-title-unresolvable` findings.
 
 ### Cache entry shape
 
@@ -103,7 +146,11 @@ After regeneration, **manually mirror Polish** under `docs/i18n/pl/`:
 - materialised files under
   `docs/i18n/pl/docusaurus-plugin-content-docs/current/module-reference/` and
   `.../modules/`,
-- new or changed sidebar message ids in `docs/i18n/pl/code.json`.
+- a `sidebar.main.category.<key>` id in
+  `docs/i18n/pl/docusaurus-plugin-content-docs/current.json` for every **new
+  category** the regenerated `docs/sidebars.modules.generated.js` declares. New
+  `doc` entries owe nothing — their Polish label is the materialised page's own
+  title.
 
 Do not edit generated English files for Polish — update the i18n tree and cache
 instead (FR-012, FR-014).
@@ -131,8 +178,11 @@ example, German:
    `docs/locales.config.json`.
 2. Add `label` (and related theme strings) for `de` in
    `docs/docusaurus.config.js` → `i18n.localeConfigs`.
-3. Scaffold `docs/i18n/de/code.json` (copy the `pl` structure and translate
-   theme + sidebar messages).
+3. Scaffold the chrome translation files by copying the `pl` ones and
+   translating them — `docs/i18n/de/docusaurus-theme-classic/navbar.json` and
+   `footer.json`, `docs/i18n/de/docusaurus-plugin-content-docs/current.json`,
+   and `docs/i18n/de/code.json` for component-emitted ids only (*Where a message
+   id belongs* above).
 4. Manually author cache entries under `docs/translation-cache/de/` and
    materialised markdown under
    `docs/i18n/de/docusaurus-plugin-content-docs/current/` for every English

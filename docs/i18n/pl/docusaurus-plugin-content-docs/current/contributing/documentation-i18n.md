@@ -33,10 +33,49 @@ dla każdej lokalizacji z `docs/locales.config.json` → `translateLocales`
 Ścieżki z `docs/translation-skip.json` są wyłączone (obecnie:
 `docs/docs/contributing/translations.md`, czyli słownik UI panelu admina).
 
-Etykiety kategorii i dokumentów z `docs/sidebars.js` oraz
-`docs/sidebars.modules.generated.js` wymagają pasujących identyfikatorów wiadomości w
-`docs/i18n/<locale>/code.json` (`sidebar.main.category.<key>`,
-`sidebar.main.doc.<key>`).
+Chrome — pasek nawigacji, stopka oraz etykiety **kategorii** sidebara zadeklarowane
+w `docs/sidebars.js` i `docs/sidebars.modules.generated.js` — tłumaczy się w plikach,
+z których Docusaurus je czyta, a tymi plikami **nie jest** `code.json`. Następna sekcja
+opisuje tę zasadę; pomyłka w tym miejscu niczego nie tłumaczy i niczego nie sygnalizuje —
+właśnie tak całe polskie chrome trafiło kiedyś na produkcję, renderując się po angielsku.
+
+## Gdzie należy identyfikator wiadomości
+
+Każdy identyfikator wiadomości ma dokładnie jeden plik, z którego Docusaurus go odczyta.
+Wpisany gdziekolwiek indziej jest martwy: build się udaje, strona się renderuje,
+a napis zostaje w języku źródłowym.
+
+**Identyfikatory wyprowadzone z konfiguracji należą do plików tłumaczeń motywu i pluginu.**
+To identyfikatory, które Docusaurus wyprowadza z `themeConfig` w
+`docs/docusaurus.config.js` oraz z `docs/sidebars.js`:
+
+| Identyfikatory | Plik w `docs/i18n/<locale>/` |
+| --- | --- |
+| `title`, `logo.alt`, `item.label.<Label>` — pasek nawigacji | `docusaurus-theme-classic/navbar.json` |
+| `copyright`, `logo.alt`, `link.title.<Title>`, `link.item.label.<Label>` — stopka | `docusaurus-theme-classic/footer.json` |
+| `sidebar.<name>.category.<key>` oraz jego `.link.generated-index.title` / `.description`, `sidebar.<name>.link.<key>` | `docusaurus-plugin-content-docs/current.json` |
+
+`<key>` kategorii to `category.key ?? category.label`, a identyfikatory paska nawigacji
+i stopki są kluczowane **wprost** we własnym pliku — `title`, nigdy `theme.navbar.title`.
+
+**Identyfikatory emitowane przez komponenty należą do `code.json`.** To napisy emitowane
+przez *komponenty* motywu i pluginów — własne stringi motywu Docusaurus, takie jak
+`theme.navbar.mobileLanguageDropdown.label`, oraz stringi pluginu wyszukiwania.
+`docs/i18n/<locale>/code.json` jest ich właściwym miejscem i nie zawiera niczego innego.
+
+**`sidebar.<name>.doc.*` jest martwy wszędzie.** Goły wpis `'some/doc'` w którymkolwiek
+pliku sidebara jest normalizowany przez plugin content-docs z `translatable: false`,
+więc żaden taki identyfikator nie jest czytany z żadnego pliku: polska etykieta dokumentu
+w sidebarze pochodzi z tytułu samej polskiej strony — z `sidebar_label` lub `title`
+we front matterze zmaterializowanej strony. Wpisy typu `doc` nie wymagają żadnego wpisu
+w pliku tłumaczeń.
+
+`pnpm --filter backend run check:docs-translations` **wyprowadza** oczekiwany zbiór
+identyfikatorów z dwóch plików konfiguracyjnych, a nie z listy
+(`backend/scripts/lib/docs-chrome-messages.ts`), więc nowa pozycja paska nawigacji lub nowa
+kategoria jest zgłaszana przy pierwszym pojawieniu — jako `chrome-message-missing`, gdy
+brakuje jej we własnym pliku, i jako `chrome-message-inert`, gdy zamiast tego wylądowała
+w `code.json`.
 
 ## Trzyetapowa sekwencja edycji
 
@@ -58,17 +97,21 @@ Użyj tej sekwencji, gdy zmieniasz jedną angielską stronę i jej polskie tłum
      `docs/i18n/pl/docusaurus-plugin-content-docs/current/<docId>.md`
      (np. `packages/modules/catalog/docs/catalog.md` →
      `.../current/modules/catalog.md`).
-   - Jeśli zmieniłeś etykietę sidebara lub dodałeś wpis sidebara, dodaj pasujący
-     klucz do `docs/i18n/pl/code.json`.
+   - Jeśli zmieniłeś etykietę **kategorii** w sidebarze albo napis paska nawigacji
+     lub stopki, dodaj pasujący identyfikator do pliku wskazanego w sekcji
+     *Gdzie należy identyfikator wiadomości* powyżej. Wpis **dokumentu**
+     w sidebarze nie wymaga żadnego identyfikatora.
 3. **Uruchom kontrolę kompletności**:
 
    ```bash
    pnpm --filter backend run check:docs-translations
    ```
 
-   Kod wyjścia `0` = każde źródło ma świeży wpis cache, zmaterializowany plik i
-   wiadomość sidebara. Kod wyjścia `2` wypisuje ustalenia `missing-translation`,
-   `stale-translation` lub `missing-sidebar-message`.
+   Kod wyjścia `0` = każde źródło ma świeży wpis cache, zmaterializowany plik,
+   z którego Docusaurus potrafi rozstrzygnąć tytuł, oraz każdy identyfikator chrome
+   w pliku, który go czyta. Kod wyjścia `2` wypisuje ustalenia `missing-translation`,
+   `stale-translation`, `missing-sidebar-message`, `chrome-message-missing`,
+   `chrome-message-inert` lub `doc-title-unresolvable`.
 
 ### Kształt wpisu cache
 
@@ -103,7 +146,11 @@ Po regeneracji **ręcznie odwzoruj polski** w `docs/i18n/pl/`:
 - zmaterializowane pliki w
   `docs/i18n/pl/docusaurus-plugin-content-docs/current/module-reference/` oraz
   `.../modules/`,
-- nowe lub zmienione identyfikatory wiadomości sidebara w `docs/i18n/pl/code.json`.
+- identyfikator `sidebar.main.category.<key>` w
+  `docs/i18n/pl/docusaurus-plugin-content-docs/current.json` dla każdej **nowej
+  kategorii** zadeklarowanej w zregenerowanym `docs/sidebars.modules.generated.js`.
+  Nowe wpisy typu `doc` nie wymagają niczego — ich polska etykieta to tytuł samej
+  zmaterializowanej strony.
 
 Nie edytuj wygenerowanych plików angielskich pod kątem polskiego — zamiast tego aktualizuj
 drzewo i18n oraz cache (FR-012, FR-014).
@@ -130,8 +177,11 @@ niemiecki:
    `docs/locales.config.json`.
 2. Dodaj `label` (oraz powiązane stringi motywu) dla `de` w
    `docs/docusaurus.config.js` → `i18n.localeConfigs`.
-3. Przygotuj `docs/i18n/de/code.json` (skopiuj strukturę `pl` i przetłumacz
-   wiadomości motywu + sidebara).
+3. Przygotuj pliki tłumaczeń chrome, kopiując te z `pl` i tłumacząc je —
+   `docs/i18n/de/docusaurus-theme-classic/navbar.json` oraz `footer.json`,
+   `docs/i18n/de/docusaurus-plugin-content-docs/current.json`, a także
+   `docs/i18n/de/code.json` wyłącznie dla identyfikatorów emitowanych przez
+   komponenty (sekcja *Gdzie należy identyfikator wiadomości* powyżej).
 4. Ręcznie napisz wpisy cache w `docs/translation-cache/de/` oraz
    zmaterializowany markdown w
    `docs/i18n/de/docusaurus-plugin-content-docs/current/` dla każdego angielskiego
