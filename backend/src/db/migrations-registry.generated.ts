@@ -57,11 +57,6 @@ import { Migration20260724T173916ApiKeysDistributorBinding } from '@endora-comme
 // ── assets_library ──────────────────────────────────────────────────────────
 import { Migration20260505T102206AssetsLibraryInit } from '@endora-commerce/mod-assets-library/migrations';
 
-// ── autopay ─────────────────────────────────────────────────────────────────
-import { Migration20260803T065409AutopayInit } from '@endora-commerce/mod-autopay/migrations';
-import { Migration20260816T053835AutopaySeedPaymentMethods } from '@endora-commerce/mod-autopay/migrations';
-import { Migration20260821T084925AutopayFailureStatusOnHold } from '@endora-commerce/mod-autopay/migrations';
-
 // ── blog ────────────────────────────────────────────────────────────────────
 import { Migration20260506T081055BlogInit } from '@endora-commerce/mod-blog/migrations';
 import { Migration20260903T101744BlogNamespaceBlockNames } from '@endora-commerce/mod-blog/migrations';
@@ -373,11 +368,6 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── assets_library ──────────────────────────────────────────────────────────
   migration('assets_library', Migration20260505T102206AssetsLibraryInit),
-
-  // ── autopay ─────────────────────────────────────────────────────────────────
-  migration('autopay', Migration20260803T065409AutopayInit),
-  migration('autopay', Migration20260816T053835AutopaySeedPaymentMethods),
-  migration('autopay', Migration20260821T084925AutopayFailureStatusOnHold),
 
   // ── blog ────────────────────────────────────────────────────────────────────
   migration('blog', Migration20260506T081055BlogInit),

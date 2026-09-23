@@ -118,7 +118,6 @@
     "@endora-commerce/mod-assets-library": "workspace:*",
     "@endora-commerce/mod-audit-logs": "workspace:*",
     "@endora-commerce/mod-auth": "workspace:*",
-    "@endora-commerce/mod-autopay": "workspace:*",
     "@endora-commerce/mod-blog": "workspace:*",
     "@endora-commerce/mod-carts": "workspace:*",
     "@endora-commerce/mod-catalog": "workspace:*",

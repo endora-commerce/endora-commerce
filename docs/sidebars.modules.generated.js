@@ -115,14 +115,6 @@ const modules = [
   },
   {
     type: 'category',
-    label: 'Autopay',
-    link: { type: 'doc', id: 'modules/autopay' },
-    items: [
-      'module-reference/autopay',
-    ],
-  },
-  {
-    type: 'category',
     label: 'Blog',
     link: { type: 'doc', id: 'modules/blog/index' },
     items: [

@@ -52,7 +52,6 @@ import { entities as analyticsEntities } from '@endora-commerce/mod-analytics/ba
 import { entities as apiKeysEntities } from '@endora-commerce/mod-api-keys/backend';
 import { entities as assetsLibraryEntities } from '@endora-commerce/mod-assets-library/backend';
 import { entities as catalogEntities } from '@endora-commerce/mod-catalog/backend';
-import { entities as autopayEntities } from '@endora-commerce/mod-autopay/backend';
 import { entities as inventoryEntities } from '@endora-commerce/mod-inventory/backend';
 import { entities as blogEntities } from '@endora-commerce/mod-blog/backend';
 import { entities as cartsEntities } from '@endora-commerce/mod-carts/backend';
@@ -123,7 +122,6 @@ export const ALL_ENTITIES = [
   ...(apiKeysEntities as readonly EntityClassLike[]),
   ...(assetsLibraryEntities as readonly EntityClassLike[]),
   ...(catalogEntities as readonly EntityClassLike[]),
-  ...(autopayEntities as readonly EntityClassLike[]),
   ...(inventoryEntities as readonly EntityClassLike[]),
   ...(blogEntities as readonly EntityClassLike[]),
   ...(cartsEntities as readonly EntityClassLike[]),
