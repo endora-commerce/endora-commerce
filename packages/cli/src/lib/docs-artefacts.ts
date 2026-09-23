@@ -324,9 +324,17 @@ function markdownCell(value: string): string {
  * incomplete mapping pair, so `docusaurus build` died in `gray-matter` on the
  * first generated page it parsed. It parsed none of them before feature 133
  * moved the front matter to byte 0, which is why nothing caught it earlier.
+ *
+ * The `#` rule is the mirror image of the colon's and was written backwards
+ * once: a comment starts at a `#` **preceded** by whitespace or at the start of
+ * the value, whatever follows it, so *"Sync catalog #1 with PIM"* truncates
+ * silently while `C#` and `a#b` are perfectly good plain scalars. Testing for a
+ * `#` followed by whitespace detected neither case. Exported for
+ * `test/docs-front-matter-scalar.test.ts`, which is the only reason this helper
+ * is not file-local.
  */
-function yamlScalar(value: string): string {
-  const plain = !/[:#]\s|^[\s>|&*!%@`'"[{-]|[:\s]$/.test(value);
+export function yamlScalar(value: string): string {
+  const plain = !/(^|\s)#|:(\s|$)|^[\s>|&*!%@`'"[{-]|[:\s]$/.test(value);
   return plain ? value : `"${value.split('\\').join('\\\\').split('"').join('\\"')}"`;
 }
 
