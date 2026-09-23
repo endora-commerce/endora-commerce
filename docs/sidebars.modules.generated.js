@@ -382,14 +382,6 @@ const modules = [
       'module-reference/payments',
     ],
   },
-  {
-    type: 'category',
-    label: 'PayPal',
-    link: { type: 'doc', id: 'modules/paypal' },
-    items: [
-      'module-reference/paypal',
-    ],
-  },
   { type: 'doc', id: 'module-reference/pim-connector', label: 'pim_connector' },
   {
     type: 'category',

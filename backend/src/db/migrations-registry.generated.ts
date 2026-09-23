@@ -242,11 +242,6 @@ import { Migration20260611T140353PaymentMethodsAdapter } from '@endora-commerce/
 import { Migration20260821T084920PaymentMethodsFailureStatusOnHold } from '@endora-commerce/mod-payment-methods/migrations';
 import { Migration20260912T094631PaymentMethodsSalesChannelPaymentMethods } from '@endora-commerce/mod-payment-methods/migrations';
 
-// ── paypal ──────────────────────────────────────────────────────────────────
-import { Migration20260821T110651PaypalInit } from '@endora-commerce/mod-paypal/migrations';
-import { Migration20260821T110652PaypalSeedPaymentMethods } from '@endora-commerce/mod-paypal/migrations';
-import { Migration20260821T164749PaypalFailureStatusOnHold } from '@endora-commerce/mod-paypal/migrations';
-
 // ── pim_akeneo ──────────────────────────────────────────────────────────────
 import { Migration20260825T124458PimAkeneoInit } from '@endora-commerce/mod-pim-akeneo/migrations';
 
@@ -553,11 +548,6 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('payment_methods', Migration20260611T140353PaymentMethodsAdapter),
   migration('payment_methods', Migration20260821T084920PaymentMethodsFailureStatusOnHold),
   migration('payment_methods', Migration20260912T094631PaymentMethodsSalesChannelPaymentMethods),
-
-  // ── paypal ──────────────────────────────────────────────────────────────────
-  migration('paypal', Migration20260821T110651PaypalInit),
-  migration('paypal', Migration20260821T110652PaypalSeedPaymentMethods),
-  migration('paypal', Migration20260821T164749PaypalFailureStatusOnHold),
 
   // ── pim_akeneo ──────────────────────────────────────────────────────────────
   migration('pim_akeneo', Migration20260825T124458PimAkeneoInit),
