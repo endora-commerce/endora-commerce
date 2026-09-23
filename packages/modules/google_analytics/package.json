@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-google-analytics",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "type": "module",
   "sideEffects": false,
   "description": "Google Analytics 4 integration: per-sales-channel activation and Measurement ID, Enhanced Ecommerce, configurable custom events, and optional server-side tagging.",

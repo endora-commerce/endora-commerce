@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-price-lists",
-  "version": "0.10.3",
+  "version": "0.10.4",
   "type": "module",
   "sideEffects": false,
   "description": "Customer-group pricing, brackets, display modes, and rule-based engine.",

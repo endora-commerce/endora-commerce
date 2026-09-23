@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-newsletter",
-  "version": "0.10.3",
+  "version": "0.10.4",
   "type": "module",
   "sideEffects": false,
   "description": "Own-infrastructure newsletter: subscribers with tags + custom fields, campaigns, linear automations, email-safe templates and variables, engagement stats, and a configurable bulk-sending provider.",

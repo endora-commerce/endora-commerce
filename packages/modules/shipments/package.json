@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-shipments",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "type": "module",
   "sideEffects": false,
   "description": "Shipment record and the order_created / shipment_created / receive_shipment lifecycle.",

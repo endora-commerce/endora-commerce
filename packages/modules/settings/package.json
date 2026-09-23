@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-settings",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "type": "module",
   "sideEffects": false,
   "description": "Per-module setting registry, admin UI, and value resolver.",

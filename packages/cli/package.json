@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/cli",
-  "version": "0.12.0",
+  "version": "0.12.1",
   "type": "module",
   "description": "The `endora` command line: scaffolding and conformance tooling for Endora Commerce modules and integrations.",
   "license": "MIT",

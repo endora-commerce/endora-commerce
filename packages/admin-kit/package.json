@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/admin-kit",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "type": "module",
   "endora": {
     "type": "admin-ui"
