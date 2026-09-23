@@ -47,6 +47,10 @@ import {
   type DocsTranslationFindingKind,
 } from '../../../scripts/check-docs-translations.js';
 import {
+  CODE_JSON_FILE,
+  THEME_CLASSIC_NAVBAR_FILE,
+} from '../../../scripts/lib/docs-chrome-messages.js';
+import {
   defaultTranslationCacheLayout,
   hashSourceBody,
   materializeTranslation,
@@ -2711,12 +2715,29 @@ function docsTranslationsFindingsOfKind(kind: DocsTranslationFindingKind): numbe
     const layout = defaultTranslationCacheLayout(root);
     const baseInput: DocsTranslationCheckInput = {
       repoRoot: root,
+      defaultLocale: 'en',
       translateLocales: ['pl'],
       sources: [{ sourcePath, absolutePath }],
       sidebarMessageIds: [],
+      chromeMessages: [],
+      inertNamespaces: [],
       skipPaths: new Set(),
       layout,
+      readTranslationFile: () => ({}),
     };
+    const seedComplete = (content = '---\ntitle: Sample\n---\n\nWitamy.\n'): void => {
+      const entry = {
+        sourcePath,
+        sourceHash: hashSourceBody(readFileSync(absolutePath, 'utf8')),
+        locale: 'pl',
+        content,
+        meta: { provider: 'manual' as const, updatedAt: '2026-09-17T08:00:00.000Z' },
+      };
+      writeCacheEntry(entry, layout);
+      materializeTranslation(entry, layout);
+    };
+    const countOf = (input: DocsTranslationCheckInput): number =>
+      checkDocsTranslations(input).findings.filter((finding) => finding.kind === kind).length;
 
     if (kind === 'stale-translation') {
       const english = readFileSync(absolutePath, 'utf8');
@@ -2730,25 +2751,51 @@ function docsTranslationsFindingsOfKind(kind: DocsTranslationFindingKind): numbe
       writeCacheEntry(entry, layout);
       materializeTranslation(entry, layout);
     } else if (kind === 'missing-sidebar-message') {
-      const english = readFileSync(absolutePath, 'utf8');
-      const entry = {
-        sourcePath,
-        sourceHash: hashSourceBody(english),
-        locale: 'pl',
-        content: '---\ntitle: Sample\n---\n\nWitamy.\n',
-        meta: { provider: 'manual' as const, updatedAt: '2026-09-17T08:00:00.000Z' },
-      };
-      writeCacheEntry(entry, layout);
-      materializeTranslation(entry, layout);
-      return checkDocsTranslations({
+      // Feature 133 T008: the id is read from the file the plugin reads it
+      // from, so the proof enters with `current.json` absent rather than
+      // `code.json` empty — the shape that reported green for a year.
+      seedComplete();
+      return countOf({
         ...baseInput,
-        sidebarMessageIds: ['sidebar.main.doc.intro'],
-        readCodeJson: () => ({}),
-      }).findings.filter((finding) => finding.kind === kind).length;
+        sidebarMessageIds: ['sidebar.main.category.architecture'],
+        readTranslationFile: () => null,
+      });
+    } else if (kind === 'chrome-message-missing') {
+      seedComplete();
+      return countOf({
+        ...baseInput,
+        chromeMessages: [
+          {
+            id: 'title',
+            file: THEME_CLASSIC_NAVBAR_FILE,
+            codeJsonKeys: ['theme.navbar.title', 'navbar.title'],
+          },
+        ],
+        readTranslationFile: () => null,
+      });
+    } else if (kind === 'chrome-message-inert') {
+      seedComplete();
+      return countOf({
+        ...baseInput,
+        chromeMessages: [
+          {
+            id: 'title',
+            file: THEME_CLASSIC_NAVBAR_FILE,
+            codeJsonKeys: ['theme.navbar.title', 'navbar.title'],
+          },
+        ],
+        readTranslationFile: (_locale, file) =>
+          file === CODE_JSON_FILE ? { 'theme.navbar.title': { message: 'Platforma B2B' } } : {},
+      });
+    } else if (kind === 'doc-title-unresolvable') {
+      // The shipped generator's emission order: an HTML banner above the `---`,
+      // so the front matter never begins at byte 0 and no title is reachable.
+      writeFileSync(absolutePath, '<!-- AUTO-GENERATED -->\n---\ntitle: Sample\n---\n\nBody.\n');
+      seedComplete('<!-- AUTO-GENERATED -->\n---\ntitle: Sample\n---\n\nTreść.\n');
+      return countOf(baseInput);
     }
 
-    return checkDocsTranslations(baseInput).findings.filter((finding) => finding.kind === kind)
-      .length;
+    return countOf(baseInput);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -5243,6 +5290,17 @@ const CHECKS: readonly CheckEntry[] = [
       'stale-translation': top(() => docsTranslationsFindingsOfKind('stale-translation')),
       'missing-sidebar-message': top(() =>
         docsTranslationsFindingsOfKind('missing-sidebar-message'),
+      ),
+      // Feature 133 (FR-043). The three the check gained when it stopped asking
+      // whether an id *exists somewhere* and started asking whether Docusaurus
+      // reads the file it is in — the distinction the shipped green run could
+      // not make, while every Polish page rendered its chrome in English.
+      'chrome-message-missing': top(() =>
+        docsTranslationsFindingsOfKind('chrome-message-missing'),
+      ),
+      'chrome-message-inert': top(() => docsTranslationsFindingsOfKind('chrome-message-inert')),
+      'doc-title-unresolvable': top(() =>
+        docsTranslationsFindingsOfKind('doc-title-unresolvable'),
       ),
     },
   },
@@ -11362,9 +11420,19 @@ describe('every red proof enters at the top of the analysis', () => {
       // T010's root floor — the population one level above the discovery.
       'backend/scripts/check-divergence.ts': 9,
       'backend/scripts/check-doc-snippets.ts': 5,
-      // Three finding kinds — missing cache/materialized file, stale hash or
-      // content drift, and a sidebar message id absent from `code.json`.
-      'backend/scripts/check-docs-translations.ts': 3,
+      // Six finding kinds. The first three are the artefact ones — missing
+      // cache/materialized file, stale hash or content drift, and a sidebar
+      // message id absent from the file the plugin reads it from, which
+      // feature 133 T008 moved from `code.json` to
+      // `docusaurus-plugin-content-docs/current.json`. The other three are that
+      // feature's (FR-043): a config-derived chrome id absent from its
+      // theme/plugin translation file, one parked in `code.json` where
+      // Docusaurus will never read it, and a published source from which no
+      // title is reachable at all. The count moved 3 → 6 in the same commit
+      // that added them, because this ledger is derived *about* the check and
+      // the batch that changes the check is the one that cannot see it go
+      // stale from its own targeted tests.
+      'backend/scripts/check-docs-translations.ts': 6,
       // The two in-tree shapes — none and more than one — plus T034's two: a
       // package's persisted entity is in the population, and a package that
       // could not be enumerated stops the run instead of being credited with

@@ -3609,8 +3609,44 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // generated reference, module map, module-owned), their cache entries,
     // materialized i18n markdown, and sidebar message ids in `code.json`.
     // Re-measured 2026-09-17 on clean tree (552/367 → 555/368).
-    files: 555,
-    sites: 368,
+    //
+    // **Feature 133 Phase 0 (T087): 555/368 → 562/347**, measured on 2026-09-23
+    // from the `[docs-translations] read:` line of the red run captured in
+    // `specs/133-docs-site-publication/contracts/fr-043-red-proof.md`, after
+    // `git clean -fX docs/docs/modules && rm -f docs/.module-docs-copies.json`.
+    // `reportReadSize()` prints before the findings and before `process.exit(2)`,
+    // and `reachedItsOwnVerdict` accepts an exit of any colour, so a red check
+    // still discloses a measurable read size — which is the only reason this
+    // number can be taken at all while the branch is deliberately red.
+    //
+    // `files` +7: the check now opens `docusaurus.config.js`, `sidebars.js` and
+    // `sidebars.modules.generated.js` to **derive** the expected chrome id set
+    // (T004), and the four translation files it judges per locale —
+    // `docusaurus-theme-classic/{navbar,footer}.json`,
+    // `docusaurus-plugin-content-docs/current.json` and `code.json`, three of
+    // which do not exist yet, and an attempted read is a read.
+    //
+    // `sites` -21, and the two movements are worth separating because they run
+    // in opposite directions. T008 took the **116** inert `sidebar.main.doc.*`
+    // ids out of the required population (183 collected ids → 77 categories and
+    // links): bare doc items are `translatable: false` in the plugin's own
+    // terms, so those ids are inert in every file and requiring them measured
+    // nothing. That alone would have taken `sites` to 262 — below the
+    // `READ_SIZE_LOWER` floor of 331, a failure on the **low** side, which is
+    // the ratchet-into-blindness direction. Against it, the 85 config-derived
+    // chrome ids (T004–T006: the navbar title and its one labelled item, the
+    // footer copyright, 77 category ids and 5 generated-index titles) are new
+    // sites this check did not have before. 185 sources × 1 locale + 77 + 85 =
+    // 347.
+    //
+    // **T080 re-measures this entry again at the end of the branch**, and that
+    // is expected rather than duplication: Phases 1–4 add three translation
+    // files the check opens, one English page, its Polish counterpart and their
+    // cache entries. This number keeps the record true *at Phase 0*, so the
+    // intermediate commits stay green; T080 records the number that ships, from
+    // the `[read-size drift]` census rather than from this comment.
+    files: 562,
+    sites: 347,
     sources: [],
   },
   'backend/scripts/check-doc-snippets.ts': {
@@ -15576,9 +15612,11 @@ export const READ_SIZE_WITHOUT_AN_INDEPENDENT_SOURCE: Readonly<Record<string, st
     'build a slug. Nothing derives that set: both are legal anywhere, which is the whole ' +
     'of issues #240 and #244.',
   'backend/scripts/check-docs-translations.ts':
-    'the population is every English documentation source configured for translation plus ' +
-    'sidebar message ids derived from the sidebar fragments — both from locale config and ' +
-    'the docs tree rather than a second registry.',
+    'the population is every English documentation source configured for translation, plus ' +
+    'the message ids derived from the sidebar fragments and from the site configuration — ' +
+    'all of them from locale config, `docusaurus.config.js`, `sidebars.js` and the docs tree ' +
+    'rather than a second registry. Feature 133 widened the derivation rather than adding a ' +
+    'list precisely because a hand-written chrome id set would have been that second registry.',
   'backend/scripts/check-doc-snippets.ts':
     'the population is the markdown under `docs/docs` and `specs`. A document enrols by ' +
     'carrying a marker, and no registry lists which documents ought to cite a source. ' +
