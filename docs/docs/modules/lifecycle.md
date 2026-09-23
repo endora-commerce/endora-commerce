@@ -106,7 +106,7 @@ Manifest fields:
 - `license` (optional, enum `'core' | 'pro' | 'enterprise'`) — reserved for future edition gating; declared and audited but not enforced in v1.
 - `settings` (optional) — feature 004's `ModuleSettingsManifest` shape; the lifecycle's install path runs the existing settings reconciler over it.
 - `i18n` (optional) — feature 019's `{ bundlesDir: string }` shape; when present, the install path reads `<modulePath>/<bundlesDir>/<lang>.json` for every supported Admin UI language and UPSERTs the bundle into `translation_bundles`. Soft-uninstall preserves bundles; hard-uninstall removes them.
-- `actions` (optional) — feature 020's `ModuleAction[]` shape; an inline list of command-palette action declarations (id, label key, icon, target route, optional required-permission, weight, keywords). The install path UPSERTs every declared action into `module_actions` and prunes any rows the new manifest no longer declares; hard-uninstall removes them. See the [Admin Command Palette Actions](./admin-actions) module page for the full schema and operator-side behaviour.
+- `actions` (optional) — feature 020's `ModuleAction[]` shape; an inline list of command-palette action declarations (id, label key, icon, target route, optional required-permission, weight, keywords). The install path UPSERTs every declared action into `module_actions` and prunes any rows the new manifest no longer declares; hard-uninstall removes them. See the [Admin Command Palette Actions](./admin-actions.md) module page for the full schema and operator-side behaviour.
 - `permissions` (optional) — feature 026's assignable admin-role codes for this module. Each entry `{ code, label, module? }` is merged into `GET /api/v1/admin/permissions` when the module is enabled. Every `requireAdmin('…')` literal on the module's admin routes must appear here (or in core `PERMISSION_CATALOGUE` for shared codes). CI enforces this via `permission-inventory.test.ts`. See `specs/026-admin-roles-permissions/contracts/module-manifest-permissions.md`.
 
 ## Lifecycle state machine
@@ -349,7 +349,7 @@ If a lifecycle command exits 75 ("lock-busy") repeatedly, a previous run may hav
 redis-cli get b2b:module:lifecycle:lock
 ```
 
-If the value is older than five minutes, the lock has expired — repeated 75 errors with a stale Redis key indicate a stuck `state='installing'` row in `module_registrations`. Inspect with `pnpm module:status` and follow the recovery steps in [Stuck Module-Lifecycle Lock](../operations/runbooks/module-lifecycle-stuck-lock).
+If the value is older than five minutes, the lock has expired — repeated 75 errors with a stale Redis key indicate a stuck `state='installing'` row in `module_registrations`. Inspect with `pnpm module:status` and follow the recovery steps in [Stuck Module-Lifecycle Lock](../operations/runbooks/module-lifecycle-stuck-lock.md).
 
 ## Tests
 

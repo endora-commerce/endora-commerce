@@ -11,7 +11,7 @@ This page covers **Admin UI** string bundles only (`packages/modules/*/i18n/`).
 The **documentation site** (`docs/`) uses a separate manual bilingual workflow
 — cache entries, materialised markdown under `docs/i18n/pl/`, and
 `check:docs-translations`. See
-[Documentation site i18n](./documentation-i18n).
+[Documentation site i18n](./documentation-i18n.md).
 
 The Admin UI is bilingual at launch — every user-visible string is shipped in
 both **English** (the platform-wide source of truth) and **Polish**. Feature

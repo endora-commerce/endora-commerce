@@ -20,7 +20,7 @@ FR-105). Mirrors the `languages` module.
 `GET /api/v1/i18n/config` also answers with the active currencies and the
 default, and is **`languages`'** route rather than this module's: it composes
 both catalogues into one public payload and reads this module's half over
-`currencyReadPort`. See [languages](./languages).
+`currencyReadPort`. See [languages](./languages.md).
 
 ## Permissions
 

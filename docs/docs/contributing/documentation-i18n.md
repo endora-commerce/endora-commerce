@@ -14,7 +14,7 @@ step in CI or production builds.
 
 This page is the workflow for **docs-site** translations. Admin UI string bundles
 (`packages/modules/*/i18n/`) are a separate system — see
-[Admin UI Translations](./translations).
+[Admin UI Translations](./translations.md).
 
 ## What must be translated
 
@@ -196,7 +196,7 @@ locale codes in scripts.
 
 ## See also
 
-- [Admin UI Translations](./translations) — Polish glossary and
+- [Admin UI Translations](./translations.md) — Polish glossary and
   `packages/modules/*/i18n/` bundle workflow (feature 021).
 - `specs/conventions/module-documentation.md` — where module-owned English pages live
   before translation.

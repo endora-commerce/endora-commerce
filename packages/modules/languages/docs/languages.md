@@ -21,7 +21,7 @@ consume to render their language pickers, plus a small
 | `DELETE /api/v1/admin/languages/:code` | admin | Remove (rejected for the default) |
 
 The currency catalogue has the same shape under `/api/v1/admin/currencies`, and
-those routes are **`currencies`'** — see [currencies](./currencies). They were
+those routes are **`currencies`'** — see [currencies](./currencies.md). They were
 registered here until 2026-08-29, on `catalog:write`, serving another module's
 table for no caller in this repository. What this module still composes is
 `GET /api/v1/i18n/config`, which answers with both catalogues and both defaults

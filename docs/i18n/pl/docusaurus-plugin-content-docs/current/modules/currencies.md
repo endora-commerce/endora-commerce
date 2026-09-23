@@ -19,7 +19,7 @@ FR-105). Odzwierciedla moduł `languages`.
 
 `GET /api/v1/i18n/config` odpowiada też aktywnymi walutami i domyślną, i jest
 trasą **`languages`**, a nie tego modułu: składa oba katalogi w jeden publiczny
-payload i czyta połowę tego modułu przez `currencyReadPort`. Zobacz [languages](./languages).
+payload i czyta połowę tego modułu przez `currencyReadPort`. Zobacz [languages](./languages.md).
 
 ## Uprawnienia
 

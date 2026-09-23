@@ -21,7 +21,7 @@ budują pickery języków, oraz mały
 | `DELETE /api/v1/admin/languages/:code` | admin | Usunięcie (odrzucone dla domyślnego) |
 
 Katalog walut ma ten sam kształt pod `/api/v1/admin/currencies`, a te trasy są
-**`currencies`** — zobacz [currencies](./currencies). Były zarejestrowane tutaj do 2026-08-29,
+**`currencies`** — zobacz [currencies](./currencies.md). Były zarejestrowane tutaj do 2026-08-29,
 na `catalog:write`, serwując tabelę innego modułu bez caller'a w tym repozytorium. Co ten
 moduł nadal komponuje, to
 `GET /api/v1/i18n/config`, które odpowiada oboma katalogami i obiema domyślnymi
