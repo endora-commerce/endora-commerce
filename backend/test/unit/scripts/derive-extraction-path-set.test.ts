@@ -47,6 +47,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   completenessRefusals,
   declaredManifestId,
+  dispositionOf,
+  followOne,
   historicalPathsOf,
   renderPathsFile,
   resolveManifestRoots,
@@ -165,6 +167,10 @@ function twoEraRepo(): Fixture {
   );
   f.write('specs/999-demo/demo_mod.md', '# The design record\n');
   f.write('storefront/src/demo_mod/widget.ts', `export const widget = 'a storefront fragment';\n`);
+  f.write(
+    'admin/src/modules/demo-mod/MappingPage.tsx',
+    `export function MappingPage() {\n  return null;\n}\n`,
+  );
   f.commit('feat(demo_mod): the module, in the pre-packaging era');
 
   f.move('backend/src/modules/demo_mod/manifest.ts', 'packages/modules/demo_mod/src/manifest.ts');
@@ -191,6 +197,13 @@ function twoEraRepo(): Fixture {
     `export function sharedThing(): string {\n  return 'a body long enough for rename detection to score it';\n}\n`,
   );
   f.commit('refactor(demo_mod): the adapted file, which git reads as a rename');
+
+  // Born and died in `admin/src/`, with no package counterpart at any
+  // threshold — D-264 clause 3's measured instance, and the class for which
+  // E3p's *"there is no default"* stands unchanged. Its own commit, with no
+  // addition beside it, so that no similarity score can pair it with anything.
+  f.remove('admin/src/modules/demo-mod/MappingPage.tsx');
+  f.commit('refactor(demo_mod): the mapping page nobody moved');
   return f;
 }
 
@@ -298,6 +311,114 @@ describe('R2 — the rename closure of the package own file set', () => {
   });
 });
 
+/**
+ * A **scripted** `GitRunner` rather than a fixture repository, and the reason is
+ * the subject: what clause 1 changes is the argument the walk asks git for, and
+ * an argument is not observable from a fixture's output — a repository built to
+ * score a rename at 31% would be this file asserting its own idea of git's
+ * similarity index, which is the mistake the header above already records once.
+ * The recorded scores are real and were measured on this repository's own
+ * history; what is scripted here is only git's *reply*.
+ */
+function scriptedGit(reply: string): { readonly git: GitRunner; readonly calls: string[][] } {
+  const calls: string[][] = [];
+  return {
+    calls,
+    git: (args) => {
+      calls.push([...args]);
+      return reply;
+    },
+  };
+}
+
+const MARK = '@@commit@@';
+
+describe('the rename threshold R2 asks git for (D-264 clause 1)', () => {
+  it('runs --follow at -M30%, which is the whole of the clause', () => {
+    const { git, calls } = scriptedGit('');
+    followOne({ git, ref: 'HEAD', file: 'packages/modules/payu/src/admin/api/payu-client.ts' });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain('-M30%');
+    expect(calls[0]).not.toContain('-M');
+  });
+
+  it('follows a rename git at its default threshold reports as a delete and an add', () => {
+    // `f59414707` moved three gateways' admin clients and rewrote them as it
+    // did: `git show -M30%` scores them R031 (`payu`), R037 (`paypal`) and
+    // R038 (`autopay`). At git's default 50% none of the three is a rename at
+    // all, so R2 sees no continuation and the refusal stops on a plain move.
+    const { git } = scriptedGit(
+      `${MARK}f59414707\n` +
+        'R031\tadmin/src/modules/payu/api/payu-client.ts\t' +
+        'packages/modules/payu/src/admin/api/payu-client.ts\n' +
+        `${MARK}0000000aa\n` +
+        'A\tadmin/src/modules/payu/api/payu-client.ts\n',
+    );
+    const followed = followOne({
+      git,
+      ref: 'HEAD',
+      file: 'packages/modules/payu/src/admin/api/payu-client.ts',
+    });
+    expect(followed.historical).toEqual(['admin/src/modules/payu/api/payu-client.ts']);
+    expect(followed.copyStop).toBeNull();
+  });
+
+  it('leaves the manifest walk and the completeness walk at git own default', () => {
+    // Clause 1 is *only* `followOne`. Neither of these two walks is asking
+    // whether a file is a continuation: the first reads the id a manifest
+    // declares and the second takes every path any commit held at any status,
+    // and lowering their threshold would change which pre-image path a walk
+    // attributes a body to without changing what either walk is for.
+    const manifest = scriptedGit('');
+    resolveManifestRoots({ git: manifest.git, ref: 'HEAD', moduleId: 'payu' });
+    expect(manifest.calls[0]).toContain('-M');
+    expect(manifest.calls[0]?.some((arg) => arg.startsWith('-M3'))).toBe(false);
+
+    const walk = scriptedGit('');
+    historicalPathsOf({ git: walk.git, ref: 'HEAD' });
+    expect(walk.calls[0]).toContain('-M');
+    expect(walk.calls[0]?.some((arg) => arg.startsWith('-M3'))).toBe(false);
+  });
+});
+
+describe('the standing dispositions, as path shapes (D-264 clause 2)', () => {
+  it('dispositions a storefront fragment, which has no destination to be carried to', () => {
+    // O-1(b) puts the fragment in the paid repository as a file a customer
+    // copies, and T031 names three edits the copy takes — so nothing in the
+    // package gives the path a destination and carrying it would need one
+    // written down, which is what refusal 14 refuses.
+    expect(dispositionOf('storefront/lib/payu/secure-form.ts', 'payu')).toBe('storefront-fragment');
+    expect(dispositionOf('storefront/lib/api/payu.ts', 'payu')).toBe('storefront-fragment');
+    expect(dispositionOf('storefront/components/checkout/PayuPayForm.tsx', 'payu')).toBe(
+      'storefront-fragment',
+    );
+  });
+
+  it('sits after the four that were already there, and shadows none of them', () => {
+    // The clause is narrow by construction — `dispositionOf` is consulted only
+    // for a path that already carries the module's id — and it is written last
+    // so that a later widening of it cannot take a row off one of the four
+    // above. There is no path this repository holds that matches both, so what
+    // this pins is the ordering rather than a resolved overlap: each of the
+    // four keeps answering for its own class with the fifth clause in place.
+    expect(dispositionOf('specs/134-paid-module-extraction/payu.md', 'payu')).toBe('design-record');
+    expect(dispositionOf('docs/docs/module-reference/payu.md', 'payu')).toBe(
+      'generated-reference-page',
+    );
+    expect(dispositionOf('backend/scripts/ledgers/cross-module-imports/payu.ts', 'payu')).toBe(
+      'ledger-shard',
+    );
+    expect(dispositionOf('backend/test/unit/payu/payu-service.test.ts', 'payu')).toBe(
+      'host-bound-test',
+    );
+  });
+
+  it('stops on a path no disposition covers, because there is no default', () => {
+    expect(dispositionOf('admin/src/modules/pim-pimcore/PimcoreCategoryMappingPage.tsx', 'pim_pimcore')).toBeNull();
+    expect(dispositionOf('admin/test/modules/payu/payu-zone.test.tsx', 'payu')).toBeNull();
+  });
+});
+
 describe('the ownership tie-break, which is the module population and not a judgement', () => {
   it('prints another module lineage rather than carrying it', () => {
     const f = twoEraRepo();
@@ -368,8 +489,13 @@ describe('the refusal, which is what stops this becoming a list again', () => {
   }
 
   it('fires on an id-bearing path the resolution did not reach', () => {
+    // The one class left when neither half of D-264 clause 3's rule holds: no
+    // surviving file of the package is this path's continuation, and no
+    // standing disposition covers it. Until D-264 the storefront fragment was
+    // this test's subject; clause 2 dispositions that one, and the admin page
+    // that was born and died outside the package took its place.
     const f = twoEraRepo();
-    expect(report(f).refused).toEqual(['storefront/src/demo_mod/widget.ts']);
+    expect(report(f).refused).toEqual(['admin/src/modules/demo-mod/MappingPage.tsx']);
   });
 
   it('walks the whole history, not the tip', () => {
@@ -379,7 +505,7 @@ describe('the refusal, which is what stops this becoming a list again', () => {
     expect(paths).toContain('backend/src/modules/demo_mod/manifest.ts');
   });
 
-  it('dispositions the four classes E3p rules, rather than stopping on them', () => {
+  it('dispositions the five classes E3p rules, rather than stopping on them', () => {
     const f = twoEraRepo();
     const byPath = new Map(report(f).dispositioned.map((d) => [d.path, d.disposition]));
     expect(byPath.get('specs/999-demo/demo_mod.md')).toBe('design-record');
@@ -388,6 +514,7 @@ describe('the refusal, which is what stops this becoming a list again', () => {
       'ledger-shard',
     );
     expect(byPath.get('backend/test/unit/demo_mod/host-bound.test.ts')).toBe('host-bound-test');
+    expect(byPath.get('storefront/src/demo_mod/widget.ts')).toBe('storefront-fragment');
   });
 
   it('does not refuse a path the resolution carried', () => {

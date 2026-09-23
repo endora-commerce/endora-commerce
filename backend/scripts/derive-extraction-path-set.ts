@@ -1,7 +1,7 @@
 /**
  * **E3p** — an extraction's path set, resolved over the history and never
  * written down (`specs/134-paid-module-extraction/contracts/extraction-procedure.md`
- * E3p and refusal 14; owner ruling **D-263**, 2026-09-22).
+ * E3p and refusal 14; owner rulings **D-263** and **D-264**, both 2026-09-22).
  *
  * `scripts/extract-paid-module.sh` calls this and passes the file it writes to
  * `git filter-repo --paths-from-file`. E3p is the normative statement of
@@ -23,7 +23,7 @@
  *     run. The predicate is 129 FR-011(d)'s and lives in
  *     `lib/module-id-paths.ts` — one predicate, two instruments.
  *
- * ## Two traps, both measured rather than reasoned about
+ * ## Three traps, every one measured rather than reasoned about
  *
  *   * **`git log --follow` reports copies as well as renames, and a copy source
  *     was never a path the file held.** The repository's root `LICENSE` is
@@ -44,6 +44,23 @@
  *     into **free** `pim_connector`, `payu`'s migration into `tpay`'s, and
  *     `wfirma`'s service into `infakt`'s. That is what the tie-break is for, and
  *     it is why the closure is not used unfiltered.
+ *   * **Git's default rename threshold is 50%, and a file rewritten as it moved
+ *     reads as a delete plus an add.** Measured: the one commit `f59414707`
+ *     that moved three gateways' `admin/src/modules/<id>/api/<id>-client.ts`
+ *     scores them **R031** (`payu`), **R037** (`paypal`) and **R038**
+ *     (`autopay`), and
+ *     `backend/test/unit/pim_pimcore/complete-record-schema.test.ts` scores
+ *     **R035** in `9cc538613`. `-M40%` recovers none of them and `-M30%`
+ *     recovers all of them, with no foreign lineage and no collision introduced
+ *     across the twelve modules still in the tree — which is why R2 runs at
+ *     `-M30%` and why 30 is a measurement rather than a choice. The trap is the
+ *     second of those two cases: it **never reaches the refusal**.
+ *     `dispositionOf` returns `host-bound-test` for it, the run prints it as
+ *     dispositioned and exits 0, and a module-owned file's history is dropped
+ *     under a green — refusal 14's own family, one level in from where refusal
+ *     14 catches it. Only `followOne` takes the threshold: the manifest walk
+ *     and the completeness walk are not asking whether a file is a
+ *     continuation.
  *
  * ## Exit codes
  *
@@ -226,7 +243,7 @@ export function followOne(input: {
 }): { readonly historical: readonly string[]; readonly copyStop: CopyStop | null } {
   const { git, ref, file } = input;
   const commits = parseNameStatus(
-    git(['log', '--follow', '--name-status', '-M', `--format=${MARK}%H`, ref, '--', file]),
+    git(['log', '--follow', '--name-status', '-M30%', `--format=${MARK}%H`, ref, '--', file]),
   );
   const historical: string[] = [];
   let current = file;
@@ -324,7 +341,8 @@ export type Disposition =
   | 'design-record'
   | 'generated-reference-page'
   | 'ledger-shard'
-  | 'host-bound-test';
+  | 'host-bound-test'
+  | 'storefront-fragment';
 
 export interface RefusalReport {
   readonly refused: readonly string[];
@@ -355,6 +373,7 @@ export function dispositionOf(path: string, moduleId: string): Disposition | nul
     return 'ledger-shard';
   }
   if (path.startsWith('backend/test/')) return 'host-bound-test';
+  if (path.startsWith('storefront/')) return 'storefront-fragment';
   return null;
 }
 
