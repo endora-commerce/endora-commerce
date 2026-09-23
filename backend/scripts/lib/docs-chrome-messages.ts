@@ -259,9 +259,22 @@ export function requiredSidebarMessageIds(ids: readonly string[]): readonly stri
  */
 export function loadDocsChromeConfig(docsMemberDir: string): DocsChromeConfig {
   const require = createRequire(join(docsMemberDir, 'noop.cjs'));
-  const config = require(join(docsMemberDir, 'docusaurus.config.js')) as Record<string, unknown>;
+  const config = loadDocsSiteConfig(docsMemberDir);
   const sidebars = require(join(docsMemberDir, 'sidebars.js')) as Record<string, unknown>;
   return { themeConfig: config['themeConfig'], sidebars };
+}
+
+/**
+ * The whole `docusaurus.config.js` record.
+ *
+ * `verify-docs-build` needs `url`, `baseUrl`, `title` and `favicon` beside the
+ * `themeConfig` this module already derives ids from, and reads them here so
+ * that the two instruments open the configuration through one function rather
+ * than through two spellings of the same `require`.
+ */
+export function loadDocsSiteConfig(docsMemberDir: string): Record<string, unknown> {
+  const require = createRequire(join(docsMemberDir, 'noop.cjs'));
+  return require(join(docsMemberDir, 'docusaurus.config.js')) as Record<string, unknown>;
 }
 
 /** The config files this module reads, for the check's read-size accounting. */

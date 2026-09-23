@@ -99,6 +99,7 @@
     "test:unit:fast": "vitest run --config vitest.unit.config.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
+    "verify:docs-build": "tsx scripts/verify-docs-build.ts",
     "worker": "node dist/worker.js",
     "worker:dev": "node scripts/dev.mjs src/worker.ts"
   },
