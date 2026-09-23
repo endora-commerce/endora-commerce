@@ -7,12 +7,14 @@ import { describe, expect, it } from 'vitest';
 import {
   collectDocsRegistry,
   emitDocsSidebar,
+  emitModuleMap,
   emitModuleReference,
   referenceOf,
   referencePagePaths,
   strayReferencePages,
   type ModuleReference,
 } from '../../../scripts/generate-composer.js';
+import { resolveDocTitle } from '../../../scripts/lib/docs-title-resolution.js';
 import { ModulePackageError, type ModulePackage } from '../../../scripts/lib/module-packages.js';
 import {
   attributeDocs,
@@ -190,6 +192,113 @@ describe('the reference page reads the manifest', () => {
     expect(bare).toContain('This module declares no translation bundles.');
     expect(bare).toContain('This module declares no activation control');
   });
+});
+
+/**
+ * The front-matter block a parser would read off a generated page.
+ *
+ * `gray-matter` — the parser Docusaurus itself runs — is a transitive
+ * dependency of `@docusaurus/core` and resolves from **no** workspace in this
+ * repository (`createRequire('backend/').resolve('gray-matter')` and the same
+ * from `docs/` both throw `MODULE_NOT_FOUND`), and a new devDependency bought
+ * for one assertion is what Constitution IV refuses. Its rule is one sentence
+ * and this reproduces it: a `---` fence at **byte 0**, closed by the next `---`
+ * line. Everything above that fence is body, which is the whole defect — so a
+ * page whose banner comes first parses to `{}` here exactly as it does there.
+ *
+ * The *title* half of the same rule is asserted beside this through
+ * `resolveDocTitle`, which is the instrument `check:docs-translations` runs and
+ * therefore the one that decides FR-012 on a real tree.
+ */
+function frontMatterData(source: string): Record<string, string> {
+  if (!source.startsWith('---\n')) {
+    return {};
+  }
+  const lines = source.split('\n');
+  const close = lines.indexOf('---', 1);
+  if (close === -1) {
+    return {};
+  }
+  const data: Record<string, string> = {};
+  for (const line of lines.slice(1, close)) {
+    const match = /^([A-Za-z_][\w-]*):\s*(.*)$/.exec(line);
+    if (match !== null) {
+      data[match[1]!] = match[2]!;
+    }
+  }
+  return data;
+}
+
+describe('a generated page opens with its front matter', () => {
+  // Nothing asserted emission **order** before feature 133, which is how this
+  // shipped: the "do not edit" banner was emitted above the `---` fence, so the
+  // fence opened on line 5, `title`, `sidebar_label` and `description` were
+  // inert, and the banner was also the first content node — closing the
+  // `contentTitle` route too. Every one of the 75 reference pages and the module
+  // map rendered titled `catalog | B2B Platform`, with its own doc id.
+
+  const mapEntries: Parameters<typeof emitModuleMap>[0] = [
+    { moduleId: 'catalog', docs: null, shipsFrom: 'core', referenceDocId: 'module-reference/catalog' },
+  ];
+
+  const pages: ReadonlyArray<{ label: string; render: (header?: string) => string }> = [
+    {
+      label: 'a module reference page',
+      render: (header) =>
+        header === undefined
+          ? emitModuleReference(referenceFor(CATALOG))
+          : emitModuleReference(referenceFor(CATALOG), header),
+    },
+    {
+      label: 'the module map',
+      render: (header) =>
+        header === undefined ? emitModuleMap(mapEntries) : emitModuleMap(mapEntries, header),
+    },
+  ];
+
+  for (const page of pages) {
+    describe(page.label, () => {
+      it('puts the front matter at byte 0, where front matter is front matter', () => {
+        const rendered = page.render();
+        expect(rendered[0]).toBe('-');
+        expect(rendered.startsWith('---\n')).toBe(true);
+      });
+
+      it('parses to a non-empty front matter carrying the fields it declares', () => {
+        const data = frontMatterData(page.render());
+        expect(Object.keys(data).length).toBeGreaterThan(0);
+        expect(data.title).toBeTruthy();
+        expect(data.sidebar_label).toBeTruthy();
+        expect(data.description).toBeTruthy();
+      });
+
+      it('keeps the do-not-edit banner, below the front matter', () => {
+        // An HTML comment under the front matter is still a banner to a reader
+        // of the source and is invisible in the rendered page. Moving it must
+        // not lose it: the banner is what tells an editor their change is undone
+        // by the next `composer:generate`, and `overlay:check` byte-compares it.
+        const rendered = page.render();
+        expect(rendered).toContain('AUTO-GENERATED');
+        expect(rendered.indexOf('<!-- AUTO-GENERATED')).toBeGreaterThan(rendered.indexOf('\n---\n'));
+      });
+
+      it('resolves a title under the rule check:docs-translations applies', () => {
+        expect(resolveDocTitle(page.render())).toEqual({ resolvable: true });
+      });
+
+      it('does the same for a caller-supplied banner, which is what an instance emits', () => {
+        // `INSTANCE_DOCS_PAGE_HEADER` (`packages/cli/src/generate/index.ts`) is
+        // the same emission with another string, so a fix that held only for
+        // this repository's banner would leave every client instance defective.
+        const instance =
+          `<!-- AUTO-GENERATED by \`endora generate\` — DO NOT EDIT, and do not commit. -->`;
+        const rendered = page.render(instance);
+        expect(rendered[0]).toBe('-');
+        expect(rendered).toContain(instance);
+        expect(resolveDocTitle(rendered)).toEqual({ resolvable: true });
+      });
+    });
+  }
 });
 
 describe('the reference page renders the same bytes twice', () => {
