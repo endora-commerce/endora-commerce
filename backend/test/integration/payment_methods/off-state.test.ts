@@ -23,7 +23,7 @@ import { expectModuleAbsent } from '../../helpers/off-state.js';
  * off disappears from cart and checkout — is a different question from this
  * module's own presence, and it has its own file:
  * `gateway-presence.test.ts`. It was open as issue #96 when this test was
- * written (measured then: with `payments` and `stripe` deactivated,
+ * written (measured then: with `payments` and a contributed adapter deactivated,
  * `GET /api/v1/payment-methods` answered 200 and still listed the
  * `bank_transfer`-backed methods) and is closed now — `paymentAdapterRegistry`
  * records the contributing module on every entry and skips an entry whose owner

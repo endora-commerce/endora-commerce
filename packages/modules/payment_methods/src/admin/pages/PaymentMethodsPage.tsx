@@ -6,9 +6,10 @@ import {
   type FormEvent,
   type ReactNode,
 } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowRight, Pencil, Trash2 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Pencil, Trash2 } from 'lucide-react';
 import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
+import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
@@ -55,6 +56,10 @@ export function PaymentMethodsPage(): ReactNode {
    * be refused.
    */
   const canRead = hasPermission('payment_methods:read');
+  // The host owns the card, while each installed gateway owns one contribution.
+  // `useAdminZone` applies platform presence, operator activation and the
+  // contribution's permission before deciding whether the card exists.
+  const integrations = useAdminZone('payment_method.list.integrations', {});
 
   const refresh = useCallback(async (): Promise<void> => {
     if (!canRead) {
@@ -175,12 +180,6 @@ export function PaymentMethodsPage(): ReactNode {
     );
   }
 
-  const showStripe = hasPermission('stripe:read');
-  const showTpay = hasPermission('tpay:read');
-  const showPayu = hasPermission('payu:read');
-  const showAutopay = hasPermission('autopay:read');
-  const showPaypal = hasPermission('paypal:read');
-
   return (
     <>
       <PageHeader
@@ -199,7 +198,7 @@ export function PaymentMethodsPage(): ReactNode {
         </Alert>
       ) : null}
 
-      {showStripe || showTpay || showPayu || showAutopay || showPaypal ? (
+      {integrations.length > 0 ? (
         <Card className="mb-4">
           <CardHeader>
             <CardTitle>{t('legacyMethods.integrations.title')}</CardTitle>
@@ -208,86 +207,7 @@ export function PaymentMethodsPage(): ReactNode {
             <p className="mb-4 text-sm text-muted-foreground">
               {t('legacyMethods.integrations.description')}
             </p>
-            {showStripe ? (
-              <div className="flex items-center justify-between gap-4 rounded-md border p-4">
-                <div>
-                  <div className="font-medium">{t('legacyMethods.integrations.stripe.name')}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {t('legacyMethods.integrations.stripe.description')}
-                  </div>
-                </div>
-                <Button asChild variant="outline" size="sm">
-                  <Link to="/settings/stripe">
-                    {t('legacyMethods.integrations.configure')}
-                    <ArrowRight />
-                  </Link>
-                </Button>
-              </div>
-            ) : null}
-            {showTpay ? (
-              <div className="flex items-center justify-between gap-4 rounded-md border p-4">
-                <div>
-                  <div className="font-medium">{t('legacyMethods.integrations.tpay.name')}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {t('legacyMethods.integrations.tpay.description')}
-                  </div>
-                </div>
-                <Button asChild variant="outline" size="sm">
-                  <Link to="/settings/tpay">
-                    {t('legacyMethods.integrations.configure')}
-                    <ArrowRight />
-                  </Link>
-                </Button>
-              </div>
-            ) : null}
-            {showPayu ? (
-              <div className="flex items-center justify-between gap-4 rounded-md border p-4">
-                <div>
-                  <div className="font-medium">{t('legacyMethods.integrations.payu.name')}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {t('legacyMethods.integrations.payu.description')}
-                  </div>
-                </div>
-                <Button asChild variant="outline" size="sm">
-                  <Link to="/settings/payu">
-                    {t('legacyMethods.integrations.configure')}
-                    <ArrowRight />
-                  </Link>
-                </Button>
-              </div>
-            ) : null}
-            {showAutopay ? (
-              <div className="flex items-center justify-between gap-4 rounded-md border p-4">
-                <div>
-                  <div className="font-medium">{t('legacyMethods.integrations.autopay.name')}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {t('legacyMethods.integrations.autopay.description')}
-                  </div>
-                </div>
-                <Button asChild variant="outline" size="sm">
-                  <Link to="/settings/autopay">
-                    {t('legacyMethods.integrations.configure')}
-                    <ArrowRight />
-                  </Link>
-                </Button>
-              </div>
-            ) : null}
-            {showPaypal ? (
-              <div className="flex items-center justify-between gap-4 rounded-md border p-4">
-                <div>
-                  <div className="font-medium">{t('legacyMethods.integrations.paypal.name')}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {t('legacyMethods.integrations.paypal.description')}
-                  </div>
-                </div>
-                <Button asChild variant="outline" size="sm">
-                  <Link to="/settings/paypal">
-                    {t('legacyMethods.integrations.configure')}
-                    <ArrowRight />
-                  </Link>
-                </Button>
-              </div>
-            ) : null}
+            <AdminZone name="payment_method.list.integrations" props={{}} />
           </CardContent>
         </Card>
       ) : null}

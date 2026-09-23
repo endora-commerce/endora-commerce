@@ -215,8 +215,6 @@ export const MODULES_WITHOUT_DOCUMENTATION: Readonly<Record<string, string>> = {
   pim_connector:
     'The mutual-exclusion registry the four PIM connectors register into. Infrastructure; a ' +
     'page or `docs: false` is spec.md Q3.',
-  stripe:
-    'The Stripe payment gateway. Operator-facing and wants a page (spec.md Q3).',
 };
 
 /**

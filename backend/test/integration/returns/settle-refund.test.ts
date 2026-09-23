@@ -30,12 +30,22 @@ import { TranslationBundle } from '../../helpers/package-entities.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import { Order } from '../../helpers/package-entities.js';
 import { gatewayRefundRegistryOf } from '../../helpers/package-singletons.js';
+import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
+import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
+import {
+  PAYMENT_GATEWAY_FIXTURE_ADAPTER_KEYS,
+} from '../../../src/apps/example/modules/payment_gateway_fixture/backend.js';
 
 
 const I18N_MODULE_PATH = resolve(
   dirname(fileURLToPath(import.meta.url)),
   '../../../../packages/modules/_i18n',
 );
+
+// File-local literal so the off-state coverage instrument can attribute both
+// axis flips without evaluating an imported overlay constant.
+const FIXTURE_MODULE = 'payment_gateway_fixture';
+const ALL_IDS = [...REGISTERED_MANIFESTS.map((entry) => entry.manifest.id), FIXTURE_MODULE];
 
 /**
  * Feature 046 (US5) — settlement: refund amounts (capped at paid), money
@@ -45,7 +55,8 @@ describe('returns — settlement (US5)', () => {
   let h: BackendServerHandle;
 
   beforeAll(async () => {
-    h = await setupBackendServer();
+    h = await setupBackendServer({ deployment: 'example' });
+    registryCache.__setEnabledForTesting(ALL_IDS);
     await resetReturnGraph(h.em());
     // Needed by the invoiced counterpart below: issuance refuses without the
     // seller's own company data.
@@ -65,6 +76,7 @@ describe('returns — settlement (US5)', () => {
     // `translation_bundles` is not in the harness' truncate list, so the rows
     // installed above would outlive this file.
     await h.em().nativeDelete(TranslationBundle, { moduleId: '_i18n' });
+    registryCache.__setEnabledForTesting(ALL_IDS);
     await teardownBackendServer(h);
   });
 
@@ -107,22 +119,22 @@ describe('returns — settlement (US5)', () => {
    * before anything below observes a surface, on both axes.
    */
   describe('a switched-off payment gateway (#104, D-71)', () => {
-    const STRIPE_SNAPSHOT: Order['paymentMethodSnapshot'] = {
-      code: 'stripe_card',
-      name: 'Card (Stripe)',
+    const FIXTURE_SNAPSHOT: Order['paymentMethodSnapshot'] = {
+      code: PAYMENT_GATEWAY_FIXTURE_ADAPTER_KEYS.REDIRECT,
+      name: 'Payment gateway fixture',
       kind: 'gateway',
-      adapter: 'stripe',
+      adapter: PAYMENT_GATEWAY_FIXTURE_ADAPTER_KEYS.REDIRECT,
     };
 
-    /** A `received` case on an order that was paid through Stripe. */
-    async function stripePaidCase(): Promise<{ id: string; itemId: string; orderId: string }> {
+    /** A `received` case on an order assigned to the fixture gateway. */
+    async function fixturePaidCase(): Promise<{ id: string; itemId: string; orderId: string }> {
       const seeded = await receivedCase();
       // `seedReturnableOrder` seeds a bank-transfer order; this block is about
       // the gateway arm, and the provider resolves the PSP from the snapshot.
-      await withSystemScope('test: mark the seeded order as Stripe-paid', async () => {
+      await withSystemScope('test: assign the seeded order to the fixture gateway', async () => {
         const em = h.em().fork();
         const order = await em.findOneOrFail(Order, { id: seeded.orderId });
-        order.paymentMethodSnapshot = STRIPE_SNAPSHOT;
+        order.paymentMethodSnapshot = FIXTURE_SNAPSHOT;
         await em.flush();
       });
       return seeded;
@@ -178,17 +190,21 @@ describe('returns — settlement (US5)', () => {
       ).toHaveLength(0);
     }
 
-    it('has the stripe handler contributed, so the assertions below are about presence', () => {
+    it('has the fixture refund handler contributed, so the assertions below are about presence', () => {
       // Without this the provider would take the no-integration branch and
       // every refusal below would be measuring an adapter nobody registered.
-      expect(gatewayRefundRegistryOf(h.container).ownerOf('stripe')).toBe('stripe');
-      expect(gatewayRefundRegistryOf(h.container).list()).toContain('stripe');
+      expect(
+        gatewayRefundRegistryOf(h.container).ownerOf(PAYMENT_GATEWAY_FIXTURE_ADAPTER_KEYS.REDIRECT),
+      ).toBe(FIXTURE_MODULE);
+      expect(gatewayRefundRegistryOf(h.container).list()).toContain(
+        PAYMENT_GATEWAY_FIXTURE_ADAPTER_KEYS.REDIRECT,
+      );
     });
 
     it('refuses while the operator has the gateway switched off, and settles nothing', async () => {
-      const { id, itemId, orderId } = await stripePaidCase();
+      const { id, itemId, orderId } = await fixturePaidCase();
 
-      await withModuleOff('stripe', 'deactivated', async () => {
+      await withModuleOff(FIXTURE_MODULE, 'deactivated', async () => {
         const res = await settleRefund(id, itemId);
         expect(res.statusCode).toBe(503);
         expect(res.error?.code).toBe('MODULE_DISABLED');
@@ -199,22 +215,22 @@ describe('returns — settlement (US5)', () => {
         // envelope replaces an operator-visible message with the registered
         // sentence for its code, and `MODULE_DISABLED` is one code for every
         // gated port in the platform: what reached the admin was "Module
-        // Disabled.", and the remedy — switch `stripe` back on — was named
+        // Disabled.", and the remedy — switch the owning gateway back on — was named
         // nowhere on the response. It is now in both places a client can use.
         expect(res.error?.message).toBe(
-          'The "stripe" module is off, so this action was refused. ' +
+          `The "${FIXTURE_MODULE}" module is off, so this action was refused. ` +
             'Check its state on the Modules screen.',
         );
-        expect(res.error?.details).toEqual({ module: 'stripe' });
+        expect(res.error?.details).toEqual({ module: FIXTURE_MODULE });
       });
 
       await expectNothingSettled(id, orderId);
     });
 
     it('refuses while the deployment does not offer the gateway at all', async () => {
-      const { id, itemId, orderId } = await stripePaidCase();
+      const { id, itemId, orderId } = await fixturePaidCase();
 
-      await withModuleOff('stripe', 'platform-unavailable', async () => {
+      await withModuleOff(FIXTURE_MODULE, 'platform-unavailable', async () => {
         const res = await settleRefund(id, itemId);
         expect(res.statusCode).toBe(503);
         expect(res.error?.code).toBe('MODULE_DISABLED');
@@ -224,12 +240,11 @@ describe('returns — settlement (US5)', () => {
     });
 
     it('stops refusing once the gateway is switched back on', async () => {
-      const { id, itemId } = await stripePaidCase();
+      const { id, itemId } = await fixturePaidCase();
 
-      // Off is reversible. What the refund then does is between the handler and
-      // Stripe — with no credentials configured it reports a failed refund,
-      // which is a different answer with a different status. The one thing that
-      // must be gone is the claim that the module is absent.
+      // Off is reversible. The fixture reports a failed external refund, which
+      // is a different answer with a different status. The one thing that must
+      // be gone is the claim that the module is absent.
       const res = await settleRefund(id, itemId);
       expect(res.error?.code).not.toBe('MODULE_DISABLED');
       expect(res.statusCode).not.toBe(503);

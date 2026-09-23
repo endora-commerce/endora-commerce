@@ -536,31 +536,6 @@ const CRUMB_DICT: Array<{ test: RegExp; build: (m: RegExpMatchArray) => Crumb[] 
   //    `batch-eight-surfaces.module-owned-surface.test.tsx` asserts a retired
   //    key's **absence from this file's source**, so naming one in a comment
   //    about retiring it reds the assertion that proves it was retired.
-  { test: /^\/settings\/tpay\/?$/, build: () => [
-    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
-    { labelKey: 'appShell.nav.paymentMethods', href: '/payment-methods' },
-    { labelKey: 'appShell.nav.tpay', href: null },
-  ] },
-  { test: /^\/settings\/stripe\/?$/, build: () => [
-    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
-    { labelKey: 'appShell.nav.paymentMethods', href: '/payment-methods' },
-    { labelKey: 'appShell.nav.stripe', href: null },
-  ] },
-  { test: /^\/settings\/payu\/?$/, build: () => [
-    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
-    { labelKey: 'appShell.nav.paymentMethods', href: '/payment-methods' },
-    { labelKey: 'appShell.nav.payu', href: null },
-  ] },
-  { test: /^\/settings\/autopay\/?$/, build: () => [
-    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
-    { labelKey: 'appShell.nav.paymentMethods', href: '/payment-methods' },
-    { labelKey: 'appShell.nav.autopay', href: null },
-  ] },
-  { test: /^\/settings\/paypal\/?$/, build: () => [
-    { labelKey: 'appShell.section.pricing', href: '/price-lists' },
-    { labelKey: 'appShell.nav.paymentMethods', href: '/payment-methods' },
-    { labelKey: 'appShell.nav.paypal', href: null },
-  ] },
   // The two `/organizations*` trails stood here until feature 091's Phase 4
   // batch 14, and the three `/customers*` screens never had one at all — they
   // fell to the humanised-segment fallback. `registryCrumbs` derives all five

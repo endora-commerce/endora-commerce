@@ -13,8 +13,8 @@ import { expectModuleAbsent } from '../../helpers/off-state.js';
  * The module had no off-state proof at all. The derivation that found that is
  * worth stating, because the obvious one is wrong: a grep for the harness under
  * `backend/test/*\/search/` answers about a *directory*, and a file under
- * `backend/test/integration/stripe/` may well be asserting `payments` off
- * rather than `stripe`. The population is the **argument** of the harness call,
+ * A neighbouring module suite may well assert `payments` off rather than its
+ * directory's module. The population is the **argument** of the harness call,
  * and read that way `search` was one of five switchable modules no test named.
  *
  * The four surfaces item 6 asks for map onto this module as follows:

@@ -15,12 +15,10 @@
 // applied in in 37 places, and re-deriving it produces an order a fresh database
 // cannot apply.
 //
-// **Closed. It never grows** (R1.4): it holds what the committed core registry
-// contributes at or below BASELINE_THROUGH (20260801T000000), and
-// `migration:new` clamps every scaffolded stamp past that watermark. A name
-// here that no registry entry supplies, and a registry entry below the watermark
-// that is not named here, are both refused by
-// backend/test/unit/db/instance-migration-order.test.ts.
+// **Closed. It never grows or drains** (R1.4): it holds the immutable platform
+// history through BASELINE_THROUGH (20260801T000000). A deployment projects
+// this order onto the owners it installed; extraction cannot delete an identity
+// an existing database already recorded.
 
 export const BASELINE_MIGRATIONS: readonly string[] = [
   'Migration20260424T165847CoreFoundationInit',
@@ -110,6 +108,8 @@ export const BASELINE_MIGRATIONS: readonly string[] = [
   'Migration20260629T113442TransactionalEmailsInit',
   'Migration20260629T125121InvoicesModule',
   'Migration20260629T200954NewsletterInit',
+  'Migration20260708T101135StripeInit',
+  'Migration20260715T103358StripePaymentRefundedAmount',
   'Migration20260715T171116GoogleAnalyticsInit',
   'Migration20260717T134752CoreTenantScopeIndexes',
   'Migration20260717T151403OrganizationsPersonalOrganizations',
@@ -132,4 +132,5 @@ export const BASELINE_MIGRATIONS: readonly string[] = [
   'Migration20260727T200555WebhooksDropExternalIntegrations',
   'Migration20260727T233211LinkedinAdsInit',
   'Migration20260728T002715MetaAdsInit',
+  'Migration20260729T132507TpayInit',
 ];

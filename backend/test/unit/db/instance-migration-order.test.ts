@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { ChannelMemberEntityTypeSchema } from '@endora-commerce/contracts';
-import { BASELINE_MIGRATIONS } from '@endora-commerce/platform/migrations';
+import {
+  BASELINE_MIGRATIONS,
+  BASELINE_MIGRATION_INVENTORY,
+} from '@endora-commerce/platform/migrations';
 import { coreModuleDependencies } from '../../../src/db/configured-migrations.js';
 import { BASELINE_THROUGH, type MigrationRegistryEntry } from '@endora-commerce/platform/db';
 import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
@@ -88,6 +91,7 @@ import {
  */
 
 const MODULE_DEPENDENCIES = coreModuleDependencies();
+const AVAILABLE_OWNERS = new Set(MODULE_DEPENDENCIES.keys());
 const SOURCES = await readMigrationSources();
 const CHANNEL_VOCABULARY = [...ChannelMemberEntityTypeSchema.options];
 const BRIDGE_DECLARATIONS = await readChannelBridgeDeclarations();
@@ -167,7 +171,10 @@ describe('G1 — the two regimes produce one order', () => {
     const repositoryLegacy = legacyBaselineOf(MIGRATION_REGISTRY);
     const instanceLegacy = legacyBaselineOf(instanceEntries(MIGRATION_REGISTRY));
 
-    expect(repositoryLegacy.length).toBe(BASELINE_MIGRATIONS.length);
+    const suppliedBaseline = BASELINE_MIGRATIONS.filter((name) =>
+      MIGRATION_REGISTRY.some((entry) => entry.cls.name === name),
+    );
+    expect(repositoryLegacy.length).toBe(suppliedBaseline.length);
     expect(
       instanceLegacy.length,
       'the instance regime no longer empties the frozen prefix — the defect this ' +
@@ -205,15 +212,35 @@ describe('G1 — the two regimes produce one order', () => {
     // R1.1's other half: the list is *ordered*, and the order is history's, so
     // the baseline block is emitted as the artefact holds it rather than as a
     // comparator recomputes it.
-    expect(instanceOrder(REAL).slice(0, BASELINE_MIGRATIONS.length)).toEqual([
-      ...BASELINE_MIGRATIONS,
-    ]);
+    const suppliedBaseline = BASELINE_MIGRATIONS.filter((name) =>
+      MIGRATION_REGISTRY.some((entry) => entry.cls.name === name),
+    );
+    expect(instanceOrder(REAL).slice(0, suppliedBaseline.length)).toEqual(suppliedBaseline);
+  });
+
+  it('restores extracted baseline migrations to their original positions when their packages arrive', () => {
+    const restored = BASELINE_MIGRATION_INVENTORY.filter(
+      (identity) => identity.moduleId === 'stripe' || identity.moduleId === 'tpay',
+    ).map((identity) => entry(identity.moduleId, identity.name, 'external'));
+    const entries = [...MIGRATION_REGISTRY, ...restored];
+    const dependencies = new Map(MODULE_DEPENDENCIES);
+    dependencies.set('stripe', []);
+    dependencies.set('tpay', []);
+
+    const order = instanceOrder({ entries, moduleDependencies: dependencies, baseline: BASELINE_MIGRATIONS });
+    const supplied = new Set(entries.map((candidate) => candidate.cls.name));
+    const expectedPrefix = BASELINE_MIGRATIONS.filter((name) => supplied.has(name));
+    expect(order.slice(0, expectedPrefix.length)).toEqual(expectedPrefix);
   });
 });
 
 describe('G2 — the published list and the registry reconcile, both ways (R1.7)', () => {
   it('names a migration for every entry the watermark covers, and nothing else', () => {
-    const { unsupplied, unlisted } = reconcileBaseline(MIGRATION_REGISTRY, BASELINE_MIGRATIONS);
+    const { unsupplied, unlisted } = reconcileBaseline(
+      MIGRATION_REGISTRY,
+      BASELINE_MIGRATION_INVENTORY,
+      AVAILABLE_OWNERS,
+    );
     expect(
       unsupplied,
       'the published baseline names a migration no registry entry supplies, so the frozen ' +
@@ -227,20 +254,50 @@ describe('G2 — the published list and the registry reconcile, both ways (R1.7)
   });
 
   it('reports a name removed from the list', () => {
-    const shortened = BASELINE_MIGRATIONS.slice(1);
-    const { unlisted, unsupplied } = reconcileBaseline(MIGRATION_REGISTRY, shortened);
+    const shortened = BASELINE_MIGRATION_INVENTORY.slice(1);
+    const { unlisted, unsupplied } = reconcileBaseline(
+      MIGRATION_REGISTRY,
+      shortened,
+      AVAILABLE_OWNERS,
+    );
     expect(unlisted).toEqual([BASELINE_MIGRATIONS[0]]);
     expect(unsupplied).toEqual([]);
   });
 
   it('reports a name no entry supplies', () => {
     const invented = 'Migration20260424T165846CoreFoundationInitial';
-    const { unsupplied, unlisted } = reconcileBaseline(MIGRATION_REGISTRY, [
-      invented,
-      ...BASELINE_MIGRATIONS,
-    ]);
+    const { unsupplied, unlisted } = reconcileBaseline(
+      MIGRATION_REGISTRY,
+      [{ name: invented, moduleId: 'core' }, ...BASELINE_MIGRATION_INVENTORY],
+      AVAILABLE_OWNERS,
+    );
     expect(unsupplied).toEqual([invented]);
     expect(unlisted).toEqual([]);
+  });
+
+  it('reports a frozen migration missing from an owner that is installed', () => {
+    const victim = BASELINE_MIGRATION_INVENTORY.find(
+      (identity) => identity.moduleId === 'catalog',
+    )!;
+    const entries = MIGRATION_REGISTRY.filter((candidate) => candidate.cls.name !== victim.name);
+    const { unsupplied, unlisted } = reconcileBaseline(
+      entries,
+      BASELINE_MIGRATION_INVENTORY,
+      AVAILABLE_OWNERS,
+    );
+    expect(unsupplied).toEqual([victim.name]);
+    expect(unlisted).toEqual([]);
+  });
+
+  it('reports an external migration below the watermark that history does not name', () => {
+    const invented = 'Migration20260424T165846PaidPackageInvented';
+    const { unsupplied, unlisted } = reconcileBaseline(
+      [...MIGRATION_REGISTRY, entry('paid_package', invented, 'external')],
+      BASELINE_MIGRATION_INVENTORY,
+      new Set([...AVAILABLE_OWNERS, 'paid_package']),
+    );
+    expect(unsupplied).toEqual([]);
+    expect(unlisted).toEqual([invented]);
   });
 
   it('holds only names stamped at or below the watermark', () => {

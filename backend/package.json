@@ -210,7 +210,6 @@
     "read-excel-file": "^9.0.9",
     "sharp": "^0.35.2",
     "ssh2-sftp-client": "^12.1.1",
-    "stripe": "^22.3.0",
     "web-push": "^3.6.7",
     "zod": "^4.2.0"
   },
