@@ -53,6 +53,24 @@ const config = {
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
         },
+        sitemap: {
+          // `/search` is a route a reader can land on, not a published
+          // documentation page. The search plugin marks it `noindex` in the
+          // *page HTML*, which is not the route **metadata**
+          // `@docusaurus/plugin-sitemap` reads, so it appears in the sitemap
+          // unless it is excluded here (measured on the Phase 4 build).
+          //
+          // **Pin the route root; never glob the segment.** The obvious
+          // `'**/search'` also drops `/module-reference/search/` and
+          // `/modules/search/` — two real published pages owned by the `search`
+          // module. The matcher anchors each pattern (`^(?:\/search\/)$`), and
+          // every locale is built with its own `baseUrl`, so the route path
+          // carries the locale prefix and the list is derived from the locales
+          // rather than written out.
+          ignorePatterns: localesConfig.locales.map((locale) =>
+            locale === localesConfig.defaultLocale ? '/search/' : `/${locale}/search/`,
+          ),
+        },
       }),
     ],
   ],
