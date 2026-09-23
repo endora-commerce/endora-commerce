@@ -1,6 +1,7 @@
 ---
 sidebar_position: 1
 slug: /
+title: Platforma B2B — Wprowadzenie
 ---
 
 :::caution Tłumaczenia dokumentacji

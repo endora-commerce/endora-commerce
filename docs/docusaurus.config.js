@@ -8,7 +8,7 @@ const localesConfig = require('./locales.config.json');
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-  title: 'B2B Platform',
+  title: 'Endora Commerce',
   tagline: 'Architecture and usage documentation for the B2B commerce platform',
   favicon: 'img/favicon.ico',
 
@@ -49,7 +49,7 @@ const config = {
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       navbar: {
-        title: 'B2B Platform',
+        title: 'Endora Commerce',
         items: [
           { type: 'docSidebar', sidebarId: 'main', position: 'left', label: 'Docs' },
           { type: 'localeDropdown', position: 'right' },
@@ -57,7 +57,21 @@ const config = {
       },
       footer: {
         style: 'dark',
-        copyright: 'Internal documentation — see the repository for the governing constitution.',
+        // Public-facing (FR-009, FR-010): the publisher, the licence under which
+        // this documentation is published, and the route back to the project.
+        // The licence is stated as **text** rather than linked: `LICENSE` and
+        // `LICENSE-COMMERCIAL.md` live in a repository a public reader cannot
+        // open, so a link to either would be the dead-link class FR-035 exists
+        // to remove — and `LICENSE-COMMERCIAL.md` is a self-declared
+        // placeholder that grants nothing. No published surface describes this
+        // site as internal.
+        links: [
+          {
+            label: 'commerce.endora.software',
+            href: 'https://commerce.endora.software',
+          },
+        ],
+        copyright: '© 2026 Endora — documentation published under the MIT licence.',
       },
     }),
 };
