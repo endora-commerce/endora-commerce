@@ -1412,6 +1412,29 @@ export interface RecordedReadSize {
  *
  * **No band was widened and no value was computed from a delta.** Neither number was measured
  * in the checkout the work was done in.
+ *
+ * ## `specs/134-paid-module-extraction/` T042–T045, 2026-09-23 — five payment gateways leave
+ *
+ * Four dimensions cross their lower bounds and are re-recorded below. Two detached worktrees
+ * were prepared identically at `origin/master` `3acbad05f` and this branch's `e1f920eab`:
+ * `scripts/setup-worktree.sh`, `pnpm run build:packages`, the ignored module-doc copies and
+ * stamp removed, and the index staged before measuring. Both reported a clean porcelain status
+ * and no untracked files. The base census is **36 drifted, 10 agree, 0 not measured, of 46**;
+ * the tip is **42 drifted, 4 agree, 0 not measured, of 46**.
+ *
+ * `check-off-state-coverage` loses the ten host proof files that named these gateways: **files
+ * 111 -> 101** and **sites 195 -> 165**, three harness calls per file. Its site dimension agreed
+ * at the base. Its file dimension was already drifting from the recorded 116, but the extraction
+ * takes it below the band's 104 floor, so the measured tip replaces that stale record.
+ * `check-port-dependencies` loses **147** gateway-owned resolution sites, **1714 -> 1567**, and
+ * `check-port-shape` loses **72** declarations, registrations and resolutions, **835 -> 763**.
+ * Both site dimensions already drifted at the base but cross their floors only after the five
+ * packages leave, which is the breach condition under which this record is rewritten.
+ *
+ * Every other dimension stays as recorded. Some move substantially with the same package
+ * deletion, but they were already drifting at the base and remain inside their bands; recording
+ * them here would absorb earlier staleness into this extraction. No band was widened and no
+ * figure was computed from a delta: the four values below are the tip worktree's own readings.
  */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
@@ -9736,7 +9759,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
-    files: 116,
+    // **T042–T045: 116 -> 101 (breach).** The base already read 111; removing the ten
+    // gateway host proof files takes the tip below the recorded band. See the feature block
+    // above the table for the two-worktree measurement and attribution.
+    files: 101,
     // The finer population, and the one that moves when a **resolver shape** is
     // added or lost: every `expectModuleAbsent` and `withModuleOff` call the
     // walk read, both helpers, one per call however many modules the call
@@ -9775,7 +9801,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // adrift on the base. The header block above this table carries the attribution — two pristine
     // worktrees, per dimension, with `origin/master`'s own drift left to its owner — and nothing
     // here widened a band.
-    sites: 195,
+    // **T042–T045: 195 -> 165.** Ten proof files leave, each with three harness call sites.
+    // The base reproduced 195 exactly; the tip value is the clean-worktree measurement.
+    sites: 165,
     // Two independent authors, so the check computes no module list and no
     // call-name list of its own. `manifest-index` is every entry the generated
     // index carries against every entry whose manifest this run could classify
@@ -10609,7 +10637,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **The availability-notification acquisition gate (issue #227 / #259): +1 site.** One
     // container resolution — `inventory` now resolves `salesChannelMembershipPort`. A kernel
     // registration, so it adds no manifest edge and no `undeclared-dependency` with it.
-    sites: 1770,
+    // **T042–T045: 1770 -> 1567 (breach).** The base read 1714; five extracted gateway
+    // packages supplied 147 of the resolution sites that disappear between the measured trees.
+    sites: 1567,
     // **Feature 132 (T031): `capability-families` joins the reconciliation.** The check
     // gained the FR-016 assertion — a member of an exclusive capability that ships
     // activated — over the manifests it already walked, so it now corroborates a second
@@ -11356,7 +11386,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // block above this table has the arithmetic; nothing here widened a band.
     // **The availability-notification acquisition gate (issue #227 / #259): +1 site.** The
     // same `lazyPort` resolution, seen by the port-shape walk.
-    sites: 857,
+    // **T042–T045: 857 -> 763 (breach).** The base read 835; five extracted gateway
+    // packages supplied 72 of the declarations, registrations and resolutions that leave.
+    sites: 763,
     sources: ['manifest-index', 'ports-subpaths'],
   },
   // Small on purpose: this population is the *workspace*, not a source tree —
