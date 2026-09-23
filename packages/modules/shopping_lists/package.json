@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-shopping-lists",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "type": "module",
   "sideEffects": false,
   "description": "Customer-owned saved shopping lists.",

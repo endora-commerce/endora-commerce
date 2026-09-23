@@ -1,5 +1,18 @@
 # @endora-commerce/mod-currencies
 
+## 0.8.3
+
+### Patch Changes
+
+- Updated dependencies [d5778af]
+- Updated dependencies [e267293]
+- Updated dependencies [d6bfea0]
+- Updated dependencies [8a05249]
+- Updated dependencies [e67a074]
+- Updated dependencies [b3b4286]
+  - @endora-commerce/contracts@0.14.0
+  - @endora-commerce/platform@0.13.0
+
 ## 0.8.2
 
 ### Patch Changes

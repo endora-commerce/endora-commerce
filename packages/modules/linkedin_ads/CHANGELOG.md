@@ -1,5 +1,19 @@
 # @endora-commerce/mod-linkedin-ads
 
+## 0.9.4
+
+### Patch Changes
+
+- Updated dependencies [d5778af]
+- Updated dependencies [e267293]
+- Updated dependencies [d6bfea0]
+- Updated dependencies [8a05249]
+- Updated dependencies [e67a074]
+- Updated dependencies [b3b4286]
+  - @endora-commerce/contracts@0.14.0
+  - @endora-commerce/platform@0.13.0
+  - @endora-commerce/admin-kit@0.9.4
+
 ## 0.9.3
 
 ### Patch Changes

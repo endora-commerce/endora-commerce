@@ -1,5 +1,128 @@
 # @endora-commerce/mod-invoice-ledger
 
+## 0.12.0
+
+### Minor Changes
+
+- 8a05249: `@endora-commerce/mod-invoice-ledger` no longer recognises a ledger vendor's sentences; it applies a shape floor
+
+  **If you write a ledger adapter against `InvoiceLedgerDeliveryPort`, the text you pass to
+  `markFailed` is now stored as you wrote it, provided it looks like a sentence.** Until this
+  release the ledger imported two vendors' error vocabularies and stored `last_error`
+  verbatim only when your text was one of those vendors' sentences — anything else, including
+  every sentence your own adapter authored, became _"The ledger vendor returned an unreadable
+  error."_ The floor is now vendor-independent and refuses four shapes over the trimmed input:
+  - it contains `<` or `>`;
+  - it contains a control character — a newline, a carriage return, a tab, or any of C0, DEL, C1;
+  - its first character is `{` or `[`;
+  - it is longer than 500 characters.
+
+  Any of those yields `INVOICE_LEDGER_UNREADABLE_VENDOR_ERROR`. **Nothing is truncated** — a
+  refusal is whole, because half a sentence is prose nobody wrote and can cut a leaked token in
+  two. Whitespace-only input is refused as before, and `null` and `''` are returned unchanged.
+
+  **What this means for an adapter you maintain.** Map the vendor's HTTP outcome onto your own
+  operator sentence before you call `markFailed`, and assert in your own package that every
+  sentence you can produce clears the four clauses above. Do not hand the ledger a response body,
+  a header dump or an exception's `stack`: it will be stored as `unreadable` and the operator
+  loses the detail. If your sentence composes text the vendor wrote — a field name, a validation
+  message — bound that composition yourself; the 500 is a backstop, not a budget.
+
+  **Why.** `@endora-commerce/mod-invoice-ledger` is the general-purpose half of this family: it
+  persists a delivery and knows nothing about any one accounting vendor. It was nevertheless
+  importing `WFIRMA_DELIVERY_MESSAGES` and `INFAKT_DELIVERY_MESSAGES` to re-recognise sentences the
+  two adapters had already mapped — one vocabulary with two owners, and a vendor-agnostic package
+  carrying two specific integrations' error text. The vendor that authors a sentence now owns both
+  the vocabulary and the mapping; the ledger, which is the component that persists, keeps a floor
+  and no vocabulary. A registry contributed by the vendors was considered and refused: on the read
+  path a deactivated vendor's historical rows would re-read as _unreadable_, and on the write path
+  the caller **is** the vendor, so the ledger would be asking a registry the vendor populated
+  whether the vendor's sentence is one of the vendor's sentences.
+
+  **`@endora-commerce/mod-wfirma` is no longer named here, and the release it was promised is
+  the paid repository's to make.** Feature 134's wave 4 took that package out of this workspace
+  between this changeset being written and this release going out, so `changeset version` can no
+  longer honour an intent for it — `check:release-intent`'s `unversionable-changeset`, which is
+  the finding that exists because a changeset naming a non-member exits 0 from `changeset status`
+  and is byte-identical to a clean branch. The behaviour below is real and unreleased; whoever
+  cuts `@endora-commerce/mod-wfirma` next, from the repository that now holds its source, owes it
+  a `minor` and this paragraph as its body.
+
+  **`formatWfirmaValidationError` now bounds its own composed tail, and exports the bound.** The composed sentence is `wFirma rejected the invoice.` followed
+  by the field messages lifted out of wFirma's own JSON or XML body, which was unbounded. A field
+  message carrying markup or a control character is now dropped whole; a composition whose tail
+  exceeds `WFIRMA_VALIDATION_TAIL_MAX_LENGTH` (300, newly exported from
+  `./backend`'s `wfirma-rest-client`) falls back to the bare sentence. The vendor sentence is
+  never truncated and never exceeds the ledger's floor.
+
+  **`@endora-commerce/contracts`: a comment, and nothing else.** The doc-blocks on
+  `INFAKT_DELIVERY_MESSAGES` and, at the time, `WFIRMA_DELIVERY_MESSAGES` said _"Operator
+  sentences the … worker and ledger mapper share"_, which is the design this release overturns.
+  The wFirma half of that sentence has since left this package altogether — the sibling changeset
+  in this same release removes it — so what this `patch` still describes is the Infakt doc-block.
+  No exported value, type or schema changes for it; the bump is `patch` because a `.d.ts` comment
+  is part of what the package emits and nothing more than that moved.
+
+  **No changeset names `@endora-commerce/mod-infakt`.** Its only change is a co-located
+  `*.test.ts`, and `src/**/*.test.ts` is excluded from that package's `tsconfig.json` and
+  `tsconfig.build.json` alike — so the package emits exactly what it emitted before, and there is
+  nothing to version.
+
+### Patch Changes
+
+- b3b4286: `@endora-commerce/contracts` no longer exports wFirma's schemas or its two error codes
+
+  **If you import any `wfirma*` or `WFIRMA_*` symbol from `@endora-commerce/contracts`, this
+  release removes it.** Twenty-six exports go — `WFIRMA_SETTING_CODES`, `WFIRMA_READ_PERMISSION`,
+  `WFIRMA_WRITE_PERMISSION`, `WFIRMA_INSTANCE_CREDENTIAL_CODE`, `WFIRMA_DELIVERY_MESSAGES`,
+  `WFIRMA_HOST`, the eight `WFIRMA_*_PATH` endpoint constants, `WFIRMA_WEBHOOK_EVENT_IDS`,
+  `wfirmaWebhookEventIdSchema`, `wfirmaWebhookEventDescriptorSchema`, `wfirmaConnectionDtoSchema`,
+  `wfirmaConnectionUpsertBodySchema`, `wfirmaConnectionTestResponseSchema`, `WfirmaHttpPort` and
+  each inferred type beside them. They are now on `@endora-commerce/mod-wfirma`'s own
+  `./contracts` subpath:
+
+  ```diff
+  - import { wfirmaConnectionDtoSchema, WFIRMA_HOST } from '@endora-commerce/contracts';
+  + import { wfirmaConnectionDtoSchema, WFIRMA_HOST } from '@endora-commerce/mod-wfirma/contracts';
+  ```
+
+  **And `ERROR_CODES` loses two members**, `WFIRMA_CONNECTION_FAILED` and
+  `WFIRMA_WEBHOOK_NOT_FOUND`. That half is not tidying and has a rule behind it: an `ERROR_CODES`
+  member that no installed manifest declares routes nowhere, so an operator reads the raising
+  code's own English instead of a translated sentence — `check:error-translations`'
+  `undeclared-enum-member`, which is what a code whose only declarant has left looks like. The two
+  codes are declared by `@endora-commerce/mod-wfirma`'s manifest and translated in its own
+  `i18n/` bundles, which is where they now live in full.
+
+  **Why, and why it is not an accident of tidying.** `@endora-commerce/contracts` is a free
+  package. A schema describing wFirma's REST API is only usable by an instance that installs the
+  wFirma module, so shipping it here asked every consumer to carry per-vendor contract for an
+  integration most of them will never run — and, once a vendor module is published from somewhere
+  else, put the schema and the code it describes under two owners. The module now carries both.
+  This is the same split `@endora-commerce/mod-inpost` and `@endora-commerce/mod-dhl-parcel` took
+  in the `0.10` line; `@endora-commerce/mod-wfirma` is the third package to use the `./contracts`
+  subpath and the first outside the carrier family.
+
+  `minor` rather than `major`: no package in this repository leaves `0.x` before the move to
+  public npmjs, and in a `0.x` series a minor already takes every caret dependent out of range,
+  which is the whole consumer-facing meaning of a break.
+
+  `@endora-commerce/mod-invoice-ledger` is a patch and nothing it publishes changes behaviour: a
+  doc comment on `InvoiceLedgerDeliveryAttempt.remoteVendorNumber` named one vendor for a field
+  every vendor writes, and its registry test stated a two-member vendor family whose second member
+  was a module this repository no longer holds. Both now say what they mean without naming a
+  vendor, which is D-256's rule for this module read one comment further than D-256 reached.
+
+- Updated dependencies [d5778af]
+- Updated dependencies [e267293]
+- Updated dependencies [d6bfea0]
+- Updated dependencies [8a05249]
+- Updated dependencies [e67a074]
+- Updated dependencies [b3b4286]
+  - @endora-commerce/contracts@0.14.0
+  - @endora-commerce/platform@0.13.0
+  - @endora-commerce/admin-kit@0.9.4
+
 ## 0.11.1
 
 ### Patch Changes
