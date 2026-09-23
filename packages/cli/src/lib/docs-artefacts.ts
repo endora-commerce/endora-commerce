@@ -315,6 +315,22 @@ function markdownCell(value: string): string {
 }
 
 /**
+ * A front-matter value YAML will read back as the string it was given.
+ *
+ * Plain scalars are left plain — a quoted `title` would rewrite 152 tracked
+ * pages for nothing — and anything YAML would choke on or reinterpret is
+ * double-quoted. The case that shipped: `description` is a sentence reading
+ * *"…manifest declares: permissions, …"*, and `: ` inside a plain scalar is an
+ * incomplete mapping pair, so `docusaurus build` died in `gray-matter` on the
+ * first generated page it parsed. It parsed none of them before feature 133
+ * moved the front matter to byte 0, which is why nothing caught it earlier.
+ */
+function yamlScalar(value: string): string {
+  const plain = !/[:#]\s|^[\s>|&*!%@`'"[{-]|[:\s]$/.test(value);
+  return plain ? value : `"${value.split('\\').join('\\\\').split('"').join('\\"')}"`;
+}
+
+/**
  * The module map — one row per **registered** module, never per page.
  *
  * A module the index registers and no page documents gets a row saying so,
@@ -622,9 +638,9 @@ export function emitModuleReference(
 
   return (
     `---\n` +
-    `title: ${reference.moduleId} — module reference\n` +
+    `title: ${yamlScalar(`${reference.moduleId} — module reference`)}\n` +
     `sidebar_label: Reference\n` +
-    `description: ${summary}\n` +
+    `description: ${yamlScalar(summary)}\n` +
     `---\n\n` +
     `${header}\n\n` +
     `# \`${reference.moduleId}\` — module reference\n\n` +

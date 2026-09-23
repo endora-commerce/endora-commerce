@@ -297,8 +297,47 @@ describe('a generated page opens with its front matter', () => {
         expect(rendered).toContain(instance);
         expect(resolveDocTitle(rendered)).toEqual({ resolvable: true });
       });
+
+      it('emits front-matter values YAML can read back, which is what the build parses', () => {
+        // The second half of the same defect, and it only became reachable when
+        // the first was fixed. `description` is the sentence *"…manifest
+        // declares: permissions, …"*, and `: ` inside a plain YAML scalar is an
+        // incomplete mapping pair: once the front matter sat at byte 0 and was
+        // parsed for the first time, `docusaurus build` died in `gray-matter` on
+        // the first generated page — 152 of them, both locales. Nothing here
+        // asserted that a value survives the parser, only that it is present.
+        const rendered = page.render();
+        const lines = rendered.split('\n');
+        const block = lines.slice(1, lines.indexOf('---', 1));
+        expect(block.length).toBeGreaterThan(0);
+        for (const line of block) {
+          const value = /^[A-Za-z_][\w-]*:\s*(.*)$/.exec(line)?.[1] ?? '';
+          if (value.startsWith('"')) {
+            expect(value.endsWith('"')).toBe(true);
+            continue;
+          }
+          // A plain scalar: no `: ` or ` #`, and no leading YAML indicator.
+          expect(value).not.toMatch(/[:#]\s/);
+          expect(value).not.toMatch(/^[\s>|&*!%@`'[{-]/);
+        }
+      });
     });
   }
+
+  it('quotes the sentence that broke the build, and quotes nothing that does not need it', () => {
+    const rendered = emitModuleReference(referenceFor(CATALOG));
+    const data = frontMatterData(rendered);
+    // The value carries a colon, so it is double-quoted — and unquoting it
+    // returns the sentence the reader sees, not an escaped approximation of it.
+    expect(data.description).toMatch(/^".*"$/);
+    expect(data.description!.slice(1, -1).split('\\"').join('"')).toBe(
+      "Everything the `catalog` module's manifest declares: permissions, palette " +
+        'actions, settings, activation and dependencies.',
+    );
+    // `title` needs none. Quoting it anyway would rewrite 152 tracked pages for
+    // nothing, which is why the generator quotes on demand rather than always.
+    expect(data.title).toBe('catalog — module reference');
+  });
 });
 
 describe('the reference page renders the same bytes twice', () => {
