@@ -333,12 +333,6 @@ import { Migration20260819T171006ShipmentsStatusPendingManual } from '@endora-co
 import { Migration20260426T135443ShoppingListsInit } from '@endora-commerce/mod-shopping-lists/migrations';
 import { Migration20260611T140418ShoppingListsDefault } from '@endora-commerce/mod-shopping-lists/migrations';
 
-// ── stripe ──────────────────────────────────────────────────────────────────
-import { Migration20260708T101135StripeInit } from '@endora-commerce/mod-stripe/migrations';
-import { Migration20260715T103358StripePaymentRefundedAmount } from '@endora-commerce/mod-stripe/migrations';
-import { Migration20260816T053826StripeSeedPaymentMethods } from '@endora-commerce/mod-stripe/migrations';
-import { Migration20260821T084922StripeFailureStatusOnHold } from '@endora-commerce/mod-stripe/migrations';
-
 // ── taxes ───────────────────────────────────────────────────────────────────
 import { Migration20260426T081516TaxesPromotionsInit } from '@endora-commerce/mod-taxes/migrations';
 import { Migration20260912T094654TaxesSalesChannelTaxes } from '@endora-commerce/mod-taxes/migrations';
@@ -665,12 +659,6 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── shopping_lists ──────────────────────────────────────────────────────────
   migration('shopping_lists', Migration20260426T135443ShoppingListsInit),
   migration('shopping_lists', Migration20260611T140418ShoppingListsDefault),
-
-  // ── stripe ──────────────────────────────────────────────────────────────────
-  migration('stripe', Migration20260708T101135StripeInit),
-  migration('stripe', Migration20260715T103358StripePaymentRefundedAmount),
-  migration('stripe', Migration20260816T053826StripeSeedPaymentMethods),
-  migration('stripe', Migration20260821T084922StripeFailureStatusOnHold),
 
   // ── taxes ───────────────────────────────────────────────────────────────────
   migration('taxes', Migration20260426T081516TaxesPromotionsInit),

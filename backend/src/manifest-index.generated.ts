@@ -102,11 +102,10 @@ import { manifest as manifest64 } from '@endora-commerce/mod-seo';
 import { manifest as manifest65, cliCommands as cliCommands65 } from '@endora-commerce/mod-settings';
 import { manifest as manifest66 } from '@endora-commerce/mod-shipments';
 import { manifest as manifest67 } from '@endora-commerce/mod-shopping-lists';
-import { manifest as manifest68, installHook as installHook68, uninstallHook as uninstallHook68 } from '@endora-commerce/mod-stripe';
-import { manifest as manifest69 } from '@endora-commerce/mod-taxes';
-import { manifest as manifest70, installHook as installHook70, uninstallHook as uninstallHook70 } from '@endora-commerce/mod-tpay';
-import { manifest as manifest71 } from '@endora-commerce/mod-transactional-emails';
-import { manifest as manifest72 } from '@endora-commerce/mod-webhooks';
+import { manifest as manifest68 } from '@endora-commerce/mod-taxes';
+import { manifest as manifest69, installHook as installHook69, uninstallHook as uninstallHook69 } from '@endora-commerce/mod-tpay';
+import { manifest as manifest70 } from '@endora-commerce/mod-transactional-emails';
+import { manifest as manifest71 } from '@endora-commerce/mod-webhooks';
 
 export interface DiscoveredManifestEntry {
   id: string;
@@ -193,9 +192,8 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'settings', manifest: manifest65, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-settings'), cliCommands: cliCommands65 },
   { id: 'shipments', manifest: manifest66, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-shipments') },
   { id: 'shopping_lists', manifest: manifest67, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-shopping-lists') },
-  { id: 'stripe', manifest: manifest68, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-stripe'), installHook: installHook68, uninstallHook: uninstallHook68 },
-  { id: 'taxes', manifest: manifest69, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-taxes') },
-  { id: 'tpay', manifest: manifest70, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-tpay'), installHook: installHook70, uninstallHook: uninstallHook70 },
-  { id: 'transactional_emails', manifest: manifest71, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-transactional-emails') },
-  { id: 'webhooks', manifest: manifest72, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-webhooks') },
+  { id: 'taxes', manifest: manifest68, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-taxes') },
+  { id: 'tpay', manifest: manifest69, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-tpay'), installHook: installHook69, uninstallHook: uninstallHook69 },
+  { id: 'transactional_emails', manifest: manifest70, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-transactional-emails') },
+  { id: 'webhooks', manifest: manifest71, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-webhooks') },
 ];

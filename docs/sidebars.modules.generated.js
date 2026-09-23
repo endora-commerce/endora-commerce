@@ -529,7 +529,6 @@ const modules = [
       'module-reference/shopping-lists',
     ],
   },
-  { type: 'doc', id: 'module-reference/stripe', label: 'stripe' },
   {
     type: 'category',
     label: 'taxes',

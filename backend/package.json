@@ -175,7 +175,6 @@
     "@endora-commerce/mod-settings": "workspace:*",
     "@endora-commerce/mod-shipments": "workspace:*",
     "@endora-commerce/mod-shopping-lists": "workspace:*",
-    "@endora-commerce/mod-stripe": "workspace:*",
     "@endora-commerce/mod-taxes": "workspace:*",
     "@endora-commerce/mod-tpay": "workspace:*",
     "@endora-commerce/mod-transactional-emails": "workspace:*",

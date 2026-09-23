@@ -110,8 +110,6 @@ export const BASELINE_MIGRATIONS: readonly string[] = [
   'Migration20260629T113442TransactionalEmailsInit',
   'Migration20260629T125121InvoicesModule',
   'Migration20260629T200954NewsletterInit',
-  'Migration20260708T101135StripeInit',
-  'Migration20260715T103358StripePaymentRefundedAmount',
   'Migration20260715T171116GoogleAnalyticsInit',
   'Migration20260717T134752CoreTenantScopeIndexes',
   'Migration20260717T151403OrganizationsPersonalOrganizations',

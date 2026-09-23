@@ -102,7 +102,6 @@ import { entities as seoEntities } from '@endora-commerce/mod-seo/backend';
 import { entities as authEntities } from '@endora-commerce/mod-auth/backend';
 import { entities as shipmentsEntities } from '@endora-commerce/mod-shipments/backend';
 import { entities as shoppingListsEntities } from '@endora-commerce/mod-shopping-lists/backend';
-import { entities as stripeEntities } from '@endora-commerce/mod-stripe/backend';
 import { entities as taxesEntities } from '@endora-commerce/mod-taxes/backend';
 import { entities as tpayEntities } from '@endora-commerce/mod-tpay/backend';
 import { entities as i18nEntities } from '@endora-commerce/mod-i18n/backend';
@@ -176,7 +175,6 @@ export const ALL_ENTITIES = [
   ...(authEntities as readonly EntityClassLike[]),
   ...(shipmentsEntities as readonly EntityClassLike[]),
   ...(shoppingListsEntities as readonly EntityClassLike[]),
-  ...(stripeEntities as readonly EntityClassLike[]),
   ...(taxesEntities as readonly EntityClassLike[]),
   ...(tpayEntities as readonly EntityClassLike[]),
   ...(i18nEntities as readonly EntityClassLike[]),

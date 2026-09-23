@@ -73,7 +73,6 @@
     "@endora-commerce/mod-sales-channels": "workspace:*",
     "@endora-commerce/mod-seo": "workspace:*",
     "@endora-commerce/mod-settings": "workspace:*",
-    "@endora-commerce/mod-stripe": "workspace:*",
     "@endora-commerce/mod-taxes": "workspace:*",
     "@endora-commerce/mod-tpay": "workspace:*",
     "@endora-commerce/mod-transactional-emails": "workspace:*",
