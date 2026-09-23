@@ -26,7 +26,7 @@ Both audiences read the same tree. Sections marked _Developers_ vs _Usage_ let y
 ## Quick links
 
 - Spec-Kit feature **001 — B2B Platform Foundation** — the spec, plan, and tasks that define the whole platform: `specs/001-b2b-platform-foundation/` in the repository.
-- Live OpenAPI (when the backend is running): [http://localhost:3001/api/v1/_openapi.json](http://localhost:3001/api/v1/_openapi.json).
+- Live OpenAPI (when the backend is running): `http://localhost:3001/api/v1/_openapi.json`.
 
 ## Status
 
@@ -37,3 +37,7 @@ Feature **001 — B2B Platform Foundation** is **complete** end-to-end across Us
 - **Admin panel** (Vite + React) ships Products / Categories / Attributes, Inventory, Organizations, Orders, Invoices, Quote Requests (Claim / Send Quote / Decline), Price Lists / Taxes / Promotions, Delivery + Payment Methods, Credit Limits, Users + Roles with a permissions matrix, Audit Log viewer, Impersonation banner, plus API Keys / Webhooks / Integrations / Analytics / SEO / Languages / CMS modules.
 
 Per the constitution's Documentation Requirements: PRs that add or change a module MUST update the relevant page in the same commit range.
+
+## About this site
+
+This is the public documentation of Endora Commerce, published at `https://docs.commerce.endora.software/` in English and Polish: it is built with Docusaurus from the documentation sources kept in the product's own repository — the site's own pages under `docs/`, plus one documentation directory per module, collected at build time — so a page and the code it describes change together. References written as `specs/NNN-slug/` appear throughout as plain text rather than links; [Understanding specs/NNN citations](about/spec-citations) explains what they are and why.

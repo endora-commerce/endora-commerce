@@ -9,6 +9,11 @@ function categoryLabel(slug, message) {
 const sidebars = {
   main: [
     'intro',
+    // A top-level doc entry, deliberately not a category: a bare doc item is
+    // `translatable: false` in the content-docs plugin's own terms, so it owes no
+    // `sidebar.main.category.*` id and leaves each locale's `current.json` complete.
+    // Its Polish label comes from the Polish page's own front matter.
+    'about/spec-citations',
     {
       type: 'category',
       key: 'admin-ui',

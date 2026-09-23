@@ -31,7 +31,7 @@ Obie grupy czytają tę samą strukturę. Sekcje oznaczone _Developers_ vs _Usag
 ## Szybkie linki
 
 - Funkcja Spec-Kit **001 — B2B Platform Foundation** — specyfikacja, plan i zadania definiujące całą platformę: `specs/001-b2b-platform-foundation/` w repozytorium.
-- OpenAPI na żywo (gdy backend działa): [http://localhost:3001/api/v1/_openapi.json](http://localhost:3001/api/v1/_openapi.json).
+- OpenAPI na żywo (gdy backend działa): `http://localhost:3001/api/v1/_openapi.json`.
 
 ## Status
 
@@ -42,3 +42,7 @@ Funkcja **001 — B2B Platform Foundation** jest **kompletna** end-to-end w User
 - **Panel administracyjny** (Vite + React) dostarcza Products / Categories / Attributes, Inventory, Organizations, Orders, Invoices, Quote Requests (Claim / Send Quote / Decline), Price Lists / Taxes / Promotions, Delivery + Payment Methods, Credit Limits, Users + Roles z macierzą uprawnień, przeglądarkę Audit Log, baner Impersonation, a także moduły API Keys / Webhooks / Integrations / Analytics / SEO / Languages / CMS.
 
 Zgodnie z wymaganiami Documentation Requirements w konstytucji: PR-y, które dodają lub zmieniają moduł, MUSZĄ zaktualizować odpowiednią stronę w tym samym zakresie commitów.
+
+## O tej witrynie
+
+To jest publiczna dokumentacja Endora Commerce, publikowana pod adresem `https://docs.commerce.endora.software/` w wersji angielskiej i polskiej: powstaje w Docusaurusie ze źródeł dokumentacji trzymanych w repozytorium samego produktu — stron tej witryny w katalogu `docs/` oraz jednego katalogu dokumentacji na moduł, zbieranych podczas budowania — dzięki czemu strona i opisywany przez nią kod zmieniają się razem. Odwołania zapisane jako `specs/NNN-slug/` występują w całej witrynie jako zwykły tekst, a nie odnośniki; [Jak czytać cytowania specs/NNN](about/spec-citations) wyjaśnia, czym są i dlaczego.
