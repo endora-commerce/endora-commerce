@@ -5,8 +5,7 @@ title: Checklist pierwszego wdrożenia produkcyjnego
 # Checklist pierwszego wdrożenia produkcyjnego
 
 **Status: otwarty. Żaden punkt z tej listy nie został wykonany.** Endora Commerce nie ma
-jeszcze wdrożenia produkcyjnego. Właściciel wyznaczył pierwsze na **2026-08-18**: najwcześniej
-druga połowa września 2026, bardziej prawdopodobnie październik 2026. Decyzja zapisu to
+jeszcze wdrożenia produkcyjnego. Decyzja zapisu to
 `specs/071-modular-packaging/decisions.md` § D-35.
 
 ## Dlaczego ta strona istnieje
@@ -15,7 +14,7 @@ Dziesiątki decyzji inżynieryjnych w tym repozytorium uznano za bezpieczne z je
 *nie ma wdrożenia produkcyjnego, więc nic nie może się zepsuć*. Ta decyzja (D-35) pozwoliła
 platformie porzucić shims kompatybilności, przebudować historię migracji i zmienić bramki
 uprawnień bez ścieżki migracji. To była właściwa decyzja i nigdy nie była darmowa — pożyczyła
-przeciwko dacie. Data teraz istnieje.
+pod zastaw pierwszego wdrożenia, które jeszcze się nie odbyło.
 
 Wszystko, co D-35 licencjonowało, a czego kod sam nie uniesie, ląduje tutaj: grant, który
 ktoś musi nadać, ustawienie, które ktoś musi wybrać, seed, który nie może się uruchomić,

@@ -5,8 +5,7 @@ title: First Production Deployment Checklist
 # First Production Deployment Checklist
 
 **Status: open. No item on this list has been executed.** Endora Commerce has no production
-deployment yet. The owner dated the first one on **2026-08-18**: the second half of September
-2026 at the earliest, more likely October 2026. The decision of record is
+deployment yet. The decision of record is
 `specs/071-modular-packaging/decisions.md` § D-35.
 
 ## Why this page exists
@@ -14,8 +13,8 @@ deployment yet. The owner dated the first one on **2026-08-18**: the second half
 Dozens of engineering decisions in this repository were ruled safe on one ground: *there is no
 production deployment, so nothing can break*. That ruling (D-35) let the platform drop
 compatibility shims, rebuild its migration history, and change permission gates without a
-migration path. It was the right call, and it was never free — it borrowed against a date.
-The date now exists.
+migration path. It was the right call, and it was never free — it borrowed against a first
+deployment that has not happened yet.
 
 Everything D-35 licensed that the code cannot carry by itself lands here: a grant somebody has
 to make, a setting somebody has to choose, a seed that must not run, a value that is silently
