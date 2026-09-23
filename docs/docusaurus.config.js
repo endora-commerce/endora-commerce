@@ -83,7 +83,13 @@ const config = {
       // No JSDoc type import here: the package declares no `types` entry point, so
       // `import('@easyops-cn/docusaurus-search-local')` does not resolve under `@ts-check`.
       {
-        // Content-hashed index files, so the immutable-asset cache rule covers them.
+        // `hashed: true` hashes the **query string**, not the filename: the two indexes
+        // are emitted at the stable paths `search-index.json` and `pl/search-index.json`
+        // and requested as `search-index.json?_=<hash>` (measured on the Phase 4 build,
+        // 2026-09-23). The flag stays — the query string is what stops a reader reusing a
+        // previous build's index — but it puts nothing under `/assets/`, so the immutable
+        // cache rule there does not reach them. `deploy/nginx.docs.example.conf` gives them
+        // their own revalidating rule and records why.
         hashed: true,
         // The classic preset serves docs at the site root, not under /docs.
         docsRouteBasePath: '/',
