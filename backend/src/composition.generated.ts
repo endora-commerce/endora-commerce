@@ -174,16 +174,14 @@ import * as module64 from '@endora-commerce/mod-autopay/backend';
 import { manifest as manifest64 } from '@endora-commerce/mod-autopay';
 import * as module65 from '@endora-commerce/mod-paypal/backend';
 import { manifest as manifest65 } from '@endora-commerce/mod-paypal';
-import * as module66 from '@endora-commerce/mod-payu/backend';
-import { manifest as manifest66 } from '@endora-commerce/mod-payu';
-import * as module67 from '@endora-commerce/mod-search/backend';
-import { manifest as manifest67 } from '@endora-commerce/mod-search';
-import * as module68 from '@endora-commerce/mod-shipments/backend';
-import { manifest as manifest68 } from '@endora-commerce/mod-shipments';
-import * as module69 from '@endora-commerce/mod-shopping-lists/backend';
-import { manifest as manifest69 } from '@endora-commerce/mod-shopping-lists';
-import * as module70 from '@endora-commerce/mod-webhooks/backend';
-import { manifest as manifest70 } from '@endora-commerce/mod-webhooks';
+import * as module66 from '@endora-commerce/mod-search/backend';
+import { manifest as manifest66 } from '@endora-commerce/mod-search';
+import * as module67 from '@endora-commerce/mod-shipments/backend';
+import { manifest as manifest67 } from '@endora-commerce/mod-shipments';
+import * as module68 from '@endora-commerce/mod-shopping-lists/backend';
+import { manifest as manifest68 } from '@endora-commerce/mod-shopping-lists';
+import * as module69 from '@endora-commerce/mod-webhooks/backend';
+import { manifest as manifest69 } from '@endora-commerce/mod-webhooks';
 
 export const MODULES: readonly ModuleEntry[] = [
   { id: '_lifecycle', version: manifest0.version, registerModule: module0.registerModule },
@@ -252,9 +250,8 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'returns', version: manifest63.version, registerModule: module63.registerModule },
   { id: 'autopay', version: manifest64.version, registerModule: module64.registerModule },
   { id: 'paypal', version: manifest65.version, registerModule: module65.registerModule },
-  { id: 'payu', version: manifest66.version, registerModule: module66.registerModule },
-  { id: 'search', version: manifest67.version, registerModule: module67.registerModule },
-  { id: 'shipments', version: manifest68.version, registerModule: module68.registerModule },
-  { id: 'shopping_lists', version: manifest69.version, registerModule: module69.registerModule },
-  { id: 'webhooks', version: manifest70.version, registerModule: module70.registerModule },
+  { id: 'search', version: manifest66.version, registerModule: module66.registerModule },
+  { id: 'shipments', version: manifest67.version, registerModule: module67.registerModule },
+  { id: 'shopping_lists', version: manifest68.version, registerModule: module68.registerModule },
+  { id: 'webhooks', version: manifest69.version, registerModule: module69.registerModule },
 ];

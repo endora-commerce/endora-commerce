@@ -398,14 +398,6 @@ const modules = [
       'module-reference/paypal',
     ],
   },
-  {
-    type: 'category',
-    label: 'PayU',
-    link: { type: 'doc', id: 'modules/payu' },
-    items: [
-      'module-reference/payu',
-    ],
-  },
   { type: 'doc', id: 'module-reference/pim-connector', label: 'pim_connector' },
   {
     type: 'category',
