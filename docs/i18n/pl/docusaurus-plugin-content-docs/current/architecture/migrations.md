@@ -137,7 +137,7 @@ jeden pod rootem źródeł aplikacji, albo członek workspace deklarujący
 `endora: { type: 'module', id }`. Katalog `migrations/` pakietu modułu to katalog, który
 jego mapa `exports` publikuje jako `./migrations`. Każdy z nich był literałem ścieżki
 czytającym `backend/src/modules`, dopóki 2026-08-30, dlatego narzędzie odpowiadało
-`Valid ids are: core.` dla każdego modułu w tym repozytorium, gdy F4 opróżniło ten katalog.
+`Valid ids are: core.` dla każdego modułu w tym repozytorium, gdy ten katalog został opróżniony.
 
 Zarejestruj ją przez regenerację commitowanego rejestru i commit obu plików:
 

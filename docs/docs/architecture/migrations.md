@@ -136,7 +136,7 @@ application's source root or the workspace member declaring
 `endora: { type: 'module', id }`. A module package's `migrations/` is then the directory
 its own `exports` map publishes as `./migrations`. Each of those was a path literal reading
 `backend/src/modules` until 2026-08-30, which is why the tool answered
-`Valid ids are: core.` for every module in this repository once F4 emptied that directory.
+`Valid ids are: core.` for every module in this repository once that directory was emptied.
 
 Register it by regenerating the committed registry, and commit both files:
 

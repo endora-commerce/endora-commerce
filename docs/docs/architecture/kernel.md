@@ -49,19 +49,19 @@ and none of them may import `src/modules/` or `src/apps/` either.
 They are not optional to the kernel; it does not compile without them. A
 dependency the kernel cannot compile without, which is itself permitted to import
 a module, is a kernel that imports modules with one extra hop — in package terms
-the cycle `kernel → http → mod-i18n → kernel`, and F4's stated precondition is
-that packages are not cyclic.
+the cycle `kernel → http → mod-i18n → kernel`, and the stated precondition here
+is that packages are not cyclic.
 
 ### The subject is now the whole package, not a list of peers
 
 An earlier statement of the peer rule left three directories out — `src/db`
 "names every module by construction", `src/overlay` is "per-deployment
 resolution", and `src/commands` sits *above* the kernel, which that statement
-flagged as "a real open item F4 must close". All three were
+flagged as "a real open item that must be closed". All three were
 directories of the **application** when that was written, and each premise went
 with the relocation: `packages/platform/src/db/` imports no module (the generated
 registries stayed in `backend/src`), the platform's `overlay/` is the loader and
-takes the overlay root and the id claims as parameters, and F4 is closed.
+takes the overlay root and the id claims as parameters, and that item is closed.
 
 More than that, the argument the peer rule rests on has changed shape. *One extra
 hop* counted hops between source directories that might become **different
@@ -95,7 +95,7 @@ subpath naming no walked directory is exit 2.
 into `src/modules/` or `src/apps/`, and the **bare npm name** of a module package.
 The second arrived with that same widening, on the check's own retiring
 condition — it had said a bare specifier could not reach a module because no
-module package existed — and since F4 closed, `backend/src/modules/` holds
+module package existed — and since then, `backend/src/modules/` holds
 nothing but a `README.md`, so the
 bare name is the only spelling left.
 

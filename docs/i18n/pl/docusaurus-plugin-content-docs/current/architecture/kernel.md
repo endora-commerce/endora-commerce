@@ -49,20 +49,20 @@ i żaden z nich nie może importować `src/modules/` ani `src/apps/`.
 Nie są opcjonalne dla kernela; bez nich się nie kompiluje. Zależność, bez której
 kernel nie może się skompilować, a która sama może importować moduł, to kernel
 importujący moduły z jednym dodatkowym skokiem — w terminach pakietów cykl
-`kernel → http → mod-i18n → kernel`, a warunek wstępny F4 mówi, że pakiety nie
-są cykliczne.
+`kernel → http → mod-i18n → kernel`, a tutejszy warunek wstępny mówi, że pakiety
+nie są cykliczne.
 
 ### Tematem jest teraz cały pakiet, nie lista peers
 
 Wcześniejsze sformułowanie reguły peerów zostawiło trzy katalogi na zewnątrz —
 `src/db` „nazywa każdy moduł z konstrukcji”, `src/overlay` to „rozwiązanie
 per-deployment”, a `src/commands` siedzi *nad* kernelem, co to sformułowanie
-oznaczyło jako „prawdziwy otwarty punkt, który F4 musi zamknąć”. Wszystkie trzy
+oznaczyło jako „prawdziwy otwarty punkt, który trzeba zamknąć”. Wszystkie trzy
 były katalogami **aplikacji**, gdy to
 pisano, i każde założenie poszło z relokacją: `packages/platform/src/db/`
 nie importuje modułu (wygenerowane rejestry zostały w `backend/src`), `overlay/`
-platformy to loader biorący root overlay i roszczenia id jako parametry, a F4
-jest zamknięte.
+platformy to loader biorący root overlay i roszczenia id jako parametry, a ten
+punkt jest zamknięty.
 
 Więcej: argument, na którym spoczywa reguła peerów, zmienił kształt. *Jeden
 dodatkowy skok* liczył skoki między katalogami źródłowymi, które mogły stać się
@@ -95,7 +95,7 @@ niezależne potwierdzenie checka, więc opublikowany subpath nie nazywający
 **Reguła B odmawia obu pisowni adresu modułu**: względnego specifiere do
 `src/modules/` lub `src/apps/` oraz **gołej nazwy npm** pakietu modułu. Druga
 przyszła z tym samym poszerzeniem, na własnym warunku wycofania checka — mówił, że goły specifier
-nie może dotrzeć do modułu, bo pakiet modułu nie istniał — a od zamknięcia F4
+nie może dotrzeć do modułu, bo pakiet modułu nie istniał — a od tamtej pory
 `backend/src/modules/` trzyma tylko `README.md`, więc goła nazwa to jedyna
 pozostała pisownia.
 
