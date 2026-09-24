@@ -4,7 +4,7 @@ title: ERP connector shared layer
 
 # ERP connector shared layer (`erp_connector`)
 
-Feature `119`. A thin shared module that holds **behaviour every inbound ERP
+A thin shared module that holds **behaviour every inbound ERP
 connector needs**, without importing any vendor transport. Comarch XL
 (`comarch_xl`) uses it today; future ERP adapters may adopt the same layer.
 
@@ -29,7 +29,7 @@ package.
 the same time; domain split (catalogue content vs stock/prices) is enforced in
 `comarch_xl`, not here.
 
-## Mutual exclusion (FR-006)
+## Mutual exclusion
 
 Endora allows several ERP connector packages to be **installed**, but an
 operator may activate **at most one** at a time.
@@ -120,4 +120,3 @@ pnpm --filter backend exec vitest run test/unit/erp_connector test/contract/erp_
 - [Comarch ERP XL connector](./comarch-xl.md) — OpenAPI client, sync pipeline, apply logic
 - [Overlay pattern](./overlay-pattern.md) — per-deployment client rules via ports and decorations
 - Operator guide: [Comarch ERP XL](../modules/comarch_xl.md)
-- Feature artifacts: `specs/130-comarch-xl-sync/`

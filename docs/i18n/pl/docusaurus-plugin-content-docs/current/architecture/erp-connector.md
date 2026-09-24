@@ -4,7 +4,7 @@ title: Wspólna warstwa łącznika ERP
 
 # Wspólna warstwa łącznika ERP (`erp_connector`)
 
-Feature `119`. Cienki współdzielony moduł, który trzyma **zachowanie potrzebne każdemu
+Cienki współdzielony moduł, który trzyma **zachowanie potrzebne każdemu
 przychodzącemu łącznikowi ERP**, bez importu transportu dostawcy. Comarch XL
 (`comarch_xl`) używa go dziś; przyszłe adaptery ERP mogą adoptować tę samą warstwę.
 
@@ -28,7 +28,7 @@ ani tabel mapowań specyficznych dla dostawcy — to zostaje w każdym pakiecie 
 podział domen (treść katalogu vs stock/ceny) jest egzekwowany w
 `comarch_xl`, nie tutaj.
 
-## Wykluczanie wzajemne (FR-006)
+## Wykluczanie wzajemne
 
 Endora pozwala mieć **zainstalowanych** kilka pakietów łącznika ERP, ale operator
 może aktywować **co najwyżej jeden** naraz.
@@ -118,4 +118,3 @@ pnpm --filter backend exec vitest run test/unit/erp_connector test/contract/erp_
 - [Łącznik Comarch ERP XL](./comarch-xl.md) — klient OpenAPI, pipeline sync, logika apply
 - [Wzorzec overlay](./overlay-pattern.md) — reguły klienta per deployment przez porty i dekoracje
 - Przewodnik operatora: [Comarch ERP XL](../modules/comarch_xl.md)
-- Artefakty feature: `specs/130-comarch-xl-sync/`

@@ -4,11 +4,11 @@ title: API Interceptor (Cross-Module Endpoint Extension)
 
 # API Interceptor
 
-The API Interceptor mechanism (feature `060`) lets a module attach behavior to an
+The API Interceptor mechanism lets a module attach behavior to an
 HTTP endpoint **owned by another module** — gating a request before the handler
 runs, or reshaping a successful response — without editing the target module or
-any shared registry file (Constitution Principle I: cross-module interaction goes
-through documented interfaces only). Reach for it when you need to *extend* an
+any shared registry file: cross-module interaction goes
+through documented interfaces only. Reach for it when you need to *extend* an
 endpoint in place; reach for the [overlay pattern](./overlay-pattern.md) when a
 deployment must *replace* a whole unit (service, route, module); reach for the
 in-process `EventBus` when you only need to *react after the fact* and the
@@ -21,8 +21,8 @@ request/response itself must not change.
   after Zod validation, immediately before the handler. A `post` interceptor
   runs at `preSerialization`, only for successful responses (`statusCode < 400`).
 - **Ambient context** — interceptors execute inside the same ambient
-  `TenantContext` (Principle XI) and see the resolved sales channel
-  (Principle XII) as the endpoint itself; services called from an interceptor
+  `TenantContext` and see the resolved sales channel
+  as the endpoint itself; services called from an interceptor
   are scoped identically to services called from the handler.
 - **Deterministic ordering** — within one endpoint and phase, interceptors run
   in ascending `order` (default `0`), ties broken lexicographically by
@@ -48,7 +48,7 @@ Endpoints with no registered interceptors pay one `Map` lookup — nothing else.
 A module registers its interceptors through `ctx.interceptors(...)`, which stamps
 `module` from the module's own id — never by importing another module's
 internals, and never with a hand-written module name. That is the same seam for a
-core module and for a per-deployment overlay module: since D-103 an overlay
+core module and for a per-deployment overlay module: an overlay
 module is composed by the kernel container exactly as a core module is, so the
 `OverlayModuleContext.apiInterceptors` handle this page used to describe no
 longer exists. Registration happens during
@@ -69,8 +69,7 @@ The **endpoint identity** is the string `"<METHOD> /path/pattern"` with params
 in `:param` form — e.g. `POST /api/v1/orders`,
 `GET /api/v1/admin/orders/:id`. It is the same key the OpenAPI auto-registration
 dedupes on, so it exists for every endpoint with zero retrofit, and it is as
-stable as the API itself: changing a URL is a versioned breaking change
-(Principle II).
+stable as the API itself: changing a URL is a versioned breaking change.
 
 ## The two phases
 
@@ -187,6 +186,3 @@ runtime data, so there is no write surface.
 Do not confuse this mechanism with the `webhooks` module: webhooks deliver
 platform events *outbound* to external HTTP consumers after the fact; API
 interceptors act *inbound*, inside the platform's own request/response cycle.
-
-See the feature spec, plan, and quickstart under `specs/060-api-interceptor/`
-for the full contract.

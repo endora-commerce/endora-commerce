@@ -5,7 +5,7 @@ title: Command Bus (ujednolicone audytowanie zapisów i cofanie)
 # Command Bus
 
 Wrażliwe zapisy są audytowane przez **ścieżkę poleceń na poziomie frameworka**, a nie przez
-ręcznie wstawione wywołania audytu (Zasada XIII Konstytucji, feature `054`). Wrażliwa
+ręcznie wstawione wywołania audytu. Wrażliwa
 mutacja — utworzenie/aktualizacja/usunięcie rekordu domenowego — działa jako nazwane **Command**
 przez `CommandBus`, który jest jedynym, gwarantowanym autorem wpisu audytu.
 Serwisy w zmigrowanych modułach nigdy nie wołają pisarza audytu bezpośrednio.
@@ -64,7 +64,7 @@ każdym miejscu zapisu.
 ## Odwracalność i cofanie
 
 Command może rejestrować stan przed/po per rekord, aby operator mógł go **cofnąć**.
-Masowa edycja produktów (feature `022`) przechowuje `RevertRecord[]` na
+Masowa edycja produktów przechowuje `RevertRecord[]` na
 `catalog_bulk_operations`; `POST /admin/catalog/bulk-operations/:id/undo` przywraca każdy
 produkt, którego bieżący stan nadal pasuje do operacji, **odmawia każdego rekordu zmienionego
 od tego czasu z raportem konfliktu** (nigdy cichego nadpisania), jest bezpieczny idempotentnie przy
@@ -109,7 +109,7 @@ deleguje do takiej jednostki (`this.<runner>()`, helper modułowy albo
 lokalna funkcja jak `const audit = …` w pliku trasy), sama jest helperem
 wołanym przez pokrytą jednostkę (delegacja wsteczna), albo ma komentarz `command-coverage-ignore`.
 
-### Co otwiera (issue #122)
+### Co otwiera
 
 Chodzenie dopasowywało `**/services/<file>.ts` — jeden poziom, nic więcej, czyli **472
 z 1152 plików modułowych drzewa**. `pim_ergonode/services/import/`,
@@ -139,7 +139,7 @@ zupełnie nowym — psuje build. Pokrycie nie może cicho regresować.
 
 ### Escape hatch jest przeszukiwany pod kątem staleness
 
-185 metod ma komentarz ignore, i do issue #116 nic go nie czytało ponownie: ignore
+185 metod ma komentarz ignore, a wcześniej nic go nie czytało ponownie: ignore
 napisany dla zapisu, który od tego czasu się przeniósł — do Command albo do audytowanego
 serwisu innego modułu — nadal zwolniał metodę, która już nie potrzebowała zwolnienia,
 a następny zapis dodany tam dziedziczył zwolnienie w ciszy. Marker na metodzie,
@@ -153,8 +153,8 @@ liczy też surowe SQL, zapis kolejki lub Redis (`removeJobScheduler`,
 `obliterate`, `del`, …), niejednoznaczne `remove` z dowolnego odbiorcy i każdy zapis osiągalny
 przez wywołanie w tym samym pliku — więc marker strzegący prawdziwego zapisu, którego check sam
 nie widzi, zostaje w spokoju. Oba błędy padają po bezpiecznej stronie: w najgorszym razie marker
-przeżyje swój zapis jeszcze jeden refactor, nigdy odwrotnie. Poszerzenie skanu (issue
-#122) musiało najpierw poszerzyć tę połowę: `product_feeds/workers/taxonomy-refresh-worker.ts`
+przeżyje swój zapis jeszcze jeden refactor, nigdy odwrotnie. Poszerzenie skanu musiało
+najpierw poszerzyć tę połowę: `product_feeds/workers/taxonomy-refresh-worker.ts`
 dokumentuje swój `queue.removeJobScheduler(…)` jako „Redis-only”, a sweep znający tylko
 ORM i SQL zażądałby usunięcia poprawnej decyzji w momencie, gdy `workers/`
 weszły w zakres.
@@ -171,10 +171,9 @@ Dla Command: wyciągnij czysty zapis na transakcyjny `em` i uruchom przez
 `commandBus.run(...)`; usuń wcześniejsze ręczne wywołanie audytu w tej samej zmianie (unikaj kształtu
 podwójnego audytu). Dla lekkiej ścieżki: dodaj helper `#audit(...)` delegujący
 do `recordAuditFromContext` i wołaj go tuż przed `flush()` metody. Dla
-nieaudytowanego zapisu: dodaj komentarz `command-coverage-ignore: <reason>`. Pełny wzorzec jest w
-quickstartcie feature (`specs/054-command-bus-audit-undo/quickstart.md`).
+nieaudytowanego zapisu: dodaj komentarz `command-coverage-ignore: <reason>`.
 
-**Nie ma akcji do rejestracji nigdzie** (D-163). Do tej pory akapit kończył się
+**Nie ma akcji do rejestracji nigdzie.** Wcześniej akapit kończył się
 *„zarejestruj każdą nową akcję Command w `backend/src/commands/command-registry.ts`”*,
 a nagłówek tego pliku nazywał dwóch konsumentów listy — ten check i operatorowe
 affordance cofania. Obaj byli błędni od dnia napisania: `check-command-coverage.ts`
@@ -182,7 +181,7 @@ nigdy go nie importował i decyduje o pokryciu z wywołania `commandBus.run(...)
 metodzie, a jedyne affordance cofania w drzewie czyta kolumnę `reversible` na
 `catalog_bulk_operations`, ustawianą per wiersz, gdy operacja zarejestrowała stan revert.
 `CommandBus.run` nigdy go nie konsultował, a `Command.action` to zwykły `string`. Ręcznie utrzymywana
-lista allow 258 wpisów wyglądała jak brama na Zasadę XIII i nie bramkowała niczego, co
+lista allow 258 wpisów wyglądała jak brama i nie bramkowała niczego, co
 gorsze niż brak listy: następny autor pytający *„czy ten zapis jest pokryty?”* dostał pewną
 złą odpowiedź. Usunięto ją. **`action` Command to dowolny string, który Command deklaruje**;
 co czyni zapis audytowanym, to że działa przez `CommandBus.run`, a jedyne, co to sprawdza, to

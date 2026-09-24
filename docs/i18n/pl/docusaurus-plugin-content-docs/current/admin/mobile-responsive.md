@@ -28,6 +28,4 @@ Edytory CMS/Blog Puck są przewijalne na mobile. Precyzyjne przeciąganie może 
 
 ## Checklist QA
 
-Zobacz `specs/029-admin-mobile-ui/contracts/viewport-audit-routes.md` — pełny rejestr tras (70 ścieżek) i tabela sign-off.
-
 Ręczny smoke test: Chrome DevTools → iPhone 12 Pro (390px) lub własna szerokość 320px.

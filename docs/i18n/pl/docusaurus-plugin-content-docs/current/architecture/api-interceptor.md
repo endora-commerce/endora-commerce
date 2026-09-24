@@ -4,11 +4,11 @@ title: Przechwytywacz API (rozszerzenie endpointu między modułami)
 
 # Przechwytywacz API
 
-Mechanizm API Interceptor (feature `060`) pozwala modułowi dołączyć zachowanie do endpointu HTTP
+Mechanizm API Interceptor pozwala modułowi dołączyć zachowanie do endpointu HTTP
 **należącego do innego modułu** — zablokować żądanie przed uruchomieniem handlera
 albo przekształcić udane odpowiedzi — bez edycji modułu docelowego ani
-wspólnego pliku rejestru (Zasada I Konstytucji: interakcja między modułami idzie
-wyłącznie przez udokumentowane interfejsy). Sięgnij po niego, gdy trzeba *rozszerzyć*
+wspólnego pliku rejestru: interakcja między modułami idzie
+wyłącznie przez udokumentowane interfejsy. Sięgnij po niego, gdy trzeba *rozszerzyć*
 endpoint w miejscu; sięgnij po [wzorzec overlay](./overlay-pattern.md), gdy wdrożenie musi
 *zastąpić* całą jednostkę (serwis, trasę, moduł); sięgnij po procesowy `EventBus`, gdy
 wystarczy *zareagować po fakcie*, a samo żądanie/odpowiedź nie może się zmienić.
@@ -20,8 +20,8 @@ wystarczy *zareagować po fakcie*, a samo żądanie/odpowiedź nie może się zm
   po walidacji Zod, tuż przed handlerem. Przechwytywacz `post` uruchamia się w
   `preSerialization`, tylko dla udanych odpowiedzi (`statusCode < 400`).
 - **Kontekst ambientowy** — przechwytywacze wykonują się w tym samym ambientowym
-  `TenantContext` (Zasada XI) i widzą rozwiązany kanał sprzedaży
-  (Zasada XII) tak jak sam endpoint; serwisy wywołane z przechwytywacza
+  `TenantContext` i widzą rozwiązany kanał sprzedaży
+  tak jak sam endpoint; serwisy wywołane z przechwytywacza
   mają identyczny zakres jak serwisy wywołane z handlera.
 - **Deterministyczna kolejność** — w obrębie jednego endpointu i fazy przechwytywacze działają
   rosnąco według `order` (domyślnie `0`), remisy łamane leksykograficznie według
@@ -47,7 +47,7 @@ Endpointy bez zarejestrowanych przechwytywaczy płacą jedno wyszukanie w `Map` 
 Moduł rejestruje przechwytywacze przez `ctx.interceptors(...)`, które stempluje
 `module` z własnego id modułu — nigdy przez import wewnętrzności innego modułu
 ani ręcznie wpisaną nazwę modułu. To ten sam szew dla modułu rdzeniowego i dla
-modułu overlay per wdrożenie: od D-103 moduł overlay jest komponowany przez kontener kernela
+modułu overlay per wdrożenie: moduł overlay jest komponowany przez kontener kernela
 dokładnie jak moduł rdzeniowy, więc uchwyt
 `OverlayModuleContext.apiInterceptors`, który opisywała ta strona, już nie istnieje. Rejestracja następuje podczas
 kompozycji, we własnym kodzie modułu wnoszącego:
@@ -67,8 +67,7 @@ apiInterceptors.register({
 w formie `:param` — np. `POST /api/v1/orders`,
 `GET /api/v1/admin/orders/:id`. To ten sam klucz, po którym auto-rejestracja OpenAPI
 deduplikuje, więc istnieje dla każdego endpointu bez retrofitu i jest tak
-stabilny jak samo API: zmiana URL to wersjonowana zmiana łamiąca
-(Zasada II).
+stabilny jak samo API: zmiana URL to wersjonowana zmiana łamiąca.
 
 ## Dwie fazy
 
@@ -183,5 +182,3 @@ dane runtime, więc nie ma powierzchni zapisu.
 Nie myl tego mechanizmu z modułem `webhooks`: webhooks dostarczają
 zdarzenia platformy *wychodząco* do zewnętrznych konsumentów HTTP po fakcie; przechwytywacze API
 działają *przychodząco*, wewnątrz własnego cyklu żądanie/odpowiedź platformy.
-
-Pełny kontrakt jest w specyfikacji, planie i quickstartcie pod `specs/060-api-interceptor/`.

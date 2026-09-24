@@ -4,8 +4,7 @@ title: Pola niestandardowe dla encji rdzeniowych
 
 # Pola niestandardowe
 
-Operatorzy mogą dodawać pola do encji rdzeniowych **w czasie wdrożenia — jako dane, nigdy migracja schematu ani deploy kodu**
-(Zasada XIV Konstytucji, feature `055`).
+Operatorzy mogą dodawać pola do encji rdzeniowych **w czasie wdrożenia — jako dane, nigdy migracja schematu ani deploy kodu**.
 Warstwa Custom Fields to generyczny, **niezależny od encji hosta** moduł, który ponownie używa
 *projektu* `product_attributes` katalogu (typowane definicje, listy opcji,
 etykiety per locale) jako możliwości cross-cutting — bez osadzania jakiejkolwiek
@@ -18,9 +17,8 @@ QuoteRequest i Product**. Każda encja hosta niesie addytywny JSONB
 worek wartości (`{ [definitionKey]: value }`); host posiada tę kolumnę i jej zapisy.
 Dla większości hostów worek to kolumna `customFieldValues`; host produktu wiąże się
 z istniejącą kolumną `products.attribute_values` (patrz wiązanie value-probe
-poniżej). Atrybuty produktu zbiegły się na tej warstwie w feature `061` —
-jako **adapter**, zgodnie z klauzulą zbieżności Zasady XIV („każda późniejsza zbieżność
-to adapter, nie przepisanie”): generyczna warstwa posiada tożsamość każdego atrybutu
+poniżej). Atrybuty produktu zbiegły się na tej warstwie jako **adapter**, nie
+przepisanie: generyczna warstwa posiada tożsamość każdego atrybutu
 (klucz, etykiety per locale, typ wartości, required, opcje), podczas gdy katalog trzyma
 flagi zachowania na własnej tabeli rozszerzenia 1:1 (`product_attributes`) i
 pozostaje jedyną powierzchnią zapisu (patrz „Typy encji zarządzane przez hosta” poniżej).
@@ -47,11 +45,11 @@ pozostaje jedyną powierzchnią zapisu (patrz „Typy encji zarządzane przez ho
 Generyczna warstwa posiada **definicje + walidację**; host posiada **persystencję
 + audyt**:
 
-- Moduł custom-fields nigdy nie zapisuje do tabeli hosta i nie audytuje zapisu hosta. Host persystuje własny rekord i (Zasada XIII) audytuje własny
+- Moduł custom-fields nigdy nie zapisuje do tabeli hosta i nie audytuje zapisu hosta. Host persystuje własny rekord i audytuje własny
   zapis, wołając generyczną warstwę tylko do walidacji wartości i odczytu definicji —
-  więc granice modułów (Zasada I) pozostają nienaruszone i nie ma podwójnego audytowania.
+  więc granice modułów pozostają nienaruszone i nie ma podwójnego audytowania.
 - Mutacje definicji / opcji same są wrażliwymi zapisami i działają przez
-  **Command Bus** (Zasada XIII); moduł rejestruje swoje uprawnienia
+  **Command Bus**; moduł rejestruje swoje uprawnienia
   (`custom_fields:read`, `custom_fields:write`) i uczestniczy w cyklu życia
   modułu.
 
@@ -90,13 +88,12 @@ niezmienniki (duplikat klucza, reguły opcji, blokada typu wartości, option-in-
 wykonuje **brak audytu i brak publikacji cache** — command hosta posiada transakcję,
 zapisuje jeden wiersz audytu i publikuje unieważnienie cache definicji
 po commit. To utrzymuje `custom_fields` jedynym pisarzem swoich
-tabel (Zasada I), pozwalając commandowi hosta utrzymać definicję + własne
+tabel, pozwalając commandowi hosta utrzymać definicję + własne
 wiersze spójnie atomowo (Command Bus nie nestuje się).
 
-## Nota zbieżności: atrybuty produktu (feature 061)
+## Nota zbieżności: atrybuty produktu
 
-Klauzula zbieżności Zasady XIV — „każda późniejsza zbieżność to **adapter**,
-nie przepisanie” — została zrealizowana przez feature `061`: atrybuty produktu stały się
+Zbieżność następuje jako **adapter**, nie przepisanie: atrybuty produktu stały się
 definicjami Custom Field na hoście `product`, a katalog trzyma wiersz rozszerzenia 1:1
 (`product_attributes`) dla flag zachowania i dopracowań prezentacji. Generyczny rdzeń zyskał tylko trzy niezależne od encji szwy
 opisane powyżej (wpis rejestru `product` z `managedBy`, wiązanie sondy
@@ -106,7 +103,7 @@ opisane powyżej (wpis rejestru `product` z `managedBy`, wiązanie sondy
 ## Zakres tenantów (dziedziczony)
 
 **Wartości** custom-field żyją w kolumnach hosta, więc dziedziczą zakres tenantów rekordu hosta
-za darmo (Zasada XI): wartości na Order / Organization / Customer / QuoteRequest
+za darmo: wartości na Order / Organization / Customer / QuoteRequest
 należącym do org są zamknięte w tym samym tenantcie co rekord hosta —
 generyczna warstwa nie dodaje nowej ścieżki scope. **Definicje** należą do
 platformy (albo, jeśli scoped, do organizacji) spójnie z tym, jak scoped jest encja
@@ -119,7 +116,7 @@ Pole może nieść **nieprzezroczysty** obiekt `config` — flagi możliwości h
 moduł *hosta* interpretuje flagę przez własny udokumentowany
 punkt rozszerzenia (np. filtrowanie Category podnosi flagę `filterable`; możliwości Product
 zostają na `product_attributes`). To trzyma troski tylko-katalogowe poza
-generycznym rdzeniem — dokładnie ta rot, przed którą istnieje Zasada XIV, gdzie
+generycznym rdzeniem — dokładnie ta rot, przed którą chroni ten podział, gdzie
 `product_attributes` narastało `isVariantAxis` / `isPromoRule` / `filterPosition`,
 aż przestało być wielokrotnego użytku.
 
@@ -134,5 +131,4 @@ pomyłkowe usunięcie jest odwracalne, a zapisy hosta nigdy nie kaskadują w utr
 Zdefiniuj je z powierzchni custom-field w admin dla docelowego typu encji
 (klucz + zlokalizowana etykieta + typ wartości + required + opcje). Potem renderuje się na
 każdym rekordzie tego typu, a wartość round-tripuje przez ścieżki create/edit/read hosta —
-bez zmiany kodu. Pełny walkthrough jest w quickstartcie feature
-(`specs/055-custom-fields-layer/quickstart.md`).
+bez zmiany kodu.

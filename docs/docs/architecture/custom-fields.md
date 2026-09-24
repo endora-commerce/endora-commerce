@@ -5,7 +5,7 @@ title: Custom Fields for Core Entities
 # Custom Fields
 
 Operators can add fields to core entities **at deployment time — as data, never a
-schema migration or code deploy** (Constitution Principle XIV, feature `055`).
+schema migration or code deploy**.
 The Custom Fields Layer is a generic, **entity-agnostic** module that reuses the
 *design* of the catalog's `product_attributes` (typed definitions, option lists,
 per-locale labels) as a cross-cutting capability — without embedding any
@@ -18,9 +18,8 @@ QuoteRequest, and Product**. Each host entity carries an additive JSONB value
 bag (`{ [definitionKey]: value }`); the host owns that column and its writes.
 For most hosts the bag is the `customFieldValues` column; the product host binds
 to the pre-existing `products.attribute_values` column instead (see the value-probe
-binding below). Product attributes converged onto this layer in feature `061` —
-as an **adapter**, per Principle XIV's convergence clause ("any later convergence
-is an adapter, not a rewrite"): the generic layer owns each attribute's identity
+binding below). Product attributes converged onto this layer as an **adapter**, not a
+rewrite: the generic layer owns each attribute's identity
 (key, per-locale labels, value type, required, options), while the catalog keeps
 its behaviour flags on its own 1:1 extension table (`product_attributes`) and
 remains the only write surface (see "Host-managed entity types" below).
@@ -48,11 +47,11 @@ The generic layer owns **definitions + validation**; the host owns **persistence
 + audit**:
 
 - The custom-fields module never writes into a host table and never audits a host
-  write. The host persists its own record and (per Principle XIII) audits its own
+  write. The host persists its own record and audits its own
   write, calling the generic layer only to validate values and read definitions —
-  so module boundaries (Principle I) stay intact and there is no double-auditing.
+  so module boundaries stay intact and there is no double-auditing.
 - Definition / option mutations are themselves sensitive writes and run through
-  the **Command Bus** (Principle XIII); the module registers its permissions
+  the **Command Bus**; the module registers its permissions
   (`custom_fields:read`, `custom_fields:write`) and participates in module
   lifecycle.
 
@@ -91,13 +90,12 @@ invariants (duplicate key, options rules, value-type lock, option-in-use), and
 performs **no audit and no cache publish** — the calling host command owns the
 transaction, writes the single audit row, and publishes the definitions-cache
 invalidation after commit. This keeps `custom_fields` the sole writer of its
-tables (Principle I) while letting a host command keep its definition + its own
+tables while letting a host command keep its definition + its own
 rows consistent atomically (the Command Bus does not nest).
 
-## Convergence note: product attributes (feature 061)
+## Convergence note: product attributes
 
-Principle XIV's convergence clause — "any later convergence is an **adapter**,
-not a rewrite" — was exercised by feature `061`: product attributes became
+Convergence happens as an **adapter**, not a rewrite: product attributes became
 Custom Field definitions on the `product` host, with the catalog keeping a 1:1
 extension row (`product_attributes`) for its behaviour flags and presentation
 refinements. The generic core gained only the three entity-agnostic seams
@@ -109,7 +107,7 @@ for the catalog-side view and the migration outcome.
 ## Tenant scope (inherited)
 
 Custom-field **values** live in host columns, so they inherit the host record's
-tenant scope for free (Principle XI): values on an org-owned Order / Organization
+tenant scope for free: values on an org-owned Order / Organization
 / Customer / QuoteRequest are confined to the same tenant as the host record —
 the generic layer adds no new scoping path. **Definitions** belong to the
 platform (or, if scoped, to an organization) consistently with how the host
@@ -122,7 +120,7 @@ A field may carry an **opaque** `config` object — host-capability flags such a
 for meaning**: the *host* module interprets the flag through its own documented
 extension point (e.g. Category filtering picks up a `filterable` flag; Product
 capabilities stay on `product_attributes`). This keeps catalog-only concerns out
-of the generic core — the exact rot Principle XIV exists to prevent, where
+of the generic core — the exact rot this separation exists to prevent, where
 `product_attributes` accreted `isVariantAxis` / `isPromoRule` / `filterPosition`
 until it was no longer reusable.
 
@@ -137,5 +135,4 @@ mis-deletion is recoverable and host writes never cascade into data loss.
 Define it from the admin custom-field surface for the target entity type
 (key + localized label + value type + required + options). It then renders on
 every record of that type and its value round-trips through the host's
-create/edit/read paths — no code change. See the feature quickstart
-(`specs/055-custom-fields-layer/quickstart.md`) for the full walkthrough.
+create/edit/read paths — no code change.

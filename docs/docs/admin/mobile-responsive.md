@@ -28,6 +28,4 @@ The CMS/Blog Puck editors are scrollable on mobile. Precise drag placement may r
 
 ## QA checklist
 
-See `specs/029-admin-mobile-ui/contracts/viewport-audit-routes.md` for the full route registry (70 paths) and sign-off table.
-
 Manual smoke: Chrome DevTools → iPhone 12 Pro (390px) or custom 320px width.
