@@ -5,15 +5,15 @@ title: Kontrakty API
 
 # Kontrakty API
 
-Platforma udostępnia jedną, udokumentowaną powierzchnię HTTP (Constitution Principle II — API-First). API jest opisane w dwóch uzupełniających się miejscach:
+Platforma udostępnia jedną, udokumentowaną powierzchnię HTTP, w podejściu API-first. API jest opisane w dwóch uzupełniających się miejscach:
 
 1. **Dokument OpenAPI na żywo** pod `GET /api/v1/_openapi.json`
    (przeglądarka HTML pod `GET /api/v1/_docs`). To **źródło prawdy**
    dla runtime — generowane przy starcie ze schematów Zod w
    `@endora-commerce/contracts`, którymi Fastify sam waliduje żądania, więc nie może
    rozjechać się z działającym serwerem.
-2. **Stuby kontraktów per domena** w
-   [`specs/001-b2b-platform-foundation/contracts/`](https://github.com/)
+2. **Stuby kontraktów per domena**, wymienione w sekcji
+   [Stuby kontraktów](#stuby-kontraktów) poniżej
    — dokumentują *intencję* każdej powierzchni w ludzkim języku (kody
    statusu, koperty błędów, ograniczenia cyklu życia) i są starsze od
    działającej implementacji. Pozostają autorytatywną referencją dla

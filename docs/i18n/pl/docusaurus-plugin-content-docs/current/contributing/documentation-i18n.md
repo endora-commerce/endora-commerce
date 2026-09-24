@@ -7,8 +7,8 @@ sidebar_label: i18n dokumentacji
 # i18n witryny dokumentacji
 
 Witryna Docusaurus w katalogu `docs/` udostępnia treści użytkownika **w języku angielskim i polskim**.
-Język roboczy repozytorium dla kodu, specyfikacji i komunikatów commitów pozostaje angielski
-(Zasada VIII Konstytucji). Polska dokumentacja jest **tworzona ręcznie**
+Język roboczy repozytorium dla kodu, specyfikacji i komunikatów commitów pozostaje angielski.
+Polska dokumentacja jest **tworzona ręcznie**
 w tym samym merge requeście co edycja angielska — w CI i buildach produkcyjnych nie ma kroku
 tłumaczenia maszynowego.
 
@@ -18,7 +18,7 @@ Ta strona opisuje workflow **witryny dokumentacji**. Pakiety stringów UI panelu
 
 ## Co trzeba tłumaczyć
 
-`pnpm --filter backend run check:docs-translations` (FR-022) enumeruje każde
+`pnpm --filter backend run check:docs-translations` enumeruje każde
 angielskie źródło i oczekuje przypiętego wpisu cache oraz zmaterializowanego pliku markdown
 dla każdej lokalizacji z `docs/locales.config.json` → `translateLocales`
 (w v1: tylko `pl`):
@@ -79,8 +79,8 @@ w `code.json`.
 
 ## Trzyetapowa sekwencja edycji
 
-Użyj tej sekwencji, gdy zmieniasz jedną angielską stronę i jej polskie tłumaczenie
-(SC-006). Kroki 1–2 to edycje plików; krok 3 to lokalna kontrola.
+Użyj tej sekwencji, gdy zmieniasz jedną angielską stronę i jej polskie tłumaczenie.
+Kroki 1–2 to edycje plików; krok 3 to lokalna kontrola.
 
 1. **Edytuj angielskie źródło** — ręcznie pisana strona w `docs/docs/` albo
    własny katalog `docs/` modułu w korzeniu pakietu (nie pod `src/`).
@@ -129,7 +129,7 @@ Użyj tej sekwencji, gdy zmieniasz jedną angielską stronę i jej polskie tłum
 ```
 
 Zachowaj bez zmian w polskiej prozie: bloki kodu, inline code, URL-e, ścieżki plików,
-polecenia CLI, literały JSON/YAML, metody/ścieżki HTTP oraz identyfikatory modułów (FR-007).
+polecenia CLI, literały JSON/YAML, metody/ścieżki HTTP oraz identyfikatory modułów.
 
 ## Wygenerowane artefakty angielskie
 
@@ -153,7 +153,7 @@ Po regeneracji **ręcznie odwzoruj polski** w `docs/i18n/pl/`:
   zmaterializowanej strony.
 
 Nie edytuj wygenerowanych plików angielskich pod kątem polskiego — zamiast tego aktualizuj
-drzewo i18n oraz cache (FR-012, FR-014).
+drzewo i18n oraz cache.
 
 `pnpm --filter backend run docs:collect` (kopie angielskie do `docs/docs/modules/`)
 nie zapisuje polskiego; zatwierdzone pliki i18n dostarczają polską lokalizację w czasie buildu.
@@ -166,9 +166,9 @@ Po przejściu `check:docs-translations` potwierdź, że obie lokalizacje się bu
 pnpm --filter docs run build
 ```
 
-`onBrokenLinks: 'throw'` musi przejść dla angielskiego i polskiego (FR-008).
+`onBrokenLinks: 'throw'` musi przejść dla angielskiego i polskiego.
 
-## Dodawanie przyszłej lokalizacji (FR-025)
+## Dodawanie przyszłej lokalizacji
 
 Dodatkowe lokalizacje są **addytywne** — bez przebudowy pipeline'u. Aby dodać na przykład
 niemiecki:
@@ -196,6 +196,4 @@ w skryptach.
 ## Zobacz także
 
 - [Tłumaczenia UI panelu admina](./translations.md) — polski słownik oraz
-  workflow pakietów `packages/modules/*/i18n/` (feature 021).
-- `specs/conventions/module-documentation.md` — gdzie przed tłumaczeniem żyją angielskie
-  strony należące do modułów.
+  workflow pakietów `packages/modules/*/i18n/`.

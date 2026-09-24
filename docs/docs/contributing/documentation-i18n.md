@@ -7,8 +7,8 @@ sidebar_label: Documentation i18n
 # Documentation site i18n
 
 The Docusaurus site under `docs/` ships **English and Polish** user-facing prose.
-Repository working language for code, specs and commit messages stays English
-(Constitution Principle VIII). Polish documentation is **authored manually** in
+Repository working language for code, specs and commit messages stays English.
+Polish documentation is **authored manually** in
 the same merge request as the English edit — there is no machine-translation
 step in CI or production builds.
 
@@ -18,7 +18,7 @@ This page is the workflow for **docs-site** translations. Admin UI string bundle
 
 ## What must be translated
 
-`pnpm --filter backend run check:docs-translations` (FR-022) enumerates every
+`pnpm --filter backend run check:docs-translations` enumerates every
 English source and expects a pinned cache entry plus a materialised markdown
 file for each locale in `docs/locales.config.json` → `translateLocales`
 (v1: `pl` only):
@@ -80,8 +80,8 @@ when its own file lacks it, and as `chrome-message-inert` when it is parked in
 
 ## Three-step edit sequence
 
-Use this sequence when you change one English page and its Polish translation
-(SC-006). Steps 1–2 are file edits; step 3 is the local guard.
+Use this sequence when you change one English page and its Polish translation.
+Steps 1–2 are file edits; step 3 is the local guard.
 
 1. **Edit the English source** — hand-authored page under `docs/docs/`, or the
    module's own `docs/` directory at the package root (not under `src/`).
@@ -129,7 +129,7 @@ Use this sequence when you change one English page and its Polish translation
 ```
 
 Preserve code fences, inline code, URLs, file paths, CLI commands, JSON/YAML
-literals, HTTP methods/paths and module ids unchanged in Polish prose (FR-007).
+literals, HTTP methods/paths and module ids unchanged in Polish prose.
 
 ## Generated English artefacts
 
@@ -153,7 +153,7 @@ After regeneration, **manually mirror Polish** under `docs/i18n/pl/`:
   title.
 
 Do not edit generated English files for Polish — update the i18n tree and cache
-instead (FR-012, FR-014).
+instead.
 
 `pnpm --filter backend run docs:collect` (English copies into `docs/docs/modules/`)
 does not write Polish; committed i18n files supply the Polish locale at build
@@ -167,9 +167,9 @@ After `check:docs-translations` passes, confirm both locales build:
 pnpm --filter docs run build
 ```
 
-`onBrokenLinks: 'throw'` must pass for English and Polish (FR-008).
+`onBrokenLinks: 'throw'` must pass for English and Polish.
 
-## Adding a future locale (FR-025)
+## Adding a future locale
 
 Additional locales are **additive** — no pipeline rearchitecture. To add, for
 example, German:
@@ -197,6 +197,4 @@ locale codes in scripts.
 ## See also
 
 - [Admin UI Translations](./translations.md) — Polish glossary and
-  `packages/modules/*/i18n/` bundle workflow (feature 021).
-- `specs/conventions/module-documentation.md` — where module-owned English pages live
-  before translation.
+  `packages/modules/*/i18n/` bundle workflow.

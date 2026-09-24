@@ -5,7 +5,7 @@ title: Izolacja tenantów (multi-tenant)
 # Izolacja tenantów
 
 Backend wymusza izolację multi-tenant na poziomie **frameworka**, a nie przez
-klauzule `where` w poszczególnych serwisach (Zasada XI Konstytucji, feature `050`). Każda
+klauzule `where` w poszczególnych serwisach. Każda
 trwała encja jest klasyfikowana raz, a odczyty i zapisy są automatycznie ograniczane
 do tenantu wywołującego na warstwie dostępu do danych — izolacja działa nawet wtedy, gdy
 serwis zapomni o jawnym filtrze.
@@ -44,8 +44,8 @@ check CI `check-entity-tenant-classification.ts` blokuje build):
 `@OrgScoped` / `@CustomerScoped` dołączają filtr; pozostałe to tylko metadane —
 egzekwowanie (tam, gdzie potrzebne) jest jawne w serwisie właściciela.
 
-**Rodzic tranzytywny jest nazwany nazwą klasy, nie samą klasą** (orzeczenie
-D-169). Oba łańcuchy tranzytywne tej platformy przekraczają granicę modułu, a moduł,
+**Rodzic tranzytywny jest nazwany nazwą klasy, nie samą klasą.** Oba łańcuchy
+tranzytywne tej platformy przekraczają granicę modułu, a moduł,
 który stał się pakietem, publikuje tablicę `entities` i nie nazwaną klasę encji — więc
 `@TransitivelyScoped(() => Order, 'orderId')` byłby importem, którego dziecko nie może
 napisać. Nazwa jest rozwiązywana leniwie w rejestrze klasyfikacji, bo dziecko jest
