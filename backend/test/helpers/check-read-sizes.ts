@@ -3590,7 +3590,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `specs/132-docs-pl-locale/`, and `docs/docs/about/spec-citations.md` with
     // `docs/docs/contributing/documentation-i18n.md`. The `.txt` inventories this
     // feature also adds are out of population.
-    files: 1398,
+    //
+    // **Feature 133 acceptance follow-up, measured 2026-09-23** on a clean tree,
+    // the same narrow clean Phase 8 used, taken from the `[read-size drift]`
+    // census and never computed from a delta. Two tracked files landed after
+    // T080's census and neither re-recorded it: the code-review fix
+    // (`d05624700`) added `packages/cli/test/docs-front-matter-scalar.test.ts`,
+    // and the acceptance record (`7e3fd4da7`) added
+    // `specs/133-docs-site-publication/acceptance.md`.
+    // **1398 -> 1399, +1.** `DOCUMENT_ROOTS` is `docs/docs` and `specs`, so only
+    // the acceptance record is in population; the `packages/cli` test is a `.ts`
+    // file outside both roots.
+    files: 1399,
     sites: 13,
     sources: [],
     //
@@ -9195,7 +9206,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // chrome translation files and the two static assets.
     // **8636 -> 9055, +419.** This walk reads git-ignored files by design, so it
     // sits 5 above the tracked +414 the other two whole-tree walks see.
-    files: 9055,
+    //
+    // **Feature 133 acceptance follow-up, measured 2026-09-23** on a clean tree,
+    // the same narrow clean Phase 8 used, taken from the `[read-size drift]`
+    // census and never computed from a delta. Two tracked files landed after
+    // T080's census and neither re-recorded it: the code-review fix
+    // (`d05624700`) added `packages/cli/test/docs-front-matter-scalar.test.ts`,
+    // and the acceptance record (`7e3fd4da7`) added
+    // `specs/133-docs-site-publication/acceptance.md`.
+    // **9055 -> 9057, +2.** Both arrivals are in population — this walk is the
+    // whole tree — and the ignored residue the checkout carries is unchanged
+    // since T080, which is why the move is exactly the two tracked files.
+    files: 9057,
     sites: null,
     sources: [],
     //
@@ -11182,8 +11204,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `check-naming.sh` sees. **sites 1291 -> 1305, +14**: fourteen new entries in
     // the root-disposition population, contributed by the new `specs/` directory,
     // the two `deploy/` files and the docs artefacts. Recorded from the census.
-    files: 9111,
-    sites: 1305,
+    //
+    // **Feature 133 acceptance follow-up, measured 2026-09-23** on a clean tree,
+    // the same narrow clean Phase 8 used, taken from the `[read-size drift]`
+    // census and never computed from a delta. Two tracked files landed after
+    // T080's census and neither re-recorded it: the code-review fix
+    // (`d05624700`) added `packages/cli/test/docs-front-matter-scalar.test.ts`,
+    // and the acceptance record (`7e3fd4da7`) added
+    // `specs/133-docs-site-publication/acceptance.md`.
+    // **files 9111 -> 9113, +2** — the tracked population, both arrivals.
+    // **sites 1305 -> 1306, +1**: a site is one per root entry plus one per path
+    // under a `partially-public` entry, and only `specs` is partial, so the
+    // acceptance record contributes a site while the `packages/cli` test, under a
+    // wholly `public` root entry, does not. Recorded from the census.
+    files: 9113,
+    sites: 1306,
     // `git-tree-entries` — the committed tree's own root entries, read from a
     // different git store than the index this walk uses. Not `self-reported`:
     // two derivations of one population by two routes is precisely the second
@@ -14245,7 +14280,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **8696 -> 9110, +414.** Population is
     // `git ls-files --cached --others --exclude-standard`, so ignored residue is
     // invisible to it and the move is exactly the tracked arrivals.
-    files: 9110,
+    //
+    // **Feature 133 acceptance follow-up, measured 2026-09-23** on a clean tree,
+    // the same narrow clean Phase 8 used, taken from the `[read-size drift]`
+    // census and never computed from a delta. Two tracked files landed after
+    // T080's census and neither re-recorded it: the code-review fix
+    // (`d05624700`) added `packages/cli/test/docs-front-matter-scalar.test.ts`,
+    // and the acceptance record (`7e3fd4da7`) added
+    // `specs/133-docs-site-publication/acceptance.md`.
+    // **9110 -> 9112, +2.** Both arrivals are tracked, so both are in the
+    // `git ls-files` population.
+    files: 9112,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -14916,7 +14961,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // it moves by 16 where that one moves by 414: the ~373 `docs/i18n/pl/**` and
     // `docs/translation-cache/pl/**` files feature 132 added are deliberately
     // Polish and out of this walk's reach. Recorded from the census.
-    files: 6534,
+    //
+    // **Feature 133 acceptance follow-up, measured 2026-09-23** on a clean tree,
+    // the same narrow clean Phase 8 used, taken from the `[read-size drift]`
+    // census and never computed from a delta. Two tracked files landed after
+    // T080's census and neither re-recorded it: the code-review fix
+    // (`d05624700`) added `packages/cli/test/docs-front-matter-scalar.test.ts`,
+    // and the acceptance record (`7e3fd4da7`) added
+    // `specs/133-docs-site-publication/acceptance.md`.
+    // **6534 -> 6535, +1.** The `packages/cli` test is a `.ts` file and
+    // language-bearing; the acceptance record is markdown under `specs/`, which
+    // this walk does not read.
+    files: 6535,
     sites: null,
     sources: ['manifest-index'],
     //
