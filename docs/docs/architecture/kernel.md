@@ -12,7 +12,7 @@ covers the three things you have to know before writing or changing a module:
 reached**, and **when your registrations and hooks actually run**.
 
 The last of those is not decoration. Composition order caught three module
-conversions during feature 072, each time the same way, and each time it looked
+conversions, each time the same way, and each time it looked
 like a missing registration rather than an ordering mistake.
 
 ## The boundary
@@ -24,9 +24,9 @@ behaviour.**
 | --- | --- |
 | `container.ts`, `compose.ts`, `module-context.ts`, `scope.ts` | The composition machinery itself |
 | `ports/` — `require-admin`, `organizations`, `settings`, `sales-channel` | The **types**; the owning module registers the implementation |
-| `audit/` | Principle XIII: every audited write goes through one writer |
-| `settings/`, `sales-channels/` | A settings read and a channel resolution back behaviour in nearly every module, so neither may be gated on any one of them (D-32) |
-| `lifecycle/` | The presence machinery: the registry cache, the activation resolver, the effective-state combiner and the gating wrappers every module's routes, workers and subscribers pass through (D-37) |
+| `audit/` | Every audited write goes through one writer |
+| `settings/`, `sales-channels/` | A settings read and a channel resolution back behaviour in nearly every module, so neither may be gated on any one of them |
+| `lifecycle/` | The presence machinery: the registry cache, the activation resolver, the effective-state combiner and the gating wrappers every module's routes, workers and subscribers pass through |
 | `lazy-port.ts` | How a module reads another module's port without freezing it |
 
 The rule that follows is **the kernel must not import from `src/modules/` or
@@ -35,17 +35,15 @@ The rule that follows is **the kernel must not import from `src/modules/` or
 lifecycle participant and a decoration is per-deployment code, so a kernel that
 reaches into either is a kernel that differs per deployment.
 
-### The kernel's peers obey the same rule (D-52)
+### The kernel's peers obey the same rule
 
 `src/http`, `src/events` and `src/tenancy` are **kernel-obeying platform peers**,
-and none of them may import `src/modules/` or `src/apps/` either. The
-measurement behind that is D-52 … D-57
-(`specs/072-module-kernel-di/kernel-peer-boundary.md`, issues #91/#92).
+and none of them may import `src/modules/` or `src/apps/` either.
 
 | Peer | What it is | Why it obeys |
 | --- | --- | --- |
 | `src/events/` | One 81-line file: an `AsyncLocalStorage`-backed in-process bus, generic over its event map, importing only `node:async_hooks` | No domain noun anywhere in it |
-| `src/tenancy/` | The Principle XI guard: column names as strings, `where` fragments over an opaque field, a pure actor→`TenantContext` function | Five kernel entities take `@GlobalEntity()` from it — the kernel's persistence layer does not exist without it |
+| `src/tenancy/` | The tenant-isolation guard: column names as strings, `where` fragments over an opaque field, a pure actor→`TenantContext` function | Five kernel entities take `@GlobalEntity()` from it — the kernel's persistence layer does not exist without it |
 | `src/http/` | Fastify bootstrap, the error envelope, OpenAPI registration, cursor encoding, the interceptor registry | Four kernel files take `HttpError` from it **as a value** |
 
 They are not optional to the kernel; it does not compile without them. A
@@ -56,9 +54,10 @@ that packages are not cyclic.
 
 ### The subject is now the whole package, not a list of peers
 
-D-57 left three directories out — `src/db` "names every module by construction",
-`src/overlay` is "per-deployment resolution", and `src/commands` sits *above* the
-kernel, which D-57 flagged as "a real open item F4 must close". All three were
+An earlier statement of the peer rule left three directories out — `src/db`
+"names every module by construction", `src/overlay` is "per-deployment
+resolution", and `src/commands` sits *above* the kernel, which that statement
+flagged as "a real open item F4 must close". All three were
 directories of the **application** when that was written, and each premise went
 with the relocation: `packages/platform/src/db/` imports no module (the generated
 registries stayed in `backend/src`), the platform's `overlay/` is the loader and
@@ -75,15 +74,16 @@ longer list of peers.
 
 **That rule is enforced.** `backend/scripts/check-kernel-boundary.ts` carries
 three rules over the one principle. **Rule A** refuses an ORM relation from the
-kernel into a module. **Rule B** (D-37, widened by D-53, widened again by
-`specs/110-instance-repository/` T118a) refuses an import specifier naming a
-module from any file under a **platform root**. **Rule C** (D-53) refuses one
-anywhere in the kernel's transitive import closure, however many hops away.
+kernel into a module. **Rule B**, widened twice since it was written, refuses an
+import specifier naming a module from any file under a **platform root**.
+**Rule C** refuses one anywhere in the kernel's transitive import closure,
+however many hops away.
 
 **Rule B's roots are derived and are not written down anywhere** — they are the
 directories of the workspace member declaring `endora: { type: "platform" }`, so
 the next platform directory is judged by existing. They were a four-element
-literal until T118a, against a platform that had grown to fourteen directories:
+literal until that derivation landed, against a platform that had grown to
+fourteen directories:
 ten of them were outside the rule entirely, `composition/` among them, which is
 where `composeApp` lives. The platform's `exports` map is the obvious alternative
 derivation and is deliberately **not** the one used — it answers *what may a
@@ -93,14 +93,15 @@ subpath naming no walked directory is exit 2.
 
 **Rule B refuses both spellings of a module's address**: a relative specifier
 into `src/modules/` or `src/apps/`, and the **bare npm name** of a module package.
-The second arrived with T118a on the check's own retiring condition — it had said
-a bare specifier could not reach a module because no module package existed — and
-since F4 closed, `backend/src/modules/` holds nothing but a `README.md`, so the
+The second arrived with that same widening, on the check's own retiring
+condition — it had said a bare specifier could not reach a module because no
+module package existed — and since F4 closed, `backend/src/modules/` holds
+nothing but a `README.md`, so the
 bare name is the only spelling left.
 
 B and C are deliberately not redundant, and each covers the other's blind spot: B
-is a population, and issue #92 existed precisely because a peer was never put on
-a list; C has no population to lose, but is blind to the peer files the kernel
+is a population, and a peer was once missed precisely because it was never put
+on a list; C has no population to lose, but is blind to the peer files the kernel
 does not currently reach. B's message names a line, C's names a chain.
 
 Both see every shape a specifier takes — `import`, `import type`,
@@ -110,15 +111,16 @@ type-only import is a violation like any other: it erases from the bundle but no
 from a `package.json`, and ESLint's `prefer: 'type-imports'` would otherwise
 launder violations past the rule automatically.
 
-Before D-37, four imports ran from `src/kernel/` into `src/modules/`:
+Four imports once ran from `src/kernel/` into `src/modules/`:
 `module-context.ts` took the three gating wrappers, `ports/provide.ts` took
 `ModuleDisabledError` and `effectiveState`, and `ports/organizations.ts`
-type-imported the `Organization` entity class. D-37 A1 relocated the presence
+type-imported the `Organization` entity class. Relocating the presence
 machinery — `plugin-helpers.ts`, `registry-cache.ts`, `effective-state.ts`,
 `activation-resolver.ts` and `module-registration.entity.ts` — into
-`src/kernel/lifecycle/`, which dissolved the first three. D-55 dissolved the
-fourth, and D-54 dissolved the one peer import (`src/http/error-envelope.ts`
-reaching `_i18n` for the error-translation map, now injected).
+`src/kernel/lifecycle/` dissolved the first three. The fourth dissolved when the
+port took a structural snapshot instead of the entity class, and the one peer
+import (`src/http/error-envelope.ts` reaching `_i18n` for the error-translation
+map, now injected) dissolved with it.
 
 `KERNEL_MODULE_IMPORTS_TO_DRAIN` is therefore **empty**, and stays as a two-way
 ratchet: an unledgered import fails the build **and** a ledger entry that no
@@ -137,11 +139,11 @@ it anyway. That is the argument for the check.
 `ports/organizations.ts` shows the split at its clearest. The kernel declares
 `OrganizationReadPort` — `loadEffectiveOrganization`, `assertCanTransact`,
 `loadCartApprovalPolicy` — because almost every module needs to read an
-Organization (Principle XI). It does **not** implement it. `organizations`
+Organization. It does **not** implement it. `organizations`
 registers `OrganizationContextService` against that name, so the shape is
 platform-wide and the behaviour stays in the module that owns the table.
 
-Since D-55 the port types its return values with a kernel-owned structural
+The port types its return values with a kernel-owned structural
 `OrganizationSnapshot` — `{ id, status }`, with `OrganizationStatus` taken from
 `@endora-commerce/contracts` — rather than the module's `Organization` entity class. That is
 the whole surface the port's callers consume: `promotions` reads `status`, and
@@ -157,8 +159,8 @@ migrations that all write the `organizations` table, six of which also create
 module-owned tables. The honest execution is splitting six migrations, renaming
 eight applied classes and a coordinated database rebuild — to serve a port that
 consumes two properties of a 24-property entity. `src/tenancy` is the precedent
-that makes the snapshot right rather than merely cheap: it enforces Principle XI
-knowing the Organization as a UUID in a column and never as a class.
+that makes the snapshot right rather than merely cheap: it enforces tenant
+isolation knowing the Organization as a UUID in a column and never as a class.
 
 ## Registering: the three seams
 
@@ -171,7 +173,7 @@ review comment.
 Use it for a service other modules resolve. `providePort` wraps the registration
 in a **transient gate** that checks the module's effective state, so a caller
 gets a 503 `MODULE_DISABLED` envelope rather than a half-executed operation when
-the module is switched off (Constitution XVII).
+the module is switched off.
 
 ```ts
 ctx.di.providePort(
@@ -199,7 +201,7 @@ has no `dependencies` array that could record the edge, so a root contribution
 is the one write that cannot be expressed as a port. A module↔module edge always
 can be, and therefore must be.
 
-**The seam runs one way, and since D-156.6 the kernel says so.** A module may
+**The seam runs one way, and the kernel says so.** A module may
 not write a name a composition **root** supplies either: `ctx.di.register` and
 `ctx.di.providePort` throw `ForeignRegistrationError` for a name the container
 already holds that no module claimed. That set is derived on every composition
@@ -212,7 +214,7 @@ lock on the front door of a house whose side door was open. There is no overlay
 exemption, deliberately. A deployment changes what a root-supplied name resolves
 to with `ctx.di.decorate` from its own overlay module, which keeps core
 delegating through the wrap; taking the name outright severs that for every
-consumer at once, and D-28 requires replacement to be the *more* explicit act.
+consumer at once, and replacement must be the *more* explicit act.
 
 ### `lazyPort<T>(ctx, 'name')` — reading someone else's port
 
@@ -256,14 +258,14 @@ the app is being wired, and switching the module off stops the backend from
 starting instead of stopping its routes. Take it with `lazyPort` — inside a
 handler the gate is open by construction, so nothing else changes.
 
-Both were live in the tree until feature 072's D-40 follow-up; the property is
-pinned by `backend/test/integration/kernel/deactivated-boot.test.ts`.
+Both were live in the tree once; the property is pinned by
+`backend/test/integration/kernel/deactivated-boot.test.ts`.
 
 Two more rules that are easy to miss:
 
 - **The name must be a string literal.** `backend/scripts/check-port-dependencies.ts`
   reads these statically; a variable or a `port(ctx, name)` helper hides the
-  resolution from it. During feature 072 exactly that helper hid fourteen
+  resolution from it. Exactly that helper once hid fourteen
   resolutions, several of which no root registered, and the check reported clean
   while the media pipeline silently produced nothing.
 - **Declare the dependency.** If your module resolves a port owned by `X`, `X`
@@ -282,7 +284,7 @@ Most edges are pulls. The push shape is for registries — transactional-email
 defaults, reference registries, adapter tables — where a module contributes
 something the host later walks.
 
-**A contribution registry is never a gated port** (feature 072, D-39). The rule:
+**A contribution registry is never a gated port.** The rule:
 
 > A registration whose whole contract is *"add an inert descriptor to a table
 > the host walks later"* is `ctx.di.register` and is **never** gated. A
@@ -296,7 +298,7 @@ moment an operator switches the **host** off, and the platform does not start.
 `transactional_emails` has seven contributors; `cms` has one. The operator broke
 the next start by using a switch they were entitled to use, and the crash named a
 module they never touched. (`transactional_emails` has since declared itself
-non-deactivatable — issue #88 — so that particular switch is gone; the rule is
+non-deactivatable, so that particular switch is gone; the rule is
 unchanged, `cms` still exercises it, and the registry stays ungated because the
 argument is about the shape of a contribution seam, not about who may switch a
 host off.) `check-port-dependencies.ts` refuses the shape now, at
@@ -329,13 +331,14 @@ Two answers are legitimate, and which one is right depends on what the entry is:
   written at the class: its rows are seeded from the **platform** axis, so
   skipping would not remove a row, it would create one with an empty template.
 
-All four registries D-39 converted honour, each with its reason in place; the
+All four registries converted under that rule honour, each with its reason in
+place; the
 policies are pinned by `backend/test/unit/kernel/contribution-seams.test.ts`
 (`emailDefaultsPort`, `assetReferenceRegistry`, `cmsReferenceRegistry`,
 `megamenuReferenceRegistry`).
 
 **Two more registries state the opposite policy, and they are the worked *skip*
-example** (issue #96, 2026-08-15). `PaymentAdapterRegistry` and
+example**. `PaymentAdapterRegistry` and
 `ShippingAdapterRegistry` stamp the contributing module on every entry and split
 their surface by who is asking: `get`, `resolve` and `list` filter on the
 owner's effective state — a buyer never sees a payment method that cannot take
@@ -348,8 +351,8 @@ baked into the class, so a registry a test builds for itself keeps answering
 about the adapters that test registered.
 
 The third registry of that family, `gatewayRefundRegistry`
-(`payments/services/gateway-refund-registry.js`), converted with feature 074 and
-is the worked example of the *other wiring* a contribution seam takes: `stripe`,
+(`payments/services/gateway-refund-registry.js`), is the worked example of the
+*other wiring* a contribution seam takes: `stripe`,
 `tpay`, `payu` and `autopay` **import the singleton** and push their refund
 handler into it, so no container resolution exists for any check to see. It
 records the contributing module now and states **skip**, and the ground is worth
@@ -362,7 +365,7 @@ already gets. The presence probe is wired at the singleton
 twin gives: a registry a test builds for itself must keep answering about the
 handlers that test registered.
 
-**Three more converted with issue #129, and they did not get one answer, because
+**Three more converted later, and they did not get one answer, because
 "state a policy" is a question rather than a sweep.** `ConfigurationTypeRegistry`
 (`credentials`) states **skip**, on the ground the skip column already gives: a
 configuration type is what the credentials screen offers to configure and what a
@@ -395,9 +398,8 @@ seam, and `orders` declares the sentence the confirmation dialog will render.
 
 ## The deactivation-consequence ledger
 
-Principle XVII's flip-time refusal is becoming an informed confirmation
-(feature 074), so the platform may come to rest with a **present module
-depending on an absent one**. Every seam between the two then needs an answer to
+The lifecycle's flip-time refusal is becoming an informed confirmation, so the
+platform may come to rest with a **present module depending on an absent one**. Every seam between the two then needs an answer to
 "what happens?", and the operator being asked to accept the flip needs the same
 answer, by name, before the write. There is one artefact for both, and that is
 the point of it rather than an economy:
@@ -474,8 +476,8 @@ happen, so there is no state to describe.
 `deactivationConsequencesFor` projects the same entries into the rows an operator
 sees — and that projection is the half of this that has **not** shipped. Its only
 caller today is `check-port-dependencies.ts`, at build time; the confirmation
-dialog and the 409 `MODULE_DEACTIVATION_UNCONFIRMED` envelope are feature 074's
-later phases (issue #121, in flight), and today's dialog is a bare
+dialog and the 409 `MODULE_DEACTIVATION_UNCONFIRMED` envelope are still in
+flight, and today's dialog is a bare
 `window.confirm` naming the module and nothing else
 (`admin/src/modules/platform/ModuleActivationControl.tsx`). What is settled ahead
 of them is that there is **one** function for both to call, so that when they land
@@ -500,16 +502,16 @@ Where a degrade genuinely belongs, put it **inside the owner's implementation**
 and express it in the port's return type — `allowedIdsFor(): Promise<string[] | null>`
 returning `null` for "no restriction" is the pattern.
 
-**That rule is enforced too**, by `backend/scripts/check-port-catches.ts`
-(issue #84). It is worth knowing what the sweep that armed it found, because the
+**That rule is enforced too**, by `backend/scripts/check-port-catches.ts`.
+It is worth knowing what the sweep that armed it found, because the
 three kinds it separates are the three answers to a review comment about a
 `catch`. Of 51 `try` blocks reaching a gated port, 27 already re-threw and 24 did
 not, and the 24 were:
 
 - **defensive** — a `catch` over a port whose return type *already* says
   "nothing applies". `resolveLinePrice` answers `null`; `taxRateFor` answers
-  `{ source: 'none' }` (a variant carrying no rate — issue #124 removed the
-  `rate: 0` that made it readable as an answer); `applyToCart` answers
+  `{ source: 'none' }` (a variant carrying no rate — the `rate: 0` that made it
+  readable as an answer has since gone); `applyToCart` answers
   `discountTotal: 0`. The
   `catch` bought nothing except the ability to hide a 503, and one of them wrote
   the hidden answer into a cache with a TTL, so `price_lists` coming back did not
@@ -540,7 +542,7 @@ that re-throws it** — a helper ending in `throw <its own parameter>`
 behalf (`ReturnEmailNotifier#contained`). Eight sites in the tree are written
 that way and all eight are correct.
 
-### What the check can see (issues #133 and #113)
+### What the check can see
 
 The rule is about the `catch`; the blind spots were about **how the port
 arrives**. Both of these read clean for months:
@@ -572,7 +574,7 @@ record — tainting it made `this.deps.<anything>()` a port call, 39 of them in 
 run), and a **field read off a port**. Run with `PORT_CATCH_WHY=1` to see every
 alias with the site that introduced it.
 
-**An alias is visible where its binding is, and nowhere else** (issue #278).
+**An alias is visible where its binding is, and nowhere else.**
 A `const` is file-scoped because it is. A **deps-object key** is module-scoped,
 because the receiving class reads it as `this.deps.<key>` from another file and a
 property name is not a lexical binding anybody can shadow. A **constructor or
@@ -583,7 +585,7 @@ at all. A root's container registration is visible everywhere, because a
 container name is global by construction.
 
 The cost of getting that wrong was measured, and it is not noise. Building
-`orderTransitionPort` (feature 085, Phase B), an author named a constructor
+`orderTransitionPort`, an author named a constructor
 parameter `transitionService`; an unrelated local of that spelling in
 `orders/prompt-tools.ts` became a reported violation with no code change of its
 own, and the author cleared it by renaming the parameter. The rename hid a
@@ -628,21 +630,21 @@ least-wrong behaviour, each with its reason, in three shapes the entries name:
   record, and both alternatives — a duplicate delivery, or a probe that runs
   before the flip — are worse;
 - **a degrade the owner should be answering** — the caller is right to keep
-  serving without the module (Constitution XVII), so `rethrowIfModuleDisabled`
+  serving without the module, so `rethrowIfModuleDisabled`
   would be the *wrong* fix. The answer belongs in the contribution's return type
   or a `nonBindingDependencies` entry, and all three entries that carried this
   shape have moved there: the bell notification answers
   `'recorded' | 'not-present'` from a recorder that decides presence in front of
   the gate, catalog availability is a declared `degrades-without` edge probed in
-  the contribution that resolves it (D-60, D-61), and the Meilisearch listing
+  the contribution that resolves it, and the Meilisearch listing
   falls back to Postgres because `useMeili` asks before the query rather than
   catching after it;
 - **a boot hook** — the presence answer has no caller to reach, so it is *decided*
-  at the top of the hook, first and outside every `try` (D-62). Outside, because
+  at the top of the hook, first and outside every `try`. Outside, because
   `runBootHooks` does **not** catch — it re-throws, so a `ModuleDisabledError`
   raised inside would either abort the boot or share one silent no-op with a
-  transient failure (see *The boot phase re-throws* below; that bullet said the
-  opposite until issue #146). `product_feeds` and `pim_ergonode` reconcile their
+  transient failure (see *The boot phase re-throws* below; that bullet used to
+  say the opposite). `product_feeds` and `pim_ergonode` reconcile their
   schedules that way; what stays ledgered is the `catch` under the probe, which
   absorbs an ordinary failure so an unbootable API never costs more than a
   drifted schedule — narrowing those two to re-throw was tried and reverted, as
@@ -654,7 +656,7 @@ least-wrong behaviour, each with its reason, in three shapes the entries name:
 A fourth answer is **derived rather than written**: when every gate a site's alias
 carries is owned by a module whose manifest declares
 `activation.nonDeactivatable`, the check reports it as `OWNER LOCKED` and a ledger
-entry over it reads stale (D-63). The `catch` is still there and still named — it
+entry over it reads stale. The `catch` is still there and still named — it
 still swallows every other error — but there is no presence answer to reach, so
 there is nothing to drain. Computing it from the manifests on each run is the
 point: an owner who un-locks a module re-reds every site resting on that lock, in
@@ -671,8 +673,8 @@ That is a deliberate reversal. The tree used to expose `getEm()` over MikroORM's
 `RequestContext`, an AsyncLocalStorage-backed lookup: a service reached the
 request's EntityManager by asking the runtime, so what it could touch was
 invisible in its signature and untestable without a live request scope. Every
-module takes an explicit `emFactory` now, and `getEm()` was deleted in feature
-072 (T144) so the property holds by construction.
+module takes an explicit `emFactory` now, and `getEm()` has been deleted, so the
+property holds by construction.
 
 `enterSystemScope(reason, fn, { entryPoint })` is the seam for work with no
 request behind it — boot reconciles, CLI entry points, workers. It exists so
@@ -691,8 +693,7 @@ what it could name that early: `composition.ts` passed the global `console` and
 the test harness passed a no-op. A module's warning was therefore unstructured,
 uncorrelated with the request that caused it, outside the pino stream a
 deployment ships — and the two roots disagreed about which of those two nothings
-it was, which is exactly the class of drift `harness-parity.test.ts` exists for
-(issue #269).
+it was, which is exactly the class of drift `harness-parity.test.ts` exists for.
 
 Both roots now pass `platformLogger()`, which is **late-bound**: it reads the
 destination per line rather than capturing it. `buildServer` attaches the
@@ -739,8 +740,8 @@ registryCache.watch()                (Redis, non-fatal)
 
 It used to run two passes, split by an `EARLY_PASS_MODULE_IDS` list, so that a
 root's hand-wired module code could sit *between* them. There is no hand-wired
-module code left in either root, and **D-45** measured what the split still
-bought: 13 of its 26 members were forced by nothing, and the route-ordering
+module code left in either root, and what the split still bought was measured:
+13 of its 26 members were forced by nothing, and the route-ordering
 reason its header gave was false (a root `onRequest` hook added by a
 `fastify-plugin` plugin registered *after* an encapsulated child still runs for
 that child's routes). A single pass satisfies every ordering constraint for
@@ -753,9 +754,9 @@ Four consequences, in the order they bite:
 `loadModulePresence()` runs as a composition step in `composeApp()`, because
 every gate downstream of it — a port resolution in a boot hook, a
 `defineModuleWorker` pause decision, a `subscribeForModule` handler — asks the
-same in-memory cache, and most of them ask before any HTTP route exists. Until
-feature 072's D-38 the load lived in `_lifecycle`'s plugin body, i.e. inside
-`buildServer`, after everything in the diagram above: the cache answered
+same in-memory cache, and most of them ask before any HTTP route exists. The
+load used to live in `_lifecycle`'s plugin body, i.e. inside `buildServer`,
+after everything in the diagram above: the cache answered
 "not installed" for every module and the backend did not start.
 
 Two halves, deliberately different in kind. The **load** reads PostgreSQL, is
@@ -793,7 +794,7 @@ no module defaults (`redis`, `eventBus`, `commandBus`, `auditLogService`, the
 `*RunWorkers` flags) has no such window and is registered where the value comes
 into existence.
 
-That slot is a **method**, not a convention (issue #52): `composeModules`
+That slot is a **method**, not a convention: `composeModules`
 returns a `ComposedModules`, and a contribution is
 `composedModules.contribute({ name: value })`. Both edges of the window come
 with the shape rather than with the reader's memory — the early edge because
@@ -812,7 +813,8 @@ consequences, and the second one used to be stated too narrowly here.
 
 Never resolve a **gated port** from a boot hook: the gate has a real "no" answer
 at that point and answering it kills the boot. If the name is a contribution
-registry, it should not have been a port at all — see D-39 above.
+registry, it should not have been a port at all — see the contribution-registry
+rule above.
 
 If your hook pushes a descriptor into another module's registry, the **host**
 decides whether that entry is live, at enumeration time, keyed on the
@@ -839,14 +841,13 @@ try {
 }
 ```
 
-Three documents said the opposite for months — this page in two places,
-`check-port-catches.ts`'s ledger and `AGENTS.md` — and the claim was
-load-bearing: two boot-hook
+Documentation said the opposite for months — this page in two places, and
+`check-port-catches.ts`'s ledger — and the claim was load-bearing: two boot-hook
 sites were ledgered rather than fixed on the belief that the kernel absorbed the
 throw centrally. The block above is quoted rather than described for that reason;
 `check:doc-snippets` fails this page if it stops matching the source.
 
-Re-throwing is the ruled behaviour (issue #146, D-67). A boot hook runs during
+Re-throwing is the ruled behaviour. A boot hook runs during
 composition, before the Fastify app exists: there is no request to answer and no
 degraded surface to serve, so a swallowed failure would mean the platform starts
 with a composition that is not what the code says — a missing payment adapter, an
@@ -858,8 +859,8 @@ the module and the phase, and no partially-composed server ever listens.
 The hazard that argues for catching — a module the operator switched off taking
 the boot down with it — is closed structurally rather than by a `catch`. A gated
 port resolved from a boot hook is refused by
-`check:port-dependencies` (`gated-port-at-boot`), and D-39 keeps every
-contribution registry an ungated `ctx.di.register` for the same reason, so an
+`check:port-dependencies` (`gated-port-at-boot`), and every contribution
+registry stays an ungated `ctx.di.register` for the same reason, so an
 operator flipping a switch cannot raise `ModuleDisabledError` during composition.
 What is left is a hook whose own work fails, which is a real failure; a module
 that wants a narrower tolerance writes it **inside** its own hook and says why,
@@ -869,9 +870,9 @@ and a dead boot.
 
 ### A composition without a module it requires does not reach the boot phase
 
-`activation.nonDeactivatable` guards **withdrawal**: since D-69 the lifecycle
-orchestrator refuses to disable or uninstall a module that declares it, soft and
-hard alike, with no `--force`. D-101 added the two **initial states** a manifest
+`activation.nonDeactivatable` guards **withdrawal**: the lifecycle orchestrator
+refuses to disable or uninstall a module that declares it, soft and hard alike,
+with no `--force`. A later rule added the two **initial states** a manifest
 analysis can see — a module this deployment never shipped that another manifest
 names, and one carrying a `module_registrations` row the boot reconciler will not
 repair — and refuses both from `loadModulePresence`, before the registry is read.
@@ -888,8 +889,7 @@ a platform whose `settings` was absent did not degrade, it exited, saying:
 
 The wrong module, and no remedy. It had never been seen because on any database
 where the platform booted once the grandfather write has already happened and the
-hook finds nothing to do; only a genuinely first boot reaches the port
-(issue #258).
+hook finds nothing to do; only a genuinely first boot reaches the port.
 
 The owner ruled that `settings` is too important to be absent from a deployment,
 so the answer is to make the absence unreachable rather than to make `invoices`
@@ -899,7 +899,7 @@ a module the composition requires is missing:
 - the required set is `requiredModulesFrom(manifests)`, derived by each root from
   the manifests it composes and handed to the composer as data — the composer is
   given three fields per module and may not read a manifest. There is no list
-  anywhere, so withdrawing a lock changes this refusal in the same run (D-100);
+  anywhere, so withdrawing a lock changes this refusal in the same run;
 - **"required to be installed" and "cannot be switched off" are the same set, by
   derivation and by decision.** The manifest needs no second field: an author who
   wrote *"the platform cannot run without this"* has answered both questions with
@@ -912,7 +912,7 @@ a module the composition requires is missing:
   module registers, so a manifest index and a composed list that disagree both
   look correct to it.
 
-Three refusals now rest on one manifest declaration, and D-101's closing rule
+Three refusals now rest on one manifest declaration, and a closing rule
 keeps them three — *"they share a declaration and share nothing else: not a call
 site, not an error type, not a message"*. `assertDeactivatable` refuses a
 **transition an operator asked for** and answers it with an HTTP envelope;
@@ -922,7 +922,7 @@ from the manifests, before the database is touched;
 phase without a module it requires**, from what was actually registered and what
 presence actually says.
 
-The one absence it cannot see is the one D-101 names: a module that is not
+The one absence it cannot see is this: a module that is not
 shipped at all takes its manifest with it, so *"was it locked?"* has no answer at
 this seam. That case stays with `assertLockedModulesPresent`, which asks it from
 the declarations of the modules that stayed.
@@ -942,11 +942,11 @@ A module subscribing to `sales_channels.identity_changed` ahead of it runs its
 handler against the pre-write value.
 
 **The settings cache used to be the other half of that sentence, and is not any
-more (issue #45).** It is worth reading why, because the same repair is
+more.** It is worth reading why, because the same repair is
 available to the remaining one. Composing the invalidator first was a working
 arrangement resting on two accidents. First, the drop reached
 `SharedDropMarks.begin` synchronously, so it was in time only while it was
-handler *zero* — and since D-45 all 65 modules register in one pass whose order
+handler *zero* — and all 65 modules now register in one pass whose order
 is meaningless by design, so nothing preserved that position and nothing would
 have reported it moving. The two-pass era had already recorded the symptom, the
 first time `meta_ads` and `linkedin_ads` were moved ahead of it. Second, and
@@ -969,8 +969,8 @@ The sales-channel cache still subscribes, so the ordering rule above still binds
 this root. Draining it the same way is its own change.
 
 Every module subscription in the tree goes through `ctx.subscribe`, and that is
-now enforced rather than asked for. Until issue #107 a module could subscribe
-with a bare `eventBus.on` from a plugin body: the invalidator ordering above
+now enforced rather than asked for. A module used to be able to subscribe with
+a bare `eventBus.on` from a plugin body: the invalidator ordering above
 still protected such a handler, but the module's effective state did not, because
 only `subscribeForModule` consults it. Routes and workers each had a seam check
 and subscriptions had none, so twenty-two of them accumulated across nine modules
@@ -1003,29 +1003,29 @@ never share one silent no-op. Where the timer *is* the loop, as in `search`'s
 self-rescheduling reindex tick, the off branch re-arms and skips the work;
 returning without re-arming would stop the scheduler for the life of the process.
 
-`pnpm --filter backend run check:entry-presence` is the ratchet (issues #126 and
-#146 — it was `check:timer-presence` until the population stopped being timers),
-and what it sees is narrower than the rule: a `setInterval`, a `setTimeout` whose
+`pnpm --filter backend run check:entry-presence` is the ratchet — it was
+`check:timer-presence` until the population stopped being timers — and what it
+sees is narrower than the rule: a `setInterval`, a `setTimeout` whose
 callback re-arms a timer or calls back into the function that armed it, a
 `process.on` lifecycle handler, and a `ctx.onBoot` hook — in a module's own
 sources. A one-shot deadline inside an operation that already has a caller is out
 of scope.
 The first two shapes live in `backend/scripts/lib/repeating-timers.ts` and are
-read by `check-entry-scope.ts` as well (issue #128). That check classified its
-interval entry points by grepping for `setInterval(`, so `search`'s reindex loop
-was outside the population it counted and the FR-020 gap there stayed invisible
-behind a number that never moved. Two detectors for one shape is how they drift;
+read by `check-entry-scope.ts` as well. That check classified its interval entry
+points by grepping for `setInterval(`, so `search`'s reindex loop was outside the
+population it counted and the gap there stayed invisible behind a number that
+never moved. Two detectors for one shape is how they drift;
 the rules stay separate — one asks whether the callback decides presence, the
 other whether the site opens a scope — but the recognizer is one.
 
 #### A scope is answered per site, because a file-level answer is a disjunction
 
-`check-entry-scope.ts` classified **files** until issue #237, and a file reported
+`check-entry-scope.ts` used to classify **files**, and a file reported
 `scoped` the moment *one* of its entry points was right. That is not a
 theoretical weakness: `kernel/lifecycle/registry-cache.ts` refreshed
 `module_registrations` and `settings` from a Redis pub/sub handler with no scope
 at all, and the check called the file scoped off a correctly wrapped
-`setInterval` 130 lines below it (issue #235). Six files in this tree carry more
+`setInterval` 130 lines below it. Six files in this tree carry more
 than one entry point, which is exactly where a disjunction can hide one.
 
 So the population is **sites**. Six classes: a CLI script and a declared program
@@ -1055,8 +1055,8 @@ may cover two sites that share all three (`index.ts` registers `SIGINT` and
 is *right* to run unscoped, with what would falsify it. The three cache-and-connection
 handlers in it are the worked example — a pub/sub handler that only drops a cached
 `Map` needs no scope because the refill happens on the next caller's stack, and
-the entry says so as a falsifier: **the day it reloads instead of dropping, it is
-issue #235 again**.
+the entry says so as a falsifier: **the day it reloads instead of dropping, the
+defect is back**.
 
 `TIMERS_WITHOUT_PRESENCE` and `BOOT_HOOKS_WITHOUT_PRESENCE` are two-way like the
 ledgers above but, unlike them, are not expected to empty: an entry says why a
@@ -1100,7 +1100,7 @@ the referenced asset still cannot be deleted.
 A module whose manifest declares `activation.nonDeactivatable` is out of the
 boot-hook population — there is no state in which its hooks run while it is
 absent. That derivation lives in `backend/scripts/lib/switchable-modules.ts` and
-is shared with `check-port-catches`' `OWNER LOCKED` (D-63), so an owner who
+is shared with `check-port-catches`' `OWNER LOCKED`, so an owner who
 withdraws a lock re-reds both checks on the same run, with no ledger to edit.
 
 ### A cache over presence compares the generation, not the notification
@@ -1110,12 +1110,13 @@ still a PostgreSQL round-trip away: `refreshFromDb` is what installs the new
 maps, and it is `async`. A consumer that memoises anything derived from presence
 and drops that memo **in a subscriber** therefore rebuilds from the presence
 *before* the change and then keeps the result until the next message — which may
-be never. `admin_actions` did exactly that (issue #225): a palette request landing
+be never. `admin_actions` did exactly that: a palette request landing
 inside the window cached a switched-off module's actions permanently, and the
 defect was independent of which of the two `on('message')` handlers had been
 registered first, because the window is opened by the refresh being asynchronous
-rather than by the order of the listeners. It is the same family as issues #33,
-#45 and #213 — an invalidation whose correctness is a function of dispatch order.
+rather than by the order of the listeners. It is the same family as the cache
+invalidations above — an invalidation whose correctness is a function of
+dispatch order.
 
 The kernel's answer is a **pull**, `effectiveState.presenceVersion()`: a counter
 the registry cache moves when a completed load installs presence whose content
@@ -1176,8 +1177,8 @@ failing a build. Write each entry's reason as a statement about the name.
 ## Install-time work: the one seam is `manifest.ts`
 
 `ctx.onBoot` is the only lifecycle hook a `ModuleContext` carries. There is no
-`ctx.onInstall` and no `ctx.onUninstall`: they existed through feature 072, the
-composition sink collected them, and nothing ever ran them — deleted by D-46.
+`ctx.onInstall` and no `ctx.onUninstall`: they once existed, the composition
+sink collected them, and nothing ever ran them, so they were deleted.
 The reason is structural rather than tidiness. The kernel composes a **running
 process**; the lifecycle orchestrator manages a **deployment's inventory**, and
 only the first of the two has a container. `module:install` builds a static
@@ -1230,7 +1231,7 @@ no rows. A hard uninstall means the schema goes too. Destructive cleanup lives
 behind `if (!ctx.hard) return;`.
 
 **5. Neither hook fires on activation or deactivation, and none may be added
-there.** That is the operator axis of Constitution XVII — `module:enable`,
+there.** That is the operator axis of module presence — `module:enable`,
 `module:disable` and the `/platform/modules` activation Setting all leave both
 hooks untouched. Off is reversible and drops nothing; uninstall is not and does.
 
@@ -1296,11 +1297,11 @@ with *"is not a function"*.
 no route to gate, no worker to wrap and no port resolution to hang a transient
 gate on, so the **declaration** is the seam:
 the platform's own `cli/module-commands.ts` — `@endora-commerce/platform/cli`,
-reached by the application through a re-export shim at `src/cli/module-commands.ts`
-(`specs/110-instance-repository/` T117) — calls `requireModuleEnabled` for the module that
+reached by the application through a re-export shim at
+`src/cli/module-commands.ts` — calls `requireModuleEnabled` for the module that
 declared the command — first, outside every `try`, before it asks for a context.
-A module author writes no presence check and cannot forget one, which is what
-Constitution XVII item 3 says a gate is for. It is asked for the declaring
+A module author writes no presence check and cannot forget one, which is what a
+gate is for. It is asked for the declaring
 module's id and never for an owner's: that answer belongs to the owner's
 `providePort` gate, and asking it twice is how the two come to disagree.
 
@@ -1309,7 +1310,7 @@ questions about the *declaration*, so the host reads
 `resolvedManifestEntries()` — manifests only, no database — and answers. That is
 why `help` is a data property on the declaration rather than something the body
 prints: `audit_logs read`'s credential is host access, not a working connection
-string (D-102), so it has to be able to say what it does before it can do it.
+string, so it has to be able to say what it does before it can do it.
 
 **5. The five `module:*` commands are a different family and must not convert.**
 `install`, `uninstall`, `enable`, `disable` and `status` operate **on** the
@@ -1333,13 +1334,13 @@ registration, and this process never builds a server.
 
 | Script | What it refuses |
 | --- | --- |
-| `check-kernel-boundary.ts` | an ORM relation from the kernel into a module, or from a module into another module; **and** any import specifier under `src/kernel/**` resolving into `src/modules/` or `src/apps/` — every shape, `import type` included. Carries `KERNEL_MODULE_IMPORTS_TO_DRAIN`, a two-way ratchet holding the one edge D-37 A1 escalated rather than fixed |
+| `check-kernel-boundary.ts` | an ORM relation from the kernel into a module, or from a module into another module; **and** any import specifier under `src/kernel/**` resolving into `src/modules/` or `src/apps/` — every shape, `import type` included. Carries `KERNEL_MODULE_IMPORTS_TO_DRAIN`, a two-way ratchet holding the one edge that was escalated rather than fixed |
 | `check-port-dependencies.ts` | a resolved name nobody owns; an owner not in the resolver's manifest dependencies; a singleton capturing a gated port — **including one the module provides itself**; a **gated port resolved from a `ctx.onBoot` hook or a `ctx.routes` body**; a root shadowing a module's port; a computed port name; **and an edge into a switchable module with no defined behaviour when that module is off** (the deactivation-consequence ledger above) |
-| `check-port-catches.ts` | a `catch` around a gated-port call that does not let `ModuleDisabledError` past — unconditional re-throw, `rethrowIfModuleDisabled`, naming the error, or a delegate that re-throws it. Follows the port through a holder and through a root contribution (issues #133/#113). Carries `PORT_CATCHES_TO_DRAIN`, a two-way ratchet, and derives `OWNER LOCKED` from the manifests for a site whose every gate has a `nonDeactivatable` owner (D-63) |
+| `check-port-catches.ts` | a `catch` around a gated-port call that does not let `ModuleDisabledError` past — unconditional re-throw, `rethrowIfModuleDisabled`, naming the error, or a delegate that re-throws it. Follows the port through a holder and through a root contribution. Carries `PORT_CATCHES_TO_DRAIN`, a two-way ratchet, and derives `OWNER LOCKED` from the manifests for a site whose every gate has a `nonDeactivatable` owner |
 | `check-container-imports.ts` | a module importing `awilix` directly instead of going through `ModuleContext` |
-| `check-entry-scope.ts` | a non-HTTP entry **site** that establishes no scope (T037). Six classes: a CLI script and a `src/` file `package.json` runs as a process of its own — both file-level, one site each, the file's own top-level execution — plus one site per `new Worker(...)`, per repeating timer, per `x.on('message', …)` and per `process.on/once(...)`. The timer class is the *shape*, not the constructor: it reads `lib/repeating-timers.ts`, shared with `check-entry-presence.ts`, so a `setTimeout` the callback re-arms counts (issue #128). The population's second source is not a shape at all: the shape classes were written from what the tree held when FR-020 landed, and `src/seeds/dev-catalog-seed.ts` — a top-level `main()` truncating and repopulating a dozen modules' tables — was none of them, so `unscoped=0` said nothing about it (issue #228). **The population is sites, not files, since issue #237** — see below. The line prints `sites=` and `files=` so a widening that moved no population size is visible as having moved nothing |
-| `check-channel-resolution.ts` | a raw `x-sales-channel` header read outside the resolver; a storefront surface re-resolving the request channel; a settings read whose channel argument can be a string that is not a channel uuid (D-42); a channel id invented by a default parameter or a `randomUUID()` fallback (D-48). Runs `--enforce` in CI |
-| `test/contract/kernel/harness-parity.test.ts` | drift between the two composition roots, as an explicit ledger — including `ROOT_MODULE_VALUE_IMPORTS` (T143c): every **value** import a root takes out of `src/modules/**`, keyed by owner, with what has to happen for it to drain, and "no root constructs a module-owned service" against a named allow-list |
+| `check-entry-scope.ts` | a non-HTTP entry **site** that establishes no scope. Six classes: a CLI script and a `src/` file `package.json` runs as a process of its own — both file-level, one site each, the file's own top-level execution — plus one site per `new Worker(...)`, per repeating timer, per `x.on('message', …)` and per `process.on/once(...)`. The timer class is the *shape*, not the constructor: it reads `lib/repeating-timers.ts`, shared with `check-entry-presence.ts`, so a `setTimeout` the callback re-arms counts. The population's second source is not a shape at all: the shape classes were written from what the tree held at the time, and `src/seeds/dev-catalog-seed.ts` — a top-level `main()` truncating and repopulating a dozen modules' tables — was none of them, so `unscoped=0` said nothing about it. **The population is sites, not files** — see below. The line prints `sites=` and `files=` so a widening that moved no population size is visible as having moved nothing |
+| `check-channel-resolution.ts` | a raw `x-sales-channel` header read outside the resolver; a storefront surface re-resolving the request channel; a settings read whose channel argument can be a string that is not a channel uuid; a channel id invented by a default parameter or a `randomUUID()` fallback. Runs `--enforce` in CI |
+| `test/contract/kernel/harness-parity.test.ts` | drift between the two composition roots, as an explicit ledger — including `ROOT_MODULE_VALUE_IMPORTS`: every **value** import a root takes out of `src/modules/**`, keyed by owner, with what has to happen for it to drain, and "no root constructs a module-owned service" against a named allow-list |
 
 That table is the kernel's own checks. The **whole** inventory — including
 `check-command-coverage.ts`, `check-subscribe-seam.ts`, `check-doc-snippets.ts`,
@@ -1350,7 +1351,7 @@ which fails when a `check-*` script exists without an entry, and when an entry
 names a script that does not. Read the next section before adding one.
 
 The check reads three resolution shapes, and the third took a second pass to get
-right (issue #90): a factory's cradle parameter (destructured or named), an
+right: a factory's cradle parameter (destructured or named), an
 inline `ctx.cradle<C>()`, and **either of those bound to a local first** —
 `const cradle = ctx.cradle<C>()` and `const cradle = (): C => ctx.cradle<C>()`.
 Fifteen modules used one of the two alias forms and every read through them was
@@ -1362,10 +1363,10 @@ when Awilix constructs the registration.
 The port check carries four allow-lists, all meant to drain rather than grow:
 `HOST_REGISTERED_PORTS` (a root registering on behalf of a module), then
 `WIRING_RESOLUTIONS_TO_DRAIN` — the gated ports still destructured
-in a `ctx.routes` body when D-39 taught the check to see the shape, **now
+in a `ctx.routes` body when the check learned to see the shape, **now
 empty** — `ALIAS_HIDDEN_RESOLUTIONS`, the reads the alias hid whose repair is
 a manifest decision with an operator-visible consequence rather than a one-liner,
-**also empty** since feature 074 gave `commerceModule`'s constructor accessors,
+**also empty** since `commerceModule` was given constructor accessors,
 and `REGISTRY_POLICIES_UNSTATED`, the ledger's policy debt. A **new** one fails
 the build.
 
@@ -1373,16 +1374,16 @@ Read the first list's size with its own history in mind. It was written as
 conversion residue and drained that way — every entry whose owner converted was
 deleted, and the check fails when one outlives its owner. **How many entries
 remain is not written here**: this paragraph said *"28"* and named four bridges,
-three of which `specs/110-instance-repository/` T118c has since retired, so it
-was a count of a derived fact and a list of a moving population in one sentence
-(D-100). `HOST_REGISTERED_PORTS` in `backend/scripts/check-port-dependencies.ts`
+three of which have since been retired, so it was a count of a derived fact and a
+list of a moving population in one sentence.
+`HOST_REGISTERED_PORTS` in `backend/scripts/check-port-dependencies.ts`
 answers both. Two shapes account for most of what is left — *who is asking*
 (`customerContextResolver`, `cartActorResolver`, `adminAuditActorResolver` and
 the rest of the actor family, where production reads `request.actor` and the
 harness `request.testActor`) and *does this composition run that consumer*
 (`pwaRunWorkers`, `searchRunWorkers`, `webhooksRunWorkers`). The third shape —
 *a bridge a root assembles across boundaries a module must not reach through* —
-is what T118c is draining, one owner at a time, into ports the owner publishes.
+is being drained, one owner at a time, into ports the owner publishes.
 
 Two ways an entry here rots without failing the build, and both are worth
 knowing before you trust one. Several per-entry comments still say "still
@@ -1404,11 +1405,11 @@ resolving module's manifest, as `acknowledgedDependencies` — `organizations`
 resolving `addressService` is the worked example, since `addresses` declares
 `organizations` and the tenancy root must install first. It sits in the manifest
 rather than here because the lifecycle's flip-time dependency refusal reads the
-same declaration (feature 073, Amendment A1): while the edges lived only in this
+same declaration: while the edges lived only in this
 script, an operator could switch the owner of an acknowledged port off underneath
 a live resolution and nothing refused the flip. The example that found it was
-`catalog` resolving `price_lists:pricingService`; feature 074 has since made
-`price_lists` core, so that particular flip is closed by the owner's own
+`catalog` resolving `price_lists:pricingService`; `price_lists` has since become
+core, so that particular flip is closed by the owner's own
 declaration — but the mechanism is not about which modules happen to be core,
 and the edge is still declared where both readers can see it.
 
@@ -1440,9 +1441,9 @@ fixture" is not enough on its own, and the counter-example was the guard itself:
 the inventory's entry for `check-entry-scope` handed `violationsOf` a
 **pre-classified record**, so it proved the last function in the chain while the
 classifier — which was the broken part — never ran. That classifier grepped for
-`setInterval(`, could not see a self-rescheduling `setTimeout`, and a live
-FR-020 gap sat behind it for as long as the proof read green (issues #128,
-#130). **A fixture that enters below the defect cannot catch it.** So the proof
+`setInterval(`, could not see a self-rescheduling `setTimeout`, and a live gap
+sat behind it for as long as the proof read green. **A fixture that enters below
+the defect cannot catch it.** So the proof
 starts from what the check reads in a real run — source text, a file map, an
 injected reader, a fixture tree on disk — and every stage the check owns,
 population filter and classifier included, runs on the way to the assertion.
@@ -1474,8 +1475,8 @@ orders. Block-comments-first, a `//` line ending in a route glob opens a block
 comment that runs to the next real terminator: `harness-parity.test.ts` lost
 **1135 of the harness's 2767 lines** that way, and `runBootHooks(`,
 `errorEnvelope` and `resolvePreferredLanguage` were invisible to every
-`not.toContain` assertion in the file — green because the text was gone (issue
-#234). Line-comments-first opens the symmetric hole: a `//` inside a block
+`not.toContain` assertion in the file — green because the text was gone.
+Line-comments-first opens the symmetric hole: a `//` inside a block
 comment takes that block's own terminator with it and the opener runs on. And in
 either order a comment token inside a **string literal** — `'/*'` in
 `assets_library`'s wildcard-MIME test, `'image/*, */*;q=0.5'` in `pim_ergonode`'s
@@ -1488,7 +1489,7 @@ result is still a line number in the source. Where the consumer wants more than
 comments removed, read the nodes outright — `check-diacritic-folds` does,
 precisely because four files quote the wrong one-liner on purpose and a
 text-level implementation would report the documentation written to prevent the
-defect, and `check-entry-scope` does since issue #237: it carried the fourth copy
+defect, and `check-entry-scope` does too: it carried the fourth copy
 of that regex pair, and its per-site rewrite asks the syntax tree every question
 it used to ask the text, so the copy is gone rather than converted. Its remaining
 text pass is a **pre-filter** that decides which 54 of 1458 files reach the
@@ -1510,12 +1511,12 @@ just the empty one.** Exit 2 answers "the input was empty". It does not answer
 "the input was 7% of itself", which is the case that actually happens: 1364 of
 the 1469 `.ts` files under `backend/src` live in `src/modules`, so moving that
 tree leaves eight checks reading the other 105 files, finding nothing wrong in
-them, and printing `violations=0` (issue #215). The same shape reached seven
-members — a population definition that excluded a live entry point (#228), a
-file that hid a site inside it (#235, #237), a spread that bypassed excess
-property checking (#238), a comment stripper that ate 41% of the file before
-matching (#241), and a population defined by the presence of the very thing
-being checked, so its absence was undetectable (#244). Every one of them was a
+them, and printing `violations=0`. The same shape reached seven
+members — a population definition that excluded a live entry point, a
+file that hid a site inside it, a spread that bypassed excess
+property checking, a comment stripper that ate 41% of the file before
+matching, and a population defined by the presence of the very thing
+being checked, so its absence was undetectable. Every one of them was a
 check whose output said what it found and never said what it read. So each
 check prints one line in one grammar, from
 `backend/scripts/lib/read-size.ts` or its shell twin `scripts/lib/read-size.sh`:
@@ -1527,8 +1528,9 @@ check prints one line in one grammar, from
 
 `files` is what the walk **opened** — never the files a finding landed in, which
 moves with the findings and cannot answer the question; `sites` is the finer
-population where the check has one, because #235 and #237 are exactly the case
-where the file count stood still and the site count moved; and `sources` is the
+population where the check has one, because the site-level defects above are
+exactly the case where the file count stood still and the site count moved; and
+`sources` is the
 **independent** derivation the size is reconciled against, because a check that
 computes its own population and then reports it has said the same thing twice.
 For a module walk that derivation is the generated manifest index, through
@@ -1555,15 +1557,15 @@ the tree with its recorded value, its observed value, the signed delta and how
 much of the slack to its edge that move consumed. The header is a census —
 `3 drifted, 32 agree, 0 not measured, of 35 recorded` — because a report that
 says nothing when nothing drifted cannot be told from a report that did not run,
-which is issue #244's defect arriving inside the instrument built to answer
-#244; an entry the run could not measure is named as *not measured* and never
+which is the undisclosed-read defect arriving inside the instrument built to
+answer it; an entry the run could not measure is named as *not measured* and
+never
 counted as agreeing. It adds no assertion and weakens none. It exists because
 the two prescriptions in force — re-record in the merge request that moved it,
 and read the number off the merged tree — both presuppose the author knows
 *which* entries their change moved, and that mapping is the computation each
-check performs rather than something a checklist can enlarge. The grammar is
-normative in `specs/095-read-size-drift-report/contracts/drift-report-line.md`
-and the formatter is `backend/test/helpers/read-size-drift.ts`.
+check performs rather than something a checklist can enlarge. The formatter is
+`backend/test/helpers/read-size-drift.ts`, and its grammar is normative.
 
 **A ledger is two-way or it is an allow-list.** An unledgered violation fails,
 *and* an entry that no longer describes a violation fails. The second half is
@@ -1572,7 +1574,7 @@ the one that rots: `PORT_CATCHES_TO_DRAIN`, `BARE_SUBSCRIPTIONS_TO_DRAIN`,
 entries, and each entry carries a reason written as a statement about the thing
 it names — see "Writing an ordering rationale that does not rot" above for why
 "still hand-wired" is not one. **The escape hatch inside a check is a ledger
-too**: `command-coverage-ignore` had 185 entries and no sweep until issue #116,
+too**: `command-coverage-ignore` had 185 entries and no sweep for a long time,
 so an ignore written for a write that had since moved kept exempting a method
 that no longer needed exempting, and the next write added there inherited the
 exemption. When the standing debt is too large for a reason per entry — 274
@@ -1581,9 +1583,9 @@ the value becomes the count, which ratchets in both directions without asking
 anyone to write the same sentence 274 times.
 
 **A check in no CI job is worse than no check**, because its existence implies
-coverage. Two ran nowhere until issue #116, and one of them was cited in
-`AGENTS.md` as *the* gate on Principle VIII for user-facing strings — a claim the
-repository did not back. The reason a check is unwired is almost never "the
+coverage. Two ran nowhere for a long time, and one of them was cited as *the*
+gate on the English-only rule for user-facing strings — a claim the repository
+did not back. The reason a check is unwired is almost never "the
 property stopped mattering": it is standing debt (turn it into a ratchet) or an
 environment assumption that was never re-read (the pdfmake gate was said to need
 an installed `node_modules` the `quality` job would have to add, which that job
@@ -1600,7 +1602,7 @@ entry is where the shape's detail goes — the assertion on the message, the
 ledger, the exit code — while the inventory is what keeps a shape from
 disappearing when that file is edited. The inventory also pins which CI job runs
 each check and compares it against `.gitlab-ci.yml`, so a check that quietly
-leaves the job has to say so, and — since issue #244 — whether the check
+leaves the job has to say so, and whether the check
 discloses the size of what it read, with the numbers themselves in
 `backend/test/helpers/check-read-sizes.ts` and the two-way `READ_SIZE_DEFERRED`
 for anything that does not.
@@ -1611,11 +1613,11 @@ The section above is about a rule that cannot see. This one is the same defect i
 a **measurement**, and it is easier to miss, because the number a benchmark
 prints is never *wrong* — it is simply not about the thing anyone reads it for.
 `test/perf/catalog-list.bench.ts` seeded a synthetic corpus that belonged to no
-sales channel, so `filterByChannel` dropped every row (Principle XII fails
+sales channel, so `filterByChannel` dropped every row (channel scoping fails
 closed) and the page it timed contained zero summaries. It reported a p95 of
 7 ms and was green from the day channel scoping landed; with the corpus bound
 to the channel the same read measures 13–18 ms, all of the difference being the
-per-summary work that had never run (issue #140). **A budget met by measuring
+per-summary work that had never run. **A budget met by measuring
 nothing and a budget met by being fast look identical in CI.**
 
 So the question to ask a benchmark is the one asked of a check: *if the thing
