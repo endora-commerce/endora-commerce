@@ -9,8 +9,7 @@ notions attached to it**. Only one of them used to be visible anywhere, and that
 is why this page exists: a reader who sees `module: 'quote_requests'` on
 `rfqs:handle` reasonably concludes that `quote_requests` is the one thing that
 decides whether the code is there. That conclusion is wrong often enough to have
-caused a shipped defect, and D-173 in `specs/080-f4-real-scope/rulings.md` is the
-audit that found five of them.
+caused a shipped defect; an audit found five instances of it.
 
 ## 1. `module` — a display grouping
 
@@ -24,8 +23,8 @@ platform that tries it.
 ## 2. `owners` — whose presence keeps the code grantable
 
 `owners` is the **set** of modules that declare the code. `/admin-roles` offers
-the code while **any** owner is effectively present — both axes of Principle
-XVII, platform availability *and* operator activation.
+the code while **any** owner is effectively present — both axes of module
+presence, platform availability *and* operator activation.
 
 It is a set because a code can be shared. `integrations:manage` gates the API
 keys admin surface and the webhooks one, and both `api_keys` and `webhooks`
@@ -90,8 +89,8 @@ Three repairs, in the order to reach for them:
    `webhooks` already use.
 3. **Declare the owner in `dependencies`** — last, and usually wrong. A consumer
    that cannot be switched off, declaring an owner that can, makes the lifecycle
-   orchestrator refuse to switch that owner off at all: Principle XVII inverted,
-   decided by somebody else's manifest.
+   orchestrator refuse to switch that owner off at all: the operator-toggleable
+   rule inverted, decided by somebody else's manifest.
 
 ## Declared dependencies: `requires`
 
@@ -110,7 +109,7 @@ role editor shows the shortfall for the codes currently ticked, with a one-click
 add, and a role saved without them is saved.
 
 The example above is real. `RfqCreatePage` prefills an agreed price from a
-`price_lists` route that D-173 deliberately gated with `price_lists:read`, so a
+`price_lists` route deliberately gated with `price_lists:read`, so a
 role holding only `rfqs:handle` loses the prefill and falls back to manual entry.
 That sentence was written in a ruling, in a route comment and in a seed, and in
 nothing an operator could read.
@@ -137,8 +136,7 @@ and advising more is the direction that cannot strand anybody.
 
 ## Adding a permission
 
-The full checklist is in `AGENTS.md` § *Admin permissions*. In short: declare the
-code in your own module's `manifest.ts`, label it in your own module's
+Declare the code in your own module's `manifest.ts`, label it in your own module's
 `i18n/en.json` and `i18n/pl.json` under `adminRoles.permission.<code>`, enforce it
 with a `requireAdmin('…')` literal that matches exactly, and run
 

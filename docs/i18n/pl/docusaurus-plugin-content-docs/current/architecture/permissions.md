@@ -9,8 +9,7 @@ pojęcia**. Tylko jedno z nich kiedyś było widoczne gdziekolwiek, i dlatego ta
 istnieje: czytelnik, który widzi `module: 'quote_requests'` na
 `rfqs:handle`, słusznie wnioskuje, że `quote_requests` jest jedyną rzeczą decydującą,
 czy kod tam jest. Ten wniosek jest wystarczająco często błędny, by wywołać
-wysłany defekt, a D-173 w `specs/080-f4-real-scope/rulings.md` to audyt,
-który znalazł pięć takich przypadków.
+wysłany defekt; audyt znalazł pięć takich przypadków.
 
 ## 1. `module` — grupowanie do wyświetlania
 
@@ -24,8 +23,8 @@ platformy, która to próbuje.
 ## 2. `owners` — czyja obecność utrzymuje kod nadającym do grantu
 
 `owners` to **zbiór** modułów deklarujących kod. `/admin-roles` oferuje
-kod, dopóki **którykolwiek** właściciel jest skutecznie obecny — obie osie Zasady
-XVII, dostępność platformy *i* aktywacja operatora.
+kod, dopóki **którykolwiek** właściciel jest skutecznie obecny — obie osie obecności
+modułu, dostępność platformy *i* aktywacja operatora.
 
 To zbiór, bo kod może być współdzielony. `integrations:manage` bramkuje powierzchnię admin
 kluczy API i webhooks, a oba `api_keys` i `webhooks`
@@ -90,7 +89,8 @@ Trzy naprawy, w kolejności sięgania:
    `webhooks` już używają.
 3. **Zadeklaruj właściciela w `dependencies`** — ostatnie i zwykle błędne. Konsument,
    którego nie da się wyłączyć, deklarując właściciela, którego da się wyłączyć, sprawia, że
-   orchestrator lifecycle odmawia wyłączenia tego właściciela w ogóle: Zasada XVII odwrócona,
+   orchestrator lifecycle odmawia wyłączenia tego właściciela w ogóle: reguła
+   przełączalności modułów odwrócona,
    zdecydowana cudzym manifestem.
 
 ## Zadeklarowane zależności: `requires`
@@ -110,7 +110,7 @@ edytor ról pokazuje brak dla aktualnie zaznaczonych kodów, z jednoklikowym
 dodaniem, a rola zapisana bez nich jest zapisana.
 
 Przykład powyżej jest prawdziwy. `RfqCreatePage` prefilla uzgodnioną cenę z trasy
-`price_lists`, którą D-173 celowo zabramkował przez `price_lists:read`, więc rola
+`price_lists`, celowo zabramkowanej przez `price_lists:read`, więc rola
 trzymająca tylko `rfqs:handle` traci prefill i wraca do ręcznego wpisu.
 To zdanie było napisane w rulingu, w komentarzu trasy i w seedzie, i w
 niczym, co operator mógł przeczytać.
@@ -136,8 +136,7 @@ a doradzanie więcej to kierunek, który nie może nikogo zostawić w pułapce.
 
 ## Dodawanie uprawnienia
 
-Pełna checklista jest w `AGENTS.md` § *Admin permissions*. W skrócie: zadeklaruj kod
-we własnym `manifest.ts` modułu, oetykietuj go we własnym
+Zadeklaruj kod we własnym `manifest.ts` modułu, oetykietuj go we własnym
 `i18n/en.json` i `i18n/pl.json` modułu pod `adminRoles.permission.<code>`, egzekwuj go
 literałem `requireAdmin('…')` dokładnie pasującym, i uruchom
 

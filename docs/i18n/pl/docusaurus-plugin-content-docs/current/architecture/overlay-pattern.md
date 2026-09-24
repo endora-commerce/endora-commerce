@@ -7,7 +7,7 @@ title: Wzorzec overlay (dostosowanie per deployment)
 Platforma to produkt **multi-deployment** — jeden codebase, wiele instalacji
 klientów. Dostosowanie per deployment idzie przez **warstwę overlay per deployment**
 rozwiązywaną deterministycznie w czasie buildu/kompozycji, nigdy przez edycję plików
-core ani fork (Zasada XV Konstytucji, feature `057`). Core pozostaje niezależny od
+core ani fork. Core pozostaje niezależny od
 deploymentu, a build bare-core działa bez zmian.
 
 ## Jak to działa
@@ -53,7 +53,7 @@ by ją przyjmował.
 |------|------|
 | Zmienić, co robi serwis core | `ctx.di.decorate('<name>', (inner) => …)` z własnego modułu overlay deploymentu — patrz *Nadpisania serwisów to dekoracje* poniżej |
 | Dodać capability | moduł overlay tylko dla klienta pod `backend/src/apps/<deployment>/modules/<id>/`, wysyłający `backend.ts` i `manifest.ts` |
-| Uruchomić przed lub po endpoincie innego modułu; wetować go; przepisać odpowiedź | `ctx.interceptors` (feature `060`) |
+| Uruchomić przed lub po endpoincie innego modułu; wetować go; przepisać odpowiedź | `ctx.interceptors` |
 | Zmienić zachowanie, które właściciel przewidział | port strategii, który właściciel publikuje, rejestrowany za `ctx.di.providePort` i czytany przez `lazyPort` |
 | Zmienić konfigurację | Setting zadeklarowany w manifeście i `divergence.ts`, żeby pominąć moduł |
 | Dodać tabele specyficzne dla klienta | z **modułu core**, czytane z overlay przez port tego modułu — moduł overlay nie wnosi schematu, patrz poniżej |
@@ -73,8 +73,7 @@ kolejność wykonania rejestru migracji ma sens „tylko nad stałym zbiorem”,
 zmieniający się per deployment nie ma jednej poprawnej kolejności do commitowania.
 Ten argument zmierzono i jest fałszywy: dodanie migracji modułu-liścia zostawia
 względną kolejność każdej istniejącej migracji dokładnie bez zmian, bo liść wnosi
-krawędzie zależności tylko ze siebie. Wycofano (orzeczenie D-106,
-`specs/080-f4-real-scope/README.md` §2); nie powtarzaj go.
+krawędzie zależności tylko ze siebie. Wycofano; nie powtarzaj go.
 
 Prawdziwy powód jest mniejszy i trzyma niezależnie od tego: **overlay żyje w tym
 samym repozytorium i tym samym buildzie co core**, więc remedium jest zawsze dostępne
@@ -86,7 +85,7 @@ capability, a to nie jest warte swojej wagi.
 
 **Pakiet rozszerzenia to odwrotny przypadek.** Autor pakietu third-party nie ma
 modułu core, z którego mógłby wysłać tabelę, więc ta sama reguła byłaby zakazem
-całego programu pakietów rozszerzeń, a każda jego rodzina utrwala stan. D-106
+całego programu pakietów rozszerzeń, a każda jego rodzina utrwala stan. Reguła
 dlatego pozwala pakietowi własne encje i migracje. Ten mechanizm nie jest jeszcze
 zbudowany — dziś jedyny schemat, który wykonuje działająca platforma, to core — więc
 nic na tej stronie nie zmienia się dla deploymentu.
@@ -128,12 +127,12 @@ i eksportujący `decorate(inner)`. Jeśli czytasz drzewo klienta, które nadal m
 albo dokument, który nadal go opisuje, oto dlaczego zniknął i czemu nie warto go
 wynajdywać na nowo.
 
-Istniał, bo feature 072 poprzedzał orzeczenie D-103. Moduł overlay był wtedy
-`plugin.ts` nad zamrożonym kontekstem siedmiu pól: nie mógł sięgnąć do kontenera,
-więc nie mógł niczego dekorować, a deployment chcący owijać serwis nie miał dokąd
-sięgnąć. D-103 uczynił moduł overlay zwykłym uczestnikiem kompozycji z pełnym
-`ModuleContext` — `ctx.di.decorate` włącznie — co zostawiło szew plikowy bez własnej
-capability.
+Istniał, bo warstwa overlay poprzedzała zmianę, która uczyniła moduł overlay zwykłym
+uczestnikiem kompozycji. Moduł overlay był wtedy `plugin.ts` nad zamrożonym kontekstem
+siedmiu pól: nie mógł sięgnąć do kontenera, więc nie mógł niczego dekorować, a
+deployment chcący owijać serwis nie miał dokąd sięgnąć. Ta zmiana dała modułowi overlay
+pełny `ModuleContext` — `ctx.di.decorate` włącznie — co zostawiło szew plikowy bez
+własnej capability.
 
 Był też, jak wysłany, udokumentowaną capability, która cicho nic nie robiła dla
 każdej rejestracji poza jedną. Loader czytał *każdy* plik w tym katalogu i kluczował
@@ -144,13 +143,12 @@ core per rejestrację — dokładnie sprzężenia, które wzorzec overlay ma usu
 
 **Jedna rzecz naprawdę została oddana.** Plik importował `*.interface.ts` właściciela,
 więc `tsc` trzymał wrapper przy tym interfejsie i odmawiał w chwili zmiany interfejsu
-— bramka kontraktu feature 057. `ctx.di.decorate<T>` asertuje `T` w miejscu wywołania
+— pierwotna bramka kontraktu. `ctx.di.decorate<T>` asertuje `T` w miejscu wywołania
 i nie porównuje go z niczym, więc owinięty kształt jest deklarowany **strukturalnie**,
 a dryf interfejsu wychodzi w runtime zamiast przy buildzie. Gdy deployment chce bramkę
 z powrotem, droga to opublikowanie interfejsu przez moduł właściciela na subpath `./ports`
 pakietu i nazwanie go tam przez overlay: reach type-only `./ports` nie jest reach
-przez granicę modułu (D-171), a zmiana kształtu opublikowanego typu kosztuje major
-version.
+przez granicę modułu, a zmiana kształtu opublikowanego typu kosztuje major version.
 
 ### Dekorowanie przez właścicieli to wyłącznie sprawa deploymentu
 
@@ -171,7 +169,7 @@ wpis `overlay: true` z roota, pod którym moduł został odkryty,
 `backend/src/apps/<deployment>/modules/`, więc core nie ma jak tego asertować, a
 `overlay:check` failuje na ręcznie edytowanym artefakcie.
 
-**Wyjątek kończy się na zainstalowanym pakiecie rozszerzenia** (D-176). Overlay może
+**Wyjątek kończy się na zainstalowanym pakiecie rozszerzenia.** Overlay może
 owijać wszystko, co rejestruje core albo inny z własnych modułów deploymentu, i nie
 może owijać rejestracji należącej do pakietu zainstalowanego z `node_modules` —
 `PackageDecorationNotOfferedError`, odmowa przy kompozycji, nazywając overlay, pakiet
@@ -185,13 +183,13 @@ przez kogoś, kogo deployment nie zatrudnia. Komunikat mówi *not offered yet* z
 `./ports` jako naturalny dom, gdzie zmiana kształtu kosztuje major version bump. Do
 tego czasu poproś autora pakietu o port, zdarzenie albo użyj interceptora wokół jego tras.
 
-Dekoracje są **stosowane po tym, jak każdy moduł się zarejestrował**, nie przy wywołaniu
-(D-176). Z której tablicy moduł był skomponowany, nie ma znaczenia dla tego, co może
+Dekoracje są **stosowane po tym, jak każdy moduł się zarejestrował**, nie przy
+wywołaniu. Z której tablicy moduł był skomponowany, nie ma znaczenia dla tego, co może
 owijać, a dekoracja nazwy, której nic nie rejestruje, oznacza dokładnie to, a nie „jeszcze
 nie”. Kolejność w drain to kolejność wywołań, dlatego jeden moduł dekorujący nazwę dwa
 razy jest jednoznaczny, a dwa moduły dekorujące ją — nie.
 
-Przed feature 072 nadpisanie serwisu shadowowało
+Wcześniejsze nadpisanie serwisu shadowowało
 `modules/<id>/services/<name>.ts` i zastępowało klasę core. To też wycofano,
 całkowicie: plik `services/` pod modułem overlay to teraz po prostu jeden z własnych
 plików modułu, bo moduł overlay posiada wszystko, co wysyła.
@@ -208,7 +206,7 @@ wynajdywać na nowo.
 **Nic z tego, co działało, nie zostało oddane**, i to zmierzone, nie asertowane.
 `git log -S` po całej historii `backend/src/overlay/` znajduje dokładnie jeden loader
 shadowowanego pliku kiedykolwiek napisany — `loadOverlayServiceClasses`, dla
-`service` — a feature 072 usunął go celowo, zastępując `ctx.di.decorate` z powodu
+`service` — a usunięto go celowo, zastępując `ctx.di.decorate` z powodu
 podanego w sekcji powyżej. `route` i `config` nigdy nie miały loadera: output `overrides`
 resolvera miał dokładnie jednego konsumenta w historii drzewa, generator raportu
 divergence (wtedy generator override-manifest), który serializował go do artefaktu
@@ -235,15 +233,12 @@ pakietu nie jest spójną operacją. Platforma komponuje moduł przez
 sprawienie, by jeden plik overlay zastąpił jeden z nich, oznaczałoby przechwycenie
 rozwiązywania Node dla jednego pliku jednego pakietu — ponowne wprowadzenie *źródła*
 tego pakietu do grafu, który już trzyma jego build output. Dwie reguły odmawiają kształtów,
-które by to wymagały: D-164, dlatego pakiet modułu w ogóle wysyła `dist`, i
+które by to wymagały: ta, dlatego pakiet modułu w ogóle wysyła `dist`, i
 `check:singleton-identity`, którego cały temat to to, że dwukrotna ewaluacja jednego
 pakietu duplikuje wartości module-scope **w ciszy**. Zrobienie tego na poziomie
 specifiera — wskazanie pakietu na kopię deploymentu — unika podwójnej ewaluacji i
 zastępuje cały moduł, co jest forkowaniem modułu zamiast nadpisywaniem jednego, a to
-jest to, przed czym istnieje Zasada XV.
-
-Orzeczenie to D-201, a analiza jest w
-`specs/103-overlay-shadowing-retirement/`.
+jest to, przed czym istnieje reguła nienaruszonego core.
 
 ## Jedna rzecz, na którą nie ma szwu
 
@@ -270,7 +265,7 @@ w ciszy — gdy:
   modułu w workspace, zainstalowany pakiet albo inny moduł overlay. Odmowa wymienia
   plik każdego roszczącego się.
 - **Schemat overlay** — klasa `@Entity()` albo migracja pod `backend/src/apps/`,
-  odmawiane przez `generate-composer.ts` (D-106).
+  odmawiane przez `generate-composer.ts`.
 - **Brak manifestu** — katalog modułu overlay bez `manifest.js`/`manifest.ts`.
   Odmowa nazywa oba kandydaty.
 - **Backend nierejestrowalny** — moduł overlay, którego `backend.js`/`backend.ts`
@@ -285,8 +280,8 @@ w ciszy — gdy:
 ## Straże nadal obowiązują
 
 Dekoracja owija *implementację*, nigdy szew straży: kod overlay działa pod tą samą
-izolacją tenantów (Zasada XI), scopingiem kanału sprzedaży (Zasada XII) i audytem
-Command Bus (Zasada XIII) co core. Moduły overlay to zwykli uczestnicy lifecycle i
+izolacją tenantów, scopingiem kanału sprzedaży i audytem Command Bus co core.
+Moduły overlay to zwykli uczestnicy lifecycle i
 muszą rejestrować uprawnienia oraz przejść check inventory uprawnień per deployment.
 
 ## Dodawanie overlay
@@ -316,10 +311,3 @@ pnpm --filter backend run overlay:check
 czegokolwiek z powyższego: stopień 3 nie jest dostępny dla deploymentu chcącego
 podstawić implementację, a ta strona to mówi, zamiast wysyłać do mechanizmu, który
 ci odmówi.
-
-Zobacz `specs/057-overlay-pattern-multideploy/` dla oryginalnego feature,
-`specs/107-override-report-and-ladder/contracts/divergence-report.md` dla bieżącego
-kontraktu raportu i `.../deployment-declaration.md` dla deklaracji. Oba zastępują
-`specs/103-overlay-shadowing-retirement/contracts/override-manifest-v2.md`
-§1–§2, które z kolei zastąpiły override-manifest feature 057 i kontrakty
-overlay-resolution.

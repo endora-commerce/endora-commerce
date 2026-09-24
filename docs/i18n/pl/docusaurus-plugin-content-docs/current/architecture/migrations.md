@@ -6,12 +6,12 @@ title: Migracje bazy danych (nazewnictwo, rejestr i kolejność)
 
 Migracje to **pliki lokalne dla modułu z nazwami w znaczniku czasu UTC**, zarejestrowane
 raz w jednym statycznym rejestrze i wykonywane **moduł po module, w kolejności
-topologicznej grafu zależności manifestów modułów** (feature `081`). Znacznik czasu
+topologicznej grafu zależności manifestów modułów**. Znacznik czasu
 porządkuje własne migracje modułu i nic poza tym. Nie ma repo-wide numeru migracji ani
 ręcznie utrzymywanej listy wykonania.
 
-Feature `065` porządkował po znaczniku czasu i *korygował* wynik grafem zależności w
-horyzoncie 45 dni. Feature `081` to odwrócił: graf jest kolejnością, a horyzont,
+Wcześniejszy schemat porządkował po znaczniku czasu i *korygował* wynik grafem zależności
+w horyzoncie 45 dni. Obecny to odwrócił: graf jest kolejnością, a horyzont,
 krawędzie korekcyjne i błąd `unresolvable-order` zniknęły. Powód: zbiór modułów
 przestał być ustalony w czasie buildu — zainstalowany pakiet npm wysyła własne encje
 i migracje, a jego autor nie zna historii hosta, więc reguła porządkująca po
@@ -54,8 +54,7 @@ nie dotykają tych samych linii.
 
 ## Konwencja nazewnictwa
 
-Jedyna autorytatywna wypowiedź jest w
-`specs/065-manifest-aware-migrations/contracts/naming-convention.md`. W skrócie:
+Konwencja wygląda tak:
 
 ```text
 <YYYYMMDDTHHmmss>_<SEGMENT>_<SLUG>.ts
@@ -63,7 +62,7 @@ Jedyna autorytatywna wypowiedź jest w
 
 | Część | Reguła |
 |------|------|
-| Znacznik czasu | UTC, stała szerokość (15 znaków), literalne `T` na indeksie 8. Bez `Z`, bez separatorów. Sortowalne leksykograficznie. **Unikalne w obrębie własnego modułu** — dwa moduły mogą legalnie dzielić ten sam stamp, bo po feature `081` stamp nie porządkuje niczego poza modułem, a dwóch autorów pakietów nie da się skoordynować. |
+| Znacznik czasu | UTC, stała szerokość (15 znaków), literalne `T` na indeksie 8. Bez `Z`, bez separatorów. Sortowalne leksykograficznie. **Unikalne w obrębie własnego modułu** — dwa moduły mogą legalnie dzielić ten sam stamp, bo stamp nie porządkuje niczego poza modułem, a dwóch autorów pakietów nie da się skoordynować. |
 | `<SEGMENT>` | Id modułu właściciela z odciętym wiodącym `_`; literalne `core` dla migracji cross-cutting w `backend/src/db/migrations/`. |
 | `<SLUG>` | `snake_case` (`[a-z0-9_]+`) opisujące zmianę. |
 
@@ -87,7 +86,7 @@ Normalizacja segmentu ma dokładnie dwa przypadki specjalne:
 | `backend/src/db/migrations/` | `core` | `'core'` |
 
 **Ogon nazwy klasy musi zaczynać się od segmentu modułu**, i to reguła już teraz, nie
-tylko konsekwencja wyprowadzania nazwy ze ścieżki (feature `081`). To, co czyni nazwy
+tylko konsekwencja wyprowadzania nazwy ze ścieżki. To, co czyni nazwy
 klas globalnie unikalnymi bez rejestru, namespace ani hasha: id modułów są unikalne
 platform-wide, więc `Migration<stamp>Orders…` nie może kolidować z migracją innego
 modułu. `orderMigrations()` odmawia naruszenia jako `unscoped-name` — jedyne miejsce,
@@ -308,8 +307,8 @@ Nie potrzebujesz wiedzy o historii hosta, co jest szczęśliwe, bo jej nie masz.
 ### `BASELINE_THROUGH` to fakt drzewa core i nie dotyczy ciebie
 
 Scaffolder core clampuje każdy nowy stamp core powyżej `BASELINE_THROUGH` (`20260801T000000`),
-a `AGENTS.md` tego repozytorium mówi autorom core, żeby nigdy nie scaffoldować migracji
-na lub przed nim. **Ta instrukcja nie jest do ciebie skierowana, a drzwi, przed którymi
+a własne konwencje tego repozytorium mówią autorom core, żeby nigdy nie scaffoldować
+migracji na lub przed nim. **Ta instrukcja nie jest do ciebie skierowana, a drzwi, przed którymi
 ostrzega, tam nie ma.** Członkostwo w baseline to **tożsamość**:
 
 ```
@@ -332,8 +331,7 @@ same tylko dopóki każdy moduł jest skompilowany w aplikacji. W chwili, gdy mo
 zainstalowanymi pakietami, jak w instancji, pierwsze odpowiada `false` dla każdego z nich:
 prefiks spada z 112 wpisów do 11, 181 z 182 pozycji się przesuwa, a sześć migracji kończy
 uporządkowanych przed migracją tworzącą dotykaną tabelę. Reguła tożsamości zamyka te
-same drzwi ciaśniej, bo nazwy nie może rościć się przybywający pakiet — patrz
-`specs/110-instance-repository/contracts/instance-migration-order.md`.
+same drzwi ciaśniej, bo nazwy nie może rościć się przybywający pakiet.
 
 Wybierz sensowny stamp i tak. Ale dla własnego łańcucha, nie dla hosta.
 
@@ -356,9 +354,8 @@ niczego w połowie zastosowanego:
 nazewnictwa w zainstalowanym pakiecie uniemożliwia start platformy zamiast wyłączenia
 pakietu, który go zrobił. Ta asymetria — *cykl* zadeklarowany przez pakiet jest złagodzony
 do ostrzeżenia dziesięć linii dalej, z podanego powodu, że cudzy manifest nie może
-zatrzymać migracji schematu sklepu — to znane otwarte pytanie, zapisane w
-`specs/deferred-defects.md`. Dopóki nie będzie odpowiedzi, traktuj błąd nazewnictwa
-jako awarię w cudzym sklepie.
+zatrzymać migracji schematu sklepu — to znane otwarte pytanie. Dopóki nie będzie
+odpowiedzi, traktuj błąd nazewnictwa jako awarię w cudzym sklepie.
 :::
 
 ### Co pakiet może, a czego nie może wysyłać
@@ -378,7 +375,7 @@ konkatenacja **dwóch bloków**.
 
 **1. Blok baseline — zamrożony historyczny prefiks.** Każdy wpis, którego nazwa klasy
 jest na liście, którą `@endora-commerce/platform` publikuje jako `BASELINE_MIGRATIONS`,
-emitowany w kolejności, którą ta lista trzyma. Ten blok jest sprzed feature `065`: był
+emitowany w kolejności, którą ta lista trzyma. Ten blok jest sprzed obecnego schematu: był
 pisany i stosowany w ręcznie utrzymywanej kolejności tablicy, której manifesty nie
 opisują — sprzeczają się z nią w 37 miejscach — więc emitowanie go inaczej produkuje
 kolejność, której świeża baza nie może zastosować. Jest zamknięty, nigdy nie rośnie
@@ -429,8 +426,8 @@ Zagrożenie, dla którego to istnieje: gałąź A dodaje migrację `catalog` w �
 dodaje migrację `orders` w poniedziałek, której klucz obcy celuje w kolumnę z gałęzi A.
 `orders` zależy tranzytywnie od `catalog`, więc cały blok `catalog` emituje się pierwszy
 i świeża baza stosuje się czysto — bez renumeracji i bez koordynacji między gałęziami.
-Pod feature `065` działało to tylko, gdy dwa stampy były w 45 dniach od siebie; teraz
-działa bezwarunkowo.
+Pod poprzednim schematem działało to tylko, gdy dwa stampy były w 45 dniach od siebie;
+teraz działa bezwarunkowo.
 
 ### Cykle są raportowane, nie rzucane
 
@@ -440,7 +437,7 @@ w całej składowej — reguła bloku baseline, stosowana lokalnie, i jedyna zde
 odpowiedź, gdy deklaracje nie niosą kolejności. Składowa wraca jako **diagnostyka**, i
 nic nie jest rzucane.
 
-To celowe. Pod feature `065` graf był korekcją, więc odmowa cyklu nic nie kosztowała.
+To celowe. Pod poprzednim schematem graf był korekcją, więc odmowa cyklu nic nie kosztowała.
 Teraz graf jest główną kolejnością, a manifest może przyjść z `node_modules`, więc throw
 oznaczałby *jeden cudzo źle zadeklarowany pakiet zatrzymuje migrację core schematu tego
 sklepu*. Trzech czytelników reaguje zamiast tego:
@@ -470,8 +467,8 @@ operator czyta przy prompt instalacji, to ta sama lista, którą wypisałby boot
 Migracja dodana później MOŻE zmienić względną kolejność dwóch migracji, które niektóre
 bazy **już zastosowały**. To nieszkodliwe dla tych baz: umzug liczy oczekujące jako
 `list.filter(name ∉ executed)`, więc zastosowana migracja jest odfiltrowana niezależnie
-od pozycji na liście. Zmierzone na prawdziwej bazie zbudowanej pod kolejnością feature
-`065`, a potem odczytanej z kolejnością feature `081`: **pending 0, executed
+od pozycji na liście. Zmierzone na prawdziwej bazie zbudowanej pod poprzednią kolejnością,
+a potem odczytanej z obecną: **pending 0, executed
 142, `up()` applied 0**. Świeże bazy są pokryte jobem CI backend, który tworzy pustą
 bazę i stosuje cały łańcuch w każdym pipeline.
 
@@ -490,9 +487,10 @@ kierunek zostawić:
 - **Reguła 2 — właściciel mostu.** Właściciel tabeli junction nigdy nie zależy od tego,
   co most łączy; moduł domenowy, który nie może działać bez mostu, deklaruje właściciela
   mostu. (`sales_channels` posiada `sales_channel_products`; `catalog`
-  deklaruje `sales_channels`, nie odwrotnie — zgodnie z Zasadą XII.)
-- **Reguła 3 — korzeń tenancy.** `organizations` to korzeń tenancy (Zasada XI) i
-  nigdy nie zależy od modułów należących do tenantów.
+  deklaruje `sales_channels`, nie odwrotnie — zgodnie ze scopingiem treści po kanałach
+  sprzedaży.)
+- **Reguła 3 — korzeń tenancy.** `organizations` to korzeń tenancy izolacji
+  wielodostępnej i nigdy nie zależy od modułów należących do tenantów.
 
 **Każda upuszczona krawędź musi być skomentowana w manifeście, który by ją deklarował**,
 nazywając klucze obce, które pokrywa, regułę, która ją upuszcza, i cykl, który stworzyłby,
@@ -579,7 +577,7 @@ Wszystkie rzucają w **czasie budowy konfiguracji** — tj. przy pierwszym impor
 | `migration "…" declares the unknown owning module "x"` | Całkowicie nowy moduł, którego manifestu nie ma w wygenerowanym indeksie. | `pnpm --filter backend run manifest-index:generate` |
 | `migration class "…" does not match the naming convention` | Plik pisany lub zmieniany ręcznie; klasa i nazwa pliku się nie zgadzają. | Wyprowadź ponownie nazwę klasy z nazwy pliku (patrz tabela powyżej) albo scaffolduj od nowa. |
 | Straż round-trip failuje nazywając plik/klasę | Migracja na dysku bez wpisu rejestru albo odwrotnie. | `pnpm --filter backend run composer:generate` i commit artefaktu. |
-| `db:fresh` failuje na kluczu obcym, który łańcuch powinien już stworzyć | Moduł referencjonujący nie deklaruje modułu właściciela referencjonowanej tabeli. | Dodaj go do `dependencies` w `manifest.ts` modułu referencjonującego albo przenieś constraint do migracji należącej do modułu właściciela tabeli referencjonującej. **Nie dotykaj znacznika** — po feature `081` stamp nie naprawia problemu kolejności cross-module, a `fk-dependency-drift.test.ts` i tak failuje build dla niezadeklarowanej krawędzi. |
+| `db:fresh` failuje na kluczu obcym, który łańcuch powinien już stworzyć | Moduł referencjonujący nie deklaruje modułu właściciela referencjonowanej tabeli. | Dodaj go do `dependencies` w `manifest.ts` modułu referencjonującego albo przenieś constraint do migracji należącej do modułu właściciela tabeli referencjonującej. **Nie dotykaj znacznika** — stamp nie naprawia problemu kolejności cross-module, a `fk-dependency-drift.test.ts` i tak failuje build dla niezadeklarowanej krawędzi. |
 
 Dwie rzeczy nigdy nie naprawiają niespodzianki kolejności: **przesunięcie linii w
 wygenerowanym rejestrze** (kolejność deklaracji nie jest kolejnością wykonania, a
@@ -595,11 +593,11 @@ pliku migracji ją zmienia**: przeniesienie
 wymusza segment `core`, a `Migration20260430T101450SettingsInit` staje się
 `Migration20260430T101450CoreSettingsInit`.
 
-Feature `065` wysłał zamrożoną mapę rename i asercję boot-time pinującą każdą
-pre-`065` nazwę klasy, żeby baza wdrożona pod starym schematem nie uruchomiła ponownie
-112 migracji. Feature `072` wycofał oba: nie ma wdrożonej bazy, a asercja czyniła
+Wcześniejszy schemat wysłał zamrożoną mapę rename i asercję boot-time pinującą każdą
+historyczną nazwę klasy, żeby baza wdrożona pod starym schematem nie uruchomiła ponownie
+112 migracji. Oba zostały później wycofane: nie ma wdrożonej bazy, a asercja czyniła
 legalną relokację niemożliwą. Został **znak wodny pozycji** `BASELINE_THROUGH`, który
-naprawia tylko *kolejność* bloku pre-`065`. Rename klasy wewnątrz niego to no-op dla
+naprawia tylko *kolejność* bloku historycznego. Rename klasy wewnątrz niego to no-op dla
 emitowanej kolejności **po regeneracji opublikowanej listy baseline** — blok jest
 wchodzony po nazwie, więc dopóki `composer:generate` nie uruchomisz, renamed klasa nie
 jest na liście, dołącza do otwartego bloku, a `instance-migration-order.test.ts`
@@ -619,7 +617,7 @@ migrację ponownie względem schematu, który już ją ma:
 Rename wysyła się więc ze skoordynowanym rebuildem **dev** bazy — każdy developer uruchamia
 `pnpm --filter backend run db:reset` w tym samym oknie co merge.
 
-Suite testów nie potrzebuje interwencji. Od issue #289 sklonowany szablon migracji,
+Suite testów nie potrzebuje interwencji. Sklonowany szablon migracji,
 z którego każde wywołanie startuje, nazywa się `<base>_tpl_<digest>`, a digest obejmuje
 uporządkowane nazwy klas migracji i treść każdego pliku migracji — więc renamed klasa to
 *inny* zestaw migracji, a następne wywołanie buduje własny szablon zamiast próbować
@@ -644,23 +642,9 @@ zarejestrowanej migracji, orchestrator loguje ostrzeżenie i nic nie cofa — ha
 polega wtedy na `uninstallHook` modułu.
 
 To czyni `moduleId` rejestru load-bearing poza kolejnością: **złóż migrację pod modułem,
-który posiada tabele, które pisze.** Dopóki feature `072` T020 migracje settings i
-sales-channel były nadal składane pod swoimi modułami, choć kernel posiada te tabele,
+który posiada tabele, które pisze.** Migracje settings i sales-channel były kiedyś
+składane pod swoimi modułami, choć kernel posiada te tabele,
 więc `modules:uninstall --hard settings` dropował `settings`, `setting_groups` i
 `setting_values`. `backend/test/unit/db/kernel-migration-ownership.test.ts`
 teraz failuje build, gdy migracja należąca do modułu pisze do tabeli należącej do kernela;
 oba zbiory są wyprowadzane (z drzewa encji i z SQL każdej migracji), nigdy wyliczane.
-
----
-
-Pełny design, kontrakty i uzasadnienie:
-
-- **`specs/081-per-module-migration-order/contracts/`** — `ordering-algorithm.md` (bieżąca
-  normatywna wypowiedź kolejności, zastępująca w całości tę z `065`) i
-  `migration-identity.md` (scoping nazw klas i unikalność stampów per moduł).
-- **`specs/065-manifest-aware-migrations/contracts/`** — `naming-convention.md` §1 i
-  §2 nadal są jedynymi rozpoznawaczami, których może używać jakiekolwiek narzędzie;
-  `contracts/fk-dependency-check.md` nadal opisuje walidator FK-drift.
-  `contracts/ordering-algorithm.md` tam jest **superseded**.
-- Zamrożona mapa rename i accessor `getMigrator`, które opisują kontrakty `065`, zostały
-  wycofane przez feature `072`; patrz `specs/072-module-kernel-di/MIGRATION-RESET.md`.

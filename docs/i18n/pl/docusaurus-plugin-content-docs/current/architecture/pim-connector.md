@@ -4,9 +4,9 @@ title: Wspólna warstwa łącznika PIM
 
 # Wspólna warstwa łącznika PIM (`pim_connector`)
 
-Feature `089`. Cienki współdzielony moduł, który trzyma **zachowanie potrzebne każdemu
+Cienki współdzielony moduł, który trzyma **zachowanie potrzebne każdemu
 przychodzącemu łącznikowi PIM**, bez importu transportu dostawcy. UnoPim (`pim_unopim`)
-używa go dziś; Ergonode jest starszy i **nie jest refaktoryzowany** w feature 089.
+używa go dziś; Ergonode jest starszy i **nie jest refaktoryzowany**.
 
 Ta strona jest dla inżynierów rozszerzających integracje PIM albo recenzujących, jak dwa
 łączniki współistnieją na jednej platformie. Transport UnoPim i pipeline importu
@@ -25,8 +25,8 @@ są udokumentowane w [Łącznik PIM UnoPim](./pim-unopim.md).
 to zostaje w każdym pakiecie łącznika.
 
 **I nie posiada kodu admin**, co jest korektą, a nie pominięciem.
-T080 umieścił współdzielone `PimRunStatusBadge` i `PimIssueList` pod
-`admin/src/modules/pim_connector/`, a Phase 4 feature 091 zmierzyła, że
+Współdzielone `PimRunStatusBadge` i `PimIssueList` kiedyś leżały pod
+`admin/src/modules/pim_connector/`, a późniejszy pomiar wykazał, że
 katalog miał jednego konsumenta: badge `pim_ergonode` wrócił do własnej
 implementacji opartej o kit, gdy moduł został spakowany, więc oba pliki przeniesiono
 do `packages/modules/pim_unopim/src/admin/components/` z ekranami, które
@@ -35,7 +35,7 @@ komponent admin potrzebuje *opublikowanego* domu — kit albo wspieranego subpat
 pakietu — i żaden jeszcze nie istnieje, bo jeden konsument nie kupuje jednego. Trzeci
 łącznik chcący tego chrome to moment, który by to kupił.
 
-## Wykluczanie wzajemne (FR-003)
+## Wykluczanie wzajemne
 
 Endora pozwala mieć **zainstalowanych** kilka pakietów łącznika PIM, ale operator
 może aktywować **co najwyżej jeden** naraz.
@@ -124,4 +124,3 @@ pnpm --filter backend exec vitest run test/unit/pim_connector test/contract/pim_
 - [Łącznik PIM UnoPim](./pim-unopim.md) — klient OAuth, bookmarki delta, webhook
 - [Łącznik PIM Ergonode](./pim-ergonode.md) — pierwszy spakowany łącznik
 - Przewodnik operatora: [Import z UnoPim](../modules/pim_unopim.md)
-- Artefakty feature: `specs/089-unopim-pim-sync/`

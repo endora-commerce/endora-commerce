@@ -6,12 +6,12 @@ title: Database Migrations (Naming, Registry & Ordering)
 
 Migrations are **module-local files with UTC timestamp names**, registered once in a
 single static registry, and executed **module by module, in a topological order of the
-module-manifest dependency graph** (feature `081`). A timestamp orders a module's own
+module-manifest dependency graph**. A timestamp orders a module's own
 migrations and nothing else. There is no repo-wide migration number, and no
 hand-maintained execution list.
 
-Feature `065` ordered by timestamp and *corrected* the result with the dependency
-graph inside a 45-day horizon. Feature `081` inverted that: the graph is the order, and
+An earlier scheme ordered by timestamp and *corrected* the result with the dependency
+graph inside a 45-day horizon. The current one inverted that: the graph is the order, and
 the horizon, the correction edges and the `unresolvable-order` failure are gone. The
 reason is that the set of modules stopped being fixed at build time — an installed npm
 package ships its own entities and migrations, and its author cannot know the host's
@@ -53,8 +53,7 @@ so their edits do not touch the same lines.
 
 ## Naming convention
 
-The single authoritative statement lives in
-`specs/065-manifest-aware-migrations/contracts/naming-convention.md`. In short:
+The convention is:
 
 ```text
 <YYYYMMDDTHHmmss>_<SEGMENT>_<SLUG>.ts
@@ -62,7 +61,7 @@ The single authoritative statement lives in
 
 | Part | Rule |
 |------|------|
-| Timestamp | UTC, fixed width (15 chars), literal `T` at index 8. No `Z`, no separators. Lexicographically sortable. **Unique within its own module** — two modules may legally share a stamp, because after feature `081` a stamp orders nothing outside its module and two package authors cannot coordinate. |
+| Timestamp | UTC, fixed width (15 chars), literal `T` at index 8. No `Z`, no separators. Lexicographically sortable. **Unique within its own module** — two modules may legally share a stamp, because a stamp orders nothing outside its module and two package authors cannot coordinate. |
 | `<SEGMENT>` | The owning module id with a leading underscore stripped; the literal `core` for the cross-cutting migrations in `backend/src/db/migrations/`. |
 | `<SLUG>` | `snake_case` (`[a-z0-9_]+`) describing the change. |
 
@@ -86,7 +85,7 @@ Segment normalization has exactly two special cases:
 | `backend/src/db/migrations/` | `core` | `'core'` |
 
 **The class-name tail must begin with the module's segment**, and that is a rule now,
-not just a consequence of deriving the name from the path (feature `081`). It is what
+not just a consequence of deriving the name from the path. It is what
 makes class names globally unique without a registry, a namespace or a hash: module ids
 are unique platform-wide, so `Migration<stamp>Orders…` cannot collide with any other
 module's migration. `orderMigrations()` refuses a violation as `unscoped-name` — the
@@ -311,7 +310,7 @@ You need no knowledge of the host's history, which is fortunate, because you hav
 ### `BASELINE_THROUGH` is a core-tree fact and does not apply to you
 
 The core scaffolder clamps every new core stamp past `BASELINE_THROUGH` (`20260801T000000`),
-and this repository's `AGENTS.md` tells core authors never to scaffold a migration at or
+and this repository's own conventions tell core authors never to scaffold a migration at or
 before it. **That instruction is not addressed to you, and the door it warns about is not
 there.** Baseline membership is an **identity**:
 
@@ -336,8 +335,7 @@ application. The moment the modules are installed packages, as they are in an in
 first answers `false` for every one of them: the prefix falls from 112 entries to 11, 181 of
 182 positions move, and six migrations end up ordered before the migration that creates a
 table they touch. The identity rule closes the same door more tightly, because a name is not
-a claim an arriving package can make — see
-`specs/110-instance-repository/contracts/instance-migration-order.md`.
+a claim an arriving package can make.
 
 Pick a sensible stamp anyway. But pick it for your own chain, not for the host's.
 
@@ -359,7 +357,7 @@ A `MigrationOrderError` is raised during the host's ORM initialisation, so a nam
 an installed package prevents the platform from starting rather than disabling the package that
 made it. That asymmetry — a dependency *cycle* declared by a package is softened to a warning
 ten lines away, for the stated reason that a stranger's manifest must not stop a shop's schema
-from migrating — is a known open question, recorded in `specs/deferred-defects.md`. Until it is
+from migrating — is a known open question. Until it is
 answered, treat a naming mistake as an outage in someone else's shop.
 :::
 
@@ -380,7 +378,7 @@ concatenation of **two blocks**.
 
 **1. The baseline block — the frozen historical prefix.** Every entry whose class name
 is on the list `@endora-commerce/platform` publishes as `BASELINE_MIGRATIONS`, emitted
-in the order that list holds them. That block predates feature `065`: it was written and
+in the order that list holds them. That block predates the current scheme: it was written and
 applied in a hand-maintained array order its manifests do not describe — they contradict
 it in 37 places — so emitting it any other way produces an order a fresh database cannot
 apply. It is closed, it never grows (the scaffolder clamps every new core stamp past the
@@ -431,7 +429,7 @@ The hazard this exists for: branch A adds a `catalog` migration on Wednesday, br
 adds an `orders` migration on Monday whose foreign key targets the column branch A
 creates. `orders` transitively depends on `catalog`, so `catalog`'s whole block is
 emitted first and a fresh database applies cleanly — with no renumbering and no
-coordination between the branches. Under feature `065` that only worked while the two
+coordination between the branches. Under the previous scheme that only worked while the two
 stamps were within 45 days of each other; now it works unconditionally.
 
 ### Cycles are reported, not thrown
@@ -442,7 +440,7 @@ in timestamp order across the whole component — the baseline block's rule, app
 locally, and the only defined answer when the declarations contain no order. The
 component comes back as a **diagnostic**, and nothing is thrown.
 
-That is deliberate. Under feature `065` the graph was a correction, so refusing a cycle
+That is deliberate. Under the previous scheme the graph was a correction, so refusing a cycle
 cost nothing. Now the graph is the primary ordering and a manifest can arrive from
 `node_modules`, so a throw would mean *one stranger's mis-declared package stops this
 shop's core schema from migrating*. Three readers react instead:
@@ -474,7 +472,7 @@ A migration added later MAY change the relative order of two migrations that som
 databases have **already applied**. That is harmless for those databases: umzug
 computes pending as `list.filter(name ∉ executed)`, so an applied migration is filtered
 out regardless of its position in the list. Measured on a real database built under the
-feature-`065` order and then read with the feature-`081` one: **pending 0, executed
+previous order and then read with the current one: **pending 0, executed
 142, `up()` applied 0**. Fresh databases are covered by the CI backend job, which
 creates an empty database and applies the whole chain on every pipeline.
 
@@ -493,9 +491,10 @@ direction to keep:
 - **Rule 2 — bridge owner.** The owner of a junction table never depends on what it
   bridges; the domain module that cannot function without the bridge declares the
   bridge owner instead. (`sales_channels` owns `sales_channel_products`; `catalog`
-  declares `sales_channels`, not the reverse — aligned with Principle XII.)
-- **Rule 3 — tenancy root.** `organizations` is the tenancy root (Principle XI) and
-  never depends on tenant-owned modules.
+  declares `sales_channels`, not the reverse — aligned with sales-channel content
+  scoping.)
+- **Rule 3 — tenancy root.** `organizations` is the tenancy root of multi-tenant
+  isolation and never depends on tenant-owned modules.
 
 **Every dropped edge must be commented in the manifest that would have declared it**,
 naming the foreign keys it covers, the rule that drops it, and the cycle it would
@@ -583,7 +582,7 @@ All of these throw at **config-build time** — i.e. the first time anything imp
 | `migration "…" declares the unknown owning module "x"` | A brand-new module whose manifest is not in the generated index. | `pnpm --filter backend run manifest-index:generate` |
 | `migration class "…" does not match the naming convention` | Hand-written or hand-renamed file; class and filename disagree. | Re-derive the class name from the filename (see the table above) or re-scaffold. |
 | Round-trip guard fails naming a file/class | A migration on disk with no registry entry, or the reverse. | `pnpm --filter backend run composer:generate` and commit the artefact. |
-| `db:fresh` fails on a foreign key the chain should already have created | The referencing module does not declare the module that owns the referenced table. | Add it to `dependencies` in the referencing module's `manifest.ts`, or move the constraint into a migration owned by the module that owns the referencing table. **Do not touch the timestamp** — after feature `081` a stamp cannot fix a cross-module ordering problem, and `fk-dependency-drift.test.ts` fails the build for the undeclared edge anyway. |
+| `db:fresh` fails on a foreign key the chain should already have created | The referencing module does not declare the module that owns the referenced table. | Add it to `dependencies` in the referencing module's `manifest.ts`, or move the constraint into a migration owned by the module that owns the referencing table. **Do not touch the timestamp** — a stamp cannot fix a cross-module ordering problem, and `fk-dependency-drift.test.ts` fails the build for the undeclared edge anyway. |
 
 Two things never fix an ordering surprise: **moving a line in the generated registry**
 (declaration order is not execution order, and regenerating restores it) and **bumping
@@ -599,12 +598,12 @@ migration file renames it**: relocating
 forces the `core` segment, and `Migration20260430T101450SettingsInit` becomes
 `Migration20260430T101450CoreSettingsInit`.
 
-Feature `065` shipped a frozen rename map and a boot-time assertion that pinned every
-pre-`065` class name in place, so a database deployed under the old scheme would not
-re-run 112 migrations. Feature `072` retired both: there is no deployed database, and
+An earlier scheme shipped a frozen rename map and a boot-time assertion that pinned
+every historical class name in place, so a database deployed under the old scheme would
+not re-run 112 migrations. Both were later retired: there is no deployed database, and
 the assertion made a legitimate relocation impossible. What is left is the
 **position** watermark, `BASELINE_THROUGH`, which fixes only the *order* of the
-pre-`065` block. Renaming a class inside it is a no-op for the emitted order **once the
+historical block. Renaming a class inside it is a no-op for the emitted order **once the
 published baseline list has been regenerated** — the block is entered by name, so until
 `composer:generate` runs, the renamed class is not on the list, joins the open block, and
 `instance-migration-order.test.ts` reports it in both directions.
@@ -623,7 +622,7 @@ re-runs the migration against a schema that already has it:
 So a rename ships with a coordinated rebuild of the **dev** database — every developer runs
 `pnpm --filter backend run db:reset` in the same window as the merge.
 
-The test suite needs no intervention. Since issue #289 the migrated template every invocation
+The test suite needs no intervention. The migrated template every invocation
 is cloned from is named `<base>_tpl_<digest>`, the digest covering the ordered migration class
 names and the content of every migration file — so a renamed class is a *different* migration
 set, and the next invocation builds a template of its own instead of trying to re-apply
@@ -648,23 +647,9 @@ a module owns no registered migration, the orchestrator logs a warning and rever
 nothing — hard-uninstall then relies on the module's `uninstallHook`.
 
 That makes the registry `moduleId` load-bearing beyond ordering: **file a migration
-under the module that owns the tables it writes to.** Until feature `072` T020 the
-settings and sales-channel migrations were still filed under their modules although the
-kernel owns those tables, so `modules:uninstall --hard settings` dropped `settings`,
-`setting_groups` and `setting_values`. `backend/test/unit/db/kernel-migration-ownership.test.ts`
+under the module that owns the tables it writes to.** The settings and sales-channel
+migrations were once filed under their modules although the kernel owns those tables,
+so `modules:uninstall --hard settings` dropped `settings`, `setting_groups` and
+`setting_values`. `backend/test/unit/db/kernel-migration-ownership.test.ts`
 now fails the build when a module-owned migration writes to a kernel-owned table; both
 sets are derived (from the entity tree and from each migration's SQL), never enumerated.
-
----
-
-Full design, contracts and rationale:
-
-- **`specs/081-per-module-migration-order/contracts/`** — `ordering-algorithm.md` (the
-  current normative statement of the order, superseding the `065` one in whole) and
-  `migration-identity.md` (class-name scoping and per-module stamp uniqueness).
-- **`specs/065-manifest-aware-migrations/contracts/`** — `naming-convention.md` §1 and
-  §2 are still the only recognizers any tool may use;
-  `contracts/fk-dependency-check.md` still describes the FK-drift validator.
-  `contracts/ordering-algorithm.md` there is **superseded**.
-- The frozen rename map and the `getMigrator` accessor those `065` contracts describe
-  were retired by feature `072`; see `specs/072-module-kernel-di/MIGRATION-RESET.md`.
