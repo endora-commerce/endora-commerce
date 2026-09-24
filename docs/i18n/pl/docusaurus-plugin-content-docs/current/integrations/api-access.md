@@ -177,7 +177,7 @@ semantyki ponowień). Dwa fakty są istotne dla partnerów:
   (fail closed).
 - **Dostarczanie jest teraz aktywne.** Subskrypcje webhooków zarejestrowane przed
   istnieniem tej funkcji były akceptowane, ale zdarzenia zamówień nie były
-  wysyłane. Od feature 062 pipeline dostarczania jest live: każda istniejąca
+  wysyłane. Pipeline dostarczania jest teraz live: każda istniejąca
   subskrypcja pasująca do `order.created.v1` lub `order.status_changed.v1` zaczyna
   otrzymywać dostawy. Upewnij się, że odbiorcy są idempotentni przed aktualizacją.
 

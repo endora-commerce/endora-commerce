@@ -177,8 +177,8 @@ retry semantics). Two facts matter for partners:
   without an organization attribution is never delivered to an org-scoped
   subscription (fail closed).
 - **Delivery is now active.** Webhook subscriptions registered before this
-  feature existed were accepted but order events were not dispatched. Since
-  feature 062 the delivery pipeline is live: any pre-existing subscription
+  feature existed were accepted but order events were not dispatched. The
+  delivery pipeline is now live: any pre-existing subscription
   matching `order.created.v1` or `order.status_changed.v1` starts receiving
   deliveries. Verify your receivers are idempotent before upgrading.
 

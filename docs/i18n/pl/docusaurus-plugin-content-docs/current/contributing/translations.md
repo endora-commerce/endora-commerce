@@ -14,12 +14,11 @@ The **documentation site** (`docs/`) uses a separate manual bilingual workflow
 [Documentation site i18n](./documentation-i18n.md).
 
 The Admin UI is bilingual at launch — every user-visible string is shipped in
-both **English** (the platform-wide source of truth) and **Polish**. Feature
-019 owns the mechanism (filesystem bundles per module, the lifecycle
-reconciler that loads them, the in-process resolver, the language picker).
-Feature 021 owns the **content + governance**: this page is the source of
-truth for the in-house Polish glossary and the workflow for adding new
-strings without regressing coverage.
+both **English** (the platform-wide source of truth) and **Polish**. The
+mechanism is a set of filesystem bundles per module, the lifecycle
+reconciler that loads them, the in-process resolver and the language picker.
+This page is the source of truth for the in-house Polish glossary and the
+workflow for adding new strings without regressing coverage.
 
 ## Polish glossary
 
@@ -69,8 +68,8 @@ first and only propose a glossary edit if the term genuinely does not fit.
 | setting                 | ustawienie                  |                                                     |
 | settings                | ustawienia                  | also the screen name                                |
 | setting group           | grupa ustawień              |                                                     |
-| global value            | wartość globalna            | per feature 042 (settings inheritance)              |
-| channel override        | nadpisanie kanału           | per feature 042                                     |
+| global value            | wartość globalna            | settings inheritance                                |
+| channel override        | nadpisanie kanału           | settings inheritance                                |
 | value (setting)         | wartość                     |                                                     |
 | comparison              | porównanie                  | the customer-facing compare feature                 |
 | shopping list           | lista zakupów               |                                                     |
@@ -139,7 +138,7 @@ Workflow for any developer adding a new string to the Admin UI:
    if it includes a count or a name, use `{name}` placeholders.
 4. **Add the Polish entry** to `pl.json`. Consult the glossary above. Match
    the placeholder list exactly. For counts in running text use the
-   patterns documented in feature 021's research §R5 (`specs/021-full-pl-en/research.md`).
+   three-pattern strategy described under [Polish quality bar](#polish-quality-bar).
 5. **Replace the hard-coded literal** in the source:
    ```tsx
    <Button>{t('actions.save')}</Button>   // where t = useTranslation('moduleId')
@@ -169,14 +168,14 @@ Workflow for any developer adding a new string to the Admin UI:
 
 - **Native, not literal**: Polish strings are written for a native Polish
   reader, not transliterated from English. A reviewer pass before merge is
-  required (see the wave reviews under `specs/021-full-pl-en/tasks.md`).
+  required.
 - **Locale formatting**: numbers, dates, currencies, and relative times
   must use Polish locale conventions. Use browser-native `Intl.NumberFormat('pl-PL', …)` /
   `Intl.DateTimeFormat('pl-PL', …)` at the rendering layer; never encode
   locale assumptions in the bundle entry itself.
-- **Plurals**: feature 019 deliberately ships singular-vs-plural only —
-  ICU MessageFormat is deferred. For Polish counts in running text follow
-  the three-pattern strategy in feature 021's research §R5 (avoid the
-  count in text / use a colon phrasing / branch on count in code).
+- **Plurals**: the translation mechanism deliberately ships
+  singular-vs-plural only — ICU MessageFormat is deferred. For Polish counts
+  in running text follow the three-pattern strategy: avoid the count in
+  text, use a colon phrasing, or branch on the count in code.
 - **Length**: Polish strings tend to be longer than English. UI containers
   must grow, wrap, or expose a tooltip — never clip or overflow.

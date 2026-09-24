@@ -111,9 +111,9 @@ Subskrypcja webhooka deklaruje:
   zdarzenia. Zdarzenia bez atrybucji Organization trafiają tylko do subskrypcji
   platformowych (fail closed).
 
-> **Dostarczanie jest teraz aktywne dla zdarzeń zamówień.** Subskrypcje utworzone przed
-> feature 062 były akceptowane, ale dostawy `order.created.v1` / `order.status_changed.v1`
-> nie były wysyłane. Pipeline dostarczania jest teraz podłączony: każda
+> **Dostarczanie jest teraz aktywne dla zdarzeń zamówień.** Subskrypcje utworzone zanim
+> pipeline dostarczania powstał, były akceptowane, ale dostawy `order.created.v1` /
+> `order.status_changed.v1` nie były wysyłane. Pipeline dostarczania jest teraz podłączony: każda
 > istniejąca subskrypcja pasująca do tych typów zdarzeń zaczyna otrzymywać
 > dostawy. Upewnij się, że odbiorca jest idempotentny przed aktualizacją.
 

@@ -5,18 +5,17 @@ title: Checklist pierwszego wdrożenia produkcyjnego
 # Checklist pierwszego wdrożenia produkcyjnego
 
 **Status: otwarty. Żaden punkt z tej listy nie został wykonany.** Endora Commerce nie ma
-jeszcze wdrożenia produkcyjnego. Decyzja zapisu to
-`specs/071-modular-packaging/decisions.md` § D-35.
+jeszcze wdrożenia produkcyjnego.
 
 ## Dlaczego ta strona istnieje
 
 Dziesiątki decyzji inżynieryjnych w tym repozytorium uznano za bezpieczne z jednego powodu:
-*nie ma wdrożenia produkcyjnego, więc nic nie może się zepsuć*. Ta decyzja (D-35) pozwoliła
+*nie ma wdrożenia produkcyjnego, więc nic nie może się zepsuć*. Ta decyzja pozwoliła
 platformie porzucić shims kompatybilności, przebudować historię migracji i zmienić bramki
 uprawnień bez ścieżki migracji. To była właściwa decyzja i nigdy nie była darmowa — pożyczyła
 pod zastaw pierwszego wdrożenia, które jeszcze się nie odbyło.
 
-Wszystko, co D-35 licencjonowało, a czego kod sam nie uniesie, ląduje tutaj: grant, który
+Wszystko, co ta decyzja licencjonowała, a czego kod sam nie uniesie, ląduje tutaj: grant, który
 ktoś musi nadać, ustawienie, które ktoś musi wybrać, seed, który nie może się uruchomić,
 wartość, która jest cicho błędna, dopóki operator jej nie ustawi. Ta strona to ten rejestr.
 Jest napisana tak, by wykonał ją ktoś, kto nie brał udziału w rozmowach, które te punkty
@@ -106,7 +105,7 @@ składniowo sekretem.
 
 **Dlaczego.** Ani `PUBLIC_API_BASE_URL`, ani `REVALIDATE_SECRET` nie pojawiały się w
 `deploy/.env.prod.example` ani w bloku `x-backend-env` w `deploy/compose.prod.yml`, a oba
-failowały cicho. Issue #218 zmienił oba, na różne sposoby:
+failowały cicho. Oba zostały od tego czasu naprawione, na różne sposoby:
 
 - `PUBLIC_API_BASE_URL` to origin, na którym buduje się każdy callback bramki płatności
   (ITN/notification), każdy publiczny URL product feed i każdy link potwierdzenia newslettera.
@@ -151,8 +150,8 @@ weryfikacyjny w prawdziwej skrzynce. Zrób to, zanim pierwszy klient klienta to 
 
 ### C1. Przećwicz łańcuch migracji na jednorazowej bazie najpierw
 
-**Dlaczego.** Feature 072 przebudował historię migracji i wycofał frozen-name map na gruncie
-D-35 — kolejność bloku przed `20260801T000000` jest celowo nieskorygowana
+**Dlaczego.** Historia migracji została przebudowana, a frozen-name map wycofany na tym samym
+gruncie braku wdrożenia produkcyjnego — kolejność bloku przed `20260801T000000` jest celowo nieskorygowana
 (`backend/src/db/migration-order.ts`), a łańcuch był stosowany tylko do baz, które można było
 wyrzucić. Pierwsza produkcyjna baza to pierwsza, która musi zachować wiersze.
 
@@ -167,12 +166,12 @@ kontener `backend-migrate` na VPS produkuje na release.
 ### C2. Nie uruchamiaj demo seed
 
 **Dlaczego.** Demo seed (`endora demo seed`) zapisuje cały sklep — katalog, organizację,
-administratora i kupującego — do wskazanej bazy. Już nie truncuje w drodze (feature 113
-przeniósł to do `endora demo reset`, który truncuje), więc koszt dla produkcji to wiersze, które
+administratora i kupującego — do wskazanej bazy. Już nie truncuje w drodze (truncate przeniesiono
+do `endora demo reset`, który truncuje), więc koszt dla produkcji to wiersze, które
 nie należą do klienta, a nie utrata jego wierszy. Ma production guard —
 `ALLOW_DEV_SEED_IN_PRODUCTION` — który `deploy/compose.prod.yml` kiedyś permanentnie pokonywał
-w pre-armed serwisie `seed`, który `deploy/README.md` wymieniał jako krok wdrożenia. Issue #218
-usunął serwis i wyrzucił seed z procedury wdrożenia: nie ma już sposobu uruchomić go bez
+w pre-armed serwisie `seed`, który `deploy/README.md` wymieniał jako krok wdrożenia. Serwis został
+od tego czasu usunięty, a seed wyrzucony z procedury wdrożenia: nie ma już sposobu uruchomić go bez
 wpisania przez operatora `-e ALLOW_DEV_SEED_IN_PRODUCTION=true`.
 
 To zamyka wypadek, nie decyzję. Seed nadal jest osiągalny, a ten krok nadal jest miejscem, gdzie
@@ -226,7 +225,7 @@ potrafi wykonać swoją pracę end to end.
 ### D2. Nadaj `customer_groups:read` i `customer_groups:write`
 
 **Dlaczego.** Zarządzanie grupami klientów przeniesiono z `price_lists` do `customer_accounts`
-(feature 076, D-79) i nadało własne kody uprawnień. Wcześniej było gated przez `catalog:write`,
+i nadało własne kody uprawnień. Wcześniej było gated przez `catalog:write`,
 co było wyraźnie błędne — grupa klientów to segmentacja klientów, nie dane katalogu. Dwa nowe
 kody to `customer_groups:read` i `customer_groups:write`
 (`packages/modules/customer_accounts/src/manifest.ts:188-189`).
@@ -249,7 +248,7 @@ Te dwie i żadne inne. Builder reguł promocji i builder audience PWA też pokaz
 każdy czyta ją przez **własny** endpoint modułu
 (`/api/v1/admin/promotions/rule-targets/customer-groups`,
 `/api/v1/admin/pwa/rule-targets/customer-groups`) za własnym read permission modułu, więc ten
-grant ich nie dotyka. Builder reguł price list był wyjątkiem do issue #219; teraz czyta listę
+grant ich nie dotyka. Builder reguł price list był wyjątkiem do niedawna; teraz czyta listę
 za `price_lists:read`, co jest tematem D3.
 
 Ten sam grant można zrobić przez API:
@@ -263,7 +262,7 @@ nadal dostaje `403` — to druga połowa dowodu.
 
 ### D3. Nadaj `price_lists:read` i `price_lists:write`
 
-**Dlaczego.** Do issue #219 moduł `price_lists` nie deklarował własnych uprawnień: wszystkie 25
+**Dlaczego.** Moduł `price_lists` nie deklarował kiedyś własnych uprawnień: wszystkie 25
 jego tras admin było gated przez `catalog:write`. Rola z `catalog:write`, żeby ktoś mógł edytować
 opisy produktów, mogła też tworzyć, edytować i usuwać cenniki — czyli zmieniać, ile klienci
 płacą. Nikt nie wybrał tej granicy; to efekt uboczny brakującej deklaracji. Moduł posiada teraz
@@ -331,7 +330,7 @@ włączeniu enforcement.
 
 ### E1. Przejdź `/platform/modules` i zdecyduj o każdym
 
-**Dlaczego.** Zasada XVII czyni obecność modułu koniunkcją platform availability i wyboru
+**Dlaczego.** Obecność modułu jest koniunkcją platform availability i wyboru
 aktywacji operatora — a druga oś ma default. Spośród modułów core 23 deklaruje się
 non-deactivatable, reszta dostarcza kontrolkę aktywacji operatora; **każda z tych kontrolek
 domyślnie włączona.** Nic o świeżej instalacji nie mówi, co ten klient kupił.
@@ -495,7 +494,7 @@ każdego żądania. Trzy konsekwencje: limit rate per IP (1000/min) staje się j
 kubełkiem dla całego internetu; IP zapisane na audit rows istotnych dla bezpieczeństwa — zdarzenia
 MFA, impersonacja admin, runy prompt-action — to proxy, nie aktor; klucz rate-limit product feed
 publiczny zapada dla nieuwierzytelnionych callerów. Kiedyś to było otwarte pytanie bez odpowiedzi
-w kodzie; od issue #220 odpowiedź to zmienna.
+w kodzie; teraz odpowiedzią jest zmienna.
 
 **Zrób (inżynier).** Potwierdź, że host nginx ustawia `X-Forwarded-For` i `X-Forwarded-Proto`
 (szablon w `deploy/nginx.example.conf` już to robi z `$proxy_add_x_forwarded_for`), potem ustaw w
@@ -529,11 +528,10 @@ obowiązywać, punkt idzie wyżej.
 
 - **Provisioning VPS, DNS, TLS, rejestr i stack compose.** Pokryte przez `deploy/README.md`,
   które ta strona zakłada wykonane. Duplikacja to sposób, w jaki obie się rozjeżdżają.
-- **Skoordynowany reset bazy developera**
-  (`specs/072-module-kernel-di/MIGRATION-RESET.md`). To procedura stacji roboczej developera.
+- **Skoordynowany reset bazy developera.** To procedura stacji roboczej developera.
   Pierwsza produkcyjna baza startuje pusta i stosuje łańcuch raz; C1 to pokrywa.
-- **Raport migracji price list** (feature 011, FR-003 — „oznacz wiersze, które potrzebują
-  prawdziwej wartości per waluta przed go-live"). Opisuje migrację *istniejącego* wdrożenia ze
+- **Raport migracji price list** — raport oznaczający wiersze, które potrzebują
+  prawdziwej wartości per waluta przed go-live. Opisuje migrację *istniejącego* wdrożenia ze
   starymi cenami jednostkowymi. Pierwsze wdrożenie nie ma legacy cen do migracji. Staje się
   realnym punktem, gdy pierwszy klient jest migrowany na platformę z czegoś innego.
 - **Retencja usuwania klientów** (`customers.deletion_retention_days`, default 365) i
@@ -553,14 +551,14 @@ obowiązywać, punkt idzie wyżej.
   webhook. Prawdziwa praca, ale to project scoping, nie bramka go-live platformy: nic w platformie
   nie jest źle, dopóki klient o coś nie poprosi.
 - **Cokolwiek, na co static check już odmawia.** Gdy CI może failować, to nie punkt tutaj — o to
-  chodzi w design check inventory w `AGENTS.md`.
+  chodzi w design check inventory repozytorium.
 
 ---
 
-## Gdy D-35 się zamyka
+## Gdy licencja braku wdrożenia się zamyka
 
-W dniu, gdy pierwsze wdrożenie niesie dane klienta, D-35 przestaje licencjonować cokolwiek. Od
-tego momentu: rename zastosowanej klasy migracji znów potrzebuje rename map, bramka uprawnień
-nie może się zmienić bez ścieżki grant, a zmiana kontraktu potrzebuje dyscypliny wersjonowania,
-którą opisuje Konstytucja II. Rekord decyzji mówi to w ostatnim akapicie; ta strona to miejsce,
-gdzie konsekwencje zostały opłacone.
+W dniu, gdy pierwsze wdrożenie niesie dane klienta, licencja „nic nie może się jeszcze zepsuć"
+przestaje obowiązywać. Od tego momentu: rename zastosowanej klasy migracji znów potrzebuje
+rename map, bramka uprawnień nie może się zmienić bez ścieżki grant, a zmiana kontraktu
+potrzebuje zwykłej dyscypliny wersjonowania. Ta strona to miejsce, gdzie konsekwencje zostały
+opłacone.
