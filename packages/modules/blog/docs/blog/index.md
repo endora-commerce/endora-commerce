@@ -183,26 +183,17 @@ Invalidation:
 | Soft-delete or settings write          | `BlogCacheService.invalidateAll()` via EventBus |
 
 The granular `invalidatePost(channelCode, slug)` and friends are wired
-on the cache class for future surgical-invalidation work (R9 — coarse
+on the cache class for future surgical-invalidation work (coarse
 invalidation is correct at v1; rate of writes is low).
 
 ## Cross-module dependencies
 
 | Module                                       | What the blog reads                                         |
 | -------------------------------------------- | ----------------------------------------------------------- |
-| [Settings (004)](../settings/index.md)       | Four `blog.*` settings via `settings.service.get`           |
-| [Sales Channels (005)](../sales_channels/index.md) | Channel resolution + language fallback                |
-| [Assets Library (013)](../assets-library/index.md) | Asset URL signing + reference registry                |
-| [CMS (014)](../cms/index.md)                 | Page Builder envelope (`cmsContentEnvelopeSchema`)          |
-| [Catalog (002)](../catalog.md)               | Product card resolution for Related Products                |
+| [Settings](../settings/index.md)             | Four `blog.*` settings via `settings.service.get`           |
+| [Sales Channels](../sales_channels/index.md) | Channel resolution + language fallback                |
+| [Assets Library](../assets-library/index.md) | Asset URL signing + reference registry                |
+| [CMS](../cms/index.md)                       | Page Builder envelope (`cmsContentEnvelopeSchema`)          |
+| [Catalog](../catalog.md)                     | Product card resolution for Related Products                |
 
 The blog module never imports another module's internals — every cross-module read goes through a documented service port.
-
-## See also
-
-Feature artefacts for this module, cited as repository paths rather than links:
-
-- Specification — `specs/016-blog/spec.md`
-- Implementation plan — `specs/016-blog/plan.md`
-- Data model — `specs/016-blog/data-model.md`
-- Contracts — `specs/016-blog/contracts/`

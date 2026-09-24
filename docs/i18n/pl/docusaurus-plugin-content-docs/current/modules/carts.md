@@ -9,7 +9,7 @@ Anonimowe i przypisane do klienta koszyki zakupowe. Anonimowy koszyk identyfikow
 jest długowiecznym tokenem cookie; po logowaniu scala się z koszykiem Klienta
 deterministycznie.
 
-Feature 027 (konsolidacja Carts, maj 2026) rozszerzyła moduł koszyka bazowego
+Konsolidacja Carts z maja 2026 rozszerzyła moduł koszyka bazowego
 o pełny cykl życia (`active` / `abandoned` / `completed` /
 `rejected`), ortogonalny podstan zatwierdzenia, zakres sales channel,
 księgowanie ostatniej aktywności, stosowanie kuponów względem modułu Promotions,
@@ -45,8 +45,7 @@ sweep porzucenia oraz powierzchnię obserwowalności platform-admin.
 ```
 
 Reguła re-arm: każda mutacja kupującego (add/remove/quantity/coupon) na koszyku
-`approved` cicho resetuje `approval_status` do `pending` — zobacz invariant
-bezpieczeństwa w `specs/027-carts/research.md` §R11.
+`approved` cicho resetuje `approval_status` do `pending`.
 
 Wyłączenie self-approval: koszyk utworzony przez Organization Administrator
 rodzi się z `approval_status='not_required'` niezależnie od flagi polityki per Org.
@@ -57,7 +56,7 @@ rodzi się z `approval_status='not_required'` niezależnie od flagi polityki per
 
 | Verb + Path | Cel |
 | --- | --- |
-| `GET /api/v1/cart` | Aktywny koszyk (lazy-create); payload feature-027 zawiera `status`, `approvalStatus`, `salesChannelId`, `grandTotal`, `discount`, `primaryCta`, `droppedLines`, `couponDroppedThisRead`, `lastActivityAt` |
+| `GET /api/v1/cart` | Aktywny koszyk (lazy-create); payload zawiera `status`, `approvalStatus`, `salesChannelId`, `grandTotal`, `discount`, `primaryCta`, `droppedLines`, `couponDroppedThisRead`, `lastActivityAt` |
 | `POST /api/v1/cart/items` | Dodanie pozycji (limit 200 linii) |
 | `PATCH /api/v1/cart/items/:itemId` | Aktualizacja ilości (akceptuje `0` do usunięcia) |
 | `DELETE /api/v1/cart/items/:itemId` | Usunięcie linii |
@@ -105,7 +104,7 @@ Bramka roli: `CustomerAccount.role === 'organization_admin'` dla każdej trasy
   `audit_log_entries` przez `AuditPort` dla platformowej
   osi czasu audytu.
 
-## Ustawienia (feature 027)
+## Ustawienia
 
 | Key | Default | Description |
 | --- | --- | --- |
@@ -126,7 +125,7 @@ powiadomienia o porzuceniu.
 ## Sweep porzucenia
 
 `cart-abandonment-worker.ts` wystawia zwykły async `sweep(now?)` na wzór
-wzorca `RfqExpiryWorker` z feature 008. Sweep:
+wzorca `RfqExpiryWorker`. Sweep:
 
 1. Czyta `carts.abandonment.inactivity_minutes` (≤ 0 wyłącza).
 2. Wybiera koszyki `active`, gdzie `last_activity_at < now - threshold` ORAZ
@@ -156,7 +155,7 @@ Reaktywacja: każda aktywność kupującego (touch, add/remove/qty/coupon) na ko
   bez ceny / nie do kupienia linie są pomijane i zwracane w
   `droppedLines[]` z typowanymi powodami.
 - **Shopping List → Cart**: delegowane do istniejącego
-  `ShoppingListService.convertToCart` (feature 010); moduł carts
+  `ShoppingListService.convertToCart`; moduł carts
   wystawia port, który composition podłącza do niego.
 
 ## Stosowanie kuponu
@@ -206,7 +205,7 @@ zmiana ilości, kupon zastosowany/wyczyszczony/odrzucony, zatwierdzenie wysłane
   `CartAuditService.record`, więc tabela carts to kanoniczny
   zdenormalizowany widok używany przez panel „Historia koszyka” Org-Admin i platform-admin.
 
-Polityka retencji (feature 027):
+Polityka retencji:
 
 - **Nigdy nie auto-czyść `cart_audit_entries`.** Org admini i platform
   admin polegają na pełnej historii, aby bronić decyzji zatwierdzenia i

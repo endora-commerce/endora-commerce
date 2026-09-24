@@ -182,26 +182,17 @@ Invalidacja:
 | Soft-delete lub zapis settings         | `BlogCacheService.invalidateAll()` via EventBus |
 
 Granularne `invalidatePost(channelCode, slug)` i podobne są podpięte
-na klasie cache pod przyszłą chirurgiczną invalidację (R9 — coarse
+na klasie cache pod przyszłą chirurgiczną invalidację (coarse
 invalidation jest poprawna w v1; tempo zapisów jest niskie).
 
 ## Zależności cross-module
 
 | Module                                       | What the blog reads                                         |
 | -------------------------------------------- | ----------------------------------------------------------- |
-| [Settings (004)](../settings/index.md)       | Cztery ustawienia `blog.*` przez `settings.service.get`     |
-| [Sales Channels (005)](../sales_channels/index.md) | Rozwiązywanie kanału + fallback języka                |
-| [Assets Library (013)](../assets-library/index.md) | Podpisywanie URL assetów + rejestr referencji           |
-| [CMS (014)](../cms/index.md)                 | Envelope Page Buildera (`cmsContentEnvelopeSchema`)         |
-| [Catalog (002)](../catalog.md)               | Rozwiązywanie kart produktów dla Related Products           |
+| [Settings](../settings/index.md)             | Cztery ustawienia `blog.*` przez `settings.service.get`     |
+| [Sales Channels](../sales_channels/index.md) | Rozwiązywanie kanału + fallback języka                |
+| [Assets Library](../assets-library/index.md) | Podpisywanie URL assetów + rejestr referencji           |
+| [CMS](../cms/index.md)                       | Envelope Page Buildera (`cmsContentEnvelopeSchema`)         |
+| [Catalog](../catalog.md)                     | Rozwiązywanie kart produktów dla Related Products           |
 
 Moduł blog nigdy nie importuje wnętrza innego modułu — każdy odczyt cross-module idzie przez udokumentowany port serwisowy.
-
-## Zobacz też
-
-Artefakty feature tego modułu, cytowane jako ścieżki w repozytorium, a nie odnośniki:
-
-- Specyfikacja — `specs/016-blog/spec.md`
-- Plan implementacji — `specs/016-blog/plan.md`
-- Model danych — `specs/016-blog/data-model.md`
-- Kontrakty — `specs/016-blog/contracts/`

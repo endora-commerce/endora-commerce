@@ -12,9 +12,9 @@ dostarcza zestaw `default`, który stosuje się, gdy admini nie wybiorą innego.
 
 Bez zestawów każdy produkt niósłby pełny graf atrybutów w `attributeValues`.
 Różne typy produktów (elektronika, odzież, chemia) potrzebują różnych
-atrybutów, ale schemat foundation 001 traktował każdy klucz jako globalny.
-Feature 002 wprowadza zestawy, żeby admini mogli kuratorować skupione doświadczenie
-autorskie per kategoria, a storefront renderował ciaśniejszą tabelę atrybutów.
+atrybutów, ale schemat bazowy traktował każdy klucz jako globalny.
+Zestawy pozwalają adminom kuratorować skupione doświadczenie autorskie
+per kategoria, a storefrontowi renderować ciaśniejszą tabelę atrybutów.
 
 ## Publiczne API
 

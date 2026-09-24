@@ -101,7 +101,7 @@ extension row (`product_attributes`) for its behaviour flags and presentation
 refinements. The generic core gained only the three entity-agnostic seams
 described above (the `product` registry entry with `managedBy`, the
 `{table, column}` probe binding, and the apply seam) — zero catalog logic. See
-the [catalog module page](../modules/catalog.md#feature-061--attributes-as-custom-field-extensions)
+the [catalog module page](../modules/catalog.md#attributes-as-custom-field-extensions)
 for the catalog-side view and the migration outcome.
 
 ## Tenant scope (inherited)

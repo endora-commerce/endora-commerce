@@ -7,7 +7,7 @@ description: Sesje klienta i admina, hashowanie haseł, TOTP
 
 Wspólne prymitywy sesji, hashowania haseł i TOTP używane zarówno przez
 `customer_accounts`, jak i `admin_users`. Jeden z dwóch dozwolonych folderów
-modułu w liczbie pojedynczej według Zasady VI (obok `example`).
+modułu w liczbie pojedynczej według konwencji nazewnictwa (obok `example`).
 
 ## Co moduł posiada
 
@@ -24,8 +24,8 @@ modułu w liczbie pojedynczej według Zasady VI (obok `example`).
 - **Strażnicy tras** — `requireAdmin(permission?)`, `requireAdminAny(codes)` i
   `requireCustomer`, udostępniane jako porty z `backend.ts` i rozwiązywane przez
   każdy moduł, który blokuje trasę. Kiedyś były dekoratorami Fastify na pluginie;
-  feature 072 (T078) i issue #43 uczyniły je portami, aby produkcja i harness
-  testowy uruchamiały tę samą implementację zamiast dwóch różnych.
+  zostały zamienione na porty, aby produkcja i harness testowy uruchamiały tę
+  samą implementację zamiast dwóch różnych.
 
 ## Brak własnych tras HTTP
 

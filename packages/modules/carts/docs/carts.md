@@ -9,7 +9,7 @@ Anonymous and customer-bound shopping carts. An anonymous cart is identified
 by a long-lived cookie token; on login it merges into the Customer's cart
 deterministically.
 
-Feature 027 (Carts consolidation, May 2026) extended the foundation cart
+The carts consolidation of May 2026 extended the foundation cart
 module with a full lifecycle (`active` / `abandoned` / `completed` /
 `rejected`), an orthogonal approval sub-state, sales-channel scoping,
 last-activity bookkeeping, coupon application against the Promotions module,
@@ -45,8 +45,7 @@ abandonment sweep, and a platform-admin observability surface.
 ```
 
 Re-arm rule: any buyer-driven mutation (add/remove/quantity/coupon) on an
-`approved` cart silently drops `approval_status` back to `pending` — see the
-security invariant in `specs/027-carts/research.md` §R11.
+`approved` cart silently drops `approval_status` back to `pending`.
 
 Self-approval exemption: a cart created by an Organization Administrator
 is born with `approval_status='not_required'` regardless of the per-Org
@@ -58,7 +57,7 @@ policy flag.
 
 | Verb + Path | Purpose |
 | --- | --- |
-| `GET /api/v1/cart` | Active cart (lazy-create); feature-027 payload includes `status`, `approvalStatus`, `salesChannelId`, `grandTotal`, `discount`, `primaryCta`, `droppedLines`, `couponDroppedThisRead`, `lastActivityAt` |
+| `GET /api/v1/cart` | Active cart (lazy-create); the payload includes `status`, `approvalStatus`, `salesChannelId`, `grandTotal`, `discount`, `primaryCta`, `droppedLines`, `couponDroppedThisRead`, `lastActivityAt` |
 | `POST /api/v1/cart/items` | Add line item (200-line cap enforced) |
 | `PATCH /api/v1/cart/items/:itemId` | Update quantity (accepts `0` to delete) |
 | `DELETE /api/v1/cart/items/:itemId` | Remove line |
@@ -106,7 +105,7 @@ Role gate: `CustomerAccount.role === 'organization_admin'` for every
   `audit_log_entries` table via `AuditPort` for the platform-wide
   audit timeline.
 
-## Settings (feature 027)
+## Settings
 
 | Key | Default | Description |
 | --- | --- | --- |
@@ -127,7 +126,7 @@ sweep does not later fire a stray abandonment notification for it.
 ## Abandonment sweep
 
 `cart-abandonment-worker.ts` exposes a plain async `sweep(now?)` mirroring
-the `RfqExpiryWorker` pattern from feature 008. The sweep:
+the `RfqExpiryWorker` pattern. The sweep:
 
 1. Reads `carts.abandonment.inactivity_minutes` (≤ 0 disables).
 2. Selects `active` carts whose `last_activity_at < now - threshold` AND
@@ -157,7 +156,7 @@ Reactivation: any buyer activity (touch, add/remove/qty/coupon) on an
   no-price / not-purchasable lines are skipped and returned in
   `droppedLines[]` with typed reasons.
 - **Shopping List → Cart**: delegated to the existing
-  `ShoppingListService.convertToCart` (feature 010); the carts module
+  `ShoppingListService.convertToCart`; the carts module
   exposes a port that composition wires to it.
 
 ## Coupon application
@@ -209,7 +208,7 @@ lands in the platform-wide `audit_log_entries` table via
 denormalised view used by the Org-Admin and platform-admin "Cart history"
 panel.
 
-Retention policy (feature 027):
+Retention policy:
 
 - **Never auto-purge `cart_audit_entries`.** Org admins and the platform
   admin rely on a complete history to defend approval decisions and

@@ -24,20 +24,20 @@ Trasy admina są chronione przez `catalog:read` (list / get) /
 | `GET /api/v1/catalog/sitemap.xml` | crawlers | Mapa witryny SEO |
 | `GET /api/v1/admin/catalog/products?includeArchived` | admin | Lista produktów admin (z draftami; wiersze zarchiwizowane opt-in) |
 | `GET /api/v1/admin/catalog/products/:id` | admin | Szczegóły produktu |
-| `POST /api/v1/admin/catalog/products` | admin | Utworzenie produktu (`type` niemutowalne po utworzeniu; `sku` edytowalne per feature 012 / US3) |
+| `POST /api/v1/admin/catalog/products` | admin | Utworzenie produktu (`type` niemutowalne po utworzeniu; `sku` edytowalne) |
 | `PATCH /api/v1/admin/catalog/products/:id` | admin | Aktualizacja (łącznie z `sku`); zapisuje wiersz audytu ze stateBefore / stateAfter; odmawia z `409 sku_in_use`, gdy nowe SKU należy już do innego produktu |
 | `DELETE /api/v1/admin/catalog/products/:id` | admin | Archiwizacja (soft) |
 | `GET /api/v1/admin/catalog/attributes` | admin | Lista atrybutów |
-| `GET /api/v1/admin/catalog/attributes/by-flag?flag=isPromoRule\|isComparable\|...` | admin | Payload pickera — każdy atrybut z żądaną flagą (feature 012 / US1) |
+| `GET /api/v1/admin/catalog/attributes/by-flag?flag=isPromoRule\|isComparable\|...` | admin | Payload pickera — każdy atrybut z żądaną flagą |
 | `GET /api/v1/admin/catalog/attributes/:idOrKey` | admin | Odczyt pojedynczego atrybutu |
 | `POST /api/v1/admin/catalog/attributes` | admin | Utworzenie atrybutu (akceptuje nowe flagi + inline `options[]` dla typów select-style) |
 | `PATCH /api/v1/admin/catalog/attributes/:key` | admin | Hot-toggle `isFilterable` / `isSearchable` / `isVariantAxis` / `isPromoRule` / `isComparable` / `isVisibleOnProductPage` / `isRequired` / `filterPosition` (re-emituje `attribute.updated.v1`) |
-| `DELETE /api/v1/admin/catalog/attributes/:idOrKey` | admin | Usunięcie; odmawia z `409 attribute_in_use_by_set`, dopóki jakikolwiek Attribute Set nadal się odwołuje (feature 012 / US1) |
-| `GET /api/v1/admin/catalog/attributes/:idOrKey/options` | admin | Lista wierszy opcji dla atrybutów select/enum/multiselect (feature 012 / US4) |
+| `DELETE /api/v1/admin/catalog/attributes/:idOrKey` | admin | Usunięcie; odmawia z `409 attribute_in_use_by_set`, dopóki jakikolwiek Attribute Set nadal się odwołuje |
+| `GET /api/v1/admin/catalog/attributes/:idOrKey/options` | admin | Lista wierszy opcji dla atrybutów select/enum/multiselect |
 | `POST /api/v1/admin/catalog/attributes/:idOrKey/options` | admin | Dołączenie opcji |
-| `PATCH /api/v1/admin/catalog/attribute-options/:optionId` | admin | Patch label / labelDefault / isDefault / sortOrder (option `value` niemutowalne per FR-026) |
-| `DELETE /api/v1/admin/catalog/attribute-options/:optionId` | admin | Usunięcie; odmawia z `409 option_in_use`, dopóki jakikolwiek produkt niesie wartość (FR-025) |
-| `POST /api/v1/admin/catalog/attribute-set-preview` | admin | Podgląd, które atrybuty Set będą edytowane / ukryte, gdy operator przełączy Attribute Set produktu (feature 012 / US2) |
+| `PATCH /api/v1/admin/catalog/attribute-options/:optionId` | admin | Patch label / labelDefault / isDefault / sortOrder (option `value` niemutowalne) |
+| `DELETE /api/v1/admin/catalog/attribute-options/:optionId` | admin | Usunięcie; odmawia z `409 option_in_use`, dopóki jakikolwiek produkt niesie wartość |
+| `POST /api/v1/admin/catalog/attribute-set-preview` | admin | Podgląd, które atrybuty Set będą edytowane / ukryte, gdy operator przełączy Attribute Set produktu |
 | `GET /api/v1/admin/catalog/categories` | admin | Płaska lista, UI składa w drzewo |
 | `POST /api/v1/admin/catalog/categories` | admin | Utworzenie (rodzic musi istnieć) |
 | `PATCH /api/v1/admin/catalog/categories/:id` | admin | Aktualizacja; reparenting przechodzi łańcuch nowego rodzica, żeby odmówić cykli (409) |
@@ -48,9 +48,7 @@ Trasy admina są chronione przez `catalog:read` (list / get) /
 
 `Product`, `ProductVariant`, `Category`, `ProductAttribute`,
 `SalesChannel`, plus mosty M:N
-`product_categories`, `sales_channel_products`, `product_assets`. Autorytatywny
-diagram ER jest w `specs/001-b2b-platform-foundation/data-model.md`
-w repozytorium źródłowym.
+`product_categories`, `sales_channel_products`, `product_assets`.
 
 ## Emitowane zdarzenia
 
@@ -67,10 +65,9 @@ subskrybentów webhook.
   nadpisz slugifier w `catalog-admin.service.ts`, jeśli kolizje locale staną się
   problemem.
 
-## Rozszerzenia feature 002
+## Powierzchnie struktury i kompozycji produktu
 
-Katalog urósł o kilka powierzchni capability w feature 002. Każda ma
-własną stronę:
+Katalog urósł o kilka powierzchni capability, każda ma własną stronę:
 
 - [Zestawy atrybutów](./catalog/attribute-sets.md) — wielokrotnie używane schematy
   atrybutów przypięte do Products, z systemowym Default
@@ -85,12 +82,12 @@ własną stronę:
   cyfrowa)
 
 Obsługiwanych jest teraz pięć typów produktu: `simple`, `configurable`,
-`grouped`, `bundle`, `virtual`. `simple` i `configurable` to oryginały
-foundation 001; pozostałe trzy dodano w 002.
+`grouped`, `bundle`, `virtual`. `simple` i `configurable` to pierwotna
+para; pozostałe trzy dodano później.
 
-## Rozszerzenia feature 012
+## Rozszerzenia atrybutów na ścieżkach odczytu Catalog
 
-Feature 012 (Attributes) dodał powierzchnię operacyjną, której storefront
+Prace nad atrybutami dodały powierzchnię operacyjną, której storefront
 potrzebuje do renderowania bogatych informacji o produkcie, a moduły search /
 promotions potrzebują do rozwiązywania zapytań klientów. Dedykowana strona
 [Atrybuty](./catalog/attributes.md) opisuje w pełni powierzchnię autorską
@@ -113,50 +110,50 @@ fallback etykiety per locale:
 - `labelDefault` (string) — fallback, gdy aktywny locale nie ma pasującego klucza
   w per-locale JSONB `label`
 
-### Listy opcji (US4)
+### Listy opcji
 
 Typy atrybutów select-style (`select`, `enum`, `multiselect`) niosą uporządkowaną
 listę opcji — każdy wiersz kluczowany przez `(definition, value)` z
 per-locale label + fallback + sort order + flagą default. Legacy kolumna
 `enum_values: string[]` JSONB na `product_attributes` została
 wycofana migracją 032 (do własnościowej tabeli katalogu
-`attribute_options`), a feature 061 / migracja 102 przeniosła
+`attribute_options`), a migracja 102 przeniosła
 wiersze do generycznej tabeli `custom_field_options`. Istniejący czytelnicy
 projektują listę opcji z powrotem w legacy formę dla kompatybilności wstecznej
 na granicy API.
 
-### Edytowalne SKU (US3)
+### Edytowalne SKU
 
 `sku` produktu jest mutowalne. Wewnętrzne kanoniczne odwołanie dla każdego
 linku cross-module (assets, links, pozycje RFQ, ...) to UUID `Product.id`,
 który nigdy się nie zmienia. Aktualizacja SKU zapisuje wiersz audytu i
 odmawia z `409 sku_in_use`, gdy nowa wartość należy już do innego produktu.
 
-### Zamiana Attribute Set (US2)
+### Zamiana Attribute Set
 
 Gdy operator przypisze inny Attribute Set do Product, formularz admina
 re-renderuje się, pokazując tylko atrybuty nowego Set. Wartości atrybutów
 poza nowym Set pozostają w kolumnie JSONB po stronie serwera
-(FR-012) — powrót do poprzedniego zestawu je z powrotem eksponuje. Endpoint
+— powrót do poprzedniego zestawu je z powrotem eksponuje. Endpoint
 `attribute-set-preview` pozwala edytorowi ostrzec operatora, które pola
 zostaną ukryte vs. zachowane, zanim potwierdzi.
 
 ### Powierzchnia odczytu cross-module
 
 Dwie metody na `CatalogQueryService` przekraczają granice modułów (udokumentowane
-porty serwisowe per Constitution I):
+porty serwisowe):
 
-- `comparableAttributeKeys(): string[]` — feature 007 (Compare)
+- `comparableAttributeKeys(): string[]` — Compare
 - `promoRuleAttributeKeys(): string[]` + `getAttributeWithOptions(key)`
-  — feature 012 / US8 (Promotions)
+  — Promotions
 - `buildVisibleAttributesProjection()` — wewnętrzne, używane przez odpowiedź
   szczegółów PDP do złożenia payloadu `visibleAttributes[]`
 
-## Feature 061 — atrybuty jako rozszerzenia Custom Field
+## Atrybuty jako rozszerzenia Custom Field
 
-Feature 061 zbiegł magazyn definicji atrybutów na generyczną warstwę Custom
-Fields, którą posiada moduł `custom_fields` (feature 055),
-kształtowaną jak adapter per Constitution Principle XIV. Na powierzchni HTTP
+Magazyn definicji atrybutów zbiegł się z generyczną warstwą Custom
+Fields, którą posiada moduł `custom_fields`, w kształcie adaptera, a nie
+przepisania. Na powierzchni HTTP
 nic się nie zmieniło — każdy endpoint powyżej zachowuje kształt — ale model
 magazynowania i własności jest inny:
 

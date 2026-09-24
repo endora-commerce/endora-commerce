@@ -98,7 +98,7 @@ definicjami Custom Field na hoście `product`, a katalog trzyma wiersz rozszerze
 (`product_attributes`) dla flag zachowania i dopracowań prezentacji. Generyczny rdzeń zyskał tylko trzy niezależne od encji szwy
 opisane powyżej (wpis rejestru `product` z `managedBy`, wiązanie sondy
 `{table, column}` i szew apply) — zero logiki katalogu. Widok po stronie katalogu i wynik migracji są na
-[stronie modułu katalogu](../modules/catalog.md#feature-061--attributes-as-custom-field-extensions).
+[stronie modułu katalogu](../modules/catalog.md#atrybuty-jako-rozszerzenia-custom-field).
 
 ## Zakres tenantów (dziedziczony)
 
