@@ -6,7 +6,7 @@ title: Moduły backendu
 # Moduły backendu
 
 Każdy moduł backendu odpowiada za jedną zdolność biznesową i nigdy nie sięga do
-wnętrza innego modułu (Zasada I konstytucji). To, gdzie leży kod modułu, jest
+wnętrza innego modułu. To, gdzie leży kod modułu, jest
 odpowiedzią platformy, a nie ścieżką wartą zapisania: większość modułów to
 pakiety workspace w `packages/modules/<id>/`, kilka należy do hosta, a
 [mapa modułów](./module-map.generated.md) wskazuje pakiet, z którego pochodzi

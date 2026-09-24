@@ -7,9 +7,9 @@ description: Module-contributed action registry surfaced in the Admin Command Pa
 
 A registry-backed contribution point that lets every backend module add action buttons to
 the Admin UI's command palette (the `⌘K` / `Ctrl+K` modal — what the operator sees as the
-**Actions** group). Two actions ship hardcoded today (*New product*, *Import products*); from
-feature 020 onward those, and every future action, are declared once in their owning module's
-manifest and surfaced through this registry. Feature 020.
+**Actions** group). Two actions ship hardcoded today (*New product*, *Import products*); those,
+and every future action, are declared once in their owning module's manifest and surfaced
+through this registry.
 
 The platform side lives at `packages/modules/admin_actions/` and the admin runtime at
 `admin/src/lib/admin-actions/`.
@@ -130,9 +130,9 @@ longer reads it behind the platform's back.
 | `version` | `bigint` | Per-row sequence; bumped on every UPSERT. |
 | `installed_at`, `updated_at` | `timestamptz` | Row metadata. |
 
-There is no foreign key on `module_id` — modules are filesystem-driven (feature 018) and
+There is no foreign key on `module_id` — modules are filesystem-driven and
 `module_registrations` is the registry of record. Cleanup is enforced by the
-hard-uninstall path of the reconciler, mirroring feature 019's `translation_bundles`
+hard-uninstall path of the reconciler, mirroring the `translation_bundles`
 choice.
 
 ## Recommended weight bands

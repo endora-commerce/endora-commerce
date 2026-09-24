@@ -7,7 +7,7 @@ description: Poświadczenia integracyjne typu bearer token
 
 Klucze API ze scope'owanym bearer tokenem do integracji machine-to-machine. Plaintext
 tokenu pokazywany jest raz przy utworzeniu; przechowywany jest tylko hash SHA-256.
-Od feature 062 klucz może dodatkowo nieść **powiązanie dystrybutora**
+Klucz może dodatkowo nieść **powiązanie dystrybutora**
 (Organization + Sales Channel + service Customer Account) oraz opcjonalną datę wygaśnięcia,
 czyniąc go poświadczeniem partnerskim dla przestrzeni `/api/v1/external/*`,
 którą w pełni dokumentuje przewodnik integracyjny *Partner API access*.
@@ -41,7 +41,7 @@ Tworzenie waliduje scope'y względem typowanego katalogu w
 Egzekucja pozostaje membership-based, więc legacy free-text scope'y na istniejących
 kluczach pozostają czytelne i egzekwowalne — walidowane jest tylko tworzenie.
 
-## Model binding (feature 062)
+## Model binding
 
 Binding jest all-or-none i **niemutowalny po utworzeniu** (cykl życia token-shown-once;
 rebinding = revoke + nowy klucz). Reguły tworzenia, walidowane server-side i odzwierciedlone

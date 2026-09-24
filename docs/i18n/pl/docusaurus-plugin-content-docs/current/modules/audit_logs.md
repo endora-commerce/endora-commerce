@@ -25,11 +25,11 @@ API poza zakresem i inne. Dodanie nowej wrażliwej mutacji to dwulinijkowa
 zmiana w miejscu wywołania.
 
 Port to to, co moduł typuje, a kernel publikuje
-(`packages/platform/src/kernel/ports/audit.ts`, D-160.10); nazwa kontenera, pod
+(`packages/platform/src/kernel/ports/audit.ts`); nazwa kontenera, pod
 którą jest rejestrowany, to `auditLogService` i się nie zmieniła. Implementacja
 za nim, `AuditLogService`, należy do platformy i jest osiągalna tylko po
 ścieżce względnej — moduł, który nazwałby klasę, zależałby od kształtu
-writera, który Zasada XIII omija, bo zapis domenowy idzie przez
+writera, który jednolity audyt zapisów omija, bo zapis domenowy idzie przez
 `CommandBus.run`, a bus zapisuje wiersz.
 
 ## Encje

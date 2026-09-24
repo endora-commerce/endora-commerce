@@ -18,7 +18,7 @@ każde zaingestowane zdarzenie do Google Analytics, gdy jest skonfigurowany.
 
 ## Typy zdarzeń
 
-Granica Zod akceptuje stały zestaw, zgodnie z FR-110:
+Granica Zod akceptuje stały zestaw:
 
 - `product.viewed`, `category.viewed`
 - `product.added_to_cart`, `cart.abandoned`

@@ -77,7 +77,7 @@ Usunięcia przechodzą dwuetapowy cykl życia:
    credentials, partycja sieci), wiersz zostaje, a `pendingCleanup` ustawia się na
    `true`; worker ponawia przy następnym ticku.
 
-## Ochrona referencji (FR-030) {#asset-reference-registry}
+## Ochrona referencji {#asset-reference-registry}
 
 Soft-delete jest odrzucany z `409 ASSET_REFERENCED`, gdy którykolwiek z poniższych wskazuje asset:
 
@@ -113,7 +113,7 @@ szablony.
 
 ## Legacy escape hatch
 
-Wiersze `assets` sprzed 013, których `storage_url` był URL-em, którego ta platforma nie
+Wcześniej istniejące wiersze `assets`, których `storage_url` był URL-em, którego ta platforma nie
 wydała, są tagowane `storage_backend = 'legacy'` w czasie migracji. Legacy
 resolver zwraca URL verbatim dla assetów `public` — rebazując go na
 publicznym origin API, gdy zapisana wartość jest host-relative — i odmawia przełączenia

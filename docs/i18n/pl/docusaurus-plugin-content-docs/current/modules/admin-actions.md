@@ -8,8 +8,8 @@ description: Rejestr akcji modułów udostępniany w palecie poleceń Admin (⌘
 Punkt współdzielenia oparty na rejestrze, który pozwala każdemu modułowi backendu dodawać
 przyciski akcji do palety poleceń Admin UI (modal `⌘K` / `Ctrl+K` — to, co operator widzi
 jako grupę **Actions**). Dziś na stałe są dostarczone dwie akcje (*New product*, *Import products*);
-od feature 020 wszystkie one, i każda przyszła akcja, deklarowane są raz w manifeście
-właścicielskiego modułu i udostępniane przez ten rejestr. Feature 020.
+wszystkie one, i każda przyszła akcja, deklarowane są raz w manifeście
+właścicielskiego modułu i udostępniane przez ten rejestr.
 
 Strona platformy jest w `packages/modules/admin_actions/`, a runtime admina w
 `admin/src/lib/admin-actions/`.
@@ -129,9 +129,9 @@ za plecami platformy.
 | `version` | `bigint` | Sekwencja per wiersz; bump przy każdym UPSERT. |
 | `installed_at`, `updated_at` | `timestamptz` | Metadane wiersza. |
 
-Nie ma FK na `module_id` — moduły są filesystem-driven (feature 018), a `module_registrations`
+Nie ma FK na `module_id` — moduły są filesystem-driven, a `module_registrations`
 jest rejestrem zapisu. Cleanup wymusza ścieżka hard-uninstall reconcilera, na wzór wyboru
-feature 019 dla `translation_bundles`.
+dla `translation_bundles`.
 
 ## Zalecane pasma weight
 
