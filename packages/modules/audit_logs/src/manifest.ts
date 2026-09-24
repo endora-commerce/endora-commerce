@@ -102,7 +102,7 @@ export const manifest = defineModuleManifest({
 export const cliCommands: ReadonlyArray<ModuleCliCommand<ModuleContext>> = [
   {
     name: 'read',
-    summary: 'Read the audit trail from the host, without writing to it (D-102).',
+    summary: 'Read the audit trail from the host, without writing to it.',
     // The cost is in the **first paragraph**, not a footnote, and it is declared
     // here rather than printed from the body so the host can answer `--help`
     // before it composes. That is D-102's condition: the credential is host

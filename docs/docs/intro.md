@@ -40,4 +40,4 @@ Per the constitution's Documentation Requirements: PRs that add or change a modu
 
 ## About this site
 
-This is the public documentation of Endora Commerce, published at `https://docs.commerce.endora.software/` in English and Polish: it is built with Docusaurus from the documentation sources kept in the product's own repository — the site's own pages under `docs/`, plus one documentation directory per module, collected at build time — so a page and the code it describes change together. References written as `specs/NNN-slug/` appear throughout as plain text rather than links; [Understanding specs/NNN citations](about/spec-citations) explains what they are and why.
+This is the public documentation of Endora Commerce, published at `https://docs.commerce.endora.software/` in English and Polish: it is built with Docusaurus from the documentation sources kept in the product's own repository — the site's own pages under `docs/`, plus one documentation directory per module, collected at build time — so a page and the code it describes change together.

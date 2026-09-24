@@ -45,4 +45,4 @@ Zgodnie z wymaganiami Documentation Requirements w konstytucji: PR-y, które dod
 
 ## O tej witrynie
 
-To jest publiczna dokumentacja Endora Commerce, publikowana pod adresem `https://docs.commerce.endora.software/` w wersji angielskiej i polskiej: powstaje w Docusaurusie ze źródeł dokumentacji trzymanych w repozytorium samego produktu — stron tej witryny w katalogu `docs/` oraz jednego katalogu dokumentacji na moduł, zbieranych podczas budowania — dzięki czemu strona i opisywany przez nią kod zmieniają się razem. Odwołania zapisane jako `specs/NNN-slug/` występują w całej witrynie jako zwykły tekst, a nie odnośniki; [Jak czytać cytowania specs/NNN](about/spec-citations) wyjaśnia, czym są i dlaczego.
+To jest publiczna dokumentacja Endora Commerce, publikowana pod adresem `https://docs.commerce.endora.software/` w wersji angielskiej i polskiej: powstaje w Docusaurusie ze źródeł dokumentacji trzymanych w repozytorium samego produktu — stron tej witryny w katalogu `docs/` oraz jednego katalogu dokumentacji na moduł, zbieranych podczas budowania — dzięki czemu strona i opisywany przez nią kod zmieniają się razem.

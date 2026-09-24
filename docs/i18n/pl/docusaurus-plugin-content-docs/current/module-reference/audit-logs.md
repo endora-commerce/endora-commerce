@@ -53,4 +53,4 @@ Paczki w `i18n` wewnątrz modułu, po jednym pliku na obsługiwany język.
 
 | Polecenie | Działanie |
 | --- | --- |
-| `pnpm --filter backend run cli -- audit_logs read` | Read the audit trail from the host, without writing to it (D-102). |
+| `pnpm --filter backend run cli -- audit_logs read` | Odczyt śladu audytu z hosta, bez zapisu do niego. |

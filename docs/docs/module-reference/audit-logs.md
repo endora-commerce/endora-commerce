@@ -53,4 +53,4 @@ Bundles at `i18n` inside the module, one file per shipped language.
 
 | Command | What it does |
 | --- | --- |
-| `pnpm --filter backend run cli -- audit_logs read` | Read the audit trail from the host, without writing to it (D-102). |
+| `pnpm --filter backend run cli -- audit_logs read` | Read the audit trail from the host, without writing to it. |
