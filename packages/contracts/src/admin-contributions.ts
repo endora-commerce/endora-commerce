@@ -187,6 +187,16 @@ export const AdminZoneNameSchema = z.enum([
    */
   'delivery_method.list.integrations',
   /**
+   * The integrations card on the payment-methods list — one entry per online
+   * payment adapter a module supplies, each linking to that module's own
+   * configuration screen.
+   *
+   * Mounted once per list screen and carrying no props. The free host owns the
+   * place and its heading; separately shipped gateway modules own the cards.
+   * Props: {@link PaymentMethodIntegrationsZoneProps}.
+   */
+  'payment_method.list.integrations',
+  /**
    * Below the invoice detail's totals column, at the end of the right-hand
    * stack.
    *
@@ -439,6 +449,9 @@ export interface ProductEditorZoneProps {
  */
 export interface DeliveryMethodIntegrationsZoneProps {}
 
+/** The payment-method integrations mount carries no host-owned data. */
+export interface PaymentMethodIntegrationsZoneProps {}
+
 /**
  * A zone mounted once at the end of the invoice detail's totals column.
  *
@@ -634,6 +647,7 @@ export interface AdminZonePropsMap extends Record<AdminZoneName, object> {
   'product.editor.pricing.before': ProductEditorZoneProps;
   'product.editor.field.after': ProductEditorFieldZoneProps;
   'delivery_method.list.integrations': DeliveryMethodIntegrationsZoneProps;
+  'payment_method.list.integrations': PaymentMethodIntegrationsZoneProps;
   'invoice.detail.after': InvoiceDetailZoneProps;
   'category.editor.after': CategoryEditorZoneProps;
   // Reused, not aliased: a props type is the shape the mount carries, and two

@@ -43,20 +43,10 @@ interface DiscoveredLike {
  * (`carrier-seed-install-hook.integration.test.ts`) is the same file one wave
  * earlier.
  *
- * ## Two subjects, with different lifetimes, and that is deliberate
- *
- *   * **`stripe`** stands for the five gateways while they are still in this
- *     repository. Its case carries the **fresh-versus-upgraded equivalence**,
- *     which is a gateway's own claim and travels with the package at T046 — wave
- *     1 recorded exactly that disposition for `inpost` and `dhl_parcel`, and this
- *     file inherits it. It is the one gateway whose seed has five codes and a
- *     vendor-owned rule table, so it exercises every shape the other four have.
- *   * **`payment_gateway_fixture`** is FR-021's standing consumer and does not
- *     travel. With all five gateways gone, `PaymentMethodSeedApi` would have
- *     **zero consumers in this repository** — a published surface whose breaking
- *     change would type-check green here and red in a consumer's build days later
- *     (`extraction-procedure.md` refusal 6, on the consumer side). W7's last step
- *     is what makes it a consumer, and these are the cases that survive T046.
+ * `payment_gateway_fixture` is FR-021's standing consumer. With the commercial
+ * gateways in their own repository, `PaymentMethodSeedApi` would otherwise
+ * have zero consumers here — a published surface whose breaking change would
+ * type-check green in core and fail only in a downstream build.
  *
  * Every row is written inside a transaction that is rolled back, and the
  * registration rows the install needs are written the same way.
@@ -78,15 +68,6 @@ interface MembershipRow {
   method_code: string;
   channel_code: string;
 }
-
-/** The five codes `stripe`'s emptied seed migration used to insert. */
-const STRIPE_CODES = [
-  'stripe_apple_pay',
-  'stripe_bank_transfer',
-  'stripe_blik',
-  'stripe_card',
-  'stripe_google_pay',
-] as const;
 
 const FIXTURE_ENTRY: DiscoveredLike = {
   id: gatewayFixtureManifest.id,
@@ -215,77 +196,6 @@ describe('Gateway payment-method seeds — the install-hook seam (integration)',
     );
     return { methods, memberships };
   }
-
-  /**
-   * The row values §2.4 required to be named rather than defaulted, measured on
-   * the database a fresh install produces.
-   *
-   * `status: 'inactive'` is the one where the seeder's default and the correct
-   * value disagree, and `status_on_failure: 'on_hold'` is §4's whole premise: the
-   * emptied `*_failure_status_on_hold` migrations exist only to correct rows the
-   * old seed wrote as `'cancelled'`, so a fresh install that cannot produce one
-   * is what retires them with no replacement.
-   */
-  it('stripe: seeds five inactive methods, at on_hold, each bound to the default channel once', async () => {
-    await clearMethods(STRIPE_CODES);
-    await install('stripe');
-
-    const seeded = await snapshot(STRIPE_CODES);
-    expect(seeded.methods.map((r) => r.code)).toEqual([...STRIPE_CODES]);
-    for (const row of seeded.methods) {
-      expect(row.adapter, row.code).toBe('stripe');
-      expect(row.kind, row.code).toBe('gateway');
-      expect(row.status, row.code).toBe('inactive');
-      expect(row.status_on_pending, row.code).toBe('new');
-      expect(row.status_on_success, row.code).toBe('paid');
-      expect(row.status_on_failure, row.code).toBe('on_hold');
-    }
-    expect(seeded.memberships).toHaveLength(STRIPE_CODES.length);
-
-    // The vendor-owned rule row the emptied seed migration used to create, at its
-    // shipped default. It is this module's own table, so it is not the foreign
-    // write FR-064 is about — it is carried over so that a fresh install and an
-    // upgraded one hold the same rows (§3.2).
-    const rules = await db
-      .em()
-      .execute<Array<{ code: string }>>(
-        `select pm."code" from "stripe_payment_method_rules" r
-           join "payment_methods" pm on pm."id" = r."payment_method_id"
-          where pm."code" in (${STRIPE_CODES.map(() => '?').join(', ')}) order by pm."code"`,
-        [...STRIPE_CODES],
-      );
-    expect(rules.map((r) => r.code)).toEqual([...STRIPE_CODES]);
-  }, 120_000);
-
-  it('stripe: a method the operator unbound stays unbound, and an admin edit survives', async () => {
-    // Both halves of the created-guard, on a real gateway. `ensureMethodForAdapter`
-    // must not reconcile a row it did not create, and `bindToDefaultChannel` must
-    // not run for one — an unguarded call is issue #96 verbatim (§2.3).
-    await clearMethods(STRIPE_CODES);
-    await install('stripe');
-
-    await db
-      .em()
-      .execute(
-        `delete from "sales_channel_payment_methods" where "payment_method_id" in (
-           select "id" from "payment_methods" where "code" = ?)`,
-        ['stripe_card'],
-      );
-    await db
-      .em()
-      .execute('update "payment_methods" set "status" = ?, "additional_price" = ? where "code" = ?', [
-        'active',
-        '4.99',
-        'stripe_card',
-      ]);
-
-    await install('stripe');
-
-    const after = await snapshot(['stripe_card']);
-    expect(after.memberships).toEqual([]);
-    expect(after.methods[0]?.status).toBe('active');
-    expect(after.methods[0]?.additional_price).toBe('4.99');
-  }, 120_000);
 
   /**
    * W7's last step, and the case that survives T046: with all five gateways out

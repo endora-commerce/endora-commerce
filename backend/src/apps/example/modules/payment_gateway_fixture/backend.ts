@@ -1,9 +1,13 @@
 import {
   storefrontPaymentReturnUrl,
+  type GatewayRefundHandler,
+  type GatewayRefundRegistryPort,
   type PaymentAdapter,
   type PaymentAdapterRegistryPort,
   type PaymentEligibilityContext,
   type PaymentOutcome,
+  type PaymentRefundInput,
+  type PaymentRefundResult,
   type ReceivePaymentContext,
   type StartPaymentResult,
 } from '@endora-commerce/contracts';
@@ -205,6 +209,23 @@ export function paymentGatewayFixtureAdapters(): PaymentAdapter[] {
   return [new PaymentGatewayFixtureRedirectAdapter(), new PaymentGatewayFixtureHostedAdapter()];
 }
 
+/**
+ * A deterministic refund implementation for the free host's contribution
+ * seam. It contacts no provider and records no state; an enabled fixture
+ * reports a failed provider refund, while the registry must refuse the same
+ * request before this method is called when the fixture is absent.
+ */
+export class PaymentGatewayFixtureRefundHandler implements GatewayRefundHandler {
+  readonly adapterKey = PAYMENT_GATEWAY_FIXTURE_ADAPTER_KEYS.REDIRECT;
+
+  async refund(_input: PaymentRefundInput): Promise<PaymentRefundResult> {
+    return {
+      state: 'failed',
+      failureReason: 'The payment gateway fixture does not issue external refunds.',
+    };
+  }
+}
+
 export function registerModule(ctx: ModuleContext): void {
   // Contribution only — the registry is read at use time and never captured
   // into a singleton, and the push names its contributor so that
@@ -214,5 +235,9 @@ export function registerModule(ctx: ModuleContext): void {
     for (const adapter of paymentGatewayFixtureAdapters()) {
       registry.register(adapter, PAYMENT_GATEWAY_FIXTURE_MODULE_ID);
     }
+    lazyPort<GatewayRefundRegistryPort>(ctx, 'gatewayRefundRegistry').register(
+      new PaymentGatewayFixtureRefundHandler(),
+      PAYMENT_GATEWAY_FIXTURE_MODULE_ID,
+    );
   });
 }

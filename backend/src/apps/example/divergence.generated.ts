@@ -211,6 +211,18 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
       "reason": "The write a vendor makes back onto an invoice when the ledger’s numbering mode hands numbering to the vendor. Consumed rather than simulated, because `applyVendorAssignedNumber` would otherwise have no caller in this repository after wave 4."
     },
     {
+      "key": "port-consumed:payment_gateway_fixture:gatewayRefundRegistry",
+      "kind": "port-consumed",
+      "module": "payment_gateway_fixture",
+      "subject": "gatewayRefundRegistry",
+      "owner": "payments",
+      "rung": 3,
+      "detail": {
+        "kind": "port-consumed"
+      },
+      "reason": "The refund seam `payments` publishes for a module that settles a payment, reached from this fixture’s boot hook for the reason the adapter registry above is: once feature 134’s wave 2 removes `autopay`, `paypal`, `payu`, `stripe` and `tpay`, nothing else in this repository registers a refund handler, and `GatewayRefundRegistryPort` would be compiled against by no consumer at all (FR-021, FR-063). Same rung, same shape: the owner published the seam, the consumer declares it, and nothing of `payments` is wrapped or replaced."
+    },
+    {
       "key": "port-consumed:payment_gateway_fixture:paymentAdapterRegistry",
       "kind": "port-consumed",
       "module": "payment_gateway_fixture",

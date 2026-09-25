@@ -302,7 +302,7 @@ describe('the scan reaches every file a module owns (issue #122)', () => {
   });
 
   it('opens route files, command files and the composition seam', () => {
-    expect(has('/autopay/routes.admin.ts')).toBe(true);
+    expect(has('/customer_accounts/routes.admin.ts')).toBe(true);
     expect(has('/product_feeds/commands/product-feed.commands.ts')).toBe(true);
     // The composition seam. A packaged module keeps it at `src/backend/index.ts`,
     // which the normaliser above strips to `/<id>/index.ts`; the walk names no

@@ -120,7 +120,7 @@ export const manifest = defineModuleManifest({
   // `paymentAdapterRegistry` is `payment_methods`', reached from this module's
   // boot hook — the same binding dependency `stripe` declares for the same
   // seam. `settings` carries the activation control above.
-  dependencies: ['payment_methods', 'settings'],
+  dependencies: ['payment_methods', 'payments', 'settings'],
   activation: {
     settingCode: PAYMENT_GATEWAY_FIXTURE_SETTING_CODES.ACTIVATION,
     default: true,

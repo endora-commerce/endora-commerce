@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type {
+  GatewayRefundHandler,
+  GatewayRefundRegistryPort,
   PaymentAdapter,
   PaymentAdapterRegistryPort,
   PaymentEligibilityContext,
@@ -16,6 +18,7 @@ import {
   PAYMENT_GATEWAY_FIXTURE_ADAPTER_KEYS,
   PAYMENT_GATEWAY_FIXTURE_MODULE_ID,
   PAYMENT_GATEWAY_FIXTURE_STOREFRONT_BASE_URL,
+  PaymentGatewayFixtureRefundHandler,
   paymentGatewayFixtureAdapters,
   registerModule,
 } from './backend.js';
@@ -99,15 +102,38 @@ class RecordingPaymentAdapterRegistry implements PaymentAdapterRegistryPort {
   }
 }
 
+class RecordingGatewayRefundRegistry implements GatewayRefundRegistryPort {
+  readonly pushes: { adapterKey: string; module: string }[] = [];
+  private readonly entries = new Map<string, GatewayRefundHandler>();
+
+  register(handler: GatewayRefundHandler, module: string): void {
+    this.pushes.push({ adapterKey: handler.adapterKey, module });
+    this.entries.set(handler.adapterKey, handler);
+  }
+  get(adapterKey: string): GatewayRefundHandler | undefined {
+    return this.entries.get(adapterKey);
+  }
+  resolve(adapterKey?: string | null): GatewayRefundHandler | undefined {
+    if (adapterKey) return this.get(adapterKey);
+    return this.entries.size === 1 ? [...this.entries.values()][0] : undefined;
+  }
+  list(): string[] {
+    return [...this.entries.keys()];
+  }
+}
+
 /** A `ModuleContext` shaped exactly as far as a contribution hook reaches. */
-function contextStub(registry: unknown): {
+function contextStub(
+  paymentAdapterRegistry: unknown,
+  gatewayRefundRegistry: unknown = new RecordingGatewayRefundRegistry(),
+): {
   readonly ctx: ModuleContext;
   runBootHooks(): void;
 } {
   const bootHooks: (() => void)[] = [];
   const ctx = {
     module: { id: PAYMENT_GATEWAY_FIXTURE_MODULE_ID },
-    cradle: () => ({ paymentAdapterRegistry: registry }),
+    cradle: () => ({ paymentAdapterRegistry, gatewayRefundRegistry }),
     onBoot: (hook: () => void) => bootHooks.push(hook),
   } as unknown as ModuleContext;
   return {
@@ -166,7 +192,9 @@ describe('payment_gateway_fixture — the manifest', () => {
     );
     // `paymentAdapterRegistry` is `payment_methods`', reached from the boot
     // hook — a binding dependency, exactly as `stripe` declares it.
-    expect(manifest.dependencies).toContain('payment_methods');
+    expect(manifest.dependencies).toEqual(
+      expect.arrayContaining(['payment_methods', 'payments']),
+    );
   });
 
   it('joins no capability family, because the payment gateways are not one', () => {
@@ -282,9 +310,10 @@ describe('payment_gateway_fixture — the port surface it restores', () => {
 });
 
 describe('payment_gateway_fixture — the contribution seam', () => {
-  it('pushes both adapters naming itself as the contributor', () => {
+  it('pushes both adapters and the refund handler naming itself as the contributor', () => {
     const registry = new RecordingPaymentAdapterRegistry();
-    const { ctx, runBootHooks } = contextStub(registry);
+    const refundRegistry = new RecordingGatewayRefundRegistry();
+    const { ctx, runBootHooks } = contextStub(registry, refundRegistry);
 
     registerModule(ctx);
     // Nothing is pushed before the boot hook runs: the registry is read at use
@@ -304,6 +333,15 @@ describe('payment_gateway_fixture — the contribution seam', () => {
     ]);
     expect(registry.ownerOf(PAYMENT_GATEWAY_FIXTURE_ADAPTER_KEYS.REDIRECT)).toBe(
       PAYMENT_GATEWAY_FIXTURE_MODULE_ID,
+    );
+    expect(refundRegistry.pushes).toEqual([
+      {
+        adapterKey: PAYMENT_GATEWAY_FIXTURE_ADAPTER_KEYS.REDIRECT,
+        module: PAYMENT_GATEWAY_FIXTURE_MODULE_ID,
+      },
+    ]);
+    expect(refundRegistry.get(PAYMENT_GATEWAY_FIXTURE_ADAPTER_KEYS.REDIRECT)).toBeInstanceOf(
+      PaymentGatewayFixtureRefundHandler,
     );
   });
 

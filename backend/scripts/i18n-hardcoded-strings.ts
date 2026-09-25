@@ -478,7 +478,6 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // operator chose. Translating them is a screen's worth of keys and belongs to
   // whoever repairs this screen, not to a batch whose subject is where the file
   // lives.
-  'packages/modules/stripe/src/admin/pages/StripeSettingsPage.tsx': 29,
   // Feature 091, Phase 4, the plan's batch 9 — the same four findings under a
   // new key. `custom_fields`' definition screen moved into its module's
   // package; the ratchet is two-way and keyed by path, so both halves fired in

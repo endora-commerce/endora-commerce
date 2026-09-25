@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
-import { adminSession, withSession } from '../../helpers/render-with-session';
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
 /**
  * Feature 076 (D-83 item 6, SC-007) — arriving from a gateway screen lands on
@@ -108,7 +108,10 @@ describe('PaymentMethodsPage — arriving with ?highlight=<code>', () => {
         <MemoryRouter initialEntries={['/payment-methods?highlight=autopay_pbl']}>
           <PaymentMethodsPage />
         </MemoryRouter>,
-        { session: SESSION },
+        {
+          session: SESSION,
+          presence: modulePresence({ present: ['payment_methods'] }),
+        },
       ),
       passthroughBundle('core', KEYS),
     );
@@ -130,7 +133,10 @@ describe('PaymentMethodsPage — arriving with ?highlight=<code>', () => {
         <MemoryRouter initialEntries={['/payment-methods']}>
           <PaymentMethodsPage />
         </MemoryRouter>,
-        { session: SESSION },
+        {
+          session: SESSION,
+          presence: modulePresence({ present: ['payment_methods'] }),
+        },
       ),
       passthroughBundle('core', KEYS),
     );
