@@ -5,14 +5,14 @@ description: Provider-shaped product feeds per sales channel — scheduled gener
 
 # Product Feeds
 
-The `product_feeds` module (feature `067`) turns the catalogue of one sales channel into a
+The `product_feeds` module turns the catalogue of one sales channel into a
 **provider-shaped feed file** — a Google Merchant Center XML document, a Meta catalogue, a
 marketplace flat file — publishes it at a **stable, tokenised URL** the provider fetches
 anonymously, and regenerates it on a per-feed schedule.
 
 Feeds leave the platform two ways. **Pull** is the original one and still the default: the
-provider fetches the tokenised URL, or an administrator downloads the file. **Push** arrived with
-feature `070` — each successful run can also send its file to a partner's server over SFTP, FTP or
+provider fetches the tokenised URL, or an administrator downloads the file. **Push** arrived
+later — each successful run can also send its file to a partner's server over SFTP, FTP or
 HTTP. The two are independent, so a feed can do both.
 
 ## For operators
@@ -391,7 +391,7 @@ The residual memory growth above is not the items: it is the channel's membershi
 materialised before paging (about 90 bytes per product in the channel). That is O(the channel), not
 O(the feed).
 
-### Delivery (feature 070)
+### Delivery
 
 Delivery is a **post-publication side effect**, wired on the same seam as retention and the
 failed-run notification: `deliverArtefact` is an optional port on `FeedGenerationDeps`, invoked on
@@ -401,7 +401,7 @@ has already finished by the time the upload is attempted.
 
 ```
 run publishes  →  deliverArtefact?(feedId, runId, artefactId)   [port, optional]
-                    → enqueue on product_feeds.deliver          (Principle X)
+                    → enqueue on product_feeds.deliver
                       → resolve config + secrets
                         → adapter.send(stream, target)          [transport SPI]
                           → record attempt
@@ -431,7 +431,7 @@ exact secrets in play and removes those strings, rather than guessing what a pas
 The test harness injects adapters that refuse every send, for the same reason it injects a taxonomy
 fetcher that cannot fetch: no test in this repository may upload a priced catalogue anywhere.
 
-### Channel scoping (Principle XII)
+### Channel scoping
 
 Membership is read **only** through the injected
 `SalesChannelMembershipService.listEntityIdsForChannel` port; the module never queries a
@@ -443,7 +443,7 @@ There is no fail-open branch: an unresolvable or inactive channel raises `Channe
 and the run fails closed. `backend/test/integration/product_feeds/channel-isolation.test.ts` is the
 regression net, and it exercises the public URL as well, because that endpoint is unauthenticated.
 
-### Auditing (Principle XIII)
+### Auditing
 
 Every operator write is a Command: `product_feeds.feed.create|update|delete|duplicate`,
 `product_feeds.token.rotate|revoke`, `product_feeds.run.start`,
@@ -481,7 +481,7 @@ long-lived one it means a platform upgrade cannot silently replace a revision an
 published files and installs a changed revision **inactive** (see
 [Taxonomy updates](#taxonomy-updates)). It cannot become the revision in force by itself.
 
-**Generation never depends on reaching a provider** (FR-077). A run reads the revision in force from
+**Generation never depends on reaching a provider.** A run reads the revision in force from
 Postgres and contacts nobody, so a provider that is down, slow or serving nonsense produces a failed
 *check*, never a failed or altered *run* — and an installation that leaves the switch off makes no
 outbound request at all.

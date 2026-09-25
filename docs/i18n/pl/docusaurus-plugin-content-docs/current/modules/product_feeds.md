@@ -5,7 +5,7 @@ description: Feed'y produktowe w kształcie providera per kanał sprzedaży — 
 
 # Product Feeds
 
-Moduł `product_feeds` (feature `067`) zamienia katalog jednego kanału sprzedaży
+Moduł `product_feeds` zamienia katalog jednego kanału sprzedaży
 w **plik feedu w kształcie providera** — dokument XML Google Merchant Center,
 katalog Meta, płaski plik marketplace — publikuje go pod **stabilnym,
 tokenizowanym URL**, który provider pobiera anonimowo, i regeneruje go według
@@ -13,7 +13,7 @@ harmonogramu per feed.
 
 Feed'y opuszczają platformę dwiema drogami. **Pull** to pierwotna i nadal
 domyślna: provider pobiera tokenizowany URL albo administrator pobiera plik.
-**Push** pojawił się z feature `070` — każdy udany run może też wysłać plik na
+**Push** pojawił się później — każdy udany run może też wysłać plik na
 serwer partnera przez SFTP, FTP lub HTTP. Obie drogi są niezależne, więc feed
 może robić obie.
 
@@ -416,7 +416,7 @@ Pozostały wzrost pamięci powyżej to nie itemy: to lista id członkostwa kana�
 materializowana przed pagingiem (~90 bajtów na produkt w kanale). To O(kanał), nie
 O(feed).
 
-### Delivery (feature 070)
+### Delivery
 
 Delivery to **efekt uboczny po publikacji**, podpięty na tym samym seam co retention
 i powiadomienie o failed run: `deliverArtefact` to opcjonalny port na
@@ -427,7 +427,7 @@ został podjęty.
 
 ```
 run publishes  →  deliverArtefact?(feedId, runId, artefactId)   [port, optional]
-                    → enqueue on product_feeds.deliver          (Principle X)
+                    → enqueue on product_feeds.deliver
                       → resolve config + secrets
                         → adapter.send(stream, target)          [transport SPI]
                           → record attempt
@@ -462,7 +462,7 @@ Test harness wstrzykuje adaptery odmawiające każdego send, z tego samego powod
 co fetcher taksonomii, który nie może fetch'ować: żaden test w tym repozytorium nie
 może upload'ować katalogu z cenami gdziekolwiek.
 
-### Channel scoping (Principle XII)
+### Channel scoping
 
 Członkostwo czytane jest **tylko** przez wstrzyknięty port
 `SalesChannelMembershipService.listEntityIdsForChannel`; moduł nigdy nie odpytuje
@@ -475,7 +475,7 @@ Nie ma gałęzi fail-open: nierozwiązywalny lub nieaktywny kanał podnosi
 `backend/test/integration/product_feeds/channel-isolation.test.ts` to regression net,
 i ćwiczy też publiczny URL, bo ten endpoint jest nieuwierzytelniony.
 
-### Auditing (Principle XIII)
+### Auditing
 
 Każdy zapis operatora to Command: `product_feeds.feed.create|update|delete|duplicate`,
 `product_feeds.token.rotate|revoke`, `product_feeds.run.start`,
@@ -517,7 +517,7 @@ może cicho zastąpić rewizji wybranej przez operatora.
 opublikowane pliki providera i instaluje zmienioną rewizję **inactive** (zobacz
 [Taxonomy updates](#taxonomy-updates)). Nie może sama stać się rewizją w force.
 
-**Generacja nigdy nie zależy od dotarcia do providera** (FR-077). Run czyta rewizję
+**Generacja nigdy nie zależy od dotarcia do providera.** Run czyta rewizję
 w force z Postgres i nikogo nie kontaktuje, więc provider down, wolny albo serwujący
 nonsens daje failed *check*, nigdy failed ani zmieniony *run* — a instalacja z
 wyłączonym przełącznikiem w ogóle nie robi requestu wychodzącego.
