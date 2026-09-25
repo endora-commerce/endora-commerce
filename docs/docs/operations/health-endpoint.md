@@ -7,7 +7,7 @@ description: Liveness + readiness probe
 
 Liveness + readiness probe.
 
-It is the platform's, not a module's (D-229). Every Endora instance serves it
+It is the platform's, not a module's. Every Endora instance serves it
 because it is an Endora instance: `@endora-commerce/platform` registers the
 route from its own application composition, so there is nothing to install,
 nothing to switch on, and no command that can take it away. It used to be a

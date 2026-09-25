@@ -9,8 +9,8 @@ dostarczanie webhooków — przechodzi przez trwałe kolejki oparte na Redis, ob
 **workery**. Ta strona wyjaśnia, jak uruchamiać te konsumenty i jak zachowują się obecne
 operacje platformy oparte na kolejkach.
 
-Projekt podąża za **Zasadą X Konstytucji — Skalowalne konsumenci kolejek**
-(`.specify/memory/constitution.md`). Wiążący invariant brzmi:
+Projekt podąża za regułą platformy o **skalowalnych konsumentach kolejek**.
+Wiążący invariant brzmi:
 
 - kolejka to **trwały, rozproszony substrat** (Redis / klasa BullMQ), a nie lista
   in-memory przypisana do jednego procesu;
@@ -43,7 +43,7 @@ pnpm --filter backend run start      # production (built)
 pnpm --filter backend run dev        # development (tsx watch)
 ```
 
-To postawa dozwolona przez Zasadę X przy niskim wolumenie: worker pozostaje *oddzielnym
+To postawa dozwolona przez tę regułę przy niskim wolumenie: worker pozostaje *oddzielnym
 entrypointem*, ale jest hostowany w procesie API, aby utrzymać prosty deployment.
 
 ### Osobne, niezależnie skalowalne workery
@@ -109,8 +109,8 @@ dostarczania i model ponowień.
 ## Inne joby w tle (jeszcze nie na wspólnej kolejce)
 
 Kilka okresowych/jobów konserwacyjnych nadal działa jako timery in-process lub ręczne
-skrypty. Poprzedzają Zasadę X i są śledzone pod migrację do tego samego modelu workera; do
-tego czasu dokumentuj i obsługuj je tak:
+skrypty. Poprzedzają regułę o skalowalnych konsumentach kolejek i są śledzone pod migrację
+do tego samego modelu workera; do tego czasu dokumentuj i obsługuj je tak:
 
 | Job | Jak działa dziś | Wywołanie |
 | --- | --- | --- |
@@ -120,9 +120,10 @@ tego czasu dokumentuj i obsługuj je tak:
 | RFQ expiry | Metoda serwisu, wywoływana wg harmonogramu | `RfqExpiryWorker.sweep()` |
 
 :::note
-Powyższe sweepery in-process `setInterval` to legacy pattern, który Zasada X zastępuje.
-Nowa asynchroniczna praca oparta na kolejkach MUSI używać trwałej kolejki + oddzielnego
-modelu workera opisanego tutaj, nigdy timera w procesie żądania.
+Powyższe sweepery in-process `setInterval` to legacy pattern, który zastępuje reguła
+o skalowalnych konsumentach kolejek. Nowa asynchroniczna praca oparta na kolejkach MUSI
+używać trwałej kolejki + oddzielnego modelu workera opisanego tutaj, nigdy timera
+w procesie żądania.
 :::
 
 Cart abandonment sweep czyta obecność modułu z `module_registrations` przed jakąkolwiek

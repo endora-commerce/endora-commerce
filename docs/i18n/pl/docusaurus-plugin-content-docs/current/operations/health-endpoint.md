@@ -7,7 +7,7 @@ description: Sonda liveness + readiness
 
 Sonda liveness + readiness.
 
-To jest element platformy, a nie modułu (D-229). Każda instancja Endora go udostępnia,
+To jest element platformy, a nie modułu. Każda instancja Endora go udostępnia,
 ponieważ jest instancją Endora: `@endora-commerce/platform` rejestruje trasę ze swojej
 własnej kompozycji aplikacji, więc nie ma nic do instalacji, nic do włączenia i nie ma
 polecenia, które mogłoby go usunąć. Kiedyś był modułem `health_checks`, co oznaczało, że
