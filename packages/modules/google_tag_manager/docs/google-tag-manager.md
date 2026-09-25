@@ -5,7 +5,7 @@ description: Google Tag Manager containers per sales channel, with a documented 
 
 # Google Tag Manager
 
-The `google_tag_manager` module (feature 066) puts your **GTM container** on the storefront, one per
+The `google_tag_manager` module puts your **GTM container** on the storefront, one per
 sales channel, and publishes a documented commerce `dataLayer` vocabulary for your tags to trigger
 on. It can also relay those events from the platform's backend to your **server-side GTM container**.
 

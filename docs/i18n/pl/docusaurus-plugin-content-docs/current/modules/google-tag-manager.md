@@ -5,7 +5,7 @@ description: Kontenery Google Tag Manager per kanał sprzedaży, z udokumentowan
 
 # Google Tag Manager
 
-Moduł `google_tag_manager` (feature 066) umieszcza **kontener GTM** na
+Moduł `google_tag_manager` umieszcza **kontener GTM** na
 storefront, jeden per kanał sprzedaży, i publikuje udokumentowane słownictwo
 commerce `dataLayer`, na którym Twoje tagi mogą się triggerować. Może też
 relay'ować te zdarzenia z backendu platformy do **kontenera GTM po stronie
