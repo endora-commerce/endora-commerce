@@ -4,7 +4,7 @@ title: Admin panel — mobile layout
 
 # Admin panel — mobile layout
 
-Feature **029** makes the Supplier admin panel usable on smartphone browsers. There is no separate native app: the same React SPA adapts below the **`lg` breakpoint (1024px)**.
+The Supplier admin panel is usable on smartphone browsers. There is no separate native app: the same React SPA adapts below the **`lg` breakpoint (1024px)**.
 
 ## Breakpoints
 

@@ -4,7 +4,7 @@ title: Panel administracyjny — układ mobilny
 
 # Panel administracyjny — układ mobilny
 
-Funkcja **029** sprawia, że panel administracyjny Dostawcy jest użyteczny w przeglądarkach smartfonów. Nie ma osobnej aplikacji natywnej: ta sama aplikacja React SPA dostosowuje się poniżej **punktu przerwania `lg` (1024px)**.
+Panel administracyjny Dostawcy jest użyteczny w przeglądarkach smartfonów. Nie ma osobnej aplikacji natywnej: ta sama aplikacja React SPA dostosowuje się poniżej **punktu przerwania `lg` (1024px)**.
 
 ## Punkty przerwania
 
