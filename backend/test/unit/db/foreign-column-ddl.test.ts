@@ -190,7 +190,7 @@ function reverseEdgeAnalysis(input: {
     if (site.writer === CORE_WRITER) continue;
     if (closureOf(site.owner, dependencies).has(site.writer)) continue;
     if (required.has(site.writer) && required.has(site.owner)) continue;
-    const key = `${site.file}\u0000${site.table}\u0000${site.column}`;
+    const key = JSON.stringify([site.file, site.table, site.column]);
     const existing = grouped.get(key);
     if (existing === undefined) {
       grouped.set(key, {
