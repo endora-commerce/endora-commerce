@@ -44,17 +44,11 @@ const PREFIX = '[verify-docs-build]';
  * The floor SC-005 records from the build that first carried the public origin.
  * A sitemap that shrinks past it has lost pages, whatever the build said.
  *
- * Re-measured, never computed from a delta. **2026-09-25: 193 -> 174**, from a
- * fresh build of `origin/master` at 20129efdb: 19 pages per locale left with
- * paid modules (`specs/134-paid-module-extraction/` FR-027) — the four PIM
- * architecture/integration pages (!1756), `inpost` (!1739), `dhl_parcel`
- * (!1744), `wfirma` (!1768) and the five gateways of !1783. The URL inventory
- * lost the same URLs in the same change; that record names them.
- *
- * **2026-09-25: 174 -> 172**, re-measured from a fresh build of MR !1805
- * (`pim_akeneo` leaves) after merging `origin/master` at 447510342: its
- * `module-reference/pim-akeneo` and `modules/pim-akeneo` pages leave, in both
- * locales. Counted off the built `sitemap.xml` and `pl/sitemap.xml`, 172 each.
+ * Re-measured, never computed from a delta, from a fresh build counted off the
+ * built `sitemap.xml` and `pl/sitemap.xml`. **2026-09-25: 193 -> 174**, at
+ * 20129efdb; **2026-09-25: 174 -> 172**, on a tree based on 447510342.
+ * Both moves are pages that left this repository; the URL inventory records
+ * which.
  */
 export const SITEMAP_FLOOR = 172;
 
