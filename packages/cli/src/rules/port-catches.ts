@@ -667,6 +667,17 @@ function analyze(
         // `this.deps.anythingAtAll()` in the receiving class read as a port
         // call. Its carrying keys become aliases one by one instead, which is
         // where the port is actually reached.
+        //
+        // So a holder **built from** a bag does not carry either, and that
+        // blind spot is known and kept (feature 134 D18 §2, half 2 withdrawn).
+        // Letting `new C({ k: <carrier> })` carry was measured: it made the
+        // `product_feeds` inline-delivery chain visible, and it also added
+        // fourteen unhandled sites, among them `catch` blocks around holder
+        // methods that never touch the port — `connections.getOrFail()` reads a
+        // row, yet the holder carries `credentials` as a whole, because gates
+        // are attributed per value rather than per method. A site the analysis
+        // cannot tell apart from a real swallow has no honest classification,
+        // so the widening waits for per-method attribution.
         if (ts.isArrayLiteralExpression(node)) return node.elements.some(carries);
         if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) return bodyReads(node, reads);
         if (ts.isNewExpression(node)) return (node.arguments ?? []).some(carries);
