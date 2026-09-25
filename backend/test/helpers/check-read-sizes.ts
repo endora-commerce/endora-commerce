@@ -1222,6 +1222,12 @@ export interface RecordedReadSize {
  * and the changeset), net −151, and `check-nul-bytes`, `scripts/check-naming.sh` and
  * `check-root-dispositions` each move by exactly that, 8976 → 8825, 9036 → 8885 and
  * 9037 → 8886. No band was widened and no figure was computed from a delta.
+ *
+ * **Re-taken after `origin/master` advanced to `31fd82e3b`** (T118's guard and T120's
+ * columns) and was merged in: a fresh pristine pair, base `31fd82e3b` and the merged tip,
+ * read **36 drifted, 11 agree, of 47** on both sides with the same drifting set, so the 23
+ * values below hold unchanged, and the three whole-repository walks again moved by exactly
+ * −151 (`check-nul-bytes` 8982 → 8831).
  */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
