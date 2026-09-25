@@ -22,7 +22,10 @@ import { withModuleOff, type OffStateAxis } from '../../helpers/off-state.js';
  * against the effective enabled-set. No admin-side test can see it, which is
  * why every batch of this drain has paired an admin file with a backend one.
  * `admin/test/modules/batch-twelve-surfaces.module-owned-surface.test.tsx` is
- * the other half and drives the route, the sidebar and the zone gates.
+ * the other half and drives the route and the sidebar gates — for `invoices` and
+ * `quote_requests` only since feature 134's W2.2, which moved `ksef`'s
+ * declaration into its package and deleted its rendered cases against those two
+ * as surviving drivers.
  *
  * ## What each module brings to it
  *
