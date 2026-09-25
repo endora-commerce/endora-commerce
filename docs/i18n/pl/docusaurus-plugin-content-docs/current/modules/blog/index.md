@@ -161,7 +161,7 @@ Wszystkie trzy:
 - zwracają `404 BLOG_DISABLED` (lub `BLOG_POST_NOT_FOUND` / `BLOG_TAG_NOT_FOUND`), gdy rozwiązany scope nie ma pasującej treści;
 - korzystają z Redis read-through [`BlogCacheService`](#cache-strategy).
 
-## Strategia cache
+## Strategia cache {#cache-strategy}
 
 Klucze żyją pod `blog:v1:<channelCode>:<language>:` w czterech kształtach:
 
