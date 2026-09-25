@@ -23,3 +23,7 @@ the `pimImport*` schemas — stay where they are, and the module now imports the
 
 `@endora-commerce/mod-pim-unopim` gains the `./contracts` export. It already declared `zod` as a
 peer dependency, so installing it pulls in nothing new.
+
+`@endora-commerce/mod-pim-unopim` also owns its twelve error codes now: the root export gains
+`pimUnopimErrorCodes`, declared with `defineModuleErrorCodes`, and every raise site in the module
+uses it instead of `ERROR_CODES.PIM_UNOPIM_*`. The codes' values on the wire do not change.
