@@ -5,7 +5,7 @@ description: Tax-rate resolver narrowed by country / product type / VAT status
 
 # `taxes`
 
-Tax-rate resolution (T128, T131 / FR-051). Each `Tax` row is a rule
+Tax-rate resolution. Each `Tax` row is a rule
 narrowed by zero or more of `country`, `productType`, `appliesToVatStatuses`.
 
 ## Public surface
@@ -23,7 +23,6 @@ now owns `taxes:read` and `taxes:write`, declared in its manifest and therefore
 grantable on `/admin-roles`. It is a **clean break**: a role that reached the tax
 table through the catalogue's write code is granted `taxes:read` (and
 `taxes:write`, to edit) explicitly. See
-`specs/080-f4-real-scope/payments-permission-ownership.md` §7.2 and
 `backend/test/contract/taxes/permission-authority.test.ts`.
 
 Nothing else reads a rate through these routes: `orders`, `carts`,
@@ -42,7 +41,7 @@ Nothing else reads a rate through these routes: `orders`, `carts`,
 5. When no default exists either, the resolver returns `{ source: 'none' }` —
    an answer with **no `rate` field at all**.
 
-Point 5 is a type, not a convention (issue #124). A configured 0% rate is a
+Point 5 is a type, not a convention. A configured 0% rate is a
 legitimate answer in some jurisdictions, so it comes back as
 `{ source: 'default', rate: 0, taxId }` and prices an order like any other rate.
 "Nothing is configured" is not an answer, so it carries no number a caller could

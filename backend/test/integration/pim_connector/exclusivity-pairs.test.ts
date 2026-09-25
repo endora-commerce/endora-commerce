@@ -1,7 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CAPABILITY_KEYS, ERROR_CODES } from '@endora-commerce/contracts';
-import { resolvedManifestEntries } from '../../../src/lifecycle/registered-manifests.js';
-import { switchCapabilityFamilyOff } from '../../helpers/capability-families.js';
+import {
+  deploymentFamilyOf,
+  switchCapabilityFamilyOff,
+} from '../../helpers/capability-families.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -24,17 +26,22 @@ import {
  * feature exists: an installed package and a per-deployment overlay module
  * declare on identical terms to a core module (R2.1), so all three belong in the
  * population a pair sweep enumerates.
+ *
+ * **Composed as the `example` deployment** (feature 134, T113, `research.md` D13 §6),
+ * whose two overlay PIM fixtures are the members that stay once every packaged
+ * connector has left this repository. Bare core, the third departure would leave one
+ * member and zero pairs — a green over nothing — and no merge-request pipeline would
+ * see it (D-198).
  */
 
 const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
-const RESOLVED_MANIFESTS = await resolvedManifestEntries();
+const DEPLOYMENT = 'example';
 
 /** The family, from the members' own declarations. Sorted so the pair order is stable. */
-const FAMILY: readonly string[] = RESOLVED_MANIFESTS.filter((entry) =>
-  (entry.manifest.capabilities ?? []).includes(CAPABILITY_KEYS.PIM_CONNECTOR),
-)
-  .map((entry) => entry.manifest.id)
-  .sort();
+const { members: FAMILY, overlay: OVERLAY_MEMBERS } = await deploymentFamilyOf(
+  CAPABILITY_KEYS.PIM_CONNECTOR,
+  DEPLOYMENT,
+);
 
 /** Every ordered pair (acting, incumbent). `n` members give `n * (n - 1)` of them. */
 const PAIRS: readonly { acting: string; incumbent: string }[] = FAMILY.flatMap((acting) =>
@@ -48,7 +55,7 @@ describe('pim_connector — exclusivity over every ordered pair of the derived f
   let h: BackendServerHandle;
 
   beforeAll(async () => {
-    h = await setupBackendServer();
+    h = await setupBackendServer({ deployment: DEPLOYMENT });
   }, 120_000);
 
   afterAll(async () => {
@@ -77,6 +84,12 @@ describe('pim_connector — exclusivity over every ordered pair of the derived f
   it('enumerated a family of at least two connectors, and every ordered pair of it', () => {
     expect(FAMILY.length).toBeGreaterThan(1);
     expect(PAIRS.length).toBe(FAMILY.length * (FAMILY.length - 1));
+  });
+
+  it('keeps at least one pair that no packaged connector is part of', () => {
+    // Exclusion is a property of a pair, so the members that survive every packaged
+    // connector's departure must be two, not one (W6).
+    expect(OVERLAY_MEMBERS.length, FAMILY.join(', ')).toBeGreaterThan(1);
   });
 
   it.each(PAIRS)(

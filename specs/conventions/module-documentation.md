@@ -77,3 +77,10 @@ module.
 tree and a page in a module package are attributed by the same derivation, which is what
 let Phase 2 land in batches and what keeps `_lifecycle`'s page working where it is.
 
+**Polish translations** for module-owned pages are not copied by `composer:generate` or
+`docs:collect`. After you edit English under the module's `docs/` directory, update the
+matching cache entry and materialised file under `docs/i18n/pl/` in the same merge request,
+then run `pnpm --filter backend run check:docs-translations`. The full workflow — hand-authored
+site pages, generated reference, sidebar messages, and future locales — is in
+`docs/docs/contributing/documentation-i18n.md`.
+

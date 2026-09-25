@@ -26,6 +26,8 @@ The Docker stack binds the three apps to `127.0.0.1` only, so they are reachable
 |------|---------|
 | `compose.prod.yml` | Runtime topology — pulls images by tag, wires services, publishes apps on loopback ports |
 | `nginx.example.conf` | **Template** server blocks for the host nginx (proxy + certbot TLS) — copied & adapted on the VPS, **not** applied by CI |
+| `nginx.docs.example.conf` | **Template** server block for the documentation site — a static root, no proxy; copied & adapted on the VPS, **not** applied by CI |
+| `publish-docs.sh` | Shipped to the VPS by `publish:docs` and run there — flips `current` onto the transferred release, records it, prunes to five |
 | `.env.prod.example` | Template for `deploy/.env` (secrets, domains, registry, host ports) — **copied to the VPS, never committed** |
 | `../.gitlab-ci.yml` | quality → test → build → deploy pipeline |
 | `../backend/Dockerfile` `../storefront/Dockerfile` `../admin/Dockerfile` | per-app images |
@@ -113,6 +115,158 @@ The backend runs API **and** BullMQ workers in one process (`BACKEND_ROLE=all`).
 Subsequent deploys: just run the `deploy` job. Migrations run before the API
 starts every time; rollback = re-run `deploy` from an older pipeline (its images
 are tagged by that commit's SHA).
+
+---
+
+## The documentation site — `docs.commerce.endora.software`
+
+The Docusaurus site is **not part of the application stack**: no image, no container, no
+entry in `compose.prod.yml`, no loopback port. CI builds it, ships the files, and the **same
+host nginx** serves them straight off disk from a static document root.
+
+```
+ Internet ──▶ host nginx (:80/:443, Let's Encrypt)
+                └─ docs.commerce.endora.software → root $DOCS_DEPLOY_PATH/current → releases/<sha>/
+```
+
+### What CI does — and where its share ends
+
+On the default branch, `build:docs` builds the site and `verify:docs-build` judges the emitted
+tree; `publish:docs` then consumes **that artefact** — it never rebuilds — and does three
+things over SSH:
+
+```bash
+ssh "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p '$DOCS_DEPLOY_PATH/releases'"
+scp deploy/publish-docs.sh "$DEPLOY_USER@$DEPLOY_HOST:$DOCS_DEPLOY_PATH/publish-docs.sh"
+rsync -a --delete --link-dest=../../current docs/build/ \
+  "$DEPLOY_USER@$DEPLOY_HOST:$DOCS_DEPLOY_PATH/releases/$CI_COMMIT_SHA/"
+# then on the host: publish-docs.sh flips `current`, writes `.published`, prunes to 5 releases
+```
+
+`--link-dest` is **`../../current`, not `../current`**: rsync resolves a relative `--link-dest`
+against the *destination* directory (`releases/<sha>/`), and `current` sits one level above
+`releases/`. A `--link-dest` naming a directory that does not exist is **not an error** — it
+hard-links nothing and silently re-transfers the whole 40 MB tree on every publication.
+
+**Everything below this point is a devops act on the VPS, performed outside this repository.**
+This repository commits the template (`nginx.docs.example.conf`), the publication script and
+this procedure. Nothing in CI creates a DNS record, installs a vhost, reloads nginx or issues a
+certificate, and no task in the feature that wrote this section may claim it did: **CI's share
+ends at the `rsync` plus `publish-docs.sh`.** The steps below are read and performed by an
+operator.
+
+### 1. DNS
+
+Point `A`/`AAAA` records for `docs.commerce.endora.software` at the same VPS IP the three
+application domains resolve to. Let's Encrypt issuance fails until DNS resolves.
+
+### 2. Document root
+
+```bash
+sudo mkdir -p /var/www/docs.commerce.endora.software/releases
+sudo chown -R "$DEPLOY_USER" /var/www/docs.commerce.endora.software
+sudo chmod 755 /var/www /var/www/docs.commerce.endora.software
+```
+
+The deploy user owns it (CI writes into it over SSH); nginx's worker only needs to traverse and
+read. The layout `publish-docs.sh` maintains is:
+
+```
+$DOCS_DEPLOY_PATH/                    # /var/www/docs.commerce.endora.software
+├── releases/<CI_COMMIT_SHA>/         # one build, one commit — the last 5 are kept
+├── current -> releases/<sha>         # the symlink nginx serves as `root`
+├── .published                        # the CI_COMMIT_TIMESTAMP currently live
+└── publish-docs.sh                   # shipped by the job, from deploy/publish-docs.sh
+```
+
+`current` does not exist until the first successful `publish:docs`; nginx answers 404 until
+then, which is the correct state for a document root with nothing published in it.
+
+### 3. The vhost
+
+`deploy/nginx.docs.example.conf` is a ready template — a **static root**, no `proxy_pass`:
+
+```bash
+sudo cp /path/to/nginx.docs.example.conf /etc/nginx/sites-available/docs
+# replace the `$DOCS_DEPLOY_PATH` placeholder in `root` with the literal path from step 2 —
+# nginx expands no environment variables, and `nginx -t` refuses the placeholder
+sudo ln -s /etc/nginx/sites-available/docs /etc/nginx/sites-enabled/docs
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+The template carries `index index.html`, `error_page 404 /404.html` (the site's own 404 page,
+not nginx's), a year of `immutable` caching for the content-hashed `/assets/` bundle, and
+`no-cache` for the HTML, `robots.txt` and both sitemaps. It also carries the one thing the
+plan for it got wrong: the two search indexes (`/search-index.json`, `/pl/search-index.json`)
+are **not** under `/assets/` and are **not** content-hashed by filename — the search plugin's
+`hashed: true` hashes the query string — so they revalidate rather than being pinned for a
+year. The reasoning is written in the template beside the rule.
+
+### 4. TLS
+
+```bash
+sudo certbot --nginx -d docs.commerce.endora.software
+```
+
+certbot rewrites the `:80` block in place — adds `listen 443 ssl`, the certificate paths and an
+HTTP→HTTPS redirect — and sets up auto-renewal. The block ships as plain `:80` precisely so
+certbot has something to attach to; its HTTP-01 challenge does not need anything published yet.
+
+### 5. GitLab CI/CD variables
+
+| Variable | Type | Value |
+|----------|------|-------|
+| `DOCS_DEPLOY_PATH` | Variable (protected) | the documentation root from step 2, e.g. `/var/www/docs.commerce.endora.software` |
+| `SSH_PRIVATE_KEY` | **File** | shared with the application `deploy` job |
+| `SSH_KNOWN_HOSTS` | **File** | shared with the application `deploy` job |
+| `DEPLOY_USER` | Variable (protected) | shared with the application `deploy` job |
+| `DEPLOY_HOST` | Variable (protected) | shared with the application `deploy` job |
+
+Only `DOCS_DEPLOY_PATH` is new; the other four already exist for the application deploy and are
+read the same way. `SSH_PRIVATE_KEY` and `SSH_KNOWN_HOSTS` must be type **`File`** — masked
+variables cannot hold the newlines an SSH key and a `known_hosts` contain — and the key needs
+its **trailing newline** or `ssh-add` rejects it.
+
+**`DOCS_DEPLOY_PATH` is not `DEPLOY_PATH`.** `DEPLOY_PATH` is the application stack's directory
+(`/opt/b2b`: `compose.prod.yml` and `.env`). The publication rsyncs with `--delete` into
+`$DOCS_DEPLOY_PATH/releases/<sha>/`, and `publish-docs.sh` refuses to start when
+`DOCS_DEPLOY_PATH` is unset rather than guessing. Give the documentation its own directory.
+
+### Rolling back a publication
+
+A rollback is the same flip pointed at an older release. **No rebuild, no pipeline, no nginx
+reload** — nginx resolves `current` per request.
+
+```bash
+cd /var/www/docs.commerce.endora.software      # $DOCS_DEPLOY_PATH
+ls -1dt releases/*/                            # newest first — pick the release to go back to
+ln -sfn releases/<older-sha> current.tmp && mv -Tf current.tmp current
+```
+
+**Type it in that two-step form; never abbreviate it to a bare `ln -sfn releases/<older-sha>
+current`.** `ln -sfn` onto a name that already resolves to a *directory* — which is what a
+symlink to a release directory is — creates the link **inside** that directory instead of
+replacing it: you get `current/releases/<older-sha>` and a document root still serving the
+broken build. `mv -Tf` is a single `rename(2)` over the symlink itself, so a reader sees the old
+release or the new one and never a missing document root. `deploy/publish-docs.sh` flips the
+same way, for the same reason.
+
+The five most recent releases are kept, and the live one is never pruned even when it falls
+outside that window — so a release you have rolled back onto stays there until you roll forward.
+The next publication from the default branch flips `current` onto the new build as usual; a
+rollback holds only until then.
+
+### A neighbouring file that will mislead you
+
+`deploy/compose.prod.yml`'s header comment describes a `central-nginx-proxy` container on an
+external `public_proxy` Docker network as the live TLS terminator. **That is not what runs.**
+The owner ruled on 2026-09-22 that the topology is the one this file and
+`deploy/nginx.example.conf` describe: a host-level nginx with certbot, in front of loopback
+ports. The compose header is a documentation defect owned by devops and is deliberately not
+fixed here — `compose.prod.yml` is a separate unit with its own owner. It is recorded because a
+reader who reaches for that file to add a vhost will be misled exactly the way the specification
+for this documentation site was: there is no container to attach the docs to, no `public_proxy`
+network to join, and nothing about publishing documentation belongs in that file.
 
 ---
 

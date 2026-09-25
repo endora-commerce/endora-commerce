@@ -446,9 +446,6 @@ export const DERIVED_FACTS_IN_PROSE: Readonly<Record<string, ProseLedgerEntry>> 
     'a template telling an author where to put a file. It spelled ' +
     '`backend/src/modules/<id>/` until F4 closed, which is the whole argument: the layout ' +
     'is derived and a page that restates it goes stale in silence.',
-  'modules/lifecycle#d1aa5a86':
-    '`_lifecycle`\'s sources sit inside the host package, and this sentence states that ' +
-    'address — which has already moved once. Name the module.',
   'modules/payment_methods#0407b038':
     'a template telling an author where to put a file. It spelled ' +
     '`backend/src/modules/<id>/` until F4 closed, which is the whole argument: the layout ' +

@@ -24,20 +24,20 @@ Admin routes are gated by `catalog:read` (list / get) /
 | `GET /api/v1/catalog/sitemap.xml` | crawlers | SEO sitemap |
 | `GET /api/v1/admin/catalog/products?includeArchived` | admin | Admin product list (includes drafts; archived rows opt-in) |
 | `GET /api/v1/admin/catalog/products/:id` | admin | Product detail |
-| `POST /api/v1/admin/catalog/products` | admin | Create product (`type` immutable post-create; `sku` is editable per feature 012 / US3) |
+| `POST /api/v1/admin/catalog/products` | admin | Create product (`type` immutable post-create; `sku` is editable) |
 | `PATCH /api/v1/admin/catalog/products/:id` | admin | Update (incl. `sku`); writes an audit row with stateBefore / stateAfter; refuses with `409 sku_in_use` if the new SKU already belongs to another product |
 | `DELETE /api/v1/admin/catalog/products/:id` | admin | Archive (soft) |
 | `GET /api/v1/admin/catalog/attributes` | admin | List attributes |
-| `GET /api/v1/admin/catalog/attributes/by-flag?flag=isPromoRule\|isComparable\|...` | admin | Picker payload — every attribute carrying the requested flag (feature 012 / US1) |
+| `GET /api/v1/admin/catalog/attributes/by-flag?flag=isPromoRule\|isComparable\|...` | admin | Picker payload — every attribute carrying the requested flag |
 | `GET /api/v1/admin/catalog/attributes/:idOrKey` | admin | Single attribute read |
 | `POST /api/v1/admin/catalog/attributes` | admin | Create attribute (accepts the new flags + inline `options[]` for select-style types) |
 | `PATCH /api/v1/admin/catalog/attributes/:key` | admin | Hot-toggle `isFilterable` / `isSearchable` / `isVariantAxis` / `isPromoRule` / `isComparable` / `isVisibleOnProductPage` / `isRequired` / `filterPosition` (re-emits `attribute.updated.v1`) |
-| `DELETE /api/v1/admin/catalog/attributes/:idOrKey` | admin | Delete; refused with `409 attribute_in_use_by_set` while any Attribute Set still references it (feature 012 / US1) |
-| `GET /api/v1/admin/catalog/attributes/:idOrKey/options` | admin | List option-list rows for select/enum/multiselect attributes (feature 012 / US4) |
+| `DELETE /api/v1/admin/catalog/attributes/:idOrKey` | admin | Delete; refused with `409 attribute_in_use_by_set` while any Attribute Set still references it |
+| `GET /api/v1/admin/catalog/attributes/:idOrKey/options` | admin | List option-list rows for select/enum/multiselect attributes |
 | `POST /api/v1/admin/catalog/attributes/:idOrKey/options` | admin | Append an option |
-| `PATCH /api/v1/admin/catalog/attribute-options/:optionId` | admin | Patch label / labelDefault / isDefault / sortOrder (option `value` is immutable per FR-026) |
-| `DELETE /api/v1/admin/catalog/attribute-options/:optionId` | admin | Remove; refused with `409 option_in_use` while any product still carries the value (FR-025) |
-| `POST /api/v1/admin/catalog/attribute-set-preview` | admin | Preview which Set's attributes will be edited / hidden when an operator switches a product's Attribute Set (feature 012 / US2) |
+| `PATCH /api/v1/admin/catalog/attribute-options/:optionId` | admin | Patch label / labelDefault / isDefault / sortOrder (option `value` is immutable) |
+| `DELETE /api/v1/admin/catalog/attribute-options/:optionId` | admin | Remove; refused with `409 option_in_use` while any product still carries the value |
+| `POST /api/v1/admin/catalog/attribute-set-preview` | admin | Preview which Set's attributes will be edited / hidden when an operator switches a product's Attribute Set |
 | `GET /api/v1/admin/catalog/categories` | admin | Flat list, the UI folds into a tree |
 | `POST /api/v1/admin/catalog/categories` | admin | Create (parent must exist) |
 | `PATCH /api/v1/admin/catalog/categories/:id` | admin | Update; reparenting walks the new parent's chain to refuse cycles (409) |
@@ -48,9 +48,7 @@ Admin routes are gated by `catalog:read` (list / get) /
 
 `Product`, `ProductVariant`, `Category`, `ProductAttribute`,
 `SalesChannel`, plus the M:N bridges
-`product_categories`, `sales_channel_products`, `product_assets`. The
-authoritative ER diagram is in `specs/001-b2b-platform-foundation/data-model.md`
-in the source repository.
+`product_categories`, `sales_channel_products`, `product_assets`.
 
 ## Events emitted
 
@@ -67,10 +65,9 @@ webhook subscribers.
   default; override the slugifier in `catalog-admin.service.ts` if locale
   collisions become a concern.
 
-## Feature 002 extensions
+## Product structure and composition surfaces
 
-The catalog grew several capability surfaces in feature 002. Each has its
-own page:
+The catalog grew several capability surfaces, each with its own page:
 
 - [Attribute Sets](./catalog/attribute-sets.md) — reusable attribute
   schemas pinned to Products, with a system Default
@@ -87,11 +84,11 @@ own page:
 
 Five product types are now supported: `simple`, `configurable`,
 `grouped`, `bundle`, `virtual`. `simple` and `configurable` are the
-foundation 001 originals; the other three are added in 002.
+original pair; the other three were added later.
 
-## Feature 012 extensions
+## Attribute extensions on the Catalog read paths
 
-Feature 012 (Attributes) added the operational surface the storefront
+The Attributes work added the operational surface the storefront
 needs to render rich product information and the search / promotions
 modules need to resolve customer queries. The dedicated
 [Attributes](./catalog/attributes.md) page covers the attribute
@@ -115,19 +112,19 @@ a per-locale label fallback:
 - `labelDefault` (string) — fallback used when the active locale has no
   matching key in the per-locale `label` JSONB
 
-### Option lists (US4)
+### Option lists
 
 Select-style attribute types (`select`, `enum`, `multiselect`) carry an
 ordered option list — each row keyed by `(definition, value)` with
 per-locale label + fallback + sort order + default flag. The legacy
 `enum_values: string[]` JSONB column on `product_attributes` was
 decommissioned by migration 032 (into the catalog-owned
-`attribute_options` table), and feature 061 / migration 102 moved the
+`attribute_options` table), and migration 102 moved the
 rows into the generic `custom_field_options` table. Existing readers
 project the option list back into the legacy form for backward
 compatibility at the API boundary.
 
-### Editable SKU (US3)
+### Editable SKU
 
 Product `sku` is mutable. The internal canonical reference for every
 cross-module link (assets, links, RFQ items, ...) is the `Product.id`
@@ -135,31 +132,31 @@ UUID, which never changes. Updating the SKU writes an audit row and
 refuses with `409 sku_in_use` if the new value already belongs to
 another product.
 
-### Attribute Set swap (US2)
+### Attribute Set swap
 
 When an operator assigns a different Attribute Set to a Product, the
 admin form re-renders to show only the new Set's attributes. Values
 for attributes outside the new Set stay in the JSONB column server-side
-(FR-012) — switching back surfaces them again. The
+— switching back surfaces them again. The
 `attribute-set-preview` endpoint lets the editor warn the operator
 which fields will be hidden vs. retained before they confirm.
 
 ### Cross-module read surface
 
 Two methods on `CatalogQueryService` cross module boundaries (the
-documented service ports per Constitution I):
+documented service ports):
 
-- `comparableAttributeKeys(): string[]` — feature 007 (Compare)
+- `comparableAttributeKeys(): string[]` — Compare
 - `promoRuleAttributeKeys(): string[]` + `getAttributeWithOptions(key)`
-  — feature 012 / US8 (Promotions)
+  — Promotions
 - `buildVisibleAttributesProjection()` — internal, used by the PDP
   detail response to assemble the `visibleAttributes[]` payload
 
-## Feature 061 — attributes as Custom Field extensions
+## Attributes as Custom Field extensions
 
-Feature 061 converged the attribute definition store onto the generic Custom
-Fields layer that the `custom_fields` module owns (feature 055),
-adapter-shaped per Constitution Principle XIV. Nothing changed on the
+The attribute definition store has converged onto the generic Custom
+Fields layer that the `custom_fields` module owns, adapter-shaped rather
+than rewritten. Nothing changed on the
 HTTP surface — every endpoint above keeps its shape — but the storage
 and ownership model is different:
 

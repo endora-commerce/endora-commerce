@@ -4,7 +4,7 @@ title: Admin panel — mobile layout
 
 # Admin panel — mobile layout
 
-Feature **029** makes the Supplier admin panel usable on smartphone browsers. There is no separate native app: the same React SPA adapts below the **`lg` breakpoint (1024px)**.
+The Supplier admin panel is usable on smartphone browsers. There is no separate native app: the same React SPA adapts below the **`lg` breakpoint (1024px)**.
 
 ## Breakpoints
 
@@ -24,10 +24,8 @@ Surfaces that reorder rows via HTML5 drag also expose **Move up / Move down** bu
 
 ## Page Builder (Puck)
 
-The CMS/Blog Puck editors are scrollable on mobile. Precise drag placement may remain easier on desktop; document known gaps when testing US4.
+The CMS/Blog Puck editors are scrollable on mobile. Precise drag placement may remain easier on desktop; document known gaps found during manual testing.
 
 ## QA checklist
-
-See `specs/029-admin-mobile-ui/contracts/viewport-audit-routes.md` for the full route registry (70 paths) and sign-off table.
 
 Manual smoke: Chrome DevTools → iPhone 12 Pro (390px) or custom 320px width.

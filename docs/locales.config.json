@@ -1,0 +1,5 @@
+{
+  "defaultLocale": "en",
+  "locales": ["en", "pl"],
+  "translateLocales": ["pl"]
+}

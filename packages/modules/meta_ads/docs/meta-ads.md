@@ -8,7 +8,7 @@ description: Meta Pixel per sales channel, with the standard commerce events and
 Puts the **Meta Pixel** on the storefront per sales channel and reports Meta's standard commerce
 events, with optional custom events on top.
 
-Feature `064-meta-ads`. Module id `meta_ads`.
+Module id `meta_ads`.
 
 ## Configuration (Settings module)
 
@@ -78,6 +78,5 @@ Both appear on `/admin-roles`. Changes are audited with the acting operator.
 
 - **Conversions API (server-side reporting).** Browser pixels are heavily ad-blocked, so expect
   reported conversions to under-count until this lands. It needs an access token and an event ID
-  shared with the browser event for deduplication, and is worth doing once for both ad platforms —
-  see `specs/064-meta-ads/research.md` §R7.
+  shared with the browser event for deduplication, and is worth doing once for both ad platforms.
 - **Conversion retraction** for refunded or cancelled orders.

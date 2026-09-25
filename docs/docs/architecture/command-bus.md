@@ -5,7 +5,7 @@ title: Command Bus (Uniform Write Auditing & Undo)
 # Command Bus
 
 Sensitive writes are audited by a **framework-level command path**, not by
-hand-placed audit calls (Constitution Principle XIII, feature `054`). A sensitive
+hand-placed audit calls. A sensitive
 mutation — a create/update/delete of a domain record — runs as a named **Command**
 through the `CommandBus`, which is the single, guaranteed writer of its audit entry.
 Services in migrated modules never call the audit writer directly.
@@ -64,7 +64,7 @@ each write site.
 ## Reversibility & undo
 
 A command may capture per-record before/after state so an operator can **undo** it.
-The bulk product edit (feature `022`) stores a `RevertRecord[]` on
+The bulk product edit stores a `RevertRecord[]` on
 `catalog_bulk_operations`; `POST /admin/catalog/bulk-operations/:id/undo` restores every
 product whose current state still matches the operation, **refuses any record changed
 since with a conflict report** (never a silent clobber), is idempotent-safe on
@@ -110,7 +110,7 @@ a function-valued local such as a route file's `const audit = …`), is itself a
 invoked by a covered unit (reverse delegation), or carries a `command-coverage-ignore`
 comment.
 
-### What it opens (issue #122)
+### What it opens
 
 The walk used to match `**/services/<file>.ts` — one level, nothing else, which is **472
 of the tree's 1152 module files**. `pim_ergonode/services/import/`,
@@ -141,7 +141,7 @@ brand-new module — fails the build. Coverage cannot silently regress.
 
 ### The escape hatch is swept for staleness
 
-185 methods carry the ignore comment, and until issue #116 nothing ever re-read one: an
+185 methods carry the ignore comment, and nothing used to re-read one: an
 ignore written for a write that has since moved — into a Command, or into another
 module's audited service — went on exempting a method that no longer needed exempting,
 and the next write added there inherited the exemption in silence. A marker on a method
@@ -155,8 +155,8 @@ it also counts a raw SQL write statement, a queue or Redis write (`removeJobSche
 `obliterate`, `del`, …), an ambiguous `remove` off any receiver, and any write reached
 through a call in the same file — so a marker guarding a real write the check cannot
 itself see is left alone. Both errors then fall on the safe side: at worst a marker
-outlives its write for one more refactor, never the reverse. Widening the scan (issue
-#122) had to widen this half first: `product_feeds/workers/taxonomy-refresh-worker.ts`
+outlives its write for one more refactor, never the reverse. Widening the scan had to
+widen this half first: `product_feeds/workers/taxonomy-refresh-worker.ts`
 documents its `queue.removeJobScheduler(…)` as "Redis-only", and a sweep that knew only
 ORM and SQL would have demanded the deletion of a correct decision the moment `workers/`
 came into scope.
@@ -173,10 +173,9 @@ For a Command: extract the pure write onto the transactional `em` and run it thr
 `commandBus.run(...)`; delete any prior manual audit call in the same change (avoid the
 double-audit shape). For the lightweight path: add the `#audit(...)` helper delegating
 to `recordAuditFromContext` and call it immediately before the method's `flush()`. For
-a non-audited write: add a `command-coverage-ignore: <reason>` comment. See the feature
-quickstart (`specs/054-command-bus-audit-undo/quickstart.md`) for the full pattern.
+a non-audited write: add a `command-coverage-ignore: <reason>` comment.
 
-**There is no action to register anywhere** (D-163). Until then this paragraph ended with
+**There is no action to register anywhere.** Previously this paragraph ended with
 *"register every new Command action in `backend/src/commands/command-registry.ts`"*, and
 that file's own header named two consumers for the list — this check, and operator-facing
 undo affordances. Both were wrong from the day it was written: `check-command-coverage.ts`
@@ -184,7 +183,7 @@ has never imported it and decides coverage from a `commandBus.run(...)` call in 
 method, and the one undo affordance in the tree reads the `reversible` **column** on
 `catalog_bulk_operations`, set per row when the operation captured revert state.
 `CommandBus.run` never consulted it and `Command.action` is a plain `string`. So a 258-entry
-hand-maintained allow-list read as a gate on Constitution XIII and gated nothing, which is
+hand-maintained allow-list read as a gate and gated nothing, which is
 worse than no list at all: the next author asking *"is this write covered?"* got a confident
 wrong answer from it. It is deleted. **A Command's `action` is whatever string the Command
 declares**; what makes the write audited is that it runs through `CommandBus.run`, and the

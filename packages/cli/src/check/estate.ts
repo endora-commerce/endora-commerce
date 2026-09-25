@@ -524,6 +524,19 @@ export const ESTATE: readonly EstateEntry[] = [
     tier: 'C',
   },
   {
+    id: 'check:docs-translations',
+    script: 'backend/scripts/check-docs-translations.ts',
+    scope: 'repository-only',
+    reason:
+      "its population is this platform's documentation site — English sources, translation " +
+      'cache entries, materialized i18n markdown and sidebar message ids in `code.json`. A ' +
+      'module package holds none of that tree, and a rule that walked a package for them ' +
+      'would be checking nothing.',
+    subjectDeclaration: null,
+    readsArtefact: true,
+    tier: 'C',
+  },
+  {
     id: 'check:entry-presence',
     script: 'backend/scripts/check-entry-presence.ts',
     scope: 'package',

@@ -7,7 +7,7 @@ description: Customer + admin sessions, password hashing, TOTP
 
 Shared session, password-hashing, and TOTP primitives consumed by both
 `customer_accounts` and `admin_users`. One of the two singular module
-folders permitted by Principle VI (alongside `example`).
+folders permitted by the naming conventions (alongside `example`).
 
 ## What it owns
 
@@ -23,8 +23,8 @@ folders permitted by Principle VI (alongside `example`).
 - **Route guards** — `requireAdmin(permission?)`, `requireAdminAny(codes)` and
   `requireCustomer`, provided as ports from `backend.ts` and resolved by every
   module that gates a route. They were Fastify decorators on the plugin once;
-  feature 072 (T078) and issue #43 made them ports so production and the test
-  harness run the same implementation instead of one each.
+  they were turned into ports so production and the test harness run the same
+  implementation instead of one each.
 
 ## No HTTP routes of its own
 

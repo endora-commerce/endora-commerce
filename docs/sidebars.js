@@ -1,17 +1,24 @@
 // @ts-check
 
+/** Stable sidebar translation key (`sidebar.main.category.<slug>`) with English label. */
+function categoryLabel(slug, message) {
+  return message;
+}
+
 /** @type {import('@docusaurus/plugin-content-docs').SidebarsConfig} */
 const sidebars = {
   main: [
     'intro',
     {
       type: 'category',
-      label: 'Admin UI',
+      key: 'admin-ui',
+      label: categoryLabel('admin-ui', 'Admin UI'),
       items: ['admin/mobile-responsive'],
     },
     {
       type: 'category',
-      label: 'Architecture',
+      key: 'architecture',
+      label: categoryLabel('architecture', 'Architecture'),
       link: { type: 'generated-index', title: 'Architecture' },
       items: [
         'architecture/tenant-scoping',
@@ -27,13 +34,15 @@ const sidebars = {
     },
     {
       type: 'category',
-      label: 'API contracts',
+      key: 'api-contracts',
+      label: categoryLabel('api-contracts', 'API contracts'),
       link: { type: 'doc', id: 'contracts/README' },
       items: [],
     },
     {
       type: 'category',
-      label: 'Modules',
+      key: 'modules',
+      label: categoryLabel('modules', 'Modules'),
       link: { type: 'doc', id: 'modules/README' },
       // Generated — feature 100 / roadmap F12. Every entry is derived from the
       // generated manifest index and the pages on disk; regenerate with
@@ -44,13 +53,15 @@ const sidebars = {
     },
     {
       type: 'category',
-      label: 'Integrations',
+      key: 'integrations',
+      label: categoryLabel('integrations', 'Integrations'),
       link: { type: 'generated-index', title: 'Integrations' },
       items: ['integrations/README', 'integrations/api-access'],
     },
     {
       type: 'category',
-      label: 'Operations',
+      key: 'operations',
+      label: categoryLabel('operations', 'Operations'),
       link: { type: 'generated-index', title: 'Operations' },
       items: [
         'operations/health-endpoint',
@@ -58,7 +69,8 @@ const sidebars = {
         'operations/warden',
         {
           type: 'category',
-          label: 'Runbooks',
+          key: 'runbooks',
+          label: categoryLabel('runbooks', 'Runbooks'),
           link: { type: 'generated-index', title: 'Runbooks' },
           items: [
             'operations/runbooks/block-name-migration',
@@ -69,7 +81,8 @@ const sidebars = {
     },
     {
       type: 'category',
-      label: 'Deployment',
+      key: 'deployment',
+      label: categoryLabel('deployment', 'Deployment'),
       link: { type: 'generated-index', title: 'Deployment' },
       items: ['deployment/first-deployment-checklist'],
     },

@@ -24,7 +24,7 @@ import type { ForeignLinkEntry } from '../../check-module-docs.js';
  */
 export const entries: Readonly<Record<string, ForeignLinkEntry>> = {
   currencies:
-    "FR-020 — 1 link(s) into `currencies`'s pages: `languages.md` -> `./currencies`. " +
+    "FR-020 — 1 link(s) into `currencies`'s pages: `languages.md` -> `./currencies.md`. " +
     'Refer to the sibling by name or link the module map; the reference survives the ' +
     'sibling being absent either way.',
 };

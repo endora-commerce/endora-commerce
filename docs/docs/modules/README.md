@@ -6,8 +6,8 @@ title: Backend modules
 # Backend modules
 
 Each backend module owns a single business capability and never reaches into
-another module's internals (Constitution Principle I). Where a module's code
-lives is the platform's answer rather than a path worth writing down: most
+another module's internals. Where a module's code lives is the platform's
+answer rather than a path worth writing down: most
 modules are workspace packages under `packages/modules/<id>/`, a few are owned
 by the host, and the [module map](./module-map.generated.md) names the package
 that ships each one. The pages below describe each module so two audiences can

@@ -133,6 +133,7 @@ jobs:
           pnpm --filter backend run check:diacritic-folds
           pnpm --filter backend run check:doc-snippets
           pnpm --filter backend run check:module-docs
+          pnpm --filter backend run check:docs-translations
           pnpm --filter backend run check:error-translations
           pnpm --filter backend run check:bundle-pairing
           pnpm --filter backend run check:env-inputs

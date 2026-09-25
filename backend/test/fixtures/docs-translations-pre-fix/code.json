@@ -1,0 +1,590 @@
+{
+  "theme.navbar.title": {
+    "message": "Platforma B2B"
+  },
+  "theme.footer.copyright": {
+    "message": "Dokumentacja wewnętrzna — zobacz repozytorium, aby zapoznać się z konstytucją projektu."
+  },
+  "theme.localeDropdown.label": {
+    "message": "Język"
+  },
+  "sidebar.main.doc.intro": {
+    "message": "Wprowadzenie"
+  },
+  "sidebar.main.doc.admin/mobile-responsive": {
+    "message": "Panel administracyjny — układ mobilny"
+  },
+  "sidebar.main.doc.contracts/README": {
+    "message": "Kontrakty API"
+  },
+  "sidebar.main.category.admin-ui": {
+    "message": "Admin UI"
+  },
+  "sidebar.main.category.api-contracts": {
+    "message": "Kontrakty API"
+  },
+  "sidebar.main.category.architecture": {
+    "message": "Architektura"
+  },
+  "sidebar.main.doc.architecture/tenant-scoping": {
+    "message": "Izolacja tenantów"
+  },
+  "sidebar.main.doc.architecture/migrations": {
+    "message": "Migracje bazy danych"
+  },
+  "sidebar.main.doc.architecture/api-interceptor": {
+    "message": "Przechwytywacz API"
+  },
+  "sidebar.main.doc.architecture/command-bus": {
+    "message": "Command Bus"
+  },
+  "sidebar.main.doc.architecture/custom-fields": {
+    "message": "Pola niestandardowe"
+  },
+  "sidebar.main.doc.architecture/permissions": {
+    "message": "Uprawnienia"
+  },
+  "sidebar.main.doc.architecture/pim-connector": {
+    "message": "Wspólna warstwa PIM"
+  },
+  "sidebar.main.doc.architecture/customisation-ladder": {
+    "message": "Drabina dostosowania"
+  },
+  "sidebar.main.doc.architecture/overlay-pattern": {
+    "message": "Wzorzec overlay"
+  },
+  "sidebar.main.doc.architecture/pim-ergonode": {
+    "message": "Łącznik PIM Ergonode"
+  },
+  "sidebar.main.doc.architecture/pim-unopim": {
+    "message": "Łącznik PIM UnoPim"
+  },
+  "sidebar.main.doc.architecture/pim-pimcore": {
+    "message": "Łącznik PIM Pimcore"
+  },
+  "sidebar.main.category.integrations": {
+    "message": "Integracje"
+  },
+  "sidebar.main.doc.integrations/README": {
+    "message": "Integracje"
+  },
+  "sidebar.main.doc.integrations/api-access": {
+    "message": "Dostęp partnerski do API"
+  },
+  "sidebar.main.category.operations": {
+    "message": "Operacje"
+  },
+  "sidebar.main.doc.operations/health-endpoint": {
+    "message": "Endpoint health"
+  },
+  "sidebar.main.doc.operations/queue-consumers": {
+    "message": "Konsumenci kolejek i przetwarzanie w tle"
+  },
+  "sidebar.main.doc.operations/warden": {
+    "message": "Lokalny development z Warden"
+  },
+  "sidebar.main.category.runbooks": {
+    "message": "Runbooki"
+  },
+  "sidebar.main.doc.operations/runbooks/block-name-migration": {
+    "message": "Aktualizacja po zmianie nazw bloków Page Buildera"
+  },
+  "sidebar.main.doc.operations/runbooks/module-lifecycle-stuck-lock": {
+    "message": "Zablokowana blokada cyklu życia modułu"
+  },
+  "sidebar.main.category.deployment": {
+    "message": "Wdrożenie"
+  },
+  "sidebar.main.doc.deployment/first-deployment-checklist": {
+    "message": "Checklist pierwszego wdrożenia produkcyjnego"
+  },
+  "sidebar.main.doc.integrations/akeneo-pim": {
+    "message": "Akeneo PIM"
+  },
+  "sidebar.main.category.carts": {
+    "message": "carts"
+  },
+  "sidebar.main.category.customer_accounts": {
+    "message": "customer_accounts"
+  },
+  "sidebar.main.category.orders": {
+    "message": "orders"
+  },
+  "sidebar.main.category.quick_order": {
+    "message": "quick_order"
+  },
+  "sidebar.main.category.organizations": {
+    "message": "organizations"
+  },
+  "sidebar.main.doc.modules/organization-hierarchy": {
+    "message": "Organization hierarchy"
+  },
+  "sidebar.main.category.customers": {
+    "message": "customers"
+  },
+  "sidebar.main.category.quote_requests": {
+    "message": "quote_requests"
+  },
+  "sidebar.main.category.shopping_lists": {
+    "message": "shopping_lists"
+  },
+  "sidebar.main.category.addresses": {
+    "message": "addresses"
+  },
+  "sidebar.main.category.credit_limits": {
+    "message": "credit_limits"
+  },
+  "sidebar.main.category.delivery_methods": {
+    "message": "delivery_methods"
+  },
+  "sidebar.main.category.payment_methods": {
+    "message": "payment_methods"
+  },
+  "sidebar.main.category.price_lists": {
+    "message": "price_lists"
+  },
+  "sidebar.main.category.payments": {
+    "message": "payments"
+  },
+  "sidebar.main.category.shipments": {
+    "message": "shipments"
+  },
+  "sidebar.main.category.taxes": {
+    "message": "taxes"
+  },
+  "sidebar.main.category.promotions": {
+    "message": "promotions"
+  },
+  "sidebar.main.category.returns": {
+    "message": "returns"
+  },
+  "sidebar.main.category.auth": {
+    "message": "auth"
+  },
+  "sidebar.main.category.admin_roles": {
+    "message": "admin_roles"
+  },
+  "sidebar.main.category.admin_users": {
+    "message": "admin_users"
+  },
+  "sidebar.main.category.audit_logs": {
+    "message": "audit_logs"
+  },
+  "sidebar.main.category.settings": {
+    "message": "Settings"
+  },
+  "sidebar.main.category.credentials": {
+    "message": "Credentials"
+  },
+  "sidebar.main.category.currencies": {
+    "message": "currencies"
+  },
+  "sidebar.main.category.inventory": {
+    "message": "inventory"
+  },
+  "sidebar.main.category.invoices": {
+    "message": "invoices"
+  },
+  "sidebar.main.category.invoice_ledger": {
+    "message": "Invoice ledger"
+  },
+  "sidebar.main.category.ksef": {
+    "message": "KSeF"
+  },
+  "sidebar.main.category.infakt": {
+    "message": "Infakt"
+  },
+  "sidebar.main.category.wfirma": {
+    "message": "wFirma"
+  },
+  "sidebar.main.doc.module-reference/invoice-ledger": {
+    "message": "invoice_ledger — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/ksef": {
+    "message": "ksef — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/infakt": {
+    "message": "infakt — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/wfirma": {
+    "message": "wfirma — referencja modułu"
+  },
+  "sidebar.main.category.admin_actions": {
+    "message": "Admin Command Palette Actions"
+  },
+  "sidebar.main.category.api_keys": {
+    "message": "api_keys"
+  },
+  "sidebar.main.category.languages": {
+    "message": "languages"
+  },
+  "sidebar.main.category.sales_channels": {
+    "message": "Sales channels"
+  },
+  "sidebar.main.doc.modules/sales_channels/admin-usage": {
+    "message": "Admin usage"
+  },
+  "sidebar.main.doc.modules/sales_channels/developer-guide": {
+    "message": "Developer guide"
+  },
+  "sidebar.main.category.search": {
+    "message": "search"
+  },
+  "sidebar.main.category.catalog": {
+    "message": "Katalog"
+  },
+  "sidebar.main.doc.modules/catalog/attachments": {
+    "message": "Załączniki produktu"
+  },
+  "sidebar.main.doc.modules/catalog/attribute-sets": {
+    "message": "Zestawy atrybutów"
+  },
+  "sidebar.main.doc.modules/catalog/attributes": {
+    "message": "Atrybuty"
+  },
+  "sidebar.main.doc.modules/catalog/composite-products": {
+    "message": "Produkty złożone"
+  },
+  "sidebar.main.doc.modules/catalog/gallery-and-labels": {
+    "message": "Galeria produktu"
+  },
+  "sidebar.main.doc.modules/catalog/packaging-units": {
+    "message": "Jednostki opakowania"
+  },
+  "sidebar.main.doc.modules/catalog/per-channel-per-language-overrides": {
+    "message": "Nadpisania per kanał i język"
+  },
+  "sidebar.main.doc.modules/catalog/product-links": {
+    "message": "Powiązania produktów"
+  },
+  "sidebar.main.category.autopay": {
+    "message": "Autopay"
+  },
+  "sidebar.main.category.dhl_parcel": {
+    "message": "DHL Parcel"
+  },
+  "sidebar.main.category.inpost": {
+    "message": "InPost"
+  },
+  "sidebar.main.category.paypal": {
+    "message": "PayPal"
+  },
+  "sidebar.main.category.payu": {
+    "message": "PayU"
+  },
+  "sidebar.main.category.tpay": {
+    "message": "TPay"
+  },
+  "sidebar.main.category.pim_akeneo": {
+    "message": "Akeneo PIM"
+  },
+  "sidebar.main.category.pim_ergonode": {
+    "message": "Ergonode PIM"
+  },
+  "sidebar.main.category.pim_pimcore": {
+    "message": "Pimcore PIM"
+  },
+  "sidebar.main.category.pim_unopim": {
+    "message": "UnoPim PIM"
+  },
+  "sidebar.main.category.assets_library": {
+    "message": "Assets Library"
+  },
+  "sidebar.main.category.blog": {
+    "message": "Blog"
+  },
+  "sidebar.main.category.cms": {
+    "message": "CMS"
+  },
+  "sidebar.main.category.megamenu": {
+    "message": "Megamenu"
+  },
+  "sidebar.main.doc.modules/cms/extending-page-builder": {
+    "message": "Rozszerzanie Page Buildera"
+  },
+  "sidebar.main.category.seo": {
+    "message": "seo"
+  },
+  "sidebar.main.category.newsletter": {
+    "message": "newsletter"
+  },
+  "sidebar.main.category.transactional_emails": {
+    "message": "transactional_emails"
+  },
+  "sidebar.main.category.webhooks": {
+    "message": "webhooks"
+  },
+  "sidebar.main.category.google_analytics": {
+    "message": "Google Analytics"
+  },
+  "sidebar.main.doc.module-reference/seo": {
+    "message": "seo — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/newsletter": {
+    "message": "newsletter — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/transactional-emails": {
+    "message": "transactional_emails — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/webhooks": {
+    "message": "webhooks — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/google-analytics": {
+    "message": "google_analytics — referencja modułu"
+  },
+  "sidebar.main.category.analytics": {
+    "message": "analytics"
+  },
+  "sidebar.main.category.google_tag_manager": {
+    "message": "Google Tag Manager"
+  },
+  "sidebar.main.category.linkedin_ads": {
+    "message": "LinkedIn Ads"
+  },
+  "sidebar.main.category.meta_ads": {
+    "message": "Meta Ads"
+  },
+  "sidebar.main.category.product_feeds": {
+    "message": "Product Feeds"
+  },
+  "sidebar.main.doc.module-reference/addresses": {
+    "message": "addresses — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/admin-actions": {
+    "message": "admin_actions — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/admin-notifications": {
+    "message": "admin_notifications — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/admin-roles": {
+    "message": "admin_roles — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/admin-users": {
+    "message": "admin_users — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/analytics": {
+    "message": "analytics — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/api-keys": {
+    "message": "api_keys — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/assets-library": {
+    "message": "assets_library — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/audit-logs": {
+    "message": "audit_logs — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/auth": {
+    "message": "auth — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/autopay": {
+    "message": "autopay — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/blog": {
+    "message": "blog — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/carts": {
+    "message": "carts — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/catalog": {
+    "message": "catalog — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/cms": {
+    "message": "cms — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/comarch-xl": {
+    "message": "comarch_xl — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/comparisons": {
+    "message": "comparisons — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/credentials": {
+    "message": "credentials — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/credit-limits": {
+    "message": "credit_limits — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/currencies": {
+    "message": "currencies — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/custom-fields": {
+    "message": "custom_fields — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/customer-accounts": {
+    "message": "customer_accounts — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/customers": {
+    "message": "customers — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/delivery-methods": {
+    "message": "delivery_methods — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/dhl-parcel": {
+    "message": "dhl_parcel — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/dictionaries": {
+    "message": "dictionaries — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/email": {
+    "message": "email — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/google-tag-manager": {
+    "message": "google_tag_manager — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/i18n": {
+    "message": "_i18n — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/import-export": {
+    "message": "import_export — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/inpost": {
+    "message": "inpost — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/inventory": {
+    "message": "inventory — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/invoices": {
+    "message": "invoices — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/languages": {
+    "message": "languages — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/lifecycle": {
+    "message": "_lifecycle — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/linkedin-ads": {
+    "message": "linkedin_ads — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/megamenu": {
+    "message": "megamenu — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/meta-ads": {
+    "message": "meta_ads — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/mfa": {
+    "message": "mfa — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/orders": {
+    "message": "orders — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/organizations": {
+    "message": "organizations — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/payment-methods": {
+    "message": "payment_methods — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/payments": {
+    "message": "payments — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/paypal": {
+    "message": "paypal — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/payu": {
+    "message": "payu — referencja modułu"
+  },
+  "sidebar.main.doc.pim_connector": {
+    "message": "pim_connector — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/pim-akeneo": {
+    "message": "pim_akeneo — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/pim-ergonode": {
+    "message": "pim_ergonode — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/pim-pimcore": {
+    "message": "pim_pimcore — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/pim-unopim": {
+    "message": "pim_unopim — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/price-lists": {
+    "message": "price_lists — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/product-feeds": {
+    "message": "product_feeds — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/promotions": {
+    "message": "promotions — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/prompt-actions": {
+    "message": "prompt_actions — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/pwa": {
+    "message": "pwa — referencja modułu"
+  },
+  "sidebar.main.category._i18n": {
+    "message": "Języki Admin UI"
+  },
+  "sidebar.main.category.comarch_xl": {
+    "message": "Comarch ERP XL"
+  },
+  "sidebar.main.category.comparisons": {
+    "message": "Porównywanie produktów"
+  },
+  "sidebar.main.category.dictionaries": {
+    "message": "Słownik"
+  },
+  "sidebar.main.category.import_export": {
+    "message": "import_export"
+  },
+  "sidebar.main.category.prompt_actions": {
+    "message": "Prompt Actions (asystent AI)"
+  },
+  "sidebar.main.category.pwa": {
+    "message": "PWA (Progressive Web App)"
+  },
+  "sidebar.main.category._lifecycle": {
+    "message": "Cykl życia modułu"
+  },
+  "sidebar.main.category.modules": {
+    "message": "Moduły"
+  },
+  "sidebar.main.doc.admin_notifications": {
+    "message": "admin_notifications — referencja modułu"
+  },
+  "sidebar.main.doc.custom_fields": {
+    "message": "custom_fields — referencja modułu"
+  },
+  "sidebar.main.doc.email": {
+    "message": "email — referencja modułu"
+  },
+  "sidebar.main.doc.mfa": {
+    "message": "mfa — referencja modułu"
+  },
+  "sidebar.main.doc.module-map": {
+    "message": "Mapa modułów"
+  },
+  "sidebar.main.doc.module-reference/quick-order": {
+    "message": "quick_order — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/quote-requests": {
+    "message": "quote_requests — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/returns": {
+    "message": "returns — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/sales-channels": {
+    "message": "sales_channels — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/search": {
+    "message": "search — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/settings": {
+    "message": "settings — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/shipments": {
+    "message": "shipments — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/shopping-lists": {
+    "message": "shopping_lists — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/taxes": {
+    "message": "taxes — referencja modułu"
+  },
+  "sidebar.main.doc.module-reference/tpay": {
+    "message": "tpay — referencja modułu"
+  },
+  "sidebar.main.doc.stripe": {
+    "message": "stripe — referencja modułu"
+  }
+}

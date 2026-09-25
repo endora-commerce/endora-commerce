@@ -1,6 +1,10 @@
 import { expect } from 'vitest';
 import type { ModuleManifest } from '@endora-commerce/contracts';
-import { REGISTERED_MANIFESTS } from '../../src/lifecycle/registered-manifests.js';
+import { effectiveState } from '@endora-commerce/platform/kernel';
+import {
+  REGISTERED_MANIFESTS,
+  resolvedManifestEntries,
+} from '../../src/lifecycle/registered-manifests.js';
 import type { BackendServerHandle } from './test-server.js';
 
 /**
@@ -49,6 +53,33 @@ export function declaredMembersOf(key: string): readonly string[] {
   );
 }
 
+/**
+ * The members of `key` in `deployment`'s **resolved** manifest set, sorted — and, of
+ * those, the ones the deployment itself declares as overlay modules.
+ *
+ * For the files that prove a family's mechanism over real manifests
+ * (`integration/pim_connector/*`). They compose the `example` deployment because its
+ * overlay fixtures are the members that stay when every packaged member of the family
+ * has left this repository (feature 134, T113, `research.md` D13 §6); `overlay` is what
+ * lets a file assert that its population survives those departures, rather than
+ * discovering it on `master` after the last one, where no merge-request pipeline runs
+ * the integration tree (D-198).
+ */
+export async function deploymentFamilyOf(
+  key: string,
+  deployment: string,
+): Promise<{ readonly members: readonly string[]; readonly overlay: readonly string[] }> {
+  const entries = (
+    await resolvedManifestEntries({ ...process.env, DEPLOYMENT: deployment })
+  ).filter((entry) => (entry.manifest.capabilities ?? []).includes(key));
+  const idsOf = (list: typeof entries): string[] =>
+    list.map((entry) => entry.manifest.id).sort();
+  return {
+    members: idsOf(entries),
+    overlay: idsOf(entries.filter((entry) => entry.origin === 'overlay')),
+  };
+}
+
 /** The capability keys `moduleId` declares membership of. Empty for most modules. */
 export function capabilityKeysOf(moduleId: string): readonly string[] {
   return MANIFESTS.find((manifest) => manifest.id === moduleId)?.capabilities ?? [];
@@ -77,12 +108,19 @@ export function familySiblingsOf(moduleId: string): readonly string[] {
  * was arranging. The suite shares one database across files, so a member left on by an
  * earlier file is a real state to arrange away rather than a hypothetical one — and it
  * is invisible in a single-file run, which is how it was missed.
+ *
+ * The population is the **composed** one — the capability registry the running handle
+ * was built with — and not the core manifest index the other helpers here read. Under
+ * `deployment: 'example'` the family includes the deployment's overlay members
+ * (`pim_incumbent_fixture`, `ledger_vendor_fixture`, …), and "every member off" that
+ * skipped them would leave an overlay member holding the claim (feature 134, T113).
+ * Under bare core the two populations are the same set.
  */
 export async function switchCapabilityFamilyOff(
   h: BackendServerHandle,
   key: string,
 ): Promise<readonly string[]> {
-  const members = declaredMembersOf(key);
+  const members = [...effectiveState.declaredMembersOfCapability(key)];
   for (const member of members) {
     const res = await h.app.inject({
       method: 'POST',

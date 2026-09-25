@@ -113,9 +113,9 @@ A webhook subscription declares:
   events. Events without an Organization attribution are delivered to
   platform-wide subscriptions only (fail closed).
 
-> **Delivery is now active for order events.** Subscriptions created before
-> feature 062 were accepted but `order.created.v1` / `order.status_changed.v1`
-> deliveries were not dispatched. The delivery pipeline is now wired: any
+> **Delivery is now active for order events.** Subscriptions created before the
+> delivery pipeline existed were accepted but `order.created.v1` /
+> `order.status_changed.v1` deliveries were not dispatched. The delivery pipeline is now wired: any
 > pre-existing subscription matching those event types starts receiving
 > deliveries. Make sure your receiver is idempotent before upgrading.
 

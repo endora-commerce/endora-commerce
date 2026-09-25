@@ -5,7 +5,7 @@ title: Tenant Scoping (Multi-Tenant Isolation)
 # Tenant Scoping
 
 The backend enforces multi-tenant isolation with a **framework-level guard**, not
-per-service `where`-clauses (Constitution Principle XI, feature `050`). Every
+per-service `where`-clauses. Every
 persisted entity is classified once, and reads/writes are automatically confined
 to the caller's tenant at the data-access layer — so isolation holds even when a
 service forgets an explicit filter.
@@ -44,8 +44,8 @@ Add **exactly one** classification decorator to every `*.entity.ts` (the CI chec
 `@OrgScoped` / `@CustomerScoped` attach the filter; the others are metadata only —
 their enforcement (where needed) is explicit in the owning service.
 
-**The transitive parent is named by its class name, not by the class** (ruling
-D-169). Both of this platform's transitive chains cross a module boundary, and a
+**The transitive parent is named by its class name, not by the class.** Both of
+this platform's transitive chains cross a module boundary, and a
 module that has become a package publishes an `entities` array and no named
 entity class — so `@TransitivelyScoped(() => Order, 'orderId')` would be an
 import the child cannot write. The name is resolved lazily against the

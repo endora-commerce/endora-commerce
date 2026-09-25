@@ -1,0 +1,10 @@
+{
+  "sourcePath": "packages/modules/invoice_ledger/docs/invoice-ledger.md",
+  "sourceHash": "edb40853869a68b2314d13ab3182b76d20b99fa6c9e8fd66b3210f550edc9b63",
+  "locale": "pl",
+  "content": "---\ntitle: Invoice ledger\ndescription: Wspólny mutex vendorów, numeracja i routing KSeF oraz trwałe dostawy faktur dla adapterów ledgera.\n---\n\n# Invoice ledger\n\nModuł `invoice_ledger` posiada wspólne szyny, z których korzysta każdy adapter księgowy: wzajemne wykluczenie, aby tylko jeden vendor był aktywny u operatora, ustawienia numeracji i routingu KSeF, mapy klientów i dokumentów, dostawy oraz potwierdzenia webhooków.\n\nAdaptery takie jak Infakt posiadają własne HTTP. Ten moduł nie woła Infakt.\n\n## Operatorzy\n\n- **Invoice ledger** w Sales otwiera dostawy. Routing jest zakładką na tym samym pasku.\n- Adapter vendoru (Infakt) dodaje zakładkę połączenia, gdy adapter jest włączony.\n- Routing (Endora vs numeracja vendoru, natywny vs vendor KSeF) to zapis z potwierdzeniem.\n- Wyłączenie Infakt ukrywa jego zakładkę. Historia dostaw w tym module pozostaje.\n- Wyłączenie Invoice ledger na `/platform/modules` wyłącza też każdy aktywny adapter (Infakt). Adapterów nie można ponownie włączyć, dopóki ledger jest wyłączony. Ponowne włączenie ledgera pozostawia adaptery wyłączone.\n\n## Dla developerów\n\nSchemat żyje tutaj. Infakt nie dostarcza migracji. Id faktur w mapach i dostawach to UUID bez klucza obcego do modułu invoices.\n",
+  "meta": {
+    "provider": "manual",
+    "updatedAt": "2026-09-17T10:00:00.000Z"
+  }
+}

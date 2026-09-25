@@ -5,7 +5,7 @@ description: Configured delivery options
 
 # `delivery_methods`
 
-The platform's **shipping-method framework** (feature 035 — _Metoda Dostawy_).
+The platform's **shipping-method framework** (_Metoda Dostawy_).
 The module hosts a pluggable adapter registry over the delivery-method catalog,
 the delivery-side twin of `payment_methods`. The first-class `Shipment` record
 and its lifecycle live in the sibling [`shipments`](./shipments.md) module.
@@ -64,7 +64,7 @@ Sales-channel scoping reuses the generic `SalesChannelMembershipService`
 
 A platform module is recognised as a shipping-method adapter **iff** it
 registers a `ShippingAdapter` in the process-wide `shippingAdapterRegistry`
-from its boot hook (FR-001). No core change is required.
+from its boot hook. No core change is required.
 
 1. **Implement the `ShippingAdapter` contract** (`@endora-commerce/contracts`):
 
@@ -104,15 +104,15 @@ from its boot hook (FR-001). No core change is required.
 
    The owner id is what lets the registry skip the adapter while its module is
    absent, so a carrier an operator switches off stops being offered instead of
-   being offered and failing (issue #96 — the payment twin's defect, fixed on
-   both sides). The `delivery_methods` row itself is static reference data and
+   being offered and failing — the same defect the payment twin had, fixed on
+   both sides. The `delivery_methods` row itself is static reference data and
    belongs in your module's migration; `DeliveryMethodReconciler` remains
    available from an `installHook` for a row that must be created from code. No
    uninstall hook is needed to withdraw the adapter — a module that is not
    present is not enumerated.
 
    The skip does not answer for an order **already placed** on your method: a
-   shipment can still be generated for it, and since issue #250 that shipment
+   shipment can still be generated for it, and that shipment
    opens `pending_manual` naming your module rather than reading like one you
    accepted. You write no code for it — see *When the registry is read* below.
 
@@ -124,7 +124,7 @@ from its boot hook (FR-001). No core change is required.
    is not one adapter dropping out: `runBootHooks` re-throws it as
    `ModuleCompositionError` and `index.ts` turns that into `process.exit(1)`, so
    the operator's next start dies over a switch they were entitled to use. Nor
-   may a contributing hook probe `effectiveState` (D-67/D-68) — the host already
+   may a contributing hook probe `effectiveState` — the host already
    filters at enumeration, and a probe at the push would make switching your
    carrier back on require a restart. If your hook also *does work* (a
    reconcile, a Redis or Postgres write), split it in two first: the working
@@ -137,7 +137,7 @@ from its boot hook (FR-001). No core change is required.
    - E-mail: `registerShippingEmailRenderer(key, fn)` in
      `shipments/services/shipping-email-renderer.ts`.
    When a renderer is missing for a surface, the platform default is used so the
-   method always renders (FR-016/FR-017).
+   method always renders.
 
 4. **Enable the module** from the admin module-lifecycle screen → a configurable
    Delivery Method appears at `/delivery-methods`.
@@ -156,10 +156,10 @@ request**:
 
 | Read | Where | What an absent adapter means there |
 | --- | --- | --- |
-| Storefront eligibility | `GET /api/v1/delivery-methods` → `ShippingMethodEligibilityService.filter` | the method is not offered (FR-003) |
+| Storefront eligibility | `GET /api/v1/delivery-methods` → `ShippingMethodEligibilityService.filter` | the method is not offered |
 | Admin upsert guard | `PUT /api/v1/admin/delivery-methods/:code` → `isRegistered` | an explicitly supplied key nobody contributed is rejected (400); a contributed one whose owner is off is accepted, because the read is presence-blind on purpose |
 | Order placement | `orders` re-validates the chosen method, then fires `onOrderCreated` | a method whose owner is off answers 503 `MODULE_DISABLED`; an unregistered one skips the hook |
-| Shipment generation | `ShipmentService.create` → `onShipmentCreated` | the adapter hook is skipped and the `Shipment` opens **`pending_manual`** naming the absent module (issue #250) — never plain `pending`, which would read as a shipment the carrier had accepted |
+| Shipment generation | `ShipmentService.create` → `onShipmentCreated` | the adapter hook is skipped and the `Shipment` opens **`pending_manual`** naming the absent module — never plain `pending`, which would read as a shipment the carrier had accepted |
 | Order-confirmation e-mail | the method's `renderers.email` key | the platform default renderer is used |
 
 Two things follow, and they are the reason this section exists rather than being
@@ -168,7 +168,7 @@ contributors: your adapter is visible to the first read whether it landed before
 or after anybody else's, so a boot hook has nothing to wait for and nothing to
 verify. Second, an absent or switched-off contributor is answered **at the
 read**, by the entry's recorded owner — never at the push. That is what makes
-this a contribution point rather than a gated port (D-39): the push is ungated
+this a contribution point rather than a gated port: the push is ungated
 on purpose, because gating it would turn one operator flip into a boot failure
 naming a module nobody touched.
 
@@ -188,7 +188,7 @@ identically — a key nobody ever contributed, and a key whose carrier module is
 switched off — and only the second one names something they can switch back on.
 `shipments` asks it to decide which state to open a `Shipment` in; the payment
 twin, `GatewayRefundRegistry.absentOwnerFor`, is the same reader for the same
-reason (D-71).
+reason.
 
 ## Lifecycle
 

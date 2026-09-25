@@ -9,8 +9,8 @@ webhook delivery — runs through durable, Redis-backed queues consumed by
 **workers**. This page explains how to run those consumers and how the
 platform's current queue-backed operations behave.
 
-The design follows **Constitution Principle X — Scalable Queue Consumers**
-(`.specify/memory/constitution.md`). The binding invariant is:
+The design follows the platform's **scalable queue consumer** rule. The
+binding invariant is:
 
 - the queue is a **durable, distributed substrate** (Redis / BullMQ-class), not
   an in-memory list bound to one process;
@@ -43,7 +43,7 @@ pnpm --filter backend run start      # production (built)
 pnpm --filter backend run dev        # development (tsx watch)
 ```
 
-This is the posture allowed by Principle X for low-volume work: the worker
+This is the posture the rule allows for low-volume work: the worker
 stays a *separable entrypoint* but is hosted in the API process to keep the
 deployment simple.
 
@@ -112,8 +112,8 @@ model.
 ## Other background jobs (not yet on a shared queue)
 
 A few periodic/maintenance jobs still run as in-process timers or manual
-scripts. These predate Principle X and are tracked for migration to the same
-worker model; document and operate them as follows in the meantime:
+scripts. These predate the scalable queue consumer rule and are tracked for migration
+to the same worker model; document and operate them as follows in the meantime:
 
 | Job | How it runs today | Invocation |
 | --- | --- | --- |
@@ -123,9 +123,10 @@ worker model; document and operate them as follows in the meantime:
 | RFQ expiry | Service method, invoked on a schedule | `RfqExpiryWorker.sweep()` |
 
 :::note
-The in-process `setInterval` sweepers above are the legacy pattern Principle X
-replaces. New asynchronous, queue-backed work MUST use the durable-queue +
-separable-worker model described here, never a request-process timer.
+The in-process `setInterval` sweepers above are the legacy pattern the
+scalable queue consumer rule replaces. New asynchronous, queue-backed work
+MUST use the durable-queue + separable-worker model described here, never a
+request-process timer.
 :::
 
 The cart abandonment sweep reads module presence from `module_registrations`

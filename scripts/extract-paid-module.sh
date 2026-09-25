@@ -55,7 +55,7 @@
 #   * a `migration-foreign-writes` shard for this module (E2 / W7: a paid module writing a free
 #     module's table after the split is a cross-repository schema dependency with no owner)
 #   * **E3p**, and this one is the export's own completeness: a path of this history carrying the
-#     module's id that the resolved path set did not carry and no standing disposition covers.
+#     module's id that the resolved path set did not carry and no standing or E3p.2 disposition covers.
 #     The path set is **resolved, never enumerated** (D-263, refusal 14) — see
 #     `backend/scripts/derive-extraction-path-set.ts` and the E3p section below
 #
@@ -162,7 +162,11 @@ done < <(git grep -l -E "@endora-commerce/mod-${KEBAB}([^a-z0-9-]|\$)|packages/m
 # W1. Deliberately narrow: a *specifier* naming the package, in a package that is not this one.
 # A module id inside a comment is prose and is left in place (E9, D-247).
 say 'W1 — checking no free package still resolves this module by specifier'
-COUPLED=$(git grep -l -E "from '(@endora-commerce/mod-${KEBAB}|.*packages/modules/${MODULE_ID})" -- 'packages/*' ":(exclude)$PKG" || true)
+#
+# Markdown is excluded because it is prose, whatever it quotes: 13 `packages/modules/*/CHANGELOG.md`
+# files carry an old `import … from '@endora-commerce/mod-ksef/backend'` in fenced code and refused
+# `ksef` here, while W1's own sentence is *"in code that runs"* (`research.md` D13 §7).
+COUPLED=$(git grep -l -E "from '(@endora-commerce/mod-${KEBAB}|.*packages/modules/${MODULE_ID})" -- 'packages/*' ":(exclude)$PKG" ':(exclude)*.md' || true)
 [ -n "$COUPLED" ] && die $'W1 is incomplete. These packages still resolve this module by specifier:\n'"$COUPLED"$'\nA free package naming a wave member in code that runs is W1\'s refusal verbatim.'
 
 # ---------------------------------------------------------------------------
@@ -185,16 +189,21 @@ COUPLED=$(git grep -l -E "from '(@endora-commerce/mod-${KEBAB}|.*packages/module
 # over the rename closure, the ownership tie-break and the completeness refusal — and it prints
 # what it resolved, what it refused and whose lineage it declined to carry. It runs **before** the
 # dry-run exit, because the refusal is a precondition of the move and not a part of it.
+#
+# **E3p.2's reviewed per-path dispositions are passed unconditionally**, dry run or not, so that a
+# green exploratory run cannot bypass the gate the real run enforces. The deriver validates every
+# entry and prints each one it accepts; this file only names where they are.
 say 'E3p — resolving the path set over the history'
 command -v git-filter-repo >/dev/null 2>&1 || die 'git-filter-repo is not installed. `git subtree split` is the contract'"'"'s other option; a squashed import is refused (FR-015).'
 
 # Outside the working tree on purpose: the file is a derived fact (D-100) and must never be
 # committed, and a whole-tree walk that counted it would move a recorded read size.
 PATHS_FILE=$(mktemp -t "endora-path-set-$MODULE_ID-XXXXXX")
+DISPOSITIONS="$REPO_ROOT/specs/134-paid-module-extraction/e3p-historical-dispositions.json"
 trap 'rm -f "$PATHS_FILE"' EXIT
 if ! pnpm --filter backend exec tsx scripts/derive-extraction-path-set.ts "$MODULE_ID" \
-  --ref HEAD --package "$PKG" --paths-file "$PATHS_FILE"; then
-  die $'E3p refused, and the paths are printed above. Each is a path of this history carrying `'"$MODULE_ID"$'` that the resolution did not carry and that no standing disposition covers. Widen the resolution or record the path as deliberately left, in the merge request: there is no default, because both answers are real and the wrong one is unrecoverable (E3p, refusal 14).'
+  --ref HEAD --package "$PKG" --paths-file "$PATHS_FILE" --dispositions "$DISPOSITIONS"; then
+  die $'E3p refused, and the paths are printed above. Each is a path of this history carrying `'"$MODULE_ID"$'` that the resolution did not carry and that no standing or reviewed disposition covers, or a reviewed disposition the deriver could not accept. Widen the resolution — for a live file, a rename-only move into the package (E3p.1) — or record the path as deliberately left through a reviewed entry in specs/134-paid-module-extraction/e3p-historical-dispositions.json (E3p.2). A note in the merge request no longer clears it: there is no default, because both answers are real and the wrong one is unrecoverable (E3p, refusal 14).'
 fi
 
 if [ "$DRY_RUN" -eq 1 ]; then

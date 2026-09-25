@@ -29,7 +29,7 @@ The closed set of item kinds:
 
 The optional `iconAssetId` accepts only `image`-kind Library assets; the validator refuses non-image targets.
 
-## Activation contract (FR-008)
+## Activation contract
 
 At most one megamenu may be `active` per `(sales channel, language)` pair at any time. The DB enforces this with:
 
@@ -46,7 +46,7 @@ The activate transaction:
 
 Both run in a single transaction, so the partial unique index never sees a dual-active state. The activate endpoint surfaces the prior holder in `previouslyActive` so the admin's confirmation dialog can read "switched from `<name>`".
 
-Activate refuses on an empty tree with `400 MEGAMENU_EMPTY_TREE` (per `R10`). Configuration delete refuses while at least one binding has `active = true` with `409 MEGAMENU_HAS_ACTIVE_BINDINGS` (admins must deactivate first per FR-004).
+Activate refuses on an empty tree with `400 MEGAMENU_EMPTY_TREE`. Configuration delete refuses while at least one binding has `active = true` with `409 MEGAMENU_HAS_ACTIVE_BINDINGS` (admins must deactivate first).
 
 ## Sales-channel + language scoping
 
@@ -54,7 +54,7 @@ A configuration may carry many `(salesChannelId, language)` bindings. The bindin
 
 Per-language label fallback: when an item's label is missing in the requested language, the storefront resolver falls back to the channel's default language. Items with no label in either is silently omitted from the resolved tree (admin sees the warning in the editor).
 
-## Tree depth (FR-011)
+## Tree depth
 
 Tree depth is a UX guideline, not a hard constraint. The data model imposes no cap. The admin form surfaces a non-blocking warning past 4 levels:
 
@@ -70,12 +70,12 @@ Megamenu items hold soft references to upstream entities (Categories, CMS Pages,
 
 | Upstream entity | Registry / module                       | Match path on megamenu_items.target  |
 | --------------- | --------------------------------------- | ------------------------------------ |
-| Library Asset   | `AssetReferenceRegistry` (feature 013)  | `assetId` OR `iconAssetId`           |
-| CMS Page        | `CmsReferenceRegistry` (feature 014)    | `kind='cms-page-link' AND pageId = ?` |
-| CMS Block       | `CmsReferenceRegistry` (feature 014)    | `kind='cms-block-embed' AND blockId = ?` |
+| Library Asset   | `AssetReferenceRegistry`                | `assetId` OR `iconAssetId`           |
+| CMS Page        | `CmsReferenceRegistry`                  | `kind='cms-page-link' AND pageId = ?` |
+| CMS Block       | `CmsReferenceRegistry`                  | `kind='cms-block-embed' AND blockId = ?` |
 | Category        | (catalog category-reference registry)   | `kind='category-link' AND categoryId = ?` (planned) |
 
-Each registration is a one-line surface change wired in `composition.ts`. The CMS module's existing `findBlockReferences` / `findTemplateReferences` were extended in feature 015 to consult external scanners; the megamenu module's `registerMegamenuCmsReferences` registers its scanner there.
+Each registration is a one-line surface change wired in `composition.ts`. The CMS module's existing `findBlockReferences` / `findTemplateReferences` were extended to consult external scanners; the megamenu module's `registerMegamenuCmsReferences` registers its scanner there.
 
 The category-reference registry surface is planned for the catalog module; until it lands, category-delete protection from megamenu references is enforced at the validator boundary (a megamenu cannot save an item pointing at a deleted category — the category check returns `false` and the admin sees a clear error).
 
@@ -101,7 +101,7 @@ Resolved payloads are cached in Redis under `megamenu:v1:<channel>:<language>` w
 - `POST /menus/:id/bindings` / `DELETE /menus/:id/bindings/:channel/:language` → drop the affected scope.
 - `POST /menus/:id/activate` / `POST /menus/:id/deactivate` → drop the activated/deactivated scope.
 
-The cache implementation mirrors feature 014's `CmsCache` exactly (same prefix scheme, same TTL, same SCAN-based invalidation).
+The cache implementation mirrors the CMS module's `CmsCache` exactly (same prefix scheme, same TTL, same SCAN-based invalidation).
 
 ## Storefront rendering
 
@@ -141,7 +141,7 @@ Burger trigger renders below `768px`. Tapping opens a stacked drill-down drawer;
 
 The migration `036_megamenu_init.ts` adds three new tables and the partial unique index. There are no seeded rows; first-time admins create a configuration through the admin UI.
 
-Mounted in the storefront's root layout between `<Header>` and the existing `header.bottom` Hook. The CMS Hooks integration from feature 014 is unaffected.
+Mounted in the storefront's root layout between `<Header>` and the existing `header.bottom` Hook. The CMS Hooks integration is unaffected.
 
 ## Error codes
 

@@ -2171,7 +2171,7 @@ export function renderEntityIndex(
 // and stays where it is; nothing here writes a page a human would want to edit.
 
 /** One read of the site's tree, the modules' layers and the index. */
-function docsRegistry(population: ArtefactPopulation): DocsRegistry & {
+export function docsRegistry(population: ArtefactPopulation): DocsRegistry & {
   /** What the index walk found, so the reference renderer needs no second one. */
   manifests: readonly DiscoveredManifest[];
 } {

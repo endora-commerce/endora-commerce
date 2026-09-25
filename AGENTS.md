@@ -76,7 +76,7 @@ already in the stack.
 | `specs/conventions/` | The bodies this file routes to — see *Where the rest of it lives* |
 | `specs/*.md`, `specs/b2b-platform-*-ui/` | Standing non-feature documents that outlive any one feature; `deferred-defects.md` states the precedent in its own opening lines |
 | `.specify/memory/constitution.md` | Binding principles — read before designing anything |
-| `docs/` | Docusaurus site (end-user and engineer documentation, English only) |
+| `docs/` | Docusaurus site (end-user and engineer documentation, **English + Polish** user-facing; manual i18n workflow in `docs/docs/contributing/documentation-i18n.md`) |
 
 ## Commands
 

@@ -1,0 +1,9 @@
+# Endora Commerce documentation — https://docs.commerce.endora.software
+# The build emits one sitemap per locale and no sitemap index, so both are named
+# here: a single-sitemap declaration would leave the Polish tree undiscoverable.
+
+User-agent: *
+Allow: /
+
+Sitemap: https://docs.commerce.endora.software/sitemap.xml
+Sitemap: https://docs.commerce.endora.software/pl/sitemap.xml

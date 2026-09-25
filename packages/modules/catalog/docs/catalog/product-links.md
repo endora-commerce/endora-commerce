@@ -62,8 +62,8 @@ admin who's still finishing their picks.
 ## Storefront integration
 
 `productDetail.links` carries pre-grouped arrays sliced to default page
-sizes (research §US4 + spec.md US4 Assumptions): `related[8]`,
-`upSell[4]`, `crossSell[4]`. Each entry is a storefront-shape link
+sizes: `related[8]`, `upSell[4]`, `crossSell[4]`. Each entry is a
+storefront-shape link
 summary `{id, kind, position, product{id, sku, slug, name,
 primaryAssetUrl, price}}` so the listing card renders without a
 follow-up fetch.

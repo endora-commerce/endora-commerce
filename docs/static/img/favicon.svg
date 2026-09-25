@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Endora Commerce documentation favicon.
+
+  A plain "E" monogram, deliberately: no Endora mark exists in this repository, and an
+  SVG is text, so it is reviewable in a diff and cannot carry a raw NUL byte. Replacing
+  this artwork with the real mark later costs no URL change.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-labelledby="title">
+  <title id="title">Endora Commerce</title>
+  <rect width="32" height="32" rx="6" fill="#111827" />
+  <path d="M9 8h14v3.5H12.5v3.25H20v3.5h-7.5V20.5H23V24H9Z" fill="#ffffff" />
+</svg>

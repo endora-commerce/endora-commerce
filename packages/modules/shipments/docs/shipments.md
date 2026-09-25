@@ -5,7 +5,7 @@ description: The retryable Shipment record and its lifecycle — the delivery-si
 
 # `shipments`
 
-The `Shipment` record and its lifecycle (feature 035 — _Metoda Dostawy_). The
+The `Shipment` record and its lifecycle. The
 delivery-side twin of `payments`: the shipping-method *catalog* and adapter
 registry live in [`delivery_methods`](./delivery_methods.md); this module owns
 the first-class, retryable `Shipment` and the `receive_shipment` ingress.
@@ -25,18 +25,17 @@ maps to.
 A shipment opens `pending_manual` when the adapter its delivery method names is
 contributed by a module that is **not present** — switched off by the operator,
 or not available in this deployment. The registry filters that adapter out at
-enumeration (the contribution-point policy, D-39), so nothing is sent: no label,
+enumeration (the contribution-point policy), so nothing is sent: no label,
 no tracking number, no pickup. The row records what happened rather than looking
 like every other shipment:
 
 - `status = 'pending_manual'`, which is the same word — and the same instruction
-  to the same operator — as a refund the platform could not settle automatically
-  (feature 046, FR-035): *a human has to finish this*;
+  to the same operator — as a refund the platform could not settle automatically: *a human has to finish this*;
 - `failureReason` names the module, e.g. `The "my_carrier" module is not
   switched on here, so the carrier was never asked to create this shipment.
   Switch the module back on and generate the shipment again.`;
 - an audit entry `shipment.carrier_not_contacted` on the shipment, written
-  co-transactionally with the row (Principle XIII);
+  co-transactionally with the row;
 - **no** `shipment_created` e-mail. The notifier answers
   `{ sent: false, reason: 'carrier_not_contacted' }` and logs it — telling a
   buyer their order has shipped when nothing was handed to anyone is worse than
@@ -60,8 +59,8 @@ would mean the platform calling a carrier for parcels an operator may already
 have handled by hand, without anyone asking it to. The Delivery tab of the order
 surfaces the state, the reason and the button.
 
-There used to be a second endpoint here, `POST .../shipments/retry`, and issue
-#257 deleted it: it appended attempt n+1 and contacted no adapter in any state,
+There used to be a second endpoint here, `POST .../shipments/retry`, and it
+has been deleted: it appended attempt n+1 and contacted no adapter in any state,
 so an operator who used it got a fresh `pending` row that nothing had been asked
 about. Retrying **is** generating again — the generate endpoint appends the next
 attempt, refuses only once one has succeeded, and asks the carrier for it.

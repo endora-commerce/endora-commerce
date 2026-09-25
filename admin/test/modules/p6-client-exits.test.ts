@@ -7,6 +7,11 @@ import { resolve } from 'node:path';
  * exit**.
  *
  * Nine callers imported another module's admin API client for one `GET` each.
+ * Eight are asserted below. The ninth, `ksef`'s `KsefPage.tsx`, is a paid
+ * module's own source, so feature 134's W2.2 moved its two cases into that
+ * package's `src/admin/index.test.ts`, where the package answers them about its
+ * own sources — the same move the five payment gateways' half of this repair
+ * made. Nothing was deleted: both assertions run there unchanged.
  * A client is the owner's **code**, which is what
  * `backend/scripts/ledgers/cross-module-imports/` recorded; an HTTP path plus a
  * response type out of `@endora-commerce/contracts` — a package both sides
@@ -92,18 +97,6 @@ const EXITS: readonly ClientExit[] = [
     endpoints: ['/api/v1/admin/settings/'],
   },
   {
-    // Feature 091, Phase 4 batch 12 — re-keyed, not dropped: `ksef` took its
-    // admin surface into its package and this caller went with it. The exit is
-    // unchanged; only its address moved. This list is a ledger *about* the
-    // files it names rather than one of them, so the merge request that moves a
-    // caller is structurally the one that cannot see the entry go stale.
-    caller: '../packages/modules/ksef/src/admin/pages/KsefPage.tsx',
-    owner: 'settings',
-    binding: 'settingsClient',
-    clientPath: 'modules/settings/api/settings-client',
-    endpoints: ['/api/v1/admin/settings/'],
-  },
-  {
     caller: '../packages/modules/pwa/src/admin/pages/PwaPage.tsx',
     owner: 'sales_channels',
     binding: 'salesChannelsClient',
@@ -154,7 +147,7 @@ const EXITS: readonly ClientExit[] = [
   },
 ];
 
-describe('feature 091 P6 — nine callers build their own request', () => {
+describe('feature 091 P6 — the callers build their own request', () => {
   it.each(EXITS)('$caller no longer imports $owner’s admin API client', (exit) => {
     const source = sourceOf(exit.caller);
     expect(source).not.toContain(exit.binding);

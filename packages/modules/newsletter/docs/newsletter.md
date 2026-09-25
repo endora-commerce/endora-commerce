@@ -46,7 +46,7 @@ it never collides with an external ESP (MailerLite, GetResponse, …).
 - **Provider** — selected + configured in the Admin UI; the SMTP password is
   stored as a Settings `secret` (AES-256-GCM, write-only at the boundary).
 
-## Delivery (Principle X)
+## Delivery
 
 Dispatch is queue-backed on Redis/BullMQ:
 

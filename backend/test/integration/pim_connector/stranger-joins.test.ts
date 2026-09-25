@@ -8,6 +8,7 @@ import { capabilityRegistryFrom, registryCache } from '@endora-commerce/platform
 import { HttpError } from '@endora-commerce/platform/http';
 import { packageModuleManifestsUnder } from '../../../src/packages/package-runtime.js';
 import { resolvedManifestEntries } from '../../../src/lifecycle/registered-manifests.js';
+import { deploymentFamilyOf } from '../../helpers/capability-families.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -61,6 +62,14 @@ import {
 const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
 const STRANGER_ID = 'vendor_pim_stranger';
 const STRANGER_NAME = '@vendor/mod-pim-stranger';
+/**
+ * Composed as the `example` deployment (feature 134, T113, `research.md` D13 §6): every
+ * packaged PIM connector leaves this repository, and the deployment's overlay fixtures
+ * are the shipped members the stranger is then excluded against.
+ */
+const DEPLOYMENT = 'example';
+const OVERLAY_MEMBERS = (await deploymentFamilyOf(CAPABILITY_KEYS.PIM_CONNECTOR, DEPLOYMENT))
+  .overlay;
 
 /** The stranger, on disk, in the layout a real install has. */
 function writeStrangerPackage(root: string): string {
@@ -99,18 +108,18 @@ function writeStrangerPackage(root: string): string {
 describe('pim_connector — a stranger package joins the family [SC-001]', () => {
   let h: BackendServerHandle;
   let fixtureRoot: string;
-  let coreFamily: readonly string[];
+  let shippedFamily: readonly string[];
   let realManifests: readonly import('@endora-commerce/contracts').ModuleManifest[];
 
   beforeAll(async () => {
     fixtureRoot = mkdtempSync(join(tmpdir(), 'endora-132-stranger-'));
     const nodeModulesRoot = writeStrangerPackage(fixtureRoot);
 
-    h = await setupBackendServer();
+    h = await setupBackendServer({ deployment: DEPLOYMENT });
 
-    const entries = await resolvedManifestEntries();
+    const entries = await resolvedManifestEntries({ ...process.env, DEPLOYMENT });
     realManifests = entries.map((entry) => entry.manifest);
-    coreFamily = realManifests
+    shippedFamily = realManifests
       .filter((manifest) => (manifest.capabilities ?? []).includes(CAPABILITY_KEYS.PIM_CONNECTOR))
       .map((manifest) => manifest.id);
 
@@ -142,23 +151,26 @@ describe('pim_connector — a stranger package joins the family [SC-001]', () =>
     expect(effectiveState.declaredMembersOfCapability(CAPABILITY_KEYS.PIM_CONNECTOR)).toContain(
       STRANGER_ID,
     );
-    expect(coreFamily.length, 'the core family must be non-empty for the pair to mean anything')
+    expect(shippedFamily.length, 'the shipped family must be non-empty for the pair to mean anything')
       .toBeGreaterThan(0);
-    expect(coreFamily).not.toContain(STRANGER_ID);
+    expect(shippedFamily).not.toContain(STRANGER_ID);
+    // W6 — a shipped member that is no packaged connector, so the pair survives every
+    // packaged connector's departure.
+    expect(OVERLAY_MEMBERS.length, shippedFamily.join(', ')).toBeGreaterThan(0);
   });
 
-  it('holds the claim against a core connector — refused through the activation route', async () => {
-    // The stranger present, the whole core family off.
+  it('holds the claim against a shipped connector — refused through the activation route', async () => {
+    // The stranger present, the whole shipped family off.
     registryCache.__setEnabledForTesting(
       [...effectiveState.all().map((p) => p.moduleId), STRANGER_ID],
-      { deactivated: [...coreFamily] },
+      { deactivated: [...shippedFamily] },
     );
     expect(effectiveState.isPresent(STRANGER_ID)).toBe(true);
     expect(effectiveState.membersOfCapability(CAPABILITY_KEYS.PIM_CONNECTOR)).toEqual([
       STRANGER_ID,
     ]);
 
-    const victim = coreFamily[0]!;
+    const victim = shippedFamily[0]!;
     const refused = await h.app.inject({
       method: 'POST',
       url: `/api/v1/admin/modules/${victim}/activation`,
@@ -175,12 +187,12 @@ describe('pim_connector — a stranger package joins the family [SC-001]', () =>
     });
   });
 
-  it('is itself refused while a core connector holds the claim — the live port', async () => {
-    const incumbent = coreFamily[0]!;
-    // The core connector present, the stranger off.
+  it('is itself refused while a shipped connector holds the claim — the live port', async () => {
+    const incumbent = shippedFamily[0]!;
+    // The shipped connector present, the stranger off.
     registryCache.__setEnabledForTesting(
       [...effectiveState.all().map((p) => p.moduleId), STRANGER_ID],
-      { deactivated: [...coreFamily.filter((id) => id !== incumbent), STRANGER_ID] },
+      { deactivated: [...shippedFamily.filter((id) => id !== incumbent), STRANGER_ID] },
     );
     expect(effectiveState.membersOfCapability(CAPABILITY_KEYS.PIM_CONNECTOR)).toEqual([incumbent]);
 
@@ -199,11 +211,11 @@ describe('pim_connector — a stranger package joins the family [SC-001]', () =>
   it('holds no claim once the deployment stops shipping it', async () => {
     // Principle XVII from the other side: a stranger whose platform axis is off
     // contributes nothing to any refusal and appears in no error detail (FR-009).
-    registryCache.__setEnabledForTesting([...coreFamily], { deactivated: [...coreFamily] });
+    registryCache.__setEnabledForTesting([...shippedFamily], { deactivated: [...shippedFamily] });
     expect(effectiveState.isPresent(STRANGER_ID)).toBe(false);
     expect(effectiveState.membersOfCapability(CAPABILITY_KEYS.PIM_CONNECTOR)).toEqual([]);
     await expect(
-      h.pimConnectorRegistry.assertCanActivate(coreFamily[0]!),
+      h.pimConnectorRegistry.assertCanActivate(shippedFamily[0]!),
     ).resolves.toBeUndefined();
   });
 
@@ -211,6 +223,6 @@ describe('pim_connector — a stranger package joins the family [SC-001]', () =>
     // R1.5 / SC-003 at the level this test can hold it: the id the platform just
     // excluded on exists only in the fixture the test wrote.
     expect(STRANGER_ID).not.toMatch(/^pim_/);
-    expect(coreFamily.every((id) => id !== STRANGER_ID)).toBe(true);
+    expect(shippedFamily.every((id) => id !== STRANGER_ID)).toBe(true);
   });
 });

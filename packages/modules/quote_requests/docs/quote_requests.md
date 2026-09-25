@@ -5,8 +5,8 @@ description: RFQ lifecycle (draft → quote → accept/reject)
 
 # `quote_requests`
 
-The Quote Requests module — feature 008 — implements the B2B
-negotiation loop. A customer (or sales representative on the
+The Quote Requests module implements the B2B negotiation loop.
+A customer (or sales representative on the
 customer's behalf) drafts a Quote Request, the other side reviews it,
 either side may modify the request and require explicit re-acceptance,
 and an approved Quote Request can be turned into an order through the

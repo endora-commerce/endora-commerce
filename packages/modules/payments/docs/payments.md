@@ -15,7 +15,7 @@ adapters live in dedicated integration modules.
 | --- | --- |
 | `bank-transfer-driver.ts` | Returns `NextAction.kind='awaiting_transfer'`; settlement happens out-of-band when the operator marks the order paid |
 | `pickup-driver.ts` | `NextAction.kind='none'` for cash-on-pickup |
-| `credit-limit-driver.ts` | Calls `CreditLimitService.reserve` inside the order-placement transaction (US6) |
+| `credit-limit-driver.ts` | Calls `CreditLimitService.reserve` inside the order-placement transaction |
 | `gateway-adapter-port.ts` | Interface stub for external gateways; per-vendor implementations live outside the core |
 
 ## Public surface

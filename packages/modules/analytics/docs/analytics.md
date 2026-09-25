@@ -18,7 +18,7 @@ mirrors each ingested event into Google Analytics when configured.
 
 ## Event types
 
-The Zod boundary accepts a fixed set, per FR-110:
+The Zod boundary accepts a fixed set:
 
 - `product.viewed`, `category.viewed`
 - `product.added_to_cart`, `cart.abandoned`

@@ -63,6 +63,7 @@
     "composer:check": "tsx scripts/generate-composer.ts --check",
     "composer:generate": "tsx scripts/generate-composer.ts",
     "docs:collect": "tsx scripts/generate-composer.ts --docs-only",
+    "check:docs-translations": "tsx scripts/check-docs-translations.ts",
     "db:fresh": "tsx --env-file-if-exists=.env src/db/migrate.ts fresh",
     "setup": "pnpm run db:fresh && pnpm run module:install --all",
     "db:reset": "pnpm run setup && pnpm run cli demo seed",
@@ -98,6 +99,7 @@
     "test:unit:fast": "vitest run --config vitest.unit.config.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
+    "verify:docs-build": "tsx scripts/verify-docs-build.ts",
     "worker": "node dist/worker.js",
     "worker:dev": "node scripts/dev.mjs src/worker.ts"
   },

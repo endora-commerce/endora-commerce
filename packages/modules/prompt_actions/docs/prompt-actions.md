@@ -100,9 +100,7 @@ Rules (enforced at registration where possible): dotted ids prefixed with
 the owning module; resolvers are side-effect-free and cap results (≤ 20);
 mutations must implement `preview()` returning honest, server-computed
 counts and samples; tools of disabled modules disappear from the catalogue
-automatically. See
-`specs/043-admin-prompt-actions/contracts/prompt-actions-api.md` for the
-full contribution contract and the HTTP API.
+automatically.
 
 ## v1 tool catalogue
 

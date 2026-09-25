@@ -1,0 +1,1014 @@
+{
+  "themeConfig": {
+    "navbar": {
+      "title": "B2B Platform",
+      "items": [
+        {
+          "type": "docSidebar",
+          "sidebarId": "main",
+          "position": "left",
+          "label": "Docs"
+        },
+        {
+          "type": "localeDropdown",
+          "position": "right"
+        }
+      ]
+    },
+    "footer": {
+      "style": "dark",
+      "copyright": "Internal documentation — see the repository for the governing constitution."
+    }
+  },
+  "sidebars": {
+    "main": [
+      "intro",
+      {
+        "type": "category",
+        "key": "admin-ui",
+        "label": "Admin UI",
+        "items": [
+          "admin/mobile-responsive"
+        ]
+      },
+      {
+        "type": "category",
+        "key": "architecture",
+        "label": "Architecture",
+        "link": {
+          "type": "generated-index",
+          "title": "Architecture"
+        },
+        "items": [
+          "architecture/tenant-scoping",
+          "architecture/api-interceptor",
+          "architecture/migrations",
+          "architecture/command-bus",
+          "architecture/custom-fields",
+          "architecture/overlay-pattern",
+          "architecture/customisation-ladder",
+          "architecture/permissions",
+          "architecture/pim-ergonode",
+          "architecture/pim-connector",
+          "architecture/pim-unopim",
+          "architecture/pim-pimcore"
+        ]
+      },
+      {
+        "type": "category",
+        "key": "api-contracts",
+        "label": "API contracts",
+        "link": {
+          "type": "doc",
+          "id": "contracts/README"
+        },
+        "items": []
+      },
+      {
+        "type": "category",
+        "key": "modules",
+        "label": "Modules",
+        "link": {
+          "type": "doc",
+          "id": "modules/README"
+        },
+        "items": [
+          {
+            "type": "doc",
+            "id": "modules/module-map.generated",
+            "label": "Module map",
+            "key": "module-map"
+          },
+          {
+            "type": "category",
+            "label": "addresses",
+            "key": "addresses",
+            "link": {
+              "type": "doc",
+              "id": "modules/addresses"
+            },
+            "items": [
+              "module-reference/addresses"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "Admin Command Palette Actions",
+            "key": "admin_actions",
+            "link": {
+              "type": "doc",
+              "id": "modules/admin-actions"
+            },
+            "items": [
+              "module-reference/admin-actions"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "Admin UI Languages",
+            "key": "_i18n",
+            "link": {
+              "type": "doc",
+              "id": "modules/i18n"
+            },
+            "items": [
+              "module-reference/i18n"
+            ]
+          },
+          {
+            "type": "doc",
+            "id": "module-reference/admin-notifications",
+            "label": "admin_notifications",
+            "key": "admin_notifications"
+          },
+          {
+            "type": "category",
+            "label": "admin_roles",
+            "key": "admin_roles",
+            "link": {
+              "type": "doc",
+              "id": "modules/admin_roles"
+            },
+            "items": [
+              "module-reference/admin-roles"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "admin_users",
+            "key": "admin_users",
+            "link": {
+              "type": "doc",
+              "id": "modules/admin_users"
+            },
+            "items": [
+              "module-reference/admin-users"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "Akeneo PIM",
+            "key": "pim_akeneo",
+            "link": {
+              "type": "doc",
+              "id": "modules/pim-akeneo"
+            },
+            "items": [
+              "module-reference/pim-akeneo"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "analytics",
+            "key": "analytics",
+            "link": {
+              "type": "doc",
+              "id": "modules/analytics"
+            },
+            "items": [
+              "module-reference/analytics"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "api_keys",
+            "key": "api_keys",
+            "link": {
+              "type": "doc",
+              "id": "modules/api_keys"
+            },
+            "items": [
+              "module-reference/api-keys"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "Assets Library",
+            "key": "assets_library",
+            "link": {
+              "type": "doc",
+              "id": "modules/assets-library/index"
+            },
+            "items": [
+              "module-reference/assets-library"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "audit_logs",
+            "key": "audit_logs",
+            "link": {
+              "type": "doc",
+              "id": "modules/audit_logs"
+            },
+            "items": [
+              "module-reference/audit-logs"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "auth",
+            "key": "auth",
+            "link": {
+              "type": "doc",
+              "id": "modules/auth"
+            },
+            "items": [
+              "module-reference/auth"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "Autopay",
+            "key": "autopay",
+            "link": {
+              "type": "doc",
+              "id": "modules/autopay"
+            },
+            "items": [
+              "module-reference/autopay"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "Blog",
+            "key": "blog",
+            "link": {
+              "type": "doc",
+              "id": "modules/blog/index"
+            },
+            "items": [
+              "module-reference/blog"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "carts",
+            "key": "carts",
+            "link": {
+              "type": "doc",
+              "id": "modules/carts"
+            },
+            "items": [
+              "module-reference/carts"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "Catalog",
+            "key": "catalog",
+            "link": {
+              "type": "doc",
+              "id": "modules/catalog"
+            },
+            "items": [
+              "modules/catalog/attribute-sets",
+              "modules/catalog/attributes",
+              "modules/catalog/composite-products",
+              "modules/catalog/packaging-units",
+              "modules/catalog/per-channel-per-language-overrides",
+              "modules/catalog/attachments",
+              "modules/catalog/gallery-and-labels",
+              "modules/catalog/product-links",
+              "module-reference/catalog"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "CMS",
+            "key": "cms",
+            "link": {
+              "type": "doc",
+              "id": "modules/cms/index"
+            },
+            "items": [
+              "modules/cms/extending-page-builder",
+              "module-reference/cms"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "Comarch ERP XL",
+            "key": "comarch_xl",
+            "link": {
+              "type": "doc",
+              "id": "modules/comarch_xl"
+            },
+            "items": [
+              "module-reference/comarch-xl"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "Compare Products",
+            "key": "comparisons",
+            "link": {
+              "type": "doc",
+              "id": "modules/comparisons"
+            },
+            "items": [
+              "module-reference/comparisons"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "Credentials",
+            "key": "credentials",
+            "link": {
+              "type": "doc",
+              "id": "modules/credentials"
+            },
+            "items": [
+              "module-reference/credentials"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "credit_limits",
+            "key": "credit_limits",
+            "link": {
+              "type": "doc",
+              "id": "modules/credit_limits"
+            },
+            "items": [
+              "module-reference/credit-limits"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "currencies",
+            "key": "currencies",
+            "link": {
+              "type": "doc",
+              "id": "modules/currencies"
+            },
+            "items": [
+              "module-reference/currencies"
+            ]
+          },
+          {
+            "type": "doc",
+            "id": "module-reference/custom-fields",
+            "label": "custom_fields",
+            "key": "custom_fields"
+          },
+          {
+            "type": "category",
+            "label": "customer_accounts",
+            "key": "customer_accounts",
+            "link": {
+              "type": "doc",
+              "id": "modules/customer_accounts"
+            },
+            "items": [
+              "module-reference/customer-accounts"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "customers",
+            "key": "customers",
+            "link": {
+              "type": "doc",
+              "id": "modules/customers"
+            },
+            "items": [
+              "module-reference/customers"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "delivery_methods",
+            "key": "delivery_methods",
+            "link": {
+              "type": "doc",
+              "id": "modules/delivery_methods"
+            },
+            "items": [
+              "module-reference/delivery-methods"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "DHL Parcel",
+            "key": "dhl_parcel",
+            "link": {
+              "type": "doc",
+              "id": "modules/dhl_parcel"
+            },
+            "items": [
+              "module-reference/dhl-parcel"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "Dictionary",
+            "key": "dictionaries",
+            "link": {
+              "type": "doc",
+              "id": "modules/dictionaries/index"
+            },
+            "items": [
+              "module-reference/dictionaries"
+            ]
+          },
+          {
+            "type": "doc",
+            "id": "module-reference/email",
+            "label": "email",
+            "key": "email"
+          },
+          {
+            "type": "category",
+            "label": "Ergonode PIM",
+            "key": "pim_ergonode",
+            "link": {
+              "type": "doc",
+              "id": "modules/pim_ergonode"
+            },
+            "items": [
+              "module-reference/pim-ergonode"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "Google Analytics",
+            "key": "google_analytics",
+            "link": {
+              "type": "doc",
+              "id": "modules/google-analytics"
+            },
+            "items": [
+              "module-reference/google-analytics"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "Google Tag Manager",
+            "key": "google_tag_manager",
+            "link": {
+              "type": "doc",
+              "id": "modules/google-tag-manager"
+            },
+            "items": [
+              "module-reference/google-tag-manager"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "import_export",
+            "key": "import_export",
+            "link": {
+              "type": "doc",
+              "id": "modules/import_export"
+            },
+            "items": [
+              "module-reference/import-export"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "Infakt",
+            "key": "infakt",
+            "link": {
+              "type": "doc",
+              "id": "modules/infakt"
+            },
+            "items": [
+              "module-reference/infakt"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "InPost",
+            "key": "inpost",
+            "link": {
+              "type": "doc",
+              "id": "modules/inpost"
+            },
+            "items": [
+              "module-reference/inpost"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "inventory",
+            "key": "inventory",
+            "link": {
+              "type": "doc",
+              "id": "modules/inventory"
+            },
+            "items": [
+              "module-reference/inventory"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "Invoice ledger",
+            "key": "invoice_ledger",
+            "link": {
+              "type": "doc",
+              "id": "modules/invoice-ledger"
+            },
+            "items": [
+              "module-reference/invoice-ledger"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "invoices",
+            "key": "invoices",
+            "link": {
+              "type": "doc",
+              "id": "modules/invoices"
+            },
+            "items": [
+              "module-reference/invoices"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "KSeF",
+            "key": "ksef",
+            "link": {
+              "type": "doc",
+              "id": "modules/ksef"
+            },
+            "items": [
+              "module-reference/ksef"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "languages",
+            "key": "languages",
+            "link": {
+              "type": "doc",
+              "id": "modules/languages"
+            },
+            "items": [
+              "module-reference/languages"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "LinkedIn Ads",
+            "key": "linkedin_ads",
+            "link": {
+              "type": "doc",
+              "id": "modules/linkedin-ads"
+            },
+            "items": [
+              "module-reference/linkedin-ads"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "Megamenu",
+            "key": "megamenu",
+            "link": {
+              "type": "doc",
+              "id": "modules/megamenu/index"
+            },
+            "items": [
+              "module-reference/megamenu"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "Meta Ads",
+            "key": "meta_ads",
+            "link": {
+              "type": "doc",
+              "id": "modules/meta-ads"
+            },
+            "items": [
+              "module-reference/meta-ads"
+            ]
+          },
+          {
+            "type": "doc",
+            "id": "module-reference/mfa",
+            "label": "mfa",
+            "key": "mfa"
+          },
+          {
+            "type": "category",
+            "label": "Module Lifecycle",
+            "key": "_lifecycle",
+            "link": {
+              "type": "doc",
+              "id": "modules/lifecycle"
+            },
+            "items": [
+              "module-reference/lifecycle"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "newsletter",
+            "key": "newsletter",
+            "link": {
+              "type": "doc",
+              "id": "modules/newsletter"
+            },
+            "items": [
+              "module-reference/newsletter"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "orders",
+            "key": "orders",
+            "link": {
+              "type": "doc",
+              "id": "modules/orders"
+            },
+            "items": [
+              "module-reference/orders"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "organizations",
+            "key": "organizations",
+            "link": {
+              "type": "doc",
+              "id": "modules/organizations"
+            },
+            "items": [
+              "modules/organization-hierarchy",
+              "module-reference/organizations"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "payment_methods",
+            "key": "payment_methods",
+            "link": {
+              "type": "doc",
+              "id": "modules/payment_methods"
+            },
+            "items": [
+              "module-reference/payment-methods"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "payments",
+            "key": "payments",
+            "link": {
+              "type": "doc",
+              "id": "modules/payments"
+            },
+            "items": [
+              "module-reference/payments"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "PayPal",
+            "key": "paypal",
+            "link": {
+              "type": "doc",
+              "id": "modules/paypal"
+            },
+            "items": [
+              "module-reference/paypal"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "PayU",
+            "key": "payu",
+            "link": {
+              "type": "doc",
+              "id": "modules/payu"
+            },
+            "items": [
+              "module-reference/payu"
+            ]
+          },
+          {
+            "type": "doc",
+            "id": "module-reference/pim-connector",
+            "label": "pim_connector",
+            "key": "pim_connector"
+          },
+          {
+            "type": "category",
+            "label": "Pimcore PIM",
+            "key": "pim_pimcore",
+            "link": {
+              "type": "doc",
+              "id": "modules/pim_pimcore"
+            },
+            "items": [
+              "module-reference/pim-pimcore"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "price_lists",
+            "key": "price_lists",
+            "link": {
+              "type": "doc",
+              "id": "modules/price_lists"
+            },
+            "items": [
+              "module-reference/price-lists"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "Product Feeds",
+            "key": "product_feeds",
+            "link": {
+              "type": "doc",
+              "id": "modules/product_feeds"
+            },
+            "items": [
+              "module-reference/product-feeds"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "promotions",
+            "key": "promotions",
+            "link": {
+              "type": "doc",
+              "id": "modules/promotions"
+            },
+            "items": [
+              "module-reference/promotions"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "Prompt Actions (AI assistant)",
+            "key": "prompt_actions",
+            "link": {
+              "type": "doc",
+              "id": "modules/prompt-actions"
+            },
+            "items": [
+              "module-reference/prompt-actions"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "PWA (Progressive Web App)",
+            "key": "pwa",
+            "link": {
+              "type": "doc",
+              "id": "modules/pwa"
+            },
+            "items": [
+              "module-reference/pwa"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "quick_order",
+            "key": "quick_order",
+            "link": {
+              "type": "doc",
+              "id": "modules/quick_order"
+            },
+            "items": [
+              "module-reference/quick-order"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "quote_requests",
+            "key": "quote_requests",
+            "link": {
+              "type": "doc",
+              "id": "modules/quote_requests"
+            },
+            "items": [
+              "module-reference/quote-requests"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "returns",
+            "key": "returns",
+            "link": {
+              "type": "doc",
+              "id": "modules/returns"
+            },
+            "items": [
+              "module-reference/returns"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "Sales channels",
+            "key": "sales_channels",
+            "link": {
+              "type": "doc",
+              "id": "modules/sales_channels/index"
+            },
+            "items": [
+              "modules/sales_channels/admin-usage",
+              "modules/sales_channels/developer-guide",
+              "module-reference/sales-channels"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "search",
+            "key": "search",
+            "link": {
+              "type": "doc",
+              "id": "modules/search"
+            },
+            "items": [
+              "module-reference/search"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "seo",
+            "key": "seo",
+            "link": {
+              "type": "doc",
+              "id": "modules/seo"
+            },
+            "items": [
+              "module-reference/seo"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "Settings",
+            "key": "settings",
+            "link": {
+              "type": "doc",
+              "id": "modules/settings/index"
+            },
+            "items": [
+              "module-reference/settings"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "shipments",
+            "key": "shipments",
+            "link": {
+              "type": "doc",
+              "id": "modules/shipments"
+            },
+            "items": [
+              "module-reference/shipments"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "shopping_lists",
+            "key": "shopping_lists",
+            "link": {
+              "type": "doc",
+              "id": "modules/shopping_lists"
+            },
+            "items": [
+              "module-reference/shopping-lists"
+            ]
+          },
+          {
+            "type": "doc",
+            "id": "module-reference/stripe",
+            "label": "stripe",
+            "key": "stripe"
+          },
+          {
+            "type": "category",
+            "label": "taxes",
+            "key": "taxes",
+            "link": {
+              "type": "doc",
+              "id": "modules/taxes"
+            },
+            "items": [
+              "module-reference/taxes"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "TPay",
+            "key": "tpay",
+            "link": {
+              "type": "doc",
+              "id": "modules/tpay"
+            },
+            "items": [
+              "module-reference/tpay"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "transactional_emails",
+            "key": "transactional_emails",
+            "link": {
+              "type": "doc",
+              "id": "modules/transactional-emails"
+            },
+            "items": [
+              "module-reference/transactional-emails"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "UnoPim PIM",
+            "key": "pim_unopim",
+            "link": {
+              "type": "doc",
+              "id": "modules/pim_unopim"
+            },
+            "items": [
+              "module-reference/pim-unopim"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "webhooks",
+            "key": "webhooks",
+            "link": {
+              "type": "doc",
+              "id": "modules/webhooks"
+            },
+            "items": [
+              "module-reference/webhooks"
+            ]
+          },
+          {
+            "type": "category",
+            "label": "wFirma",
+            "key": "wfirma",
+            "link": {
+              "type": "doc",
+              "id": "modules/wfirma"
+            },
+            "items": [
+              "module-reference/wfirma"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "category",
+        "key": "integrations",
+        "label": "Integrations",
+        "link": {
+          "type": "generated-index",
+          "title": "Integrations"
+        },
+        "items": [
+          "integrations/README",
+          "integrations/api-access"
+        ]
+      },
+      {
+        "type": "category",
+        "key": "operations",
+        "label": "Operations",
+        "link": {
+          "type": "generated-index",
+          "title": "Operations"
+        },
+        "items": [
+          "operations/health-endpoint",
+          "operations/queue-consumers",
+          "operations/warden",
+          {
+            "type": "category",
+            "key": "runbooks",
+            "label": "Runbooks",
+            "link": {
+              "type": "generated-index",
+              "title": "Runbooks"
+            },
+            "items": [
+              "operations/runbooks/block-name-migration",
+              "operations/runbooks/module-lifecycle-stuck-lock"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "category",
+        "key": "deployment",
+        "label": "Deployment",
+        "link": {
+          "type": "generated-index",
+          "title": "Deployment"
+        },
+        "items": [
+          "deployment/first-deployment-checklist"
+        ]
+      }
+    ]
+  }
+}
