@@ -116,6 +116,18 @@ describe('the production composition root boots', () => {
     expect(registryCache.enabledIds().length).toBeGreaterThan(0);
   });
 
+  it('registers processRunsWorkers from the role this process was booted with', () => {
+    // `specs/134-paid-module-extraction/` T122 (research D16): the one
+    // module-agnostic worker switch, read by every in-tree module that starts
+    // queue consumers. This boot is `BACKEND_ROLE=api`, so the platform's own
+    // `runWorkers` is false and the published value must say the same; had
+    // `composeApp` not registered it, the route registrations of `pim_pimcore`,
+    // `comarch_xl` and `infakt`, which read it unconditionally, would already
+    // have failed `buildServer` above. The other arm of the role table is
+    // `packages/platform/src/composition/process-runs-workers.test.ts`'s.
+    expect(composition!.container.resolve('processRunsWorkers')).toBe(false);
+  });
+
   it('builds the server, so every module plugin body ran', () => {
     // The second manifestation of D-38 lives here: plugin bodies run inside
     // `buildServer`, and `_i18n`'s destructures a gated port. D-38b's awilix
