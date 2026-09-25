@@ -9,8 +9,10 @@ description: Skonfigurowane opcje dostawy
 Moduł hostuje rejestr adapterów wtykanych nad katalogiem metod dostawy,
 blizniaczy odpowiednik po stronie dostawy dla `payment_methods`. Rekord `Shipment`
 pierwszej klasy i jego cykl życia żyją w sąsiednim module [`shipments`](./shipments.md).
-Integracje przewoźników takie jak [`inpost`](./inpost.md) rejestrują adaptery w tym
-frameworku.
+Moduły integracji przewoźników rejestrują adaptery w tym frameworku. To, które z nich
+ma twoja instancja, zależy od tego, co jest zainstalowane, więc są tu nazwane, a nie
+podlinkowane: link do strony sąsiedniego modułu jest zepsutym linkiem w każdej instancji,
+która tego modułu nie instaluje — i to właśnie mówi o nim `onBrokenLinks: 'throw'`.
 
 Metoda dostawy nigdy nie jest hard-coded: platforma odkrywa metody z
 **modułów adapterów**, które są zainstalowane i włączone. Włączenie rozpoznanego

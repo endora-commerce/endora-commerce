@@ -452,9 +452,6 @@ export const DERIVED_FACTS_IN_PROSE: Readonly<Record<string, ProseLedgerEntry>> 
     'a template telling an author where to put a file. It spelled ' +
     '`backend/src/modules/<id>/` until F4 closed, which is the whole argument: the layout ' +
     'is derived and a page that restates it goes stale in silence.',
-  'modules/lifecycle#d1aa5a86':
-    '`_lifecycle`\'s sources sit inside the host package, and this sentence states that ' +
-    'address — which has already moved once. Name the module.',
   'modules/payment_methods#0407b038':
     'a template telling an author where to put a file. It spelled ' +
     '`backend/src/modules/<id>/` until F4 closed, which is the whole argument: the layout ' +
@@ -467,10 +464,6 @@ export const DERIVED_FACTS_IN_PROSE: Readonly<Record<string, ProseLedgerEntry>> 
     'the page states `paypal`\'s own package directory. The generated reference page ' +
     'carries the package that ships a module, so the sentence can link that instead of ' +
     'restating it.',
-  'modules/payu#59215afe':
-    'cites `packages/modules/payu/README.md` by address. The file is real and the ' +
-    'sentence is worth keeping; the repair is to name the module and the file rather than ' +
-    'the path.',
   'modules/product_feeds#5ac59ce8':
     'cites `packages/modules/product_feeds/src/backend` by address. The file is real and ' +
     'the sentence is worth keeping; the repair is to name the module and the file rather ' +
