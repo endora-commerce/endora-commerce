@@ -271,7 +271,7 @@ płacą. Nikt nie wybrał tej granicy; to efekt uboczny brakującej deklaracji. 
 a nie mapowane hurtowo: czytanie listy, rosteru produktów, bracketów, override display-mode i
 pickerów rule-target to `:read`; wszystko, co persystuje, to `:write`.
 
-Ta sama zmiana zamknęła ostatnią żywą bramkę sprzed 076:
+Ta sama zmiana zamknęła ostatnią żywą bramkę legacy:
 `GET /api/v1/admin/pricing/rule-targets/customer-groups` odpowiadał na `catalog:write`, więc
 edytor katalogu mógł wylistować grupy klientów klienta. Teraz odpowiada na `price_lists:read`,
 jak bliźniacze endpointy `promotions` i `pwa`.

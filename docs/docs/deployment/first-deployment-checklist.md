@@ -278,7 +278,7 @@ module now owns `price_lists:read` and `price_lists:write`
 mapped wholesale: reading a list, its product roster, its brackets, the display-mode overrides
 and the rule-target pickers is `:read`; anything that persists is `:write`.
 
-The same change closed the last surviving pre-076 gate:
+The same change closed the last surviving legacy gate:
 `GET /api/v1/admin/pricing/rule-targets/customer-groups` answered on `catalog:write`, so a
 catalogue editor could enumerate the client's customer groups. It now answers on
 `price_lists:read`, matching its `promotions` and `pwa` twins.

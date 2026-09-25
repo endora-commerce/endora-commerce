@@ -198,7 +198,7 @@ Templates returns in &lt; 200 ms p95 cold; warm path returns in &lt; 5 ms.
 
 ## Migration from legacy `cms_pages`
 
-Pre-014, `cms_pages` carried `path` + `body` (per-language HTML) and a
+Previously, `cms_pages` carried `path` + `body` (per-language HTML) and a
 `status` enum. Migration `035_cms_init.ts` adds the new column set
 (`slug`, `name`, `active`, `content`, `languages`, `version`, `meta_*`)
 and backfills every row idempotently:
