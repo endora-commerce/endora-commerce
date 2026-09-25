@@ -367,20 +367,20 @@ interface Analysis {
   /** Alias → the modules whose files may read it as a gated port. */
   readonly aliases: ReadonlyMap<string, ReadonlySet<string>>;
   /**
-   * Alias → the gated port names it carries.
+   * The gated port names `name` carries **as read inside `moduleId`/`file`** —
+   * the union over the alias scopes visible there.
    *
-   * Keyed by name alone rather than by name and scope, and deliberately
-   * over-approximating: two modules spelling one alias differently merge their
-   * gates, which can only make the `OWNER LOCKED` test *harder* to satisfy. The
-   * error this cannot make is the one that matters — retiring a site whose gate
-   * an operator can still close.
-   *
-   * This is where the over-approximation argument was made and it still holds —
-   * see the header. It is a claim about **which gates a site carries**, not
-   * about **which sites exist**; issue #278 narrowed the second and left this
-   * one exactly as it was.
+   * This was keyed by name alone, deliberately over-approximating: two modules
+   * spelling one alias differently merged their gates, on the argument that
+   * more gates can only make the `OWNER LOCKED` test harder to pass. That holds
+   * for one tree and fails across two (feature 134 D18): a staying module's
+   * site carried whatever a departing module's alias of the same spelling had
+   * collected — `product_feeds`' `credentials` carried 81 gates through
+   * `pim_pimcore`'s — so a departure moved another module's classification.
+   * Scoping to where the alias is visible keeps every gate a site can actually
+   * reach and drops only the ones another module's sources lent it.
    */
-  readonly gatesOf: ReadonlyMap<string, ReadonlySet<string>>;
+  gatesAt(name: string, moduleId: string, file: string): ReadonlySet<string>;
   /**
    * Does `name`, read inside `moduleId`, stand for a gated port?
    *
@@ -479,8 +479,8 @@ function analyze(
   }
 
   const aliases = new Map<string, Set<string>>();
-  /** Alias → the gated port names it carries; see {@link Analysis.gatesOf}. */
-  const gatesOf = new Map<string, Set<string>>();
+  /** Alias → scope → the gated port names it carries there; see {@link Analysis.gatesAt}. */
+  const gatesOf = new Map<string, Map<string, Set<string>>>();
   /**
    * The declarations the alias table itself introduced — a `const` bound to a
    * carrying value, a parameter the port was passed as (issue #278).
@@ -517,8 +517,10 @@ function analyze(
     if (gates === undefined) return;
     // Gates keep the fixpoint running on their own: a holder can be bound
     // before the round that discovers what it was built from.
-    const carried = gatesOf.get(name) ?? new Set<string>();
-    gatesOf.set(name, carried);
+    const byScope = gatesOf.get(name) ?? new Map<string, Set<string>>();
+    gatesOf.set(name, byScope);
+    const carried = byScope.get(scope) ?? new Set<string>();
+    byScope.set(scope, carried);
     for (const gate of gates) {
       if (carried.has(gate)) continue;
       carried.add(gate);
@@ -539,6 +541,18 @@ function analyze(
     if (at !== undefined && shadowsAlias(at, name, carrierBindings)) return false;
     if (scopes.has(moduleId) || scopes.has(file)) return true;
     return scopes.has(EVERYWHERE) && portOwners.get(name) !== moduleId;
+  };
+
+  const gatesAt = (name: string, moduleId: string, file: string): ReadonlySet<string> => {
+    const found = new Set<string>();
+    for (const [scope, gates] of gatesOf.get(name) ?? []) {
+      const visible =
+        scope === moduleId ||
+        scope === file ||
+        (scope === EVERYWHERE && portOwners.get(name) !== moduleId);
+      if (visible) for (const gate of gates) found.add(gate);
+    }
+    return found;
   };
 
   /** `lazyPort<T>(ctx, 'gatedName')`, and only a gated one. */
@@ -697,7 +711,7 @@ function analyze(
         const found = new Set<string>();
         const record = (name: string): void => {
           if (portOwners.has(name)) found.add(name);
-          for (const gate of gatesOf.get(name) ?? []) found.add(gate);
+          for (const gate of gatesAt(name, scope, file)) found.add(gate);
         };
         const scan = (inner: ts.Node): void => {
           if (ts.isTypeNode(inner)) return;
@@ -819,7 +833,7 @@ function analyze(
     if (!grew) break;
   }
 
-  return { portOwners, aliases, gatesOf, readsAsPort, parsed };
+  return { portOwners, aliases, gatesAt, readsAsPort, parsed };
 }
 
 /** The declarations one file makes, and what it imports and re-exports by relative path. */
@@ -1507,7 +1521,7 @@ function scanSources(input: PortCatchInput): SiteScan {
               ...new Set(
                 [...via].flatMap((one) => [
                   ...(analysis.portOwners.has(one) ? [one] : []),
-                  ...(analysis.gatesOf.get(one) ?? []),
+                  ...analysis.gatesAt(one, moduleId, file),
                 ]),
               ),
             ].sort();
