@@ -434,8 +434,11 @@ export function historicalPathsOf(input: { git: GitRunner; ref: string }): strin
   const paths = new Set<string>();
   for (const commit of parseNameStatus(
     // First-parent merge diffs too (E3p.3), so a path born and deleted inside
-    // merge resolutions cannot escape the walk. The walk's size with and
-    // without them is recorded in T112.
+    // merge resolutions cannot escape the walk. Measured at `26843c0c7`: 12 600
+    // paths without them and 12 677 with them. The 77 are paths first written
+    // by a merge resolution — `pim_akeneo`'s package among them — and none of
+    // them moves a refusal or a disposition of the twelve paid modules then in
+    // the tree; what this closes is the class, not a case.
     input.git([
       'log',
       `--format=${MARK}%H`,
