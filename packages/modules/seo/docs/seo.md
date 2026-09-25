@@ -54,7 +54,7 @@ The sitemap excludes:
 - archived (`archivedAt`) and soft-deleted (`deletedAt`) rows
 - soft-deleted categories
 
-This is the FR-102 contract — only what an anonymous Customer can see is
+The contract is simple: only what an anonymous Customer can see is
 ever exposed to crawlers.
 
 ## Entities

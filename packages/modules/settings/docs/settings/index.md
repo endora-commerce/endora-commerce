@@ -169,10 +169,3 @@ Five tables introduced by migration `024_settings_init.ts`:
 
 `setting_values.sales_channel_id` cascade-deletes when the channel is
 removed; remaining bindings on the same setting are preserved.
-
-## See also
-
-- Specification: `specs/004-settings-module/spec.md`
-- Implementation plan: `specs/004-settings-module/plan.md`
-- Contract: `specs/004-settings-module/contracts/settings-004.contract.md`
-- Constitution: Principles I (Modular), III (TDD), V (TS + Zod), VI (Naming)

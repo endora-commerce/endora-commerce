@@ -5,7 +5,7 @@ description: Retryowalny rekord Shipment i jego cykl życia — odpowiednik dost
 
 # `shipments`
 
-Rekord `Shipment` i jego cykl życia (feature 035 — _Metoda Dostawy_).
+Rekord `Shipment` i jego cykl życia.
 Odpowiednik dostawy po stronie `payments`: *katalog* metod dostawy i rejestr
 adapterów żyją w [`delivery_methods`](./delivery_methods.md); ten moduł posiada
 first-class, retryowalny `Shipment` oraz ingress `receive_shipment`.
@@ -25,18 +25,18 @@ metoda.
 Wysyłka otwiera się jako `pending_manual`, gdy adapter wskazany przez metodę
 dostawy jest dostarczany przez moduł, którego **nie ma** — wyłączony przez
 operatora lub niedostępny w tym wdrożeniu. Rejestr filtruje ten adapter przy
-enumeracji (polityka contribution-point, D-39), więc nic nie jest wysyłane: brak
+enumeracji (polityka contribution-point), więc nic nie jest wysyłane: brak
 etykiety, numeru śledzenia, odbioru. Wiersz rejestruje, co się stało, zamiast
 wyglądać jak każda inna wysyłka:
 
 - `status = 'pending_manual'`, to samo słowo — i ta sama instrukcja dla tego
   samego operatora — co zwrot, którego platforma nie mogła rozliczyć
-  automatycznie (feature 046, FR-035): *człowiek musi to dokończyć*;
+  automatycznie: *człowiek musi to dokończyć*;
 - `failureReason` nazywa moduł, np. `The "my_carrier" module is not
   switched on here, so the carrier was never asked to create this shipment.
   Switch the module back on and generate the shipment again.`;
 - wpis audytu `shipment.carrier_not_contacted` na wysyłce, zapisany
-  współtransakcyjnie z wierszem (Zasada XIII);
+  współtransakcyjnie z wierszem;
 - **brak** e-maila `shipment_created`. Notifier odpowiada
   `{ sent: false, reason: 'carrier_not_contacted' }` i loguje to — powiadomienie
   kupującego, że zamówienie wysłano, gdy nic nie przekazano nikomu, jest gorsze
@@ -60,8 +60,8 @@ woła przewoźnika o paczki, które operator mógł już obsłużyć ręcznie, b
 prośby kogokolwiek. Zakładka Delivery zamówienia pokazuje stan, powód i
 przycisk.
 
-Kiedyś był tu drugi endpoint, `POST .../shipments/retry`, a issue #257 go
-usunęło: dopisywał próbę n+1 i nie kontaktował adaptera w żadnym stanie, więc
+Kiedyś był tu drugi endpoint, `POST .../shipments/retry`, i został
+usunięty: dopisywał próbę n+1 i nie kontaktował adaptera w żadnym stanie, więc
 operator, który go użył, dostawał świeży wiersz `pending`, o który nikt nie
 został poproszony. Retry **to** ponowne generowanie — endpoint generate dopisuje
 kolejną próbę, odmawia dopiero po sukcesie i pyta przewoźnika o nią.

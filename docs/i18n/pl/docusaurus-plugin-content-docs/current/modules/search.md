@@ -13,8 +13,7 @@ oraz opt-in wyszukiwania wspomaganego LLM.
 Composition root modułu subskrybuje zdarzenia Catalog
 (`product.created.v1`, `product.updated.v1`, `product.archived.v1`,
 `attribute.updated.v1`) oraz zdarzenia Settings
-(`settings.value_changed`) bez importów do wnętrza żadnego z modułów —
-Zasada I Konstytucji.
+(`settings.value_changed`) bez importów do wnętrza żadnego z modułów.
 
 ## Publiczne API
 
@@ -58,7 +57,7 @@ Azure OpenAI, OpenAI shim Ollama, …).
 
 Wrapper toggle (`POST /api/v1/admin/search/llm/toggle`) odmawia
 ustawienia `enabled=true` dla kanału, którego trzy pola embedder.*
-nie są w pełni wypełnione (FR-011). Envelope błędu `details[]` wymienia
+nie są w pełni wypełnione. Envelope błędu `details[]` wymienia
 każdą brakującą parę `(channelCode, settingCode)`, aby Admin UI mógł
 podświetlić luki.
 
@@ -83,10 +82,10 @@ Każde zatwierdzone wyszukiwanie storefront ląduje jednym wierszem w
 
 | Column | Notes |
 | --- | --- |
-| `phrase` | Verbatim — bez korekty literówek ani ekspansji LLM (FR-013) |
+| `phrase` | Verbatim — bez korekty literówek ani ekspansji LLM |
 | `phrase_normalized` | `lower(trim(phrase))`, utrzymywane przy insert; wspiera agregację case-insensitive bez przepisywania verbatim phrase |
 | `sales_channel_id` | FK → `sales_channels.id` (`ON DELETE RESTRICT` — usunięcie kanału musi być świadomą decyzją, a nie cichym usunięciem historii) |
-| `result_count` | Liczba produktów zwróconych przez wyszukiwanie; `0` dla dead-end phrases (FR-014) |
+| `result_count` | Liczba produktów zwróconych przez wyszukiwanie; `0` dla dead-end phrases |
 | `recorded_at` | `timestamptz default now()` |
 
 Indeksy:
@@ -99,7 +98,7 @@ wraca, gdy wiersz został zakolejkowany, nie gdy persystowany, i
 połyka każdy wyjątek przez warn-log. Trasa przekazuje
 promise bez await (`void recorder.record(...)`) i zwraca
 `202 { ok: true }` natychmiast. Odpowiedź storefront nie jest
-więc opóźniana ani psuta przez persystencję analityki (FR-015).
+więc opóźniana ani psuta przez persystencję analityki.
 
 Frazy poniżej progu (krótsze niż
 `minimum_query_length` kanału) są cicho no-op'owane server-side jako
@@ -150,7 +149,7 @@ Zindeksowane `name` jest rozwiązane w domyślnym języku kanału,
 czyli języku, w którym renderuje się listing, więc kolejność widziana przez kupującego
 to kolejność, po której posortowano.
 
-**Upgrade indeksu zbudowanego przed issue #287** wymaga reindex: ustawienia
+**Upgrade indeksu zbudowanego przed zastosowaniem ustawień sortowania** wymaga reindex: ustawienia
 nigdy nie były stosowane (`sortableAttributes` było `[]` na każdym
 indeksie, a każdy posortowany listing był cicho odpowiadany przez Postgres
 fallback), a `createdAt` nigdy nie było zapisywane w dokumencie. Pełny
@@ -162,7 +161,7 @@ search:reindex`. Odświeżenie `attribute.updated.v1` ponownie stosuje
 ustawienia, ale nie zapisuje dokumentów, więc przywraca sort `name`, a
 nie `-createdAt`.
 
-### Feature 012 / US7 — `searchableOptions`
+### `searchableOptions` — wyszukiwanie list opcji
 
 Dla atrybutów z flagą `isSearchable` ORAZ select-style
 `valueType` (`select`, `enum`, `multiselect`) indeksator rozwiązuje
@@ -193,7 +192,7 @@ funkcjonalne ze stale index, dopóki następny offline `search:reindex`.
 
 Fallback pozostaje fallbackiem — publiczny katalog nie może 503
 bo search jest nieszczęśliwy — ale rozróżnia dwa fakty, które kiedyś
-były scalone w jeden (issue #287):
+były scalone w jeden:
 
 - **unreachable** — silnik jest down, unroutable lub timeoutuje.
   Przejściowe. `catalog` loguje to per request i ponownie uruchamia listing
@@ -206,7 +205,7 @@ były scalone w jeden (issue #287):
   raportuje go sam na poziomie `error` — raz na kod, bo ustawienie indeksu
   to fakt deploymentu, a publiczny listing inaczej raportowałby go przy każdym requeście.
 
-To rozróżnienie jest całym powodem, dla którego issue #287 mogło przeżyć na pięciu
+To rozróżnienie jest całym powodem, dla którego defekt mógł przeżyć na pięciu
 live indeksach: każdy posortowany listing fallbackował do Postgres, a
 jedyny ślad to linia czytająca `meilisearch unavailable`
 o silniku, który był up i healthy.
@@ -224,7 +223,7 @@ komponentem klienckim `<SearchAutocomplete>` w środku:
 - 503 z `/search/suggest` pokazuje pozycję „search temporarily
   unavailable" w popup bez psucia statycznego formularza.
 - Przy wyłączonym JS formularz post'uje `?q=…` do `/search` natywnie
-  (Zasada VII Konstytucji — JS nie jest wymagany do crawlability).
+  (JS nie jest wymagany do crawlability).
 
 Strona `/search` (`storefront/app/(catalog)/search/page.tsx`)
 re-eksportuje `CatalogPage` — listing, filtry, sort, paginacja
@@ -253,8 +252,6 @@ Ciało to `packages/modules/search/src/backend/cli/reindex.ts`.
 
 ## Testowanie
 
-Według Zasady III Konstytucji:
-
 - `backend/test/contract/search/public-suggest.contract.test.ts` (7 cases) — happy path, limit override, threshold, oversize, missing q, limit OOB.
 - `backend/test/contract/search/public-record.contract.test.ts` (7 cases) — happy path, default `result_count`, channel pinning, empty/oversize/negative validation, below-threshold no-op.
 - `backend/test/contract/search/admin-llm-toggle.contract.test.ts` (5 cases) — incomplete-config refusal (every embedder.* permutation), full-config success, disable always succeeds, unauthenticated → 401.
@@ -281,4 +278,4 @@ real Meilisearch.
 - **Zarezerwowany fallback** — już zaimplementowany: gdy Meilisearch jest
   niedostępny, ścieżka read katalogu degraduje do Postgres ILIKE
   search przez `catalog-query.service.ts`, aby storefront nigdy nie był
-  w pełni zepsuty (R-08).
+  w pełni zepsuty.

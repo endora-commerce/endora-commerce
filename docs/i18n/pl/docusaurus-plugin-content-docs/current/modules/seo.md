@@ -54,7 +54,7 @@ Mapa witryny wyklucza:
 - zarchiwizowane (`archivedAt`) i soft-deleted (`deletedAt`) wiersze
 - soft-deleted kategorie
 
-To kontrakt FR-102 — tylko to, co anonimowy Customer może zobaczyć, jest
+Kontrakt jest prosty: tylko to, co anonimowy Customer może zobaczyć, jest
 kiedykolwiek eksponowane crawlerom.
 
 ## Encje

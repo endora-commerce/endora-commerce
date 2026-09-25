@@ -14,7 +14,7 @@ The module composition root subscribes to Catalog events
 (`product.created.v1`, `product.updated.v1`, `product.archived.v1`,
 `attribute.updated.v1`) and to Settings events
 (`settings.value_changed`) without imports into either module's
-internals — Constitution Principle I.
+internals.
 
 ## Public surface
 
@@ -58,7 +58,7 @@ Azure OpenAI, Ollama's OpenAI shim, …).
 
 The toggle wrapper (`POST /api/v1/admin/search/llm/toggle`) refuses to
 flip `enabled=true` for any channel whose three embedder.* fields
-aren't all populated (FR-011). The error envelope's `details[]` lists
+aren't all populated. The error envelope's `details[]` lists
 every missing `(channelCode, settingCode)` pair so the admin UI can
 highlight the gaps.
 
@@ -83,10 +83,10 @@ Every committed storefront search lands one row in
 
 | Column | Notes |
 | --- | --- |
-| `phrase` | Verbatim — no typo correction or LLM expansion (FR-013) |
+| `phrase` | Verbatim — no typo correction or LLM expansion |
 | `phrase_normalized` | `lower(trim(phrase))`, maintained at insert time; supports case-insensitive aggregation without rewriting the verbatim phrase |
 | `sales_channel_id` | FK → `sales_channels.id` (`ON DELETE RESTRICT` — dropping a channel must surface as a deliberate decision rather than silently delete history) |
-| `result_count` | Number of products the search returned; `0` for dead-end phrases (FR-014) |
+| `result_count` | Number of products the search returned; `0` for dead-end phrases |
 | `recorded_at` | `timestamptz default now()` |
 
 Indexes:
@@ -99,7 +99,7 @@ it returns once the row has been queued, not once persisted, and
 swallows every exception via warn-log. The route hands off the
 promise without awaiting (`void recorder.record(...)`) and returns
 `202 { ok: true }` immediately. The storefront response is therefore
-never delayed or failed by analytics persistence (FR-015).
+never delayed or failed by analytics persistence.
 
 Below-threshold phrases (shorter than the channel's
 `minimum_query_length`) are silently no-op'd server-side as a
@@ -150,7 +150,7 @@ The indexed `name` is resolved in the channel's own default language,
 which is the language the listing renders, so the order a buyer sees
 is the order they were sorted by.
 
-**Upgrading an index built before issue #287** needs a reindex: the
+**Upgrading an index built before the sort settings were applied** needs a reindex: the
 settings were never applied (`sortableAttributes` was `[]` on every
 index, and every sorted listing was silently answered by the Postgres
 fallback), and `createdAt` was never written into a document. A full
@@ -162,7 +162,7 @@ search:reindex`. An `attribute.updated.v1` refresh reapplies the
 settings but writes no documents, so it restores `name` sorting and
 not `-createdAt`.
 
-### Feature 012 / US7 — `searchableOptions`
+### `searchableOptions` — option-list search
 
 For attributes flagged `isSearchable` AND with a select-style
 `valueType` (`select`, `enum`, `multiselect`), the indexer resolves
@@ -193,7 +193,7 @@ functional with a stale index until the next offline `search:reindex`.
 
 The fallback stays a fallback — a public catalogue must not 503
 because search is unhappy — but it distinguishes two facts that used
-to be fused into one (issue #287):
+to be fused into one:
 
 - **unreachable** — the engine is down, unroutable or timing out.
   Transient. `catalog` logs it per request and re-runs the listing
@@ -207,7 +207,7 @@ to be fused into one (issue #287):
   setting is a deployment fact and a public listing would otherwise
   report it on every request.
 
-That distinction is the whole reason issue #287 could survive on five
+That distinction is the whole reason the defect could survive on five
 live indexes: every sorted listing was falling back to Postgres, and
 the only trace of it was a line reading `meilisearch unavailable`
 about an engine that was up and healthy.
@@ -226,7 +226,7 @@ The page header (`storefront/components/Header.tsx`) renders a
 - 503 from `/search/suggest` surfaces a "search temporarily
   unavailable" item in the popup without breaking the static form.
 - With JS disabled, the form posts `?q=…` to `/search` natively
-  (Constitution Principle VII — no JS required for crawlability).
+  (no JS required for crawlability).
 
 The `/search` page (`storefront/app/(catalog)/search/page.tsx`)
 re-exports `CatalogPage` — the listing, filters, sort, pagination,
@@ -255,8 +255,6 @@ The body is `packages/modules/search/src/backend/cli/reindex.ts`.
 
 ## Testing
 
-Per Constitution III:
-
 - `backend/test/contract/search/public-suggest.contract.test.ts` (7 cases) — happy path, limit override, threshold, oversize, missing q, limit OOB.
 - `backend/test/contract/search/public-record.contract.test.ts` (7 cases) — happy path, default `result_count`, channel pinning, empty/oversize/negative validation, below-threshold no-op.
 - `backend/test/contract/search/admin-llm-toggle.contract.test.ts` (5 cases) — incomplete-config refusal (every embedder.* permutation), full-config success, disable always succeeds, unauthenticated → 401.
@@ -283,4 +281,4 @@ real Meilisearch.
 - **Reserved fallback** — already implemented: when Meilisearch is
   unavailable, the catalog read path degrades to Postgres ILIKE
   search via `catalog-query.service.ts` so the storefront is never
-  fully broken (R-08).
+  fully broken.

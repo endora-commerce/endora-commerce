@@ -5,7 +5,7 @@ description: Resolver stawek podatkowych zawężony po kraju / typie produktu / 
 
 # `taxes`
 
-Rozwiązywanie stawek podatkowych (T128, T131 / FR-051). Każdy wiersz `Tax` to
+Rozwiązywanie stawek podatkowych. Każdy wiersz `Tax` to
 reguła zawężona przez zero lub więcej z `country`, `productType`,
 `appliesToVatStatuses`.
 
@@ -24,7 +24,6 @@ własne `taxes:read` i `taxes:write`, zadeklarowane w manifeście i nadawalne na
 `/admin-roles`. To **czyste zerwanie**: rola, która docierała do tabeli podatków
 przez kod zapisu katalogu, dostaje `taxes:read` (i `taxes:write`, by edytować)
 explicite. Zobacz
-`specs/080-f4-real-scope/payments-permission-ownership.md` §7.2 i
 `backend/test/contract/taxes/permission-authority.test.ts`.
 
 Nic innego nie czyta stawki przez te trasy: `orders`, `carts`,
@@ -43,7 +42,7 @@ Nic innego nie czyta stawki przez te trasy: `orders`, `carts`,
 5. Gdy nie ma też domyślnej, resolver zwraca `{ source: 'none' }` —
    odpowiedź **bez pola `rate` w ogóle**.
 
-Punkt 5 to typ, nie konwencja (issue #124). Skonfigurowana stawka 0% to
+Punkt 5 to typ, nie konwencja. Skonfigurowana stawka 0% to
 legitymna odpowiedź w niektórych jurysdykcjach, więc wraca jako
 `{ source: 'default', rate: 0, taxId }` i wycenia zamówienie jak każda inna
 stawka. „Nic nie jest skonfigurowane” to nie odpowiedź, więc nie niesie liczby,

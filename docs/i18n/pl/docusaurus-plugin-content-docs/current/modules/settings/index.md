@@ -167,10 +167,3 @@ Pięć tabel wprowadzonych migracją `024_settings_init.ts`:
 
 `setting_values.sales_channel_id` kaskadowo usuwa się, gdy kanał zniknie;
 pozostałe powiązania tego samego ustawienia są zachowane.
-
-## Zobacz też
-
-- Specyfikacja: `specs/004-settings-module/spec.md`
-- Plan implementacji: `specs/004-settings-module/plan.md`
-- Kontrakt: `specs/004-settings-module/contracts/settings-004.contract.md`
-- Konstytucja: Zasady I (Modular), III (TDD), V (TS + Zod), VI (Naming)
