@@ -7,7 +7,7 @@ description: Skonfigurowane metody płatności
 
 CRUD nad skonfigurowanymi metodami płatności, które Klienci wybierają przy
 checkout. Każdy wiersz `PaymentMethod` jest wspierany przez zarejestrowany **adapter**
-(feature 034) oraz listę widoczności per Sales Channel.
+(zobacz *Framework adapterów* poniżej) oraz listę widoczności per Sales Channel.
 
 ## Publiczne API
 
@@ -33,7 +33,7 @@ katalogu nie dociera już do wspólnej listy.
 | `GET /api/v1/admin/payment-methods/adapters` | admin | `payment_methods:read` | Zarejestrowane klucze adapterów, dla pickera admin |
 | `GET /api/v1/admin/order-statuses` | admin | `payment_methods:read` **or** `delivery_methods:read` | Opcje statusów zamówienia dla selektorów `statusOn*`, tutaj i na ekranie metody dostawy |
 | `PUT /api/v1/admin/payment-methods/:code` | admin | `payment_methods:write` | Upsert po kodzie; `adapter` domyślnie `kind`, `statusOn*` walidowane względem rejestru statusów zamówienia |
-| `PATCH /api/v1/admin/payment-methods/:id/status` | admin | `payment_methods:write` | Wyłącznie dostępność (feature 076, D-82) — jedyna mutacja, do której linkują cztery ekrany bramek |
+| `PATCH /api/v1/admin/payment-methods/:id/status` | admin | `payment_methods:write` | Wyłącznie dostępność — jedyna mutacja, do której linkują cztery ekrany bramek |
 | `DELETE /api/v1/admin/payment-methods/:id` | admin | `payment_methods:write` | Usunięcie — zablokowane (409), gdy `Payment` referencjonuje metodę; ustaw `inactive` zamiast tego |
 
 ## Encje
@@ -43,9 +43,9 @@ per-język `name`, `status`, **`additionalPrice`** (stała dopłata w walucie
 zamówienia) oraz trzy referencje statusów zamówienia
 **`statusOnPending` / `statusOnSuccess` / `statusOnFailure`**. Zakres sales channel
 przez `sales_channel_payment_methods`; dostępność per Organization przez
-`organization_payment_methods` (feature 026).
+`organization_payment_methods`.
 
-## Framework adapterów (feature 034)
+## Framework adapterów
 
 Zachowanie metody płatności dostarcza **`PaymentAdapter`** zarejestrowany
 w `PaymentAdapterRegistry`. Platforma rozpoznaje moduł jako dostawcę metody płatności
@@ -113,7 +113,7 @@ konfigurowalny rejestr modułu Orders później bez zmian tutaj.
 
    Id właściciela nie jest dekoracją: rejestr pomija adapter, którego moduł nie jest
    skutecznie obecny, więc bramka wyłączona przez operatora przestaje być
-   oferowana przy checkout bez wyrejestrowywania (issue #96). Boot hooki
+   oferowana przy checkout bez wyrejestrowywania. Boot hooki
    działają w dowolnym stanie modułu — *enumeracja* odpowiada na obecność, nie
    rejestrację.
 4. Dostarcz wiersze metod jako **migrację** należącą do modułu. Kody,
@@ -140,7 +140,7 @@ celowo nie: wyłączenie modułu to nie deinstalacja, więc ekran
 
 ## Dostępność per Organization
 
-`organization_payment_methods` (feature 026) to **allow-list**: pusta ⇒ oferowane
+`organization_payment_methods` to **allow-list**: pusta ⇒ oferowane
 są wszystkie aktywne metody; niepusta ⇒ tylko wymienione. Użyj do
 filtrowania metod, których dana Organization może używać. Zarządzane przez
 serwis restrykcji organizations / UI restrykcji admin.

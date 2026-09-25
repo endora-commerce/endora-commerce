@@ -23,14 +23,14 @@ Trasy tylko dla Org-Admin wymuszane są po stronie serwera przez helper
 | `POST /api/v1/auth/customer/logout` | customer | Zniszczenie sesji |
 | `POST /api/v1/auth/password-reset/request` | anon | Zawsze 202 (obrona przed enumeracją kont) |
 | `POST /api/v1/auth/password-reset/confirm` | anon | Realizacja tokenu resetu z e-maila |
-| `GET /api/v1/me` | customer | Bieżący klient + jego organization, plus `impersonation: { impersonatorAdminUserId }`, gdy admin działa jako kupujący (T194) |
+| `GET /api/v1/me` | customer | Bieżący klient + jego organization, plus `impersonation: { impersonatorAdminUserId }`, gdy admin działa jako kupujący |
 | `POST /api/v1/me/password` | customer | Zmiana hasła (odmowa przy złym `currentPassword`) |
 | `GET /api/v1/organizations/mine/members` | org admin | Lista członków |
 | `DELETE /api/v1/organizations/mine/members/:id` | org admin | Usunięcie członka (guard last-admin) |
 | `PATCH /api/v1/organizations/mine/members/:id/role` | org admin | Promote / demote (guard last-admin) |
-| `GET /api/v1/organizations/mine/invitations` | org admin | Lista oczekujących zaproszeń (T177) |
+| `GET /api/v1/organizations/mine/invitations` | org admin | Lista oczekujących zaproszeń |
 | `POST /api/v1/organizations/mine/invitations` | org admin | Zaproszenie nowego użytkownika; e-mail z linkiem realizacji przez wstrzyknięty Mailer |
-| `DELETE /api/v1/organizations/mine/invitations/:id` | org admin | Unieważnienie oczekującego zaproszenia (T177) |
+| `DELETE /api/v1/organizations/mine/invitations/:id` | org admin | Unieważnienie oczekującego zaproszenia |
 | `POST /api/v1/organizations/invitations/:token/accept` | anon | Realizacja zaproszenia, utworzenie Customer Account |
 | `GET /api/v1/organizations/mine/addresses` | customer | Lista adresów dostawy / rozliczeniowych |
 | `POST /api/v1/organizations/mine/addresses` | customer | Utworzenie adresu |
@@ -69,11 +69,10 @@ Tax-ID wymuszana jest na poziomie DB; duplikaty rejestracji zwracają
   `invitation-service.ts#revoke`; dodawaj tu nowe miejsca wywołań „musi zostać
   co najmniej jeden admin”.
 
-## Feature 026 — Commercial party + moderation
+## Commercial party i moderacja
 
-Feature 026 awansuje Organization do first-class commercial party. Specyfikacja
-jest w `specs/026-organizations/spec.md`. Ta sekcja opisuje powierzchnię runtime;
-kolejność migracji udokumentowana jest w `data-model.md` tej specyfikacji.
+Organization jest first-class commercial party. Ta sekcja opisuje powierzchnię
+runtime.
 
 ### Status cyklu życia (`pending_verification` → `active` → `blocked` / `rejected`)
 
@@ -124,7 +123,7 @@ Dzwonek odpytuje co 30 s przez
 | `POST /api/v1/admin/notifications/:id/read` | Oznaczenie jednego wpisu jako read |
 | `POST /api/v1/admin/notifications/mark-all-read` | Oznaczenie wszystkich widocznych jako read |
 
-### Per-organization commercial scoping (US4)
+### Per-organization commercial scoping
 
 Trzy allow-list bridges kontrolują, czego Organization może użyć przy
 checkout:
@@ -154,7 +153,7 @@ Storefront preflight:
 | --- | --- |
 | `POST /api/v1/storefront/checkout/preflight` | Zwraca `{ canTransact, allowedPaymentMethodIds, allowedDeliveryMethodIds, assignedWarehouseIds }` albo 423, gdy org nie może transakcjonować |
 
-### Applicable price lists + promotion targeting (US5)
+### Applicable price lists + promotion targeting
 
 `OrganizationEffectivePriceListsService.listApplicable(orgId)` ponownie używa
 istniejącego `application-rule-evaluator` z modułu `price_lists`
@@ -171,7 +170,7 @@ tylko gdy Organization koszyka jest `active`. Sprawdzenie podpięte jest przez
 opcjonalny argument konstruktora `resolveOrganizationStatus` w
 `PromotionService`; composition.ts przekazuje raw SQL lookup.
 
-### Sales-rep ownership (US6)
+### Sales-rep ownership
 
 `organization_sales_rep_assignments` (pivot: `(organization_id,
 admin_user_id)`) wiąże sales reps z organizations. Gdy rola admin
@@ -203,7 +202,7 @@ Inne moduły czytają relację przez
 `organizationSalesRepScopePort` tego modułu,
 nigdy przez bezpośrednie zapytanie do pivot.
 
-### Walidacja VAT-ID / NIP (US7)
+### Walidacja VAT-ID / NIP
 
 Dwa produkcyjne klienty HTTP implementują port `VatValidator`:
 
@@ -228,7 +227,7 @@ Wszystkie adaptery degradują bezpiecznie przy awarii providera:
 | `POST /api/v1/admin/organizations/:id/vat-validations` | Jedna próba walidacji (`providerHint`, `applyAutoFill`) |
 | `GET /api/v1/admin/organizations/:id/vat-validations` | Lista historii, najnowsze pierwsze |
 
-### Picker primitive + wyszukiwanie bez diakrytyków (US8)
+### Picker primitive + wyszukiwanie bez diakrytyków
 
 Panel admin dostarcza wielokrotnego użytku `<OrganizationPicker>` (single-select)
 i `<OrganizationPickerMulti>` (multi-select) na istniejącym
@@ -238,8 +237,7 @@ parametr `q` jest bez diakrytyków: zapytanie `lodz` znajduje
 hookami `@BeforeCreate` / `@BeforeUpdate` encji Organization.
 `normalizeOrganizationName` to fold plus polityka whitespace, której wymaga
 kolumna. Sam fold to `foldDiacritics`
-(`packages/contracts/src/text-normalization.ts`), współdzielony z panelem admin
-od issue #240: dekompozycja NFD, strip combining marks, potem jawna tabela dla
+(`packages/contracts/src/text-normalization.ts`), współdzielony z panelem admin: dekompozycja NFD, strip combining marks, potem jawna tabela dla
 precomposed Latin letters, których NFD nie rozdziela (`ł`/`Ł`, `ø`/`Ø`, `đ`/`Đ`, `ð`/`Ð`, `þ`/`Þ`, `ß`, `æ`,
 `œ`). Zmiana tej tabeli składa nowe wiersze inaczej niż stare,
 więc to migracja `name_search`, nie edycja.
@@ -262,28 +260,28 @@ więc to migracja `name_search`, nie edycja.
   + bridge per-admin `admin_notification_reads`.
 - `049_customer_accounts_organization_optional.ts` — poluzowało
   `customer_accounts.organization_id` do nullable dla kont guest-style
-  (FR-010 / FR-012). **Ten design jest martwy**: feature 051 go zastąpił, a D-178
-  ponownie zaostrzył kolumnę — zobacz
+  **Ten design jest martwy**: zastąpiły go personal organizations,
+  a kolumnę ponownie zaostrzono — zobacz
   `customer_accounts`' `20260825T141659_customer_accounts_organization_required`.
 - `089_personal_organizations.ts` — dodaje `organizations.is_personal`
   i backfill personal organization dla każdego wcześniejszego konta bez org
   (zobacz „Personal organizations” poniżej).
 
-### Personal organizations (B2C) — feature 051
+### Personal organizations (B2C)
 
 Organization to jedyny koncept tenant platformy. Klient B2C /
 indywidualny **nie** jest przypadkiem null-org: każda samodzielna rejestracja
 klienta provisionuje single-member **personal
-organization** (`is_personal = true`). Od D-178 organization i
+organization** (`is_personal = true`). Organization i
 konto zapisywane są **w jednej transakcji**, przez moduł właściciela wiersza
 konta, na obu ścieżkach tworzenia — self-registration i federated sign-in.
 To oznacza:
 
-- **Transakcje bez zmian.** `organization_id` jest `NOT NULL` od D-178,
+- **Transakcje bez zmian.** `organization_id` jest `NOT NULL`,
   więc ordering, RFQ, credit, invoices i adresy nie potrzebują ścieżki null-org — a
   kolumna, nie guard, odmawia: MikroORM stosuje tenant filter do
   `SELECT` / `UPDATE` / `DELETE`, nie do `INSERT`.
-- **Izolacja strukturalna.** Tenant guard z feature 050 izoluje każdą
+- **Izolacja strukturalna.** Tenant guard izoluje każdą
   personal org jako własnego tenant — dwóch klientów B2C nigdy nie widzi
   swoich danych, bez specjalnego null-org case.
 - **Domyślne dla indywidualnych.** `status = active`, `vat_status = vat_exempt`,
@@ -297,11 +295,11 @@ To oznacza:
 - **Gate per channel.** Samodzielna (B2C) rejestracja kontrolowana per
   sales channel ustawieniem `customers.allow_registration_without_organization`;
   kanał tylko B2B odmawia rejestracji i nic nie provisionuje. Nazwa ustawienia
-  to relikt z feature 026 US2 — gate'uje rejestrację poza *firmową* organization,
+  to relikt wcześniejszego designu — gate'uje rejestrację poza *firmową* organization,
   nie rejestrację bez organization.
 - **Odłączenie członka od firmy przenosi go tutaj.** Admin
   `DELETE /api/v1/admin/customers/:id/organization` kiedyś pisał
-  `organization_id = NULL`; od D-178 provisionuje (lub odnajduje)
+  `organization_id = NULL`; teraz provisionuje (lub odnajduje)
   personal organization klienta i przenosi go tam, zachowując
   audit verb `customer_account.organization_unassigned`.
 
