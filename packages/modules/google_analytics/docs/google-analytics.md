@@ -5,7 +5,7 @@ description: Google Analytics 4 for the storefront — per-channel Measurement I
 
 # Google Analytics
 
-The `google_analytics` module (feature 049) integrates the storefront with
+The `google_analytics` module integrates the storefront with
 **Google Analytics 4**: per-Sales-Channel activation and Measurement ID,
 Enhanced Ecommerce, an admin-configurable custom-events builder, and an optional
 **server-side tagging** delivery path. It is a separate module from the legacy
@@ -65,7 +65,7 @@ channel or all channels, and multiple events may bind to the same action.
 > ships as a client hook (`trackContactFormSubmit`) that becomes active once a
 > contact form is added.
 
-## Server-side tagging (pure Measurement Protocol, Principle X)
+## Server-side tagging (pure Measurement Protocol)
 
 When `server_side_enabled` is on for a channel the module runs **pure
 server-side tagging through the platform's own server** — no external container

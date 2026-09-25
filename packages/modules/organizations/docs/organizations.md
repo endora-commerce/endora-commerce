@@ -23,14 +23,14 @@ gated by `customers:manage`.
 | `POST /api/v1/auth/customer/logout` | customer | Destroy session |
 | `POST /api/v1/auth/password-reset/request` | anon | Always 202 (defends against account enumeration) |
 | `POST /api/v1/auth/password-reset/confirm` | anon | Redeem the emailed reset token |
-| `GET /api/v1/me` | customer | Current customer + their organization, plus `impersonation: { impersonatorAdminUserId }` when an admin is acting as the buyer (T194) |
+| `GET /api/v1/me` | customer | Current customer + their organization, plus `impersonation: { impersonatorAdminUserId }` when an admin is acting as the buyer |
 | `POST /api/v1/me/password` | customer | Change password (rejects wrong `currentPassword`) |
 | `GET /api/v1/organizations/mine/members` | org admin | List members |
 | `DELETE /api/v1/organizations/mine/members/:id` | org admin | Remove member (last-admin guard) |
 | `PATCH /api/v1/organizations/mine/members/:id/role` | org admin | Promote / demote (last-admin guard) |
-| `GET /api/v1/organizations/mine/invitations` | org admin | List pending invitations (T177) |
+| `GET /api/v1/organizations/mine/invitations` | org admin | List pending invitations |
 | `POST /api/v1/organizations/mine/invitations` | org admin | Invite a new user; emails the redemption link via the injected Mailer |
-| `DELETE /api/v1/organizations/mine/invitations/:id` | org admin | Revoke a pending invitation (T177) |
+| `DELETE /api/v1/organizations/mine/invitations/:id` | org admin | Revoke a pending invitation |
 | `POST /api/v1/organizations/invitations/:token/accept` | anon | Redeem invitation, mint Customer Account |
 | `GET /api/v1/organizations/mine/addresses` | customer | List delivery / billing addresses |
 | `POST /api/v1/organizations/mine/addresses` | customer | Create address |
@@ -68,12 +68,10 @@ uniqueness is enforced at the DB level; duplicate registrations return
   `invitation-service.ts#revoke`; add new "must keep at least one admin"
   call sites here.
 
-## Feature 026 — Commercial party + moderation
+## Commercial party and moderation
 
-Feature 026 promotes Organization to a first-class commercial party. The
-spec lives at `specs/026-organizations/spec.md`. This section describes
-the runtime surface; the migration ordering is documented in that spec's
-`data-model.md`.
+Organization is a first-class commercial party. This section describes
+the runtime surface.
 
 ### Lifecycle status (`pending_verification` → `active` → `blocked` / `rejected`)
 
@@ -125,7 +123,7 @@ setting. The bell polls every 30 s via
 | `POST /api/v1/admin/notifications/:id/read` | Mark one entry read |
 | `POST /api/v1/admin/notifications/mark-all-read` | Mark every visible entry read |
 
-### Per-organization commercial scoping (US4)
+### Per-organization commercial scoping
 
 Three allow-list bridges control what an Organization may use at
 checkout:
@@ -155,7 +153,7 @@ Storefront preflight:
 | --- | --- |
 | `POST /api/v1/storefront/checkout/preflight` | Returns `{ canTransact, allowedPaymentMethodIds, allowedDeliveryMethodIds, assignedWarehouseIds }` or 423 when the org cannot transact |
 
-### Applicable price lists + promotion targeting (US5)
+### Applicable price lists + promotion targeting
 
 `OrganizationEffectivePriceListsService.listApplicable(orgId)` reuses
 the existing `application-rule-evaluator` from the `price_lists` module
@@ -172,7 +170,7 @@ only when the cart's Organization is `active`. The check is wired
 through `PromotionService`'s optional `resolveOrganizationStatus`
 constructor argument; composition.ts passes a raw SQL lookup.
 
-### Sales-rep ownership (US6)
+### Sales-rep ownership
 
 `organization_sales_rep_assignments` (pivot: `(organization_id,
 admin_user_id)`) binds sales reps to organizations. When the
@@ -203,7 +201,7 @@ is that module's fact.
 Other modules read the relation through this module's
 `organizationSalesRepScopePort`, never by querying the pivot.
 
-### VAT-ID / NIP validation (US7)
+### VAT-ID / NIP validation
 
 Two production HTTP clients implement the `VatValidator` port:
 
@@ -230,7 +228,7 @@ third-party hiccup.
 | `POST /api/v1/admin/organizations/:id/vat-validations` | Trigger one validation attempt (`providerHint`, `applyAutoFill`) |
 | `GET /api/v1/admin/organizations/:id/vat-validations` | History list, newest first |
 
-### Picker primitive + diacritic-insensitive search (US8)
+### Picker primitive + diacritic-insensitive search
 
 The admin app ships a reusable `<OrganizationPicker>` (single-select)
 and `<OrganizationPickerMulti>` (multi-select) on top of the existing
@@ -241,7 +239,7 @@ by the Organization entity's `@BeforeCreate` / `@BeforeUpdate` hooks.
 `normalizeOrganizationName` is that fold plus the whitespace policy the
 column needs. The fold itself is `foldDiacritics`
 (`packages/contracts/src/text-normalization.ts`), shared with the admin
-panel since issue #240: NFD decomposition, a strip of the combining
+panel: NFD decomposition, a strip of the combining
 marks, then an explicit table for the precomposed Latin letters NFD
 doesn't split (`ł`/`Ł`, `ø`/`Ø`, `đ`/`Đ`, `ð`/`Ð`, `þ`/`Þ`, `ß`, `æ`,
 `œ`). Changing that table re-folds new rows differently from old ones,
@@ -265,28 +263,28 @@ so it is a migration of `name_search`, not an edit.
   table + the per-admin `admin_notification_reads` bridge.
 - `049_customer_accounts_organization_optional.ts` — relaxed
   `customer_accounts.organization_id` to nullable so guest-style
-  Customer accounts were representable (FR-010 / FR-012). **That design is
-  dead**: feature 051 replaced it and D-178 re-tightened the column — see
+  Customer accounts were representable. **That design is
+  dead**: personal organizations replaced it and the column was re-tightened — see
   `customer_accounts`' `20260825T141659_customer_accounts_organization_required`.
 - `089_personal_organizations.ts` — adds `organizations.is_personal`
   and backfills a personal organization for every pre-existing no-org
   customer account (see "Personal organizations" below).
 
-### Personal organizations (B2C) — feature 051
+### Personal organizations (B2C)
 
 The Organization is the platform's single tenant concept. A B2C /
 individual customer is **not** a null-org special case: every standalone
 customer registration provisions a single-member **personal
-organization** (`is_personal = true`). Since D-178 the organization and the
+organization** (`is_personal = true`). The organization and the
 account are written **in one transaction**, by the module that owns the account
 row, on both paths that create one — self-registration and federated sign-in.
 This means:
 
-- **Transacting works unchanged.** `organization_id` is `NOT NULL` since D-178,
+- **Transacting works unchanged.** `organization_id` is `NOT NULL`,
   so ordering, RFQs, credit, invoices and addresses need no null-org path — and
   the column, not a guard, is what refuses one: MikroORM applies its tenant
   filter to `SELECT` / `UPDATE` / `DELETE` and not to `INSERT`.
-- **Isolation is structural.** The feature-050 tenant guard isolates each
+- **Isolation is structural.** The tenant guard isolates each
   personal org as its own tenant — two B2C customers can never see each
   other's data, with zero null-org special-casing.
 - **Individual defaults.** `status = active`, `vat_status = vat_exempt`,
@@ -300,12 +298,12 @@ This means:
 - **Per-channel gate.** Standalone (B2C) registration is controlled per
   sales channel by the `customers.allow_registration_without_organization`
   setting; a B2B-only channel refuses the registration and provisions
-  nothing. The setting's name is a leftover from feature 026 US2 — what it
+  nothing. The setting's name is a leftover from an earlier design — what it
   gates is registration outside a *company* organization, not registration
   without one.
 - **Detaching a member from a company moves them here.** The admin
   `DELETE /api/v1/admin/customers/:id/organization` used to write
-  `organization_id = NULL`; since D-178 it provisions (or re-finds) the
+  `organization_id = NULL`; it now provisions (or re-finds) the
   customer's own personal organization and moves them into it, keeping the
   `customer_account.organization_unassigned` audit verb.
 

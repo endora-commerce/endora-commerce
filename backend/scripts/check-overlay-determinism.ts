@@ -749,12 +749,13 @@ export function coveredArtifactPaths(): readonly string[] {
 
 async function main(): Promise<void> {
   const roots = permittedRoots();
+  const composerRendered = await renderAll();
   // Feature 072 — the composer and the manifest registry are generated from the
   // same tree walk and committed the same way, so they are checked here rather
   // than in a second script with the same shape. Feature 071's F2 added the two
   // `db/` registries to that same walk, for the same reason.
   const examined = [
-    ...(await renderAll()).map((artifact) =>
+    ...composerRendered.map((artifact) =>
       check(
         artifact.label,
         artifact.outputPath,

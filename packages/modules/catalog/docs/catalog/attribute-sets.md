@@ -12,10 +12,10 @@ ships a `default` set that applies when admins do not pick one.
 
 Without sets, every Product carries its full attribute graph in
 `attributeValues`. Different product types (electronics, apparel,
-chemicals) need different attributes, but the foundation 001 schema
-treated every key as global. Feature 002 introduces sets so admins can
-curate a focused authoring experience per category and the storefront
-can render a tighter attribute table.
+chemicals) need different attributes, but the foundation schema
+treated every key as global. Sets let admins curate a focused authoring
+experience per category and let the storefront render a tighter
+attribute table.
 
 ## Public surface
 

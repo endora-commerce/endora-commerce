@@ -1,0 +1,45 @@
+{
+  "theme.navbar.mobileLanguageDropdown.label": {
+    "message": "Język"
+  },
+  "theme.SearchBar.label": {
+    "message": "Szukaj",
+    "description": "The ARIA label and placeholder of the search input"
+  },
+  "theme.SearchBar.noResultsText": {
+    "message": "Brak wyników",
+    "description": "The empty state of the search dropdown"
+  },
+  "theme.SearchBar.seeAll": {
+    "message": "Wyświetl wszystkie wyniki",
+    "description": "The link to the search page from the search dropdown"
+  },
+  "theme.SearchBar.searchInContext": {
+    "message": "Wyświetl wszystkie wyniki w sekcji „{context}”",
+    "description": "The link to the search page, scoped to the current context"
+  },
+  "theme.SearchBar.seeAllOutsideContext": {
+    "message": "Wyświetl wszystkie wyniki poza sekcją „{context}”",
+    "description": "The link to the search page, outside the current context"
+  },
+  "theme.SearchPage.emptyResultsTitle": {
+    "message": "Wyszukaj w dokumentacji",
+    "description": "The search page title for an empty query"
+  },
+  "theme.SearchPage.existingResultsTitle": {
+    "message": "Wyniki wyszukiwania dla \"{query}\"",
+    "description": "The search page title for a non-empty query"
+  },
+  "theme.SearchPage.noResultsText": {
+    "message": "Nie znaleziono żadnych dokumentów",
+    "description": "The empty state of the search page"
+  },
+  "theme.SearchPage.documentsFound.plurals": {
+    "message": "Jeden dokument znaleziony|{count} dokumenty znalezione|{count} dokumentów znalezionych",
+    "description": "Pluralized result count on the search page"
+  },
+  "theme.SearchPage.searchContext.everywhere": {
+    "message": "Wszędzie",
+    "description": "The label of the unscoped search context"
+  }
+}

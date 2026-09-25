@@ -5,19 +5,17 @@ title: First Production Deployment Checklist
 # First Production Deployment Checklist
 
 **Status: open. No item on this list has been executed.** Endora Commerce has no production
-deployment yet. The owner dated the first one on **2026-08-18**: the second half of September
-2026 at the earliest, more likely October 2026. The decision of record is
-`specs/071-modular-packaging/decisions.md` § D-35.
+deployment yet.
 
 ## Why this page exists
 
 Dozens of engineering decisions in this repository were ruled safe on one ground: *there is no
-production deployment, so nothing can break*. That ruling (D-35) let the platform drop
+production deployment, so nothing can break*. That ruling let the platform drop
 compatibility shims, rebuild its migration history, and change permission gates without a
-migration path. It was the right call, and it was never free — it borrowed against a date.
-The date now exists.
+migration path. It was the right call, and it was never free — it borrowed against a first
+deployment that has not happened yet.
 
-Everything D-35 licensed that the code cannot carry by itself lands here: a grant somebody has
+Everything that ruling licensed that the code cannot carry by itself lands here: a grant somebody has
 to make, a setting somebody has to choose, a seed that must not run, a value that is silently
 wrong until an operator sets it. This page is that ledger. It is written to be executed by
 somebody who was not in the conversations that produced the items.
@@ -108,7 +106,7 @@ the file.
 
 **Why.** Neither `PUBLIC_API_BASE_URL` nor `REVALIDATE_SECRET` used to appear in
 `deploy/.env.prod.example` or in the `x-backend-env` block of `deploy/compose.prod.yml`, and
-both failed silently. Issue #218 changed both, in different ways:
+both failed silently. Both have since been fixed, in different ways:
 
 - `PUBLIC_API_BASE_URL` is the origin every payment-gateway callback (ITN/notification) URL,
   every public product-feed URL and every newsletter confirmation link is built on. It used to
@@ -153,8 +151,9 @@ verification e-mail in a real inbox. Do this before the client's first customer 
 
 ### C1. Rehearse the migration chain on a throwaway database first
 
-**Why.** Feature 072 rebuilt the migration history and retired the frozen-name map on D-35
-grounds — the ordering of the pre-`20260801T000000` block is uncorrected by design
+**Why.** The migration history was rebuilt and the frozen-name map retired on the same
+no-production-deployment grounds — the ordering of the pre-`20260801T000000` block is
+uncorrected by design
 (`backend/src/db/migration-order.ts`), and the chain has only ever been applied to databases
 that were free to be thrown away. The first production database is the first one that has to
 keep its rows.
@@ -171,12 +170,12 @@ the release's `backend-migrate` container produces on the VPS.
 
 **Why.** The demo seed (`endora demo seed`) writes a whole shop — a catalogue, an
 organisation, an administrator and a buyer — into the database it is pointed at. It no longer
-truncates on the way in (feature 113 moved that into `endora demo reset`, which does), so what
+truncates on the way in (that truncation moved into `endora demo reset`, which does), so what
 it costs a production database is rows that are not the client's rather than the loss of ones
 that are. It has a production guard —
 `ALLOW_DEV_SEED_IN_PRODUCTION` — which `deploy/compose.prod.yml` used to defeat permanently in
-a pre-armed `seed` service that `deploy/README.md` listed as a deployment step. Issue #218
-removed the service and took the seed out of the deployment procedure: there is now no way to
+a pre-armed `seed` service that `deploy/README.md` listed as a deployment step. That service
+has since been removed and the seed taken out of the deployment procedure: there is now no way to
 run it that does not involve an operator typing `-e ALLOW_DEV_SEED_IN_PRODUCTION=true`
 themselves.
 
@@ -230,8 +229,8 @@ do its job end to end.
 
 ### D2. Grant `customer_groups:read` and `customer_groups:write`
 
-**Why.** Customer-group management moved from `price_lists` to `customer_accounts` (feature 076,
-D-79) and gained permission codes of its own. Before the move it was gated by `catalog:write`,
+**Why.** Customer-group management moved from `price_lists` to `customer_accounts` and gained
+permission codes of its own. Before the move it was gated by `catalog:write`,
 which was plainly wrong — a customer group is customer segmentation, not catalog data. The two
 new codes are `customer_groups:read` and `customer_groups:write`
 (`packages/modules/customer_accounts/src/manifest.ts:188-189`).
@@ -255,8 +254,8 @@ Those two, and no others. The promotion rule builder and the PWA push-audience b
 show a group list, but each reads it through **its own** module's endpoint
 (`/api/v1/admin/promotions/rule-targets/customer-groups`,
 `/api/v1/admin/pwa/rule-targets/customer-groups`) behind that module's own read permission, so
-they are unaffected by this grant. The price-list rule builder was the exception until issue
-#219; it now reads its list behind `price_lists:read`, which is the subject of D3.
+they are unaffected by this grant. The price-list rule builder was the exception until
+recently; it now reads its list behind `price_lists:read`, which is the subject of D3.
 
 The same grant can be made over the API:
 `PUT /api/v1/admin/admin-roles/<code>` with the role's full permission list including the new
@@ -270,7 +269,7 @@ grant must still get `403` — that is the other half of the proof.
 
 ### D3. Grant `price_lists:read` and `price_lists:write`
 
-**Why.** Until issue #219 the `price_lists` module declared no permissions of its own: all 25 of
+**Why.** The `price_lists` module used to declare no permissions of its own: all 25 of
 its admin routes were gated by `catalog:write`. A role granted `catalog:write` so somebody could
 edit product descriptions could also create, edit and delete price lists — that is, change what
 customers pay. Nobody chose that boundary; it was the side effect of a missing declaration. The
@@ -279,7 +278,7 @@ module now owns `price_lists:read` and `price_lists:write`
 mapped wholesale: reading a list, its product roster, its brackets, the display-mode overrides
 and the rule-target pickers is `:read`; anything that persists is `:write`.
 
-The same change closed the last surviving pre-076 gate:
+The same change closed the last surviving legacy gate:
 `GET /api/v1/admin/pricing/rule-targets/customer-groups` answered on `catalog:write`, so a
 catalogue editor could enumerate the client's customer groups. It now answers on
 `price_lists:read`, matching its `promotions` and `pwa` twins.
@@ -337,7 +336,7 @@ refused once enforcement is on.
 
 ### E1. Walk `/platform/modules` and decide each one
 
-**Why.** Principle XVII makes a module's presence the conjunction of platform availability and
+**Why.** A module's presence is the conjunction of platform availability and
 the operator's activation choice — and the second axis has a default. Of the core modules, 23
 declare themselves non-deactivatable and the rest ship an operator activation control; **every
 one of those controls defaults to on.** Nothing about a fresh install expresses what this client
@@ -504,7 +503,7 @@ consequences: the per-IP rate limit (1000/min) becomes one shared bucket for the
 internet; the IP recorded on security-relevant audit rows — MFA events, admin
 impersonation, prompt-action runs — is the proxy, not the actor; and the public
 product-feed rate-limit key collapses for unauthenticated callers. This used to be an
-open question with no answer in the code; since issue #220 the answer is a variable.
+open question with no answer in the code; the answer is now a variable.
 
 **Do (engineer).** Confirm the host nginx sets `X-Forwarded-For` and `X-Forwarded-Proto`
 (the template in `deploy/nginx.example.conf` already does, with
@@ -540,11 +539,10 @@ moves up.
 - **Provisioning the VPS, DNS, TLS, the registry and the compose stack.** Covered by
   `deploy/README.md`, which is the procedure this page assumes has been followed. Duplicating it
   is how the two drift.
-- **The coordinated developer-database reset** (`specs/072-module-kernel-di/MIGRATION-RESET.md`).
-  It is a developer-workstation procedure. The first production database starts empty and applies
+- **The coordinated developer-database reset.** It is a developer-workstation procedure. The first production database starts empty and applies
   the chain once; C1 is what covers it.
-- **The price-list migration report** (feature 011, FR-003 — "flag rows that need a real
-  per-currency value before go-live"). It describes migrating a *pre-existing* deployment's
+- **The price-list migration report** — the report that flags rows needing a real
+  per-currency value before go-live. It describes migrating a *pre-existing* deployment's
   legacy unit prices. A first deployment has no legacy prices to migrate. It becomes a real item
   the first time a client is migrated onto the platform from something else.
 - **Customer deletion retention** (`customers.deletion_retention_days`, default 365) and
@@ -563,14 +561,13 @@ moves up.
   Real work, and it is project scoping rather than a platform go-live gate: nothing in the
   platform is wrong until the client asks for one.
 - **Anything a static check already refuses.** If CI can fail on it, it is not an item here — that
-  is the whole design of the check inventory in `AGENTS.md`.
+  is the whole design of the repository's check inventory.
 
 ---
 
-## When D-35 closes
+## When the no-deployment licence closes
 
-On the day the first deployment carries a client's data, D-35 stops licensing anything. From
-then on: renaming an applied migration class needs a rename map again, a permission gate cannot
-change without a grant path, and a contract change needs the versioning discipline Constitution
-II describes. The decision record says so in its own last paragraph; this page is where the
-consequences were paid.
+On the day the first deployment carries a client's data, the "nothing can break yet" licence
+stops applying. From then on: renaming an applied migration class needs a rename map again, a
+permission gate cannot change without a grant path, and a contract change needs the usual
+versioning discipline. This page is where the consequences were paid.

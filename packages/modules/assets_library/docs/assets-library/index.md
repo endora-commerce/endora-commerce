@@ -79,7 +79,7 @@ Deletes go through a two-step lifecycle:
    credentials, network partition), the row stays and `pendingCleanup` is
    set to `true`; the worker retries on the next tick.
 
-## Reference protection (FR-030) {#asset-reference-registry}
+## Reference protection {#asset-reference-registry}
 
 Soft-delete is rejected with `409 ASSET_REFERENCED` when any of the
 following points at the asset:
@@ -116,7 +116,7 @@ templates.
 
 ## Legacy escape hatch
 
-Pre-013 `assets` rows whose `storage_url` was a URL this platform did not
+Pre-existing `assets` rows whose `storage_url` was a URL this platform did not
 issue are tagged `storage_backend = 'legacy'` at migration time. The legacy
 resolver returns the URL verbatim for `public` assets — rebasing it onto the
 public API origin when the stored value is host-relative — and refuses to flip

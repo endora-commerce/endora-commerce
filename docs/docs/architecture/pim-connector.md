@@ -30,7 +30,7 @@ ingress. Those stay in each connector package.
 
 **And it owns no admin code**, which is a correction rather than an omission. A
 shared run-status badge and issue list once lived under `admin/src/modules/pim_connector/`,
-and feature 091's Phase 4 measured that the directory had a single consumer, so both
+and a later measurement found that the directory had a single consumer, so both
 files moved into that connector's own package beside the screens that render them. A
 module package cannot name `admin/src` at all, so a shared admin component needs a
 *published* home — the design kit, or a supported subpath of this package — and
@@ -187,6 +187,6 @@ version of this suite stayed green over the pairs it did not know about.
 
 ## Related reading
 
-- Feature artifacts: `specs/089-unopim-pim-sync/contracts/pim-connector-shared.md` for
-  the port, and `specs/132-connector-family-discovery/contracts/capability-exclusivity.md`
-  for the seam and the default state.
+- [UnoPim PIM connector](./pim_unopim.md) — OAuth client, delta bookmarks, webhook
+- [Ergonode PIM connector](./pim_ergonode.md) — the first packaged connector
+- Operator guide: [Importing from UnoPim](../modules/pim_unopim.md)

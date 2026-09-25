@@ -5,7 +5,7 @@ description: CSV-import + type-ahead helpers for buyers ordering by SKU
 
 # `quick_order`
 
-The platform's **quick-ordering toolkit** (feature 039 — _Szybkie Zamówienia_).
+The platform's **quick-ordering toolkit**.
 It bundles several conveniences that let B2B buyers place repeat and
 high-volume orders with the fewest steps, reusing the existing Cart, Quote
 Request, Order/Checkout, Organization, Payment/Shipping method, Catalog, and

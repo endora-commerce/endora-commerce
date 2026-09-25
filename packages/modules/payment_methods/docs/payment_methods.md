@@ -7,7 +7,7 @@ description: Configured payment methods
 
 CRUD over the configured payment methods that Customers can pick at
 checkout. Each `PaymentMethod` row is backed by a registered **adapter**
-(feature 034) and a per-Sales-Channel visibility list.
+(see *Adapter framework* below) and a per-Sales-Channel visibility list.
 
 ## Public surface
 
@@ -33,7 +33,7 @@ holder reaches the shared list any more.
 | `GET /api/v1/admin/payment-methods/adapters` | admin | `payment_methods:read` | Registered adapter keys, for the admin adapter picker |
 | `GET /api/v1/admin/order-statuses` | admin | `payment_methods:read` **or** `delivery_methods:read` | Order-status options for the `statusOn*` selectors, here and on the delivery-method screen |
 | `PUT /api/v1/admin/payment-methods/:code` | admin | `payment_methods:write` | Upsert by code; `adapter` defaults to `kind`, `statusOn*` validated against the order-status registry |
-| `PATCH /api/v1/admin/payment-methods/:id/status` | admin | `payment_methods:write` | Availability alone (feature 076, D-82) — the one write the four gateway screens link to |
+| `PATCH /api/v1/admin/payment-methods/:id/status` | admin | `payment_methods:write` | Availability alone — the one write the four gateway screens link to |
 | `DELETE /api/v1/admin/payment-methods/:id` | admin | `payment_methods:write` | Delete — blocked (409) when a `Payment` references the method; set it `inactive` instead |
 
 ## Entities
@@ -43,9 +43,9 @@ per-language `name`, `status`, **`additionalPrice`** (flat surcharge in the
 order currency), and the three Order-status references
 **`statusOnPending` / `statusOnSuccess` / `statusOnFailure`**. Sales-channel
 scoping via `sales_channel_payment_methods`; per-Organization availability via
-`organization_payment_methods` (feature 026).
+`organization_payment_methods`.
 
-## Adapter framework (feature 034)
+## Adapter framework
 
 A payment method's behaviour is supplied by a **`PaymentAdapter`** registered
 in the `PaymentAdapterRegistry`. The platform recognises a module as a
@@ -113,7 +113,7 @@ module's configurable registry later with no change here.
 
    The owner id is not decoration: the registry skips an adapter whose module is
    not effectively present, so a gateway an operator switches off stops being
-   offered at checkout without anything unregistering it (issue #96). Boot hooks
+   offered at checkout without anything unregistering it. Boot hooks
    run whatever the module's state is — the *enumeration* answers presence, not
    the registration.
 4. Ship the method rows as a **migration** owned by your module. The codes,
@@ -140,7 +140,7 @@ deliberately do not: switching a module off is not uninstalling it, so the
 
 ## Per-Organization availability
 
-`organization_payment_methods` (feature 026) is an **allow-list**: empty ⇒ all
+`organization_payment_methods` is an **allow-list**: empty ⇒ all
 active methods are offered; non-empty ⇒ only the listed methods. Use it to
 filter the methods a given Organization may use. Managed through the
 organizations restriction service / admin restrictions UI.

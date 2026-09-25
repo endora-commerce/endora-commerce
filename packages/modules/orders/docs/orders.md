@@ -24,7 +24,7 @@ Admin routes are gated by `orders:read` (read) / `orders:write` (mutations).
 | `POST /api/v1/admin/orders/:id/status` | admin | Status transition (audited) |
 | `POST /api/v1/admin/orders/:id/payment-status` | admin | Payment status transition (audited) |
 
-## Status machine (configurable — feature 038)
+## Status machine (configurable)
 
 The order lifecycle is **admin-configurable**: statuses and allowed
 transitions live in the `order_statuses` and `order_status_transitions`
@@ -45,7 +45,7 @@ these status codes); `payment_status` is retained as a derived/secondary field.
 
 ## Entities
 
-`Order`, `OrderItem`, `Payment`, plus feature 038: `OrderStatus`,
+`Order`, `OrderItem`, `Payment`, `OrderStatus`,
 `OrderStatusTransition`, `OrderComment`, `OrderListSavedView`, and the
 `organizations.order_confirmation_emails` column (owned by `organizations`,
 read via a port). `OrderItem` snapshots the product + variant + unit price +
@@ -54,13 +54,13 @@ tax rate at placement so historical orders survive pricing / catalog changes.
 ## Events emitted
 
 `order.created.v1`, `order.status_changed.v1`, `order.cancelled.v1`. Each
-transition X→Y additionally emits four **templated** events (feature 038,
-built by `events/order-status-events.ts`):
+transition X→Y additionally emits four **templated** events (built by
+`events/order-status-events.ts`):
 `order.status.from_<x>_to_<y>.before`, `order.status.from_<x>.before`
 (synchronous, veto-capable) and `order.status.from_<x>_to_<y>.after`,
 `order.status.to_<y>.after` (post-commit, isolated).
 
-## Admin operations (feature 038)
+## Admin operations
 
 - **Create on behalf** — `POST /api/v1/admin/orders` builds the customer's cart
   from admin-entered items and runs on-behalf `placeOrder`; the customer is
@@ -75,7 +75,7 @@ built by `events/order-status-events.ts`):
 - **Reorder** — `…/:id/reorder` rebuilds the cart (gated by
   `orders.reorder_enabled`); **clone-to-quote** — `…/:id/clone-to-quote`.
 
-## Settings (feature 038)
+## Settings
 
 `orders.min_order_value` (number, gates Checkout + admin create),
 `orders.reorder_enabled` (boolean), `orders.confirmation_recipients`
@@ -83,7 +83,7 @@ built by `events/order-status-events.ts`):
 `order_confirmation_emails`. The confirmation email CCs the customer + org
 list + scope list (best-effort, never blocks placement).
 
-## Order-confirmation e-mail (feature 034)
+## Order-confirmation e-mail
 
 After a successful checkout, `OrderService.placeOrder` dispatches a
 confirmation e-mail (post-commit, best-effort — a mail failure never undoes a

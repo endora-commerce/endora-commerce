@@ -7,7 +7,7 @@ description: Bearer-token integration credentials
 
 Scoped bearer-token credentials for machine-to-machine integrations. The
 plaintext token is shown once at creation; only its SHA-256 hash is stored.
-Since feature 062 a key may additionally carry a **distributor binding**
+A key may additionally carry a **distributor binding**
 (Organization + Sales Channel + service Customer Account) and an optional
 expiry, turning it into a partner credential for the `/api/v1/external/*`
 namespace, which the *Partner API access* integration guide documents in full.
@@ -41,7 +41,7 @@ Creation validates scopes against the typed catalog in
 Enforcement stays membership-based, so legacy free-text scopes on existing
 keys remain readable and enforceable — only creation is validated.
 
-## Binding model (feature 062)
+## Binding model
 
 The binding is all-or-none and **immutable post-create** (token-shown-once
 lifecycle; rebinding means revoking and issuing a new key). Creation rules,

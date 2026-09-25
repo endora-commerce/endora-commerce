@@ -37,7 +37,7 @@ Admin routes are gated by `returns:read` (read) / `returns:write` (mutations).
 | `GET\|POST /api/v1/admin/returns/:id/shipments` + `/:shipmentId/receive` | admin | Return shipments |
 | `…/statuses`, `…/transitions`, `…/reasons`, `…/delivery-methods`, `…/list-views` | admin | Configuration + saved views |
 
-## Status machine (configurable — US3)
+## Status machine (configurable)
 
 The case lifecycle is **admin-configurable** (`return_statuses` +
 `return_status_transitions`, seeded on install). Defaults:
@@ -69,7 +69,7 @@ before/after events and is written to the audit log.
   issued: the settlement succeeds, the refund is recorded on the return case and
   the payment record, and the result states `correctiveInvoice: { issued: false,
   reason: "order_not_invoiced" }`.
-- **A switched-off payment gateway refuses the settlement** (issue #104, D-71).
+- **A switched-off payment gateway refuses the settlement**.
   Money resolutions on a gateway-paid order call the PSP module that took the
   payment; when an operator has that module switched off — or the deployment
   does not offer it — the settlement answers `503 MODULE_DISABLED` naming the
@@ -80,7 +80,7 @@ before/after events and is written to the audit log.
   which still settles as `pending_manual` for a person to pay out by hand —
   there is nothing there to switch on.
 
-## Cross-module interfaces (Principle I)
+## Cross-module interfaces
 
 The module reads/affects other domains only through documented ports, never
 internal imports:
@@ -88,7 +88,7 @@ internal imports:
 - `OrderReturnContextPort` (orders) — paid-per-line amounts + completing-status time.
 - `PaymentRefundPort` (payments) — issue the refund, answer `pending_manual`
   where no PSP integration exists, or refuse when the gateway that took the
-  payment is switched off (D-71).
+  payment is switched off.
 - `CorrectiveInvoicePort` (invoices) — create a `correction` invoice, or answer
   that none is due because the order carries no invoice to correct.
 - `CreditTopupPort` (credit_limits) — credit the organization grant.

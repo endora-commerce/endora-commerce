@@ -5,7 +5,7 @@ description: Progressive-Web-App capabilities for the storefront and admin — i
 
 # PWA (Progressive Web App)
 
-The `pwa` module (feature 046) adds Progressive-Web-App capabilities to the
+The `pwa` module adds Progressive-Web-App capabilities to the
 storefront and admin: home-screen installability, a Settings-driven per-Sales-
 Channel installable identity, opt-in static-asset caching, a controlled service-
 worker update path, and opt-in push notifications behind a provider-agnostic
@@ -66,7 +66,7 @@ and `VITE_BUILD_ID` (admin) per deploy. The storefront SW does not `skipWaiting`
 on its own — `PwaRegister` shows a "new version available" prompt and only
 activates on the user's click, so an update never discards in-progress work.
 
-## App-store wrapping checklist (FR-029 / SC-008)
+## App-store wrapping checklist
 
 The storefront PWA is built to be wrappable for Google Play (Trusted Web
 Activity) and the App Store (WKWebView wrapper). Producing/submitting the native

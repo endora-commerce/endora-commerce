@@ -1,0 +1,10 @@
+{
+  "sourcePath": "packages/modules/customer_accounts/docs/customer_accounts.md",
+  "sourceHash": "6ad6826a6d842d3709ecad7092172637228d4be66779291d7d9a5588f7a4dd98",
+  "locale": "pl",
+  "content": "---\ntitle: customer_accounts\ndescription: Logowanie klienta, reset hasła, 2FA, przypisanie roli\n---\n\n# `customer_accounts`\n\nStan per użytkownik dla Klientów: logowanie, zarządzanie hasłem, opcjonalne 2FA,\nrola w ramach ich Organization. Wspierane przez współdzieloną usługę sesji `auth`;\nten moduł jest właścicielem powierzchni tożsamości po stronie klienta.\n\n## Publiczne API\n\n| Verb + Path | Cel |\n| --- | --- |\n| `POST /api/v1/auth/login` | E-mail + hasło (+ krok TOTP, gdy włączone 2FA) |\n| `POST /api/v1/auth/logout` | Zniszczenie sesji |\n| `POST /api/v1/me/password` | Zmiana hasła (odrzuca błędne `currentPassword`) |\n| `POST /api/v1/auth/password-reset/request` | Rozpoczęcie przepływu resetu hasła |\n| `POST /api/v1/auth/password-reset/confirm` | Realizacja tokenu resetu hasła |\n\n## Encje\n\n`CustomerAccount` (email, passwordHash, role), `PasswordResetToken`. Rola to\nenum `organization_admin | regular_user`.\n\n## Punkty rozszerzenia\n\n- **Polityka haseł** — `password-hasher.ts` opakowuje argon2id; parametry kosztu\n  dostosowujesz tam.\n- **Kody zapasowe i drugie czynniki** — nie należą do tego modułu. 2FA klienta i admina\n  obsługuje moduł `mfa`, nad `mfa_enrolments`, wystawione pod\n  `/api/v1/account/mfa/*`; kody odzyskiwania to jednorazowe wiersze tam. Zastąpione\n  rusztowanie, na które ten punkt wcześniej wskazywał\n  (`totp-enrolment-service.ts`), usunięto 2026-08-25 — nigdy nie umożliwiało\n  ukończenia pojedynczego enrolmentu.\n- **Ograniczanie logowania** — opiera się na `@fastify/rate-limit` Fastify na poziomie\n  serwera; blokada per konto dodałaby się tutaj.\n",
+  "meta": {
+    "provider": "manual",
+    "updatedAt": "2026-09-17T11:50:00.000Z"
+  }
+}

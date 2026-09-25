@@ -21,7 +21,7 @@ All admin routes are gated by the `credit_limits:manage` permission.
 | `POST /api/v1/admin/organizations/:id/credit-limit` | admin | Grant initial limit |
 | `PATCH /api/v1/admin/organizations/:id/credit-limit` | admin | Adjust amount (rejects below active reservations unless `allowOverAllocation`) |
 
-Storefront UX (T219): the Account profile and Checkout page render a
+Storefront UX: the Account profile and Checkout page render a
 `CreditLimitWidget` (granted / available / reservation breakdown) when
 the limit exists; `credit_limit`-kind payment methods are filtered out
 of Checkout when no limit is granted or the cart total exceeds the
@@ -33,7 +33,7 @@ available credit.
 `credit_limits` row, then inserts the reservation. Two simultaneous orders
 that would together exceed the limit are serialized; one succeeds and the
 other receives `409 LIMIT_INSUFFICIENT`. See
-`backend/test/contract/credit_limits/concurrent-race.test.ts` (T207).
+`backend/test/contract/credit_limits/concurrent-race.test.ts`.
 
 ## Entities
 

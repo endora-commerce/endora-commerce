@@ -1,0 +1,10 @@
+{
+  "sourcePath": "docs/docs/operations/health-endpoint.md",
+  "sourceHash": "ae5d48c357622e2f7c87757f567e279782c7d40898704074c26b3fa9ad13561c",
+  "locale": "pl",
+  "content": "---\ntitle: Endpoint health\ndescription: Sonda liveness + readiness\n---\n\n# Endpoint health\n\nSonda liveness + readiness.\n\nTo jest element platformy, a nie modułu. Każda instancja Endora go udostępnia,\nponieważ jest instancją Endora: `@endora-commerce/platform` rejestruje trasę ze swojej\nwłasnej kompozycji aplikacji, więc nie ma nic do instalacji, nic do włączenia i nie ma\npolecenia, które mogłoby go usunąć. Kiedyś był modułem `health_checks`, co oznaczało, że\ninstancja ze scaffoldu — którego zestaw modułów wynika z modułów deklarujących się jako\nniewyłączalne — go nie miała, a kontener API nigdy nie stawał się zdrowy.\n\nTa strona znajduje się w drzewie samej witryny, a nie obok źródeł modułu, na precedencie\n[Cyklu życia modułu](../modules/lifecycle.md), którego temat jest również częścią pakietu\nplatformy.\n\n## Publiczne API\n\n| Verb + Path | Cel |\n| --- | --- |\n| `GET /api/v1/_health` | Zwraca `200` z JSON-em ze statusem dostępności Postgres, Redis i Meilisearch. Zwraca `503`, gdy któraś zależność jest niedostępna. |\n\n## Przypadki użycia\n\n- Sonda readiness/liveness orchestratora kontenerów.\n- Health check load balancera przy graceful drain.\n- Monitoring syntetyczny.\n\n## Punkty rozszerzenia\n\nDodaj nowe zależności do sondy, rozszerzając listę sprawdzeń w\n`packages/platform/src/http/health.ts`. Każda sonda powinna być tania (pojedynczy ping\n/ `SELECT 1`) i ograniczona czasowo (timeout ≤ 200 ms).\n",
+  "meta": {
+    "provider": "manual",
+    "updatedAt": "2026-09-25T07:26:27.068Z"
+  }
+}

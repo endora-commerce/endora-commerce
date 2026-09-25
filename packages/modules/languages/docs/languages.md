@@ -5,10 +5,10 @@ description: Pool of supported BCP-47 language tags + translation-fallback helpe
 
 # `languages`
 
-The installation-wide pool of supported BCP-47 language tags (T238 /
-FR-105). Owns the public `i18n/config` read path that storefront + admin
-consume to render their language pickers, plus a small
-`LocaleService` that implements the FR-105 translation-fallback rule.
+The installation-wide pool of supported BCP-47 language tags. Owns the
+public `i18n/config` read path that storefront + admin consume to render
+their language pickers, plus a small `LocaleService` that implements the
+translation-fallback rule.
 
 ## Public surface
 
@@ -21,15 +21,14 @@ consume to render their language pickers, plus a small
 | `DELETE /api/v1/admin/languages/:code` | admin | Remove (rejected for the default) |
 
 The currency catalogue has the same shape under `/api/v1/admin/currencies`, and
-those routes are **`currencies`'** — see [currencies](./currencies). They were
+those routes are **`currencies`'** — see [currencies](./currencies.md). They were
 registered here until 2026-08-29, on `catalog:write`, serving another module's
 table for no caller in this repository. What this module still composes is
 `GET /api/v1/i18n/config`, which answers with both catalogues and both defaults
 in one public payload and reads the currency half over `currencyReadPort`.
 
 The four admin language routes above enforce `catalog:write`. That is a
-neighbourhood claim of the same kind, has not been repaired, and is recorded in
-`specs/080-f4-real-scope/first-deployment-window.md` §2 rather than here.
+neighbourhood claim of the same kind and has not been repaired.
 
 ## Defaults
 
@@ -51,13 +50,13 @@ Migration 012 inserts two rows so quickstart works without an admin step:
 
 The customer-facing `label` and `symbol` (currencies) values are written
 with Postgres `U&'…'` Unicode literals so the migration source file stays
-ASCII-only (Constitution Principle VIII applies to engineering artifacts;
+ASCII-only (engineering artifacts stay English-only and ASCII-only;
 the runtime row reflects what the storefront should render).
 
 ## Translation-fallback (`LocaleService`)
 
 `LocaleService.pickLocalizedValue(record, requestedLocale, defaultLocale?)`
-implements the FR-105 lookup chain:
+implements the lookup chain:
 
 1. requested locale, if present in the record.
 2. configured default locale, if supplied and present.

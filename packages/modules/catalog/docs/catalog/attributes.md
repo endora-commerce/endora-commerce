@@ -56,7 +56,7 @@ Plus the behavioural flags and a numeric position:
 | `enum` | option `value` | Same storage shape as `select`; renders as a compact pill / segmented control on storefront filters and the PDP rather than a dropdown. |
 
 Changing `valueType` while any product carries a value the new type
-cannot represent is refused with `attribute_type_change_unsafe` (FR-007).
+cannot represent is refused with `attribute_type_change_unsafe`.
 
 ## Option lists
 
@@ -71,11 +71,10 @@ authored inline on the attribute editor. Each option carries:
 | `isDefault` | Optional pre-selection on new products. `select` / `enum` allow at most one; `multiselect` allows any number. |
 | `sortOrder` | Render order; ties broken by `value` ASC. |
 
-Option **values** are immutable while any product still carries them
-(FR-026) — the operator must migrate dependent values first. Option
-**labels** can always be renamed. Deleting an option is refused with
-`409 option_in_use` while any product still carries that value
-(FR-025).
+Option **values** are immutable while any product still carries them —
+the operator must migrate dependent values first. Option **labels** can
+always be renamed. Deleting an option is refused with
+`409 option_in_use` while any product still carries that value.
 
 ## Public surface
 
@@ -85,14 +84,14 @@ Admin routes are gated by `catalog:read` (list / get) /
 | Verb + Path | Audience | Purpose |
 | --- | --- | --- |
 | `GET /api/v1/admin/catalog/attributes` | admin | List attributes |
-| `GET /api/v1/admin/catalog/attributes/by-flag?flag=isPromoRule\|isComparable\|...` | admin | Picker payload — every attribute carrying the requested flag (US1) |
+| `GET /api/v1/admin/catalog/attributes/by-flag?flag=isPromoRule\|isComparable\|...` | admin | Picker payload — every attribute carrying the requested flag |
 | `GET /api/v1/admin/catalog/attributes/:idOrKey` | admin | Single attribute read |
 | `POST /api/v1/admin/catalog/attributes` | admin | Create attribute (accepts the flags + inline `options[]` for select-style types) |
 | `PATCH /api/v1/admin/catalog/attributes/:key` | admin | Update labels and hot-toggle `isFilterable` / `isSearchable` / `isVariantAxis` / `isPromoRule` / `isComparable` / `isVisibleOnProductPage` / `isRequired` / `filterPosition`. Re-emits `attribute.updated.v1`. |
 | `DELETE /api/v1/admin/catalog/attributes/:idOrKey` | admin | Delete; refused with `409 attribute_in_use_by_set` while any Attribute Set still references it |
 | `GET /api/v1/admin/catalog/attributes/:idOrKey/options` | admin | List option rows for select / enum / multiselect attributes |
 | `POST /api/v1/admin/catalog/attributes/:idOrKey/options` | admin | Append an option |
-| `PATCH /api/v1/admin/catalog/attribute-options/:optionId` | admin | Patch `label` / `labelDefault` / `isDefault` / `sortOrder` (option `value` is immutable per FR-026) |
+| `PATCH /api/v1/admin/catalog/attribute-options/:optionId` | admin | Patch `label` / `labelDefault` / `isDefault` / `sortOrder` (option `value` is immutable) |
 | `DELETE /api/v1/admin/catalog/attribute-options/:optionId` | admin | Remove; refused with `409 option_in_use` while any product still carries the value |
 
 Filter sidebar reads consume `GET /api/v1/catalog/filters` (defined on
@@ -115,7 +114,7 @@ them by `filterPosition`.
 
 ## Storefront integration
 
-### Filter sidebar (US5)
+### Filter sidebar
 
 Category and search pages render a chip per `isFilterable` attribute
 that has at least one value across the currently visible products.
@@ -123,7 +122,7 @@ Chips appear ordered by `filterPosition` ascending, ties broken
 alphabetically by the resolved per-locale label. Attributes with no
 values across the current page are omitted (no empty filter).
 
-### PDP "Parametry produktu" tab (US6)
+### PDP "Parametry produktu" tab
 
 Every PDP carries a `Parametry produktu` tab that lists every
 attribute meeting both:
@@ -135,7 +134,7 @@ For `select` / `multiselect` / `enum` values the tab renders the
 option's per-locale label, not the raw `value`. The detail payload
 field is assembled by `CatalogQueryService.buildVisibleAttributesProjection()`.
 
-### Search index (US7)
+### Search index
 
 Toggling `isSearchable` propagates into the Meilisearch indexer's
 payload on the next refresh cycle. Textual types (`string`, plus the
@@ -148,7 +147,7 @@ types feed range / exact-match filters.
 Comparison rows on the storefront Compare page list every attribute
 flagged `isComparable = true` for which at least one product in the
 comparison carries a value. The list is sourced via
-`CatalogQueryService.comparableAttributeKeys()` (feature 007).
+`CatalogQueryService.comparableAttributeKeys()`.
 
 ### Variant picker
 
@@ -158,7 +157,7 @@ assigned Attribute Set.
 
 ## Storage
 
-Since feature 061 (migration `102`) an attribute is split between the
+Since migration `102` an attribute is split between the
 generic Custom Fields layer that the `custom_fields` module owns and
 a catalog-owned extension row. The API shape above is unchanged — the
 admin surface composes the two back into the legacy form.
@@ -178,8 +177,8 @@ admin surface composes the two back into the legacy form.
 
 - Option rows keyed UNIQUE `(definition_id, value)` with per-locale
   `label`, `label_default`, `is_default`, `sort_order`. The
-  catalog-owned `attribute_options` table (feature 012, migration
-  `032`) was dropped by migration `102` after its rows moved here.
+  catalog-owned `attribute_options` table (migration `032`) was dropped
+  by migration `102` after its rows moved here.
 
 `product_attributes` (owned by `catalog`) — the 1:1 **extension**:
 
@@ -199,10 +198,10 @@ admin surface composes the two back into the legacy form.
   definition row is the single source of truth for them.
 
 `products.attribute_values jsonb` carries the per-product map keyed by
-attribute `key` (unchanged by feature 061 — values never moved).
+attribute `key`; the values themselves have never moved out of it.
 Values are retained server-side even when the attribute leaves the
-product's currently assigned Attribute Set (FR-012) — switching back
-surfaces them again.
+product's currently assigned Attribute Set — switching back surfaces
+them again.
 
 All attribute and option mutations flow through the catalog Commands
 behind `/catalog/attributes` — the generic Custom Fields admin surface
@@ -223,11 +222,12 @@ flipped which flag.
 ## Cross-module consumers
 
 Three methods on `CatalogQueryService` are the documented service
-ports per Constitution I:
+ports other modules call — a module never reaches into catalog
+internals:
 
-- `comparableAttributeKeys(): string[]` — feature 007 (Compare).
+- `comparableAttributeKeys(): string[]` — the storefront Compare page.
 - `promoRuleAttributeKeys(): string[]` + `getAttributeWithOptions(key)`
-  — feature 012 / US8 (Promotion Rule criterion picker and resolver).
+  — the Promotion Rule criterion picker and resolver.
 - `buildVisibleAttributesProjection()` — internal, used by the PDP
   detail response to assemble the `visibleAttributes[]` payload.
 

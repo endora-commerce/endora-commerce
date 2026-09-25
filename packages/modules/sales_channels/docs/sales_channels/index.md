@@ -19,7 +19,7 @@ The Sales Channels module is the platform's stable handle for "where the sale ha
 
 - **Attribution** — the M:1 relationship for Orders and Quote Requests. Each row is bound to exactly one channel at placement, and the binding is immutable for audit purposes.
 
-- **At-least-one-channel invariant (FR-008)** — every channel-scoped entity is bound to at least one channel at all times. Removing the last membership of an entity is refused unless the caller passes `fallbackToDefault=true`, in which case the entity is rebound to the system default in the same transaction.
+- **At-least-one-channel invariant** — every channel-scoped entity is bound to at least one channel at all times. Removing the last membership of an entity is refused unless the caller passes `fallbackToDefault=true`, in which case the entity is rebound to the system default in the same transaction.
 
 ## Resolver — request → channel
 
@@ -46,7 +46,7 @@ GET /api/v1/storefront/sales-channel
 
 which returns the **resolved** channel for the request — code, display name, language and currency scopes, `themeCode` and `logoUrl` — and no admin-only field (`id`, `active`, `systemDefault`, `version`). The storefront applies the theme server-side, on the first render, so the first HTML a buyer's browser parses already carries the channel's brand.
 
-The theme changes how the storefront looks, not what it is made of: every channel renders the same pages with the same components. A per-channel page *template* is a larger question and is measured, not answered, in `specs/storefront-composability-measure.md`.
+The theme changes how the storefront looks, not what it is made of: every channel renders the same pages with the same components. A per-channel page *template* is a larger question, and is deliberately not answered here.
 
 A channel configured with a theme code the storefront does not implement renders in the default theme and logs the code it was given. The page is never refused for a buyer, and no other theme is substituted by guesswork.
 
@@ -77,7 +77,7 @@ Both sides delegate to `SalesChannelMembershipService`, which is the single muta
 
 Hard-delete with `?fallbackToDefault=true` rebinds orphaned entities to the system default inside the same transaction before the channel row is removed; the bridge tables' `ON DELETE CASCADE` is the safety net for any membership that doesn't need explicit rebinding.
 
-## Audit trail (FR-019)
+## Audit trail
 
 Every identity change, lifecycle change, and membership change writes one `audit_log_entries` row synchronously inside the same transaction. The action codes live in `@endora-commerce/contracts` as `SALES_CHANNEL_AUDIT_ACTIONS`:
 

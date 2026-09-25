@@ -1,0 +1,248 @@
+{
+  "sidebar.main.category._i18n": {
+    "message": "Języki Admin UI"
+  },
+  "sidebar.main.category._lifecycle": {
+    "message": "Cykl życia modułu"
+  },
+  "sidebar.main.category.addresses": {
+    "message": "addresses"
+  },
+  "sidebar.main.category.admin-ui": {
+    "message": "Admin UI"
+  },
+  "sidebar.main.category.admin_actions": {
+    "message": "Admin Command Palette Actions"
+  },
+  "sidebar.main.category.admin_roles": {
+    "message": "admin_roles"
+  },
+  "sidebar.main.category.admin_users": {
+    "message": "admin_users"
+  },
+  "sidebar.main.category.analytics": {
+    "message": "analytics"
+  },
+  "sidebar.main.category.api-contracts": {
+    "message": "Kontrakty API"
+  },
+  "sidebar.main.category.api_keys": {
+    "message": "api_keys"
+  },
+  "sidebar.main.category.architecture": {
+    "message": "Architektura"
+  },
+  "sidebar.main.category.architecture.link.generated-index.title": {
+    "message": "Architektura"
+  },
+  "sidebar.main.category.assets_library": {
+    "message": "Assets Library"
+  },
+  "sidebar.main.category.audit_logs": {
+    "message": "audit_logs"
+  },
+  "sidebar.main.category.auth": {
+    "message": "auth"
+  },
+  "sidebar.main.category.autopay": {
+    "message": "Autopay"
+  },
+  "sidebar.main.category.blog": {
+    "message": "Blog"
+  },
+  "sidebar.main.category.carts": {
+    "message": "carts"
+  },
+  "sidebar.main.category.catalog": {
+    "message": "Katalog"
+  },
+  "sidebar.main.category.cms": {
+    "message": "CMS"
+  },
+  "sidebar.main.category.comarch_xl": {
+    "message": "Comarch ERP XL"
+  },
+  "sidebar.main.category.comparisons": {
+    "message": "Porównywanie produktów"
+  },
+  "sidebar.main.category.credentials": {
+    "message": "Credentials"
+  },
+  "sidebar.main.category.credit_limits": {
+    "message": "credit_limits"
+  },
+  "sidebar.main.category.currencies": {
+    "message": "currencies"
+  },
+  "sidebar.main.category.customer_accounts": {
+    "message": "customer_accounts"
+  },
+  "sidebar.main.category.customers": {
+    "message": "customers"
+  },
+  "sidebar.main.category.delivery_methods": {
+    "message": "delivery_methods"
+  },
+  "sidebar.main.category.deployment": {
+    "message": "Wdrożenie"
+  },
+  "sidebar.main.category.deployment.link.generated-index.title": {
+    "message": "Wdrożenie"
+  },
+  "sidebar.main.category.dhl_parcel": {
+    "message": "DHL Parcel"
+  },
+  "sidebar.main.category.dictionaries": {
+    "message": "Słownik"
+  },
+  "sidebar.main.category.google_analytics": {
+    "message": "Google Analytics"
+  },
+  "sidebar.main.category.google_tag_manager": {
+    "message": "Google Tag Manager"
+  },
+  "sidebar.main.category.import_export": {
+    "message": "import_export"
+  },
+  "sidebar.main.category.infakt": {
+    "message": "Infakt"
+  },
+  "sidebar.main.category.inpost": {
+    "message": "InPost"
+  },
+  "sidebar.main.category.integrations": {
+    "message": "Integracje"
+  },
+  "sidebar.main.category.integrations.link.generated-index.title": {
+    "message": "Integracje"
+  },
+  "sidebar.main.category.inventory": {
+    "message": "inventory"
+  },
+  "sidebar.main.category.invoice_ledger": {
+    "message": "Invoice ledger"
+  },
+  "sidebar.main.category.invoices": {
+    "message": "invoices"
+  },
+  "sidebar.main.category.ksef": {
+    "message": "KSeF"
+  },
+  "sidebar.main.category.languages": {
+    "message": "languages"
+  },
+  "sidebar.main.category.linkedin_ads": {
+    "message": "LinkedIn Ads"
+  },
+  "sidebar.main.category.megamenu": {
+    "message": "Megamenu"
+  },
+  "sidebar.main.category.meta_ads": {
+    "message": "Meta Ads"
+  },
+  "sidebar.main.category.modules": {
+    "message": "Moduły"
+  },
+  "sidebar.main.category.newsletter": {
+    "message": "newsletter"
+  },
+  "sidebar.main.category.operations": {
+    "message": "Operacje"
+  },
+  "sidebar.main.category.operations.link.generated-index.title": {
+    "message": "Operacje"
+  },
+  "sidebar.main.category.orders": {
+    "message": "orders"
+  },
+  "sidebar.main.category.organizations": {
+    "message": "organizations"
+  },
+  "sidebar.main.category.payment_methods": {
+    "message": "payment_methods"
+  },
+  "sidebar.main.category.payments": {
+    "message": "payments"
+  },
+  "sidebar.main.category.paypal": {
+    "message": "PayPal"
+  },
+  "sidebar.main.category.payu": {
+    "message": "PayU"
+  },
+  "sidebar.main.category.pim_akeneo": {
+    "message": "Akeneo PIM"
+  },
+  "sidebar.main.category.pim_ergonode": {
+    "message": "Ergonode PIM"
+  },
+  "sidebar.main.category.pim_pimcore": {
+    "message": "Pimcore PIM"
+  },
+  "sidebar.main.category.pim_unopim": {
+    "message": "UnoPim PIM"
+  },
+  "sidebar.main.category.price_lists": {
+    "message": "price_lists"
+  },
+  "sidebar.main.category.product_feeds": {
+    "message": "Product Feeds"
+  },
+  "sidebar.main.category.promotions": {
+    "message": "promotions"
+  },
+  "sidebar.main.category.prompt_actions": {
+    "message": "Prompt Actions (asystent AI)"
+  },
+  "sidebar.main.category.pwa": {
+    "message": "PWA (Progressive Web App)"
+  },
+  "sidebar.main.category.quick_order": {
+    "message": "quick_order"
+  },
+  "sidebar.main.category.quote_requests": {
+    "message": "quote_requests"
+  },
+  "sidebar.main.category.returns": {
+    "message": "returns"
+  },
+  "sidebar.main.category.runbooks": {
+    "message": "Runbooki"
+  },
+  "sidebar.main.category.runbooks.link.generated-index.title": {
+    "message": "Runbooki"
+  },
+  "sidebar.main.category.sales_channels": {
+    "message": "Sales channels"
+  },
+  "sidebar.main.category.search": {
+    "message": "search"
+  },
+  "sidebar.main.category.seo": {
+    "message": "seo"
+  },
+  "sidebar.main.category.settings": {
+    "message": "Settings"
+  },
+  "sidebar.main.category.shipments": {
+    "message": "shipments"
+  },
+  "sidebar.main.category.shopping_lists": {
+    "message": "shopping_lists"
+  },
+  "sidebar.main.category.taxes": {
+    "message": "taxes"
+  },
+  "sidebar.main.category.tpay": {
+    "message": "TPay"
+  },
+  "sidebar.main.category.transactional_emails": {
+    "message": "transactional_emails"
+  },
+  "sidebar.main.category.webhooks": {
+    "message": "webhooks"
+  },
+  "sidebar.main.category.wfirma": {
+    "message": "wFirma"
+  }
+}

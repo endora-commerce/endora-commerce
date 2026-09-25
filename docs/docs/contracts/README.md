@@ -5,17 +5,16 @@ title: API contracts
 
 # API contracts
 
-The platform exposes a single, documented HTTP surface (Constitution
-Principle II — API-First). The API is described in two complementary
-places:
+The platform exposes a single, documented HTTP surface, API-first. The
+API is described in two complementary places:
 
 1. **The live OpenAPI document** at `GET /api/v1/_openapi.json`
    (HTML viewer at `GET /api/v1/_docs`). This is the **source of truth**
    for the runtime — generated at startup from the Zod schemas in
    `@endora-commerce/contracts` that Fastify itself validates against, so it cannot
    drift from the running server.
-2. **Per-domain contract stubs** in
-   [`specs/001-b2b-platform-foundation/contracts/`](https://github.com/)
+2. **Per-domain contract stubs**, listed under
+   [Contract stubs](#contract-stubs) below
    — these document the *intent* of each surface in human terms (status
    codes, error envelopes, lifecycle constraints) and predate the
    running implementation. They remain the authoritative reference for

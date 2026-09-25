@@ -5,11 +5,11 @@ description: CLI-driven install / uninstall / enable / disable / status for ever
 
 # Module Lifecycle
 
-Platform-internal subsystem (feature 018) that turns every backend module into a first-class lifecycle citizen: declarative manifest, dependency graph, install / uninstall / enable / disable / status, persisted registry, transactional install with migration rollback, and a per-process enabled-set cache — refreshed over Redis pub/sub — that gates HTTP routes, BullMQ workers, and event subscribers without restarting the process.
+Platform-internal subsystem that turns every backend module into a first-class lifecycle citizen: declarative manifest, dependency graph, install / uninstall / enable / disable / status, persisted registry, transactional install with migration rollback, and a per-process enabled-set cache — refreshed over Redis pub/sub — that gates HTTP routes, BullMQ workers, and event subscribers without restarting the process.
 
-The subsystem itself lives at `packages/platform/src/lifecycle/` — inside the host package, not in a module folder. It is the one registered module the packaging sweep does not turn into a package of its own (feature 080, D-160.11): the lifecycle machinery is the platform's operator half, so it ships with `@endora-commerce/platform` to every instance that installs the platform at all, rather than being a separate package an instance could be missing. Its module id is still `_lifecycle`, and the leading underscore still marks it as platform-internal; every other backend module opts in by exporting a `manifest` constant from its `manifest.ts`.
+The subsystem itself lives at `packages/platform/src/lifecycle/` — inside the host package, not in a module folder. It is the one registered module the packaging sweep does not turn into a package of its own: the lifecycle machinery is the platform's operator half, so it ships with `@endora-commerce/platform` to every instance that installs the platform at all, rather than being a separate package an instance could be missing. Its module id is still `_lifecycle`, and the leading underscore still marks it as platform-internal; every other backend module opts in by exporting a `manifest` constant from its `manifest.ts`.
 
-What stays in the application, at `backend/src/lifecycle/`, is the wiring an instance must own anyway, and it stays for a reason rather than as residue (feature 115, D-207). The **manifest-registry binding** (`registered-manifests.ts`) hands the platform's deriver three things the platform cannot see — this tree's generated manifest index, the deployment's overlay tree and the instance's installed packages — as a parameter rather than as a reach; and each of the five `module:*` commands keeps a twenty-line entry point that opens *this* instance's ORM and Redis and calls the body. The bodies, the argv grammar and the exit-code table are in the package. The deployment's divergence **reader** sits beside the rest of the overlay machinery at `backend/src/overlay/divergence-loader.ts`, because the path it composes is in the deployment tree, which belongs to the client; the platform holds the declaration's *parser* and receives the parsed value.
+What stays in the application, at `backend/src/lifecycle/`, is the wiring an instance must own anyway, and it stays for a reason rather than as residue. The **manifest-registry binding** (`registered-manifests.ts`) hands the platform's deriver three things the platform cannot see — this tree's generated manifest index, the deployment's overlay tree and the instance's installed packages — as a parameter rather than as a reach; and each of the five `module:*` commands keeps a twenty-line entry point that opens *this* instance's ORM and Redis and calls the body. The bodies, the argv grammar and the exit-code table are in the package. The deployment's divergence **reader** sits beside the rest of the overlay machinery at `backend/src/overlay/divergence-loader.ts`, because the path it composes is in the deployment tree, which belongs to the client; the platform holds the declaration's *parser* and receives the parsed value.
 
 Everything else the application used to name at an old path it now names at `@endora-commerce/platform/lifecycle`. That subpath is **declared and not published**: `node` and `tsc` resolve it for the host, its entry points and the test tree, no published barrel carries it, and `check:platform-surface` reports a module naming it as `host-internal-subpath`. A module that could name this surface could install, uninstall, enable or disable its siblings.
 
@@ -19,7 +19,7 @@ Everything else the application used to name at an old path it now names at `@en
 | --- | --- |
 | `GET /api/v1/admin/modules` | Read-only listing of every module's id, state (`installing` / `installed` / `disabled` / `uninstalled` / `not-installed`), version (registered vs on-disk), declared dependencies, and any flags (`orphan`, `pending-upgrade`, `dep-missing`, `dep-disabled`). Permission: `platform.modules.read`. |
 
-Mutating operations (install, uninstall, enable, disable) are intentionally CLI-only in v1 — see `contracts/admin-http.md` for the deferred E-2 spec.
+Mutating operations (install, uninstall, enable, disable) are intentionally CLI-only in v1.
 
 ## CLI commands
 
@@ -33,7 +33,7 @@ pnpm --filter backend run module:disable <id> [--cascade] [--json]
 pnpm --filter backend run module:status [<id>] [--filter=<state>] [--json]
 ```
 
-Exit-code contract (per `contracts/cli-commands.md`):
+Exit-code contract:
 
 | Code | Meaning |
 | --- | --- |
@@ -104,10 +104,10 @@ Manifest fields:
 - `version` (required, string) — semver-lite (`MAJOR.MINOR.PATCH` plus optional `-prerelease` suffix).
 - `dependencies` (required, string array) — module ids the platform needs installed before this one. Validated against the manifest registry at boot.
 - `license` (optional, enum `'core' | 'pro' | 'enterprise'`) — reserved for future edition gating; declared and audited but not enforced in v1.
-- `settings` (optional) — feature 004's `ModuleSettingsManifest` shape; the lifecycle's install path runs the existing settings reconciler over it.
-- `i18n` (optional) — feature 019's `{ bundlesDir: string }` shape; when present, the install path reads `<modulePath>/<bundlesDir>/<lang>.json` for every supported Admin UI language and UPSERTs the bundle into `translation_bundles`. Soft-uninstall preserves bundles; hard-uninstall removes them.
-- `actions` (optional) — feature 020's `ModuleAction[]` shape; an inline list of command-palette action declarations (id, label key, icon, target route, optional required-permission, weight, keywords). The install path UPSERTs every declared action into `module_actions` and prunes any rows the new manifest no longer declares; hard-uninstall removes them. See the [Admin Command Palette Actions](./admin-actions) module page for the full schema and operator-side behaviour.
-- `permissions` (optional) — feature 026's assignable admin-role codes for this module. Each entry `{ code, label, module? }` is merged into `GET /api/v1/admin/permissions` when the module is enabled. Every `requireAdmin('…')` literal on the module's admin routes must appear here (or in core `PERMISSION_CATALOGUE` for shared codes). CI enforces this via `permission-inventory.test.ts`. See `specs/026-admin-roles-permissions/contracts/module-manifest-permissions.md`.
+- `settings` (optional) — the `ModuleSettingsManifest` shape; the lifecycle's install path runs the existing settings reconciler over it.
+- `i18n` (optional) — the `{ bundlesDir: string }` shape; when present, the install path reads `<modulePath>/<bundlesDir>/<lang>.json` for every supported Admin UI language and UPSERTs the bundle into `translation_bundles`. Soft-uninstall preserves bundles; hard-uninstall removes them.
+- `actions` (optional) — the `ModuleAction[]` shape; an inline list of command-palette action declarations (id, label key, icon, target route, optional required-permission, weight, keywords). The install path UPSERTs every declared action into `module_actions` and prunes any rows the new manifest no longer declares; hard-uninstall removes them. See the [Admin Command Palette Actions](./admin-actions.md) module page for the full schema and operator-side behaviour.
+- `permissions` (optional) — the assignable admin-role codes for this module. Each entry `{ code, label, module? }` is merged into `GET /api/v1/admin/permissions` when the module is enabled. Every `requireAdmin('…')` literal on the module's admin routes must appear here (or in core `PERMISSION_CATALOGUE` for shared codes). CI enforces this via `permission-inventory.test.ts`.
 
 ## Lifecycle state machine
 
@@ -148,7 +148,7 @@ When a module is disabled the platform inactivates three layers via wrappers:
 2. **BullMQ workers** registered through `defineModuleWorker(moduleId, worker)` — paused on disable, resumed on enable.
 3. **Event subscribers** registered through `subscribeForModule(moduleId, bus, event, handler)` — handler is a no-op when the module is disabled.
 
-The refused module is named in `details.module` on **every** `MODULE_DISABLED` response, not only the route gate: the id travels on `ModuleDisabledError` itself, so a port resolution and a `requireModuleEnabled` call answer the same shape. It has to be `details` rather than a field beside `code`, because the error envelope replaces an operator-visible message with the registered sentence for its **code**, and `MODULE_DISABLED` is one code for every gated port in the platform — the module id is what turns "Module Disabled." into a sentence an operator can act on, and `errors.MODULE_DISABLED` interpolates `{module}` out of exactly that detail (issue #161).
+The refused module is named in `details.module` on **every** `MODULE_DISABLED` response, not only the route gate: the id travels on `ModuleDisabledError` itself, so a port resolution and a `requireModuleEnabled` call answer the same shape. It has to be `details` rather than a field beside `code`, because the error envelope replaces an operator-visible message with the registered sentence for its **code**, and `MODULE_DISABLED` is one code for every gated port in the platform — the module id is what turns "Module Disabled." into a sentence an operator can act on, and `errors.MODULE_DISABLED` interpolates `{module}` out of exactly that detail.
 
 The enabled set is cached per process and refreshed via Redis pub/sub on the `b2b:module:state-changed` channel; cache lookups are O(1) in-memory (~50 µs).
 
@@ -231,7 +231,7 @@ The `<YYYYMMDDTHHmmss>` prefix is a UTC timestamp, not a sequence number; the cl
 ### 4. Register the module
 
 There is nothing to hand-edit. `backend/src/manifest-index.generated.ts` is
-**generated** (feature 072): every module directory that exports a lifecycle-shape
+**generated**: every module directory that exports a lifecycle-shape
 `manifest.ts` is discovered by the tree walk, together with its optional `installHook` /
 `uninstallHook` exports. It is the only file that imports a manifest —
 `registered-manifests.ts` derives `REGISTERED_MANIFESTS` from it, so there is one generated
@@ -295,8 +295,7 @@ paths, so the relative specifier this step used to show
 package — and the bare spelling does not rescue it, because
 `defineModuleRoutes`, `defineModuleWorker`, `subscribeForModule`,
 `pauseWorkersFor` and `resumeWorkersFor` are **not** exported from the
-`./kernel` barrel. That is a decision recorded in the barrel itself and in
-`specs/080-f4-real-scope/contracts/host-package.md` §1.4c, which classifies the
+`./kernel` barrel. That is a decision recorded in the barrel itself, which classifies the
 worker and subscription wrappers as application-only: publishing them would
 re-open by bare specifier the seam `check:subscribe-seam` closed by relative
 path. An import naming one fails `tsc` and is reported by
@@ -306,7 +305,7 @@ The one wrapper the barrel does publish is `requireModuleEnabled`, for an entry
 point that has **no port and no request**. It is not the escape hatch for a
 module: its single call site in the tree is the platform's own
 `cli/module-commands.ts`, published host-internally as
-`@endora-commerce/platform/cli` (`specs/110-instance-repository/` T117) and reached by
+`@endora-commerce/platform/cli` and reached by
 the application through a re-export shim at `backend/src/cli/module-commands.ts`,
 where the **host** asks about the module that declared the operator command it is
 about to run, once, before it builds a context. A `cliCommands` handler receives
@@ -334,7 +333,7 @@ done in 380 ms
 
 ### 7. Author tests
 
-Per Constitution Principle III (TDD, NON-NEGOTIABLE), every module ships with unit + contract + integration tests. The lifecycle subsystem provides ready-to-use fixture helpers in `backend/test/fixtures/manifests/{basic-graph,cyclic-graph,deep-graph}/` for testing the manifest schema and dep graph.
+Test-driven development is non-negotiable: every module ships with unit + contract + integration tests. The lifecycle subsystem provides ready-to-use fixture helpers in `backend/test/fixtures/manifests/{basic-graph,cyclic-graph,deep-graph}/` for testing the manifest schema and dep graph.
 
 ## Extension points
 
@@ -349,10 +348,10 @@ If a lifecycle command exits 75 ("lock-busy") repeatedly, a previous run may hav
 redis-cli get b2b:module:lifecycle:lock
 ```
 
-If the value is older than five minutes, the lock has expired — repeated 75 errors with a stale Redis key indicate a stuck `state='installing'` row in `module_registrations`. Inspect with `pnpm module:status` and follow the recovery steps in [Stuck Module-Lifecycle Lock](../operations/runbooks/module-lifecycle-stuck-lock).
+If the value is older than five minutes, the lock has expired — repeated 75 errors with a stale Redis key indicate a stuck `state='installing'` row in `module_registrations`. Inspect with `pnpm module:status` and follow the recovery steps in [Stuck Module-Lifecycle Lock](../operations/runbooks/module-lifecycle-stuck-lock.md).
 
 ## Tests
 
 - Unit: `backend/test/unit/_lifecycle/{dep-graph,manifest-loader,manifest-schema.zod,lock,registry-cache}.test.ts`.
 - Contract: `backend/test/contract/_lifecycle/{cli-install,cli-uninstall,cli-enable,cli-disable,cli-status,manifest-schema}.contract.test.ts`.
-- Integration (require live Postgres + Redis): authored under `backend/test/integration/_lifecycle/` per the spec but executed in environments where the dev DB is up.
+- Integration (require live Postgres + Redis): authored under `backend/test/integration/_lifecycle/` but executed in environments where the dev DB is up.
