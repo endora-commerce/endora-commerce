@@ -216,9 +216,10 @@ function reverseEdgeAnalysis(input: {
 
 /**
  * States in which "no finding" would be a statement about the walk rather than
- * about the tree (issue #113). Zero matched sites is one: 14 `add column` sites
- * on foreign tables existed when this guard was written, so a recogniser that
- * matches none has broken, not been satisfied.
+ * about the tree (issue #113). Zero matched sites is one: 22 `add column` sites
+ * on foreign tables, in 9 files, existed when this guard was written (D14 §3 as
+ * corrected by D15), so a recogniser that matches none has broken, not been
+ * satisfied.
  */
 function reverseEdgeRefusals(input: {
   readonly migrations: readonly MigrationText[];
