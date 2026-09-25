@@ -7,7 +7,7 @@ sidebar_label: Admin UI Translations
 
 # Admin UI Translations
 
-This page covers **Admin UI** string bundles only (`packages/modules/*/i18n/`).
+This page covers **Admin UI** string bundles only (each module's own `i18n/` directory).
 The **documentation site** (`docs/`) uses a separate manual bilingual workflow
 — cache entries, materialised markdown under `docs/i18n/pl/`, and
 `check:docs-translations`. See

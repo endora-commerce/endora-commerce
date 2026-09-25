@@ -44,7 +44,6 @@ przypadkiem zostało napisane.
 | [customer_accounts](./customer_accounts.md) | Logowanie klienta, reset hasła, 2FA, przypisanie roli | @endora-commerce/mod-customer-accounts |
 | [customers](./customers.md) | Cykl życia klienta nad `customer_accounts` — organizacje firmowe i osobiste, przypisanie handlowca i powierzchnia klienta w adminie | @endora-commerce/mod-customers |
 | [delivery_methods](./delivery_methods.md) | Skonfigurowane opcje dostawy | @endora-commerce/mod-delivery-methods |
-| [DHL Parcel](./dhl_parcel.md) | Wysyłka DHL eCommerce Poland (DHL24) — adaptery kurier do drzwi i punkt odbioru, etykiety i tracking | @endora-commerce/mod-dhl-parcel |
 | [Dictionary](./dictionaries/index.md) | Dane referencyjne seedowane — Kraje, Waluty, Języki — z reorderingiem w adminie | @endora-commerce/mod-dictionaries |
 | `email` | _brak strony_ | @endora-commerce/mod-email |
 | `erp_connector` | _brak strony_ | @endora-commerce/mod-erp-connector |
@@ -52,7 +51,6 @@ przypadkiem zostało napisane.
 | [Google Tag Manager](./google-tag-manager.md) | Kontenery Google Tag Manager per kanał sprzedaży, z udokumentowanym commerce dataLayer i opcjonalnym relay po stronie serwera | @endora-commerce/mod-google-tag-manager |
 | [import_export](./import_export.md) | Import / eksport CSV dla encji bulk-edit | @endora-commerce/mod-import-export |
 | [Infakt](./infakt.md) | Cienki adapter Infakt na księdze faktur — poświadczenia, kopia VAT, webhooki i opcjonalny vendor KSeF. | @endora-commerce/mod-infakt |
-| [InPost](./inpost.md) | Wysyłka InPost ShipX (Geowidget paczkomatu + kurier, etykiety PDF) | @endora-commerce/mod-inpost |
 | [inventory](./inventory.md) | Poziomy stanów, rezerwacje, powiadomienia o dostępności | @endora-commerce/mod-inventory |
 | [Invoice ledger](./invoice-ledger.md) | Wspólny mutex dostawcy, numeracja i routing KSeF oraz trwałe dostarczenia faktur dla adapterów księgi. | @endora-commerce/mod-invoice-ledger |
 | [invoices](./invoices.md) | Generowanie PDF faktury / proformy + powiązanie z assetami | @endora-commerce/mod-invoices |
@@ -93,4 +91,3 @@ przypadkiem zostało napisane.
 | [TPay](./tpay.md) | Bramka płatności TPay (BLIK, karty, przelewy) | @endora-commerce/mod-tpay |
 | [transactional_emails](./transactional-emails.md) | E-maile transakcyjne edytowalne w adminie — temat, treść i wygląd, globalnie i per kanał sprzedaży | @endora-commerce/mod-transactional-emails |
 | [webhooks](./webhooks.md) | Subskrypcje zdarzeń wychodzących podpisane HMAC | @endora-commerce/mod-webhooks |
-| [wFirma](./wfirma.md) | Cienki adapter wFirma na księdze faktur — poświadczenia, synchroniczna kopia VAT, webhooki i opcjonalny vendor KSeF. | @endora-commerce/mod-wfirma |
