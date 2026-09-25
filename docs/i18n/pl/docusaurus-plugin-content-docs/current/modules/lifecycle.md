@@ -5,11 +5,11 @@ description: Sterowane z CLI install / uninstall / enable / disable / status dla
 
 # Module Lifecycle
 
-Podsystem wewnętrzny platformy (feature 018), który zmienia każdy moduł backendu w pełnoprawnego obywatela cyklu życia: deklaratywny manifest, graf zależności, install / uninstall / enable / disable / status, trwały rejestr, transakcyjna instalacja z rollbackiem migracji oraz cache zbioru włączonych modułów per proces — odświeżany przez Redis pub/sub — który bramkuje trasy HTTP, workery BullMQ i subskrybentów zdarzeń bez restartu procesu.
+Podsystem wewnętrzny platformy, który zmienia każdy moduł backendu w pełnoprawnego obywatela cyklu życia: deklaratywny manifest, graf zależności, install / uninstall / enable / disable / status, trwały rejestr, transakcyjna instalacja z rollbackiem migracji oraz cache zbioru włączonych modułów per proces — odświeżany przez Redis pub/sub — który bramkuje trasy HTTP, workery BullMQ i subskrybentów zdarzeń bez restartu procesu.
 
-Sam podsystem mieszka w `packages/platform/src/lifecycle/` — wewnątrz pakietu hosta, nie w katalogu modułu. To jedyny zarejestrowany moduł, którego sweep pakowania nie zamienia w osobny pakiet (feature 080, D-160.11): maszyneria cyklu życia jest operatorską połową platformy, więc podróżuje z `@endora-commerce/platform` do każdej instancji, która w ogóle instaluje platformę, zamiast być osobnym pakietem, którego instancji mogłoby brakować. Jej id modułu to nadal `_lifecycle`, a wiodący podkreślnik nadal oznacza ją jako wewnętrzną dla platformy; każdy inny moduł backendu włącza się, eksportując stałą `manifest` ze swojego `manifest.ts`.
+Sam podsystem mieszka w `packages/platform/src/lifecycle/` — wewnątrz pakietu hosta, nie w katalogu modułu. To jedyny zarejestrowany moduł, którego sweep pakowania nie zamienia w osobny pakiet: maszyneria cyklu życia jest operatorską połową platformy, więc podróżuje z `@endora-commerce/platform` do każdej instancji, która w ogóle instaluje platformę, zamiast być osobnym pakietem, którego instancji mogłoby brakować. Jej id modułu to nadal `_lifecycle`, a wiodący podkreślnik nadal oznacza ją jako wewnętrzną dla platformy; każdy inny moduł backendu włącza się, eksportując stałą `manifest` ze swojego `manifest.ts`.
 
-Tym, co zostaje w aplikacji, w `backend/src/lifecycle/`, jest okablowanie, które instancja i tak musi posiadać — i zostaje z powodu, a nie jako osad (feature 115, D-207). **Wiązanie manifest–rejestr** (`registered-manifests.ts`) podaje deriverowi platformy trzy rzeczy, których platforma nie widzi — wygenerowany indeks manifestów tego drzewa, drzewo overlay danego wdrożenia i zainstalowane pakiety instancji — jako parametr, a nie jako sięgnięcie; a każda z pięciu komend `module:*` zachowuje dwudziestolinijkowy punkt wejścia, który otwiera ORM i Redis *tej* instancji i woła ciało komendy. Ciała, gramatyka argv i tabela kodów wyjścia są w pakiecie. **Czytnik** rozbieżności wdrożenia siedzi obok reszty maszynerii overlay w `backend/src/overlay/divergence-loader.ts`, bo ścieżka, którą składa, jest w drzewie wdrożenia, a to należy do klienta; platforma trzyma *parser* deklaracji i otrzymuje sparsowaną wartość.
+Tym, co zostaje w aplikacji, w `backend/src/lifecycle/`, jest okablowanie, które instancja i tak musi posiadać — i zostaje z powodu, a nie jako osad. **Wiązanie manifest–rejestr** (`registered-manifests.ts`) podaje deriverowi platformy trzy rzeczy, których platforma nie widzi — wygenerowany indeks manifestów tego drzewa, drzewo overlay danego wdrożenia i zainstalowane pakiety instancji — jako parametr, a nie jako sięgnięcie; a każda z pięciu komend `module:*` zachowuje dwudziestolinijkowy punkt wejścia, który otwiera ORM i Redis *tej* instancji i woła ciało komendy. Ciała, gramatyka argv i tabela kodów wyjścia są w pakiecie. **Czytnik** rozbieżności wdrożenia siedzi obok reszty maszynerii overlay w `backend/src/overlay/divergence-loader.ts`, bo ścieżka, którą składa, jest w drzewie wdrożenia, a to należy do klienta; platforma trzyma *parser* deklaracji i otrzymuje sparsowaną wartość.
 
 Wszystko inne, co aplikacja nazywała kiedyś starą ścieżką, nazywa teraz przez `@endora-commerce/platform/lifecycle`. Ta podścieżka jest **zadeklarowana, ale nieopublikowana**: `node` i `tsc` rozwiązują ją dla hosta, jego punktów wejścia i drzewa testów, żadna opublikowana beczka jej nie niesie, a `check:platform-surface` zgłasza moduł, który ją nazwie, jako `host-internal-subpath`. Moduł, który mógłby nazwać tę powierzchnię, mógłby instalować, odinstalowywać, włączać i wyłączać swoje rodzeństwo.
 
@@ -19,7 +19,7 @@ Wszystko inne, co aplikacja nazywała kiedyś starą ścieżką, nazywa teraz pr
 | --- | --- |
 | `GET /api/v1/admin/modules` | Lista tylko do odczytu: id każdego modułu, stan (`installing` / `installed` / `disabled` / `uninstalled` / `not-installed`), wersja (zarejestrowana kontra ta na dysku), zadeklarowane zależności oraz ewentualne flagi (`orphan`, `pending-upgrade`, `dep-missing`, `dep-disabled`). Uprawnienie: `platform.modules.read`. |
 
-Operacje modyfikujące (install, uninstall, enable, disable) są w v1 celowo dostępne wyłącznie z CLI — patrz `contracts/admin-http.md` i odroczona specyfikacja E-2.
+Operacje modyfikujące (install, uninstall, enable, disable) są w v1 celowo dostępne wyłącznie z CLI.
 
 ## Komendy CLI
 
@@ -33,7 +33,7 @@ pnpm --filter backend run module:disable <id> [--cascade] [--json]
 pnpm --filter backend run module:status [<id>] [--filter=<state>] [--json]
 ```
 
-Kontrakt kodów wyjścia (wg `contracts/cli-commands.md`):
+Kontrakt kodów wyjścia:
 
 | Kod | Znaczenie |
 | --- | --- |
@@ -105,10 +105,10 @@ Pola manifestu:
 - `version` (wymagane, string) — semver-lite (`MAJOR.MINOR.PATCH` plus opcjonalny sufiks `-prerelease`).
 - `dependencies` (wymagane, tablica stringów) — id modułów, które platforma musi mieć zainstalowane przed tym. Walidowane względem rejestru manifestów przy starcie.
 - `license` (opcjonalne, enum `'core' | 'pro' | 'enterprise'`) — zarezerwowane pod przyszłe bramkowanie edycji; deklarowane i audytowane, ale w v1 nieegzekwowane.
-- `settings` (opcjonalne) — kształt `ModuleSettingsManifest` z feature 004; ścieżka instalacji cyklu życia uruchamia na nim istniejący reconciler ustawień.
-- `i18n` (opcjonalne) — kształt `{ bundlesDir: string }` z feature 019; gdy jest obecny, ścieżka instalacji czyta `<modulePath>/<bundlesDir>/<lang>.json` dla każdego wspieranego języka Admin UI i robi UPSERT paczki do `translation_bundles`. Miękki uninstall zachowuje paczki; twardy je usuwa.
-- `actions` (opcjonalne) — kształt `ModuleAction[]` z feature 020; wbudowana lista deklaracji akcji palety poleceń (id, klucz etykiety, ikona, trasa docelowa, opcjonalne wymagane uprawnienie, waga, słowa kluczowe). Ścieżka instalacji robi UPSERT każdej zadeklarowanej akcji do `module_actions` i przycina wiersze, których nowy manifest już nie deklaruje; twardy uninstall je usuwa. Pełny schemat i zachowanie po stronie operatora opisuje strona modułu [Admin Command Palette Actions](./admin-actions.md).
-- `permissions` (opcjonalne) — przypisywalne kody ról administracyjnych tego modułu, z feature 026. Każdy wpis `{ code, label, module? }` jest scalany do `GET /api/v1/admin/permissions`, gdy moduł jest włączony. Każdy literał `requireAdmin('…')` na trasach administracyjnych modułu musi tu wystąpić (albo w rdzeniowym `PERMISSION_CATALOGUE` dla kodów współdzielonych). CI egzekwuje to przez `permission-inventory.test.ts`. Patrz `specs/026-admin-roles-permissions/contracts/module-manifest-permissions.md`.
+- `settings` (opcjonalne) — kształt `ModuleSettingsManifest`; ścieżka instalacji cyklu życia uruchamia na nim istniejący reconciler ustawień.
+- `i18n` (opcjonalne) — kształt `{ bundlesDir: string }`; gdy jest obecny, ścieżka instalacji czyta `<modulePath>/<bundlesDir>/<lang>.json` dla każdego wspieranego języka Admin UI i robi UPSERT paczki do `translation_bundles`. Miękki uninstall zachowuje paczki; twardy je usuwa.
+- `actions` (opcjonalne) — kształt `ModuleAction[]`; wbudowana lista deklaracji akcji palety poleceń (id, klucz etykiety, ikona, trasa docelowa, opcjonalne wymagane uprawnienie, waga, słowa kluczowe). Ścieżka instalacji robi UPSERT każdej zadeklarowanej akcji do `module_actions` i przycina wiersze, których nowy manifest już nie deklaruje; twardy uninstall je usuwa. Pełny schemat i zachowanie po stronie operatora opisuje strona modułu [Admin Command Palette Actions](./admin-actions.md).
+- `permissions` (opcjonalne) — przypisywalne kody ról administracyjnych tego modułu. Każdy wpis `{ code, label, module? }` jest scalany do `GET /api/v1/admin/permissions`, gdy moduł jest włączony. Każdy literał `requireAdmin('…')` na trasach administracyjnych modułu musi tu wystąpić (albo w rdzeniowym `PERMISSION_CATALOGUE` dla kodów współdzielonych). CI egzekwuje to przez `permission-inventory.test.ts`.
 
 ## Maszyna stanów cyklu życia
 
@@ -149,7 +149,7 @@ Gdy moduł jest wyłączony, platforma dezaktywuje trzy warstwy przez wrappery:
 2. **Workery BullMQ** zarejestrowane przez `defineModuleWorker(moduleId, worker)` — pauzowane przy disable, wznawiane przy enable.
 3. **Subskrybenci zdarzeń** zarejestrowani przez `subscribeForModule(moduleId, bus, event, handler)` — handler jest no-opem, gdy moduł jest wyłączony.
 
-Odmówiony moduł jest nazwany w `details.module` w **każdej** odpowiedzi `MODULE_DISABLED`, nie tylko na bramce tras: id podróżuje na samym `ModuleDisabledError`, więc rozwiązanie portu i wywołanie `requireModuleEnabled` odpowiadają tym samym kształtem. Musi to być `details`, a nie pole obok `code`, ponieważ koperta błędu zastępuje widoczny dla operatora komunikat zarejestrowanym zdaniem dla jego **kodu**, a `MODULE_DISABLED` to jeden kod dla każdego bramkowanego portu w platformie — to id modułu zamienia „Module Disabled.” w zdanie, na które operator może zareagować, a `errors.MODULE_DISABLED` interpoluje `{module}` dokładnie z tego szczegółu (issue #161).
+Odmówiony moduł jest nazwany w `details.module` w **każdej** odpowiedzi `MODULE_DISABLED`, nie tylko na bramce tras: id podróżuje na samym `ModuleDisabledError`, więc rozwiązanie portu i wywołanie `requireModuleEnabled` odpowiadają tym samym kształtem. Musi to być `details`, a nie pole obok `code`, ponieważ koperta błędu zastępuje widoczny dla operatora komunikat zarejestrowanym zdaniem dla jego **kodu**, a `MODULE_DISABLED` to jeden kod dla każdego bramkowanego portu w platformie — to id modułu zamienia „Module Disabled.” w zdanie, na które operator może zareagować, a `errors.MODULE_DISABLED` interpoluje `{module}` dokładnie z tego szczegółu.
 
 Zbiór włączonych modułów jest cache'owany per proces i odświeżany przez Redis pub/sub na kanale `b2b:module:state-changed`; odczyty z cache są O(1) w pamięci (~50 µs).
 
@@ -232,7 +232,7 @@ Prefiks `<YYYYMMDDTHHmmss>` to znacznik czasu UTC, nie numer w sekwencji; nazwa 
 ### 4. Zarejestruj moduł
 
 Nie ma tu nic do ręcznej edycji. `backend/src/manifest-index.generated.ts` jest
-**generowany** (feature 072): każdy katalog modułu, który eksportuje `manifest.ts` w kształcie
+**generowany**: każdy katalog modułu, który eksportuje `manifest.ts` w kształcie
 cyklu życia, jest odnajdywany przez przejście po drzewie, razem z opcjonalnymi eksportami
 `installHook` / `uninstallHook`. To jedyny plik, który importuje manifest —
 `registered-manifests.ts` wyprowadza z niego `REGISTERED_MANIFESTS`, więc jest jeden
@@ -296,8 +296,7 @@ odradzane.** `@endora-commerce/platform` publikuje pięć podścieżek i żadnyc
 — a zapis bare go nie ratuje, bo
 `defineModuleRoutes`, `defineModuleWorker`, `subscribeForModule`,
 `pauseWorkersFor` i `resumeWorkersFor` **nie** są eksportowane z beczki
-`./kernel`. To decyzja zapisana w samej beczce i w
-`specs/080-f4-real-scope/contracts/host-package.md` §1.4c, która klasyfikuje
+`./kernel`. To decyzja zapisana w samej beczce, która klasyfikuje
 wrappery workera i subskrypcji jako przeznaczone wyłącznie dla aplikacji: ich publikacja
 otworzyłaby ponownie, przez specyfikator bare, szew, który `check:subscribe-seam` zamknął
 po ścieżce relatywnej. Import nazywający któryś z nich wywala `tsc` i jest raportowany przez
@@ -307,7 +306,7 @@ Jedynym wrapperem, który beczka publikuje, jest `requireModuleEnabled`, dla pun
 wejścia, który **nie ma portu i nie ma żądania**. Nie jest to furtka dla
 modułu: jego jedyne miejsce wywołania w drzewie to własne
 `cli/module-commands.ts` platformy, publikowane host-wewnętrznie jako
-`@endora-commerce/platform/cli` (`specs/110-instance-repository/` T117) i osiągane
+`@endora-commerce/platform/cli` i osiągane
 przez aplikację przez shim re-eksportujący w `backend/src/cli/module-commands.ts`,
 gdzie **host** pyta o moduł, który zadeklarował komendę operatorską, jaką host właśnie
 zamierza uruchomić — raz, zanim zbuduje kontekst. Handler `cliCommands` dostaje
@@ -335,7 +334,7 @@ done in 380 ms
 
 ### 7. Napisz testy
 
-Zgodnie z Zasadą III Konstytucji (TDD, NIENEGOCJOWALNE) każdy moduł dostarcza testy jednostkowe, kontraktowe i integracyjne. Podsystem cyklu życia udostępnia gotowe helpery fixture w `backend/test/fixtures/manifests/{basic-graph,cyclic-graph,deep-graph}/` do testowania schematu manifestu i grafu zależności.
+Rozwój sterowany testami jest nienegocjowalny: każdy moduł dostarcza testy jednostkowe, kontraktowe i integracyjne. Podsystem cyklu życia udostępnia gotowe helpery fixture w `backend/test/fixtures/manifests/{basic-graph,cyclic-graph,deep-graph}/` do testowania schematu manifestu i grafu zależności.
 
 ## Punkty rozszerzeń
 
@@ -356,4 +355,4 @@ Jeśli wartość jest starsza niż pięć minut, blokada wygasła — powtarzaj�
 
 - Jednostkowe: `backend/test/unit/_lifecycle/{dep-graph,manifest-loader,manifest-schema.zod,lock,registry-cache}.test.ts`.
 - Kontraktowe: `backend/test/contract/_lifecycle/{cli-install,cli-uninstall,cli-enable,cli-disable,cli-status,manifest-schema}.contract.test.ts`.
-- Integracyjne (wymagają żywego Postgresa + Redisa): napisane pod `backend/test/integration/_lifecycle/` zgodnie ze specyfikacją, ale uruchamiane w środowiskach, w których baza deweloperska jest podniesiona.
+- Integracyjne (wymagają żywego Postgresa + Redisa): napisane pod `backend/test/integration/_lifecycle/`, ale uruchamiane w środowiskach, w których baza deweloperska jest podniesiona.
