@@ -1,6 +1,5 @@
 ---
 '@endora-commerce/contracts': minor
-'@endora-commerce/mod-pim-akeneo': minor
 ---
 
 `@endora-commerce/contracts` no longer exports the Akeneo PIM connector's schemas; the connector publishes its own
@@ -17,11 +16,19 @@ subpath:
 + import { akeneoConnectionDtoSchema, PIM_AKENEO_SETTING_CODES } from '@endora-commerce/mod-pim-akeneo/contracts';
 ```
 
+**`ERROR_CODES` also loses its seven `PIM_AKENEO_*` members**, because the enumeration is the
+vocabulary of the codes this repository's own modules declare and the Akeneo connector is no longer
+one of them: `PIM_AKENEO_NOT_CONFIGURED`, `PIM_AKENEO_CONNECTION_DISABLED`,
+`PIM_AKENEO_BOOTSTRAP_INCOMPLETE`, `PIM_AKENEO_DELIVERY_ID_CONFLICT`, `PIM_AKENEO_CHANNEL_REQUIRED`,
+`PIM_AKENEO_SECRET_REQUIRED` and `PIM_AKENEO_FIELD_KEY_INVALID`. The strings on the wire are
+unchanged; code that compared against them takes `pimAkeneoErrorCodes` from
+`@endora-commerce/mod-pim-akeneo` instead.
+
 Nothing else in `@endora-commerce/contracts` changes. The two catalogue schemas the Akeneo shapes
 compose — `apiAttributeTypeSchema` and `productLinkKindSchema` — stay where they are, and the
-module now imports them from there. `@endora-commerce/mod-pim-akeneo` gains the `./contracts`
-export and already declared `zod` as a peer dependency, so installing it pulls in nothing new.
+module now imports them from there.
 
-`@endora-commerce/mod-pim-akeneo` also owns its seven error codes now: the root export gains
-`pimAkeneoErrorCodes`, declared with `defineModuleErrorCodes`, and every raise site in the module
-uses it instead of `ERROR_CODES.PIM_AKENEO_*`. The codes' values on the wire do not change.
+`@endora-commerce/mod-pim-akeneo` itself is no longer released from this repository: it leaves for
+the paid-modules repository in the same change, and its next version — with the `./contracts`
+export and a root `pimAkeneoErrorCodes`, declared with `defineModuleErrorCodes` — is cut there.
+It already declared `zod` as a peer dependency, so installing it pulls in nothing new.

@@ -131,16 +131,6 @@ import type {
   PimcoreMediaLink as PimcoreMediaLinkRow,
   PimcoreSourceLink as PimcoreSourceLinkRow,
 } from '@endora-commerce/mod-pim-pimcore/test-support';
-import type {
-  AkeneoConnection as AkeneoConnectionRow,
-  AkeneoDeliveredRecord as AkeneoDeliveredRecordRow,
-  AkeneoFieldProtection as AkeneoFieldProtectionRow,
-  AkeneoHmacReplay as AkeneoHmacReplayRow,
-  AkeneoImportIssue as AkeneoImportIssueRow,
-  AkeneoImportRun as AkeneoImportRunRow,
-  AkeneoMediaLink as AkeneoMediaLinkRow,
-  AkeneoSourceLink as AkeneoSourceLinkRow,
-} from '@endora-commerce/mod-pim-akeneo/test-support';
 import type { EmailDelivery as EmailDeliveryRow } from '../../../packages/modules/email/src/backend/entities/email-delivery.entity.js';
 import type { InvoiceLedgerClientMap as InvoiceLedgerClientMapRow } from '../../../packages/modules/invoice_ledger/src/backend/entities/invoice-ledger-client-map.entity.js';
 import type { InvoiceLedgerDelivery as InvoiceLedgerDeliveryRow } from '../../../packages/modules/invoice_ledger/src/backend/entities/invoice-ledger-delivery.entity.js';
@@ -1023,47 +1013,6 @@ export const PimcoreSourceLink = classNamed<PimcoreSourceLinkRow>(
   'PimcoreSourceLink',
 );
 
-export const AkeneoConnection = classNamed<AkeneoConnectionRow>(
-  installedModuleEntities,
-  'pim_akeneo',
-  'AkeneoConnection',
-);
-export const AkeneoDeliveredRecord = classNamed<AkeneoDeliveredRecordRow>(
-  installedModuleEntities,
-  'pim_akeneo',
-  'AkeneoDeliveredRecord',
-);
-export const AkeneoFieldProtection = classNamed<AkeneoFieldProtectionRow>(
-  installedModuleEntities,
-  'pim_akeneo',
-  'AkeneoFieldProtection',
-);
-export const AkeneoHmacReplay = classNamed<AkeneoHmacReplayRow>(
-  installedModuleEntities,
-  'pim_akeneo',
-  'AkeneoHmacReplay',
-);
-export const AkeneoImportIssue = classNamed<AkeneoImportIssueRow>(
-  installedModuleEntities,
-  'pim_akeneo',
-  'AkeneoImportIssue',
-);
-export const AkeneoImportRun = classNamed<AkeneoImportRunRow>(
-  installedModuleEntities,
-  'pim_akeneo',
-  'AkeneoImportRun',
-);
-export const AkeneoMediaLink = classNamed<AkeneoMediaLinkRow>(
-  installedModuleEntities,
-  'pim_akeneo',
-  'AkeneoMediaLink',
-);
-export const AkeneoSourceLink = classNamed<AkeneoSourceLinkRow>(
-  installedModuleEntities,
-  'pim_akeneo',
-  'AkeneoSourceLink',
-);
-
 /**
  * The **row shapes** batch four's tests annotate with, on the same terms as
  * `PaymentMethodRow` above: `classNamed` returns a value, so a test that writes
@@ -1308,20 +1257,6 @@ export type PimcoreImportRun = PimcoreImportRunRow;
 export type PimcoreMediaLink = PimcoreMediaLinkRow;
 export type PimcoreSourceLink = PimcoreSourceLinkRow;
 
-/**
- * The `pim_akeneo` names the test tree also uses as a **type**, on the terms
- * the block above states: `classNamed` returns the value alone, so a test that
- * annotates a `Promise<AkeneoImportRun>` needs the type declared beside it.
- * `export type` erases, so nothing is constructed.
- */
-export type AkeneoConnection = AkeneoConnectionRow;
-export type AkeneoDeliveredRecord = AkeneoDeliveredRecordRow;
-export type AkeneoFieldProtection = AkeneoFieldProtectionRow;
-export type AkeneoHmacReplay = AkeneoHmacReplayRow;
-export type AkeneoImportIssue = AkeneoImportIssueRow;
-export type AkeneoImportRun = AkeneoImportRunRow;
-export type AkeneoMediaLink = AkeneoMediaLinkRow;
-export type AkeneoSourceLink = AkeneoSourceLinkRow;
 export type AdminNotification = AdminNotificationRow;
 
 /**
