@@ -145,7 +145,7 @@ jest zmapowanych, odziedziczonych lub niezmapowanych.
 - Powyżej 1 000 kategorii sklepu ekran przechodzi z drzewa na stronicowaną płaską
   listę grupowaną po rodzicu, z tymi samymi wierszami i tym samym paskiem coverage.
 
-### Aktualizacje taksonomii
+### Aktualizacje taksonomii {#taxonomy-updates}
 
 Google i Meta reorganizują listy kategorii raz lub dwa razy w roku. Platforma może
 sprawdzić nowszą listę i ją zainstalować — a instalacja **nic nie zmienia**, dopóki
