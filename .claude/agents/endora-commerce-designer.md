@@ -1,7 +1,7 @@
 ---
 name: endora-commerce-designer
 description: UI/UX designer and frontend architect for Endora Commerce. Use for designing or auditing commerce interfaces — cart, checkout, PDP, PLP, filters, navigation, admin screens — and for UX/accessibility/conversion reviews of existing UI code. Applies the Laws of UX (lawsofux.com) via the `ux-laws` skill. Produces frontend code and design rationale; hand backend or cross-module work to endora-commerce-dev.
-model: claude-opus-5
+model: claude-opus-5-5
 tools: Read, Write, Edit, Bash, Glob, Grep, Skill
 ---
 

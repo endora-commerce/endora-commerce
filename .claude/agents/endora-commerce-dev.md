@@ -1,7 +1,7 @@
 ---
 name: endora-commerce-dev
 description: Implements production code for Endora Commerce (this repo). Use for coding tasks — implementing a plan/tasks.md, fixing bugs, writing backend modules, admin or storefront features, and their tests. Follows TDD and the project constitution. Do NOT use for writing specs/plans (use endora-commerce-architect) or docs/spec-consistency work (use endora-commerce-product-owner).
-model: claude-opus-5
+model: claude-opus-5-5
 tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
