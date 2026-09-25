@@ -987,3 +987,96 @@ describe('checkPortCatches — the promise-form census refuses a blind run', () 
     expect(checkPortCatches({ sources }, {}).rejectionHandlerSites).toBe(0);
   });
 });
+
+/**
+ * Population independence (`specs/134-paid-module-extraction/research.md` D18).
+ *
+ * A site's classification may depend on its own module's sources, the
+ * platform's and what other modules publish — never on another module's
+ * private sources. The analysis bound a call's arguments to the parameters of
+ * whichever declaration of the callee's **spelling** it had read last, anywhere
+ * in the population: `pim_unopim`'s `requireRun(…)` bound `product_feeds`'
+ * unrelated `requireRun`, and removing one module's sources moved nine sites in
+ * another.
+ */
+describe('findPortCatches — a call binds the declaration its file resolves (D18 §2.1)', () => {
+  const PROVIDER_ONLY = [
+    'modules/promotions/backend.ts',
+    "export function registerModule(ctx: ModuleContext): void {\n" +
+      "  ctx.di.providePort('promotionService', ctx.asFunction(() => x).singleton());\n}",
+  ] as const;
+
+  /** `alpha` hands the port to its own `requireRun`, through a relative import. */
+  const ALPHA_CALLER = [
+    'modules/alpha/routes.ts',
+    "import { lazyPort } from '../../kernel/index.js';\n" +
+      "import { requireRun } from './run-lookup.js';\n" +
+      'export function registerAlphaRoutes(ctx: ModuleContext): void {\n' +
+      "  requireRun(lazyPort<Promo>(ctx, 'promotionService'), 'run-1');\n}",
+  ] as const;
+
+  const ALPHA_DECLARATION = [
+    'modules/alpha/run-lookup.ts',
+    'export async function requireRun(source: Promo, id: string): Promise<unknown> {\n' +
+      '  try { return await source.applyToCart(id); } catch { return null; }\n}',
+  ] as const;
+
+  /** `beta` declares a function of the same spelling, which nobody hands a port. */
+  const BETA_DECLARATION = [
+    'modules/beta/run-lookup.ts',
+    'export async function requireRun(feed: Feed, runId: string): Promise<unknown> {\n' +
+      '  try { return await feed.load(runId); } catch { return null; }\n}',
+  ] as const;
+
+  const sitesOf = (sources: Map<string, string>): string[] =>
+    findPortCatches({ sources }).map((entry) => `${entry.file}:${entry.port}`);
+
+  it('binds the declaration the call site imports, whichever order the files were read in', () => {
+    const expected = ['modules/alpha/run-lookup.ts:source'];
+    expect(
+      sitesOf(new Map([PROVIDER_ONLY, ALPHA_CALLER, ALPHA_DECLARATION, BETA_DECLARATION])),
+    ).toEqual(expected);
+    expect(
+      sitesOf(new Map([PROVIDER_ONLY, BETA_DECLARATION, ALPHA_CALLER, ALPHA_DECLARATION])),
+    ).toEqual(expected);
+  });
+
+  it('never binds another module`s declaration of the same name', () => {
+    // Without `alpha`'s own declaration the call resolves to nothing, and a
+    // parameter in `beta` is not a fallback.
+    expect(sitesOf(new Map([PROVIDER_ONLY, ALPHA_CALLER, BETA_DECLARATION]))).toEqual([]);
+  });
+
+  it('follows a relative re-export and a renamed import to the declaring file', () => {
+    const sources = new Map<string, string>([
+      PROVIDER_ONLY,
+      [
+        'modules/alpha/routes.ts',
+        "import { lazyPort } from '../../kernel/index.js';\n" +
+          "import { requireRun as lookUp } from './services/index.js';\n" +
+          'export function registerAlphaRoutes(ctx: ModuleContext): void {\n' +
+          "  lookUp(lazyPort<Promo>(ctx, 'promotionService'), 'run-1');\n}",
+      ],
+      ['modules/alpha/services/index.ts', "export * from './run-lookup.js';\n"],
+      ['modules/alpha/services/run-lookup.ts', ALPHA_DECLARATION[1]],
+      BETA_DECLARATION,
+    ]);
+    expect(sitesOf(sources)).toEqual(['modules/alpha/services/run-lookup.ts:source']);
+  });
+
+  it('binds a same-file declaration without an import', () => {
+    const sources = new Map<string, string>([
+      PROVIDER_ONLY,
+      [
+        'modules/alpha/routes.ts',
+        "import { lazyPort } from '../../kernel/index.js';\n" +
+          'export function registerAlphaRoutes(ctx: ModuleContext): void {\n' +
+          "  requireRun(lazyPort<Promo>(ctx, 'promotionService'), 'run-1');\n}\n" +
+          ALPHA_DECLARATION[1],
+      ],
+      BETA_DECLARATION,
+    ]);
+    expect(sitesOf(sources)).toEqual(['modules/alpha/routes.ts:source']);
+  });
+});
+
