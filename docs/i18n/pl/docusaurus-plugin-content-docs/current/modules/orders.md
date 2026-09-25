@@ -24,7 +24,7 @@ Trasy admina są chronione przez `orders:read` (odczyt) / `orders:write` (mutacj
 | `POST /api/v1/admin/orders/:id/status` | admin | Przejście statusu (audytowane) |
 | `POST /api/v1/admin/orders/:id/payment-status` | admin | Przejście statusu płatności (audytowane) |
 
-## Maszyna statusów (konfigurowalna — feature 038)
+## Maszyna statusów (konfigurowalna)
 
 Cykl życia zamówienia jest **konfigurowalny w adminie**: statusy i dozwolone
 przejścia żyją w tabelach `order_statuses` i `order_status_transitions`,
@@ -45,7 +45,7 @@ do tych kodów statusu); `payment_status` pozostaje polem pochodnym/drugorzędny
 
 ## Encje
 
-`Order`, `OrderItem`, `Payment`, plus feature 038: `OrderStatus`,
+`Order`, `OrderItem`, `Payment`, `OrderStatus`,
 `OrderStatusTransition`, `OrderComment`, `OrderListSavedView` oraz kolumna
 `organizations.order_confirmation_emails` (właściciel: `organizations`,
 odczyt przez port). `OrderItem` snapshotuje produkt + wariant + cenę jednostkową +
@@ -55,13 +55,13 @@ cen / katalogu.
 ## Emitowane zdarzenia
 
 `order.created.v1`, `order.status_changed.v1`, `order.cancelled.v1`. Każde
-przejście X→Y dodatkowo emituje cztery **szablonowe** zdarzenia (feature 038,
-budowane przez `events/order-status-events.ts`):
+przejście X→Y dodatkowo emituje cztery **szablonowe** zdarzenia (budowane
+przez `events/order-status-events.ts`):
 `order.status.from_<x>_to_<y>.before`, `order.status.from_<x>.before`
 (synchroniczne, z możliwością weta) oraz `order.status.from_<x>_to_<y>.after`,
 `order.status.to_<y>.after` (po commicie, izolowane).
 
-## Operacje admina (feature 038)
+## Operacje admina
 
 - **Tworzenie w imieniu** — `POST /api/v1/admin/orders` buduje koszyk klienta
   z pozycji wprowadzonych przez admina i uruchamia `placeOrder` on-behalf; klient
@@ -76,7 +76,7 @@ budowane przez `events/order-status-events.ts`):
 - **Reorder** — `…/:id/reorder` odbudowuje koszyk (gated przez
   `orders.reorder_enabled`); **clone-to-quote** — `…/:id/clone-to-quote`.
 
-## Ustawienia (feature 038)
+## Ustawienia
 
 `orders.min_order_value` (number, bramkuje Checkout + admin create),
 `orders.reorder_enabled` (boolean), `orders.confirmation_recipients`
@@ -84,7 +84,7 @@ budowane przez `events/order-status-events.ts`):
 `order_confirmation_emails`. E-mail potwierdzający CC-uje klienta + listę org
 + listę zakresu (best-effort, nigdy nie blokuje składania).
 
-## E-mail potwierdzenia zamówienia (feature 034)
+## E-mail potwierdzenia zamówienia
 
 Po udanym checkout `OrderService.placeOrder` wysyła e-mail potwierdzający
 (po commicie, best-effort — błąd poczty nigdy nie cofa złożonego zamówienia).

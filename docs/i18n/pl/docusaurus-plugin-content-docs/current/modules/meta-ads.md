@@ -9,7 +9,7 @@ Umieszcza **Meta Pixel** na storefront per kanał sprzedaży i raportuje
 standardowe zdarzenia commerce Meta, z opcjonalnymi zdarzeniami niestandardowymi
 na wierzchu.
 
-Feature `064-meta-ads`. Id modułu `meta_ads`.
+Id modułu `meta_ads`.
 
 ## Konfiguracja (moduł Settings)
 
@@ -88,5 +88,5 @@ Oba pojawiają się na `/admin-roles`. Zmiany są audytowane z operatorem.
   są mocno blokowane przez ad-blockery, więc spodziewaj się niedoszacowania
   konwersji, dopóki to nie wyląduje. Wymaga access tokena i event ID współdzielonego
   ze zdarzeniem przeglądarkowym do deduplikacji — warto zrobić raz dla obu
-  platform reklamowych; zobacz `specs/064-meta-ads/research.md` §R7.
+  platform reklamowych.
 - **Retracja konwersji** dla zwróconych lub anulowanych zamówień.

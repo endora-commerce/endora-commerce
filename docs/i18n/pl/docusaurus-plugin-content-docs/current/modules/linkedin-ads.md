@@ -9,7 +9,7 @@ Umieszcza **LinkedIn Insight Tag** na storefront per kanał sprzedaży i raportu
 akcje storefront względem reguł konwersji zdefiniowanych w LinkedIn Campaign
 Manager.
 
-Feature `063-linkedin-ads`. Id modułu `linkedin_ads`.
+Id modułu `linkedin_ads`.
 
 ## Konfiguracja (moduł Settings)
 
@@ -77,6 +77,5 @@ wyraził zgodę. Akcja zmapowana więcej niż raz raportuje raz na mapowanie.
   gotowe pod ustawienia, więc włączenie później nie wymaga zmiany kontraktu;
   `linkedin_ads.server_side_enabled` pozostaje wyłączone. Gdy zostanie włączone,
   ścieżka przeglądarkowa dla zmapowanych konwersji jest tłumiona, żeby każda
-  konwersja miała dokładnie jeden transport. Zobacz `specs/063-linkedin-ads/tasks.md`
-  Phase 5.
+  konwersja miała dokładnie jeden transport.
 - **Retracja konwersji** dla zwróconych lub anulowanych zamówień.

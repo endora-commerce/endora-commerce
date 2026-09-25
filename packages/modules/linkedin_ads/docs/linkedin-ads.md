@@ -8,7 +8,7 @@ description: LinkedIn Insight Tag per sales channel, reporting storefront action
 Puts the **LinkedIn Insight Tag** on the storefront per sales channel and reports storefront
 actions against conversion rules defined in LinkedIn Campaign Manager.
 
-Feature `063-linkedin-ads`. Module id `linkedin_ads`.
+Module id `linkedin_ads`.
 
 ## Configuration (Settings module)
 
@@ -69,5 +69,5 @@ An action mapped more than once reports once per mapping.
 - **Server-side reporting through the Conversions API.** Specified and settings-ready, so enabling
   it later needs no contract change; `linkedin_ads.server_side_enabled` stays off. When it is
   turned on, the browser path for mapped conversions is suppressed so each conversion has exactly
-  one transport. See `specs/063-linkedin-ads/tasks.md` Phase 5.
+  one transport.
 - **Conversion retraction** for refunded or cancelled orders.

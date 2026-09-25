@@ -29,7 +29,7 @@ Zamknięty zestaw rodzajów pozycji:
 
 Opcjonalny `iconAssetId` akceptuje tylko assety Library rodzaju `image`; validator odrzuca targety non-image.
 
-## Kontrakt aktywacji (FR-008)
+## Kontrakt aktywacji
 
 Co najwyżej jeden megamenu może być `active` per parę `(sales channel, language)` w dowolnym momencie. DB egzekwuje to przez:
 
@@ -46,7 +46,7 @@ Transakcja activate:
 
 Obie działają w jednej transakcji, więc partial unique index nigdy nie widzi stanu dual-active. Endpoint activate zwraca poprzedniego holdera w `previouslyActive`, żeby dialog potwierdzenia admina mógł pokazać „przełączono z `<name>`”.
 
-Activate odmawia na pustym drzewie z `400 MEGAMENU_EMPTY_TREE` (per `R10`). Usunięcie konfiguracji odmawia, gdy co najmniej jedno powiązanie ma `active = true`, z `409 MEGAMENU_HAS_ACTIVE_BINDINGS` (admini muszą najpierw dezaktywować per FR-004).
+Activate odmawia na pustym drzewie z `400 MEGAMENU_EMPTY_TREE`. Usunięcie konfiguracji odmawia, gdy co najmniej jedno powiązanie ma `active = true`, z `409 MEGAMENU_HAS_ACTIVE_BINDINGS` (admini muszą najpierw dezaktywować).
 
 ## Scope sales-channel + język
 
@@ -54,7 +54,7 @@ Konfiguracja może mieć wiele powiązań `(salesChannelId, language)`. Endpoint
 
 Fallback etykiety per język: gdy etykieta pozycji brakuje w żądanym języku, resolver storefront fallbackuje do domyślnego języka kanału. Pozycje bez etykiety w obu są cicho pomijane w rozwiązanym drzewie (admin widzi warning w edytorze).
 
-## Głębokość drzewa (FR-011)
+## Głębokość drzewa
 
 Głębokość drzewa to wytyczna UX, nie twardy constraint. Model danych nie nakłada cap. Formularz admin pokazuje nieblokujący warning po 4 poziomach:
 
@@ -70,12 +70,12 @@ Pozycje Megamenu trzymają miękkie referencje do encji upstream (Categories, CM
 
 | Upstream entity | Registry / module                       | Match path on megamenu_items.target  |
 | --------------- | --------------------------------------- | ------------------------------------ |
-| Library Asset   | `AssetReferenceRegistry` (feature 013)  | `assetId` OR `iconAssetId`           |
-| CMS Page        | `CmsReferenceRegistry` (feature 014)    | `kind='cms-page-link' AND pageId = ?` |
-| CMS Block       | `CmsReferenceRegistry` (feature 014)    | `kind='cms-block-embed' AND blockId = ?` |
+| Library Asset   | `AssetReferenceRegistry`                | `assetId` OR `iconAssetId`           |
+| CMS Page        | `CmsReferenceRegistry`                  | `kind='cms-page-link' AND pageId = ?` |
+| CMS Block       | `CmsReferenceRegistry`                  | `kind='cms-block-embed' AND blockId = ?` |
 | Category        | (catalog category-reference registry)   | `kind='category-link' AND categoryId = ?` (planned) |
 
-Każda rejestracja to jednolinijkowa zmiana powierzchni podpięta w `composition.ts`. Istniejące `findBlockReferences` / `findTemplateReferences` modułu CMS zostały rozszerzone w feature 015, żeby konsultować zewnętrzne skanery; `registerMegamenuCmsReferences` modułu megamenu rejestruje tam swój skaner.
+Każda rejestracja to jednolinijkowa zmiana powierzchni podpięta w `composition.ts`. Istniejące `findBlockReferences` / `findTemplateReferences` modułu CMS zostały rozszerzone, żeby konsultować zewnętrzne skanery; `registerMegamenuCmsReferences` modułu megamenu rejestruje tam swój skaner.
 
 Powierzchnia rejestru referencji kategorii jest planowana dla modułu catalog; dopóki nie wyląduje, ochrona delete kategorii przed referencjami megamenu jest egzekwowana na granicy validatora (megamenu nie może zapisać pozycji wskazującej usuniętą kategorię — check kategorii zwraca `false`, a admin widzi czytelny błąd).
 
@@ -101,7 +101,7 @@ Rozwiązane payloady są cache'owane w Redis pod `megamenu:v1:<channel>:<languag
 - `POST /menus/:id/bindings` / `DELETE /menus/:id/bindings/:channel/:language` → drop dotkniętego scope.
 - `POST /menus/:id/activate` / `POST /menus/:id/deactivate` → drop aktywowanego/dezaktywowanego scope.
 
-Implementacja cache mirror'uje `CmsCache` z feature 014 dokładnie (ten sam schemat prefiksu, ten sam TTL, ta sama invalidacja oparta na SCAN).
+Implementacja cache mirror'uje `CmsCache` modułu CMS dokładnie (ten sam schemat prefiksu, ten sam TTL, ta sama invalidacja oparta na SCAN).
 
 ## Renderowanie storefront
 
@@ -141,7 +141,7 @@ Trigger burger renderuje się poniżej `768px`. Tap otwiera stacked drill-down d
 
 Migracja `036_megamenu_init.ts` dodaje trzy nowe tabele i partial unique index. Nie ma seedowanych wierszy; admini first-time tworzą konfigurację przez UI admina.
 
-Zamontowany w root layout storefront między `<Header>` a istniejącym Hookiem `header.bottom`. Integracja CMS Hooks z feature 014 pozostaje nienaruszona.
+Zamontowany w root layout storefront między `<Header>` a istniejącym Hookiem `header.bottom`. Integracja CMS Hooks pozostaje nienaruszona.
 
 ## Kody błędów
 

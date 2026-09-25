@@ -50,7 +50,7 @@ zewnętrznym ESP (MailerLite, GetResponse, …).
 - **Provider** — wybierany i konfigurowany w Admin UI; hasło SMTP jest
   przechowywane jako Settings `secret` (AES-256-GCM, write-only na granicy).
 
-## Dostawa (Zasada X)
+## Dostawa
 
 Dispatch jest oparty na kolejce Redis/BullMQ:
 
