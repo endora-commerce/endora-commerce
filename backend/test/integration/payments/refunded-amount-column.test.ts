@@ -5,7 +5,6 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { Order, Payment, PaymentMethod } from '../../helpers/package-entities.js';
 import { Migration20260925T115728PaymentsRefundedAmount } from '../../../../packages/modules/payments/src/migrations/20260925T115728_payments_refunded_amount.js';
-import { Migration20260715T103358StripePaymentRefundedAmount } from '../../../../packages/modules/stripe/src/migrations/20260715T103358_stripe_payment_refunded_amount.js';
 
 /**
  * `payments.refunded_amount` belongs to `payments` — feature 134's T117,
@@ -17,11 +16,14 @@ import { Migration20260715T103358StripePaymentRefundedAmount } from '../../../..
  * `payments` now adds it with `if not exists`, and `stripe`'s migration keeps
  * its class name with both bodies emptied.
  *
- * Every row of D14 §4's regime table is driven here against the real schema,
- * inside one transaction that is rolled back — Postgres DDL is transactional,
- * so dropping the column to stage the "fresh, free instance" row costs the
- * next test nothing. The migrations are run the way the migrator runs them:
- * instantiate, call `up()`/`down()`, execute what they queued.
+ * The rows of D14 §4's regime table that involve `payments` alone are driven
+ * here against the real schema, inside one transaction that is rolled back —
+ * Postgres DDL is transactional, so dropping the column to stage the "fresh,
+ * free instance" row costs the next test nothing. The migrations are run the
+ * way the migrator runs them: instantiate, call `up()`/`down()`, execute what
+ * they queued. The rows that involve `stripe` are in
+ * `test/integration/stripe/refunded-amount-emptied.test.ts`, which leaves this
+ * repository with the module; this file does not name it, so it stays.
  */
 
 type MigrationClass = new (...args: ConstructorParameters<typeof Migration>) => Migration;
@@ -119,7 +121,7 @@ async function seedPayment(em: EntityManager, refundedAmount: string): Promise<s
   return payment.id;
 }
 
-describe('payments.refunded_amount — every regime converges (D14 §4)', () => {
+describe('payments.refunded_amount — the regimes payments decides alone (D14 §4)', () => {
   it('fresh, free instance: payments creates the column, 0 on rows that already exist', async () => {
     const em = db.em();
     const id = await seedPayment(em, '0.00');
@@ -141,32 +143,7 @@ describe('payments.refunded_amount — every regime converges (D14 §4)', () => 
     expect(await refundedAmountOf(em, id)).toBe('12.34');
   });
 
-  it('stripe’s up() issues no SQL — installing stripe after payments cannot collide', async () => {
-    expect(await queued(Migration20260715T103358StripePaymentRefundedAmount, 'up')).toEqual([]);
-  });
-
-  it('stripe’s down() issues no SQL — its hard uninstall keeps the column payments maps', async () => {
-    const em = db.em();
-    const id = await seedPayment(em, '7.50');
-    expect(await queued(Migration20260715T103358StripePaymentRefundedAmount, 'down')).toEqual([]);
-
-    await run(Migration20260715T103358StripePaymentRefundedAmount, 'down');
-
-    expect(await refundedAmountOf(em, id)).toBe('7.50');
-  });
-
   it('payments’ down() issues no SQL — the table and its rows outlive payments’ uninstall', async () => {
     expect(await queued(Migration20260925T115728PaymentsRefundedAmount, 'down')).toEqual([]);
-  });
-
-  it('fresh, paid instance: stripe’s emptied entry, then payments’, creates the column', async () => {
-    const em = db.em();
-    await em.execute(`alter table "payments" drop column "refunded_amount"`);
-
-    await run(Migration20260715T103358StripePaymentRefundedAmount, 'up');
-    expect(await columnExists(em)).toBe(false);
-    await run(Migration20260925T115728PaymentsRefundedAmount, 'up');
-
-    expect(await columnExists(em)).toBe(true);
   });
 });
