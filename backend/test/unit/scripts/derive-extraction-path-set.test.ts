@@ -50,7 +50,10 @@ import {
   dispositionOf,
   followOne,
   historicalPathsOf,
+  parseHistoricalDispositions,
+  parseOptions,
   renderPathsFile,
+  resolveHistoricalDispositions,
   resolveManifestRoots,
   resolveRenameClosure,
   splitByOwnership,
@@ -66,6 +69,17 @@ const SCRIPT = join(
   '..',
   'scripts',
   'extract-paid-module.sh',
+);
+
+const DISPOSITIONS_FILE = join(
+  dirname(new URL(import.meta.url).pathname),
+  '..',
+  '..',
+  '..',
+  '..',
+  'specs',
+  '134-paid-module-extraction',
+  'e3p-historical-dispositions.json',
 );
 
 const created: string[] = [];
@@ -335,9 +349,11 @@ const MARK = '@@commit@@';
 
 describe('the rename threshold R2 asks git for (D-264 clause 1)', () => {
   it('runs --follow at -M30%, which is the whole of the clause', () => {
+    // An empty reply shows no birth, so E3p.3's lookup runs after it (and
+    // finds nothing); the `--follow` call is the first one either way.
     const { git, calls } = scriptedGit('');
     followOne({ git, ref: 'HEAD', file: 'packages/modules/payu/src/admin/api/payu-client.ts' });
-    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain('--follow');
     expect(calls[0]).toContain('-M30%');
     expect(calls[0]).not.toContain('-M');
   });
@@ -558,5 +574,360 @@ describe('the script itself', () => {
     expect(body).not.toContain('admin/src/modules/');
     expect(body).toContain('derive-extraction-path-set.ts');
     expect(body).toContain('--paths-from-file');
+  });
+
+  it('passes the historical dispositions to the deriver unconditionally (E3p.2)', () => {
+    // A green exploratory run must not be able to bypass the gate the real run
+    // enforces, so the option is not behind a flag of the script's own.
+    const source = readFileSync(SCRIPT, 'utf8');
+    const invocation = source
+      .split('\n')
+      .filter((line) => !line.trimStart().startsWith('#'))
+      .join('\n')
+      .match(/derive-extraction-path-set\.ts[\s\S]*?\n[^\n]*then/)?.[0];
+    expect(invocation).toBeDefined();
+    expect(invocation).toContain('--dispositions');
+    expect(source).toContain('specs/134-paid-module-extraction/e3p-historical-dispositions.json');
+  });
+
+  it('excludes prose from the W1 specifier grep, because W1 is about code that runs', () => {
+    // 13 `packages/modules/*/CHANGELOG.md` files quote an old
+    // `import … from '@endora-commerce/mod-ksef/backend'` in fenced code, and
+    // E9 classifies them as prose (research.md D13 §7).
+    const w1 = readFileSync(SCRIPT, 'utf8')
+      .split('\n')
+      .find((line) => line.startsWith('COUPLED=$(git grep'));
+    expect(w1).toBeDefined();
+    expect(w1).toContain(":(exclude)*.md'");
+  });
+});
+
+/**
+ * **E3p.3** — a rename made inside a merge resolution. `git log --follow` shows
+ * no diff for a merge, so a file whose path was *born* in a merge resolution
+ * shows no `A` at all and R2 used to stop at the merge. Measured on
+ * `pim_akeneo`: `f9833a508` renames six `admin/src/modules/pim_akeneo/*` files
+ * into the package at R057–R094 relative to its first parent.
+ *
+ * The fixture is the same shape in miniature: a branch holds the page (itself
+ * renamed once on the branch, so the walk has to *continue* from the source), a
+ * merge of `main` into the branch moves it into the package with an edit, and
+ * `main` later merges the branch.
+ */
+function mergeResolutionRepo(): Fixture {
+  const f = repo();
+  const body =
+    'export function DemoPage() {\n' +
+    "  const rows = ['one', 'two', 'three', 'four', 'five', 'six'];\n" +
+    '  return rows.map((row) => row.toUpperCase());\n' +
+    '}\n';
+  f.write('packages/modules/demo_mod/src/manifest.ts', manifestSource('demo_mod'));
+  f.commit('feat(demo_mod): the package');
+
+  f.git(['checkout', '--quiet', '-b', 'feature']);
+  f.write('admin/src/pages/DemoPage.tsx', body);
+  f.commit('feat(demo_mod): the page, on the branch');
+  f.move('admin/src/pages/DemoPage.tsx', 'admin/src/modules/demo-mod/DemoPage.tsx');
+  f.commit('refactor(demo_mod): the page moves under the module directory, on the branch');
+
+  f.git(['checkout', '--quiet', 'main']);
+  f.write('README.md', 'main moves on\n');
+  f.commit('chore: main moves on');
+
+  f.git(['checkout', '--quiet', 'feature']);
+  f.git(['merge', '--quiet', '--no-commit', '--no-ff', 'main']);
+  f.move(
+    'admin/src/modules/demo-mod/DemoPage.tsx',
+    'packages/modules/demo_mod/src/admin/pages/DemoPage.tsx',
+  );
+  f.write(
+    'packages/modules/demo_mod/src/admin/pages/DemoPage.tsx',
+    `${body}export const resolvedInTheMerge = true;\n`,
+  );
+  // Born in one merge resolution and deleted in the next: visible to a walk
+  // only through first-parent merge diffs.
+  f.write('admin/src/modules/demo-mod/Scratch.tsx', 'export const scratch = 1;\n');
+  f.commit('Merge main into feature');
+
+  f.write(
+    'packages/modules/demo_mod/src/admin/pages/DemoPage.tsx',
+    `${body}export const resolvedInTheMerge = true;\nexport const later = 1;\n`,
+  );
+  f.commit('feat(demo_mod): a later edit, which --follow does show');
+
+  f.git(['checkout', '--quiet', 'main']);
+  f.write('CHANGES.md', 'main moves on again\n');
+  f.commit('chore: main moves on again');
+  f.git(['checkout', '--quiet', 'feature']);
+  f.git(['merge', '--quiet', '--no-commit', '--no-ff', 'main']);
+  f.remove('admin/src/modules/demo-mod/Scratch.tsx');
+  f.commit('Merge main into feature, again');
+
+  f.git(['checkout', '--quiet', 'main']);
+  f.git(['merge', '--quiet', '--no-ff', 'feature', '-m', 'Merge feature into main']);
+  return f;
+}
+
+describe('E3p.3 — a rename made inside a merge resolution is a continuation', () => {
+  const tip = 'packages/modules/demo_mod/src/admin/pages/DemoPage.tsx';
+
+  it('follows the merge rename from the first parent, and keeps following from there', () => {
+    const f = mergeResolutionRepo();
+    const followed = followOne({ git: f.git, ref: 'HEAD', file: tip });
+    expect(followed.historical).toEqual([
+      'admin/src/modules/demo-mod/DemoPage.tsx',
+      'admin/src/pages/DemoPage.tsx',
+    ]);
+    expect(followed.copyStop).toBeNull();
+  });
+
+  it('carries the path, so the refusal no longer stops on it', () => {
+    const f = mergeResolutionRepo();
+    const resolution = resolveManifestRoots({ git: f.git, ref: 'HEAD', moduleId: 'demo_mod' });
+    const closure = resolveRenameClosure({
+      git: f.git,
+      ref: 'HEAD',
+      files: trackedFiles(f, 'packages/modules/demo_mod'),
+    });
+    const split = splitByOwnership({
+      entries: closure.entries,
+      roots: resolution.roots,
+      moduleId: 'demo_mod',
+      idPopulation: resolution.idPopulation,
+    });
+    expect(split.carried).toContainEqual({
+      historical: 'admin/src/modules/demo-mod/DemoPage.tsx',
+      tip,
+    });
+    const report = completenessRefusals({
+      historicalPaths: historicalPathsOf({ git: f.git, ref: 'HEAD' }),
+      moduleId: 'demo_mod',
+      roots: resolution.roots,
+      carried: split.carried,
+    });
+    expect(report.refused).not.toContain('admin/src/modules/demo-mod/DemoPage.tsx');
+  });
+
+  it('is narrow: a chain that shows its birth asks git nothing more', () => {
+    const { git, calls } = scriptedGit(
+      `${MARK}bbbbbbbbb\nM\t${tip}\n${MARK}aaaaaaaaa\nA\t${tip}\n`,
+    );
+    const followed = followOne({ git, ref: 'HEAD', file: tip });
+    expect(followed.historical).toEqual([]);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('never reads merge diffs on the --follow call itself', () => {
+    // The blunt variant — `--diff-merges=first-parent` on every `--follow` —
+    // was measured to lose 6 carried paths on `pim_pimcore` and 11 on
+    // `pim_unopim`: a merge of `master` into a branch then reads as a copy and
+    // stops the chain early (research.md D13 §5).
+    const { git, calls } = scriptedGit('');
+    followOne({ git, ref: 'HEAD', file: tip });
+    const followCalls = calls.filter((call) => call.includes('--follow'));
+    expect(followCalls.length).toBeGreaterThan(0);
+    for (const call of followCalls) {
+      expect(call.some((arg) => arg.startsWith('--diff-merges'))).toBe(false);
+    }
+  });
+
+  it('reads the introducing merge against its first parent at -M30%', () => {
+    const f = mergeResolutionRepo();
+    const calls: string[][] = [];
+    followOne({
+      git: (args) => {
+        calls.push([...args]);
+        return f.git(args);
+      },
+      ref: 'HEAD',
+      file: tip,
+    });
+    const diff = calls.find((call) => call[0] === 'diff');
+    expect(diff).toBeDefined();
+    expect(diff).toContain('-M30%');
+    expect(diff).toContain('--name-status');
+    expect(diff?.some((arg) => arg.endsWith('^1'))).toBe(true);
+  });
+
+  it('walks first-parent merge diffs, so a path born and deleted in resolutions is seen', () => {
+    const f = mergeResolutionRepo();
+    const walk = scriptedGit('');
+    historicalPathsOf({ git: walk.git, ref: 'HEAD' });
+    expect(walk.calls[0]).toContain('--diff-merges=first-parent');
+    expect(historicalPathsOf({ git: f.git, ref: 'HEAD' })).toContain(
+      'admin/src/modules/demo-mod/Scratch.tsx',
+    );
+  });
+});
+
+/**
+ * **E3p.2** — a reviewed per-path historical disposition. The deriver reads the
+ * file only to decide what the refusal may stop printing; `filterPlan` never
+ * sees it. Every refusal below is one the contract's table names.
+ */
+describe('E3p.2 — the reviewed per-path historical dispositions', () => {
+  const refusedPath = 'admin/src/modules/demo-mod/MappingPage.tsx';
+
+  function valid(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      module: 'demo_mod',
+      path: refusedPath,
+      kind: 'retired',
+      lastReadable: 'HEAD^',
+      retiredBy: 'HEAD',
+      evidence: ['packages/modules/demo_mod/src/manifest.ts'],
+      reason: 'The mapping model was removed; the running screens live in the package.',
+      ...overrides,
+    };
+  }
+
+  function resolve(f: Fixture, entries: readonly Record<string, unknown>[]) {
+    const parsed = parseHistoricalDispositions(JSON.stringify(entries));
+    const resolved = resolveHistoricalDispositions({
+      git: f.git,
+      ref: 'HEAD',
+      moduleId: 'demo_mod',
+      refused: [refusedPath],
+      entries: parsed.entries,
+    });
+    return { problems: [...parsed.problems, ...resolved.problems], resolved };
+  }
+
+  it('accepts a reviewed entry and takes its path off the refusal', () => {
+    const f = twoEraRepo();
+    const { problems, resolved } = resolve(f, [valid()]);
+    expect(problems).toEqual([]);
+    expect(resolved.refused).toEqual([]);
+    expect(resolved.accepted.map((entry) => entry.path)).toEqual([refusedPath]);
+  });
+
+  it('leaves a refusal standing when no entry names it', () => {
+    const f = twoEraRepo();
+    const { problems, resolved } = resolve(f, []);
+    expect(problems).toEqual([]);
+    expect(resolved.refused).toEqual([refusedPath]);
+  });
+
+  it('ignores the entries of another module', () => {
+    const f = twoEraRepo();
+    const { problems, resolved } = resolve(f, [
+      valid({ module: 'other_mod', path: 'admin/src/modules/other-mod/Gone.tsx' }),
+    ]);
+    expect(problems).toEqual([]);
+    expect(resolved.refused).toEqual([refusedPath]);
+  });
+
+  it('refuses anything but an array of objects with exactly the seven fields', () => {
+    expect(parseHistoricalDispositions('{}').problems).not.toEqual([]);
+    expect(parseHistoricalDispositions('not json').problems).not.toEqual([]);
+    const { reason: _reason, ...missing } = valid();
+    expect(parseHistoricalDispositions(JSON.stringify([missing])).problems).not.toEqual([]);
+    expect(
+      parseHistoricalDispositions(JSON.stringify([valid({ note: 'an eighth field' })])).problems,
+    ).not.toEqual([]);
+  });
+
+  it('refuses an unknown kind', () => {
+    const f = twoEraRepo();
+    expect(resolve(f, [valid({ kind: 'obsolete' })]).problems).not.toEqual([]);
+  });
+
+  it('accepts each of the four kinds the contract names', () => {
+    for (const kind of ['retired', 'split-by-subject', 're-authored', 'host-stays']) {
+      const parsed = parseHistoricalDispositions(JSON.stringify([valid({ kind })]));
+      expect(parsed.problems).toEqual([]);
+    }
+  });
+
+  it('refuses a glob and a directory entry', () => {
+    const f = twoEraRepo();
+    expect(resolve(f, [valid({ path: 'admin/src/modules/demo-mod/*.tsx' })]).problems).not.toEqual(
+      [],
+    );
+    expect(resolve(f, [valid({ path: 'admin/src/modules/demo-mod/' })]).problems).not.toEqual([]);
+    expect(resolve(f, [valid({ path: 'admin/src/modules/demo-mod' })]).problems).not.toEqual([]);
+  });
+
+  it('refuses a path that does not carry the module id', () => {
+    const f = twoEraRepo();
+    expect(
+      resolve(f, [valid({ path: 'backend/test/helpers/scripted-demo-client.ts' })]).problems,
+    ).not.toEqual([]);
+  });
+
+  it('refuses a path that is not in this run refusal set, because an unused entry is stale', () => {
+    const f = twoEraRepo();
+    // Carried by R2, so it never reaches the refusal.
+    expect(
+      resolve(f, [
+        valid({
+          path: 'backend/test/unit/demo_mod/moves-in.test.ts',
+          lastReadable: 'HEAD~3',
+          retiredBy: 'HEAD~2',
+        }),
+      ]).problems,
+    ).not.toEqual([]);
+  });
+
+  it('refuses a lastReadable whose tree does not hold the path', () => {
+    const f = twoEraRepo();
+    expect(resolve(f, [valid({ lastReadable: 'HEAD' })]).problems).not.toEqual([]);
+    expect(resolve(f, [valid({ lastReadable: 'no-such-revision' })]).problems).not.toEqual([]);
+  });
+
+  it('refuses a retiredBy whose tree still holds the path', () => {
+    const f = twoEraRepo();
+    expect(resolve(f, [valid({ retiredBy: 'HEAD^' })]).problems).not.toEqual([]);
+  });
+
+  it('refuses empty evidence, and an in-repository evidence path absent at the ref', () => {
+    const f = twoEraRepo();
+    expect(resolve(f, [valid({ evidence: [] })]).problems).not.toEqual([]);
+    expect(
+      resolve(f, [valid({ evidence: ['packages/modules/demo_mod/src/nowhere.ts'] })]).problems,
+    ).not.toEqual([]);
+  });
+
+  it('refuses a paid-repository successor without both its path and its commit', () => {
+    const f = twoEraRepo();
+    expect(
+      resolve(f, [
+        valid({
+          kind: 're-authored',
+          evidence: [{ repository: 'paid', path: 'modules/demo_mod/docs/architecture.md' }],
+        }),
+      ]).problems,
+    ).not.toEqual([]);
+    expect(
+      resolve(f, [
+        valid({
+          kind: 're-authored',
+          evidence: [
+            { repository: 'paid', path: 'modules/demo_mod/docs/architecture.md', commit: '7932221' },
+          ],
+        }),
+      ]).problems,
+    ).toEqual([]);
+  });
+
+  it('refuses an empty reason', () => {
+    const f = twoEraRepo();
+    expect(resolve(f, [valid({ reason: '  ' })]).problems).not.toEqual([]);
+  });
+
+  it('refuses a duplicate (module, path) pair', () => {
+    const f = twoEraRepo();
+    expect(resolve(f, [valid(), valid()]).problems).not.toEqual([]);
+  });
+
+  it('reads the option from the command line', () => {
+    expect(parseOptions(['demo_mod', '--dispositions', 'x.json']).dispositions).toBe('x.json');
+    expect(parseOptions(['demo_mod']).dispositions).toBeUndefined();
+  });
+
+  it('ships the committed file as a valid, empty list', () => {
+    const parsed = parseHistoricalDispositions(readFileSync(DISPOSITIONS_FILE, 'utf8'));
+    expect(parsed.problems).toEqual([]);
+    expect(parsed.entries).toEqual([]);
   });
 });

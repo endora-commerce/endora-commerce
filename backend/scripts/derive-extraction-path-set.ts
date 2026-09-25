@@ -6,7 +6,7 @@
  * `scripts/extract-paid-module.sh` calls this and passes the file it writes to
  * `git filter-repo --paths-from-file`. E3p is the normative statement of
  * everything below and is **not** restated here; what this header carries is the
- * operation, the two traps, and the exit codes.
+ * operation, the traps, and the exit codes.
  *
  * ## The operation
  *
@@ -22,8 +22,11 @@
  *     id-bearing path the resolution neither carried nor dispositioned stops the
  *     run. The predicate is 129 FR-011(d)'s and lives in
  *     `lib/module-id-paths.ts` — one predicate, two instruments.
+ *   * **E3p.2's reviewed per-path dispositions** (`--dispositions <file>`): an
+ *     entry takes one path off the refusal and nothing else. Its shape and its
+ *     refusals are the contract's table; `filterPlan` never sees it.
  *
- * ## Three traps, every one measured rather than reasoned about
+ * ## Four traps, every one measured rather than reasoned about
  *
  *   * **`git log --follow` reports copies as well as renames, and a copy source
  *     was never a path the file held.** The repository's root `LICENSE` is
@@ -61,23 +64,37 @@
  *     14 catches it. Only `followOne` takes the threshold: the manifest walk
  *     and the completeness walk are not asking whether a file is a
  *     continuation.
+ *   * **`--follow` shows no diff for a merge, so a path born in a merge
+ *     resolution has no birth in the chain** (E3p.3). Measured: `pim_akeneo`'s
+ *     package entered through the resolution of `f9833a508`, which renames six
+ *     `admin/src/modules/pim_akeneo/*` files at R057–R094 relative to its first
+ *     parent, and all six refused. So **only when a chain shows no `A`**,
+ *     `mergeResolutionRename` reads the introducing commit's diff against its
+ *     first parent and the walk continues from the rename source there. The
+ *     blunt form — `--diff-merges=first-parent` on every `--follow` — is the
+ *     trap inside the trap: measured, it loses 6 carried paths on `pim_pimcore`
+ *     and 11 on `pim_unopim`, because a merge of `master` into a branch then
+ *     reads as a copy and stops the chain early.
  *
  * ## Exit codes
  *
- * `0` a path set was written; `1` the completeness refusal fired — the paths are
- * printed and the run stops; `2` a vacuous answer refused: no tracked file at
- * the ref, no manifest ever declared the id, or the history walk read nothing.
+ * `0` a path set was written; `1` the completeness refusal fired, or an E3p.2
+ * entry was refused — the paths and the problems are printed and the run
+ * stops; `2` a vacuous answer refused: no tracked file at the ref, no manifest
+ * ever declared the id, the history walk read nothing, or the dispositions file
+ * named by `--dispositions` cannot be read.
  * A derivation that silently resolves to nothing would hand `filter-repo` an
  * empty filter, and an empty filter publishes an empty module.
  *
  * Usage:
  *
  *   `pnpm --filter backend exec tsx scripts/derive-extraction-path-set.ts \
- *      <module-id> --ref <rev> --package <dir> --paths-file <out>`
+ *      <module-id> --ref <rev> --package <dir> --paths-file <out> \
+ *      --dispositions <file>`
  */
 /* eslint-disable no-console -- CLI tool: stdout/stderr is the interface. */
 import { execFileSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -235,34 +252,96 @@ export interface ClosureResult {
   readonly collisions: readonly { readonly historical: string; readonly tips: readonly string[] }[];
 }
 
+/**
+ * **E3p.3** — the rename a merge resolution made, read only when a `--follow`
+ * chain ended with no birth for `path`. The commit that introduced `path` is
+ * the oldest one whose diff against its **first** parent adds it; that
+ * commit's full-tree diff against the first parent at `-M30%` says whether the
+ * addition was a rename, and from where. `null` when it was not.
+ *
+ * Deliberately not `--diff-merges=first-parent` on the `--follow` call itself:
+ * measured, that loses 6 carried paths on `pim_pimcore` and 11 on
+ * `pim_unopim`, because a merge of `master` into a branch then reads as a copy
+ * and stops the chain early (`research.md` D13 §5).
+ */
+export function mergeResolutionRename(input: {
+  git: GitRunner;
+  ref: string;
+  path: string;
+}): { readonly sha: string; readonly source: string } | null {
+  const { git, ref, path } = input;
+  const introducing = git([
+    'log',
+    '--topo-order',
+    '--diff-merges=first-parent',
+    '--diff-filter=A',
+    '--format=%H',
+    '--no-patch',
+    ref,
+    '--',
+    path,
+  ])
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => /^[0-9a-f]{7,64}$/.test(line));
+  // `--topo-order` prints a commit before its parents, so the last line is the
+  // one no other candidate descends from: the birth, not a later merge that
+  // brought the already-born path into another line of history.
+  const sha = introducing[introducing.length - 1];
+  if (sha === undefined) return null;
+  const [diff] = parseNameStatus(
+    `${MARK}${sha}\n${git(['diff', '--name-status', '-M30%', `${sha}^1`, sha])}`,
+  );
+  const rename = diff?.changes.find(
+    (change) => change.status.startsWith('R') && change.to === path,
+  );
+  return rename === undefined ? null : { sha, source: rename.from };
+}
+
 /** Every path one surviving file has held, newest first, stopping at a copy. */
 export function followOne(input: {
   git: GitRunner;
   ref: string;
   file: string;
 }): { readonly historical: readonly string[]; readonly copyStop: CopyStop | null } {
-  const { git, ref, file } = input;
-  const commits = parseNameStatus(
-    git(['log', '--follow', '--name-status', '-M30%', `--format=${MARK}%H`, ref, '--', file]),
-  );
+  const { git } = input;
   const historical: string[] = [];
-  let current = file;
-  let copyStop: CopyStop | null = null;
-  for (const commit of commits) {
-    for (const change of commit.changes) {
-      if (change.to !== current) continue;
-      if (change.status.startsWith('R')) {
-        current = change.from;
-        historical.push(current);
-        break;
-      }
-      if (change.status.startsWith('C')) {
-        copyStop = { source: change.from, into: current };
-        return { historical, copyStop };
+  const seen = new Set<string>();
+  let ref = input.ref;
+  let current = input.file;
+  for (;;) {
+    seen.add(`${ref}\0${current}`);
+    const commits = parseNameStatus(
+      git(['log', '--follow', '--name-status', '-M30%', `--format=${MARK}%H`, ref, '--', current]),
+    );
+    // The path whose `A` the chain printed, if any. The walk itself is the one
+    // it always was — the chain is read to its end, as before E3p.3 — and this
+    // only records whether the path the chain ended on was seen being born.
+    let bornAs: string | null = null;
+    for (const commit of commits) {
+      for (const change of commit.changes) {
+        if (change.to !== current) continue;
+        if (change.status.startsWith('R')) {
+          current = change.from;
+          historical.push(current);
+          break;
+        }
+        if (change.status.startsWith('C')) {
+          return { historical, copyStop: { source: change.from, into: current } };
+        }
+        if (change.status.startsWith('A')) bornAs = current;
       }
     }
+    if (bornAs === current) return { historical, copyStop: null };
+    // E3p.3: the chain shows no birth, so the path was born in a merge
+    // resolution. Only then is the merge's own diff read.
+    const rename = mergeResolutionRename({ git, ref, path: current });
+    if (rename === null) return { historical, copyStop: null };
+    ref = `${rename.sha}^1`;
+    current = rename.source;
+    if (seen.has(`${ref}\0${current}`)) return { historical, copyStop: null };
+    historical.push(current);
   }
-  return { historical, copyStop };
 }
 
 export function resolveRenameClosure(input: {
@@ -354,7 +433,17 @@ export interface RefusalReport {
 export function historicalPathsOf(input: { git: GitRunner; ref: string }): string[] {
   const paths = new Set<string>();
   for (const commit of parseNameStatus(
-    input.git(['log', `--format=${MARK}%H`, '--name-status', '-M', input.ref]),
+    // First-parent merge diffs too (E3p.3), so a path born and deleted inside
+    // merge resolutions cannot escape the walk. The walk's size with and
+    // without them is recorded in T112.
+    input.git([
+      'log',
+      `--format=${MARK}%H`,
+      '--name-status',
+      '-M',
+      '--diff-merges=first-parent',
+      input.ref,
+    ]),
   )) {
     for (const change of commit.changes) {
       paths.add(change.from);
@@ -399,6 +488,224 @@ export function completenessRefusals(input: {
     else dispositioned.push({ path, disposition });
   }
   return { refused, dispositioned, pathsWalked: input.historicalPaths.length };
+}
+
+// --- E3p.2: the reviewed per-path historical dispositions -------------------
+
+export const HISTORICAL_DISPOSITION_KINDS = [
+  'retired',
+  'split-by-subject',
+  're-authored',
+  'host-stays',
+] as const;
+
+export type HistoricalDispositionKind = (typeof HISTORICAL_DISPOSITION_KINDS)[number];
+
+/** A successor in the paid repository: its path **and** its commit there. */
+export interface PaidEvidence {
+  readonly repository: 'paid';
+  readonly path: string;
+  readonly commit: string;
+}
+
+/** A string is a path in this repository at the ref being extracted. */
+export type Evidence = string | PaidEvidence;
+
+export interface HistoricalDisposition {
+  readonly module: string;
+  readonly path: string;
+  readonly kind: HistoricalDispositionKind;
+  readonly lastReadable: string;
+  readonly retiredBy: string;
+  readonly evidence: readonly Evidence[];
+  readonly reason: string;
+}
+
+const DISPOSITION_FIELDS = [
+  'module',
+  'path',
+  'kind',
+  'lastReadable',
+  'retiredBy',
+  'evidence',
+  'reason',
+] as const;
+
+const GLOB = /[*?[\]{}]/;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function nonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+/**
+ * The file's **shape**, over every entry whichever module it names: one file
+ * for all fifteen modules is one schema, and a malformed entry is a malformed
+ * file. What needs git — and what depends on this run's refusal set — is
+ * `resolveHistoricalDispositions`'s, and that one reads this module's entries
+ * only.
+ */
+export function parseHistoricalDispositions(text: string): {
+  readonly entries: readonly HistoricalDisposition[];
+  readonly problems: readonly string[];
+} {
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch (error) {
+    return { entries: [], problems: [`not JSON: ${(error as Error).message}`] };
+  }
+  if (!Array.isArray(data)) return { entries: [], problems: ['the file is not a JSON array'] };
+  const entries: HistoricalDisposition[] = [];
+  const problems: string[] = [];
+  const pairs = new Set<string>();
+  data.forEach((raw, index) => {
+    const at = `entry ${index}`;
+    if (!isRecord(raw)) {
+      problems.push(`${at}: not an object`);
+      return;
+    }
+    const before = problems.length;
+    const keys = Object.keys(raw);
+    for (const field of DISPOSITION_FIELDS) {
+      if (!keys.includes(field)) problems.push(`${at}: missing field \`${field}\``);
+    }
+    for (const key of keys) {
+      if (!(DISPOSITION_FIELDS as readonly string[]).includes(key)) {
+        problems.push(`${at}: unknown field \`${key}\` — the entry has exactly seven fields`);
+      }
+    }
+    for (const field of ['module', 'path', 'lastReadable', 'retiredBy', 'reason'] as const) {
+      if (keys.includes(field) && !nonEmptyString(raw[field])) {
+        problems.push(`${at}: \`${field}\` is not a non-empty string`);
+      }
+    }
+    const path = raw.path;
+    if (nonEmptyString(path)) {
+      if (GLOB.test(path)) problems.push(`${at}: \`${path}\` is a glob — one path per entry`);
+      if (path.endsWith('/')) {
+        problems.push(`${at}: \`${path}\` is a directory — one file per entry`);
+      }
+    }
+    if (
+      keys.includes('kind') &&
+      !(HISTORICAL_DISPOSITION_KINDS as readonly unknown[]).includes(raw.kind)
+    ) {
+      problems.push(
+        `${at}: unknown kind ${JSON.stringify(raw.kind)} — one of ` +
+          HISTORICAL_DISPOSITION_KINDS.join(', '),
+      );
+    }
+    if (keys.includes('evidence')) {
+      const evidence = raw.evidence;
+      if (!Array.isArray(evidence) || evidence.length === 0) {
+        problems.push(`${at}: \`evidence\` is not a non-empty list`);
+      } else {
+        evidence.forEach((item, i) => {
+          if (typeof item === 'string') {
+            if (!nonEmptyString(item)) problems.push(`${at}: evidence ${i} is empty`);
+            else if (GLOB.test(item)) problems.push(`${at}: evidence ${i} \`${item}\` is a glob`);
+            return;
+          }
+          if (
+            !isRecord(item) ||
+            item.repository !== 'paid' ||
+            !nonEmptyString(item.path) ||
+            !nonEmptyString(item.commit) ||
+            Object.keys(item).length !== 3
+          ) {
+            problems.push(
+              `${at}: evidence ${i} is neither a path in this repository nor ` +
+                '`{ "repository": "paid", "path", "commit" }`',
+            );
+          }
+        });
+      }
+    }
+    if (nonEmptyString(raw.module) && nonEmptyString(path)) {
+      const pair = `${raw.module}\0${path}`;
+      if (pairs.has(pair)) problems.push(`${at}: duplicate (${raw.module}, ${path})`);
+      pairs.add(pair);
+    }
+    if (problems.length === before) entries.push(raw as unknown as HistoricalDisposition);
+  });
+  return { entries, problems };
+}
+
+function objectType(git: GitRunner, spec: string): string | null {
+  try {
+    // `--quiet` so an absent object is an exit status rather than a `fatal:`
+    // line on the operator's terminal.
+    const sha = git(['rev-parse', '--verify', '--quiet', spec]).trim();
+    return sha.length === 0 ? null : git(['cat-file', '-t', sha]).trim();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * What the refusal may stop printing, and why each entry for this module may
+ * or may not take a path off it. A path leaves the refusal only through an
+ * accepted entry; an entry that is not accepted is a problem, never ignored,
+ * because an unused entry is a stale one.
+ */
+export function resolveHistoricalDispositions(input: {
+  git: GitRunner;
+  ref: string;
+  moduleId: string;
+  refused: readonly string[];
+  entries: readonly HistoricalDisposition[];
+}): {
+  readonly accepted: readonly HistoricalDisposition[];
+  readonly refused: readonly string[];
+  readonly problems: readonly string[];
+} {
+  const { git, ref, moduleId } = input;
+  const refusalSet = new Set(input.refused);
+  const accepted: HistoricalDisposition[] = [];
+  const problems: string[] = [];
+  for (const entry of input.entries) {
+    if (entry.module !== moduleId) continue;
+    const at = `${entry.path}`;
+    const before = problems.length;
+    if (!pathCarriesModuleId(entry.path, moduleId)) {
+      problems.push(`${at}: does not carry \`${moduleId}\` as a path segment or filename stem`);
+    }
+    if (!refusalSet.has(entry.path)) {
+      problems.push(
+        `${at}: not in this run's refusal set (already carried, standing-dispositioned, or never ` +
+          'held) — an unused entry is a stale entry',
+      );
+    }
+    const readable = objectType(git, `${entry.lastReadable}:${entry.path}`);
+    if (readable === null) {
+      problems.push(`${at}: \`git show ${entry.lastReadable}:${entry.path}\` reads nothing`);
+    } else if (readable !== 'blob') {
+      problems.push(`${at}: is a ${readable} at ${entry.lastReadable} — one file per entry`);
+    }
+    if (objectType(git, `${entry.retiredBy}^{commit}`) !== 'commit') {
+      problems.push(`${at}: retiredBy \`${entry.retiredBy}\` is not a commit`);
+    } else if (objectType(git, `${entry.retiredBy}:${entry.path}`) !== null) {
+      problems.push(`${at}: still present in retiredBy \`${entry.retiredBy}\`'s tree`);
+    }
+    for (const evidence of entry.evidence) {
+      if (typeof evidence !== 'string') continue;
+      const spec = `${ref}:${evidence.replace(/\/+$/, '')}`;
+      if (objectType(git, spec) === null) {
+        problems.push(`${at}: evidence \`${evidence}\` does not exist at ${ref}`);
+      }
+    }
+    if (problems.length === before) accepted.push(entry);
+  }
+  const cleared = new Set(accepted.map((entry) => entry.path));
+  return {
+    accepted,
+    refused: input.refused.filter((path) => !cleared.has(path)),
+    problems,
+  };
 }
 
 // --- the plan --------------------------------------------------------------
@@ -463,6 +770,8 @@ interface Options {
   readonly ref: string;
   readonly package: string | undefined;
   readonly pathsFile: string | undefined;
+  /** E3p.2's reviewed per-path historical dispositions — a JSON file. */
+  readonly dispositions: string | undefined;
 }
 
 export function parseOptions(argv: readonly string[]): Options {
@@ -470,14 +779,16 @@ export function parseOptions(argv: readonly string[]): Options {
   let ref = 'HEAD';
   let pkg: string | undefined;
   let pathsFile: string | undefined;
+  let dispositions: string | undefined;
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i]!;
     if (arg === '--ref') ref = argv[(i += 1)] ?? ref;
     else if (arg === '--package') pkg = argv[(i += 1)];
     else if (arg === '--paths-file') pathsFile = argv[(i += 1)];
+    else if (arg === '--dispositions') dispositions = argv[(i += 1)];
     else if (!arg.startsWith('-')) moduleId ??= arg;
   }
-  return { moduleId, ref, package: pkg, pathsFile };
+  return { moduleId, ref, package: pkg, pathsFile, dispositions };
 }
 
 function main(): never {
@@ -486,7 +797,7 @@ function main(): never {
   if (moduleId === undefined) {
     console.error(
       'usage: tsx scripts/derive-extraction-path-set.ts <module-id> [--ref <rev>] ' +
-        '[--package <dir>] [--paths-file <out>]',
+        '[--package <dir>] [--paths-file <out>] [--dispositions <file>]',
     );
     process.exit(2);
   }
@@ -569,21 +880,77 @@ function main(): never {
   );
   for (const row of report.dispositioned) say(`  ${row.disposition}: ${row.path}`);
 
+  // E3p.2. Read only to decide what the refusal may stop printing: `filterPlan`
+  // below never sees an entry, because an entry is a judgement, not a path list.
+  let entries: readonly HistoricalDisposition[] = [];
+  let problems: readonly string[] = [];
+  if (options.dispositions !== undefined) {
+    let text: string;
+    try {
+      text = readFileSync(options.dispositions, 'utf8');
+    } catch (error) {
+      console.error(
+        `[path-set:${moduleId}] REFUSED — the historical dispositions file ` +
+          `${options.dispositions} cannot be read: ${(error as Error).message}`,
+      );
+      process.exit(2);
+    }
+    const parsed = parseHistoricalDispositions(text);
+    entries = parsed.entries;
+    problems = parsed.problems;
+  }
+  const historical = resolveHistoricalDispositions({
+    git,
+    ref,
+    moduleId,
+    refused: report.refused,
+    entries,
+  });
+  problems = [...problems, ...historical.problems];
+  if (options.dispositions !== undefined) {
+    say(
+      `E3p.2 — ${historical.accepted.length} reviewed historical disposition(s) accepted from ` +
+        options.dispositions,
+    );
+  }
+  for (const entry of historical.accepted) {
+    say(
+      `  historical ${entry.kind}: ${entry.path} — git show ${entry.lastReadable}:${entry.path} ` +
+        `— retired by ${entry.retiredBy} — ${entry.reason}`,
+    );
+    for (const evidence of entry.evidence) {
+      say(
+        typeof evidence === 'string'
+          ? `    evidence: ${evidence}`
+          : `    evidence (paid repository): ${evidence.path} at ${evidence.commit}`,
+      );
+    }
+  }
+
   const plan = filterPlan({ moduleId, roots: resolution.roots, carried: split.carried, tipRoot });
   if (pathsFile !== undefined) writeFileSync(pathsFile, renderPathsFile(plan), 'utf8');
 
-  if (report.refused.length > 0) {
+  if (problems.length > 0) {
     console.error(
-      `[path-set:${moduleId}] REFUSED — ${report.refused.length} path(s) of this history carry ` +
-        'this id, were not carried, and no standing disposition covers them:',
+      `[path-set:${moduleId}] REFUSED — ${problems.length} problem(s) in the historical ` +
+        'dispositions (E3p.2):',
     );
-    for (const path of report.refused) console.error(`  ${path}`);
-    console.error(
-      'Widen the resolution or record each as deliberately left, in the merge request. There is ' +
-        'no default: both answers are real and the wrong one is unrecoverable (E3p, refusal 14).',
-    );
-    process.exit(1);
+    for (const problem of problems) console.error(`  ${problem}`);
   }
+  if (historical.refused.length > 0) {
+    console.error(
+      `[path-set:${moduleId}] REFUSED — ${historical.refused.length} path(s) of this history ` +
+        'carry this id, were not carried, and no standing or reviewed disposition covers them:',
+    );
+    for (const path of historical.refused) console.error(`  ${path}`);
+    console.error(
+      'Widen the resolution — for a live file, a rename-only move into the package (E3p.1) — or ' +
+        'record the path as deliberately left through a reviewed entry in ' +
+        'specs/134-paid-module-extraction/e3p-historical-dispositions.json (E3p.2). There is no ' +
+        'default: both answers are real and the wrong one is unrecoverable (E3p, refusal 14).',
+    );
+  }
+  if (problems.length > 0 || historical.refused.length > 0) process.exit(1);
   say(`plan — ${plan.keep.length} keep line(s), ${plan.renames.length} rename(s)`);
   process.exit(0);
 }
