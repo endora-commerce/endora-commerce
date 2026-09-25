@@ -10,8 +10,8 @@ per `(product, warehouse)`, powiązanie kanału sprzedaży, alerty niskiego stan
 pasma wyświetlania, backorder + unmanaged + notify-when-available, import CSV
 oraz zapisy `stock_allocations` per linia.
 
-Moduł zastępuje model single-bucket z foundation 001 w ramach
-feature 010. Migracja 030 zachowuje tabelę foundation `stock_levels`, ale
+Moduł zastępuje model single-bucket z foundation. Migracja 030 zachowuje
+tabelę foundation `stock_levels`, ale
 rozszerza kształt unikalności do `(product_id, variant_id, warehouse_id)`,
 seeduje magazyn `Default` z deterministycznym UUID
 `00000000-0000-4000-8000-00000000d017` i paruje każdy aktywny kanał
@@ -29,7 +29,7 @@ sprzedaży z tym magazynem przez nową tabelę
 | `StockAllocation` | Jeden wiersz per `(order_item, warehouse)` — pochodzenie fulfilmentu + wsparcie release |
 | `AvailabilityNotification` | Klient lub anonimowy e-mail zapisany na sygnał back-in-stock |
 
-## Ustawienia (Module Settings — feature 004)
+## Ustawienia (Module Settings)
 
 Siedem kluczy w grupie `inventory`:
 
@@ -51,7 +51,7 @@ i `catalog:write`; zobacz **Permissions** poniżej.
 
 Tabela wymienia wszystkie 21 miejsc admina. Wymieniała dziesięć do 2026-08-29 i
 pomijała zapis progów per-(product, warehouse) oraz obie trasy backward-compatibility
-foundation-001 — to rodzaj luki, którą każda z czterech poprzednich napraw uprawnień
+foundation — to rodzaj luki, którą każda z czterech poprzednich napraw uprawnień
 znajdowała na stronie modułu.
 
 | Verb + Path | Permission | Purpose |
@@ -70,8 +70,8 @@ znajdowała na stronie modułu.
 | `GET /api/v1/admin/inventory/availability-notifications` | `inventory:read` | Admin przegląda kolejkę back-in-stock |
 | `PATCH /api/v1/admin/inventory/availability-notifications/:id` | `inventory:write` | Anuluje subskrypcję |
 | `POST /api/v1/admin/inventory/import` | `inventory:write` | Import CSV stanów (`?dryRun=true` waliduje bez zapisu) |
-| `PUT /api/v1/admin/inventory` | `inventory:write` | **Deprecated** zapis single-bucket foundation-001; deleguje do `StockLevelService.setOnHand` względem seedowanego magazynu Default |
-| `GET /api/v1/admin/inventory/legacy` | `inventory:read` | **Deprecated** lista single-bucket foundation-001 |
+| `PUT /api/v1/admin/inventory` | `inventory:write` | **Deprecated** zapis single-bucket foundation; deleguje do `StockLevelService.setOnHand` względem seedowanego magazynu Default |
+| `GET /api/v1/admin/inventory/legacy` | `inventory:read` | **Deprecated** lista single-bucket foundation |
 | `GET /api/v1/storefront/inventory/display-mode` | — | Publiczny odczyt storefront: jaki tryb wyświetlania używa kanał |
 
 ## Uprawnienia
@@ -83,9 +83,8 @@ odczytów na `orders:read` i dwanaście zapisów na `catalog:write`. Kto mógł 
 opis produktu, mógł tworzyć, przemianowywać i usuwać magazyn, przepisywać stan,
 uruchamiać import CSV przez stock każdego produktu i wiązać lub odpinać magazyn od
 kanału sprzedaży; a kto mógł czytać zamówienia, mógł enumerować każdy magazyn i adres
-na nim. Żaden kod nie nazywa danych, których dotyka — to dyskryminator, który
-`specs/080-f4-real-scope/payments-permission-ownership.md` §7.2 ustawia i
-`specs/080-f4-real-scope/first-deployment-window.md` §2 stosuje per trasa, a nie per moduł.
+na nim. Żaden kod nie nazywa danych, których dotyka — to dyskryminator, na
+którym rozstrzyga się własność uprawnień: per trasa, a nie per moduł.
 
 **Nie ma migracji danych**: rola, która docierała do tych ekranów przez
 `catalog:write` lub `orders:read`, dostaje nowe kody explicite na
@@ -99,7 +98,7 @@ oba stare kody.
 
 ### Deprecated
 
-Dwie trasy foundation-001 są starsze niż powierzchnia per-magazyn powyżej i zawsze
+Dwie trasy foundation są starsze niż powierzchnia per-magazyn powyżej i zawsze
 adresują seedowany magazyn Default. Nic w platformie nie woła żadnej z nich
 — żaden ekran admina, żaden call klienta API admina, żaden seed, żaden skrypt — więc
 istnieją dla własnej integracji wdrożenia i nic więcej. Nie buduj na nich.
@@ -109,7 +108,7 @@ istnieją dla własnej integracji wdrożenia i nic więcej. Nie buduj na nich.
 | `PUT /api/v1/admin/inventory` | Ustaw absolutny on-hand dla `(productId, variantId?)` w magazynie Default | `PUT /api/v1/admin/inventory/levels`, który bierze explicite `warehouseId` |
 | `GET /api/v1/admin/inventory/legacy` | Płaskie wiersze `stock_levels`, najnowsze pierwsze, opcjonalnie filtrowane `productId` | `GET /api/v1/admin/inventory/levels` dla wszystkiego oprócz `variantId` i `updatedAt`, których nie niesie |
 
-Od issue #139 `PUT` deleguje do tego samego serwisu co
+`PUT` deleguje teraz do tego samego serwisu co
 `PUT .../levels`, więc emituje `inventory.adjusted.v1` i odpowiada `404` dla
 nieznanego produktu zamiast pisać wiersz stocku dla niego. Zostanie usunięty, gdy
 log dostępu produkcyjnego lub właściciel wdrożenia potwierdzi, że nic tego nie woła.

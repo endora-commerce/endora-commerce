@@ -10,8 +10,8 @@ on-hand and reserved counters, sales-channel binding, low-stock alerts,
 display bands, backorder + unmanaged + notify-when-available, CSV import,
 and per-line `stock_allocations` writes.
 
-This module replaces the foundation 001 single-bucket model under
-feature 010. Migration 030 keeps the foundation `stock_levels` table but
+This module replaces the foundation's single-bucket model. Migration 030
+keeps the foundation `stock_levels` table but
 extends its uniqueness shape to `(product_id, variant_id, warehouse_id)`,
 seeds a `Default` warehouse with the deterministic UUID
 `00000000-0000-4000-8000-00000000d017`, and pairs every active sales
@@ -29,7 +29,7 @@ channel with that warehouse via the new
 | `StockAllocation` | One row per `(order_item, warehouse)` — fulfilment provenance + release support |
 | `AvailabilityNotification` | Customer or anonymous email subscribed to a back-in-stock signal |
 
-## Settings (Module Settings — feature 004)
+## Settings (Module Settings)
 
 Seven keys under the `inventory` group:
 
@@ -50,7 +50,7 @@ this module's own codes since 2026-08-29. All 21 used to enforce `orders:read`
 and `catalog:write`; see **Permissions** below.
 
 The table lists all 21 admin sites. It listed ten until 2026-08-29 and omitted
-the per-(product, warehouse) threshold write and both foundation-001
+the per-(product, warehouse) threshold write and both foundation
 backward-compatibility routes, which is the kind of gap the four preceding
 permission repairs each found in a module page.
 
@@ -70,8 +70,8 @@ permission repairs each found in a module page.
 | `GET /api/v1/admin/inventory/availability-notifications` | `inventory:read` | Admin browses the back-in-stock queue |
 | `PATCH /api/v1/admin/inventory/availability-notifications/:id` | `inventory:write` | Cancels a subscription |
 | `POST /api/v1/admin/inventory/import` | `inventory:write` | CSV stock import (`?dryRun=true` validates without writing) |
-| `PUT /api/v1/admin/inventory` | `inventory:write` | **Deprecated** foundation-001 single-bucket write; delegates to `StockLevelService.setOnHand` against the seeded Default warehouse |
-| `GET /api/v1/admin/inventory/legacy` | `inventory:read` | **Deprecated** foundation-001 single-bucket list |
+| `PUT /api/v1/admin/inventory` | `inventory:write` | **Deprecated** foundation single-bucket write; delegates to `StockLevelService.setOnHand` against the seeded Default warehouse |
+| `GET /api/v1/admin/inventory/legacy` | `inventory:read` | **Deprecated** foundation single-bucket list |
 | `GET /api/v1/storefront/inventory/display-mode` | — | Storefront-public read: which display mode the channel uses |
 
 ## Permissions
@@ -84,9 +84,8 @@ product description could create, rename and delete a warehouse, rewrite a stock
 count, run a CSV import across every product's stock, and bind or unbind a
 warehouse from a sales channel; and whoever could read orders could enumerate
 every warehouse and the address on it. Neither code names the data being
-touched, which is the discriminator
-`specs/080-f4-real-scope/payments-permission-ownership.md` §7.2 sets and
-`specs/080-f4-real-scope/first-deployment-window.md` §2 applies per route rather than per module.
+touched, which is the discriminator permission ownership is decided on: per
+route rather than per module.
 
 There is **no data migration**: a role that reached these screens through
 `catalog:write` or `orders:read` is granted the new codes explicitly, on
@@ -100,7 +99,7 @@ both old codes.
 
 ### Deprecated
 
-Two foundation-001 routes predate the per-warehouse surface above and always
+Two foundation routes predate the per-warehouse surface above and always
 address the seeded Default warehouse. Nothing in the platform calls either one
 — no admin screen, no admin API client call, no seed, no script — so they
 exist for a deployment's own integration and nothing else. Do not build against
@@ -111,7 +110,7 @@ them.
 | `PUT /api/v1/admin/inventory` | Set absolute on-hand for `(productId, variantId?)` in the Default warehouse | `PUT /api/v1/admin/inventory/levels`, which takes an explicit `warehouseId` |
 | `GET /api/v1/admin/inventory/legacy` | Flat `stock_levels` rows, newest first, optionally filtered by `productId` | `GET /api/v1/admin/inventory/levels` for everything except `variantId` and `updatedAt`, which it does not carry |
 
-Since issue #139 the `PUT` delegates to the same service as
+The `PUT` now delegates to the same service as
 `PUT .../levels`, so it emits `inventory.adjusted.v1` and answers `404` for an
 unknown product instead of writing a stock row for one. It will be removed once
 a production access log or the deployment owner confirms nothing calls it.

@@ -5,10 +5,9 @@ description: Pula obsługiwanych tagów BCP-47 + helper fallback tłumaczeń
 
 # `languages`
 
-Instalacyjna pula obsługiwanych tagów językowych BCP-47 (T238 /
-FR-105). Posiada publiczną ścieżkę read `i18n/config`, z której storefront + admin
-budują pickery języków, oraz mały
-`LocaleService` implementujący regułę fallback tłumaczeń FR-105.
+Instalacyjna pula obsługiwanych tagów językowych BCP-47. Posiada publiczną
+ścieżkę read `i18n/config`, z której storefront + admin budują pickery
+języków, oraz mały `LocaleService` implementujący regułę fallback tłumaczeń.
 
 ## Publiczne API
 
@@ -28,8 +27,7 @@ moduł nadal komponuje, to
 w jednym publicznym payloadzie i czyta połowę walutową przez `currencyReadPort`.
 
 Cztery trasy admin języków powyżej wymuszają `catalog:write`. To sąsiadujące roszczenie
-tego samego rodzaju, nie zostało naprawione i jest zapisane w
-`specs/080-f4-real-scope/first-deployment-window.md` §2, a nie tutaj.
+tego samego rodzaju i nie zostało naprawione.
 
 ## Domyślne
 
@@ -51,13 +49,13 @@ Migracja 012 wstawia dwa wiersze, aby quickstart działał bez kroku admin:
 
 Wartości `label` i `symbol` (waluty) po stronie klienta zapisywane są
 literałami Unicode Postgres `U&'…'`, aby plik źródłowy migracji pozostał
-ASCII-only (Zasada VIII Konstytucji dotyczy artefaktów inżynierskich;
+ASCII-only (artefakty inżynierskie pozostają anglojęzyczne i ASCII-only;
 wiersz runtime odzwierciedla to, co storefront powinien renderować).
 
 ## Fallback tłumaczeń (`LocaleService`)
 
 `LocaleService.pickLocalizedValue(record, requestedLocale, defaultLocale?)`
-implementuje łańcuch lookup FR-105:
+implementuje łańcuch lookup:
 
 1. żądany locale, jeśli obecny w rekordzie.
 2. skonfigurowany domyślny locale, jeśli podany i obecny.
