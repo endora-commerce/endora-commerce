@@ -247,6 +247,9 @@ import { Migration20260611T140353PaymentMethodsAdapter } from '@endora-commerce/
 import { Migration20260821T084920PaymentMethodsFailureStatusOnHold } from '@endora-commerce/mod-payment-methods/migrations';
 import { Migration20260912T094631PaymentMethodsSalesChannelPaymentMethods } from '@endora-commerce/mod-payment-methods/migrations';
 
+// ── payments ────────────────────────────────────────────────────────────────
+import { Migration20260925T115728PaymentsRefundedAmount } from '@endora-commerce/mod-payments/migrations';
+
 // ── paypal ──────────────────────────────────────────────────────────────────
 import { Migration20260821T110651PaypalInit } from '@endora-commerce/mod-paypal/migrations';
 import { Migration20260821T110652PaypalSeedPaymentMethods } from '@endora-commerce/mod-paypal/migrations';
@@ -579,6 +582,9 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('payment_methods', Migration20260611T140353PaymentMethodsAdapter),
   migration('payment_methods', Migration20260821T084920PaymentMethodsFailureStatusOnHold),
   migration('payment_methods', Migration20260912T094631PaymentMethodsSalesChannelPaymentMethods),
+
+  // ── payments ────────────────────────────────────────────────────────────────
+  migration('payments', Migration20260925T115728PaymentsRefundedAmount),
 
   // ── paypal ──────────────────────────────────────────────────────────────────
   migration('paypal', Migration20260821T110651PaypalInit),

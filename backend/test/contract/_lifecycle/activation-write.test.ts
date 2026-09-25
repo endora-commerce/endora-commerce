@@ -1,6 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { clearFamilyFor, familySiblingsOf } from '../../helpers/capability-families.js';
-import { PIM_ERGONODE_SETTING_CODES } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -38,7 +37,35 @@ import { Setting } from '@endora-commerce/platform/kernel';
 const ALL_IDS = REGISTERED_MANIFESTS.map((e) => e.manifest.id);
 const ADMIN = { b2b_session: 'stub-admin-session' };
 const ACTION = 'module.activation.set';
-const MODULE = 'pim_ergonode';
+/**
+ * The generic "a module with an activation control" subject of the US1 cases
+ * and of the pair labelled T046 below (feature 073's ids).
+ *
+ * `newsletter` because nothing about it can move under this file: it is
+ * switchable, in no capability family (so {@link clearFamilyFor} has nothing
+ * to clear), has no dependants (so its switch-off is never refused), and
+ * declares `credentials`, which the T046 pair needs. It replaced
+ * `pim_ergonode` in feature 134 (`research.md` D14 §7): a PIM connector
+ * carried a family claim this file had to clear first, and it is a paid module
+ * that leaves this repository.
+ */
+const MODULE = 'newsletter';
+
+/** An admin GET of {@link MODULE}'s that answers `503 MODULE_DISABLED` when it is off. */
+const MODULE_ADMIN_PROBE = '/api/v1/admin/newsletter/campaigns';
+
+/**
+ * The subject of the pair labelled T045 below (feature 073's id — not feature
+ * 134's T045): a module whose switch-off is refused while its dependants are
+ * present, and allowed once none is.
+ *
+ * `cms` because its dependant set cannot be emptied or churned by a module
+ * leaving this repository: its direct dependants are all free and switchable,
+ * none is in a capability family, and no manifest acknowledges an edge onto
+ * it. The pair used `payments` until feature 134 (`research.md` D14 §7), whose
+ * every dependant was a payment gateway on its way out.
+ */
+const HUB = 'cms';
 
 /** Every module that declares the lock — the 23 the core set holds (feature 074). */
 const CORE_IDS = REGISTERED_MANIFESTS.filter(
@@ -59,9 +86,10 @@ const FREELY_FLIPPABLE = ['blog', 'mfa', 'product_feeds', 'prompt_actions'] as c
  * Every registered module whose manifest names `moduleId` in `dependencies` —
  * i.e. exactly what the refusal below is computed from.
  *
- * Derived rather than written down (D-100). The two T045 cases used to carry a
- * hand-copied `['autopay', 'payu', 'stripe', 'tpay']`, which was correct until
- * `paypal` declared the same dependency and turned the pair red on `master`:
+ * Derived rather than written down (D-100). The two T045 cases, while they
+ * flipped `payments`, carried a hand-copied `['autopay', 'payu', 'stripe',
+ * 'tpay']`, which was correct until `paypal` declared the same dependency and
+ * turned the pair red on `master`:
  * the switch-off case deactivated four of the five dependants and the fifth
  * went on blocking the flip. A hand-copied derived fact goes stale in silence,
  * and the gateway family is the part of this tree most likely to grow, so the
@@ -87,8 +115,8 @@ function dependantsOf(moduleId: string): string[] {
 
 /** Every activation code this file writes to, reset between cases. */
 const WRITTEN_CODES = [
-  PIM_ERGONODE_SETTING_CODES.ACTIVATION,
-  'payments.enabled',
+  activationCodeOf(MODULE),
+  activationCodeOf(HUB),
   'credentials.enabled',
   ...FREELY_FLIPPABLE.map((id) => activationCodeOf(id)),
 ];
@@ -107,20 +135,13 @@ describe('POST /api/v1/admin/modules/:id/activation [contract]', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer();
-    // Feature 132 — `MODULE` is a PIM connector, used here as a generic "a module
-    // with an activation control" subject. Since the PIM family became four modules
-    // derived from their own manifests, three of which declare
-    // `activation.default: true`, switching this subject on meets a sibling's claim
-    // and the route answers `PIM_CONNECTOR_ALREADY_ACTIVE` where this file is
-    // asserting something else entirely — including two dependency refusals that
-    // then never get the chance to fire.
-    //
-    // Clearing the family once, through the route, writes an explicit `false` for
-    // each sibling, which survives the propagation refresh that otherwise resolves
-    // them back to their manifest defaults. It names no module: the siblings are
-    // derived. The alternative — moving this file's subject to a module in no
-    // exclusive family — is the better shape and a wider change than this feature
-    // should make to a file it does not own.
+    // Feature 132 — a subject in an exclusive capability family meets a sibling's
+    // claim when it is switched on, and the route then answers with the family
+    // refusal where this file is asserting something else — including two
+    // dependency refusals that never get the chance to fire. `MODULE` is in no
+    // family since feature 134, so this clears nothing; it stays because the
+    // siblings are derived, and a subject that joins a family later is then
+    // handled without anybody remembering this paragraph.
     await clearFamilyFor(h, MODULE);
   }, 60_000);
 
@@ -172,7 +193,7 @@ describe('POST /api/v1/admin/modules/:id/activation [contract]', () => {
     // pub/sub round trip, so the very next request already sees the module gone.
     const before = await h.app.inject({
       method: 'GET',
-      url: '/api/v1/admin/pim-ergonode/connection',
+      url: MODULE_ADMIN_PROBE,
       cookies: ADMIN,
     });
     expect(before.json().error?.code).not.toBe('MODULE_DISABLED');
@@ -181,7 +202,7 @@ describe('POST /api/v1/admin/modules/:id/activation [contract]', () => {
 
     const after = await h.app.inject({
       method: 'GET',
-      url: '/api/v1/admin/pim-ergonode/connection',
+      url: MODULE_ADMIN_PROBE,
       cookies: ADMIN,
     });
     expect(after.statusCode).toBe(503);
@@ -190,7 +211,7 @@ describe('POST /api/v1/admin/modules/:id/activation [contract]', () => {
     expect((await flip(MODULE, true)).statusCode).toBe(200);
     const restored = await h.app.inject({
       method: 'GET',
-      url: '/api/v1/admin/pim-ergonode/connection',
+      url: MODULE_ADMIN_PROBE,
       cookies: ADMIN,
     });
     expect(restored.json().error?.code).not.toBe('MODULE_DISABLED');
@@ -215,7 +236,7 @@ describe('POST /api/v1/admin/modules/:id/activation [contract]', () => {
     const em = h.em();
     em.clear();
     const setting = await em.findOne(Setting, {
-      code: PIM_ERGONODE_SETTING_CODES.ACTIVATION,
+      code: activationCodeOf(MODULE),
     });
     expect(setting?.globalValue).toBe(false);
   });
@@ -381,13 +402,12 @@ describe('POST /api/v1/admin/modules/:id/activation [contract]', () => {
     // dependent absent from this deployment the flip is ordinary again. This is
     // also the remedy the message describes — switch the dependents off first.
     //
-    // Re-pointed by feature 074 from `price_lists`, which is now core, onto the
-    // spec's own example: a client selling on 30-day credit terms who takes no
-    // online payment, with the gateway modules that resolve `payments`.
-    const dependents = dependantsOf('payments');
+    // Re-pointed by feature 074 from `price_lists`, which is now core, onto
+    // `payments`, and by feature 134 from `payments` onto `HUB` — see its comment.
+    const dependents = dependantsOf(HUB);
     registryCache.__setEnabledForTesting(ALL_IDS.filter((id) => !dependents.includes(id)));
 
-    const res = await flip('payments', false);
+    const res = await flip(HUB, false);
     expect(res.statusCode).toBe(200);
     expect(res.json().module.activated).toBe(false);
   });
@@ -396,25 +416,26 @@ describe('POST /api/v1/admin/modules/:id/activation [contract]', () => {
     // The other side of the same pair, and the state User Story 1 of feature
     // 074 replaces with an informed confirmation in Phase 2. Asserted now so
     // that the change of code is visible in the diff when it happens.
-    const res = await flip('payments', false);
+    const res = await flip(HUB, false);
     expect(res.statusCode).toBe(409);
     expect(res.json().error.code).toBe('MODULE_DEPENDENTS_PRESENT');
     // The same derivation as the case above, and the second copy of the list
-    // that went stale: this one survived `paypal` only because
-    // `arrayContaining` is a subset check, so it asserted four fifths of the
-    // property and reported nothing about the fifth.
+    // that went stale while this pair flipped `payments`: it survived `paypal`
+    // only because `arrayContaining` is a subset check, so it asserted four
+    // fifths of the property and reported nothing about the fifth.
     expect(res.json().error.details.blockedBy).toEqual(
-      expect.arrayContaining(dependantsOf('payments')),
+      expect.arrayContaining(dependantsOf(HUB)),
     );
   });
 
   it('refuses to switch a module on while a module it needs is switched off (T046)', async () => {
-    // The symmetric direction, unchanged in meaning and re-pointed by feature
-    // 074: `pim_ergonode` used to be paired with `price_lists`, which is now
-    // core and can no longer be seeded as deactivated at all. `credentials` is
-    // the honest replacement — the connector's API credentials live there, and
-    // it is one of the five modules 074 gives a control to, so the pairing also
-    // proves that control reaches the graph.
+    // The symmetric direction, unchanged in meaning. Feature 074 paired the
+    // subject with `credentials` in place of `price_lists`, which is now core
+    // and can no longer be seeded as deactivated at all; `credentials` is one
+    // of the five modules 074 gives a control to, so the pairing also proves
+    // that control reaches the graph. Feature 134 moved the subject from
+    // `pim_ergonode` to `newsletter`, which declares `credentials` too, so the
+    // pairing survived verbatim.
     // Feature 132 — `__setEnabledForTesting` re-seeds **every** module's operator
     // axis to `true`, which undoes the family clearing `beforeAll` did in the cache
     // even though the rows it wrote are still `false`. The subject's family siblings
@@ -526,16 +547,18 @@ describe('POST /api/v1/admin/modules/:id/activation [contract]', () => {
   });
 
   it('`credentials` gains a live control that its dependents still block (FR-011)', async () => {
-    // The fifth of the five, kept separate because five modules resolve it. The
-    // refusal is the pre-Phase-2 behaviour and is asserted rather than avoided:
-    // the point of the new declaration is that the control is *reached* at all,
-    // and until this module had one the flip answered "declares no activation
-    // control" instead.
+    // The fifth of the five, kept separate because other modules resolve it.
+    // The refusal is the pre-Phase-2 behaviour and is asserted rather than
+    // avoided: the point of the new declaration is that the control is
+    // *reached* at all, and until this module had one the flip answered
+    // "declares no activation control" instead. The dependants are derived
+    // (D-100) — this case hand-copied `['pim_ergonode', 'prompt_actions']`
+    // until feature 134, and the connectors are among the modules leaving.
     const res = await flip('credentials', false);
     expect(res.statusCode).toBe(409);
     expect(res.json().error.code).toBe('MODULE_DEPENDENTS_PRESENT');
     expect(res.json().error.details.blockedBy).toEqual(
-      expect.arrayContaining(['pim_ergonode', 'prompt_actions']),
+      expect.arrayContaining(dependantsOf('credentials')),
     );
   });
 
@@ -545,7 +568,7 @@ describe('POST /api/v1/admin/modules/:id/activation [contract]', () => {
     // the flip would carry the hand-rolled, out-of-transaction audit shape.
     const res = await h.app.inject({
       method: 'PUT',
-      url: `/api/v1/admin/settings/${PIM_ERGONODE_SETTING_CODES.ACTIVATION}/value`,
+      url: `/api/v1/admin/settings/${activationCodeOf(MODULE)}/value`,
       cookies: ADMIN,
       payload: { scope: 'all', value: false },
     });
@@ -559,7 +582,7 @@ describe('POST /api/v1/admin/modules/:id/activation [contract]', () => {
     // the hot-path check is deliberately not channel-aware.
     const res = await h.app.inject({
       method: 'PUT',
-      url: `/api/v1/admin/settings/${PIM_ERGONODE_SETTING_CODES.ACTIVATION}/value`,
+      url: `/api/v1/admin/settings/${activationCodeOf(MODULE)}/value`,
       cookies: ADMIN,
       payload: { scope: 'subset', salesChannelCodes: ['default'], value: false },
     });
