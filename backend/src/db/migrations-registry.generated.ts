@@ -257,9 +257,6 @@ import { Migration20260801T100943PayuInit } from '@endora-commerce/mod-payu/migr
 import { Migration20260816T053830PayuSeedPaymentMethods } from '@endora-commerce/mod-payu/migrations';
 import { Migration20260821T084923PayuFailureStatusOnHold } from '@endora-commerce/mod-payu/migrations';
 
-// ── pim_akeneo ──────────────────────────────────────────────────────────────
-import { Migration20260825T124458PimAkeneoInit } from '@endora-commerce/mod-pim-akeneo/migrations';
-
 // ── pim_connector ───────────────────────────────────────────────────────────
 import { Migration20260826T153500PimConnectorInit } from '@endora-commerce/mod-pim-connector/migrations';
 
@@ -589,9 +586,6 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('payu', Migration20260801T100943PayuInit),
   migration('payu', Migration20260816T053830PayuSeedPaymentMethods),
   migration('payu', Migration20260821T084923PayuFailureStatusOnHold),
-
-  // ── pim_akeneo ──────────────────────────────────────────────────────────────
-  migration('pim_akeneo', Migration20260825T124458PimAkeneoInit),
 
   // ── pim_connector ───────────────────────────────────────────────────────────
   migration('pim_connector', Migration20260826T153500PimConnectorInit),

@@ -59,7 +59,6 @@
     "@endora-commerce/mod-payments": "workspace:*",
     "@endora-commerce/mod-paypal": "workspace:*",
     "@endora-commerce/mod-payu": "workspace:*",
-    "@endora-commerce/mod-pim-akeneo": "workspace:*",
     "@endora-commerce/mod-pim-ergonode": "workspace:*",
     "@endora-commerce/mod-pim-pimcore": "workspace:*",
     "@endora-commerce/mod-pim-unopim": "workspace:*",
