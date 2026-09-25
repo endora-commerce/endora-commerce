@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CAPABILITY_KEYS } from '@endora-commerce/contracts';
 import { effectiveState, Setting } from '@endora-commerce/platform/kernel';
 import { registryCache } from '@endora-commerce/platform/composition';
-import { declaredMembersOf } from '../../helpers/capability-families.js';
+import { deploymentFamilyOf } from '../../helpers/capability-families.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -40,16 +40,24 @@ import {
  * the operator axis from that database over the real manifest-derived declarations. The
  * harness otherwise seeds every module activated, which would make this file assert the
  * harness rather than the manifests.
+ *
+ * **Composed as the `example` deployment** (feature 134, T113, `research.md` D13 §6):
+ * its two overlay PIM fixtures are the members that stay once every packaged connector
+ * has left this repository, and "the second one is still refused" needs two.
  */
 
 const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
-const FAMILY = declaredMembersOf(CAPABILITY_KEYS.PIM_CONNECTOR);
+const DEPLOYMENT = 'example';
+const { members: FAMILY, overlay: OVERLAY_MEMBERS } = await deploymentFamilyOf(
+  CAPABILITY_KEYS.PIM_CONNECTOR,
+  DEPLOYMENT,
+);
 
 describe('pim_connector — the stock install activates no connector [SC-005]', () => {
   let h: BackendServerHandle;
 
   beforeAll(async () => {
-    h = await setupBackendServer();
+    h = await setupBackendServer({ deployment: DEPLOYMENT });
   }, 120_000);
 
   afterAll(async () => {
@@ -70,6 +78,9 @@ describe('pim_connector — the stock install activates no connector [SC-005]', 
 
   it('derived a family to judge', () => {
     expect(FAMILY.length).toBeGreaterThan(1);
+    // W6 — two members that are no packaged connector, so the family still has a
+    // "second one" to refuse once every packaged connector has left.
+    expect(OVERLAY_MEMBERS.length, FAMILY.join(', ')).toBeGreaterThan(1);
   });
 
   it('activates none of them, and every one reports both axes honestly', async () => {
