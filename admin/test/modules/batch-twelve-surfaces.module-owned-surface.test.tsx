@@ -66,10 +66,10 @@ function codeOf(relativePath: string): string {
  * that both times it was wrong. Read off the file:
  * `InvoiceKsefPanel({ invoiceId, kind, ksefReferenceNumber })` — three values
  * in, nothing out, no `onChange` and no `onSelect` — which is Z1 question 2,
- * an addition the owner makes because the owner is installed. The last case in
- * this file asserts that shape from the artefact, so a signature that grows an
- * `onChange` fails here rather than quietly becoming a zone that cannot carry
- * it.
+ * an addition the owner makes because the owner is installed. A case asserts
+ * that shape from the artefact — in `ksef`'s own package since feature 134's
+ * W2.2 — so a signature that grows an `onChange` fails there rather than
+ * quietly becoming a zone that cannot carry it.
  *
  * **No `match`, and the reasoning is Z13's**: `match` narrows the *mounts* of
  * one place, and this place has one host and one mount. The alternative — using
@@ -96,6 +96,70 @@ function codeOf(relativePath: string): string {
  * What this file asserts about the palette is the half that is the admin's:
  * that the shell keeps no hand-written copy for the server's answer to disagree
  * with.
+ *
+ * ## `ksef`'s half, dispositioned by subject (feature 134 W2.2)
+ *
+ * `ksef` is a paid module and leaves this repository, so its rows here were
+ * split by **subject** (**D-262** clause 3) rather than carried, moved wholesale
+ * or deleted wholesale:
+ *
+ * | subject | where it is now |
+ * | --- | --- |
+ * | the module's **declaration** — its one route, lazily loaded; the landing route and nav entry on one code; nav-to-route agreement; its nav label in its own bundle; exactly one zone, contributed at `ksef:read` with no `match`; its activation shape | inside the package, at its own `src/admin/index.test.ts`, under its own `environment: 'node'` config |
+ * | the package's own **source hygiene** — its eight admin sources naming no `@/` alias, no `import.meta.env` and no sibling module package, and the zone panel's three-values-in signature | the same file in the package, each read relative to the package's own sources |
+ * | **host hygiene** — `App.tsx`, `AppShell.tsx`, the shared `_i18n` bundle and `admin-shell/src/modules/` never naming `ksef` by hand, and `invoices` rendering `invoice.detail.after` with the panel's props | **here**, in `describe('the shell no longer names ksef by hand')` and the zone `describe`, over string literals only |
+ * | the **rendered** off-state and permission cases | deleted, under W2.3's condition and against the drivers named below |
+ *
+ * Two host assertions went rather than stayed, and neither is a loss. The
+ * per-module positive `toContain` of `ksef`'s specifier in
+ * `src/modules.generated.ts` would refuse the extraction rather than report a
+ * defect — the half `carrier-settings.module-owned-surface.test.tsx` had to drop
+ * twice; the general rule (`not.toContain('packages/modules')`) and a
+ * non-emptiness control stay, driven by the two remaining subjects. And the
+ * zone host's `not.toContain` of `ksef`'s package specifier is subsumed by the
+ * moved-screens case below, which refuses **any** `@endora-commerce/mod-` in
+ * `InvoiceDetail.tsx`; keeping the literal would have made this host file a
+ * specifier-bearing file of a module that has left.
+ *
+ * Six rendered cases were deleted, all over `ksef`'s real declaration: from
+ * `describe.each(SUBJECTS)('$module owns its admin surface')`, *contributes its
+ * sidebar entry from the registry, labelled in its own namespace*, *renders
+ * every one of its screens at its own route while present*, *contributes no
+ * surface while the module is absent from the platform*, *contributes no
+ * surface to an operator without the code its route enforces* and *restores
+ * both surfaces when the code is granted again, with no rebuild*; and from the
+ * operator-axis `describe`, *withdraws every ksef surface when the operator
+ * switches it off*. They rendered `App` and drove `ModuleRoute`'s gate and
+ * `registryNavFor`.
+ *
+ * W2.3 permits that deletion **only against a module that is staying and still
+ * drives the same member of the same mechanism over a real declaration**, named
+ * per case. For every one of the six the surviving driver is **this file**:
+ * the same six cases, unchanged, over **`invoices`** and **`quote_requests`**,
+ * two free modules whose declarations are in this repository — including the
+ * near-miss permission shape (`invoices:write`, the module's own write code, as
+ * `ksef:write` was) and the operator-axis control that the other subject stays
+ * present while one is withdrawn. `batch-sixteen-surfaces.module-owned-surface.test.tsx`
+ * over `cms` and `blog` drives the same six a second time. No rendered zone
+ * case existed here for `ksef`; `invoice.detail.after`'s rendered gate is
+ * `<AdminZone>`'s, driven over free declarations by
+ * `admin/test/modules/inventory/channel-warehouses-zone.test.tsx` and
+ * `admin/test/modules/quick_order/quick-order-zones.test.tsx`.
+ *
+ * The deleted bodies are read back from `master` before the split:
+ *
+ * ```
+ * git show 26843c0c7:admin/test/modules/batch-twelve-surfaces.module-owned-surface.test.tsx
+ * ```
+ *
+ * **What is genuinely lost is stated rather than smuggled**: the *conjunction*
+ * over `ksef`'s **real** declaration. The mechanism keeps real subjects here,
+ * and the declaration keeps a test — a stronger one, because it now runs in the
+ * module's own suite as well. The paid repository holds no admin off-state
+ * proof for any module it receives and will hold none until it has an admin
+ * test host; that is D-262 clause 3's accepted reduction in the admin half of
+ * Constitution XVII item 6's proof, and when it is repaired is the owner's
+ * decision.
  */
 
 interface Subject {
@@ -147,23 +211,6 @@ const SUBJECTS: readonly Subject[] = [
     navTargets: ['/invoices'],
     retiredSharedKeys: ['appShell.nav.invoices'],
     zones: [],
-    locked: false,
-  },
-  {
-    module: 'ksef',
-    route: '/ksef',
-    permission: 'ksef:read',
-    // The module's own write code: `routes.ts` builds one `readGuard` and one
-    // `writeGuard`, and the panel and the page both gate their submit controls
-    // on the second while opening on the first.
-    nearMiss: 'ksef:write',
-    labelKey: 'nav.ksef.label',
-    specifier: '@endora-commerce/mod-ksef/admin',
-    section: 'sales',
-    routes: ['/ksef'],
-    navTargets: ['/ksef'],
-    retiredSharedKeys: ['appShell.nav.ksef'],
-    zones: ['invoice.detail.after'],
     locked: false,
   },
   {
@@ -401,7 +448,7 @@ describe.each(SUBJECTS)('$module owns its admin surface', (subject) => {
   });
 });
 
-describe('all three are switchable, so the operator axis is real for each', () => {
+describe('both are switchable, so the operator axis is real for each', () => {
   it.each(SUBJECTS)('withdraws every $module surface when the operator switches it off', async (subject) => {
     // The frontend answers both axes from one presence projection, so the
     // assertion has the shape of the platform case above — what differs is that
@@ -410,7 +457,7 @@ describe('all three are switchable, so the operator axis is real for each', () =
     // Setting write, is
     // `backend/test/integration/_admin_surfaces/batch-twelve-palette-off-state.test.ts`.
     //
-    // The other two subjects stay present throughout, so what is withdrawn is
+    // The other subject stays present throughout, so what is withdrawn is
     // this module's surface and not the shell's — a control the platform case
     // above cannot have, because there nothing is present at all.
     const others = SUBJECTS.filter((entry) => entry.module !== subject.module);
@@ -563,6 +610,57 @@ describe.each(SUBJECTS)('the shell no longer names $module by hand', (subject) =
   });
 });
 
+/**
+ * `ksef`'s host hygiene, which stays after the module goes (feature 134 W2.2).
+ *
+ * **String literals, never specifiers**, so that these absences keep working
+ * once `ksef` is installed from a tarball, or not installed at all. What they
+ * refuse is a host file *regaining* the paid module's name.
+ */
+const KSEF_HOST = {
+  module: 'ksef',
+  routes: ['/ksef'],
+  navTargets: ['/ksef'],
+  retiredSharedKeys: ['appShell.nav.ksef'],
+} as const;
+
+describe('the shell no longer names ksef by hand', () => {
+  it('has no host route, nav entry or palette row for the module', () => {
+    const shell = codeOf('../packages/admin-shell/src/components/AppShell.tsx');
+    for (const target of KSEF_HOST.navTargets) {
+      expect(shell, target).not.toContain(`to: '${target}'`);
+    }
+    for (const key of KSEF_HOST.retiredSharedKeys) {
+      expect(shell, key).not.toContain(key);
+    }
+  });
+
+  it('drops the retired keys from the shared _i18n bundle, in both languages', () => {
+    for (const language of ['en', 'pl']) {
+      const shared = JSON.parse(
+        sourceOf(`../packages/modules/_i18n/i18n/${language}.json`),
+      ) as Record<string, string>;
+      for (const key of KSEF_HOST.retiredSharedKeys) {
+        expect(shared[key], `${key} (${language})`).toBeUndefined();
+      }
+    }
+  });
+
+  it('leaves no surface directory behind under admin/src/modules', () => {
+    expect(() => sourceOf(`../packages/admin-shell/src/modules/${KSEF_HOST.module}`)).toThrow();
+  });
+
+  it('declares none of its routes in App.tsx', () => {
+    // The declaration half of this case — that the module declares exactly
+    // these routes — is the package's now.
+    const app = codeOf('../packages/admin-shell/src/App.tsx');
+    for (const path of KSEF_HOST.routes) {
+      expect(app, path).not.toContain(`<Route path="${path}"`);
+    }
+    expect(app).not.toContain(`modules/${KSEF_HOST.module}`);
+  });
+});
+
 describe('the axis each module has is read off its manifest, never carried in this table', () => {
   it.each(SUBJECTS)('$module declares the activation shape this file assumes', async (subject) => {
     // `plan.md`'s Ruling 2, asserted rather than restated. What a lock would
@@ -588,7 +686,8 @@ describe('the surfaces each module does not contribute, derived from the contrib
     // contribution set** rather than asserted. `invoices` and `quote_requests`
     // declare none — so there is no rendering of theirs to withdraw, and this
     // case fails the day one is added without a proof of its own. `ksef`
-    // declares exactly one, which the zone cases below drive.
+    // declares exactly one, and its package asserts that since feature 134's
+    // W2.2.
     const { contributions } = (await import(
       /* @vite-ignore */ subject.specifier
     )) as typeof import('@endora-commerce/mod-invoices/admin');
@@ -605,14 +704,6 @@ describe('the moved screens take no reach the package cannot resolve', () => {
     'invoices/src/admin/pages/InvoicesList.tsx',
     'invoices/src/admin/templates/invoice-builder-plugin.tsx',
     'invoices/src/admin/templates/invoice-puck-config.tsx',
-    'ksef/src/admin/api/ksef-client.ts',
-    'ksef/src/admin/components/CredentialUploadForm.tsx',
-    'ksef/src/admin/components/GenerateCertificateWizard.tsx',
-    'ksef/src/admin/components/SubmissionsTable.tsx',
-    'ksef/src/admin/components/TokenForm.tsx',
-    'ksef/src/admin/pages/KsefPage.tsx',
-    'ksef/src/admin/submission-error.ts',
-    'ksef/src/admin/zones/InvoiceKsefPanel.tsx',
     'quote_requests/src/admin/pages/RfqCreatePage.tsx',
     'quote_requests/src/admin/pages/RfqDetail.tsx',
     'quote_requests/src/admin/pages/RfqList.tsx',
@@ -641,7 +732,7 @@ describe('the moved screens take no reach the package cannot resolve', () => {
     // import for a ledgered package one — which is the shape
     // `cross-module-imports/invoices.ts` was written, before any directory
     // moved, to refuse. So: no module package names another anywhere in these
-    // nineteen files.
+    // eleven files. `ksef`'s eight are asserted the same way inside its package.
     const reaching = MOVED.filter((file) =>
       codeOf(`../packages/modules/${file}`).includes('@endora-commerce/mod-'),
     );
@@ -649,7 +740,7 @@ describe('the moved screens take no reach the package cannot resolve', () => {
   });
 });
 
-describe('the zone is the drain: `invoice.detail.after` has a host and a contributor', () => {
+describe('the zone is the drain: `invoice.detail.after` has a host', () => {
   const ZONE = 'invoice.detail.after';
 
   it('is rendered by the host, with the props the contract declares', () => {
@@ -679,43 +770,13 @@ describe('the zone is the drain: `invoice.detail.after` has a host and a contrib
     // passes `invoice.ksefReferenceNumber`, which is `invoices`' own contract
     // field and carries the other module's name as a substring. A bare-word
     // assertion here would be red on a payload the host is right to send.
+    //
+    // The package spelling is not repeated here: the moved-screens case above
+    // refuses any `@endora-commerce/mod-` in this same file, which covers it,
+    // and a literal of a departing module's specifier would make this host file
+    // one of that module's (feature 134 W2.1).
     expect(host).not.toContain('InvoiceKsefPanel');
     expect(host).not.toContain('modules/ksef');
-    expect(host).not.toContain('@endora-commerce/mod-ksef');
-  });
-
-  it('is contributed by ksef, at a code, with no `match`', async () => {
-    // Z13: `match` narrows the *mounts* of one place and this place has one
-    // host and one mount, so a `match` here would be narrowing nothing — and
-    // the one narrowing that looks tempting, hiding the panel on a proforma,
-    // has no negation to write it with and would put `invoices`' `InvoiceKind`
-    // vocabulary inside this module's declaration. The `kind` guard stays in
-    // the component. This case is what makes that a decision rather than an
-    // omission.
-    const { contributions } = (await import('@endora-commerce/mod-ksef/admin'));
-    const zone = (contributions.zones ?? []).find((entry) => entry.zone === ZONE);
-    expect(zone, 'ksef must contribute to the zone invoices renders').toBeDefined();
-    expect(zone?.requiredPermission).toBe('ksef:read');
-    expect(zone?.match).toBeUndefined();
-    expect(typeof zone?.component).toBe('function');
-    const loaded = await zone?.component();
-    expect(typeof loaded?.default).toBe('function');
-  });
-
-  it('carries the signature that made it a zone and not a published component', () => {
-    // `admin-component-contribution.md` §10 records that this inference has
-    // been made from a component's **role** rather than its signature twice,
-    // and that both times it was wrong. Z1 question 1 is *"does the consumer
-    // pass a value in and receive one back"*, and a zone cannot carry a
-    // `value`/`onChange` pair because a zone has zero-or-many contributors and
-    // a field has exactly one. So the props are asserted from the file: three
-    // values in, nothing out. A signature that grows a callback fails here
-    // rather than quietly becoming a zone that cannot honestly carry it.
-    const panel = sourceOf('../packages/modules/ksef/src/admin/zones/InvoiceKsefPanel.tsx');
-    expect(panel).toContain(`AdminZoneProps<'${ZONE}'>`);
-    expect(panel).toMatch(/export default InvoiceKsefPanel;/);
-    expect(panel).not.toMatch(/\bonChange\b/);
-    expect(panel).not.toMatch(/\bonSelect\b/);
   });
 
   it('retires the one cross-module key this batch was measured to owe', () => {

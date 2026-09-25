@@ -633,9 +633,10 @@ export const WebhookDelivery = classNamed<WebhookDeliveryRow>(
  *
  * Same rule as batch two, and it excluded exactly one site: `KsefCredential` is
  * here because `integration/ksef/helpers.ts` persists one, while
- * `unit/ksef/ksef-auth.test.ts` calls `new KsefCredential()` against a stubbed
- * `EntityManager` and keeps its relative import into the package source — a
- * different object on purpose, and one no ORM ever sees.
+ * `ksef-auth.test.ts` — now beside its subject in the package's
+ * `src/backend/services/` — calls `new KsefCredential()` against a stubbed
+ * `EntityManager` and keeps its relative import of the entity — a different
+ * object on purpose, and one no ORM ever sees.
  */
 export const Comparison = classNamed<ComparisonRow>(
   installedModuleEntities,
