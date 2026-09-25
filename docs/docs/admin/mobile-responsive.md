@@ -24,7 +24,7 @@ Surfaces that reorder rows via HTML5 drag also expose **Move up / Move down** bu
 
 ## Page Builder (Puck)
 
-The CMS/Blog Puck editors are scrollable on mobile. Precise drag placement may remain easier on desktop; document known gaps when testing US4.
+The CMS/Blog Puck editors are scrollable on mobile. Precise drag placement may remain easier on desktop; document known gaps found during manual testing.
 
 ## QA checklist
 

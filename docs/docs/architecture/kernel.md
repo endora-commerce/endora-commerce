@@ -326,8 +326,9 @@ Two answers are legitimate, and which one is right depends on what the entry is:
 - **Honour** — for *integrity-like* ones: the reference registries that refuse a
   delete. A switched-off `blog` still owns posts that embed an asset, and
   skipping its scanner would let an operator delete an asset that comes back
-  broken when `blog` is switched on again — data lost by an action Constitution
-  XVII calls reversible. `EmailDefaultsRegistry` honours for a different reason,
+  broken when `blog` is switched on again — data lost by an action the
+  operator-toggleable-module rule calls reversible. `EmailDefaultsRegistry`
+  honours for a different reason,
   written at the class: its rows are seeded from the **platform** axis, so
   skipping would not remove a row, it would create one with an empty template.
 

@@ -24,7 +24,7 @@ Powierzchnie zmieniające kolejność wierszy przez HTML5 drag udostępniają te
 
 ## Page Builder (Puck)
 
-Edytory CMS/Blog Puck są przewijalne na mobile. Precyzyjne przeciąganie może pozostać łatwiejsze na desktopie; dokumentuj znane luki podczas testów US4.
+Edytory CMS/Blog Puck są przewijalne na mobile. Precyzyjne przeciąganie może pozostać łatwiejsze na desktopie; dokumentuj znane luki znalezione podczas testów ręcznych.
 
 ## Checklist QA
 

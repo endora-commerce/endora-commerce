@@ -62,8 +62,8 @@ wstawienia zaskoczyłyby admina, który dopiero kończy wybór.
 ## Integracja ze storefrontem
 
 `productDetail.links` niesie wstępnie pogrupowane tablice obcięte do domyślnych
-rozmiarów strony (research §US4 + spec.md US4 Assumptions): `related[8]`,
-`upSell[4]`, `crossSell[4]`. Każdy wpis to link w kształcie storefront
+rozmiarów strony: `related[8]`, `upSell[4]`, `crossSell[4]`. Każdy wpis to
+link w kształcie storefront
 `{id, kind, position, product{id, sku, slug, name, primaryAssetUrl, price}}`, więc
 karta listingu renderuje się bez dodatkowego fetcha.
 

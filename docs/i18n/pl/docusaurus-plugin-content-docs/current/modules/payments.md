@@ -15,7 +15,7 @@ adaptery per vendor żyją w dedykowanych modułach integracyjnych.
 | --- | --- |
 | `bank-transfer-driver.ts` | Zwraca `NextAction.kind='awaiting_transfer'`; rozliczenie następuje poza systemem, gdy operator oznacza zamówienie jako opłacone |
 | `pickup-driver.ts` | `NextAction.kind='none'` przy płatności przy odbiorze |
-| `credit-limit-driver.ts` | Wywołuje `CreditLimitService.reserve` w transakcji składania zamówienia (US6) |
+| `credit-limit-driver.ts` | Wywołuje `CreditLimitService.reserve` w transakcji składania zamówienia |
 | `gateway-adapter-port.ts` | Interfejs stub dla zewnętrznych bramek; implementacje per vendor żyją poza rdzeniem |
 
 ## Publiczne API
