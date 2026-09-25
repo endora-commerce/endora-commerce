@@ -13,7 +13,7 @@ w tym samym merge requeście co edycja angielska — w CI i buildach produkcyjny
 tłumaczenia maszynowego.
 
 Ta strona opisuje workflow **witryny dokumentacji**. Pakiety stringów UI panelu admina
-(`packages/modules/*/i18n/`) to osobny system — zobacz
+(własny katalog `i18n/` każdego modułu, w katalogu głównym jego pakietu) to osobny system — zobacz
 [Tłumaczenia UI panelu admina](./translations.md).
 
 ## Co trzeba tłumaczyć
@@ -28,7 +28,7 @@ dla każdej lokalizacji z `docs/locales.config.json` → `translateLocales`
 | Ręcznie pisane strony witryny | `docs/docs/**/*.md` (z wyłączeniem wygenerowanych kategorii) | ścieżka względem repo, np. `docs/docs/intro.md` |
 | Referencja modułów (generowana) | `docs/docs/module-reference/*.md` | `generated:module-reference/<slug>` |
 | Mapa modułów (generowana) | `docs/docs/modules/module-map.generated.md` | ścieżka względem repo |
-| Strony należące do modułów | `packages/modules/<id>/docs/**/*.md` | ścieżka względem repo |
+| Strony należące do modułów | `docs/**/*.md` w katalogu głównym pakietu każdego modułu | ścieżka względem repo |
 
 Ścieżki z `docs/translation-skip.json` są wyłączone (obecnie:
 `docs/docs/contributing/translations.md`, czyli słownik UI panelu admina).
@@ -95,7 +95,7 @@ Kroki 1–2 to edycje plików; krok 3 to lokalna kontrola.
    - Ustaw `content` na pełny polski markdown (front matter + body).
    - Skopiuj `content` do ścieżki materializacji
      `docs/i18n/pl/docusaurus-plugin-content-docs/current/<docId>.md`
-     (np. `packages/modules/catalog/docs/catalog.md` →
+     (np. własny `docs/catalog.md` modułu `catalog` →
      `.../current/modules/catalog.md`).
    - Jeśli zmieniłeś etykietę **kategorii** w sidebarze albo napis paska nawigacji
      lub stopki, dodaj pasujący identyfikator do pliku wskazanego w sekcji
@@ -196,4 +196,4 @@ w skryptach.
 ## Zobacz także
 
 - [Tłumaczenia UI panelu admina](./translations.md) — polski słownik oraz
-  workflow pakietów `packages/modules/*/i18n/`.
+  workflow pakietów `i18n/` każdego modułu.

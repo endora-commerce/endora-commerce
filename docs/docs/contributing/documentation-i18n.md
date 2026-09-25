@@ -13,7 +13,7 @@ the same merge request as the English edit — there is no machine-translation
 step in CI or production builds.
 
 This page is the workflow for **docs-site** translations. Admin UI string bundles
-(`packages/modules/*/i18n/`) are a separate system — see
+(each module's own `i18n/` directory, at its package root) are a separate system — see
 [Admin UI Translations](./translations.md).
 
 ## What must be translated
@@ -28,7 +28,7 @@ file for each locale in `docs/locales.config.json` → `translateLocales`
 | Hand-authored site pages | `docs/docs/**/*.md` (excluding generated categories) | repo-relative path, e.g. `docs/docs/intro.md` |
 | Module reference (generated) | `docs/docs/module-reference/*.md` | `generated:module-reference/<slug>` |
 | Module map (generated) | `docs/docs/modules/module-map.generated.md` | repo-relative path |
-| Module-owned pages | `packages/modules/<id>/docs/**/*.md` | repo-relative path |
+| Module-owned pages | `docs/**/*.md` at each module's package root | repo-relative path |
 
 Paths listed in `docs/translation-skip.json` are excluded (today:
 `docs/docs/contributing/translations.md`, which is the Admin UI glossary).
@@ -96,7 +96,7 @@ Steps 1–2 are file edits; step 3 is the local guard.
    - Set `content` to the full Polish markdown (front matter + body).
    - Copy `content` to the materialised path
      `docs/i18n/pl/docusaurus-plugin-content-docs/current/<docId>.md`
-     (e.g. `packages/modules/catalog/docs/catalog.md` →
+     (e.g. the `catalog` module's own `docs/catalog.md` →
      `.../current/modules/catalog.md`).
    - If you changed a sidebar **category** label, or a navbar or footer string,
      add the matching id to the file named for it in *Where a message id
@@ -196,5 +196,5 @@ locale codes in scripts.
 
 ## See also
 
-- [Admin UI Translations](./translations.md) — Polish glossary and
-  `packages/modules/*/i18n/` bundle workflow.
+- [Admin UI Translations](./translations.md) — Polish glossary and the
+  workflow for each module's `i18n/` bundles.

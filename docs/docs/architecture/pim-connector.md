@@ -187,6 +187,7 @@ version of this suite stayed green over the pairs it did not know about.
 
 ## Related reading
 
-- [UnoPim PIM connector](./pim_unopim.md) — OAuth client, delta bookmarks, webhook
-- [Ergonode PIM connector](./pim_ergonode.md) — the first packaged connector
-- Operator guide: [Importing from UnoPim](../modules/pim_unopim.md)
+- [`pim_connector` module reference](../module-reference/pim-connector.md) — the
+  permissions, settings, activation and dependencies this module's manifest declares.
+- [Module Lifecycle](../modules/lifecycle.md) — the activation route the exclusivity
+  seam intercepts.
