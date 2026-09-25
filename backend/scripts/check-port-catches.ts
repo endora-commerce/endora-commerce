@@ -387,25 +387,6 @@ export const PORT_CATCHES_TO_DRAIN: Readonly<Record<string, string>> = {
     'an answer to anybody, which is D-62/D-67 verbatim. Retires when the analysis ' +
     "attributes a holder's gates per method rather than per value — not before, and " +
     'not by renaming the binding, because the alias follows the value.',
-  'packages/modules/product_feeds/src/backend/services/feed-generation.service.ts:deliverArtefact#promise':
-    'AFTER THE FACT — the shape is right, the argument written beside it is not, and ' +
-    'this is drainable rather than permanent. The site absorbs a presence answer from ' +
-    'the inline (no-Redis) delivery path after the artefact is published and the run ' +
-    'row is `finished`. Its comment cites the `webhooks` entry below, and the load-' +
-    'bearing half of that argument does not transfer: `webhooks` re-throws into a ' +
-    'BullMQ retry that would deliver the same event **twice**, a duplicate side effect ' +
-    'the consumer must not see. Nothing is delivered here, so there is no duplicate — ' +
-    'what is left is only "do not fail a run that succeeded", which is real and is ' +
-    'satisfied by **recording** the refusal rather than by discarding it. What the ' +
-    'operator sees today: a published feed, no delivery attempt row, and no reason — ' +
-    'they cannot tell an unreachable Redis from a `credentials` module they themselves ' +
-    'switched off, which is the disclosure Principle XVII exists for. The entry retires ' +
-    'when the inline path writes a delivery attempt whose failure names the absent ' +
-    'module, which is this module\'s own attempt history doing the job it already has ' +
-    '(`delivery-config.service.ts` keeps that history precisely so "did the partner get ' +
-    'last month\'s file?" stays answerable). That is a `product_feeds` product change ' +
-    'and not a `catch` somebody forgot to narrow, which is why it is ledgered and not ' +
-    'repaired here.',
   'packages/modules/product_feeds/src/backend/index.ts:run':
     'BOOT HOOK, and now a genuine tolerance rather than a swallowed presence ' +
     'answer (issue #147, D-62). The hook asks ' +
