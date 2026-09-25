@@ -52,7 +52,7 @@
  */
 
 import { existsSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, posix } from 'node:path';
 
 import ts from 'typescript';
 
@@ -562,31 +562,36 @@ function analyze(
   // name the receiving code reads it by — and, since issue #278, into the file
   // that file is read *in*, which is the file that declares it rather than the
   // one the call happens to sit in.
+  //
+  // **Per file, and reached by resolution rather than by spelling** (feature
+  // 134 D18). These were two population-wide maps keyed by the bare name, so a
+  // call bound whichever declaration of that spelling was read last, anywhere:
+  // `pim_unopim`'s `requireRun(…)` bound `product_feeds`' unrelated
+  // `requireRun`, and removing one module's sources moved nine sites in
+  // another. A call now binds a declaration only when its own file resolves the
+  // callee to it — declared in the same file, or imported through a relative
+  // specifier (following relative re-exports) from the file that declares it.
+  // Relative specifiers never cross a module boundary (Principle I,
+  // `check:module-boundary`), so no call binds another module's parameter.
   interface Declared<T> {
     readonly file: string;
     readonly declaration: T;
   }
-  const classes = new Map<string, Declared<ts.ClassDeclaration>>();
-  const functions = new Map<string, Declared<ts.FunctionDeclaration | ts.ArrowFunction>>();
-  for (const [file, sf] of parsed) {
-    const collect = (node: ts.Node): void => {
-      if (ts.isClassDeclaration(node) && node.name) {
-        classes.set(node.name.text, { file, declaration: node });
-      }
-      if (ts.isFunctionDeclaration(node) && node.name) {
-        functions.set(node.name.text, { file, declaration: node });
-      }
-      if (
-        ts.isVariableDeclaration(node) &&
-        ts.isIdentifier(node.name) &&
-        node.initializer &&
-        ts.isArrowFunction(node.initializer)
-      ) {
-        functions.set(node.name.text, { file, declaration: node.initializer });
-      }
-      node.forEachChild(collect);
-    };
-    sf.forEachChild(collect);
+  const declarations = collectDeclarations(parsed);
+  const resolveClass = (file: string, name: string): Declared<ts.ClassDeclaration> | undefined =>
+    resolveDeclaration(declarations, (perFile) => perFile.classes, file, name);
+  const resolveFunction = (
+    file: string,
+    name: string,
+  ): Declared<ts.FunctionDeclaration | ts.ArrowFunction> | undefined =>
+    resolveDeclaration(declarations, (perFile) => perFile.functions, file, name);
+  /**
+   * Every spelling some file declares a function under — what the factory
+   * clause in `carries` asks. Deliberately still by name: see that clause.
+   */
+  const functionNames = new Set<string>();
+  for (const perFile of declarations.values()) {
+    for (const name of perFile.functions.keys()) functionNames.add(name);
   }
 
   /**
@@ -666,7 +671,7 @@ function analyze(
           }
           if (!ts.isIdentifier(callee)) return false;
           return (
-            (RESOLVER_ENTRIES.has(callee.text) || functions.has(callee.text)) && argumentsCarry()
+            (RESOLVER_ENTRIES.has(callee.text) || functionNames.has(callee.text)) && argumentsCarry()
           );
         }
         return false;
@@ -751,13 +756,13 @@ function analyze(
               // shapes, and merging them costs two casts for no gain.
               let declared: Declared<ts.SignatureDeclarationBase> | undefined;
               if (ts.isNewExpression(node)) {
-                const owner = classes.get(callee);
+                const owner = resolveClass(file, callee);
                 const constructor = owner?.declaration.members.find(ts.isConstructorDeclaration);
                 if (owner !== undefined && constructor !== undefined) {
                   declared = { file: owner.file, declaration: constructor };
                 }
               } else {
-                declared = functions.get(callee);
+                declared = resolveFunction(file, callee);
               }
               if (declared === undefined) return;
               const parameter = declared.declaration.parameters[index];
@@ -815,6 +820,145 @@ function analyze(
   }
 
   return { portOwners, aliases, gatesOf, readsAsPort, parsed };
+}
+
+/** The declarations one file makes, and what it imports and re-exports by relative path. */
+interface FileDeclarations {
+  readonly classes: Map<string, ts.ClassDeclaration>;
+  readonly functions: Map<string, ts.FunctionDeclaration | ts.ArrowFunction>;
+  /** Local binding → the file it is imported from and the name it is exported under. */
+  readonly imports: Map<string, { readonly from: string; readonly name: string }>;
+  /** `export * from './x.js'` (names `null`) and `export { a as b } from './x.js'`. */
+  readonly reExports: { readonly from: string; readonly names: Map<string, string> | null }[];
+}
+
+/**
+ * The file a relative specifier names, among the files read — or `null` for a
+ * bare specifier, which names a package and is never another module's private
+ * source (D18), or for a path the walk does not hold.
+ */
+function resolveRelative(
+  fromFile: string,
+  specifier: string,
+  parsed: ReadonlyMap<string, ts.SourceFile>,
+): string | null {
+  if (!specifier.startsWith('./') && !specifier.startsWith('../')) return null;
+  const base = posix.normalize(posix.join(posix.dirname(fromFile), specifier));
+  const stem = base.replace(/\.(?:js|ts|mjs|mts)$/, '');
+  for (const candidate of [`${stem}.ts`, `${stem}.tsx`, `${stem}.mts`, `${stem}/index.ts`]) {
+    if (parsed.has(candidate)) return candidate;
+  }
+  return null;
+}
+
+function collectDeclarations(
+  parsed: ReadonlyMap<string, ts.SourceFile>,
+): Map<string, FileDeclarations> {
+  const all = new Map<string, FileDeclarations>();
+  for (const [file, sf] of parsed) {
+    const own: FileDeclarations = {
+      classes: new Map(),
+      functions: new Map(),
+      imports: new Map(),
+      reExports: [],
+    };
+    const collect = (node: ts.Node): void => {
+      if (ts.isClassDeclaration(node) && node.name) own.classes.set(node.name.text, node);
+      if (ts.isFunctionDeclaration(node) && node.name) own.functions.set(node.name.text, node);
+      if (
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        node.initializer &&
+        ts.isArrowFunction(node.initializer)
+      ) {
+        own.functions.set(node.name.text, node.initializer);
+      }
+      node.forEachChild(collect);
+    };
+    sf.forEachChild(collect);
+    for (const statement of sf.statements) {
+      if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier)) {
+        const from = resolveRelative(file, statement.moduleSpecifier.text, parsed);
+        const bindings = statement.importClause?.namedBindings;
+        if (from === null || bindings === undefined || !ts.isNamedImports(bindings)) continue;
+        for (const element of bindings.elements) {
+          own.imports.set(element.name.text, {
+            from,
+            name: (element.propertyName ?? element.name).text,
+          });
+        }
+      }
+      if (
+        ts.isExportDeclaration(statement) &&
+        statement.moduleSpecifier !== undefined &&
+        ts.isStringLiteral(statement.moduleSpecifier)
+      ) {
+        const from = resolveRelative(file, statement.moduleSpecifier.text, parsed);
+        if (from === null) continue;
+        const clause = statement.exportClause;
+        if (clause === undefined) {
+          own.reExports.push({ from, names: null });
+        } else if (ts.isNamedExports(clause)) {
+          const names = new Map<string, string>();
+          for (const element of clause.elements) {
+            names.set(element.name.text, (element.propertyName ?? element.name).text);
+          }
+          own.reExports.push({ from, names });
+        }
+      }
+    }
+    all.set(file, own);
+  }
+  return all;
+}
+
+/**
+ * The declaration `name`, written in `file`, resolves to: the file's own, or
+ * the one a relative import names, followed through relative re-exports.
+ * Never a declaration some unrelated file happens to spell the same way.
+ */
+function resolveDeclaration<D>(
+  declarations: ReadonlyMap<string, FileDeclarations>,
+  pick: (perFile: FileDeclarations) => ReadonlyMap<string, D>,
+  file: string,
+  name: string,
+): { readonly file: string; readonly declaration: D } | undefined {
+  type Found = { readonly file: string; readonly declaration: D };
+  const own = (at: string, exported: string): Found | undefined => {
+    const perFile = declarations.get(at);
+    const declaration = perFile === undefined ? undefined : pick(perFile).get(exported);
+    return declaration === undefined ? undefined : { file: at, declaration };
+  };
+  const seen = new Set<string>();
+  const exportedFrom = (at: string, exported: string): Found | undefined => {
+    const visit = `${at}#${exported}`;
+    if (seen.has(visit)) return undefined;
+    seen.add(visit);
+    const direct = own(at, exported);
+    if (direct !== undefined) return direct;
+    const perFile = declarations.get(at);
+    if (perFile === undefined) return undefined;
+    // `import { x } from './y.js'; export { x };` is not followed: no file in
+    // the tree re-exports that way, and following it would be one more shape
+    // nothing exercises.
+    for (const reExport of perFile.reExports) {
+      if (reExport.names === null) {
+        const found = exportedFrom(reExport.from, exported);
+        if (found !== undefined) return found;
+      } else {
+        const original = reExport.names.get(exported);
+        if (original !== undefined) {
+          const found = exportedFrom(reExport.from, original);
+          if (found !== undefined) return found;
+        }
+      }
+    }
+    return undefined;
+  };
+  const local = own(file, name);
+  if (local !== undefined) return local;
+  const imported = declarations.get(file)?.imports.get(name);
+  return imported === undefined ? undefined : exportedFrom(imported.from, imported.name);
 }
 
 /**

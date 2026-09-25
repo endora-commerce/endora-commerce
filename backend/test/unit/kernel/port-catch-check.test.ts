@@ -655,6 +655,9 @@ describe('findPortCatches — an alias is visible where its binding is (issue #2
         [
           'modules/carts/backend.ts',
           "import { lazyPort } from '../../kernel/index.js';\n" +
+            // The call binds the constructor its file imports (D18) — never a
+            // class of that spelling somewhere else in the population.
+            "import { CartPricing } from './services/cart-pricing.js';\n" +
             'export function registerModule(ctx: ModuleContext): void {\n' +
             "  const pricing = new CartPricing(lazyPort<Promo>(ctx, 'promotionService'));\n}",
         ],
