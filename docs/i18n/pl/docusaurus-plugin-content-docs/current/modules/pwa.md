@@ -5,7 +5,7 @@ description: Możliwości Progressive Web App dla storefrontu i admina — insta
 
 # PWA (Progressive Web App)
 
-Moduł `pwa` (feature 046) dodaje możliwości Progressive Web App do
+Moduł `pwa` dodaje możliwości Progressive Web App do
 storefrontu i admina: instalowalność na ekranie głównym, tożsamość instalowalna
 per Sales Channel sterowana przez Settings, opt-in cache zasobów statycznych,
 kontrolowana ścieżka aktualizacji service workera oraz opt-in powiadomień push
@@ -68,7 +68,7 @@ i `VITE_BUILD_ID` (admin) per deploy. SW storefrontu sam nie robi `skipWaiting`
 — `PwaRegister` pokazuje prompt „dostępna nowa wersja” i aktywuje dopiero po
 kliknięciu użytkownika, więc aktualizacja nigdy nie odrzuca pracy w toku.
 
-## Checklist opakowania pod sklepy (FR-029 / SC-008)
+## Checklist opakowania pod sklepy
 
 Storefront PWA jest przygotowany pod opakowanie pod Google Play (Trusted Web
 Activity) i App Store (wrapper WKWebView). Produkcja/wysyłka binariów native

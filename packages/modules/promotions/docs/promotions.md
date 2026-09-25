@@ -6,7 +6,7 @@ description: Cart-level percentage / amount / free-delivery discounts with eligi
 # `promotions`
 
 The promotions module is a configurable, rule-driven discount engine
-(feature 045, built on the original cart-discount slice). A **Promotion**
+built on the original cart-discount slice. A **Promotion**
 pairs an eligibility **Rule** with an **Action**; the engine evaluates every
 active promotion against a cart, applies the matching ones in priority order,
 and surfaces the result in the cart and on the placed order.

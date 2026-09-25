@@ -98,8 +98,7 @@ Reguły (egzekwowane przy rejestracji, gdzie możliwe): kropkowe id z prefiksem
 modułu właściciela; resolvery są side-effect-free i capują wyniki (≤ 20);
 mutacje muszą implementować `preview()` z uczciwymi, server-computed
 licznikami i próbkami; narzędzia wyłączonych modułów znikają z katalogu
-automatycznie. Pełny kontrakt contribution i HTTP API:
-`specs/043-admin-prompt-actions/contracts/prompt-actions-api.md`.
+automatycznie.
 
 ## Katalog narzędzi v1
 

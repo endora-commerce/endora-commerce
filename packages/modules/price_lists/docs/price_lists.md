@@ -5,8 +5,8 @@ description: Customer / group / default pricing with volume tiers + per-category
 
 # `price_lists`
 
-Pricing engine — feature 011 reshape on top of the original feature 014
-foundation. Owns:
+Pricing engine — a reshape on top of the original pricing foundation.
+Owns:
 
 - **CustomerGroup** — addressable bucket of Organizations sharing pricing.
 - **PriceList** — a named pricing artefact with a lifecycle status
@@ -49,8 +49,8 @@ draft ──activate──▶ scheduled ──auto on startsAt──▶ active �
   the same `sweep()` is exposed via `POST /api/v1/admin/price-lists-engine/internal/sweep`.
 
 The seeded `Default` list (`isSystem = true`) refuses every state
-change, every delete, and every non-empty `applicationRule` (FR-005,
-FR-006). Migration 031 also seeds bracket rows on it from each
+change, every delete, and every non-empty `applicationRule`.
+Migration 031 also seeds bracket rows on it from each
 product's legacy `attributeValues.defaultPrice`, so the platform always
 has a usable terminal-fallback price.
 
@@ -99,12 +99,12 @@ returns:
 }
 ```
 
-Algorithm (also in `data-model.md` § 5):
+Algorithm:
 
 1. Load every `status='active'` price list.
 2. Evaluate each list's `applicationRule` against the resolution
    context; keep matchers, partition by `type`.
-3. For each partition, walk the **priority chain** (FR-026 + FR-027):
+3. For each partition, walk the **priority chain**:
    - Level 1: explicit organization match.
    - Level 2: explicit customer-group match.
    - Level 3: explicit category match.
@@ -130,7 +130,7 @@ tie-break order). The resolver is consumed by the storefront
 Four values: `gross_only`, `net_only`, `both`, `none`. The first three
 control the column layout on every storefront price-bearing surface;
 `none` hides every price element and replaces Add-to-cart with the
-existing Quote Request CTA from feature 008. The cart-line and
+existing Quote Request CTA. The cart-line and
 order-placement endpoints additionally refuse the line with
 `400 product_quote_only` when the resolved mode is `none` for the
 `(product, organization, channel)` tuple — defence in depth.
@@ -192,14 +192,14 @@ Both storefront reads are resolved **for the viewer**: they take the buyer's
 session when one is there and answer as the public when it is not. They also
 derive that viewer through one function, so the display mode carried inside a
 resolved price and the one this endpoint returns cannot disagree for the same
-caller — before issue #271 they could, and a signed-in buyer read net on the
+caller — they once could, and a signed-in buyer read net on the
 product page and gross in the cart wherever `pricing.default_display_mode` and
 `pricing.unauthenticated_display_mode` were set differently. A response resolved
 for an Organization carries `Cache-Control: private, no-store`; the anonymous
 one is unstamped and stays the representation a crawler and the storefront's
 shared window hold.
 
-### Legacy (feature 014 — still served until every reader migrates)
+### Legacy (still served until every reader migrates)
 
 | Verb + Path | Purpose |
 | --- | --- |
@@ -223,7 +223,7 @@ shared window hold.
    exposed by any sales channel. Identity copy across currencies is
    flagged in the migration report.
 6. Strip the legacy `attributeValues.defaultPrice` and
-   `attributeValues.price` keys (per FR-047).
+   `attributeValues.price` keys.
 7. Emit the report to `backend/var/migration-reports/011_price_lists_seed.json`.
 8. Release the advisory lock.
 
@@ -233,7 +233,7 @@ The migration is **additive** to the legacy schema — the
 remain in place until the readers in `cart-service`, `comparison-service`,
 `catalog-query`, `search-query`, and `product-link.service` swap to the
 resolver. A follow-up migration drops the legacy columns once that
-audit (T103) lands.
+audit lands.
 
 The migration helper (`default-price-list-migration.ts`) is idempotent
 and can be re-run as a repair command.
@@ -247,7 +247,7 @@ and can be re-run as a repair command.
 - `BaseSalePriceBlock`, `PriceTag`, and `ProductCard` consume the
   `resolvedPrice` envelope; `displayMode === 'none'` hides every price
   element and surfaces the `QuoteRequestCta` (which routes through
-  `AddToRfqForm` from feature 008).
+  `AddToRfqForm`).
 - The PDP fetches the resolver in parallel with stock and swaps the
   Add-to-cart row for the QuoteRequest CTA when the mode is `none`.
 
@@ -263,8 +263,7 @@ and can be re-run as a repair command.
 
 ## Extension points
 
-- **In-memory LRU cache** around the resolver per
-  `contracts/pricing-resolution.contract.md` § Caching behaviour
+- **In-memory LRU cache** around the resolver
   (deferred — the storefront's 60-s revalidate window is sufficient
   for the MVP). Bookkeeping: every write path on `PriceListService`
   should emit `pricing.invalidate.v1`.
@@ -276,4 +275,4 @@ and can be re-run as a repair command.
   same change.
 - **Status worker BullMQ wiring** — `PriceListStatusWorker.sweep()` is
   ready but the BullMQ repeatable-job registration (mirroring the
-  feature 008 RFQ expiry worker) is queued for a follow-up.
+  RFQ expiry worker) is queued for a follow-up.

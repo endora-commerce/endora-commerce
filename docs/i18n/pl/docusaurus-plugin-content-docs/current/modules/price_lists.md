@@ -5,7 +5,7 @@ description: Cenniki klienta / grupy / domyślne z progami ilościowymi + korekt
 
 # `price_lists`
 
-Silnik cen — reshape feature 011 na fundamencie oryginalnego feature 014.
+Silnik cen — reshape na oryginalnym fundamencie cenowym.
 Posiada:
 
 - **CustomerGroup** — adresowalny zbiór Organizations współdzielących cennik.
@@ -48,8 +48,8 @@ draft ──activate──▶ scheduled ──auto on startsAt──▶ active �
   ten sam `sweep()` jest wystawiony przez `POST /api/v1/admin/price-lists-engine/internal/sweep`.
 
 Seedowana lista `Default` (`isSystem = true`) odrzuca każdą zmianę
-stanu, każde usunięcie i każde niepuste `applicationRule` (FR-005,
-FR-006). Migracja 031 seeduje też na niej wiersze progów z legacy
+stanu, każde usunięcie i każde niepuste `applicationRule`.
+Migracja 031 seeduje też na niej wiersze progów z legacy
 `attributeValues.defaultPrice` każdego produktu, więc platforma zawsze
 ma użyteczną cenę terminalnego fallbacku.
 
@@ -98,12 +98,12 @@ zwraca:
 }
 ```
 
-Algorytm (także w `data-model.md` § 5):
+Algorytm:
 
 1. Załaduj każdą listę cenową ze `status='active'`.
 2. Oceń `applicationRule` każdej listy względem kontekstu
    rozwiązywania; zachowaj dopasowania, partycjonuj po `type`.
-3. Dla każdej partycji przejdź **łańcuch priorytetów** (FR-026 + FR-027):
+3. Dla każdej partycji przejdź **łańcuch priorytetów**:
    - Poziom 1: jawne dopasowanie organization.
    - Poziom 2: jawne dopasowanie customer-group.
    - Poziom 3: jawne dopasowanie category.
@@ -129,7 +129,7 @@ koszyka i składania zamówienia.
 Cztery wartości: `gross_only`, `net_only`, `both`, `none`. Pierwsze trzy
 kontrolują układ kolumn na każdej powierzchni storefront z ceną;
 `none` ukrywa każdy element ceny i zastępuje Add-to-cart istniejącym
-CTA Quote Request z feature 008. Endpointy linii koszyka i
+CTA Quote Request. Endpointy linii koszyka i
 składania zamówienia dodatkowo odrzucają linię z
 `400 product_quote_only`, gdy rozwiązany tryb to `none` dla krotki
 `(product, organization, channel)` — defence in depth.
@@ -191,14 +191,14 @@ Oba odczyty storefront są rozwiązywane **dla oglądającego**: biorą sesję
 kupującego, gdy jest, i odpowiadają jak publiczne, gdy jej nie ma. Wyprowadzają
 tego oglądającego jedną funkcją, więc tryb wyświetlania w rozwiązanej cenie i ten
 z tego endpointu nie mogą się różnić dla tego samego
-wywołującego — przed issue #271 mogły, i zalogowany kupujący czytał netto na
+wywołującego — kiedyś mogły, i zalogowany kupujący czytał netto na
 stronie produktu i brutto w koszyku, gdzie `pricing.default_display_mode` i
 `pricing.unauthenticated_display_mode` były ustawione inaczej. Odpowiedź rozwiązana
 dla Organization niesie `Cache-Control: private, no-store`; anonimowa
 nie jest stemplowana i pozostaje reprezentacją, którą trzyma crawler i współdzielone
 okno storefront.
 
-### Legacy (feature 014 — nadal serwowane, dopóki każdy reader nie zmigruje)
+### Legacy (nadal serwowane, dopóki każdy reader nie zmigruje)
 
 | Verb + Path | Cel |
 | --- | --- |
@@ -222,7 +222,7 @@ okno storefront.
    wystawiona przez dowolny sales channel. Kopia tożsamości między walutami jest
    oznaczona w raporcie migracji.
 6. Usuń legacy klucze `attributeValues.defaultPrice` i
-   `attributeValues.price` (zgodnie z FR-047).
+   `attributeValues.price`.
 7. Wyemituj raport do `backend/var/migration-reports/011_price_lists_seed.json`.
 8. Zwolnij advisory lock.
 
@@ -232,7 +232,7 @@ Migracja jest **addytywna** względem legacy schematu — tabele
 pozostają, dopóki readery w `cart-service`, `comparison-service`,
 `catalog-query`, `search-query` i `product-link.service` nie
 przejdą na resolver. Follow-up migracja usuwa kolumny legacy, gdy
-audit (T103) wyląduje.
+audit wyląduje.
 
 Helper migracji (`default-price-list-migration.ts`) jest idempotentny
 i może być ponownie uruchomiony jako komenda naprawcza.
@@ -246,7 +246,7 @@ i może być ponownie uruchomiony jako komenda naprawcza.
 - `BaseSalePriceBlock`, `PriceTag` i `ProductCard` konsumują
   kopertę `resolvedPrice`; `displayMode === 'none'` ukrywa każdy element
   ceny i pokazuje `QuoteRequestCta` (routing przez
-  `AddToRfqForm` z feature 008).
+  `AddToRfqForm`).
 - PDP pobiera resolver równolegle ze stockiem i zamienia wiersz
   Add-to-cart na QuoteRequest CTA, gdy tryb to `none`.
 
@@ -262,8 +262,7 @@ i może być ponownie uruchomiony jako komenda naprawcza.
 
 ## Punkty rozszerzenia
 
-- **Cache LRU in-memory** wokół resolvera zgodnie z
-  `contracts/pricing-resolution.contract.md` § Caching behaviour
+- **Cache LRU in-memory** wokół resolvera
   (odroczone — 60-s okno revalidate storefront wystarcza na
   MVP). Bookkeeping: każda ścieżka zapisu w `PriceListService`
   powinna emitować `pricing.invalidate.v1`.
@@ -274,4 +273,4 @@ i może być ponownie uruchomiony jako komenda naprawcza.
   defence-in-depth dla `displayMode === 'none'` ląduje w tej samej zmianie.
 - **Podłączenie workera statusów BullMQ** — `PriceListStatusWorker.sweep()` jest
   gotowy, ale rejestracja repeatable job BullMQ (na wzór
-  workera wygaśnięcia RFQ z feature 008) czeka w follow-up.
+  workera wygaśnięcia RFQ) czeka w follow-up.

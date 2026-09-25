@@ -5,8 +5,8 @@ description: Rabaty procentowe / kwotowe / darmowa dostawa na poziomie koszyka z
 
 # `promotions`
 
-Moduł promotions to konfigurowalny silnik rabatów oparty na regułach
-(feature 045, na oryginalnym slajsie cart-discount). **Promotion**
+Moduł promotions to konfigurowalny silnik rabatów oparty na regułach,
+zbudowany na oryginalnym slajsie cart-discount. **Promotion**
 łączy kwalifikującą **Rule** z **Action**; silnik ocenia każdą aktywną promocję
 wobec koszyka, stosuje pasujące w kolejności priorytetu i pokazuje wynik w koszyku
 oraz na złożonym zamówieniu.
