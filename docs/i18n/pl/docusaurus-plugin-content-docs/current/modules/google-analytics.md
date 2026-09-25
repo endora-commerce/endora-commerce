@@ -5,7 +5,7 @@ description: Google Analytics 4 dla storefront — Measurement ID per kanał, En
 
 # Google Analytics
 
-Moduł `google_analytics` (feature 049) integruje storefront z
+Moduł `google_analytics` integruje storefront z
 **Google Analytics 4**: aktywacja i Measurement ID per Sales Channel,
 Enhanced Ecommerce, admin-configurable builder zdarzeń niestandardowych oraz
 opcjonalna ścieżka dostawy **server-side tagging**. To osobny moduł od legacy
@@ -65,7 +65,7 @@ wiązać się z tą samą akcją.
 > jest dostarczany jako client hook (`trackContactFormSubmit`), który staje się
 > aktywny, gdy formularz kontaktowy zostanie dodany.
 
-## Server-side tagging (pure Measurement Protocol, Zasada X)
+## Server-side tagging (pure Measurement Protocol)
 
 Gdy `server_side_enabled` jest włączone dla kanału, moduł uruchamia **pure
 server-side tagging przez własny serwer platformy** — bez zewnętrznego kontenera

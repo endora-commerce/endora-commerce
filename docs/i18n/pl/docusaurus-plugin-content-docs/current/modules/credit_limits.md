@@ -21,7 +21,7 @@ Wszystkie trasy admin są chronione uprawnieniem `credit_limits:manage`.
 | `POST /api/v1/admin/organizations/:id/credit-limit` | admin | Przyznanie początkowego limitu |
 | `PATCH /api/v1/admin/organizations/:id/credit-limit` | admin | Korekta kwoty (odrzuca poniżej aktywnych rezerwacji, chyba że `allowOverAllocation`) |
 
-UX storefront (T219): profil konta i strona Checkout renderują
+UX storefront: profil konta i strona Checkout renderują
 `CreditLimitWidget` (przyznany / dostępny / rozbicie rezerwacji), gdy
 limit istnieje; metody płatności typu `credit_limit` są filtrowane z
 Checkout, gdy limit nie jest przyznany lub suma koszyka przekracza
@@ -33,7 +33,7 @@ dostępny kredyt.
 `credit_limits`, następnie wstawia rezerwację. Dwa równoczesne zamówienia,
 które łącznie przekroczyłyby limit, są serializowane; jedno kończy się sukcesem, a
 drugie otrzymuje `409 LIMIT_INSUFFICIENT`. Zobacz
-`backend/test/contract/credit_limits/concurrent-race.test.ts` (T207).
+`backend/test/contract/credit_limits/concurrent-race.test.ts`.
 
 ## Encje
 

@@ -6,10 +6,10 @@ description: Cykl życia Klienta nad `customer_accounts` — company i personal 
 # `customers`
 
 Logika biznesowa cyklu życia Klienta (Klienci) na warstwie modułu danych
-`customer_accounts` (feature 040). **Każdy klient należy do Organization** —
+`customer_accounts`. **Każdy klient należy do Organization** —
 firmowej dla B2B, single-member *personal organization* dla osoby fizycznej
-(feature 051), a `customer_accounts.organization_id` jest
-`NOT NULL` (D-178). „Standalone” w całym tym dokumencie oznacza *poza firmową
+a `customer_accounts.organization_id` jest
+`NOT NULL`. „Standalone” w całym tym dokumencie oznacza *poza firmową
 organization*, nigdy *bez organization*: taki klient jest własnym tenantem, a
 funkcje organization-scoped, które firma oferuje (wspólne adresy, zaproszenia,
 limit kredytowy, przypisanie sales-rep), są po prostu nieobecne, zamiast być
@@ -43,7 +43,7 @@ wyłączane specjalnym przypadkiem.
 - Reset hasła z poziomu admin (e-mail z linkiem set-password).
 - Walidacja NIP/VAT (VIES / port Biała lista).
 - Przypisanie Organization i detach-from-organization, które przenosi klienta do
-  własnej personal organization zamiast zostawiać go bez organization (D-178).
+  własnej personal organization zamiast zostawiać go bez organization.
   Bezpośrednie przypisanie customer-group (nadpisuje grupę Organization przy
   rozwiązywaniu pricing i promotions).
 - Panele orders, quote-requests i (bieżące + abandoned) carts tylko do odczytu.

@@ -5,8 +5,8 @@ description: Pula akceptowanych kodów ISO 4217 + domyślna waluta
 
 # `currencies`
 
-Instalacyjna pula akceptowanych kodów walut ISO 4217 (T238 /
-FR-105). Odzwierciedla moduł `languages`.
+Instalacyjna pula akceptowanych kodów walut ISO 4217. Odzwierciedla moduł
+`languages`.
 
 ## Publiczne API
 

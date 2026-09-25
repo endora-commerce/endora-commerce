@@ -5,7 +5,7 @@ description: Reusable typed credential configurations (LLM, email adapter) refer
 
 # Credentials
 
-The `credentials` module (feature `058`) lets an operator define a **reusable
+The `credentials` module lets an operator define a **reusable
 credential configuration once** and reference it from many places. Instead of
 re-typing an API key into the AI-assistant settings, the search-embedder
 settings, and the newsletter settings, you create a single *Primary LLM*
@@ -106,7 +106,7 @@ A saved configuration stores `typeCode` + `providerCode` + a `values` bag
 scalars) in the `credential_configurations` table (`@GlobalEntity`,
 platform-global).
 
-The credentials **core is type-agnostic** (Constitution Principle XIV): it reads
+The credentials **core is type-agnostic**: it reads
 a descriptor only to render fields, derive the write-validator, and learn which
 fields are secret. It never branches on a specific `typeCode` / `providerCode` —
 provider meaning lives with the consumer.
@@ -114,7 +114,7 @@ provider meaning lives with the consumer.
 ### Registering a new type (the extension point)
 
 Register from any module's install path via the process-wide singleton — **no
-change to the credentials core** is required (Principle XV, overlay-safe):
+change to the credentials core** is required (overlay-safe):
 
 ```ts
 import { configurationTypeRegistry } from '@core/modules/credentials/services/registry-singleton.js';
@@ -183,7 +183,7 @@ over the wire.
 
 `CredentialsService.delete` first calls
 `SettingsService.listReferencesToConfiguration(code)` (the only channel by which
-credentials reaches settings — Principle I). A non-empty result blocks the
+credentials reaches settings). A non-empty result blocks the
 delete with `409 CREDENTIAL_IN_USE`, carrying `{ referencedBy: [{ settingCode,
 salesChannelCode? }] }`.
 

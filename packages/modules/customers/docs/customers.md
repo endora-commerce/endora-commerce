@@ -6,10 +6,10 @@ description: Customer lifecycle over `customer_accounts` — company and persona
 # `customers`
 
 Customer (Klienci) lifecycle business logic layered on top of the
-`customer_accounts` data module (feature 040). **Every customer belongs to an
+`customer_accounts` data module. **Every customer belongs to an
 Organization** — a company for B2B, a single-member *personal* organization for
-an individual (feature 051), and `customer_accounts.organization_id` is
-`NOT NULL` (D-178). "Standalone" throughout this page means *outside a company
+an individual, and `customer_accounts.organization_id` is
+`NOT NULL`. "Standalone" throughout this page means *outside a company
 organization*, never *without one*: such a customer is their own tenant, and the
 organization-scoped features a company offers (shared addresses, invitations,
 credit limit, a sales-rep assignment) are simply absent for them rather than
@@ -43,7 +43,7 @@ switched off by a special case.
 - Admin-triggered password reset (emails a set-password link).
 - NIP/VAT validation (VIES / Biała lista port).
 - Organization assign, and detach-from-organization, which moves the customer to
-  their own personal organization rather than leaving them without one (D-178).
+  their own personal organization rather than leaving them without one.
   Direct customer-group assignment (overrides the Organization's group when
   resolving pricing and promotions).
 - Read-only orders, quote-requests, and (current + abandoned) carts panels.

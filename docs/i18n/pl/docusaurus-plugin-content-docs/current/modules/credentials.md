@@ -5,7 +5,7 @@ description: Wielokrotnego użytku typowane konfiguracje poświadczeń (LLM, ada
 
 # Credentials
 
-Moduł `credentials` (feature `058`) pozwala operatorowi zdefiniować **wielokrotnego
+Moduł `credentials` pozwala operatorowi zdefiniować **wielokrotnego
 użytku konfigurację poświadczeń raz** i referencjonować ją z wielu miejsc. Zamiast
 wpisywać klucz API ponownie w ustawieniach asystenta AI, embeddera wyszukiwania
 i newslettera, tworzysz jedną konfigurację *Primary LLM* i wskazujesz nią każde
@@ -105,7 +105,7 @@ Zapisana konfiguracja przechowuje `typeCode` + `providerCode` + worek `values`
 skalary) w tabeli `credential_configurations` (`@GlobalEntity`,
 platform-global).
 
-Rdzeń credentials **jest agnostyczny typowo** (Constitution Principle XIV): czyta
+Rdzeń credentials **jest agnostyczny typowo**: czyta
 deskryptor tylko po to, by renderować pola, wyprowadzić walidator zapisu i
 dowiedzieć się, które pola są tajne. Nigdy nie rozgałęzia się po konkretnym
 `typeCode` / `providerCode` — znaczenie dostawcy żyje u konsumenta.
@@ -113,7 +113,7 @@ dowiedzieć się, które pola są tajne. Nigdy nie rozgałęzia się po konkretn
 ### Rejestracja nowego typu (punkt rozszerzenia)
 
 Rejestruj ze ścieżki install dowolnego modułu przez process-wide singleton — **bez
-zmiany rdzenia credentials** (Principle XV, overlay-safe):
+zmiany rdzenia credentials** (overlay-safe):
 
 ```ts
 import { configurationTypeRegistry } from '@core/modules/credentials/services/registry-singleton.js';
@@ -181,7 +181,7 @@ przez wire.
 
 `CredentialsService.delete` najpierw woła
 `SettingsService.listReferencesToConfiguration(code)` (jedyny kanał, przez który
-credentials dociera do settings — Principle I). Niepusty wynik blokuje
+credentials dociera do settings). Niepusty wynik blokuje
 usunięcie z `409 CREDENTIAL_IN_USE`, niosąc `{ referencedBy: [{ settingCode,
 salesChannelCode? }] }`.
 

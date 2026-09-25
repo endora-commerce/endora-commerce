@@ -5,7 +5,7 @@ description: Skonfigurowane opcje dostawy
 
 # `delivery_methods`
 
-**Framework metod wysyłki** platformy (feature 035 — _Metoda Dostawy_).
+**Framework metod wysyłki** platformy (_Metoda Dostawy_).
 Moduł hostuje rejestr adapterów wtykanych nad katalogiem metod dostawy,
 blizniaczy odpowiednik po stronie dostawy dla `payment_methods`. Rekord `Shipment`
 pierwszej klasy i jego cykl życia żyją w sąsiednim module [`shipments`](./shipments.md).
@@ -61,7 +61,7 @@ Zakres sales channel reużywa generycznego `SalesChannelMembershipService`
 
 Moduł platformy jest rozpoznawany jako adapter metody wysyłki **wtedy i tylko wtedy, gdy**
 rejestruje `ShippingAdapter` w procesowym `shippingAdapterRegistry`
-z boot hooka (FR-001). Nie trzeba zmian w core.
+z boot hooka. Nie trzeba zmian w core.
 
 1. **Zaimplementuj kontrakt `ShippingAdapter`** (`@endora-commerce/contracts`):
 
@@ -101,14 +101,14 @@ z boot hooka (FR-001). Nie trzeba zmian w core.
 
    Id właściciela pozwala rejestrowi pominąć adapter, gdy jego moduł jest
    nieobecny, więc przewoźnik wyłączony przez operatora przestaje być oferowany zamiast
-   być oferowany i padać (issue #96 — defekt bliźniaka payment, naprawiony po obu
-   stronach). Sam wiersz `delivery_methods` to statyczne dane referencyjne i
+   być oferowany i padać — ten sam defekt, który miał bliźniak payment, naprawiony
+   po obu stronach. Sam wiersz `delivery_methods` to statyczne dane referencyjne i
    należy do migracji modułu; `DeliveryMethodReconciler` pozostaje
    dostępny z `installHook` dla wiersza tworzonego z kodu. Nie trzeba uninstall hooka,
    aby wycofać adapter — moduł nieobecny nie jest enumerowany.
 
    Skip nie odpowiada za zamówienie **już złożone** na twojej metodzie:
-   przesyłka nadal może być wygenerowana, a od issue #250 otwiera się
+   przesyłka nadal może być wygenerowana i otwiera się
    `pending_manual` z nazwą twojego modułu zamiast brzmieć jak zaakceptowana.
    Nie piszesz kodu pod to — zobacz *Kiedy rejestr jest czytany* poniżej.
 
@@ -119,7 +119,7 @@ z boot hooka (FR-001). Nie trzeba zmian w core.
    Throw w boot hooku to nie jeden adapter wypadający: `runBootHooks` re-throwuje go jako
    `ModuleCompositionError`, a `index.ts` robi z tego `process.exit(1)`, więc
    następny start operatora pada przez przełącznik, z którego miał prawo skorzystać. Hook
-   wnoszący też *nie może* sondować `effectiveState` (D-67/D-68) — host filtruje przy
+   wnoszący też *nie może* sondować `effectiveState` — host filtruje przy
    enumeracji, a sonda przy push sprawiłaby, że ponowne włączenie przewoźnika wymaga
    restartu. Jeśli hook też *robi pracę* (reconcile, zapis Redis lub Postgres),
    rozdziel to najpierw: połowa robocza sonduje, wnosząca nigdy.
@@ -131,7 +131,7 @@ z boot hooka (FR-001). Nie trzeba zmian w core.
    - E-mail: `registerShippingEmailRenderer(key, fn)` w
      `shipments/services/shipping-email-renderer.ts`.
    Gdy renderer brakuje dla powierzchni, używana jest domyślna platformy, więc
-   metoda zawsze się renderuje (FR-016/FR-017).
+   metoda zawsze się renderuje.
 
 4. **Włącz moduł** z ekranu cyklu życia modułu admin → konfigurowalna
    Delivery Method pojawia się na `/delivery-methods`.
@@ -150,10 +150,10 @@ proces, niezależnie ile razy platforma jest komponowana. Wkłady są wpychane
 
 | Odczyt | Gdzie | Co oznacza nieobecny adapter |
 | --- | --- | --- |
-| Kwalifikacja storefront | `GET /api/v1/delivery-methods` → `ShippingMethodEligibilityService.filter` | metoda nie jest oferowana (FR-003) |
+| Kwalifikacja storefront | `GET /api/v1/delivery-methods` → `ShippingMethodEligibilityService.filter` | metoda nie jest oferowana |
 | Strażnik upsert admin | `PUT /api/v1/admin/delivery-methods/:code` → `isRegistered` | jawnie podany klucz, którego nikt nie wniósł, jest odrzucany (400); wniesiony z wyłączonym właścicielem jest akceptowany, bo odczyt celowo nie widzi obecności |
 | Składanie zamówienia | `orders` ponownie waliduje wybraną metodę, potem odpala `onOrderCreated` | metoda z wyłączonym właścicielem odpowiada 503 `MODULE_DISABLED`; nierzarejestrowana pomija hook |
-| Generowanie przesyłki | `ShipmentService.create` → `onShipmentCreated` | hook adaptera jest pomijany, a `Shipment` otwiera **`pending_manual`** z nazwą nieobecnego modułu (issue #250) — nigdy zwykłe `pending`, które brzmiałoby jak zaakceptowana przez przewoźnika |
+| Generowanie przesyłki | `ShipmentService.create` → `onShipmentCreated` | hook adaptera jest pomijany, a `Shipment` otwiera **`pending_manual`** z nazwą nieobecnego modułu — nigdy zwykłe `pending`, które brzmiałoby jak zaakceptowana przez przewoźnika |
 | E-mail potwierdzenia zamówienia | klucz `renderers.email` metody | używany jest domyślny renderer platformy |
 
 Wynikają dwie rzeczy i dlatego ta sekcja istnieje, zamiast być domyślana. Po pierwsze,
@@ -161,7 +161,7 @@ Wynikają dwie rzeczy i dlatego ta sekcja istnieje, zamiast być domyślana. Po 
 pierwszym odczycie, niezależnie czy wszedł przed czy po czyimś, więc boot hook nie ma
 czego czekać ani weryfikować. Po drugie, nieobecny lub wyłączony wnoszący jest
 odpowiadany **przy odczycie**, przez zapisanego właściciela wpisu — nigdy przy push.
-To czyni to punktem wkładu, a nie gated portem (D-39): push jest celowo ungated,
+To czyni to punktem wkładu, a nie gated portem: push jest celowo ungated,
 bo gating zamieniłby jeden flip operatora w boot failure wskazujący moduł, którego
 nikt nie dotykał.
 
@@ -179,7 +179,7 @@ na które operator nie może reagować identycznie — klucz, którego nikt nie 
 którego moduł przewoźnika jest wyłączony — a tylko druga nazywa coś, co można
 włączyć z powrotem. `shipments` pyta o to, by zdecydować, w jakim stanie otworzyć
 `Shipment`; bliźniak payment, `GatewayRefundRegistry.absentOwnerFor`, to ten sam
-czytelnik z tego samego powodu (D-71).
+czytelnik z tego samego powodu.
 
 ## Cykl życia
 

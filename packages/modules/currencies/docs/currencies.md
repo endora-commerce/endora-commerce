@@ -5,8 +5,8 @@ description: Pool of accepted ISO 4217 currencies + default
 
 # `currencies`
 
-The installation-wide pool of accepted ISO 4217 currency codes (T238 /
-FR-105). Mirrors the `languages` module.
+The installation-wide pool of accepted ISO 4217 currency codes. Mirrors the
+`languages` module.
 
 ## Public surface
 
