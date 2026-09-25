@@ -50,8 +50,13 @@ const PREFIX = '[verify-docs-build]';
  * architecture/integration pages (!1756), `inpost` (!1739), `dhl_parcel`
  * (!1744), `wfirma` (!1768) and the five gateways of !1783. The URL inventory
  * lost the same URLs in the same change; that record names them.
+ *
+ * **2026-09-25: 174 -> 172**, re-measured from a fresh build of MR !1805
+ * (`pim_akeneo` leaves) after merging `origin/master` at 447510342: its
+ * `module-reference/pim-akeneo` and `modules/pim-akeneo` pages leave, in both
+ * locales. Counted off the built `sitemap.xml` and `pl/sitemap.xml`, 172 each.
  */
-export const SITEMAP_FLOOR = 174;
+export const SITEMAP_FLOOR = 172;
 
 /**
  * Hosts that are never a published origin, as `URL.hostname` spells them — the
