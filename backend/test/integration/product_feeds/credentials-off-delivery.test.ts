@@ -170,6 +170,29 @@ describe('product_feeds — an absent `credentials` refuses the delivery [integr
     expect(await attemptCount()).toBe(before);
   });
 
+  it('records the absence as a failed attempt on the inline path, naming the module', async () => {
+    // Feature 134 D18: with no queue, generation delivers right after the run
+    // is published. There is no job to fail and the run must not, so the
+    // presence answer is written down where the operator reads delivery
+    // history — a failed attempt that says which module is off — instead of
+    // being discarded. The queued path above is unchanged.
+    const before = await attemptCount();
+    registryCache.__setEnabledForTesting(ALL_IDS.filter((id) => id !== 'credentials'));
+
+    const outcome = await h.productFeeds.delivery!.service.deliverInline({
+      feedId,
+      runId: null,
+      artefactId,
+      attempt: 1,
+      maxAttempts: 1,
+    });
+
+    registryCache.__setEnabledForTesting(ALL_IDS);
+    expect(outcome).toMatchObject({ status: 'failed', failureReason: 'not_configured' });
+    expect(outcome.failureDetail).toContain('"credentials"');
+    expect(await attemptCount()).toBe(before + 1);
+  });
+
   it('delivers again once `credentials` is back', async () => {
     await expect(deliver()).resolves.toMatchObject({ status: 'succeeded' });
   });
