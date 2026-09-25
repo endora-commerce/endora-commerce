@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Migration } from '@mikro-orm/migrations';
-import { Migration20260503T182812InventoryWorkflow } from './migrations/20260503T182812_inventory_workflow.js';
-import { Migration20260611T140348InventoryPerWarehouseLowStockThresholds } from './migrations/20260611T140348_inventory_per_warehouse_low_stock_thresholds.js';
+import { Migration20260503T182812InventoryWorkflow } from '../migrations/20260503T182812_inventory_workflow.js';
+import { Migration20260611T140348InventoryPerWarehouseLowStockThresholds } from '../migrations/20260611T140348_inventory_per_warehouse_low_stock_thresholds.js';
 
 /**
  * `inventory`'s migrations issue no DDL on `catalog`'s tables — feature 134's
@@ -20,9 +20,10 @@ import { Migration20260611T140348InventoryPerWarehouseLowStockThresholds } from 
  * `products`, a writer → owner edge that `catalog` in `inventory`'s closure
  * already satisfies.
  *
- * It sits beside `migrations/` rather than inside it, because every `.ts` file
+ * It sits in `backend/` rather than inside `migrations/`, because every `.ts` file
  * in a migrations directory has to be a migration or its barrel
- * (`backend/test/unit/db/migrations-registry.test.ts`).
+ * (`backend/test/unit/db/migrations-registry.test.ts`), and `src/` itself holds
+ * only `manifest.ts` (`manifests:generate`).
  */
 
 type MigrationClass = new (...args: ConstructorParameters<typeof Migration>) => Migration;
