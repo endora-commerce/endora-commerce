@@ -10,7 +10,7 @@ Customer-facing product-comparison module. Owns a first-class
 display mode and a stable shareable link), an admin observability
 surface, and the Node-side PDF export. The module deliberately holds no
 catalog data; it consumes products and the `is_comparable` attribute
-flag through the `CatalogQueryService` port (Constitution Principle I).
+flag through the `CatalogQueryService` port.
 
 This page is written for two audiences:
 
@@ -189,7 +189,7 @@ tickets that quote a shared link.
 
 There is **no** comparisons-side cart proxy. The storefront's
 *Add to cart* button on the comparison page calls the existing
-`POST /api/v1/cart/items` directly (research.md R-9).
+`POST /api/v1/cart/items` directly.
 
 ## Settings
 
@@ -202,8 +202,8 @@ One knob under the `compare` group, registered by
 
 The bound is read at request time inside
 `ComparisonService.addProduct(...)`. Lowering the cap mid-session does
-**not** retroactively trim existing comparisons (research.md R-7); the
-next add is the first request that picks up the new value.
+**not** retroactively trim existing comparisons; the next add is the
+first request that picks up the new value.
 
 ## Catalog flag
 
@@ -234,7 +234,7 @@ Two tables, both owned by the comparisons module
   Both FKs cascade. Reverse index on `product_id` for the admin list's
   product-count aggregate.
 
-No soft-delete. Per spec FR-014, a deleted comparison must resolve to a
+No soft-delete. A deleted comparison must resolve to a
 clear "no longer exists" state for shared-link recipients — a missing
 row + `404 COMPARISON_NOT_FOUND` already satisfies that without a
 soft-delete bit.
@@ -244,7 +244,7 @@ soft-delete bit.
 Anonymous customers carry the `compare_token` cookie (HttpOnly,
 SameSite=Lax, Path=/, Max-Age = 1 year). At sign-in the existing
 `onLogin` hook in `organizationsModule` extracts the cookie and calls
-`ComparisonService.adoptAnonymousComparison(...)` (research.md R-2):
+`ComparisonService.adoptAnonymousComparison(...)`:
 
 - Customer with no Comparison → the anonymous one is reassigned
   (`customer_account_id` set, `anonymous_token` cleared).
@@ -254,9 +254,7 @@ SameSite=Lax, Path=/, Max-Age = 1 year). At sign-in the existing
 ## PDF export
 
 Generated server-side with `pdfmake` — the module's only new runtime
-dependency, justified per Constitution IV in
-`specs/007-compare-module/plan.md` Complexity Tracking. Document
-definition is built declaratively from `ComparisonOwnerView`; product
+dependency. Document definition is built declaratively from `ComparisonOwnerView`; product
 base images are pre-fetched by `AssetByteFetcher` (per-request cache,
 1×1 transparent PNG fallback) and embedded as data URIs. Page
 orientation is landscape when product count ≥ 3, portrait otherwise.

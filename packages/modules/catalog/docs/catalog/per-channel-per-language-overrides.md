@@ -4,7 +4,7 @@ title: Per-Channel + Per-Language Overrides
 
 # Per-Channel + Per-Language Overrides
 
-Feature 022 introduces a **four-scope value model** for product attribute
+The Catalog uses a **four-scope value model** for product attribute
 values. The same attribute key can hold up to four addressable slots
 per product:
 
@@ -167,7 +167,7 @@ Three consumers go through the resolver:
   `sources`. When `includeOverridesMap=true`, the full override list
   is attached for client-side switcher previews.
 - **Storefront public read** — pulls the channel from the
-  `x-sales-channel` header (existing convention from feature 006) and
+  `x-sales-channel` header (the existing convention) and
   the language from `Accept-Language`. The override layer is invisible
   to the public client.
 - **Search indexer (Meilisearch)** — builds one document per

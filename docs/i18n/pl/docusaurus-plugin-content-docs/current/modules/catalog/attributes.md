@@ -56,7 +56,7 @@ Plus flagi behawioralne i pozycja numeryczna:
 | `enum` | option `value` | Ten sam kształt storage co `select`; renderuje się jako kompaktowa pigułka / segmented control na filtrach storefront i PDP zamiast dropdownu. |
 
 Zmiana `valueType`, gdy jakikolwiek produkt niesie wartość, której nowy typ
-nie może reprezentować, jest odrzucana z `attribute_type_change_unsafe` (FR-007).
+nie może reprezentować, jest odrzucana z `attribute_type_change_unsafe`.
 
 ## Listy opcji
 
@@ -71,11 +71,10 @@ autorowana inline w edytorze atrybutu. Każda opcja niesie:
 | `isDefault` | Opcjonalna preselekcja na nowych produktach. `select` / `enum` pozwalają co najwyżej na jedną; `multiselect` na dowolną liczbę. |
 | `sortOrder` | Kolejność renderowania; remisy łamane przez `value` ASC. |
 
-**Wartości** opcji są niemutowalne, dopóki jakikolwiek produkt je niesie
-(FR-026) — operator musi najpierw zmigrować zależne wartości. **Etykiety**
-opcji można zawsze przemianować. Usunięcie opcji jest odrzucane z
-`409 option_in_use`, dopóki jakikolwiek produkt niesie tę wartość
-(FR-025).
+**Wartości** opcji są niemutowalne, dopóki jakikolwiek produkt je niesie —
+operator musi najpierw zmigrować zależne wartości. **Etykiety** opcji
+można zawsze przemianować. Usunięcie opcji jest odrzucane z
+`409 option_in_use`, dopóki jakikolwiek produkt niesie tę wartość.
 
 ## Publiczne API
 
@@ -85,14 +84,14 @@ Trasy admina są chronione przez `catalog:read` (list / get) /
 | Verb + Path | Odbiorca | Cel |
 | --- | --- | --- |
 | `GET /api/v1/admin/catalog/attributes` | admin | Lista atrybutów |
-| `GET /api/v1/admin/catalog/attributes/by-flag?flag=isPromoRule\|isComparable\|...` | admin | Payload pickera — każdy atrybut z żądaną flagą (US1) |
+| `GET /api/v1/admin/catalog/attributes/by-flag?flag=isPromoRule\|isComparable\|...` | admin | Payload pickera — każdy atrybut z żądaną flagą |
 | `GET /api/v1/admin/catalog/attributes/:idOrKey` | admin | Odczyt pojedynczego atrybutu |
 | `POST /api/v1/admin/catalog/attributes` | admin | Utworzenie atrybutu (flagi + inline `options[]` dla typów select-style) |
 | `PATCH /api/v1/admin/catalog/attributes/:key` | admin | Aktualizacja etykiet i hot-toggle `isFilterable` / `isSearchable` / `isVariantAxis` / `isPromoRule` / `isComparable` / `isVisibleOnProductPage` / `isRequired` / `filterPosition`. Re-emituje `attribute.updated.v1`. |
 | `DELETE /api/v1/admin/catalog/attributes/:idOrKey` | admin | Usunięcie; odrzucane z `409 attribute_in_use_by_set`, dopóki jakikolwiek Attribute Set nadal się do niego odwołuje |
 | `GET /api/v1/admin/catalog/attributes/:idOrKey/options` | admin | Lista wierszy opcji dla atrybutów select / enum / multiselect |
 | `POST /api/v1/admin/catalog/attributes/:idOrKey/options` | admin | Dołączenie opcji |
-| `PATCH /api/v1/admin/catalog/attribute-options/:optionId` | admin | Patch `label` / `labelDefault` / `isDefault` / `sortOrder` (option `value` niemutowalne per FR-026) |
+| `PATCH /api/v1/admin/catalog/attribute-options/:optionId` | admin | Patch `label` / `labelDefault` / `isDefault` / `sortOrder` (option `value` niemutowalne) |
 | `DELETE /api/v1/admin/catalog/attribute-options/:optionId` | admin | Usunięcie; odrzucane z `409 option_in_use`, dopóki jakikolwiek produkt niesie wartość |
 
 Odczyty sidebar filtrów konsumują `GET /api/v1/catalog/filters` (zdefiniowane na
@@ -114,7 +113,7 @@ atrybuty filtrowalne per Sales Channel i sortuje je według `filterPosition`.
 
 ## Integracja ze storefrontem
 
-### Sidebar filtrów (US5)
+### Sidebar filtrów
 
 Strony kategorii i wyszukiwania renderują chip na każdy atrybut `isFilterable`,
 który ma co najmniej jedną wartość w aktualnie widocznych produktach.
@@ -122,7 +121,7 @@ Chipy pojawiają się posortowane według `filterPosition` rosnąco, remisy
 alfabetycznie po rozwiązanej etykiecie per locale. Atrybuty bez wartości na
 bieżącej stronie są pomijane (brak pustego filtra).
 
-### Zakładka PDP „Parametry produktu” (US6)
+### Zakładka PDP „Parametry produktu”
 
 Każdy PDP ma zakładkę `Parametry produktu`, która listuje każdy
 atrybut spełniający oba warunki:
@@ -134,7 +133,7 @@ Dla wartości `select` / `multiselect` / `enum` zakładka renderuje
 per-locale etykietę opcji, nie surowe `value`. Pole payloadu szczegółów
 składa `CatalogQueryService.buildVisibleAttributesProjection()`.
 
-### Indeks wyszukiwania (US7)
+### Indeks wyszukiwania
 
 Przełączenie `isSearchable` propaguje się do payloadu indeksatora Meilisearch
 w następnym cyklu odświeżenia. Typy tekstowe (`string`, plus etykiety opcji
@@ -147,7 +146,7 @@ exact-match.
 Wiersze porównania na storefront Compare listują każdy atrybut
 z flagą `isComparable = true`, dla którego co najmniej jeden produkt w
 porównaniu niesie wartość. Lista pochodzi z
-`CatalogQueryService.comparableAttributeKeys()` (feature 007).
+`CatalogQueryService.comparableAttributeKeys()`.
 
 ### Picker wariantów
 
@@ -157,7 +156,7 @@ produktu.
 
 ## Magazynowanie
 
-Od feature 061 (migracja `102`) atrybut jest podzielony między generyczną
+Od migracji `102` atrybut jest podzielony między generyczną
 warstwę Custom Fields, którą posiada moduł `custom_fields`, a rozszerzenie
 własności katalogu. Kształt API powyżej jest bez zmian — powierzchnia admina
 składa oba z powrotem w legacy form.
@@ -177,8 +176,8 @@ składa oba z powrotem w legacy form.
 
 - Wiersze opcji UNIQUE `(definition_id, value)` z per-locale
   `label`, `label_default`, `is_default`, `sort_order`. Własnościowa tabela
-  katalogu `attribute_options` (feature 012, migracja
-  `032`) została usunięta migracją `102` po przeniesieniu wierszy tutaj.
+  katalogu `attribute_options` (migracja `032`) została usunięta
+  migracją `102` po przeniesieniu wierszy tutaj.
 
 `product_attributes` (własność `catalog`) — 1:1 **rozszerzenie**:
 
@@ -198,9 +197,9 @@ składa oba z powrotem w legacy form.
   definicji jest jedynym źródłem prawdy dla nich.
 
 `products.attribute_values jsonb` niesie mapę per produkt kluczowaną przez
-`key` atrybutu (bez zmian od feature 061 — wartości nigdy się nie przeniosły).
+`key` atrybutu; same wartości nigdy się stamtąd nie przeniosły.
 Wartości są utrzymywane po stronie serwera, nawet gdy atrybut opuści aktualnie
-przypisany Attribute Set produktu (FR-012) — powrót do zestawu je z powrotem
+przypisany Attribute Set produktu — powrót do zestawu je z powrotem
 eksponuje.
 
 Wszystkie mutacje atrybutów i opcji przechodzą przez Commands katalogu
@@ -221,12 +220,12 @@ przełączył którą flagę.
 
 ## Konsumenci cross-module
 
-Trzy metody na `CatalogQueryService` to udokumentowane porty serwisowe
-per Constitution I:
+Trzy metody na `CatalogQueryService` to udokumentowane porty serwisowe,
+przez które wołają inne moduły — moduł nigdy nie sięga do wnętrza katalogu:
 
-- `comparableAttributeKeys(): string[]` — feature 007 (Compare).
+- `comparableAttributeKeys(): string[]` — strona Compare na storefroncie.
 - `promoRuleAttributeKeys(): string[]` + `getAttributeWithOptions(key)`
-  — feature 012 / US8 (picker i resolver kryteriów Promotion Rule).
+  — picker i resolver kryteriów Promotion Rule.
 - `buildVisibleAttributesProjection()` — wewnętrzne, używane przez odpowiedź
   szczegółów PDP do złożenia payloadu `visibleAttributes[]`.
 

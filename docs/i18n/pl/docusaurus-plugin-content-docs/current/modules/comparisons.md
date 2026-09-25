@@ -10,7 +10,7 @@ zasób `Comparison` (zestaw produktów kuratorowany przez klienta z wybranym
 trybem wyświetlania i stabilnym linkiem do udostępnienia), powierzchnię
 obserwowalności admin oraz eksport PDF po stronie Node. Moduł celowo nie
 trzyma danych katalogu; konsumuje produkty i flagę atrybutu `is_comparable`
-przez port `CatalogQueryService` (Constitution Principle I).
+przez port `CatalogQueryService`.
 
 Ta strona jest napisana dla dwóch odbiorców:
 
@@ -178,8 +178,8 @@ platformy mógł badać tickety support cytujące shared link.
 | `GET /api/v1/admin/comparisons/:id` | admin (`comparisons:read`) | Read-only detail; renderowane przez zapisany sales channel porównania, żeby widok pasował do tego, co klient zgłosił |
 
 **Nie ma** proxy koszyka po stronie comparisons. Przycisk storefront *Add to cart*
-na stronie porównania woła istniejące `POST /api/v1/cart/items` bezpośrednio
-(research.md R-9).
+na stronie porównania woła istniejące `POST /api/v1/cart/items`
+bezpośrednio.
 
 ## Settings
 
@@ -192,8 +192,8 @@ Jeden knob w grupie `compare`, rejestrowany przez
 
 Bound jest czytany w czasie requestu wewnątrz
 `ComparisonService.addProduct(...)`. Obniżenie cap w trakcie sesji **nie**
-retroaktywnie przycina istniejących porównań (research.md R-7); następny add
-to pierwszy request, który widzi nową wartość.
+retroaktywnie przycina istniejących porównań; następny add to pierwszy
+request, który widzi nową wartość.
 
 ## Catalog flag
 
@@ -223,7 +223,7 @@ Dwie tabele, obie owned przez moduł comparisons
   Oba FK cascade. Reverse index na `product_id` dla agregatu product-count
   w liście admin.
 
-Brak soft-delete. Per spec FR-014 skasowane porównanie musi rozwiązywać się
+Brak soft-delete. Skasowane porównanie musi rozwiązywać się
 do jasnego stanu „już nie istnieje” dla odbiorców shared link — brakujący
 wiersz + `404 COMPARISON_NOT_FOUND` już to spełnia bez bitu soft-delete.
 
@@ -232,7 +232,7 @@ wiersz + `404 COMPARISON_NOT_FOUND` już to spełnia bez bitu soft-delete.
 Anonimowi klienci niosą cookie `compare_token` (HttpOnly,
 SameSite=Lax, Path=/, Max-Age = 1 year). Przy logowaniu istniejący hook
 `onLogin` w `organizationsModule` wyciąga cookie i woła
-`ComparisonService.adoptAnonymousComparison(...)` (research.md R-2):
+`ComparisonService.adoptAnonymousComparison(...)`:
 
 - Klient bez Comparison → anonimowe jest przypisane
   (`customer_account_id` ustawione, `anonymous_token` wyczyszczone).
@@ -242,9 +242,7 @@ SameSite=Lax, Path=/, Max-Age = 1 year). Przy logowaniu istniejący hook
 ## PDF export
 
 Generowane server-side przez `pdfmake` — jedyna nowa runtime dependency
-modułu, uzasadniona per Constitution IV w
-`specs/007-compare-module/plan.md` Complexity Tracking. Definicja dokumentu
-budowana deklaratywnie z `ComparisonOwnerView`; base image produktów są
+modułu. Definicja dokumentu budowana deklaratywnie z `ComparisonOwnerView`; base image produktów są
 prefetchowane przez `AssetByteFetcher` (cache per-request,
 fallback 1×1 transparent PNG) i embedowane jako data URI. Orientacja strony
 to landscape przy product count ≥ 3, portrait w przeciwnym razie.

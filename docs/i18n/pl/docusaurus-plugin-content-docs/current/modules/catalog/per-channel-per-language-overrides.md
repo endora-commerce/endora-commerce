@@ -4,7 +4,7 @@ title: Nadpisania per kanał i język
 
 # Nadpisania per kanał i język
 
-Feature 022 wprowadza **cztero-scope'owy model wartości** dla wartości atrybutów
+Catalog stosuje **cztero-scope'owy model wartości** dla wartości atrybutów
 produktu. Ten sam klucz atrybutu może trzymać do czterech adresowalnych slotów
 na produkt:
 
@@ -161,7 +161,7 @@ Trzech konsumentów przechodzi przez resolver:
   `sources`. Gdy `includeOverridesMap=true`, pełna lista override jest
   dołączona dla podglądów przełączników po stronie klienta.
 - **Publiczny odczyt storefront** — bierze kanał z nagłówka
-  `x-sales-channel` (istniejąca konwencja z feature 006) i język z
+  `x-sales-channel` (istniejąca konwencja) i język z
   `Accept-Language`. Warstwa override jest niewidoczna dla klienta publicznego.
 - **Indeksator wyszukiwania (Meilisearch)** — buduje jeden dokument per
   para `(product, channel)`. Pola `name` i `description` każdego dokumentu

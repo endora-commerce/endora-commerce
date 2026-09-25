@@ -40,7 +40,7 @@ Reference protection runs on every delete:
 
 Every reference scan is a JSONB walk over the entity's `content` envelope (`page→block`, `page→template`, `block→template`, `template→block`) plus a foreign-key check on `cms_hook_block_attachments` for `hook→block`.
 
-The same `content` JSONB is scanned by the **Assets Library reference registry** (feature 013) — deleting an Asset embedded in a CMS component's `props` is similarly refused.
+The same `content` JSONB is scanned by the **Assets Library reference registry** — deleting an Asset embedded in a CMS component's `props` is similarly refused.
 
 ## Page Builder authoring
 
@@ -102,7 +102,7 @@ channels (M:N join with the `code`/`slug` denormalised onto the join row
 to enforce per-channel uniqueness at the DB level). The same `slug` may
 exist in two channels — they're independent rows. Languages live as a
 JSONB array on each entity; the storefront resolver follows the standard
-fallback rule from feature 005 (requested → channel default → 404).
+platform fallback rule (requested → channel default → 404).
 
 The admin's `ScopePicker` restricts the per-channel language list to
 each channel's configured language set; saving a Page whose `languages`

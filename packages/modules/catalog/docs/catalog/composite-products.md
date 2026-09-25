@@ -4,7 +4,7 @@ title: Composite Products
 
 # Composite Products: grouped, bundle, virtual
 
-Feature 002 introduces three product types beyond `simple` /
+The Catalog supports three product types beyond `simple` /
 `configurable`. Each carries a type-discriminated payload on the PDP
 and renders a dedicated component in the storefront's action zone.
 
@@ -31,7 +31,7 @@ A digital product with `downloadAssetId` (server-hosted file) **or**
 (Zod refine + service-layer guard). Use case: e-book PDF, license key
 fulfilment, link to a third-party download portal.
 
-## No nested composites (research R-8)
+## No nested composites
 
 A grouped product cannot include another grouped or bundle product as
 a child. A bundle's slot options cannot be grouped or bundle products
@@ -111,6 +111,5 @@ The PDP type-switches the action zone:
 - `bundle_slot_options` (id, slot_id FK CASCADE, option_product_id FK
   RESTRICT, default_quantity, position; UNIQUE (slot, option_product))
 
-Virtual download fields live on the `products` table itself
-(`download_asset_id` FK nullable + `download_url` varchar nullable),
-introduced by US2 migration.
+Virtual download fields live on the `products` table itself:
+`download_asset_id` FK nullable + `download_url` varchar nullable.

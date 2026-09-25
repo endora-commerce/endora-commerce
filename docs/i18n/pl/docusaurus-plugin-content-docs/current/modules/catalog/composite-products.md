@@ -4,7 +4,7 @@ title: Produkty złożone
 
 # Produkty złożone: grouped, bundle, virtual
 
-Feature 002 wprowadza trzy typy produktów poza `simple` /
+Catalog wspiera trzy typy produktów poza `simple` /
 `configurable`. Każdy niesie payload dyskryminowany typem na PDP
 i renderuje dedykowany komponent w strefie akcji storefront.
 
@@ -30,7 +30,7 @@ Produkt cyfrowy z `downloadAssetId` (plik hostowany po stronie serwera) **lub**
 (Zod refine + guard warstwy serwisu). Przypadek użycia: PDF e-booka, fulfilment
 klucza licencyjnego, link do zewnętrznego portalu pobierania.
 
-## Brak zagnieżdżonych kompozytów (research R-8)
+## Brak zagnieżdżonych kompozytów
 
 Produkt grouped nie może zawierać innego grouped ani bundle jako dziecka.
 Opcje slotu bundle też nie mogą być produktami grouped ani bundle.
@@ -109,6 +109,5 @@ PDP przełącza strefę akcji według typu:
 - `bundle_slot_options` (id, slot_id FK CASCADE, option_product_id FK
   RESTRICT, default_quantity, position; UNIQUE (slot, option_product))
 
-Pola pobierania virtual żyją na samej tabeli `products`
-(`download_asset_id` FK nullable + `download_url` varchar nullable),
-wprowadzone migracją US2.
+Pola pobierania virtual żyją na samej tabeli `products`:
+`download_asset_id` FK nullable + `download_url` varchar nullable.

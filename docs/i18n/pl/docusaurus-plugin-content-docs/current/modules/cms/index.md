@@ -40,7 +40,7 @@ Ochrona referencji działa przy każdym usunięciu:
 
 Każde skanowanie referencji to przejście JSONB po envelope `content` encji (`page→block`, `page→template`, `block→template`, `template→block`) plus sprawdzenie klucza obcego w `cms_hook_block_attachments` dla `hook→block`.
 
-Ten sam JSONB `content` skanuje też **rejestr referencji Assets Library** (feature 013) — usunięcie Assetu osadzonego w `props` komponentu CMS jest podobnie odrzucane.
+Ten sam JSONB `content` skanuje też **rejestr referencji Assets Library** — usunięcie Assetu osadzonego w `props` komponentu CMS jest podobnie odrzucane.
 
 ## Autoring Page Buildera
 
@@ -101,7 +101,7 @@ Każda Page, Block, Template i Hook jest powiązana z jednym lub więcej sales
 channels (join M:N z denormalizowanym `code`/`slug` na wierszu join, żeby
 egzekwować unikalność per kanał na poziomie DB). Ten sam `slug` może istnieć
 w dwóch kanałach — to niezależne wiersze. Języki żyją jako tablica JSONB na każdej
-encji; resolver storefront stosuje standardową regułę fallback z feature 005
+encji; resolver storefront stosuje standardową platformową regułę fallback
 (żądany → domyślny kanału → 404).
 
 Admin `ScopePicker` ogranicza listę języków per kanał do skonfigurowanego
