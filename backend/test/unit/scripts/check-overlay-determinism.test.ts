@@ -228,7 +228,10 @@ describe('coveredArtifactPaths', () => {
       ...generatedFilesUnder(srcRoot),
       ...generatedFilesUnder(adminSourceRoot),
       ...generatedFilesUnder(platformSourceRoot),
-      ...generatedFilesUnder(docsRoot),
+      // A translation of a generated page (`docs/i18n/<locale>/…/*.generated.md`)
+      // is hand-written, not a generator's output: `check:docs-translations`
+      // pins it to its English source, and no generator here can re-render it.
+      ...generatedFilesUnder(docsRoot).filter((path) => !path.startsWith(join(docsRoot, 'i18n'))),
       ...generatedFilesUnder(backendTestRoot),
       ...referencePagesOnDisk(),
     ].sort();
