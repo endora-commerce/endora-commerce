@@ -14,6 +14,7 @@ import {
   normalizeRelative,
   parseChangeset,
   publishScope,
+  publicRegistryLicence,
   readChangesetDocument,
   readPublishedSurface,
   readReleaseIntent,
@@ -1650,6 +1651,98 @@ describe('check-release-intent — the publish scope', () => {
     expect(
       inputs.members.filter((member) => member.dir.startsWith('packages/modules/')).length,
     ).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * `--publish-registry <url>` — a package whose terms are its own never goes to
+ * public npmjs (`specs/136-open-source-publication/` FR-011).
+ *
+ * A `SEE LICENSE IN` package is legitimately published to the private registry,
+ * and the same workflow publishes to whichever registry its environment names —
+ * so the question is asked about the pair, never about the package alone. The
+ * refusal names the packages it read, and the code names none: after the
+ * migration the population is empty by construction, and this is the belt for
+ * the day it is not.
+ */
+describe('check-release-intent — own licence terms on the public registry', () => {
+  function verdictFor(files: FileMap, registry: string) {
+    const tree = checkout(files);
+    const inputs = readReleaseIntent(FIXTURE_ROOT, tree.fs, tree.listChangesets);
+    if ('reason' in inputs) throw new Error(`expected inputs, got a refusal: ${inputs.reason}`);
+    return publicRegistryLicence(inputs.members, registry);
+  }
+
+  const OWN_TERMS: FileMap = {
+    ...publishedAlphaAs((manifest) => {
+      manifest['license'] = 'SEE LICENSE IN LICENSE.md';
+    }),
+    'packages/alpha/LICENSE.md': 'All rights reserved.\n',
+  };
+
+  it('refuses a public package declaring its own terms on registry.npmjs.org', () => {
+    const verdict = verdictFor(OWN_TERMS, 'https://registry.npmjs.org/');
+    expect(verdict.publicRegistry).toBe(true);
+    expect(verdict.ownLicence).toEqual(['@fx/alpha']);
+    expect(verdict.refusal).toContain('@fx/alpha');
+  });
+
+  it('recognises the public registry however its URL is spelled', () => {
+    for (const registry of [
+      'https://registry.npmjs.org',
+      'https://REGISTRY.npmjs.org/',
+      'http://registry.npmjs.org/',
+      'https://registry.npmjs.com/',
+    ]) {
+      expect(verdictFor(OWN_TERMS, registry).refusal, registry).not.toBe('');
+    }
+  });
+
+  it('lets the same package publish to a private registry', () => {
+    const verdict = verdictFor(
+      OWN_TERMS,
+      'https://gitlab.example.invalid/api/v4/projects/1/packages/npm/',
+    );
+    expect(verdict.publicRegistry).toBe(false);
+    expect(verdict.ownLicence).toEqual(['@fx/alpha']);
+    expect(verdict.refusal).toBe('');
+  });
+
+  it('lets a package taking a standard identifier publish to npmjs', () => {
+    for (const license of ['MIT', 'Apache-2.0', 'UNLICENSED']) {
+      const verdict = verdictFor(
+        publishedAlphaAs((manifest) => {
+          manifest['license'] = license;
+        }),
+        'https://registry.npmjs.org/',
+      );
+      expect(verdict.ownLicence, license).toEqual([]);
+      expect(verdict.refusal, license).toBe('');
+    }
+  });
+
+  it('ignores a private member, which `changeset publish` never packs', () => {
+    const verdict = verdictFor(
+      {
+        ...OWN_TERMS,
+        'packages/beta/package.json': JSON.stringify({
+          name: '@fx/beta',
+          version: '1.0.0',
+          private: true,
+          license: 'SEE LICENSE IN LICENSE.md',
+        }),
+      },
+      'https://registry.npmjs.org/',
+    );
+    expect(verdict.ownLicence).toEqual(['@fx/alpha']);
+  });
+
+  it('refuses a registry it cannot read as a URL rather than guessing it is private', () => {
+    for (const registry of ['', 'registry.npmjs.org', 'not a url']) {
+      const verdict = verdictFor(OWN_TERMS, registry);
+      expect(verdict.publicRegistry, registry).toBeNull();
+      expect(verdict.refusal, registry).toContain('not a URL');
+    }
   });
 });
 
