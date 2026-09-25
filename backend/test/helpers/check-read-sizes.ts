@@ -2262,7 +2262,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/modules/comarch_xl/src/backend/services/apply/credit-limit-edge.test.ts`,
     // beside the manifest edge it holds. Nothing moved and nothing was deleted.
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
-    files: 2416,
+    // **`fix/134-port-catches-binding` (feature 134 T130), measured 2026-09-25** in a fresh
+    // detached worktree after `pnpm install --frozen-lockfile` and `build:packages`, never
+    // computed from a delta. The branch adds one `product_feeds` test and two changesets and
+    // edits prose in the files it touches; the rest of the distance from the previous value is
+    // `master`'s own drift from the paid-module departures, which a pristine `origin/master`
+    // worktree reproduces.
+    files: 2273,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -2875,7 +2881,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // roots exclude the translation cache and the i18n tree, so almost everything
     // the branch adds is invisible to it. Recorded from the census.
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
-    files: 5776,
+    // **`fix/134-port-catches-binding` (feature 134 T130), measured 2026-09-25** in a fresh
+    // detached worktree after `pnpm install --frozen-lockfile` and `build:packages`, never
+    // computed from a delta. The branch adds one `product_feeds` test and two changesets and
+    // edits prose in the files it touches; the rest of the distance from the previous value is
+    // `master`'s own drift from the paid-module departures, which a pristine `origin/master`
+    // worktree reproduces.
+    files: 5608,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -3060,7 +3072,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `--env-file-if-exists=../.env` into each derived CLI alias.
     // **`endora install`, the first mile's Phase 3 (!1672), re-measured after merging `origin/master`: sites 563 -> 564.** The branch adds **three** tracked files — `packages/cli/src/install/index.ts`, `packages/cli/test/install.test.ts` and its changeset — and every walk moves by as many of the three as it reads: the two whole-repository walks by **3**, `check-language.sh` by **2** (the two `.ts`, not the `.md`), `check-diacritic-folds` by **1** file and **1** site, because it reads `packages/*/src` and not a package's tests. That the other forty entries agree is the check on this attribution. Conflict resolved wholly to the incoming side, whole record re-measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 564 -> 566.** **+2, this branch's**, and not a file count: the two `.replace()` calls in the new test's `code()` helper, which strips block and line comments before asserting on source — a mention of a call in prose is not a call. Neither is a slug construction and neither is a violation; they are two more expressions in the population this check examines.
-    sites: 557,
+    sites: 530,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -3322,7 +3334,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/modules/comarch_xl/src/backend/services/apply/credit-limit-edge.test.ts`,
     // beside the manifest edge it holds. Nothing moved and nothing was deleted.
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
-    files: 2630,
+    // **`fix/134-port-catches-binding` (feature 134 T130), measured 2026-09-25** in a fresh
+    // detached worktree after `pnpm install --frozen-lockfile` and `build:packages`, never
+    // computed from a delta. The branch adds one `product_feeds` test and two changesets and
+    // edits prose in the files it touches; the rest of the distance from the previous value is
+    // `master`'s own drift from the paid-module departures, which a pristine `origin/master`
+    // worktree reproduces.
+    files: 2494,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -6646,7 +6664,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/modules/comarch_xl/src/backend/services/apply/credit-limit-edge.test.ts`,
     // beside the manifest edge it holds. Nothing moved and nothing was deleted.
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
-    files: 2952,
+    // **`fix/134-port-catches-binding` (feature 134 T130), measured 2026-09-25** in a fresh
+    // detached worktree after `pnpm install --frozen-lockfile` and `build:packages`, never
+    // computed from a delta. The branch adds one `product_feeds` test and two changesets and
+    // edits prose in the files it touches; the rest of the distance from the previous value is
+    // `master`'s own drift from the paid-module departures, which a pristine `origin/master`
+    // worktree reproduces.
+    files: 2804,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 56 -> 66.**
     // The header block above this table has the arithmetic; nothing here
@@ -6960,7 +6984,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `packages/modules/comarch_xl/src/backend/services/apply/credit-limit-edge.test.ts`,
     // beside the manifest edge it holds. Nothing moved and nothing was deleted.
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
-    files: 3050,
+    // **`fix/134-port-catches-binding` (feature 134 T130), measured 2026-09-25** in a fresh
+    // detached worktree after `pnpm install --frozen-lockfile` and `build:packages`, never
+    // computed from a delta. The branch adds one `product_feeds` test and two changesets and
+    // edits prose in the files it touches; the rest of the distance from the previous value is
+    // `master`'s own drift from the paid-module departures, which a pristine `origin/master`
+    // worktree reproduces.
+    files: 2902,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -7385,7 +7415,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
-    files: 1832,
+    // **`fix/134-port-catches-binding` (feature 134 T130), measured 2026-09-25** in a fresh
+    // detached worktree after `pnpm install --frozen-lockfile` and `build:packages`, never
+    // computed from a delta. The branch adds one `product_feeds` test and two changesets and
+    // edits prose in the files it touches; the rest of the distance from the previous value is
+    // `master`'s own drift from the paid-module departures, which a pristine `origin/master`
+    // worktree reproduces.
+    files: 1709,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -7487,7 +7523,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `nonBindingDependencies` entry whose `whenAbsent` and `reason` are prose this walk
     // classifies, and the new co-located test adds its own; the file count is unchanged
     // here because this walk's population is not the whole tree.
-    sites: 36259,
+    sites: 33692,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -8153,7 +8189,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `comarch_xl`'s manifest edge, opened as a module source and as a test; its specifiers
     // are the new sites. The manifest change itself removes no import and adds none.
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
-    files: 5469,
+    // **`fix/134-port-catches-binding` (feature 134 T130), measured 2026-09-25** in a fresh
+    // detached worktree after `pnpm install --frozen-lockfile` and `build:packages`, never
+    // computed from a delta. The branch adds one `product_feeds` test and two changesets and
+    // edits prose in the files it touches; the rest of the distance from the previous value is
+    // `master`'s own drift from the paid-module departures, which a pristine `origin/master`
+    // worktree reproduces.
+    files: 5181,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -8263,7 +8305,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // on `inventory`'s availability service and on its composition root, plus the contracts
     // import the service's audience gate needs. `files` does not move — no module source file
     // is added or deleted.
-    sites: 13491,
+    sites: 12768,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -9380,7 +9422,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // edited files move nothing — an edit does not change a population — and the
     // ignored residue the checkout carries is unchanged.
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
-    files: 8962,
+    // **`fix/134-port-catches-binding` (feature 134 T130), measured 2026-09-25** in a fresh
+    // detached worktree after `pnpm install --frozen-lockfile` and `build:packages`, never
+    // computed from a delta. The branch adds one `product_feeds` test and two changesets and
+    // edits prose in the files it touches; the rest of the distance from the previous value is
+    // `master`'s own drift from the paid-module departures, which a pristine `origin/master`
+    // worktree reproduces.
+    files: 8747,
     sites: null,
     sources: [],
     //
@@ -9993,7 +10041,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T042–T045, re-measured 2026-09-25: 221 -> 204.** Port catches that lived in the five
     // gateway packages; measured, not decomposed. Agreed at `origin/master` `ce96b1e94`; see the
     // header block above the table.
-    sites: 204,
+    sites: 194,
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 2138 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
@@ -10083,7 +10131,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and none of it is somebody else's staleness. Never computed from a delta.
     // **`fix/instance-wiring-operator-runtime`: files 2192 -> 2193 (+1).** **`fix/instance-wiring-operator-runtime` adds three tracked files and moves no other**: `packages/platform/src/lifecycle/commands/operator-entry.ts`, its co-located `operator-entry.test.ts`, and one `.changeset/*.md`. Every delta here is a walk seeing the share of those three it reads — the two whole-repository walks see all three, a source-and-test walk sees two, a source-only walk sees one, and `check-language.sh` sees the two comment-bearing `.ts` and not the `.md`; the two `sites` moves are the new file's outward imports and its English prose. **None of it arrived with `master`**: the branch's own earlier run over a pre-`c99c2cd09` base named the same 27 with the same deltas, and what the merge moved is three *baselines* — `check-platform-surface`, `check-singleton-identity` and `check-language.sh`, each by the tracked `.ts` the A6 branch deleted — not this branch's contribution to them. Re-measured on the **merged** tree (`origin/master` after `fix/instance-docs-foreign-link-catalog` merged) in a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and this file's conflict resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 27 and confirmed the other 17 agree.
     // **`fix/invoice-ledger-tenancy-parent`: files 2193 -> 2194 (+1).** **`fix/invoice-ledger-tenancy-parent` adds three tracked files and deletes none**: the migration `20260914T140000_invoice_ledger_row_organization.ts`, the guard test `backend/test/unit/tenancy/transitive-parent-module-ownership.test.ts`, and one `.changeset/*.md`. Every `files` delta is a walk seeing its own share — the two whole-repository walks see all three, `check-language.sh` sees the two comment-bearing `.ts`, a walk over `src` trees sees the migration alone, a walk over `backend/test` sees the test alone, and a walk over both sees two. The `sites` moves are the new artefacts' own units: a migration is a claim-bearing artefact, the enqueue path resolves one more port, and the regenerated `module-reference/invoice-ledger.md` is one more determinism site. **What the merge moved is baselines, not this branch's contribution to them**: the same 30 entries with the same deltas were measured over the pre-merge base, and the three files `fix/instance-wiring-operator-runtime` added are what shifted the starting points. Re-measured on the **merged** tree — `fix/instance-wiring-operator-runtime` merged and re-recorded 27 entries, so this file conflicted; the conflict was resolved wholly to the incoming side and staged before measuring, per `specs/conventions/check-estate.md`. In a fresh detached `git worktree` of the merge commit after `pnpm install --frozen-lockfile`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain` clean. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 30 and confirmed the other 14 agree.
-    files: 2269,
+    // **`fix/134-port-catches-binding` (feature 134 T130, D18), measured 2026-09-25** in a
+    // fresh detached worktree after `pnpm install --frozen-lockfile` and `build:packages`,
+    // never computed from a delta. **sites 204 -> 194**: a call now binds only the declaration
+    // its file resolves, so ten `HANDLED` sites that existed only through a same-named
+    // declaration in another module left (two in `pim_unopim`, eight in `product_feeds`),
+    // the drained `deliverArtefact#promise` site left, and `DeliveryService#deliverInline`'s
+    // `catch` arrived handled. The file count is `master`'s own drift from the paid-module
+    // departures, which a pristine `origin/master` worktree reproduces.
+    files: 2130,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -10696,7 +10752,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `check-docs-translations.ts` and `verify-docs-build.ts`. `backend/test` is
     // out of this population, which is why it does not also see the six new tests.
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
-    files: 2575,
+    // **`fix/134-port-catches-binding` (feature 134 T130), measured 2026-09-25** in a fresh
+    // detached worktree after `pnpm install --frozen-lockfile` and `build:packages`, never
+    // computed from a delta. The branch adds one `product_feeds` test and two changesets and
+    // edits prose in the files it touches; the rest of the distance from the previous value is
+    // `master`'s own drift from the paid-module departures, which a pristine `origin/master`
+    // worktree reproduces.
+    files: 2422,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -10804,7 +10866,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `inventory`'s availability service, and the same port named by its composition root and
     // by its plugin factory. All four are published platform surface, so the count moves and
     // the verdict does not.
-    sites: 1948,
+    sites: 1818,
     // count moves with the file count here because the reaches that went are exactly
     // the files that went.
     // **T119a: sites 1870 -> 1861.** The same nine files, each the single relative
@@ -11426,8 +11488,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // entry, only `specs` is partial, so both spec pages contribute a site while
     // the three deletions, all under wholly `public` root entries, take none away.
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
-    files: 9022,
-    sites: 1324,
+    // **`fix/134-port-catches-binding` (feature 134 T130), measured 2026-09-25** in a fresh
+    // detached worktree after `pnpm install --frozen-lockfile` and `build:packages`, never
+    // computed from a delta. The branch adds one `product_feeds` test and two changesets and
+    // edits prose in the files it touches; the rest of the distance from the previous value is
+    // `master`'s own drift from the paid-module departures, which a pristine `origin/master`
+    // worktree reproduces.
+    files: 8808,
+    sites: 1334,
     // `git-tree-entries` — the committed tree's own root entries, read from a
     // different git store than the index this walk uses. Not `self-reported`:
     // two derivations of one population by two routes is precisely the second
@@ -12438,7 +12506,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **1844 -> 1850, +6.** The same six new `backend/test` tests; this branch adds
     // no co-located package test, so the package half of the walk stands still.
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
-    files: 1843,
+    // **`fix/134-port-catches-binding` (feature 134 T130), measured 2026-09-25** in a fresh
+    // detached worktree after `pnpm install --frozen-lockfile` and `build:packages`, never
+    // computed from a delta. The branch adds one `product_feeds` test and two changesets and
+    // edits prose in the files it touches; the rest of the distance from the previous value is
+    // `master`'s own drift from the paid-module departures, which a pristine `origin/master`
+    // worktree reproduces.
+    files: 1819,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -12467,7 +12541,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // server-bound and multi-owner, so it stays under `backend/test` and needs no ledger
     // entry.
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): sites 1115 -> 1114.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
-    sites: 1240,
+    sites: 1214,
     // Two independent authors. `manifest-index` is issue #215's shared floor
     // over the module walk, whose unit is the module's own directory rather than
     // a test file — 14 of the 70 packages ship no test and a floor over test
@@ -13381,7 +13455,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `check-platform-surface` sees plus the 6 under `backend/test` that the
     // `backend/test` walks see. Nothing else the branch adds is TypeScript.
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
-    files: 4832,
+    // **`fix/134-port-catches-binding` (feature 134 T130), measured 2026-09-25** in a fresh
+    // detached worktree after `pnpm install --frozen-lockfile` and `build:packages`, never
+    // computed from a delta. The branch adds one `product_feeds` test and two changesets and
+    // edits prose in the files it touches; the rest of the distance from the previous value is
+    // `master`'s own drift from the paid-module departures, which a pristine `origin/master`
+    // worktree reproduces.
+    files: 4652,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -13439,7 +13519,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // which resolves it out of the composed `entities` array. A helper import is no
     // reach, so 81 sites go and none arrives.
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The value reaches into a package's source that the module's tests make.
-    sites: 772,
+    sites: 752,
     sources: ['manifest-index', 'entities-registry', 'tenant-chains'],
     //
     // **852 -> 851 sites, 4336 -> 4337 files, and the two have different causes.**
@@ -14522,7 +14602,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // are in the `git ls-files` population; the sixteen removal batches' ~171
     // edited files move nothing.
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
-    files: 9021,
+    // **`fix/134-port-catches-binding` (feature 134 T130), measured 2026-09-25** in a fresh
+    // detached worktree after `pnpm install --frozen-lockfile` and `build:packages`, never
+    // computed from a delta. The branch adds one `product_feeds` test and two changesets and
+    // edits prose in the files it touches; the rest of the distance from the previous value is
+    // `master`'s own drift from the paid-module departures, which a pristine `origin/master`
+    // worktree reproduces.
+    files: 8807,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -15215,7 +15301,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // does not read either, and the sixteen removal batches' ~171 edited files
     // move nothing — an edit does not change a population.
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
-    files: 6455,
+    // **`fix/134-port-catches-binding` (feature 134 T130), measured 2026-09-25** in a fresh
+    // detached worktree after `pnpm install --frozen-lockfile` and `build:packages`, never
+    // computed from a delta. The branch adds one `product_feeds` test and two changesets and
+    // edits prose in the files it touches; the rest of the distance from the previous value is
+    // `master`'s own drift from the paid-module departures, which a pristine `origin/master`
+    // worktree reproduces.
+    files: 6261,
     sites: null,
     sources: ['manifest-index'],
     //
