@@ -276,7 +276,6 @@ export const LEGACY_PERMISSION_LABELS: Readonly<Record<string, number>> = {
   'api_keys+webhooks': 1,
   assets_library: 2,
   audit_logs: 1,
-  autopay: 2,
   blog: 2,
   'carts+customers+organizations': 1,
   carts: 2,
@@ -303,8 +302,6 @@ export const LEGACY_PERMISSION_LABELS: Readonly<Record<string, number>> = {
   organizations: 2,
   payment_methods: 2,
   payments: 2,
-  paypal: 2,
-  payu: 2,
   pim_ergonode: 2,
   price_lists: 2,
   product_feeds: 2,
@@ -315,7 +312,6 @@ export const LEGACY_PERMISSION_LABELS: Readonly<Record<string, number>> = {
   search: 1,
   settings: 2,
   taxes: 2,
-  tpay: 2,
   transactional_emails: 2,
 };
 

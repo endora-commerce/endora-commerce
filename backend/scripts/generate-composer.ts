@@ -84,10 +84,8 @@ import {
 } from './lib/platform-root.js';
 import { barrelKeyOf, parseBarrel, type BarrelParse } from './lib/platform-surface.js';
 import { declaresRegisterModule } from './lib/module-roots.js';
-// The order the published baseline list is rendered in is `orderMigrations`'
-// own (R1.3): one derivation, so the artefact cannot come to disagree with the
-// algorithm that reads it.
-import { BASELINE_THROUGH, historicalBaselineOrder } from '@endora-commerce/platform/db';
+import { BASELINE_THROUGH } from '@endora-commerce/platform/db';
+import { BASELINE_MIGRATION_INVENTORY } from '@endora-commerce/platform/migrations';
 import {
   adminRegistryOutputPathIn,
   collectAdminContributions,
@@ -2027,14 +2025,12 @@ function baselineListOutputPath(): string {
 /**
  * Pure emit — the published baseline list for a given set of migration names.
  *
- * The order is {@link historicalBaselineOrder}'s, which is `orderMigrations`'
- * own: one derivation, so the artefact cannot come to disagree with the
- * algorithm that reads it. R1.4 — the list is closed and cannot grow, because
- * `migration:new` clamps every scaffolded stamp past the watermark, so a name
- * below it that is not already here cannot be produced.
+ * The order is the immutable historical inventory's. Extraction changes the
+ * packages a deployment supplies, never the identities databases already
+ * applied. R1.4 — the list is closed and cannot grow.
  */
-export function emitBaselineList(names: readonly string[]): string {
-  const baseline = historicalBaselineOrder(names, BASELINE_THROUGH);
+export function emitBaselineList(): string {
+  const baseline = BASELINE_MIGRATION_INVENTORY.map((entry) => entry.name);
   return `${HEADER('generate-composer.ts')}//
 // The frozen historical prefix, by identity — every migration whose position is
 // history rather than a consequence of the manifest graph, in the order history
@@ -2048,12 +2044,10 @@ export function emitBaselineList(names: readonly string[]): string {
 // applied in in 37 places, and re-deriving it produces an order a fresh database
 // cannot apply.
 //
-// **Closed. It never grows** (R1.4): it holds what the committed core registry
-// contributes at or below BASELINE_THROUGH (${BASELINE_THROUGH}), and
-// \`migration:new\` clamps every scaffolded stamp past that watermark. A name
-// here that no registry entry supplies, and a registry entry below the watermark
-// that is not named here, are both refused by
-// backend/test/unit/db/instance-migration-order.test.ts.
+// **Closed. It never grows or drains** (R1.4): it holds the immutable platform
+// history through BASELINE_THROUGH (${BASELINE_THROUGH}). A deployment projects
+// this order onto the owners it installed; extraction cannot delete an identity
+// an existing database already recorded.
 
 export const BASELINE_MIGRATIONS: readonly string[] = [
 ${baseline.map((name) => `  '${name}',`).join('\n')}
@@ -2062,13 +2056,13 @@ ${baseline.map((name) => `  '${name}',`).join('\n')}
 }
 
 /** Pure render — the target path + expected content of the published baseline list. */
-export function renderBaselineList(sources: SourceTree = readSourceTree()): {
+export function renderBaselineList(_sources: SourceTree = readSourceTree()): {
   outputPath: string;
   content: string;
 } {
   return {
     outputPath: baselineListOutputPath(),
-    content: emitBaselineList(collectMigrations(sources).map((entry) => entry.className)),
+    content: emitBaselineList(),
   };
 }
 

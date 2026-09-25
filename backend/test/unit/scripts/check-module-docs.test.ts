@@ -345,14 +345,13 @@ describe('check:module-docs', () => {
   });
 
   describe('the ledgers', () => {
-    it('holds the six undocumented modules standing when the check landed', () => {
+    it('holds the undocumented modules that remain in this repository', () => {
       expect(Object.keys(MODULES_WITHOUT_DOCUMENTATION).sort()).toEqual([
         'admin_notifications',
         'custom_fields',
         'email',
         'mfa',
         'pim_connector',
-        'stripe',
       ]);
       for (const reason of Object.values(MODULES_WITHOUT_DOCUMENTATION)) {
         expect(reason.length).toBeGreaterThan(40);

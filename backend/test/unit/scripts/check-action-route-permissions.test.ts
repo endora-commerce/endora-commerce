@@ -468,12 +468,12 @@ describe('check-action-route-permissions — the artefact it read (issue #113)',
     //
     // **The stale artefact is a fixture checkout's, never this one's**, and that
     // is the one thing about this proof that is not incidental. It used to
-    // backdate `packages/modules/payu/dist/manifest.js` in the working tree and
+    // backdate a module package's emitted manifest in the working tree and
     // restore it in a `finally`, and for the seconds in between every other
     // process reading this repository was reading a tree the estate refuses:
     // `check-read-size.test.ts` spawns the whole check estate concurrently over
     // the working tree, so `test:unit:fast` went red with `[stale-artefact]
-    // @endora-commerce/mod-payu` in whichever check happened to be in flight.
+    // package name in whichever check happened to be in flight.
     // Measured on `master` by four sessions in one day — `check-divergence` and
     // `check-action-route-permissions` both observed as the victim, reproducing
     // on demand when the two files run together and never when either runs
@@ -496,7 +496,7 @@ describe('check-action-route-permissions — the artefact it read (issue #113)',
     const fixture = createSplitModuleTreeFixture({ packaged: [] });
     try {
       const subject = emittingPackages(fixture.root).find(
-        (pkg) => pkg.name === '@endora-commerce/mod-payu',
+        (pkg) => pkg.name === '@endora-commerce/mod-payment-methods',
       );
       expect(subject, 'the subject package is no longer a workspace member').toBeDefined();
       const artefact = rootExportOf(subject!);
@@ -509,7 +509,7 @@ describe('check-action-route-permissions — the artefact it read (issue #113)',
 
       const result = fixture.run('check-action-route-permissions.ts');
       expect(result.status, result.output).toBe(2);
-      expect(result.output).toContain('[stale-artefact] @endora-commerce/mod-payu');
+      expect(result.output).toContain('[stale-artefact] @endora-commerce/mod-payment-methods');
       expect(result.output).toContain('build:packages');
       // Not exit 1, and not a warning beside a finding count: the run reports no
       // findings at all, because it could not see the tree.

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
-import { adminSession, withSession } from '../../helpers/render-with-session';
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
 /**
  * `payment_methods` owns its authority — the screen.
@@ -98,7 +98,10 @@ describe('the payment-methods screen is gated on the module’s own code', () =>
         </MemoryRouter>,
         // The near miss the module took its own authority to close: until
         // 2026-08-28 these two codes opened this screen.
-        { session: adminSession({ permissions: ['catalog:read', 'catalog:write'] }) },
+        {
+          session: adminSession({ permissions: ['catalog:read', 'catalog:write'] }),
+          presence: modulePresence({ present: ['payment_methods'] }),
+        },
       ),
       passthroughBundle('core', KEYS),
     );
@@ -121,7 +124,10 @@ describe('the payment-methods screen is gated on the module’s own code', () =>
         <MemoryRouter initialEntries={['/payment-methods']}>
           <PaymentMethodsPage />
         </MemoryRouter>,
-        { session: adminSession({ permissions: ['payment_methods:read'] }) },
+        {
+          session: adminSession({ permissions: ['payment_methods:read'] }),
+          presence: modulePresence({ present: ['payment_methods'] }),
+        },
       ),
       passthroughBundle('core', KEYS),
     );

@@ -33,7 +33,12 @@ import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifest
  * D-71 unpicked.
  */
 
-const ALL_IDS = REGISTERED_MANIFESTS.map((entry) => entry.manifest.id);
+const FIXTURE_MODULE_ID = 'payment_gateway_fixture';
+const FIXTURE_ADAPTER_KEY = 'payment_gateway_fixture_redirect';
+const ALL_IDS = [
+  ...REGISTERED_MANIFESTS.map((entry) => entry.manifest.id),
+  FIXTURE_MODULE_ID,
+];
 
 /**
  * An order paid through a gateway, with `adapter` naming the PSP — over
@@ -76,14 +81,14 @@ const input = {
 describe('PaymentRefundProvider — a gateway whose module is switched off', () => {
   it('refuses the refund and names the module', async () => {
     gatewayRefundRegistry.register(
-      { adapterKey: 'stripe', refund: async () => ({ state: 'issued' }) },
-      'stripe',
+      { adapterKey: FIXTURE_ADAPTER_KEY, refund: async () => ({ state: 'issued' }) },
+      FIXTURE_MODULE_ID,
     );
-    registryCache.__setEnabledForTesting(ALL_IDS, { deactivated: ['stripe'] });
-    expect(effectiveState.isPresent('stripe')).toBe(false);
+    registryCache.__setEnabledForTesting(ALL_IDS, { deactivated: [FIXTURE_MODULE_ID] });
+    expect(effectiveState.isPresent(FIXTURE_MODULE_ID)).toBe(false);
 
     try {
-      const thrown = await providerFor('stripe')
+      const thrown = await providerFor(FIXTURE_ADAPTER_KEY)
         .refund(input)
         .then(
           (result) => result as unknown,
@@ -94,12 +99,12 @@ describe('PaymentRefundProvider — a gateway whose module is switched off', () 
       // Not an outcome either: a returned value is something the caller settles
       // *on*, and every caller reads anything but `failed` as success.
       expect(thrown).toBeInstanceOf(ModuleDisabledError);
-      expect((thrown as ModuleDisabledError).moduleId).toBe('stripe');
+      expect((thrown as ModuleDisabledError).moduleId).toBe(FIXTURE_MODULE_ID);
       expect((thrown as ModuleDisabledError).statusCode).toBe(503);
       expect((thrown as ModuleDisabledError).code).toBe(ERROR_CODES.MODULE_DISABLED);
     } finally {
       registryCache.__setEnabledForTesting(ALL_IDS);
-      gatewayRefundRegistry.unregister('stripe');
+      gatewayRefundRegistry.unregister(FIXTURE_ADAPTER_KEY);
     }
   });
 
@@ -112,16 +117,19 @@ describe('PaymentRefundProvider — a gateway whose module is switched off', () 
 
   it('issues the refund again once the module is switched back on', async () => {
     gatewayRefundRegistry.register(
-      { adapterKey: 'stripe', refund: async () => ({ state: 'issued', externalReference: 're_1' }) },
-      'stripe',
+      {
+        adapterKey: FIXTURE_ADAPTER_KEY,
+        refund: async () => ({ state: 'issued', externalReference: 're_1' }),
+      },
+      FIXTURE_MODULE_ID,
     );
     registryCache.__setEnabledForTesting(ALL_IDS);
 
     try {
-      const result = await providerFor('stripe').refund(input);
+      const result = await providerFor(FIXTURE_ADAPTER_KEY).refund(input);
       expect(result).toEqual({ state: 'issued', externalReference: 're_1' });
     } finally {
-      gatewayRefundRegistry.unregister('stripe');
+      gatewayRefundRegistry.unregister(FIXTURE_ADAPTER_KEY);
     }
   });
 });

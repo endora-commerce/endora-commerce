@@ -22,6 +22,21 @@ A Supplier-operated B2B commerce platform supporting both **Quote Request (RFQ)*
 
 ## Overview
 
+**A free Endora Commerce runs a complete B2B storefront and its back office.** It includes a
+catalogue with variants, custom fields and organisation pricing; customer organisations, roles,
+addresses and credit limits; carts, RFQs, quick order and shopping lists; orders, invoice records,
+returns, inventory, shipment tracking, and payment by bank transfer, on pickup or against a credit
+limit. It also includes the page and e-mail builders, search, promotions, SEO, product feeds,
+import/export, the mega-menu and PWA across multiple tenants, channels and currencies.
+
+**It ships no online payment gateway and no courier integration.** Card, BLIK and wallet payments,
+courier labels and parcel-locker selection, accounting and ERP synchronisation, PIM
+synchronisation, and Polish KSeF submission are commercial modules. The free tier carries the
+vendor-neutral `payments`, `payment_methods`, `delivery_methods`, `shipments`, `credit_limits` and
+`invoice_ledger` abstractions, plus the free `erp_connector` and `pim_connector` layers, so third
+parties can build their own adapters. Sell here and invoice where you already invoice; an operator
+who wants Endora itself to issue Polish invoices needs the commercial KSeF module.
+
 The repository is a **pnpm monorepo** with three independently buildable applications plus shared packages and a documentation site:
 
 - `backend/` — Node.js + TypeScript API server (Fastify + MikroORM + Zod).
@@ -63,7 +78,6 @@ Foundation feature 001 is complete; feature 002 (catalog module extension) ships
 - Taxes / Promotions: per-rule taxes with country / product-type / VAT-status narrowing + default fallback, percentage / amount / free-delivery promotions. Promotions support a `criteria[]` discriminated union (feature 012 / US8) — today the `attribute` variant is meaningful, letting an operator build rules like `material in [steel]` or `gear_ratio range [20, 50]` against any attribute carrying `isPromoRule = true`. Skip-on-toggle (FR-039) silently ignores criteria pointing at attributes whose `isPromoRule` was flipped off, with an audit log entry on every skip.
 - Attributes (feature 012): SKU is now editable on every Product (the internal canonical reference is the immutable `Product.id` UUID); ProductAttribute carries four new behavioural flags (`isPromoRule`, `isVisibleOnProductPage`, `isRequired`, `filterPosition`) plus a per-locale `labelDefault` fallback; Attribute Sets re-render the product editor when swapped (values for hidden attributes are retained server-side per FR-012); option-list editor for `select` / `enum` / `multiselect` types replaces the legacy `enum_values: string[]` JSONB column (decommissioned by migration 032); storefront filter sidebar honours `filterPosition` and the PDP carries a "Parametry produktu" tab listing every attribute flagged `isVisibleOnProductPage` that has a value, with select-style values rendered as the per-locale option label.
 - Delivery + Payment Methods CRUD with per-locale labels and kind selector for payment drivers.
-- Stripe payment gateway (feature 049, module `stripe`): registers Stripe through the payment-adapter framework as card, BLIK, bank-transfer, and Apple/Google Pay methods with 3-D Secure, an inline Payment Element or redirect to Stripe Checkout (admin-selectable; the storefront half of the inline mode is a fragment the shop copies into its own storefront), PCI-safe saved cards (Stripe-vaulted tokens — no PAN stored), full/partial refunds through the Returns/RMA flow, and per-method availability rules (enable/disable, allowed countries, per-organization disable, minimum order amount). A signature-verified inbound webhook receiver settles deferred and card payments through the existing payments settlement path. Mode (sandbox/production), the active flag, the display mode, and both credential sets live in the Settings module (credentials as `secret` values); the `stripe:read` / `stripe:write` permissions gate the admin screen. **New deps: `stripe` (backend). The two storefront Stripe packages left this repository with the checkout fragment.**
 - Credit Limits: roster of every granted limit + per-organization grant / adjust editor with `allowOverAllocation` override.
 - Users & Roles: admin-user CRUD with role assignment, role editor with a permission-matrix grouped by module, plus a canonical permissions catalogue.
 - Audit Log viewer: filtered query with stateBefore / stateAfter side-by-side JSON expansion.
@@ -129,9 +143,7 @@ Values in the examples are safe defaults for local development against the Docke
 
 **Assets Library (backend, feature 013)** — **`ASSETS_LIBRARY_HMAC_KEY`** signs short-lived URLs for `private`-visibility assets served from the local-FS adapter via `/assets/file/:assetId?token=&exp=`. Generate per environment with `openssl rand -hex 32`; rotating invalidates every outstanding private URL. Cloud adapters (S3, GCS) use their own native signed URLs and ignore this key. The local-FS adapter writes uploaded files under the platform-relative directory configured by the `assets.local.base_dir` setting (default `var/assets`); make sure the backend process can read and write that location. Active adapter selection (`local | s3 | gcs`) and per-adapter configuration (bucket, region, credentials, prefix, public-base URL) live in the Settings module under the `storage` group.
 
-**Secret settings (backend, feature 043)** — **`SETTINGS_SECRET_ENCRYPTION_KEY`** is a base64-encoded 32-byte AES key (generate with `openssl rand -base64 32`) that encrypts `secret`-typed settings at rest — e.g. the Stripe secret key and the secret fields of credential configurations (feature 058, which reuse the same key). Secret settings are write-only through the admin API: reads return only an `isSet` flag, never the value. Writing a secret without this key fails with `SETTING_SECRET_KEY_MISSING`; reads of legacy plaintext values keep working without it. Rotating the key invalidates previously encrypted values (re-enter them in Settings).
-
-**Stripe (feature 049)** — the `stripe` module needs `SETTINGS_SECRET_ENCRYPTION_KEY` set (the Stripe secret key and webhook signing secret are `secret` settings). Configure it in the admin at **Payment → Stripe** (`/settings/stripe`): mode, active, display mode, publishable/secret keys, and the webhook signing secret — all scopable per Sales Channel. Point a Stripe webhook endpoint at **`POST /api/v1/stripe/webhook`**; in local dev use `stripe listen --forward-to localhost:<port>/api/v1/stripe/webhook` and paste the printed `whsec_…` into the settings. Optional: **`STOREFRONT_BASE_URL`** is used to build Stripe Checkout success/cancel return URLs (redirect display mode).
+**Secret settings (backend, feature 043)** — **`SETTINGS_SECRET_ENCRYPTION_KEY`** is a base64-encoded 32-byte AES key (generate with `openssl rand -base64 32`) that encrypts `secret`-typed settings at rest, including secret fields of credential configurations (feature 058, which reuse the same key). Secret settings are write-only through the admin API: reads return only an `isSet` flag, never the value. Writing a secret without this key fails with `SETTING_SECRET_KEY_MISSING`; reads of legacy plaintext values keep working without it. Rotating the key invalidates previously encrypted values (re-enter them in Settings).
 
 **Prompt assistant (backend, feature 043)** — the admin command palette's natural-language prompt mode (module `prompt_actions`) is configured through the Settings module (`prompt_actions.enabled`, `prompt_actions.bulk_limit`) plus a `prompt_actions.llm_credentials` reference to a reusable **LLM credential configuration** (provider + model + API key; feature 058, managed on the Credentials screen). No additional env vars beyond the secret-settings key above. The capability is off by default and gated by the `prompt_actions:use` admin permission.
 

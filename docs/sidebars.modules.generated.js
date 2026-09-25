@@ -107,14 +107,6 @@ const modules = [
   },
   {
     type: 'category',
-    label: 'Autopay', key: 'autopay',
-    link: { type: 'doc', id: 'modules/autopay' },
-    items: [
-      'module-reference/autopay',
-    ],
-  },
-  {
-    type: 'category',
     label: 'Blog', key: 'blog',
     link: { type: 'doc', id: 'modules/blog/index' },
     items: [
@@ -382,22 +374,6 @@ const modules = [
       'module-reference/payments',
     ],
   },
-  {
-    type: 'category',
-    label: 'PayPal', key: 'paypal',
-    link: { type: 'doc', id: 'modules/paypal' },
-    items: [
-      'module-reference/paypal',
-    ],
-  },
-  {
-    type: 'category',
-    label: 'PayU', key: 'payu',
-    link: { type: 'doc', id: 'modules/payu' },
-    items: [
-      'module-reference/payu',
-    ],
-  },
   { type: 'doc', id: 'module-reference/pim-connector', label: 'pim_connector', key: 'pim_connector' },
   {
     type: 'category',
@@ -521,21 +497,12 @@ const modules = [
       'module-reference/shopping-lists',
     ],
   },
-  { type: 'doc', id: 'module-reference/stripe', label: 'stripe', key: 'stripe' },
   {
     type: 'category',
     label: 'taxes', key: 'taxes',
     link: { type: 'doc', id: 'modules/taxes' },
     items: [
       'module-reference/taxes',
-    ],
-  },
-  {
-    type: 'category',
-    label: 'TPay', key: 'tpay',
-    link: { type: 'doc', id: 'modules/tpay' },
-    items: [
-      'module-reference/tpay',
     ],
   },
   {

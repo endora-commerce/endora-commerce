@@ -51,10 +51,6 @@ describe('Admin roles CRUD', () => {
       listAssignablePermissionCodes(RESOLVED_MANIFESTS).sort(),
     );
     expect(body.data.some((p) => p.code === 'promotions:write')).toBe(true);
-    expect(body.data.some((p) => p.code === 'stripe:write')).toBe(true);
-    expect(body.data.some((p) => p.code === 'tpay:write')).toBe(true);
-    expect(body.data.some((p) => p.code === 'payu:write')).toBe(true);
-    expect(body.data.some((p) => p.code === 'autopay:write')).toBe(true);
     expect(body.data.some((p) => p.code === 'mfa:reset')).toBe(true);
     expect(body.data.some((p) => p.code === 'orders:read')).toBe(true);
     expect(body.data.some((p) => p.code === 'settings:read')).toBe(true);

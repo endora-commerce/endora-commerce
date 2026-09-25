@@ -30,7 +30,6 @@ of the platform, not of what happens to be written.
 | [Assets Library](./assets-library/index.md) | Central digital-asset library with pluggable storage adapters, soft-delete, and reference-protection guards | @endora-commerce/mod-assets-library |
 | [audit_logs](./audit_logs.md) | Sensitive-action audit trail | @endora-commerce/mod-audit-logs |
 | [auth](./auth.md) | Customer + admin sessions, password hashing, TOTP | @endora-commerce/mod-auth |
-| [Autopay](./autopay.md) | Autopay payment gateway (BLIK, cards, pay-by-link, wallets) | @endora-commerce/mod-autopay |
 | [Blog](./blog/index.md) | Editorial Posts with Page Builder bodies, taxonomy (Categories + Tags), and storefront feeds | @endora-commerce/mod-blog |
 | [carts](./carts.md) | Customer shopping cart with anonymous→logged-in merge | @endora-commerce/mod-carts |
 | [Catalog](./catalog.md) | Products, variants, categories, attributes, sales channels | @endora-commerce/mod-catalog |
@@ -65,8 +64,6 @@ of the platform, not of what happens to be written.
 | [organizations](./organizations.md) | Customer Organizations, registration, invitations | @endora-commerce/mod-organizations |
 | [payment_methods](./payment_methods.md) | Configured payment methods | @endora-commerce/mod-payment-methods |
 | [payments](./payments.md) | Payment driver dispatch + settlement events | @endora-commerce/mod-payments |
-| [PayPal](./paypal.md) | PayPal Checkout (Orders v2) payment gateway — redirect or inline Smart Payment Buttons, webhook-verified settlement and refunds | @endora-commerce/mod-paypal |
-| [PayU](./payu.md) | PayU payment gateway (BLIK, cards, pay-by-link) | @endora-commerce/mod-payu |
 | `pim_connector` | _no page yet_ | @endora-commerce/mod-pim-connector |
 | [Ergonode PIM](./pim_ergonode.md) | Read-only inbound connector for the Ergonode PIM — products, attribute values, category placement, media and optional prices, on demand or on a schedule | @endora-commerce/mod-pim-ergonode |
 | [Pimcore PIM](./pim_pimcore.md) | HMAC complete-record ingress from Pimcore — Endora applies delivered products, categories, attributes, media and structures without reading Data Hub | @endora-commerce/mod-pim-pimcore |
@@ -85,8 +82,6 @@ of the platform, not of what happens to be written.
 | [Settings](./settings/index.md) | Manifest-driven, per-sales-channel platform configuration with cached read API | @endora-commerce/mod-settings |
 | [shipments](./shipments.md) | The retryable Shipment record and its lifecycle — the delivery-side twin of payments | @endora-commerce/mod-shipments |
 | [shopping_lists](./shopping_lists.md) | Per-customer named bundles convertible to Cart or RFQ | @endora-commerce/mod-shopping-lists |
-| `stripe` | _no page yet_ | @endora-commerce/mod-stripe |
 | [taxes](./taxes.md) | Tax-rate resolver narrowed by country / product type / VAT status | @endora-commerce/mod-taxes |
-| [TPay](./tpay.md) | TPay payment gateway (BLIK, cards, transfers) | @endora-commerce/mod-tpay |
 | [transactional_emails](./transactional-emails.md) | Admin-editable transactional emails — subject, content and look, globally and per sales channel | @endora-commerce/mod-transactional-emails |
 | [webhooks](./webhooks.md) | Outbound HMAC-signed event subscriptions | @endora-commerce/mod-webhooks |
