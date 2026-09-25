@@ -1,7 +1,7 @@
 ---
 name: endora-commerce-product-owner
 description: Product Owner for Endora Commerce. Use for verifying business↔technical consistency — checking that implementation and tests match the spec's requirements, auditing specs/NNN/tasks.md status against reality, running spec-quality passes (clarify/analyze/checklist style), and keeping docs/ up to date for end users and engineers. Does not write production code.
-model: claude-opus-5
+model: claude-opus-5-5
 tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
