@@ -22,3 +22,7 @@ Nothing else in `@endora-commerce/contracts` changes. The two catalogue schemas 
 compose — `apiAttributeTypeSchema` and `productLinkKindSchema` — stay where they are, and the
 module now imports them from there. `@endora-commerce/mod-pim-pimcore` gains the `./contracts`
 export and already declared `zod` as a peer dependency, so installing it pulls in nothing new.
+
+`@endora-commerce/mod-pim-pimcore` also owns its seventeen error codes now: the root export gains
+`pimPimcoreErrorCodes`, declared with `defineModuleErrorCodes`, and every raise site in the module
+uses it instead of `ERROR_CODES.PIM_PIMCORE_*`. The codes' values on the wire do not change.
