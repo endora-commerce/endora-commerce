@@ -11212,7 +11212,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T042–T045, re-measured 2026-09-25: 88 -> 83.** Five versionable package manifests. Agreed
     // at `origin/master` `ce96b1e94`; see the header block above the table.
-    files: 83,
+    // **`specs/136-open-source-publication/` GAP-2, re-measured 2026-09-26: 83 -> 90.** Seven
+    // module packages now declare `SEE LICENSE IN LICENSE.md`, and the check opens the file each
+    // one names — seven `LICENSE.md` files, +7. `sites` stays 477, and the added changeset moves
+    // neither number (withdrawn, the branch still reads 90 / 477). The two recorded measurements
+    // are from one pristine detached worktree stood up for them after `setup-worktree.sh` and
+    // `build:packages`: the merge-base `52490b242` reads 83, which is this record, and the branch
+    // tip reads 90.
+    files: 90,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 495 -> 501.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
