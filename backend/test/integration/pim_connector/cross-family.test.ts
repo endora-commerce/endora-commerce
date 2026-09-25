@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CAPABILITY_KEYS } from '@endora-commerce/contracts';
 import { effectiveState } from '@endora-commerce/platform/kernel';
 import { resolvedManifestEntries } from '../../../src/lifecycle/registered-manifests.js';
+import { deploymentFamilyOf } from '../../helpers/capability-families.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -21,10 +22,19 @@ import {
  *
  * Both families are derived from the members' own declarations, on both sides, so
  * a connector that joins either one is covered without editing this file.
+ *
+ * **Composed as the `example` deployment** (feature 134, T113, `research.md` D13 §6).
+ * Every PIM connector and one of the two ERP connectors is a paid module leaving this
+ * repository; the deployment's overlay fixtures are the members that stay, so without
+ * them the coverage guard below goes red at the last PIM departure — on `master`,
+ * because no merge-request pipeline runs this tree (D-198).
  */
 
 const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
-const RESOLVED_MANIFESTS = await resolvedManifestEntries();
+const DEPLOYMENT = 'example';
+const RESOLVED_MANIFESTS = await resolvedManifestEntries({ ...process.env, DEPLOYMENT });
+const PIM_OVERLAY_MEMBERS = (await deploymentFamilyOf(CAPABILITY_KEYS.PIM_CONNECTOR, DEPLOYMENT))
+  .overlay;
 
 function familyOf(key: string): readonly string[] {
   return RESOLVED_MANIFESTS.filter((entry) => (entry.manifest.capabilities ?? []).includes(key))
@@ -43,7 +53,7 @@ describe('capability families do not exclude each other across keys [R2.5]', () 
   let h: BackendServerHandle;
 
   beforeAll(async () => {
-    h = await setupBackendServer();
+    h = await setupBackendServer({ deployment: DEPLOYMENT });
   }, 120_000);
 
   afterAll(async () => {
@@ -67,6 +77,12 @@ describe('capability families do not exclude each other across keys [R2.5]', () 
     expect(PIM_FAMILY.length, 'pim-connector').toBeGreaterThan(0);
     expect(ERP_FAMILY.length, 'erp-connector').toBeGreaterThan(0);
     expect(LEDGER_FAMILY.length, 'invoice-ledger-vendor').toBeGreaterThan(0);
+  });
+
+  it('keeps a PIM member that is no packaged connector — the family survives their departure', () => {
+    // W6: `pim_connector` stays free and every packaged member leaves. What stays is
+    // what the deployment declares itself, and it must be enough for the guard above.
+    expect(PIM_OVERLAY_MEMBERS.length, PIM_FAMILY.join(', ')).toBeGreaterThan(0);
   });
 
   it('keeps the three families disjoint — no module is a member of two of them', () => {
