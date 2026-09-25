@@ -152,8 +152,8 @@ export interface ComposeTestServerOptions {
    * contribution window (AGENTS.md § Composition item 8).
    *
    * The kit registers the platform's own here too: `redis`, `redisSubscriber`,
-   * `eventBus`, `commandBus`, `auditLogService`, `apiInterceptors` and
-   * `resolvedModuleRegistry`. A caller's entry of the same name wins, and that
+   * `eventBus`, `commandBus`, `auditLogService`, `apiInterceptors`,
+   * `resolvedModuleRegistry` and `processRunsWorkers` (`false`). A caller's entry of the same name wins, and that
    * is deliberate — the alternative is a caller with no way to substitute a
    * connection.
    */
@@ -422,6 +422,10 @@ export async function composeTestServer(
       auditLogService,
       apiInterceptors,
       resolvedModuleRegistry: composition.manifests,
+      // Whether this process runs queue consumers — the platform's one
+      // module-agnostic switch (`specs/134-paid-module-extraction/` research
+      // D16). A harness runs none: every test process shares the queues.
+      processRunsWorkers: false,
       ...options.values,
     });
 

@@ -14,7 +14,7 @@
  *
  * So the kit is *handed* its composition and never builds one. That is the same
  * inversion the platform already applies to every other host value: a
- * composition root registers `redis`, `eventBus` and the `*RunWorkers` flags
+ * composition root registers `redis`, `eventBus` and `processRunsWorkers`
  * above the compose call because no module defaults them (AGENTS.md
  * § Composition item 8), and the composition itself is one more of those.
  *
