@@ -67,12 +67,12 @@ export interface DocsToolchainEntry {
 export const DOCS_TOOLCHAIN: readonly DocsToolchainEntry[] = [
   {
     name: '@docusaurus/core',
-    range: '^3.10.0',
+    range: '^3.10.2',
     why: 'the site itself — the build, the router and the sidebar it is handed',
   },
   {
     name: '@docusaurus/preset-classic',
-    range: '^3.10.0',
+    range: '^3.10.2',
     why: "the `'classic'` preset the configuration names, which is what makes the docs plugin, the theme and the search available",
   },
 ];
