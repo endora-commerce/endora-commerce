@@ -5,7 +5,7 @@ description: Cykl życia RFQ (draft → quote → accept/reject)
 
 # `quote_requests`
 
-Moduł Quote Requests — feature 008 — implementuje pętlę negocjacji B2B. Klient
+Moduł Quote Requests implementuje pętlę negocjacji B2B. Klient
 (lub sales representative w jego imieniu) tworzy szkic Quote Request, druga
 strona go przegląda, każda strona może modyfikować wniosek i wymagać jawnej
 ponownej akceptacji, a zatwierdzony Quote Request można przekształcić w

@@ -25,7 +25,7 @@ danymi bez kanału.
 
 - **Attribution** — relacja M:1 dla Orders i Quote Requests. Każdy wiersz jest powiązany z dokładnie jednym kanałem w momencie złożenia, a wiązanie jest niemutowalne dla audytu.
 
-- **Inwariant at-least-one-channel (FR-008)** — każda encja scope'owana kanałem jest powiązana z co najmniej jednym kanałem przez cały czas. Usunięcie ostatniego członkostwa encji jest odrzucane, chyba że caller przekaże `fallbackToDefault=true`, wtedy encja jest ponownie wiązana z system default w tej samej transakcji.
+- **Inwariant at-least-one-channel** — każda encja scope'owana kanałem jest powiązana z co najmniej jednym kanałem przez cały czas. Usunięcie ostatniego członkostwa encji jest odrzucane, chyba że caller przekaże `fallbackToDefault=true`, wtedy encja jest ponownie wiązana z system default w tej samej transakcji.
 
 ## Resolver — request → channel
 
@@ -52,7 +52,7 @@ GET /api/v1/storefront/sales-channel
 
 który zwraca **rozwiązany** kanał dla requestu — code, display name, scope języków i walut, `themeCode` i `logoUrl` — bez pól admin-only (`id`, `active`, `systemDefault`, `version`). Storefront stosuje motyw server-side przy pierwszym renderze, więc pierwszy HTML parsowany przez przeglądarkę kupującego już niesie markę kanału.
 
-Motyw zmienia wygląd storefront, nie to, z czego jest zbudowany: każdy kanał renderuje te same strony tymi samymi komponentami. Per-channel *template* strony to większe pytanie i jest mierzone, nie odpowiadane, w `specs/storefront-composability-measure.md`.
+Motyw zmienia wygląd storefront, nie to, z czego jest zbudowany: każdy kanał renderuje te same strony tymi samymi komponentami. Per-channel *template* strony to większe pytanie i celowo nie jest tu rozstrzygane.
 
 Kanał skonfigurowany z kodem motywu, którego storefront nie implementuje, renderuje się w domyślnym motywie i loguje podany kod. Strona nigdy nie jest odrzucana dla kupującego i żaden inny motyw nie jest podstawiany przez zgadywanie.
 
@@ -87,7 +87,7 @@ Hard-delete z `?fallbackToDefault=true` ponownie wiąże osierocone encje z syst
 w tej samej transakcji przed usunięciem wiersza kanału; `ON DELETE CASCADE` tabel mostu
 to siatka bezpieczeństwa dla członkostwa, które nie wymaga jawnego rebindingu.
 
-## Ślad audytu (FR-019)
+## Ślad audytu
 
 Każda zmiana tożsamości, zmiana cyklu życia i zmiana członkostwa zapisuje jeden wiersz
 `audit_log_entries` synchronicznie w tej samej transakcji. Kody akcji są w

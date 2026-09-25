@@ -5,7 +5,7 @@ sidebar_position: 2
 
 # Admin usage — Sales Channels
 
-How a platform administrator drives the Sales Channels module from the Admin UI day to day. Every action below is also reachable through the HTTP contract documented in `specs/005-sales-channels/contracts/sales-channels-005.contract.md`.
+How a platform administrator drives the Sales Channels module from the Admin UI day to day. Every action below is also reachable through the module's admin HTTP API.
 
 ## Locating the area
 
@@ -58,7 +58,7 @@ Every entity edit page that supports channel membership (Products to start; the 
 
 - The list shows the channels the entity is currently in, with a `System default` badge where appropriate.
 - The picker lists channels the entity is **not** yet in. Pick one and click **Add**.
-- **Remove** triggers the FR-008 invariant — if the entity has only one channel left and you confirm the rebind-to-Default prompt, the system rebinds it to the system default before completing the remove.
+- **Remove** triggers the at-least-one-channel invariant — if the entity has only one channel left and you confirm the rebind-to-Default prompt, the system rebinds it to the system default before completing the remove.
 
 ## Multi-storefront set-up
 

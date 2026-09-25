@@ -5,7 +5,7 @@ sidebar_position: 2
 
 # Admin usage — Sales Channels
 
-Jak administrator platformy obsługuje moduł Sales Channels z poziomu Admin UI na co dzień. Każda akcja poniżej jest też dostępna przez kontrakt HTTP udokumentowany w `specs/005-sales-channels/contracts/sales-channels-005.contract.md`.
+Jak administrator platformy obsługuje moduł Sales Channels z poziomu Admin UI na co dzień. Każda akcja poniżej jest też dostępna przez admin HTTP API modułu.
 
 ## Lokalizacja obszaru
 
@@ -58,7 +58,7 @@ Każda strona edycji encji wspierająca członkostwo kanału (na start Products;
 
 - Lista pokazuje kanały, w których encja jest obecnie, z odznaką `System default` tam, gdzie to stosowne.
 - Picker listuje kanały, w których encja **nie** jest jeszcze. Wybierz jeden i kliknij **Add**.
-- **Remove** uruchamia inwariant FR-008 — gdy encja ma tylko jeden kanał i potwierdzisz prompt rebind-to-Default, system wiąże ją z system default przed zakończeniem usunięcia.
+- **Remove** uruchamia inwariant at-least-one-channel — gdy encja ma tylko jeden kanał i potwierdzisz prompt rebind-to-Default, system wiąże ją z system default przed zakończeniem usunięcia.
 
 ## Konfiguracja multi-storefront
 

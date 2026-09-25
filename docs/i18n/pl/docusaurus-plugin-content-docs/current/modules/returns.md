@@ -37,7 +37,7 @@ Trasy admina są chronione przez `returns:read` (odczyt) / `returns:write` (muta
 | `GET\|POST /api/v1/admin/returns/:id/shipments` + `/:shipmentId/receive` | admin | Wysyłki zwrotu |
 | `…/statuses`, `…/transitions`, `…/reasons`, `…/delivery-methods`, `…/list-views` | admin | Konfiguracja + zapisane widoki |
 
-## Maszyna statusów (konfigurowalna — US3)
+## Maszyna statusów (konfigurowalna)
 
 Cykl życia sprawy jest **konfigurowalny w adminie** (`return_statuses` +
 `return_status_transitions`, seedowane przy instalacji). Domyślnie:
@@ -69,7 +69,7 @@ nie mają wychodzących krawędzi. Każde przejście emituje szablonowe zdarzeni
   korekty, więc żaden nie wychodzi: rozliczenie się udaje, zwrot jest zapisany
   na sprawie zwrotu i rekordzie płatności, a wynik podaje
   `correctiveInvoice: { issued: false, reason: "order_not_invoiced" }`.
-- **Wyłączona bramka płatności odmawia rozliczenia** (issue #104, D-71).
+- **Wyłączona bramka płatności odmawia rozliczenia**.
   Rozwiązania pieniężne przy zamówieniu opłaconym bramką wołają moduł PSP, który
   przyjął płatność; gdy operator ma ten moduł wyłączony — albo wdrożenie go nie
   oferuje — rozliczenie odpowiada `503 MODULE_DISABLED` z nazwą modułu i
@@ -79,14 +79,14 @@ nie mają wychodzących krawędzi. Każde przejście emituje szablonowe zdarzeni
   integracji zwrotu PSP w ogóle, które nadal rozlicza jako `pending_manual`, żeby
   człowiek wypłacił ręcznie — nie ma tam nic do włączenia.
 
-## Interfejsy cross-module (Zasada I)
+## Interfejsy cross-module
 
 Moduł czyta/wpływa na inne domeny tylko przez udokumentowane porty, nigdy
 wewnętrzne importy:
 
 - `OrderReturnContextPort` (orders) — kwoty zapłacone per linia + czas statusu kończącego realizację.
 - `PaymentRefundPort` (payments) — wykonaj zwrot, odpowiedz `pending_manual`
-  gdy brak integracji PSP, albo odmów, gdy bramka, która przyjęła płatność, jest wyłączona (D-71).
+  gdy brak integracji PSP, albo odmów, gdy bramka, która przyjęła płatność, jest wyłączona.
 - `CorrectiveInvoicePort` (invoices) — utwórz fakturę `correction`, albo odpowiedz,
   że żadna nie jest należna, bo zamówienie nie ma faktury do korekty.
 - `CreditTopupPort` (credit_limits) — doładuj grant organizacji.

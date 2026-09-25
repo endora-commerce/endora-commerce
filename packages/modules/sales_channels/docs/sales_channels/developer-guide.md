@@ -27,9 +27,9 @@ Outside the request lifecycle (background jobs, CLI scripts), call `SalesChannel
 Channel scoping has two layers:
 
 1. **Schema** — the entity gains a many-to-many relationship to `sales_channels` via a new bridge table `sales_channel_<entity>` (composite primary key on both ids, `ON DELETE CASCADE` on both sides). Add the table in your module's next migration.
-2. **Service** — every read path of the entity that should be filtered by channel takes a `salesChannelId` parameter and joins through the bridge table. Every create / update path that lands a new entity calls `SalesChannelMembershipService.bindToDefaultIfEmpty(entityType, entity.id)` after `persistAndFlush` so newly-created entities default to the system-default channel (FR-011).
+2. **Service** — every read path of the entity that should be filtered by channel takes a `salesChannelId` parameter and joins through the bridge table. Every create / update path that lands a new entity calls `SalesChannelMembershipService.bindToDefaultIfEmpty(entityType, entity.id)` after `persistAndFlush` so newly-created entities default to the system-default channel.
 
-Then add the member to the contract's `ChannelMemberEntityTypeSchema` enum, and **declare the bridge from your own module** (feature 120, FR-015): export the `{ entityType, table, entityIdColumn }` triple from `src/backend/index.ts` and register it from a boot hook —
+Then add the member to the contract's `ChannelMemberEntityTypeSchema` enum, and **declare the bridge from your own module**: export the `{ entityType, table, entityIdColumn }` triple from `src/backend/index.ts` and register it from a boot hook —
 
 ```ts
 ctx.onBoot(() => {
@@ -38,11 +38,11 @@ ctx.onBoot(() => {
 });
 ```
 
-The bidirectional admin routes then pick it up automatically — no per-module routes needed. The platform deliberately holds no map of the bridges: it used to, total over the enum, which meant a membership call for a member whose module an instance never installed ran SQL against a relation that is not there (D-226). A member no module registered now refuses with `503 MODULE_DISABLED` before the database is reached, and the enum stays the published *vocabulary* while the registry decides which members are live.
+The bidirectional admin routes then pick it up automatically — no per-module routes needed. The platform deliberately holds no map of the bridges: it used to, total over the enum, which meant a membership call for a member whose module an instance never installed ran SQL against a relation that is not there. A member no module registered now refuses with `503 MODULE_DISABLED` before the database is reached, and the enum stays the published *vocabulary* while the registry decides which members are live.
 
 ## Mutating memberships
 
-`SalesChannelMembershipService` is the single mutator for every bridge table. Direct INSERT / DELETE on `sales_channel_*` from anywhere else is forbidden — the lint rule `no-unscoped-channel-query` is the safety net (it ships disabled and gets turned on once every existing call site has been threaded; see tasks.md T020 / T062).
+`SalesChannelMembershipService` is the single mutator for every bridge table. Direct INSERT / DELETE on `sales_channel_*` from anywhere else is forbidden — the lint rule `no-unscoped-channel-query` is the safety net (it ships disabled and gets turned on once every existing call site has been threaded).
 
 ```ts
 const result = await membershipService.addToChannel(channelId, 'product', productId);
@@ -102,6 +102,6 @@ Use the existing `setupBackendServer()` test harness — it boots the full stack
 
 The repo's existing precedent for channel-aware integration tests (transactional rollback, parameterised entity types, raw-SQL fixtures decoupled from owning-module entity classes) is in:
 
-- `backend/test/integration/sales_channels/bidirectional-membership-every-bridge.test.ts` (T043) — table-driven over all 9 bridges.
-- `backend/test/integration/sales_channels/at-least-one-channel-invariant.test.ts` (T022) — FR-008 enforcement.
-- `backend/test/contract/sales_channels/admin-membership.contract.test.ts` (Phase 5b) — HTTP-side cover.
+- `backend/test/integration/sales_channels/bidirectional-membership-every-bridge.test.ts` — table-driven over all 9 bridges.
+- `backend/test/integration/sales_channels/at-least-one-channel-invariant.test.ts` — enforcement of the at-least-one-channel invariant.
+- `backend/test/contract/sales_channels/admin-membership.contract.test.ts` — HTTP-side cover.

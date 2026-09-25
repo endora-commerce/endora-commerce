@@ -27,9 +27,9 @@ Poza cyklem życia requestu (background jobs, skrypty CLI) wołaj `SalesChannelR
 Scope kanału ma dwie warstwy:
 
 1. **Schema** — encja zyskuje relację many-to-many do `sales_channels` przez nową tabelę mostu `sales_channel_<entity>` (composite primary key na obu id, `ON DELETE CASCADE` po obu stronach). Dodaj tabelę w następnej migracji modułu.
-2. **Service** — każda ścieżka odczytu encji, która ma być filtrowana kanałem, przyjmuje parametr `salesChannelId` i joinuje przez tabelę mostu. Każda ścieżka create / update, która tworzy nową encję, woła `SalesChannelMembershipService.bindToDefaultIfEmpty(entityType, entity.id)` po `persistAndFlush`, aby nowo utworzone encje domyślnie trafiały do kanału system default (FR-011).
+2. **Service** — każda ścieżka odczytu encji, która ma być filtrowana kanałem, przyjmuje parametr `salesChannelId` i joinuje przez tabelę mostu. Każda ścieżka create / update, która tworzy nową encję, woła `SalesChannelMembershipService.bindToDefaultIfEmpty(entityType, entity.id)` po `persistAndFlush`, aby nowo utworzone encje domyślnie trafiały do kanału system default.
 
-Następnie dodaj member do enum `ChannelMemberEntityTypeSchema` w kontrakcie i **zadeklaruj most z własnego modułu** (feature 120, FR-015): eksportuj triple `{ entityType, table, entityIdColumn }` z `src/backend/index.ts` i zarejestruj go z boot hook —
+Następnie dodaj member do enum `ChannelMemberEntityTypeSchema` w kontrakcie i **zadeklaruj most z własnego modułu**: eksportuj triple `{ entityType, table, entityIdColumn }` z `src/backend/index.ts` i zarejestruj go z boot hook —
 
 ```ts
 ctx.onBoot(() => {
@@ -38,11 +38,11 @@ ctx.onBoot(() => {
 });
 ```
 
-Dwukierunkowe route admin podchwytują to automatycznie — per-module routes nie są potrzebne. Platforma celowo nie trzyma mapy mostów: kiedyś trzymała, total over the enum, co oznaczało, że wywołanie członkostwa dla membera, którego moduł instancja nigdy nie zainstalowała, uruchamiało SQL wobec relacji, której nie ma (D-226). Member, którego żaden moduł nie zarejestrował, odmawia teraz z `503 MODULE_DISABLED` zanim dotknie bazy, a enum pozostaje opublikowanym *słownikiem*, podczas gdy rejestr decyduje, które membery są live.
+Dwukierunkowe route admin podchwytują to automatycznie — per-module routes nie są potrzebne. Platforma celowo nie trzyma mapy mostów: kiedyś trzymała, total over the enum, co oznaczało, że wywołanie członkostwa dla membera, którego moduł instancja nigdy nie zainstalowała, uruchamiało SQL wobec relacji, której nie ma. Member, którego żaden moduł nie zarejestrował, odmawia teraz z `503 MODULE_DISABLED` zanim dotknie bazy, a enum pozostaje opublikowanym *słownikiem*, podczas gdy rejestr decyduje, które membery są live.
 
 ## Mutowanie członkostw
 
-`SalesChannelMembershipService` jest jedynym mutatorem każdej tabeli mostu. Bezpośredni INSERT / DELETE na `sales_channel_*` z innego miejsca jest zabroniony — reguła lint `no-unscoped-channel-query` to siatka bezpieczeństwa (ships disabled i zostanie włączona, gdy każdy istniejący call site zostanie przeciągnięty; zobacz tasks.md T020 / T062).
+`SalesChannelMembershipService` jest jedynym mutatorem każdej tabeli mostu. Bezpośredni INSERT / DELETE na `sales_channel_*` z innego miejsca jest zabroniony — reguła lint `no-unscoped-channel-query` to siatka bezpieczeństwa (ships disabled i zostanie włączona, gdy każdy istniejący call site zostanie przeciągnięty).
 
 ```ts
 const result = await membershipService.addToChannel(channelId, 'product', productId);
@@ -102,6 +102,6 @@ Użyj istniejącego harnessu `setupBackendServer()` — bootuje pełny stack ze 
 
 Istniejący precedens repozytorium dla testów integracyjnych channel-aware (transactional rollback, parametryzowane typy encji, fixture raw-SQL odłączone od klas encji modułu-właściciela) jest w:
 
-- `backend/test/integration/sales_channels/bidirectional-membership-every-bridge.test.ts` (T043) — table-driven po wszystkich 9 mostach.
-- `backend/test/integration/sales_channels/at-least-one-channel-invariant.test.ts` (T022) — egzekwowanie FR-008.
-- `backend/test/contract/sales_channels/admin-membership.contract.test.ts` (Phase 5b) — pokrycie po stronie HTTP.
+- `backend/test/integration/sales_channels/bidirectional-membership-every-bridge.test.ts` — table-driven po wszystkich 9 mostach.
+- `backend/test/integration/sales_channels/at-least-one-channel-invariant.test.ts` — egzekwowanie inwariantu at-least-one-channel.
+- `backend/test/contract/sales_channels/admin-membership.contract.test.ts` — pokrycie po stronie HTTP.

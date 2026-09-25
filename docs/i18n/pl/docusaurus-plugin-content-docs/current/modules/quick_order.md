@@ -5,7 +5,7 @@ description: Import CSV + type-ahead dla kupujących zamawiających po SKU
 
 # `quick_order`
 
-**Zestaw narzędzi szybkiego zamawiania** platformy (feature 039 — _Szybkie Zamówienia_).
+**Zestaw narzędzi szybkiego zamawiania** platformy.
 Łączy kilka udogodnień, które pozwalają kupującym B2B składać powtarzalne i
 wolumenowe zamówienia w najmniejszej liczbie kroków, ponownie używając istniejących
 możliwości Cart, Quote Request, Order/Checkout, Organization, metod Payment/Shipping,
