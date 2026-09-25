@@ -67,7 +67,6 @@ przypadkiem zostało napisane.
 | [payments](./payments.md) | Dispatch driverów płatności + zdarzenia rozliczenia | @endora-commerce/mod-payments |
 | [PayPal](./paypal.md) | Bramka PayPal Checkout (Orders v2) — redirect lub inline Smart Payment Buttons, rozliczenie i refundy weryfikowane webhookiem | @endora-commerce/mod-paypal |
 | [PayU](./payu.md) | Bramka płatności PayU (BLIK, karty, pay-by-link) | @endora-commerce/mod-payu |
-| [Akeneo PIM](./pim-akeneo.md) | Wejście HMAC complete-record z self-hosted Akeneo — Endora stosuje dostarczone produkty bez pullowania PIM. | @endora-commerce/mod-pim-akeneo |
 | `pim_connector` | _brak strony_ | @endora-commerce/mod-pim-connector |
 | [Ergonode PIM](./pim_ergonode.md) | Inbound connector tylko do odczytu dla Ergonode PIM — produkty, wartości atrybutów, placement kategorii, media i opcjonalne ceny, na żądanie lub według harmonogramu | @endora-commerce/mod-pim-ergonode |
 | [Pimcore PIM](./pim_pimcore.md) | Wejście HMAC complete-record z Pimcore — Endora stosuje dostarczone produkty, kategorie, atrybuty, media i struktury bez czytania Data Hub | @endora-commerce/mod-pim-pimcore |
