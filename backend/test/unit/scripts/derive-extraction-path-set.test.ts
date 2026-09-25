@@ -925,9 +925,13 @@ describe('E3p.2 — the reviewed per-path historical dispositions', () => {
     expect(parseOptions(['demo_mod']).dispositions).toBeUndefined();
   });
 
-  it('ships the committed file as a valid, empty list', () => {
-    const parsed = parseHistoricalDispositions(readFileSync(DISPOSITIONS_FILE, 'utf8'));
+  it('ships the committed file as a valid list, every entry of it accepted by the schema', () => {
+    // The file started as `[]` (T112) and gains reviewed entries per extraction
+    // (E3p.2). What stays true is that the schema accepts every one of them: an
+    // entry the parser drops is one no run could ever validate.
+    const text = readFileSync(DISPOSITIONS_FILE, 'utf8');
+    const parsed = parseHistoricalDispositions(text);
     expect(parsed.problems).toEqual([]);
-    expect(parsed.entries).toEqual([]);
+    expect(parsed.entries).toHaveLength((JSON.parse(text) as unknown[]).length);
   });
 });
