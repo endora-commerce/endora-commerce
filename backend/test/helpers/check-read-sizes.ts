@@ -3350,8 +3350,25 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // created (`navbar.json`, `footer.json`, `current.json`) were already in the
     // Phase 0 read — an attempted read of a file that did not exist yet is a read —
     // so they move nothing here, which is why the arrival is +3 and not +6.
-    files: 565,
-    sites: 349,
+    //
+    // **Feature 133 FR-046 closeout, measured 2026-09-25** on a clean tree — the
+    // same narrow clean the record above used (`git clean -fX docs/docs/modules`,
+    // `rm -f docs/.module-docs-copies.json`, no `docs/build`, no `docs/.docusaurus`),
+    // taken from the `[read-size drift]` census and never computed from a delta.
+    // The sixteen internal-reference removal batches edited roughly 171 files
+    // across both locales and moved no count anywhere: an edit does not change a
+    // population. What moved is the file set either side of them — § 7 of
+    // `internal-reference-removal.md` deleted `docs/docs/about/spec-citations.md`,
+    // its Polish materialisation and its translation-cache entry (**-3 tracked**),
+    // and the feature added `internal-reference-removal.md` and
+    // `internal-reference-removal-worklist.md` under
+    // `specs/133-docs-site-publication/` (**+2 tracked**).
+    // **files 565 -> 562, -3**: all three deleted files are this walk's population
+    // — English source, Polish materialisation, cache entry — and the two spec
+    // pages are not. **sites 349 -> 348, -1**: a site is the English source, so
+    // only the deleted page counts. Recorded from the census.
+    files: 562,
+    sites: 348,
     sources: [],
   },
   'backend/scripts/check-doc-snippets.ts': {
@@ -3601,7 +3618,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **1398 -> 1399, +1.** `DOCUMENT_ROOTS` is `docs/docs` and `specs`, so only
     // the acceptance record is in population; the `packages/cli` test is a `.ts`
     // file outside both roots.
-    files: 1399,
+    //
+    // **Feature 133 FR-046 closeout, measured 2026-09-25** on a clean tree, the
+    // same narrow clean the record above used, taken from the `[read-size drift]`
+    // census and never computed from a delta. § 7 of
+    // `internal-reference-removal.md` deleted `docs/docs/about/spec-citations.md`,
+    // its Polish materialisation and its translation-cache entry; the feature added
+    // `internal-reference-removal.md` and `internal-reference-removal-worklist.md`
+    // under `specs/133-docs-site-publication/`. The sixteen removal batches' ~171
+    // edited files move nothing — an edit does not change a population.
+    // **1399 -> 1400, +1.** `DOCUMENT_ROOTS` is `docs/docs` and `specs`, so the two
+    // spec pages arrive (+2) and only the English `about/spec-citations.md` leaves
+    // (-1); the Polish page and the cache entry are under neither root.
+    files: 1400,
     sites: 13,
     sources: [],
     //
@@ -6977,7 +7006,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // navigation population is the module `docs/` layers and the map, not the docs
     // tree at large, so it moves by two files while the whole-tree walks move by
     // 414. Recorded from the census.
-    files: 114,
+    //
+    // **Feature 133 FR-046 closeout, measured 2026-09-25** on a clean tree, the
+    // same narrow clean the record above used, taken from the `[read-size drift]`
+    // census and never computed from a delta. **files 114 -> 113, -1.** `files` is
+    // the markdown this run opened, which since the prose walk landed includes the
+    // site pages outside the modules category; § 7 of
+    // `internal-reference-removal.md` deleted one of them,
+    // `docs/docs/about/spec-citations.md`. Nothing else in the population moved:
+    // the two spec pages the feature added are not site pages, the deleted Polish
+    // materialisation and cache entry are out of this walk's reach, and the
+    // sixteen removal batches only edited files already counted. `sites` holds at
+    // 268 — the census did not name it, and no navigation entry, map row or prose
+    // reference left with the page.
+    files: 113,
     // The finer population, and it answers a different question: the navigation
     // entries the committed sidebar names, the rows the committed map carries,
     // and the relative links a module-owned page writes (R3.7). A page added and
@@ -9217,7 +9259,19 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **9055 -> 9057, +2.** Both arrivals are in population — this walk is the
     // whole tree — and the ignored residue the checkout carries is unchanged
     // since T080, which is why the move is exactly the two tracked files.
-    files: 9057,
+    //
+    // **Feature 133 FR-046 closeout, measured 2026-09-25** on a clean tree, the
+    // same narrow clean the record above used, taken from the `[read-size drift]`
+    // census and never computed from a delta. **9057 -> 9056, -1.** This walk is
+    // the whole tree, so it sees the net of the feature's file-set moves: § 7 of
+    // `internal-reference-removal.md` deleted `docs/docs/about/spec-citations.md`,
+    // its Polish materialisation and its translation-cache entry (-3), and the
+    // feature added `internal-reference-removal.md` and
+    // `internal-reference-removal-worklist.md` under
+    // `specs/133-docs-site-publication/` (+2). The sixteen removal batches' ~171
+    // edited files move nothing — an edit does not change a population — and the
+    // ignored residue the checkout carries is unchanged.
+    files: 9056,
     sites: null,
     sources: [],
     //
@@ -11217,8 +11271,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // under a `partially-public` entry, and only `specs` is partial, so the
     // acceptance record contributes a site while the `packages/cli` test, under a
     // wholly `public` root entry, does not. Recorded from the census.
-    files: 9113,
-    sites: 1306,
+    //
+    // **Feature 133 FR-046 closeout, measured 2026-09-25** on a clean tree, the
+    // same narrow clean the record above used, taken from the `[read-size drift]`
+    // census and never computed from a delta. § 7 of
+    // `internal-reference-removal.md` deleted `docs/docs/about/spec-citations.md`,
+    // its Polish materialisation and its translation-cache entry (-3 tracked); the
+    // feature added `internal-reference-removal.md` and
+    // `internal-reference-removal-worklist.md` under
+    // `specs/133-docs-site-publication/` (+2 tracked). The sixteen removal batches'
+    // ~171 edited files move nothing — an edit does not change a population.
+    // **files 9113 -> 9112, -1**, the tracked net. **sites 1306 -> 1308, +2** — and
+    // the two move in opposite directions for the reason the record above states: a
+    // site is one per root entry plus one per path under a `partially-public`
+    // entry, only `specs` is partial, so both spec pages contribute a site while
+    // the three deletions, all under wholly `public` root entries, take none away.
+    files: 9112,
+    sites: 1308,
     // `git-tree-entries` — the committed tree's own root entries, read from a
     // different git store than the index this walk uses. Not `self-reported`:
     // two derivations of one population by two routes is precisely the second
@@ -14290,7 +14359,18 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `specs/133-docs-site-publication/acceptance.md`.
     // **9110 -> 9112, +2.** Both arrivals are tracked, so both are in the
     // `git ls-files` population.
-    files: 9112,
+    //
+    // **Feature 133 FR-046 closeout, measured 2026-09-25** on a clean tree, the
+    // same narrow clean the record above used, taken from the `[read-size drift]`
+    // census and never computed from a delta. **9112 -> 9111, -1.** § 7 of
+    // `internal-reference-removal.md` deleted `docs/docs/about/spec-citations.md`,
+    // its Polish materialisation and its translation-cache entry (-3), and the
+    // feature added `internal-reference-removal.md` and
+    // `internal-reference-removal-worklist.md` under
+    // `specs/133-docs-site-publication/` (+2). All five are tracked, so all five
+    // are in the `git ls-files` population; the sixteen removal batches' ~171
+    // edited files move nothing.
+    files: 9111,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -14972,7 +15052,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **6534 -> 6535, +1.** The `packages/cli` test is a `.ts` file and
     // language-bearing; the acceptance record is markdown under `specs/`, which
     // this walk does not read.
-    files: 6535,
+    //
+    // **Feature 133 FR-046 closeout, measured 2026-09-25** on a clean tree, the
+    // same narrow clean the record above used, taken from the `[read-size drift]`
+    // census and never computed from a delta. **6535 -> 6534, -1.** § 7 of
+    // `internal-reference-removal.md` deleted three files, but only the English
+    // `docs/docs/about/spec-citations.md` is in this walk's reach: the Polish
+    // materialisation is Polish and the translation-cache entry is JSON. The two
+    // spec pages the feature added are markdown under `specs/`, which this walk
+    // does not read either, and the sixteen removal batches' ~171 edited files
+    // move nothing — an edit does not change a population.
+    files: 6534,
     sites: null,
     sources: ['manifest-index'],
     //
