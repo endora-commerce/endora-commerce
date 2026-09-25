@@ -50,6 +50,7 @@ import { Migration20260804T152604CatalogWidenProductSku } from './20260804T15260
 import { Migration20260804T160244CatalogCategoryActivation } from './20260804T160244_catalog_category_activation.js';
 import { Migration20260912T094557CatalogSalesChannelProducts } from './20260912T094557_catalog_sales_channel_products.js';
 import { Migration20260912T094623CatalogSalesChannelCategories } from './20260912T094623_catalog_sales_channel_categories.js';
+import { Migration20260925T125527CatalogInventoryColumns } from './20260925T125527_catalog_inventory_columns.js';
 
 export const migrations = [
   Migration20260429T064146CatalogAttributeSetsInit,
@@ -75,6 +76,7 @@ export const migrations = [
   Migration20260804T160244CatalogCategoryActivation,
   Migration20260912T094557CatalogSalesChannelProducts,
   Migration20260912T094623CatalogSalesChannelCategories,
+  Migration20260925T125527CatalogInventoryColumns,
 ];
 
 export {
@@ -101,4 +103,5 @@ export {
   Migration20260804T160244CatalogCategoryActivation,
   Migration20260912T094557CatalogSalesChannelProducts,
   Migration20260912T094623CatalogSalesChannelCategories,
+  Migration20260925T125527CatalogInventoryColumns,
 };

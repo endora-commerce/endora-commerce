@@ -15,8 +15,16 @@ import { Migration } from '@mikro-orm/migrations';
  *   4. Extend `availability_notifications` with `email` + `status`
  *      columns, relax `customer_account_id` to nullable, add the
  *      "at least one recipient" CHECK constraint.
- *   5. Extend `products` with the new stock-management columns.
- *   6. Extend `categories` with the three threshold columns.
+ *   5. (moved) The stock-management columns on `products` and their
+ *      `products_fulfilment_strategy_check` constraint, and
+ *   6. (moved) the three threshold columns on `categories`, are `catalog`'s:
+ *      its entities map them, and since feature 134
+ *      (`specs/134-paid-module-extraction/research.md` D15) they are created
+ *      by `catalog`'s `Migration20260925T125527CatalogInventoryColumns`. This
+ *      migration keeps its class name and position, and lost only those
+ *      statements in `up()` and `down()` — with them, a database whose
+ *      `catalog` migration already ran failed when `inventory` was installed
+ *      later, and this module's hard uninstall dropped columns it does not own.
  *   7. Create `inventory_thresholds`; insert the global row at
  *      foundation defaults (high=100, medium=20, low=1).
  *   8. Create `stock_allocations`.
@@ -125,38 +133,6 @@ export class Migration20260503T182812InventoryWorkflow extends Migration {
     this.addSql(`create index "an_product_status_idx" on "availability_notifications" ("product_id", "status");`);
 
     // ============================================================
-    // 5. products — extend
-    // ============================================================
-    this.addSql(`
-      alter table "products"
-        add column "manage_stock" boolean not null default true,
-        add column "backorder_enabled" boolean not null default false,
-        add column "low_stock_threshold" int null,
-        add column "fulfilment_strategy" varchar(32) null,
-        add column "fulfilment_strategy_warehouse_order" jsonb null;
-    `);
-    this.addSql(`
-      alter table "products"
-        add constraint "products_fulfilment_strategy_check"
-        check (
-          "fulfilment_strategy" is null
-          or "fulfilment_strategy" in (
-            'any','default_first','lowest_stock_first','highest_stock_first','defined_order'
-          )
-        );
-    `);
-
-    // ============================================================
-    // 6. categories — extend
-    // ============================================================
-    this.addSql(`
-      alter table "categories"
-        add column "inventory_threshold_high" int null,
-        add column "inventory_threshold_medium" int null,
-        add column "inventory_threshold_low" int null;
-    `);
-
-    // ============================================================
     // 7. inventory_thresholds + global seed
     // ============================================================
     this.addSql(`
@@ -219,17 +195,6 @@ export class Migration20260503T182812InventoryWorkflow extends Migration {
     this.addSql(`drop table if exists "stock_allocations" cascade;`);
     this.addSql(`drop table if exists "inventory_thresholds" cascade;`);
     this.addSql(`drop table if exists "warehouse_channel_assignments" cascade;`);
-
-    this.addSql(`alter table "categories" drop column if exists "inventory_threshold_high";`);
-    this.addSql(`alter table "categories" drop column if exists "inventory_threshold_medium";`);
-    this.addSql(`alter table "categories" drop column if exists "inventory_threshold_low";`);
-
-    this.addSql(`alter table "products" drop column if exists "fulfilment_strategy_warehouse_order";`);
-    this.addSql(`alter table "products" drop constraint if exists "products_fulfilment_strategy_check";`);
-    this.addSql(`alter table "products" drop column if exists "fulfilment_strategy";`);
-    this.addSql(`alter table "products" drop column if exists "low_stock_threshold";`);
-    this.addSql(`alter table "products" drop column if exists "backorder_enabled";`);
-    this.addSql(`alter table "products" drop column if exists "manage_stock";`);
 
     this.addSql(`alter table "availability_notifications" drop constraint if exists "an_status_check";`);
     this.addSql(`alter table "availability_notifications" drop constraint if exists "an_recipient_check";`);
