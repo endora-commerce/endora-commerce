@@ -1083,3 +1083,63 @@ describe('findPortCatches — a call binds the declaration its file resolves (D1
   });
 });
 
+/**
+ * The gates an alias carries are the ones visible where the site reads it (D18).
+ *
+ * Gates were keyed by the alias's spelling alone, so two modules each holding a
+ * deps key called `credentials` merged what both carried: `product_feeds`'
+ * `credentials` carried 81 gates through `pim_pimcore`'s, and removing
+ * `pim_pimcore`'s sources changed which owners a `product_feeds` site rested on.
+ */
+describe('findPortCatches — an alias carries only the gates visible where it is read (D18)', () => {
+  const provider = (port: string): string =>
+    'export function registerModule(ctx: ModuleContext): void {\n' +
+    `  ctx.di.providePort('${port}', ctx.asFunction(() => x).singleton());\n}`;
+
+  const consumerBackend = (port: string): string =>
+    "import { lazyPort } from '../../kernel/index.js';\n" +
+    'export function registerModule(ctx: ModuleContext): void {\n' +
+    `  ctx.di.register({ worker: new Worker({ credentials: lazyPort<P>(ctx, '${port}') }) });\n}`;
+
+  const SITE =
+    'export class Delivery {\n' +
+    '  async send(): Promise<void> {\n' +
+    '    try { await this.deps.credentials.resolve(); } catch { return; }\n' +
+    '  }\n}';
+
+  const manifests = [
+    { id: 'vault', activation: { nonDeactivatable: true, reason: 'Every secret lives here.' } },
+    { id: 'mailer', activation: { settingCode: 'mailer.enabled', default: true } },
+  ];
+
+  const sources = (withNeighbour: boolean): Map<string, string> => {
+    const tree = new Map<string, string>([
+      ['modules/vault/backend.ts', provider('vaultService')],
+      ['modules/feeds/backend.ts', consumerBackend('vaultService')],
+      ['modules/feeds/services/delivery.ts', SITE],
+    ]);
+    if (withNeighbour) {
+      tree.set('modules/mailer/backend.ts', provider('mailerService'));
+      // A second module spelling the same deps key over a different port.
+      tree.set('modules/newsletter/backend.ts', consumerBackend('mailerService'));
+    }
+    return tree;
+  };
+
+  it('does not lend a site another module`s gates of the same spelling', () => {
+    const [site] = findPortCatches({ sources: sources(true), manifests });
+    expect(site).toMatchObject({
+      file: 'modules/feeds/services/delivery.ts',
+      gates: ['vaultService'],
+      ownerLocked: true,
+    });
+  });
+
+  it('classifies the site the same whether or not the neighbour`s sources are read', () => {
+    const strip = (entries: ReturnType<typeof findPortCatches>) =>
+      entries.map(({ file, port, gates, ownerLocked }) => ({ file, port, gates, ownerLocked }));
+    expect(strip(findPortCatches({ sources: sources(true), manifests }))).toEqual(
+      strip(findPortCatches({ sources: sources(false), manifests })),
+    );
+  });
+});
