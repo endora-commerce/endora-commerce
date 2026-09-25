@@ -909,6 +909,12 @@ describe('T076 — the drift between the roots is an exact ledger', () => {
       'unit test over its pure half instead; a boot-level assertion here would be green for ' +
       'the wrong reason. It drains when the harness composes presence the way production ' +
       'does, which is T073’s open half.',
+    processRunsWorkersFor:
+      'Production derives `processRunsWorkers` from `BACKEND_ROLE` (feature 134 D16, T122); the ' +
+      'harness registers the value as `false` and never reads the role, so a composition whose ' +
+      'role table answered wrongly would start or skip queue consumers with nothing here noticing. ' +
+      "The table is proved over its inputs by the platform's `process-runs-workers.test.ts`, and " +
+      'the `api` answer at boot by `integration/kernel/production-boot.test.ts`.',
     resolvePublicApiBaseUrl:
       'The same seam as the assertion above, one call earlier: production derives the public ' +
       'base URL every absolute link is built from, and the harness sets one. A deployment whose ' +
