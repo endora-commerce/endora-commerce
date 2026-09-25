@@ -267,8 +267,8 @@ describe('the nine properties of contracts/publication-pipeline.md §2', () => {
   });
 
   it('6 — the transfer is a fresh release directory, hard-linked and pruned of what went', () => {
-    const transfer =
-      PUBLISH_COMMANDS.split('\n').find((line) => /^\s*-\s*rsync\s/.test(line)) ?? '';
+    const transfer = PUBLISH_COMMANDS.split('\n').find((line) => /^\s*-\s*rsync\s/.test(line));
+    if (transfer === undefined) throw new Error('the publish job has no rsync transfer line');
     expect(transfer).toContain('releases/$CI_COMMIT_SHA/');
     expect(
       transfer,
