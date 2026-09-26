@@ -48,10 +48,11 @@ const KSEF_NODE_PROPS = {
   marginBottom: 0,
 };
 
-/** The generic template's shape as seeded before T063: seven own blocks and the KSeF node. */
+/** The generic template's block order as seeded before T063: eight own blocks and the KSeF node. */
 const PRE_T063_TREE = {
   root: { props: {} },
   content: [
+    { type: 'invoices.InvoiceLogo', props: { id: 'inv-logo', imageSource: 'url' } },
     { type: 'invoices.InvoiceHeader', props: { id: 'inv-header' } },
     { type: 'invoices.InvoiceSpacer', props: { id: 'inv-spacer', height: 8 } },
     { type: 'invoices.InvoiceParties', props: { id: 'inv-parties' } },
@@ -128,7 +129,7 @@ describe('invoices — a stored block whose declarant is absent (134 T063)', () 
       expect(preview.statusCode).toBe(200);
       expect(preview.rawPayload.subarray(0, 5).toString('utf8')).toBe('%PDF-');
 
-      // Seven blocks render and the eighth is skipped: not the built-in layout
+      // Eight blocks render and the ninth is skipped: not the built-in layout
       // (FR-016), which has no footer, and no KSeF section anywhere.
       const renderer = h.container.resolve<RendererSurface>('invoicePdfRenderer');
       const content = await renderer.content(
@@ -136,7 +137,7 @@ describe('invoices — a stored block whose declarant is absent (134 T063)', () 
         'pl',
         PRE_T063_TREE,
       );
-      expect(content).toHaveLength(7);
+      expect(content).toHaveLength(8);
       expect(JSON.stringify(content)).not.toContain('KSeF');
 
       // Save-and-reload, as the editor does: the node and its props survive.
