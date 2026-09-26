@@ -216,11 +216,6 @@ const MODULE_OWNED_FORMER_CONTRIBUTIONS: readonly string[] = [
   'catalogSearchReindex',
   'customerModerationActorResolver',
   'ksefSellerNipResolver',
-  // `specs/134-paid-module-extraction/` T126: not moved to a module under the
-  // same name but deleted — `ksef` registers its whole PDF block into
-  // `invoices`' `invoicePdfBlockRegistry` itself. Listed so that neither side
-  // takes the name back.
-  'ksefVerificationResolver',
   'newsletterBridge',
   'ordersAdminScopeResolver',
   'rfqAdminContextResolver',
@@ -359,7 +354,9 @@ describe('T118 — the contribution wiring is the platform’s and the values ar
     // T126.** `ksefVerificationResolver` left the deployment and went nowhere:
     // `ksef` now registers its PDF block, verification read included, into
     // `invoices`' own registry from its composition, so an instance that
-    // contributes nothing prints the QR too. It is on the two-way list above.
+    // contributes nothing prints the QR too. It is deliberately not added to
+    // the two-way list above: the name no longer exists anywhere, and a free
+    // test is no place to keep a departing module's name alive.
     expect(deployment.size + PLATFORM_CONTRIBUTIONS.length).toBe(43);
   });
 
