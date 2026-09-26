@@ -90,8 +90,7 @@ export interface PackageIdentityRun {
   readonly handWrittenReadmes: readonly string[];
   /**
    * Members skipped by the licence half because they declare their own
-   * `SEE LICENSE IN <file>` licence. Empty today, and the number that moves the
-   * day a package is named commercial.
+   * `SEE LICENSE IN <file>` licence.
    */
   readonly ownLicenceMembers: readonly string[];
   /** Publishable members this walk found, by npm name — the reconciled population. */
@@ -425,7 +424,7 @@ export function renderPackageIdentityFiles(
   if (licenseText === null || licenseText.trim().length === 0) {
     throw new PackageIdentityError(
       `${join(repoRoot, 'LICENSE')} could not be read, so the text every published package ` +
-        `ships has no source. It is the canonical copy (LICENSE-COMMERCIAL.md); a generator ` +
+        `ships has no source. It is the canonical copy every MIT package's LICENSE is rendered from; a generator ` +
         `that wrote a licence without one would be granting rights on nobody's authority.`,
     );
   }

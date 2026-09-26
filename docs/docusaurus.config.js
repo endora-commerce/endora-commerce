@@ -121,9 +121,8 @@ const config = {
         // The licence is stated as **text** rather than linked: `LICENSE` and
         // `LICENSE-COMMERCIAL.md` live in a repository a public reader cannot
         // open, so a link to either would be the dead-link class FR-035 exists
-        // to remove — and `LICENSE-COMMERCIAL.md` is a self-declared
-        // placeholder that grants nothing. No published surface describes this
-        // site as internal.
+        // to remove — and `LICENSE-COMMERCIAL.md` states a mechanism and
+        // grants nothing. No published surface describes this site as internal.
         links: [
           {
             label: 'commerce.endora.software',

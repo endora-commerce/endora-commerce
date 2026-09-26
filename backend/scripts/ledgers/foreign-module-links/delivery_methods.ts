@@ -23,7 +23,7 @@ import type { ForeignLinkEntry } from '../../check-module-docs.js';
  * module's author takes, not one a packaging move takes for them.
  *
  * **One entry drained on 2026-09-19, and it drained by the remedy rather than by a
- * batch** (`specs/134-paid-module-extraction/` T035). `inpost` left this repository, so
+ * batch** (feature 134 T035). `inpost` left this repository, so
  * `./inpost` was about to become a broken link in *this* repository's own documentation
  * build — the W6 shape, a free page consuming a declaration whose only declarant left,
  * which reads as working right up until the halves separate. The sentence in

@@ -66,8 +66,8 @@ however obliquely it is phrased.
   this and is the most citation-dense file in the tree.
 - **N3 — architectural reasoning, alternatives rejected, branch names, merge-request numbers.**
 - **N4 — a *deliberate* public statement of a commercial mechanism.** `LICENSE-COMMERCIAL.md` is
-  the worked case: it states that an open-core mechanism exists and says the open/paid split *"is
-  a product decision that has not been made"*. Publishing the **mechanism** is not a leak;
+  the worked case: it states that a package may declare its own licence instead of MIT and what
+  that declaration means, and it names no package. Publishing the **mechanism** is not a leak;
   publishing the **decision** before it is announced would be C4. **A statement the owner has
   chosen to publish cannot leak, because publishing it *is* the decision.**
 

@@ -13,7 +13,7 @@ import {
  *
  * `AdminUserService.create` folded the address to lower case and every read
  * compared it verbatim. Postgres' `=` on `text` is case-sensitive, so an
- * operator created as `Anna.Nowak@endora.pl` had `anna.nowak@endora.pl` on
+ * operator created as `Operator.Mixed@example.com` had `operator.mixed@example.com` on
  * record and no login attempt with the string on their handover note ever
  * matched a row. The same split one module over from the buyer-side defect
  * !765 repaired, and the admin surface has no self-service reset to work
@@ -57,7 +57,7 @@ describe('admin_users — a mixed-case e-mail can sign in', () => {
   });
 
   it('signs in with the address the operator was created with', async () => {
-    const typed = `Anna.Nowak-${Date.now()}@Endora.PL`;
+    const typed = `Operator.Mixed-${Date.now()}@Example.COM`;
     const created = await createOperator(typed);
     expect(created.statusCode, created.body).toBe(201);
 
@@ -69,16 +69,16 @@ describe('admin_users — a mixed-case e-mail can sign in', () => {
 
   it('signs in with a casing the operator was not created with', async () => {
     const stamp = Date.now();
-    const created = await createOperator(`case-shift-${stamp}@endora.pl`);
+    const created = await createOperator(`case-shift-${stamp}@example.com`);
     expect(created.statusCode, created.body).toBe(201);
 
-    const signedIn = await login(`Case-Shift-${stamp}@Endora.PL`);
+    const signedIn = await login(`Case-Shift-${stamp}@Example.COM`);
     expect(signedIn.statusCode, signedIn.body).toBe(200);
   });
 
   it('stores the folded address, so one spelling is on record', async () => {
     const stamp = Date.now();
-    const typed = `Stored.Folded-${stamp}@Endora.PL`;
+    const typed = `Stored.Folded-${stamp}@Example.COM`;
     const created = await createOperator(typed);
     expect(created.statusCode, created.body).toBe(201);
 
@@ -89,26 +89,26 @@ describe('admin_users — a mixed-case e-mail can sign in', () => {
 
   it('answers findByEmail for an address asked in another casing, or padded', async () => {
     const stamp = Date.now();
-    const created = await createOperator(`port-lookup-${stamp}@endora.pl`);
+    const created = await createOperator(`port-lookup-${stamp}@example.com`);
     expect(created.statusCode, created.body).toBe(201);
 
-    const shifted = await readPort().findByEmail(`Port-Lookup-${stamp}@Endora.PL`);
-    expect(shifted?.email).toBe(`port-lookup-${stamp}@endora.pl`);
+    const shifted = await readPort().findByEmail(`Port-Lookup-${stamp}@Example.COM`);
+    expect(shifted?.email).toBe(`port-lookup-${stamp}@example.com`);
 
     // Padding reaches this seam from the entrances that go through no request
     // schema — an identity provider's claim, the bootstrap CLI, an importer.
     // Zod's `.email()` refuses it at every HTTP boundary, so it is only
     // testable here.
-    const padded = await readPort().findByEmail(`  port-lookup-${stamp}@endora.pl  `);
+    const padded = await readPort().findByEmail(`  port-lookup-${stamp}@example.com  `);
     expect(padded?.id).toBe(shifted?.id);
   });
 
   it('refuses a second operator whose address differs only in case', async () => {
     const stamp = Date.now();
-    const first = await createOperator(`dupe-case-${stamp}@endora.pl`);
+    const first = await createOperator(`dupe-case-${stamp}@example.com`);
     expect(first.statusCode, first.body).toBe(201);
 
-    const second = await createOperator(`Dupe-Case-${stamp}@Endora.PL`);
+    const second = await createOperator(`Dupe-Case-${stamp}@Example.COM`);
     expect(second.statusCode, second.body).toBe(409);
     expect((second.json() as { error: { code: string } }).error.code).toBe(
       ERROR_CODES.EMAIL_ALREADY_REGISTERED,
@@ -117,7 +117,7 @@ describe('admin_users — a mixed-case e-mail can sign in', () => {
 
   it('resolves a federated sign-in whose claim carries another casing', async () => {
     const stamp = Date.now();
-    const created = await createOperator(`federated-${stamp}@endora.pl`);
+    const created = await createOperator(`federated-${stamp}@example.com`);
     expect(created.statusCode, created.body).toBe(201);
 
     await h.settings.adminService.setValueForAllChannels(
@@ -136,7 +136,7 @@ describe('admin_users — a mixed-case e-mail can sign in', () => {
 
     // The fake provider derives the identity from the `code`, which is how the
     // casing of the identity provider's claim is chosen here.
-    const claimed = `Federated-${stamp}@Endora.PL`;
+    const claimed = `Federated-${stamp}@Example.COM`;
     const callback = await h.app.inject({
       method: 'GET',
       url: `/api/v1/auth/admin/oauth/microsoft/callback?code=${encodeURIComponent(claimed)}&state=${encodeURIComponent(state)}`,
