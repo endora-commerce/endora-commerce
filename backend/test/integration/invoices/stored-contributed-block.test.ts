@@ -8,7 +8,9 @@ import {
 import { withModuleOff } from '../../helpers/off-state.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { sampleInvoiceDetail } from '../../../../packages/modules/invoices/src/backend/pdf-components/sample.js';
-import { ADMIN_COOKIE } from './helpers.js';
+import { ADMIN_COOKIE, seedInvoiceableOrder, setSellerSettings } from './helpers.js';
+import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
+import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 
 /**
  * A stored invoice template that places a block whose declaring module is
@@ -84,8 +86,12 @@ async function withKsefAbsent<T>(body: () => Promise<T>): Promise<T> {
 describe('invoices — a stored block whose declarant is absent (134 T063)', () => {
   let h: BackendServerHandle;
 
+  let CH: string;
+
   beforeAll(async () => {
     h = await setupBackendServer();
+    CH = await ensureSalesChannelId(h.em(), 'stored-contributed-block');
+    await setSellerSettings(h);
   });
   afterAll(async () => {
     await teardownBackendServer(h);
@@ -130,7 +136,8 @@ describe('invoices — a stored block whose declarant is absent (134 T063)', () 
       expect(preview.rawPayload.subarray(0, 5).toString('utf8')).toBe('%PDF-');
 
       // Eight blocks render and the ninth is skipped: not the built-in layout
-      // (FR-016), which has no footer, and no KSeF section anywhere.
+      // (FR-016), which has no footer, and no KSeF section — no verification
+      // caption. The number itself is printed once, by the header (T137).
       const renderer = h.container.resolve<RendererSurface>('invoicePdfRenderer');
       const content = await renderer.content(
         { ...sampleInvoiceDetail(), ksefReferenceNumber: '1234567890-20260722-ABC123-01' },
@@ -138,7 +145,9 @@ describe('invoices — a stored block whose declarant is absent (134 T063)', () 
         PRE_T063_TREE,
       );
       expect(content).toHaveLength(8);
-      expect(JSON.stringify(content)).not.toContain('KSeF');
+      const json = JSON.stringify(content);
+      expect(json).not.toContain('Zweryfikuj');
+      expect(json.split('Numer w KSeF: 1234567890-20260722-ABC123-01').length - 1).toBe(1);
 
       // Save-and-reload, as the editor does: the node and its props survive.
       const before = await readTemplate(id);
@@ -166,6 +175,48 @@ describe('invoices — a stored block whose declarant is absent (134 T063)', () 
       );
       expect(names).toHaveLength(10);
       expect(names).not.toContain('ksef.InvoiceSection');
+    });
+  });
+
+  it('prints a KSeF number an accounting vendor recorded, with the KSeF module absent (T137)', async () => {
+    // `specs/119-infakt-integration/` FR-025: a vendor's KSeF success lands
+    // through the same assignment seam as the native path, "so admin and PDF
+    // show the KSeF number". Before T137 the only renderer of the number was the
+    // KSeF module's own block, so an operator who delegates KSeF lost it.
+    await withKsefAbsent(async () => {
+      const { orderId } = await withSystemScope('seed', () =>
+        seedInvoiceableOrder(h.em(), { salesChannelId: CH }),
+      );
+      const issued = await h.app.inject({
+        method: 'POST',
+        url: `/api/v1/admin/orders/${orderId}/invoices`,
+        payload: { kind: 'invoice' },
+        cookies: ADMIN_COOKIE,
+      });
+      expect(issued.statusCode, issued.body).toBe(201);
+      const invoiceId = (issued.json() as { data: { id: string } }).data.id;
+
+      const number = `1234567890-20260726-VENDOR${Date.now() % 100000}-01`;
+      await withSystemScope('vendor assignment', () =>
+        h.container
+          .resolve<{
+            recordKsefAssignment(id: string, a: { ksefReferenceNumber: string; ksefProcessedAt: Date }): Promise<void>;
+          }>('invoiceKsefAssignmentPort')
+          .recordKsefAssignment(invoiceId, { ksefReferenceNumber: number, ksefProcessedAt: new Date() }),
+      );
+
+      const detail = await withSystemScope('read', () =>
+        h.container
+          .resolve<{ buildDetail(id: string): Promise<InvoiceDetail> }>('invoiceService')
+          .buildDetail(invoiceId),
+      );
+      expect(detail.ksefReferenceNumber).toBe(number);
+
+      const renderer = h.container.resolve<RendererSurface>('invoicePdfRenderer');
+      for (const tree of [PRE_T063_TREE, undefined]) {
+        const json = JSON.stringify(await renderer.content(detail, 'pl', tree));
+        expect(json.split(`Numer w KSeF: ${number}`).length - 1).toBe(1);
+      }
     });
   });
 });

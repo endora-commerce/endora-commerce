@@ -600,6 +600,7 @@
   "invoiceDetail.error.load": "Nie udało się wczytać faktury.",
   "invoiceDetail.field.issuedAt": "Data wystawienia",
   "invoiceDetail.field.kind": "Rodzaj",
+  "invoiceDetail.field.ksefNumber": "Numer w KSeF",
   "invoiceDetail.field.order": "Zamówienie",
   "invoiceDetail.field.paymentDueDate": "Termin płatności",
   "invoiceDetail.field.paymentMethod": "Metoda płatności",

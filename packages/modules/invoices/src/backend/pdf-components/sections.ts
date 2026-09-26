@@ -72,7 +72,20 @@ export function interpolate(text: string, inv: InvoiceDetail): string {
   return text.replace(/\{\{\s*var\s+([\w.]+)\s*\}\}/g, (_m, key: string) => map[key] ?? '');
 }
 
-export function headerSection(inv: InvoiceDetail, props: Props = {}): Content {
+/** What the renderer tells the header beyond its props. */
+export interface HeaderSectionOptions {
+  /**
+   * A present, placed contributed block prints the KSeF number itself, so the
+   * header's own row stands down (`specs/134-paid-module-extraction/` T137).
+   */
+  readonly suppressKsefNumber?: boolean;
+}
+
+export function headerSection(
+  inv: InvoiceDetail,
+  props: Props = {},
+  options: HeaderSectionOptions = {},
+): Content {
   const titleSize = num(props, 'titleSize', 14);
   const titleColor = optStr(props, 'titleColor');
   const titleBold = bool(props, 'titleBold', true);
@@ -88,6 +101,18 @@ export function headerSection(inv: InvoiceDetail, props: Props = {}): Content {
       },
     ],
   ];
+  // The invoice's KSeF number — `invoices`' own statutory data, whichever path
+  // recorded it (T137, D22 §3(a)). A label prop and deliberately **no**
+  // show/hide prop: an operator may not switch off a statutory identifier that
+  // a module toggle would otherwise remove.
+  if (inv.ksefReferenceNumber && !options.suppressKsefNumber) {
+    rows.push([
+      {
+        text: `${str(props, 'labelKsefNumber', 'Numer w KSeF')}: ${inv.ksefReferenceNumber}`,
+        alignment: align,
+      },
+    ]);
+  }
   if (bool(props, 'showIssuedAt', true)) {
     rows.push([
       {

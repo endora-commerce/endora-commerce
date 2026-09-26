@@ -184,6 +184,17 @@ export function InvoiceDetail(): ReactNode {
             <Row label={t('invoiceDetail.field.saleDate')} value={invoice.saleDate ?? '—'} />
             <Row label={t('invoiceDetail.field.paymentDueDate')} value={invoice.paymentDueDate ?? '—'} />
             <Row label={t('invoiceDetail.field.paymentMethod')} value={invoice.paymentMethod ?? '—'} />
+            {/*
+              The invoice's KSeF number is this module's own statutory data,
+              whichever path recorded it (`specs/134-paid-module-extraction/`
+              T137, D22 §3(a)); the KSeF module's zone below may show it again.
+            */}
+            {invoice.ksefReferenceNumber ? (
+              <Row
+                label={t('invoiceDetail.field.ksefNumber')}
+                value={<span className="font-mono text-xs">{invoice.ksefReferenceNumber}</span>}
+              />
+            ) : null}
             <Row
               label={t('invoiceDetail.field.order')}
               value={

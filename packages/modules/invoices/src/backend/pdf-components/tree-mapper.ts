@@ -35,10 +35,21 @@ export const INVOICE_COMPONENT_NAMES = [
 ] as const;
 export type InvoiceComponentName = (typeof INVOICE_COMPONENT_NAMES)[number];
 
-type Mapper = (props: Record<string, unknown>, inv: InvoiceDetail, locale: AmountToWordsLocale) => Content;
+/** What the renderer hands every own-block mapper beyond the stored props. */
+export interface OwnBlockRenderOptions {
+  /** A present, placed contributed block prints the KSeF number (T137). */
+  readonly suppressKsefNumber?: boolean;
+}
+
+type Mapper = (
+  props: Record<string, unknown>,
+  inv: InvoiceDetail,
+  locale: AmountToWordsLocale,
+  options: OwnBlockRenderOptions,
+) => Content;
 
 const COMPONENT_MAP: Record<InvoiceComponentName, Mapper> = {
-  'invoices.InvoiceHeader': (p, inv) => headerSection(inv, p),
+  'invoices.InvoiceHeader': (p, inv, _locale, options) => headerSection(inv, p, options),
   'invoices.InvoiceParties': (p, inv) => partiesSection(inv, p),
   'invoices.InvoiceLineItems': (p, inv) => lineItemsSection(inv, p),
   'invoices.InvoiceVatSummary': (p, inv) => vatSummarySection(inv, p),
@@ -82,6 +93,7 @@ export function treeToContent(
   inv: InvoiceDetail,
   locale: AmountToWordsLocale,
   contributed: ContributedBlockRenderer = NO_CONTRIBUTED_BLOCKS,
+  options: OwnBlockRenderOptions = {},
 ): Content[] | null {
   const nodes = (tree as PuckTree | null)?.content;
   if (!Array.isArray(nodes)) return null;
@@ -90,7 +102,7 @@ export function treeToContent(
     const type = node?.type;
     if (typeof type !== 'string') continue;
     if (type in COMPONENT_MAP) {
-      out.push(COMPONENT_MAP[type as InvoiceComponentName](node.props ?? {}, inv, locale));
+      out.push(COMPONENT_MAP[type as InvoiceComponentName](node.props ?? {}, inv, locale, options));
       continue;
     }
     const render = contributed(type);

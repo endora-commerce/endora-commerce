@@ -16,4 +16,6 @@ lazyPort<InvoicePdfBlockRegistryPort>(ctx, 'invoicePdfBlockRegistry').register({
 });
 ```
 
+`InvoicePdfBlockRegistration.printsKsefReferenceNumber?: boolean` says the block prints the invoice's KSeF number itself. While such a block is present and placed, `invoices` leaves out its own header row for the number, so the number is printed exactly once.
+
 Additive only; nothing existing changes shape. `minor` because it is new published surface.

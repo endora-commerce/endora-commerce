@@ -218,6 +218,8 @@ type HeaderProps = {
   labelSaleDate?: string;
   labelPaymentDue?: string;
   labelPaymentMethod?: string;
+  /** The KSeF number row's label (T137). There is no show/hide prop by design. */
+  labelKsefNumber?: string;
   marginTop?: number;
   marginBottom?: number;
 };
@@ -237,6 +239,7 @@ const InvoiceHeader = invoiceSection({
     labelSaleDate: { type: 'text', label: 'Sale date label' },
     labelPaymentDue: { type: 'text', label: 'Payment due label' },
     labelPaymentMethod: { type: 'text', label: 'Payment method label' },
+    labelKsefNumber: { type: 'text', label: 'KSeF number label' },
     marginTop: { type: 'number', label: 'Margin top (px)' },
     marginBottom: { type: 'number', label: 'Margin bottom (px)' },
   },

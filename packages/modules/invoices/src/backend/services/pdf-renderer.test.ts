@@ -154,11 +154,105 @@ describe('InvoicePdfRenderer — contributed blocks', () => {
   it('carries no KSeF section of its own', async () => {
     // The built-in layout used to end with `ksefSection(inv)` — a sixth use of
     // the KSeF block the ruling's table did not list. With no contributor the
-    // layout has nothing KSeF-shaped in it.
+    // layout has no KSeF section: no verification caption, no processing time.
+    // The number itself is the header's to print (T137, below).
     const content = await new InvoicePdfRenderer().content(
       { ...detail, ksefReferenceNumber: '1234567890-20260722-ABC123-01' },
       'pl',
     );
+    const json = JSON.stringify(content);
+    expect(json).not.toContain('Zweryfikuj');
+    expect(json).not.toContain('Data przetworzenia w KSeF');
+  });
+});
+
+/**
+ * `specs/134-paid-module-extraction/` T137 (`research.md` D22 §3(a)) — the
+ * KSeF number is `invoices`' stored statutory data and is printed exactly once
+ * on every PDF of an invoice that has one, whatever any module's state.
+ *
+ * A present, placed block that declares `printsKsefReferenceNumber` prints it;
+ * otherwise the header does. The number may have been written by any delivery
+ * path — the KSeF module, or an accounting vendor through the ledger — so its
+ * printing cannot depend on one of those writers being switched on.
+ */
+describe('InvoicePdfRenderer — the KSeF number (134 T137)', () => {
+  const NUMBER = '1234567890-20260722-ABC123-01';
+  const withNumber: InvoiceDetail = { ...detail, ksefReferenceNumber: NUMBER };
+  const TREE = {
+    content: [
+      { type: 'invoices.InvoiceHeader', props: {} },
+      { type: 'ksef.InvoiceSection', props: {} },
+    ],
+  };
+  const occurrences = (content: unknown): number =>
+    (JSON.stringify(content).match(new RegExp(`Numer w KSeF: ${NUMBER}`, 'g')) ?? []).length;
+
+  function flaggedBlock(present: () => boolean): InvoicePdfBlockRegistry {
+    const registry = new InvoicePdfBlockRegistry(() => present());
+    registry.register({
+      name: 'ksef.InvoiceSection',
+      moduleId: 'ksef',
+      printsKsefReferenceNumber: true,
+      describe: () => ({ label: 'KSeF', fields: {} }),
+      render: ({ invoice }) => ({ text: `Numer w KSeF: ${invoice.ksefReferenceNumber ?? ''}` }),
+    });
+    return registry;
+  }
+
+  it('prints it from the header when the declaring module is absent', async () => {
+    const content = await new InvoicePdfRenderer().content(withNumber, 'pl', TREE);
+    expect(occurrences(content)).toBe(1);
+  });
+
+  it('prints it from the header when the declaring module is installed but off', async () => {
+    const content = await new InvoicePdfRenderer({ blocks: flaggedBlock(() => false) }).content(
+      withNumber,
+      'pl',
+      TREE,
+    );
+    expect(occurrences(content)).toBe(1);
+  });
+
+  it('prints it once through the built-in layout (FR-016)', async () => {
+    expect(occurrences(await new InvoicePdfRenderer().content(withNumber, 'pl'))).toBe(1);
+    const present = await new InvoicePdfRenderer({ blocks: flaggedBlock(() => true) }).content(
+      withNumber,
+      'pl',
+    );
+    expect(occurrences(present)).toBe(1);
+  });
+
+  it('leaves it to a present, placed block that prints it, and suppresses the header row', async () => {
+    const content = await new InvoicePdfRenderer({ blocks: flaggedBlock(() => true) }).content(
+      withNumber,
+      'pl',
+      TREE,
+    );
+    expect(occurrences(content)).toBe(1);
+    expect(occurrences(content[0])).toBe(0);
+    expect(occurrences(content[1])).toBe(1);
+  });
+
+  it('prints it from the header when that block is present but not placed', async () => {
+    const content = await new InvoicePdfRenderer({ blocks: flaggedBlock(() => true) }).content(
+      withNumber,
+      'pl',
+      { content: [{ type: 'invoices.InvoiceHeader', props: {} }] },
+    );
+    expect(occurrences(content)).toBe(1);
+    expect(occurrences(content[0])).toBe(1);
+  });
+
+  it('prints no row for an invoice with no number', async () => {
+    const content = await new InvoicePdfRenderer().content(detail, 'pl', TREE);
     expect(JSON.stringify(content)).not.toContain('KSeF');
+  });
+
+  it('takes the operator’s label and offers no switch to hide the row', async () => {
+    const content = await new InvoicePdfRenderer().content(withNumber, 'pl', {
+      content: [{ type: 'invoices.InvoiceHeader', props: { labelKsefNumber: 'KSeF no.', showKsefNumber: false } }],
+    });
+    expect(JSON.stringify(content)).toContain(`KSeF no.: ${NUMBER}`);
   });
 });

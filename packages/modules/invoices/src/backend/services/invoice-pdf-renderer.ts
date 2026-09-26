@@ -61,9 +61,10 @@ function builtinLayout(
   inv: InvoiceDetail,
   locale: AmountToWordsLocale,
   contributed: readonly Content[],
+  suppressKsefNumber: boolean,
 ): Content[] {
   return [
-    headerSection(inv),
+    headerSection(inv, {}, { suppressKsefNumber }),
     partiesSection(inv),
     lineItemsSection(inv),
     {
@@ -168,7 +169,15 @@ export class InvoicePdfRenderer {
         block.render({ props, invoice, locale, resolved: resolved.get(name) ?? null }) as Content;
     };
 
-    const fromTemplate = tree ? treeToContent(tree, invoice, locale, contributed) : null;
+    // T137 (D22 §3(a)): the KSeF number is printed exactly once. The header
+    // stands down only while a block that prints it is present **and placed**
+    // in this tree; otherwise the header prints it, whatever any module's state.
+    const printsNumber = present.filter((block) => block.printsKsefReferenceNumber === true);
+    const suppressInTree =
+      placed !== null && printsNumber.some((block) => placed.has(block.name));
+    const fromTemplate = tree
+      ? treeToContent(tree, invoice, locale, contributed, { suppressKsefNumber: suppressInTree })
+      : null;
     if (fromTemplate) return fromTemplate;
     const fallbackResolved =
       placed === null ? resolved : await this.resolveContributed(invoice.id, present);
@@ -184,6 +193,8 @@ export class InvoicePdfRenderer {
             resolved: fallbackResolved.get(block.name) ?? null,
           }) as Content,
       ),
+      // The built-in layout places every present contributor's block.
+      printsNumber.length > 0,
     );
   }
 

@@ -67,6 +67,9 @@ const FIELDS: Record<string, Record<string, InvoiceComponentField>> = {
     labelSaleDate: { type: 'text', label: 'Sale date label' },
     labelPaymentDue: { type: 'text', label: 'Payment due label' },
     labelPaymentMethod: { type: 'text', label: 'Payment method label' },
+    // T137: the KSeF number row prints whenever the invoice has one and no
+    // placed block prints it; the operator may relabel it and not hide it.
+    labelKsefNumber: { type: 'text', label: 'KSeF number label' },
     ...SHARED_MARGIN,
   },
   'invoices.InvoiceParties': {

@@ -446,6 +446,15 @@ export interface InvoicePdfBlockRegistration {
   readonly name: string;
   /** The declaring module. While it is not present the block is neither rendered nor described. */
   readonly moduleId: string;
+  /**
+   * `true` when this block prints the invoice's KSeF number itself
+   * (`specs/134-paid-module-extraction/` T137, `research.md` D22 §3(a)). The
+   * number is `invoices`' statutory data and is printed exactly once: while a
+   * block with this flag is present **and placed** in the template being
+   * rendered (present, for the built-in layout), `invoices`' own header row for
+   * the number is suppressed; otherwise the header prints it.
+   */
+  readonly printsKsefReferenceNumber?: boolean;
   /** Label and field schema for the builder descriptor. */
   describe(): InvoiceTemplateBlockDescription;
   /**

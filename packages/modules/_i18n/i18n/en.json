@@ -600,6 +600,7 @@
   "invoiceDetail.error.load": "Could not load the invoice.",
   "invoiceDetail.field.issuedAt": "Issued at",
   "invoiceDetail.field.kind": "Kind",
+  "invoiceDetail.field.ksefNumber": "KSeF number",
   "invoiceDetail.field.order": "Order",
   "invoiceDetail.field.paymentDueDate": "Payment due",
   "invoiceDetail.field.paymentMethod": "Payment method",
