@@ -68,7 +68,6 @@ import { entities as deliveryMethodsEntities } from '@endora-commerce/mod-delive
 import { entities as transactionalEmailsEntities } from '@endora-commerce/mod-transactional-emails/backend';
 import { entities as emailEntities } from '@endora-commerce/mod-email/backend';
 import { entities as organizationsEntities } from '@endora-commerce/mod-organizations/backend';
-import { entities as pimErgonodeEntities } from '@endora-commerce/mod-pim-ergonode/backend';
 import { entities as erpConnectorEntities } from '@endora-commerce/mod-erp-connector/backend';
 import { entities as productFeedsEntities } from '@endora-commerce/mod-product-feeds/backend';
 import { entities as googleAnalyticsEntities } from '@endora-commerce/mod-google-analytics/backend';
@@ -134,7 +133,6 @@ export const ALL_ENTITIES = [
   ...(transactionalEmailsEntities as readonly EntityClassLike[]),
   ...(emailEntities as readonly EntityClassLike[]),
   ...(organizationsEntities as readonly EntityClassLike[]),
-  ...(pimErgonodeEntities as readonly EntityClassLike[]),
   ...(erpConnectorEntities as readonly EntityClassLike[]),
   ...(productFeedsEntities as readonly EntityClassLike[]),
   ...(googleAnalyticsEntities as readonly EntityClassLike[]),

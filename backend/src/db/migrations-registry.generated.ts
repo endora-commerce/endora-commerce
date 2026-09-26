@@ -249,11 +249,6 @@ import { Migration20260925T115728PaymentsRefundedAmount } from '@endora-commerce
 // ── pim_connector ───────────────────────────────────────────────────────────
 import { Migration20260826T153500PimConnectorInit } from '@endora-commerce/mod-pim-connector/migrations';
 
-// ── pim_ergonode ────────────────────────────────────────────────────────────
-import { Migration20260804T190439PimErgonodeInit } from '@endora-commerce/mod-pim-ergonode/migrations';
-import { Migration20260819T193653PimErgonodeFoldDerivedKeys } from '@endora-commerce/mod-pim-ergonode/migrations';
-import { Migration20260926T120000PimErgonodeKeyRepairs } from '@endora-commerce/mod-pim-ergonode/migrations';
-
 // ── price_lists ─────────────────────────────────────────────────────────────
 import { Migration20260426T075235PriceListsPricingInit } from '@endora-commerce/mod-price-lists/migrations';
 import { Migration20260504T125655PriceListsEngine } from '@endora-commerce/mod-price-lists/migrations';
@@ -549,11 +544,6 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── pim_connector ───────────────────────────────────────────────────────────
   migration('pim_connector', Migration20260826T153500PimConnectorInit),
-
-  // ── pim_ergonode ────────────────────────────────────────────────────────────
-  migration('pim_ergonode', Migration20260804T190439PimErgonodeInit),
-  migration('pim_ergonode', Migration20260819T193653PimErgonodeFoldDerivedKeys),
-  migration('pim_ergonode', Migration20260926T120000PimErgonodeKeyRepairs),
 
   // ── price_lists ─────────────────────────────────────────────────────────────
   migration('price_lists', Migration20260426T075235PriceListsPricingInit),
