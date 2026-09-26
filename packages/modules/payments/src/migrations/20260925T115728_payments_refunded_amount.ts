@@ -4,7 +4,7 @@ import { Migration } from '@mikro-orm/migrations';
  * `payments.refunded_amount` — the cumulative refunded amount the `Payment`
  * entity maps (`refundedAmount`), created by the module that maps it.
  *
- * Until feature 134 (`specs/134-paid-module-extraction/research.md` D14) the
+ * Until feature 134 (feature 134, research D14) the
  * only migration creating this column was `stripe`'s
  * `Migration20260715T103358StripePaymentRefundedAmount`: an instance without
  * `stripe` could not insert a payment, and `stripe`'s hard uninstall dropped a

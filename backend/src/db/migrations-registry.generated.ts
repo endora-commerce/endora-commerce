@@ -57,11 +57,6 @@ import { Migration20260724T173916ApiKeysDistributorBinding } from '@endora-comme
 // ── assets_library ──────────────────────────────────────────────────────────
 import { Migration20260505T102206AssetsLibraryInit } from '@endora-commerce/mod-assets-library/migrations';
 
-// ── autopay ─────────────────────────────────────────────────────────────────
-import { Migration20260803T065409AutopayInit } from '@endora-commerce/mod-autopay/migrations';
-import { Migration20260816T053835AutopaySeedPaymentMethods } from '@endora-commerce/mod-autopay/migrations';
-import { Migration20260821T084925AutopayFailureStatusOnHold } from '@endora-commerce/mod-autopay/migrations';
-
 // ── blog ────────────────────────────────────────────────────────────────────
 import { Migration20260506T081055BlogInit } from '@endora-commerce/mod-blog/migrations';
 import { Migration20260903T101744BlogNamespaceBlockNames } from '@endora-commerce/mod-blog/migrations';
@@ -251,19 +246,6 @@ import { Migration20260912T094631PaymentMethodsSalesChannelPaymentMethods } from
 // ── payments ────────────────────────────────────────────────────────────────
 import { Migration20260925T115728PaymentsRefundedAmount } from '@endora-commerce/mod-payments/migrations';
 
-// ── paypal ──────────────────────────────────────────────────────────────────
-import { Migration20260821T110651PaypalInit } from '@endora-commerce/mod-paypal/migrations';
-import { Migration20260821T110652PaypalSeedPaymentMethods } from '@endora-commerce/mod-paypal/migrations';
-import { Migration20260821T164749PaypalFailureStatusOnHold } from '@endora-commerce/mod-paypal/migrations';
-
-// ── payu ────────────────────────────────────────────────────────────────────
-import { Migration20260801T100943PayuInit } from '@endora-commerce/mod-payu/migrations';
-import { Migration20260816T053830PayuSeedPaymentMethods } from '@endora-commerce/mod-payu/migrations';
-import { Migration20260821T084923PayuFailureStatusOnHold } from '@endora-commerce/mod-payu/migrations';
-
-// ── pim_akeneo ──────────────────────────────────────────────────────────────
-import { Migration20260825T124458PimAkeneoInit } from '@endora-commerce/mod-pim-akeneo/migrations';
-
 // ── pim_connector ───────────────────────────────────────────────────────────
 import { Migration20260826T153500PimConnectorInit } from '@endora-commerce/mod-pim-connector/migrations';
 
@@ -337,20 +319,9 @@ import { Migration20260819T171006ShipmentsStatusPendingManual } from '@endora-co
 import { Migration20260426T135443ShoppingListsInit } from '@endora-commerce/mod-shopping-lists/migrations';
 import { Migration20260611T140418ShoppingListsDefault } from '@endora-commerce/mod-shopping-lists/migrations';
 
-// ── stripe ──────────────────────────────────────────────────────────────────
-import { Migration20260708T101135StripeInit } from '@endora-commerce/mod-stripe/migrations';
-import { Migration20260715T103358StripePaymentRefundedAmount } from '@endora-commerce/mod-stripe/migrations';
-import { Migration20260816T053826StripeSeedPaymentMethods } from '@endora-commerce/mod-stripe/migrations';
-import { Migration20260821T084922StripeFailureStatusOnHold } from '@endora-commerce/mod-stripe/migrations';
-
 // ── taxes ───────────────────────────────────────────────────────────────────
 import { Migration20260426T081516TaxesPromotionsInit } from '@endora-commerce/mod-taxes/migrations';
 import { Migration20260912T094654TaxesSalesChannelTaxes } from '@endora-commerce/mod-taxes/migrations';
-
-// ── tpay ────────────────────────────────────────────────────────────────────
-import { Migration20260729T132507TpayInit } from '@endora-commerce/mod-tpay/migrations';
-import { Migration20260816T053834TpaySeedPaymentMethods } from '@endora-commerce/mod-tpay/migrations';
-import { Migration20260821T084924TpayFailureStatusOnHold } from '@endora-commerce/mod-tpay/migrations';
 
 // ── transactional_emails ────────────────────────────────────────────────────
 import { Migration20260629T113442TransactionalEmailsInit } from '@endora-commerce/mod-transactional-emails/migrations';
@@ -393,11 +364,6 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── assets_library ──────────────────────────────────────────────────────────
   migration('assets_library', Migration20260505T102206AssetsLibraryInit),
-
-  // ── autopay ─────────────────────────────────────────────────────────────────
-  migration('autopay', Migration20260803T065409AutopayInit),
-  migration('autopay', Migration20260816T053835AutopaySeedPaymentMethods),
-  migration('autopay', Migration20260821T084925AutopayFailureStatusOnHold),
 
   // ── blog ────────────────────────────────────────────────────────────────────
   migration('blog', Migration20260506T081055BlogInit),
@@ -588,19 +554,6 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── payments ────────────────────────────────────────────────────────────────
   migration('payments', Migration20260925T115728PaymentsRefundedAmount),
 
-  // ── paypal ──────────────────────────────────────────────────────────────────
-  migration('paypal', Migration20260821T110651PaypalInit),
-  migration('paypal', Migration20260821T110652PaypalSeedPaymentMethods),
-  migration('paypal', Migration20260821T164749PaypalFailureStatusOnHold),
-
-  // ── payu ────────────────────────────────────────────────────────────────────
-  migration('payu', Migration20260801T100943PayuInit),
-  migration('payu', Migration20260816T053830PayuSeedPaymentMethods),
-  migration('payu', Migration20260821T084923PayuFailureStatusOnHold),
-
-  // ── pim_akeneo ──────────────────────────────────────────────────────────────
-  migration('pim_akeneo', Migration20260825T124458PimAkeneoInit),
-
   // ── pim_connector ───────────────────────────────────────────────────────────
   migration('pim_connector', Migration20260826T153500PimConnectorInit),
 
@@ -674,20 +627,9 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('shopping_lists', Migration20260426T135443ShoppingListsInit),
   migration('shopping_lists', Migration20260611T140418ShoppingListsDefault),
 
-  // ── stripe ──────────────────────────────────────────────────────────────────
-  migration('stripe', Migration20260708T101135StripeInit),
-  migration('stripe', Migration20260715T103358StripePaymentRefundedAmount),
-  migration('stripe', Migration20260816T053826StripeSeedPaymentMethods),
-  migration('stripe', Migration20260821T084922StripeFailureStatusOnHold),
-
   // ── taxes ───────────────────────────────────────────────────────────────────
   migration('taxes', Migration20260426T081516TaxesPromotionsInit),
   migration('taxes', Migration20260912T094654TaxesSalesChannelTaxes),
-
-  // ── tpay ────────────────────────────────────────────────────────────────────
-  migration('tpay', Migration20260729T132507TpayInit),
-  migration('tpay', Migration20260816T053834TpaySeedPaymentMethods),
-  migration('tpay', Migration20260821T084924TpayFailureStatusOnHold),
 
   // ── transactional_emails ────────────────────────────────────────────────────
   migration('transactional_emails', Migration20260629T113442TransactionalEmailsInit),

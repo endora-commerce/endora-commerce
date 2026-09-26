@@ -48,7 +48,7 @@ export class AdminAuthService {
     const em = this.emFactory();
     // The address is folded before it is compared, because it was folded before
     // it was stored: Postgres' `=` on `text` is case-sensitive, so an operator
-    // created as `Anna.Nowak@endora.pl` matched no row when they typed the
+    // created as `Operator.Mixed@example.com` matched no row when they typed the
     // address they were handed, and the refusal below says nothing about
     // casing. `normalizeEmailAddress` is the same fold the write applies.
     const admin = await em.findOne(AdminUser, {

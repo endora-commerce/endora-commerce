@@ -382,16 +382,12 @@ export class FeedGenerationService {
         // run into a failed one. The operator sees a feed with no delivery
         // attempt, which is the truth.
         //
-        // **And that includes a presence answer**, which is the one place in
-        // this module where absorbing one is the right call rather than the
-        // lazy one. On a deployment with no queue this delivers inline, so
-        // `credentials` being switched off arrives here as
-        // `ModuleDisabledError` — but the artefact is published and the run is
-        // finished four lines above, so re-throwing would report a failure for
-        // work that succeeded. It is the argument the `webhooks` ledger entry
-        // makes about a delivery already attempted, and the outcome is the same
-        // as it was before `deliver()` learned to re-throw: nothing sent, no
-        // attempt row, a published feed.
+        // No presence answer reaches this `catch`. On a deployment with no
+        // queue the port delivers inline, and a switched-off `credentials` is
+        // recorded there as a failed delivery attempt naming the module
+        // (`DeliveryService.deliverInline`, feature 134 D18) — the run is
+        // finished four lines above, so it must not fail, and the operator
+        // still reads why nothing was sent.
         await this.deps
           .deliverArtefact?.({ feedId, runId, artefactId })
           .catch(() => undefined);

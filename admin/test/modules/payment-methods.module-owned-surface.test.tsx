@@ -241,19 +241,18 @@ describe('the shell no longer names payment_methods by hand', () => {
     expect(shell).not.toContain('\\/payment-methods\\/?$');
   });
 
-  it('keeps the shared label the five gateway breadcrumbs still name', () => {
-    // Deliberate, and the one asymmetry in this batch. `appShell.nav.paymentMethods`
-    // stays in `_i18n`'s bundle because it is also the **parent crumb** of five
-    // `CRUMB_DICT` trails batch five left standing — `/settings/{tpay,stripe,
-    // payu,autopay,paypal}` — those five modules contributing no nav entry for
-    // `registryCrumbs` to derive from. Deleting it would render a raw key on
-    // five screens this batch does not touch.
+  it('retires the five gateway breadcrumb rules and their shared legacy labels', () => {
+    // Separately shipped gateways own their routes and navigation copy. The
+    // free shell cannot keep route rules whose destinations it cannot see.
     const shell = sourceOf('../packages/admin-shell/src/components/AppShell.tsx');
-    expect(shell).toContain("labelKey: 'appShell.nav.paymentMethods', href: '/payment-methods'");
+    for (const gateway of ['stripe', 'tpay', 'payu', 'autopay', 'paypal']) {
+      expect(shell).not.toContain(`\\/settings\\/${gateway}`);
+      expect(shell).not.toContain(`appShell.nav.${gateway}`);
+    }
     const shared = JSON.parse(
       sourceOf('../packages/modules/_i18n/i18n/en.json'),
     ) as Record<string, string>;
-    expect(shared['appShell.nav.paymentMethods']).toBe('Payment methods');
+    expect(shared['appShell.nav.paymentMethods']).toBeUndefined();
   });
 
   it('resolves the screen through the module package, never through admin/src', () => {

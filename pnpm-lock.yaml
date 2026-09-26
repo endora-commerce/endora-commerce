@@ -71,9 +71,6 @@ importers:
       '@endora-commerce/mod-audit-logs':
         specifier: workspace:*
         version: link:../packages/modules/audit_logs
-      '@endora-commerce/mod-autopay':
-        specifier: workspace:*
-        version: link:../packages/modules/autopay
       '@endora-commerce/mod-blog':
         specifier: workspace:*
         version: link:../packages/modules/blog
@@ -161,15 +158,6 @@ importers:
       '@endora-commerce/mod-payments':
         specifier: workspace:*
         version: link:../packages/modules/payments
-      '@endora-commerce/mod-paypal':
-        specifier: workspace:*
-        version: link:../packages/modules/paypal
-      '@endora-commerce/mod-payu':
-        specifier: workspace:*
-        version: link:../packages/modules/payu
-      '@endora-commerce/mod-pim-akeneo':
-        specifier: workspace:*
-        version: link:../packages/modules/pim_akeneo
       '@endora-commerce/mod-pim-ergonode':
         specifier: workspace:*
         version: link:../packages/modules/pim_ergonode
@@ -209,15 +197,9 @@ importers:
       '@endora-commerce/mod-settings':
         specifier: workspace:*
         version: link:../packages/modules/settings
-      '@endora-commerce/mod-stripe':
-        specifier: workspace:*
-        version: link:../packages/modules/stripe
       '@endora-commerce/mod-taxes':
         specifier: workspace:*
         version: link:../packages/modules/taxes
-      '@endora-commerce/mod-tpay':
-        specifier: workspace:*
-        version: link:../packages/modules/tpay
       '@endora-commerce/mod-transactional-emails':
         specifier: workspace:*
         version: link:../packages/modules/transactional_emails
@@ -381,9 +363,6 @@ importers:
       '@endora-commerce/mod-auth':
         specifier: workspace:*
         version: link:../packages/modules/auth
-      '@endora-commerce/mod-autopay':
-        specifier: workspace:*
-        version: link:../packages/modules/autopay
       '@endora-commerce/mod-blog':
         specifier: workspace:*
         version: link:../packages/modules/blog
@@ -489,15 +468,6 @@ importers:
       '@endora-commerce/mod-payments':
         specifier: workspace:*
         version: link:../packages/modules/payments
-      '@endora-commerce/mod-paypal':
-        specifier: workspace:*
-        version: link:../packages/modules/paypal
-      '@endora-commerce/mod-payu':
-        specifier: workspace:*
-        version: link:../packages/modules/payu
-      '@endora-commerce/mod-pim-akeneo':
-        specifier: workspace:*
-        version: link:../packages/modules/pim_akeneo
       '@endora-commerce/mod-pim-connector':
         specifier: workspace:*
         version: link:../packages/modules/pim_connector
@@ -552,15 +522,9 @@ importers:
       '@endora-commerce/mod-shopping-lists':
         specifier: workspace:*
         version: link:../packages/modules/shopping_lists
-      '@endora-commerce/mod-stripe':
-        specifier: workspace:*
-        version: link:../packages/modules/stripe
       '@endora-commerce/mod-taxes':
         specifier: workspace:*
         version: link:../packages/modules/taxes
-      '@endora-commerce/mod-tpay':
-        specifier: workspace:*
-        version: link:../packages/modules/tpay
       '@endora-commerce/mod-transactional-emails':
         specifier: workspace:*
         version: link:../packages/modules/transactional_emails
@@ -672,9 +636,6 @@ importers:
       ssh2-sftp-client:
         specifier: ^12.1.1
         version: 12.1.1
-      stripe:
-        specifier: ^22.3.0
-        version: 22.3.0(@types/node@22.19.17)
       web-push:
         specifier: ^3.6.7
         version: 3.6.7
@@ -1398,54 +1359,6 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
-
-  packages/modules/autopay:
-    devDependencies:
-      '@endora-commerce/admin-kit':
-        specifier: workspace:*
-        version: link:../../admin-kit
-      '@endora-commerce/contracts':
-        specifier: workspace:*
-        version: link:../../contracts
-      '@endora-commerce/mod-payment-methods':
-        specifier: workspace:*
-        version: link:../payment_methods
-      '@endora-commerce/platform':
-        specifier: workspace:*
-        version: link:../../platform
-      '@mikro-orm/core':
-        specifier: ^6.6.13
-        version: 6.6.13
-      '@mikro-orm/migrations':
-        specifier: ^6.6.13
-        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
-      '@mikro-orm/postgresql':
-        specifier: ^6.6.13
-        version: 6.6.13(@mikro-orm/core@6.6.13)
-      '@types/node':
-        specifier: ^22.9.0
-        version: 22.19.17
-      '@types/react':
-        specifier: ^19.2.14
-        version: 19.2.14
-      fastify:
-        specifier: ^5.8.5
-        version: 5.8.5
-      lucide-react:
-        specifier: ^1.11.0
-        version: 1.11.0(react@19.2.5)
-      react:
-        specifier: ^19.2.5
-        version: 19.2.5
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^2.1.4
-        version: 2.1.9(@types/node@22.19.17)(jsdom@29.1.1(@noble/hashes@2.0.1))(lightningcss@1.32.0)(terser@5.46.2)
-      zod:
-        specifier: ^4.2.0
-        version: 4.3.6
 
   packages/modules/blog:
     devDependencies:
@@ -3094,153 +3007,6 @@ importers:
         specifier: ^2.1.4
         version: 2.1.9(@types/node@22.19.17)(jsdom@29.1.1(@noble/hashes@2.0.1))(lightningcss@1.32.0)(terser@5.46.2)
 
-  packages/modules/paypal:
-    devDependencies:
-      '@endora-commerce/admin-kit':
-        specifier: workspace:*
-        version: link:../../admin-kit
-      '@endora-commerce/contracts':
-        specifier: workspace:*
-        version: link:../../contracts
-      '@endora-commerce/mod-payment-methods':
-        specifier: workspace:*
-        version: link:../payment_methods
-      '@endora-commerce/platform':
-        specifier: workspace:*
-        version: link:../../platform
-      '@mikro-orm/core':
-        specifier: ^6.6.13
-        version: 6.6.13
-      '@mikro-orm/migrations':
-        specifier: ^6.6.13
-        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
-      '@mikro-orm/postgresql':
-        specifier: ^6.6.13
-        version: 6.6.13(@mikro-orm/core@6.6.13)
-      '@types/node':
-        specifier: ^22.9.0
-        version: 22.19.17
-      '@types/react':
-        specifier: ^19.2.14
-        version: 19.2.14
-      fastify:
-        specifier: ^5.8.5
-        version: 5.8.5
-      lucide-react:
-        specifier: ^1.11.0
-        version: 1.11.0(react@19.2.5)
-      react:
-        specifier: ^19.2.5
-        version: 19.2.5
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^2.1.4
-        version: 2.1.9(@types/node@22.19.17)(jsdom@29.1.1(@noble/hashes@2.0.1))(lightningcss@1.32.0)(terser@5.46.2)
-      zod:
-        specifier: ^4.2.0
-        version: 4.3.6
-
-  packages/modules/payu:
-    devDependencies:
-      '@endora-commerce/admin-kit':
-        specifier: workspace:*
-        version: link:../../admin-kit
-      '@endora-commerce/contracts':
-        specifier: workspace:*
-        version: link:../../contracts
-      '@endora-commerce/mod-payment-methods':
-        specifier: workspace:*
-        version: link:../payment_methods
-      '@endora-commerce/platform':
-        specifier: workspace:*
-        version: link:../../platform
-      '@mikro-orm/core':
-        specifier: ^6.6.13
-        version: 6.6.13
-      '@mikro-orm/migrations':
-        specifier: ^6.6.13
-        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
-      '@mikro-orm/postgresql':
-        specifier: ^6.6.13
-        version: 6.6.13(@mikro-orm/core@6.6.13)
-      '@types/node':
-        specifier: ^22.9.0
-        version: 22.19.17
-      '@types/react':
-        specifier: ^19.2.14
-        version: 19.2.14
-      fastify:
-        specifier: ^5.8.5
-        version: 5.8.5
-      react:
-        specifier: ^19.2.5
-        version: 19.2.5
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^2.1.4
-        version: 2.1.9(@types/node@22.19.17)(jsdom@29.1.1(@noble/hashes@2.0.1))(lightningcss@1.32.0)(terser@5.46.2)
-      zod:
-        specifier: ^4.2.0
-        version: 4.3.6
-
-  packages/modules/pim_akeneo:
-    devDependencies:
-      '@endora-commerce/admin-kit':
-        specifier: workspace:*
-        version: link:../../admin-kit
-      '@endora-commerce/contracts':
-        specifier: workspace:*
-        version: link:../../contracts
-      '@endora-commerce/platform':
-        specifier: workspace:*
-        version: link:../../platform
-      '@mikro-orm/core':
-        specifier: ^6.6.13
-        version: 6.6.13
-      '@mikro-orm/migrations':
-        specifier: ^6.6.13
-        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
-      '@mikro-orm/postgresql':
-        specifier: ^6.6.13
-        version: 6.6.13(@mikro-orm/core@6.6.13)
-      '@types/node':
-        specifier: ^22.9.0
-        version: 22.19.17
-      '@types/react':
-        specifier: ^19.2.14
-        version: 19.2.14
-      bullmq:
-        specifier: ^5.76.1
-        version: 5.76.1
-      fastify:
-        specifier: ^5.8.5
-        version: 5.8.5
-      ioredis:
-        specifier: ^5.10.1
-        version: 5.10.1
-      lucide-react:
-        specifier: ^1.11.0
-        version: 1.11.0(react@19.2.5)
-      react:
-        specifier: ^19.2.5
-        version: 19.2.5
-      react-router-dom:
-        specifier: ^7.14.2
-        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^2.1.4
-        version: 2.1.9(@types/node@22.19.17)(jsdom@29.1.1(@noble/hashes@2.0.1))(lightningcss@1.32.0)(terser@5.46.2)
-      zod:
-        specifier: ^4.2.0
-        version: 4.3.6
-
   packages/modules/pim_connector:
     devDependencies:
       '@endora-commerce/contracts':
@@ -4057,54 +3823,6 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
-  packages/modules/stripe:
-    devDependencies:
-      '@endora-commerce/admin-kit':
-        specifier: workspace:*
-        version: link:../../admin-kit
-      '@endora-commerce/contracts':
-        specifier: workspace:*
-        version: link:../../contracts
-      '@endora-commerce/mod-payment-methods':
-        specifier: workspace:*
-        version: link:../payment_methods
-      '@endora-commerce/platform':
-        specifier: workspace:*
-        version: link:../../platform
-      '@mikro-orm/core':
-        specifier: ^6.6.13
-        version: 6.6.13
-      '@mikro-orm/migrations':
-        specifier: ^6.6.13
-        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
-      '@mikro-orm/postgresql':
-        specifier: ^6.6.13
-        version: 6.6.13(@mikro-orm/core@6.6.13)
-      '@types/node':
-        specifier: ^22.9.0
-        version: 22.19.17
-      '@types/react':
-        specifier: ^19.2.14
-        version: 19.2.14
-      fastify:
-        specifier: ^5.8.5
-        version: 5.8.5
-      react:
-        specifier: ^19.2.5
-        version: 19.2.5
-      stripe:
-        specifier: ^22.3.0
-        version: 22.3.0(@types/node@22.19.17)
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^2.1.4
-        version: 2.1.9(@types/node@22.19.17)(jsdom@29.1.1(@noble/hashes@2.0.1))(lightningcss@1.32.0)(terser@5.46.2)
-      zod:
-        specifier: ^4.2.0
-        version: 4.3.6
-
   packages/modules/taxes:
     devDependencies:
       '@endora-commerce/admin-kit':
@@ -4146,51 +3864,6 @@ importers:
       vitest:
         specifier: ^2.1.4
         version: 2.1.9(@types/node@22.19.17)(jsdom@29.1.1(@noble/hashes@2.0.1))(lightningcss@1.32.0)(terser@5.46.2)
-
-  packages/modules/tpay:
-    devDependencies:
-      '@endora-commerce/admin-kit':
-        specifier: workspace:*
-        version: link:../../admin-kit
-      '@endora-commerce/contracts':
-        specifier: workspace:*
-        version: link:../../contracts
-      '@endora-commerce/mod-payment-methods':
-        specifier: workspace:*
-        version: link:../payment_methods
-      '@endora-commerce/platform':
-        specifier: workspace:*
-        version: link:../../platform
-      '@mikro-orm/core':
-        specifier: ^6.6.13
-        version: 6.6.13
-      '@mikro-orm/migrations':
-        specifier: ^6.6.13
-        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
-      '@mikro-orm/postgresql':
-        specifier: ^6.6.13
-        version: 6.6.13(@mikro-orm/core@6.6.13)
-      '@types/node':
-        specifier: ^22.9.0
-        version: 22.19.17
-      '@types/react':
-        specifier: ^19.2.14
-        version: 19.2.14
-      fastify:
-        specifier: ^5.8.5
-        version: 5.8.5
-      react:
-        specifier: ^19.2.5
-        version: 19.2.5
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^2.1.4
-        version: 2.1.9(@types/node@22.19.17)(jsdom@29.1.1(@noble/hashes@2.0.1))(lightningcss@1.32.0)(terser@5.46.2)
-      zod:
-        specifier: ^4.2.0
-        version: 4.3.6
 
   packages/modules/transactional_emails:
     devDependencies:
@@ -13867,15 +13540,6 @@ packages:
   strip-json-comments@5.0.3:
     resolution: {integrity: sha512-1tB5mhVo7U+ETBKNf92xT4hrQa3pm0MZ0PQvuDnWgAAGHDsfp4lPSpiS6psrSiet87wyGPh9ft6wmhOMQ0hDiw==}
     engines: {node: '>=14.16'}
-
-  stripe@22.3.0:
-    resolution: {integrity: sha512-ypO6xjVrMWs9SmIMeHr8naCx3dAQ0clxMdUTxn7Ejd7hmY9meBGfE+N4pVHkf9sUNebAHp6uJo6mV3GxDIc2cA==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      '@types/node': '>=18'
-    peerDependenciesMeta:
-      '@types/node':
-        optional: true
 
   strnum@2.4.2:
     resolution: {integrity: sha512-rDG3Ah4TV0k1hWvLSzkZtMmLN9+eS+h3knq4MP6A42Y3Yh5qGNnOUs1jJkoSr8FG5dsL28c7KgkIBzSEykqtuw==}
@@ -26509,10 +26173,6 @@ snapshots:
   strip-json-comments@3.1.1: {}
 
   strip-json-comments@5.0.3: {}
-
-  stripe@22.3.0(@types/node@22.19.17):
-    optionalDependencies:
-      '@types/node': 22.19.17
 
   strnum@2.4.2:
     dependencies:

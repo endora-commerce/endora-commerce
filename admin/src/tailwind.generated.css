@@ -29,7 +29,6 @@
 @import "@endora-commerce/mod-api-keys/tailwind.css";
 @import "@endora-commerce/mod-assets-library/tailwind.css";
 @import "@endora-commerce/mod-audit-logs/tailwind.css";
-@import "@endora-commerce/mod-autopay/tailwind.css";
 @import "@endora-commerce/mod-blog/tailwind.css";
 @import "@endora-commerce/mod-carts/tailwind.css";
 @import "@endora-commerce/mod-catalog/tailwind.css";
@@ -59,9 +58,6 @@
 @import "@endora-commerce/mod-organizations/tailwind.css";
 @import "@endora-commerce/mod-payment-methods/tailwind.css";
 @import "@endora-commerce/mod-payments/tailwind.css";
-@import "@endora-commerce/mod-paypal/tailwind.css";
-@import "@endora-commerce/mod-payu/tailwind.css";
-@import "@endora-commerce/mod-pim-akeneo/tailwind.css";
 @import "@endora-commerce/mod-pim-ergonode/tailwind.css";
 @import "@endora-commerce/mod-pim-pimcore/tailwind.css";
 @import "@endora-commerce/mod-pim-unopim/tailwind.css";
@@ -75,9 +71,7 @@
 @import "@endora-commerce/mod-sales-channels/tailwind.css";
 @import "@endora-commerce/mod-seo/tailwind.css";
 @import "@endora-commerce/mod-settings/tailwind.css";
-@import "@endora-commerce/mod-stripe/tailwind.css";
 @import "@endora-commerce/mod-taxes/tailwind.css";
-@import "@endora-commerce/mod-tpay/tailwind.css";
 @import "@endora-commerce/mod-transactional-emails/tailwind.css";
 @import "@endora-commerce/mod-webhooks/tailwind.css";
 @import "@endora-commerce/page-builder-admin/tailwind.css";

@@ -43,8 +43,14 @@ const PREFIX = '[verify-docs-build]';
 /**
  * The floor SC-005 records from the build that first carried the public origin.
  * A sitemap that shrinks past it has lost pages, whatever the build said.
+ *
+ * Re-measured, never computed from a delta, from a fresh build counted off the
+ * built `sitemap.xml` and `pl/sitemap.xml`. **2026-09-25: 193 -> 174**, at
+ * 20129efdb; **2026-09-25: 174 -> 172**, on a tree based on 447510342.
+ * Both moves are pages that left this repository; the URL inventory records
+ * which.
  */
-export const SITEMAP_FLOOR = 193;
+export const SITEMAP_FLOOR = 172;
 
 /**
  * Hosts that are never a published origin, as `URL.hostname` spells them — the

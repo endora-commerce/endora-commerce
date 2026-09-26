@@ -9,7 +9,7 @@ import {
   type FeedDeliveryProtocol,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
+import { ModuleDisabledError, rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import { FeedArtefact } from '../../entities/feed-artefact.entity.js';
 import type { FeedDelivery } from '../../entities/feed-delivery.entity.js';
 import { FeedDeliveryAttempt } from '../../entities/feed-delivery-attempt.entity.js';
@@ -138,6 +138,37 @@ export class DeliveryService {
         attemptId: null,
         retryable: false,
       };
+    }
+  }
+
+  /**
+   * {@link deliver} for the path with no queue: generation calls it right after
+   * the run is published, when there is no Redis to enqueue on.
+   *
+   * On the queued path a switched-off module fails the job, which the queue
+   * keeps and an operator can see. Inline there is no job, and the run it
+   * follows has already succeeded — refusing would report a failure for work
+   * that was done — so the presence answer is **recorded** instead: an attempt
+   * row whose failure names the module, which is this module's own attempt
+   * history doing the job it has (FR-105). Discarding it, as this path did,
+   * left a published feed, no attempt and no reason, and an operator who could
+   * not tell an unreachable Redis from a module they switched off themselves
+   * (Constitution XVII).
+   */
+  async deliverInline(request: DeliverRequest): Promise<DeliveryOutcome> {
+    try {
+      return await this.deliver(request);
+    } catch (err) {
+      if (!(err instanceof ModuleDisabledError)) throw err;
+      const delivery = await this.deps.config.find(request.feedId);
+      if (!delivery || !delivery.enabled) return skipped();
+      return this.record(request, delivery, '(unavailable)', {
+        reason: 'not_configured',
+        detail:
+          `The "${err.moduleId}" module is switched off, so the delivery target and its ` +
+          'credential could not be read. Nothing was sent.',
+        retryable: false,
+      });
     }
   }
 

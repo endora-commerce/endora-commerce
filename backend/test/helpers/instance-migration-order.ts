@@ -41,6 +41,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { configuredMigrationsFrom } from '../../src/db/configured-migrations.js';
 import { BASELINE_THROUGH, type MigrationRegistryEntry } from '@endora-commerce/platform/db';
+import type { BaselineMigrationIdentity } from '@endora-commerce/platform/migrations';
 import type { PackageSchemaContribution } from '../../src/packages/package-runtime.js';
 import { resolveModuleLayout } from '../../scripts/lib/module-roots.js';
 import { closureOf, type DeclaredDependencies } from '../../scripts/lib/manifest-dependencies.js';
@@ -791,9 +792,9 @@ export function bridgeOwnershipViolations(input: {
 
 /** R1.7's two directions, reported apart because their remedies are opposite. */
 export interface BaselineReconciliation {
-  /** In the published list, supplied by no registry entry. */
+  /** Owned by an available module, but supplied by no registry entry. */
   readonly unsupplied: readonly string[];
-  /** Supplied at or below the watermark by the committed registry, and not listed. */
+  /** Supplied at or below the watermark, and absent from immutable history. */
   readonly unlisted: readonly string[];
 }
 
@@ -806,25 +807,27 @@ export interface BaselineReconciliation {
  * list does not name would silently join the **open** block, where the manifest
  * graph would reorder it. Both are the same defect from opposite sides.
  *
- * It is asked of the **committed core registry**, never of a running platform:
- * an instance installs a subset of the modules, so most of the 112 names are
- * legitimately supplied by nobody there. That is why R1.7 is a guard over this
- * repository's artefacts and not a throw in `orderMigrations`, which would
- * refuse every instance that installs fewer modules than we ship.
+ * Availability is explicit because an instance may omit a module that owns
+ * historical identities. An available owner must supply every identity it
+ * owns; an absent owner leaves a legitimate hole in the deployment's
+ * projection. Every supplied identity below the watermark must still occur in
+ * the immutable inventory, regardless of whether its package is core or paid.
  */
 export function reconcileBaseline(
   entries: readonly MigrationRegistryEntry[],
-  baseline: readonly string[],
+  inventory: readonly BaselineMigrationIdentity[],
+  availableOwners: ReadonlySet<string>,
   baselineThrough: string = BASELINE_THROUGH,
 ): BaselineReconciliation {
-  const listed = new Set(baseline);
+  const listed = new Set(inventory.map((entry) => entry.name));
   const supplied = new Set(entries.map((entry) => entry.cls.name));
   return {
-    unsupplied: baseline.filter((name) => !supplied.has(name)),
+    unsupplied: inventory
+      .filter((entry) => availableOwners.has(entry.moduleId) && !supplied.has(entry.name))
+      .map((entry) => entry.name),
     unlisted: entries
       .filter(
         (entry) =>
-          (entry.origin ?? CORE_MODULE_ID) === CORE_MODULE_ID &&
           stampOf(entry.cls.name) <= baselineThrough &&
           !listed.has(entry.cls.name),
       )

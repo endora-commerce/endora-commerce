@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { BASELINE_MIGRATIONS } from '@endora-commerce/platform/migrations';
+import {
+  BASELINE_MIGRATIONS,
+  BASELINE_MIGRATION_INVENTORY,
+} from '@endora-commerce/platform/migrations';
 import { BASELINE_THROUGH, orderMigrations } from '@endora-commerce/platform/db';
 import { MIGRATION_REGISTRY } from '../../../src/db/migrations-registry.generated.js';
 import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
@@ -220,6 +223,10 @@ function emittedOrder(): string[] {
   }).migrations.map((migration) => migration.name);
 }
 
+const REGISTERED_NAMES = new Set(MIGRATION_REGISTRY.map((entry) => entry.cls.name));
+const SUPPLIED_FROZEN_PREFIX = FROZEN_PREFIX.filter((name) => REGISTERED_NAMES.has(name));
+const AVAILABLE_OWNERS = new Set(['core', ...DISCOVERED_MANIFESTS.map((entry) => entry.id)]);
+
 /** `Migration20260424T165847CoreFoundationInit` -> `20260424T165847`. */
 function stampOf(name: string): string {
   return name.slice('Migration'.length, 'Migration'.length + 15);
@@ -231,20 +238,21 @@ describe('migration order — the frozen historical prefix', () => {
     // literal, never against a prefix recomputed from the registry: the two
     // agree today, and the point of the literal is to be the one that does not
     // move when the registry, a stamp or the watermark does.
-    const emitted = emittedOrder().slice(0, FROZEN_PREFIX.length);
+    const emitted = emittedOrder().slice(0, SUPPLIED_FROZEN_PREFIX.length);
 
     // Reported before the deep equality, because `[ …(112) ] to deeply equal
     // [ …(112) ]` tells the author nothing and this block is 112 entries long.
-    const divergence = FROZEN_PREFIX.findIndex((name, index) => emitted[index] !== name);
+    const divergence = SUPPLIED_FROZEN_PREFIX.findIndex((name, index) => emitted[index] !== name);
     expect(
       divergence,
       divergence === -1
         ? ''
         : `position ${divergence} of the frozen prefix holds "${emitted[divergence]}", ` +
-            `where history applied "${FROZEN_PREFIX[divergence]}". This block's order is ` +
+            `where the deployment projection requires "${SUPPLIED_FROZEN_PREFIX[divergence]}". ` +
+            `This block's order is ` +
             `history and a fresh database cannot apply any other; see the file header.`,
     ).toBe(-1);
-    expect(emitted).toEqual(FROZEN_PREFIX);
+    expect(emitted).toEqual(SUPPLIED_FROZEN_PREFIX);
   });
 
   it('holds every migration the watermark covers, and only those', () => {
@@ -265,11 +273,14 @@ describe('migration order — the frozen historical prefix', () => {
       withinWatermark.filter((name) => !pinned.has(name)),
       'a migration entered the frozen block, whose membership closed at BASELINE_THROUGH',
     ).toEqual([]);
+    const missingForAvailableOwner = BASELINE_MIGRATION_INVENTORY.filter(
+      (entry) => AVAILABLE_OWNERS.has(entry.moduleId) && !registered.has(entry.name),
+    ).map((entry) => entry.name);
     expect(
-      FROZEN_PREFIX.filter((name) => !registered.has(name)),
-      'a migration left the frozen block — an applied class was renamed or deleted',
+      missingForAvailableOwner,
+      'an installed owner no longer supplies a migration from the frozen block',
     ).toEqual([]);
-    expect([...withinWatermark].sort()).toEqual([...FROZEN_PREFIX].sort());
+    expect([...withinWatermark].sort()).toEqual([...SUPPLIED_FROZEN_PREFIX].sort());
   });
 
   it('is the list the platform publishes, name for name and position for position', () => {
@@ -306,7 +317,7 @@ describe('migration order — the frozen historical prefix', () => {
     // legitimately push a below-watermark entry into the open block here — the
     // test below is what keeps that true. An external entry doing so on purpose
     // is `migration-order.test.ts` § J11.
-    const afterPrefix = emittedOrder().slice(FROZEN_PREFIX.length);
+    const afterPrefix = emittedOrder().slice(SUPPLIED_FROZEN_PREFIX.length);
     const leaked = afterPrefix.filter((name) => stampOf(name) <= BASELINE_THROUGH);
 
     expect(leaked, 'a below-watermark migration is emitted outside the frozen prefix').toEqual([]);

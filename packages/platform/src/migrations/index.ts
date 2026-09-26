@@ -45,6 +45,10 @@
  * the platform applies them in.
  */
 export { BASELINE_MIGRATIONS } from './baseline-migrations.generated.js';
+export {
+  BASELINE_MIGRATION_INVENTORY,
+  type BaselineMigrationIdentity,
+} from '../db/baseline-migration-inventory.js';
 
 // --- the platform's own thirteen migrations -------------------------------
 //

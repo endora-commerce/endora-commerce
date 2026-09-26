@@ -128,6 +128,7 @@ import {
   loadPackageModuleEntries,
 } from '../packages/package-runtime.js';
 import { nodeModulesRootsFor } from '../packages/installed-packages.js';
+import { processRunsWorkersFor } from './process-runs-workers.js';
 import { forkScopedEm } from '../tenancy/scoped-em.js';
 import { systemTenantContext } from '../tenancy/resolve-tenant-context.js';
 import type { TenantContext } from '../tenancy/tenant-context.js';
@@ -530,8 +531,7 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   //   - unset / 'all'    → API + co-located workers (default single-VPS)
   //   - 'api'            → HTTP only; workers run in a separate `pnpm worker`
   //   - 'worker'         → workers only (set by `worker.ts`; no HTTP listen)
-  const backendRole = process.env['BACKEND_ROLE'] ?? 'all';
-  const runWorkers = backendRole !== 'api';
+  const runWorkers = processRunsWorkersFor(process.env['BACKEND_ROLE']);
   // Feature 018 — separate ioredis client for the module-state pub/sub
   // channel. ioredis multiplexes commands and subscriptions on different
   // sockets, so we keep them on different clients to avoid the "subscribed
@@ -616,14 +616,34 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     // Feature 072 (T125) — the interceptor registry, so `_lifecycle` can serve
     // the read-only diagnostics screen over it.
     apiInterceptors,
-    // A module's `ctx.onBoot` schedule reconcile resolves these; nothing else
-    // in this composition has an opinion about them.
-    pimErgonodeRunWorkers: runWorkers,
-    pimAkeneoRunWorkers: runWorkers,
-    pimPimcoreRunWorkers: runWorkers,
-    pimUnopimRunWorkers: runWorkers,
-    comarchXlRunWorkers: runWorkers,
+    // Whether this process runs queue consumers: the one module-agnostic
+    // answer, read by every module that starts one — at construction and from
+    // its `ctx.onBoot` reconcile — so no module reads `BACKEND_ROLE` itself and
+    // no module needs a flag of its own here
+    // (`specs/134-paid-module-extraction/` research D16, contract W1.1).
+    processRunsWorkers: runWorkers,
+    // `product_feeds`' own flag: a free module's copy of the same pattern,
+    // recorded by D16 §6 as not this feature's to move.
     productFeedsRunWorkers: runWorkers,
+    // Deprecated, all six (`specs/134-paid-module-extraction/` research D16,
+    // T122): values named after a module, which a composition root must not
+    // carry for a module that may be absent (contract W1.1). No in-tree module
+    // reads them any more except `pim_akeneo` — the readers moved to
+    // `processRunsWorkers` above and to calling `resolvePublicApiBaseUrl()`
+    // themselves. They stay only because a published module release may still
+    // resolve them, and dropping a platform-registered name is a breaking
+    // release, never a patch. Removal is T124.
+    /** @deprecated Read `processRunsWorkers`. Removal: T124 (D16). */
+    pimErgonodeRunWorkers: runWorkers,
+    /** @deprecated Read `processRunsWorkers`. Removal: T124 (D16). */
+    pimAkeneoRunWorkers: runWorkers,
+    /** @deprecated Read `processRunsWorkers`. Removal: T124 (D16). */
+    pimPimcoreRunWorkers: runWorkers,
+    /** @deprecated Read `processRunsWorkers`. Removal: T124 (D16). */
+    pimUnopimRunWorkers: runWorkers,
+    /** @deprecated Read `processRunsWorkers`. Removal: T124 (D16). */
+    comarchXlRunWorkers: runWorkers,
+    /** @deprecated Call `resolvePublicApiBaseUrl()`. Removal: T124 (D16). */
     pimAkeneoPublicBaseUrl: resolvePublicApiBaseUrl(),
     productFeedsPublicBaseUrl: resolvePublicApiBaseUrl(),
     productFeedsTokenEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'],

@@ -19,8 +19,10 @@
 #   4. npm does not report `provenance=true` — exit 2. Also new, and it is a
 #      *positive* proof rather than a hope: see the note on how provenance is
 #      requested below.
-#   5. The inline `check:release-intent`, the last gate before a publish.
-#   6. `changeset publish` reporting "No unpublished projects to publish" —
+#   5. A member declaring `SEE LICENSE IN` while the registry is public npmjs —
+#      exit 1 (`specs/136-open-source-publication/` FR-011). Also new here.
+#   6. The inline `check:release-intent`, the last gate before a publish.
+#   7. `changeset publish` reporting "No unpublished projects to publish" —
 #      exit 2 rather than passing as a silent success.
 #
 # A publish workflow that keeps the provenance and loses the guards is a worse
@@ -135,6 +137,12 @@ jobs:
             echo "publish:packages — npm reports provenance=$resolved. Neither NPM_CONFIG_PROVENANCE nor \$HOME/.npmrc reached it, so \`changeset publish\` would spend versions with no attestation and the failure would be silent." >&2
             exit 2
           fi
+      # A package declaring `SEE LICENSE IN` states terms of its own and belongs
+      # on the private registry; on npmjs a version is permanent and readable by
+      # anyone. The registry is handed over rather than assumed, because this job
+      # publishes to whichever one the environment names, and the private
+      # registry is answered yes (`specs/136-open-source-publication/` FR-011).
+      - run: pnpm --filter backend exec tsx scripts/check-release-intent.ts --publish-registry "$ENDORA_NPM_REGISTRY"
       # The last gate before a publish. `quality` does not run on the dispatched
       # ref unless it happens to be `master`, so without this line the packages
       # would be published having been judged only by the pull request that

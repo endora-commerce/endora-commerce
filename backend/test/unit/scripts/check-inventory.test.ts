@@ -1790,6 +1790,8 @@ const PORT_CATCH_PARAMETER_SCOPE_TREE = new Map([
   [
     'modules/carts/backend.ts',
     "import { lazyPort } from '../../kernel/index.js';\n" +
+      // The call binds the constructor its file imports (feature 134 D18).
+      "import { CartPricing } from './services/cart-pricing.js';\n" +
       "const pricing = new CartPricing(lazyPort(ctx, 'promotionService'));",
   ],
   [
@@ -1808,6 +1810,73 @@ const PORT_CATCH_PARAMETER_SCOPE_TREE = new Map([
       '  return 1;\n}',
   ],
 ]);
+
+/**
+ * Two modules each declaring `requireRun`; only `alpha` hands its own a port
+ * (feature 134 D18). The call used to bind whichever declaration of that
+ * spelling was read last — `beta`'s is read last here — so the proof reads 1
+ * while the call binds the declaration its file imports, and reads 0 (the
+ * finding lands in `beta` instead) the moment binding goes back to spelling.
+ */
+const PORT_CATCH_CROSS_MODULE_BINDING_TREE = new Map([
+  PORT_CATCH_PROVIDER_ONLY,
+  [
+    'modules/alpha/routes.ts',
+    "import { lazyPort } from '../../kernel/index.js';\n" +
+      "import { requireRun } from './run-lookup.js';\n" +
+      "export function routes(ctx) { requireRun(lazyPort(ctx, 'promotionService'), 'r'); }",
+  ],
+  [
+    'modules/alpha/run-lookup.ts',
+    'export async function requireRun(source, id) {\n' +
+      '  try { return await source.applyToCart(id); } catch { return null; }\n}',
+  ],
+  [
+    'modules/beta/run-lookup.ts',
+    'export async function requireRun(feed, runId) {\n' +
+      '  try { return await feed.load(runId); } catch { return null; }\n}',
+  ],
+]);
+
+/**
+ * Two modules spelling one deps key, `credentials`, over different ports: a
+ * locked one in `feeds`, a switchable one in `newsletter` (feature 134 D18).
+ * With gates merged by spelling the `feeds` site carried both and read as a
+ * violation; scoped to where the alias is visible it carries the locked gate
+ * alone and is `OWNER LOCKED`.
+ */
+const PORT_CATCH_SCOPED_GATES_TREE = new Map([
+  [
+    'modules/vault/backend.ts',
+    "export function registerModule(ctx) { ctx.di.providePort('vaultService', x); }",
+  ],
+  [
+    'modules/mailer/backend.ts',
+    "export function registerModule(ctx) { ctx.di.providePort('mailerService', x); }",
+  ],
+  [
+    'modules/feeds/backend.ts',
+    "import { lazyPort } from '../../kernel/index.js';\n" +
+      "const deps = { credentials: lazyPort(ctx, 'vaultService') };",
+  ],
+  [
+    'modules/newsletter/backend.ts',
+    "import { lazyPort } from '../../kernel/index.js';\n" +
+      "const deps = { credentials: lazyPort(ctx, 'mailerService') };",
+  ],
+  [
+    'modules/feeds/services/delivery.ts',
+    'export class Delivery {\n' +
+      '  async send() {\n' +
+      '    try { await this.deps.credentials.resolve(); } catch { return; }\n' +
+      '  }\n}',
+  ],
+]);
+
+const PORT_CATCH_SCOPED_GATES_MANIFESTS = [
+  { id: 'vault', activation: { nonDeactivatable: true, reason: 'Every secret lives here.' } },
+  { id: 'mailer', activation: { settingCode: 'mailer.enabled', default: true } },
+];
 
 /**
  * A module-scoped deps key claimed by an unrelated local — the general form of
@@ -7187,6 +7256,22 @@ const CHECKS: readonly CheckEntry[] = [
           ? 1
           : 0;
       }),
+      'call-binds-only-the-declaration-its-file-resolves': top(() => {
+        const violations = checkPortCatches(
+          { sources: PORT_CATCH_CROSS_MODULE_BINDING_TREE },
+          {},
+        ).violations;
+        return violations.length === 1 && violations[0]?.file === 'modules/alpha/run-lookup.ts'
+          ? 1
+          : 0;
+      }),
+      'gates-are-scoped-to-where-the-alias-is-visible': top(() => {
+        const result = checkPortCatches(
+          { sources: PORT_CATCH_SCOPED_GATES_TREE, manifests: PORT_CATCH_SCOPED_GATES_MANIFESTS },
+          {},
+        );
+        return result.violations.length === 0 && result.ownerLocked.length === 1 ? 1 : 0;
+      }),
       'local-that-manifestly-holds-no-port-shadows-a-module-alias': top(() => {
         const violations = checkPortCatches({ sources: PORT_CATCH_LOCAL_SHADOW_TREE }, {})
           .violations;
@@ -11586,8 +11671,11 @@ describe('every red proof enters at the top of the analysis', () => {
       // three, which are about *visibility* rather than reach: the two
       // collisions the scoping rules now refuse, and — pointing the other way —
       // the call-bound local that must go on being a finding, because "the
-      // analysis cannot follow this" is not "this is not a port".
-      'backend/scripts/check-port-catches.ts': 19,
+      // analysis cannot follow this" is not "this is not a port". **19 -> 21**,
+      // feature 134 D18's two, both discriminations about population
+      // independence: a call binds only the declaration its file resolves, and
+      // an alias carries only the gates of the scopes visible where it is read.
+      'backend/scripts/check-port-catches.ts': 21,
       // Plus T034's one: a name an installed package owns is an undeclared
       // edge, not the consumer's wiring bug the short map reported. Plus the
       // 2026-08-25 ruling's three for the `refuses-without` rail: a refusal

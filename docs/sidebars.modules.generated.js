@@ -67,14 +67,6 @@ const modules = [
   },
   {
     type: 'category',
-    label: 'Akeneo PIM', key: 'pim_akeneo',
-    link: { type: 'doc', id: 'modules/pim-akeneo' },
-    items: [
-      'module-reference/pim-akeneo',
-    ],
-  },
-  {
-    type: 'category',
     label: 'analytics', key: 'analytics',
     link: { type: 'doc', id: 'modules/analytics' },
     items: [
@@ -111,14 +103,6 @@ const modules = [
     link: { type: 'doc', id: 'modules/auth' },
     items: [
       'module-reference/auth',
-    ],
-  },
-  {
-    type: 'category',
-    label: 'Autopay', key: 'autopay',
-    link: { type: 'doc', id: 'modules/autopay' },
-    items: [
-      'module-reference/autopay',
     ],
   },
   {
@@ -390,22 +374,6 @@ const modules = [
       'module-reference/payments',
     ],
   },
-  {
-    type: 'category',
-    label: 'PayPal', key: 'paypal',
-    link: { type: 'doc', id: 'modules/paypal' },
-    items: [
-      'module-reference/paypal',
-    ],
-  },
-  {
-    type: 'category',
-    label: 'PayU', key: 'payu',
-    link: { type: 'doc', id: 'modules/payu' },
-    items: [
-      'module-reference/payu',
-    ],
-  },
   { type: 'doc', id: 'module-reference/pim-connector', label: 'pim_connector', key: 'pim_connector' },
   {
     type: 'category',
@@ -529,21 +497,12 @@ const modules = [
       'module-reference/shopping-lists',
     ],
   },
-  { type: 'doc', id: 'module-reference/stripe', label: 'stripe', key: 'stripe' },
   {
     type: 'category',
     label: 'taxes', key: 'taxes',
     link: { type: 'doc', id: 'modules/taxes' },
     items: [
       'module-reference/taxes',
-    ],
-  },
-  {
-    type: 'category',
-    label: 'TPay', key: 'tpay',
-    link: { type: 'doc', id: 'modules/tpay' },
-    items: [
-      'module-reference/tpay',
     ],
   },
   {

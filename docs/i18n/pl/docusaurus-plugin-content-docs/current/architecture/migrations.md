@@ -625,7 +625,7 @@ ponownie stosować cokolwiek do tego, który masz. CI buduje pustą bazę i też
 interwencji. `db:fresh` i `db:reset` czytają `backend/.env` i domyślnie celują w bazę
 **dev**, więc zawsze przekaż `DATABASE_URL` jawnie, gdy chodzi o cokolwiek innego.
 
-## Cofanie migracji przy odinstalowaniu modułu
+## Cofanie migracji przy odinstalowaniu modułu {#module-uninstall-migration-revert}
 
 Hard-uninstall modułu cofa jego migracje. Rozwiązywane są z
 `MIGRATION_REGISTRY` filtrowane po `moduleId`, sortowane rosnąco i cofane w odwrotnej

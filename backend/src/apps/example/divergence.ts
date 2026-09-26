@@ -132,6 +132,13 @@ export const divergence: DeploymentDivergenceDeclaration = {
       'fixture is a reference implementor rather than a payment capability — it seeds no method, ' +
       'owns no table and serves no route — so what this deployment gains is a contributor to an ' +
       'existing registry and no behaviour a shop would notice.',
+    'port-consumed:payment_gateway_fixture:gatewayRefundRegistry':
+      'The refund seam `payments` publishes for a module that settles a payment, reached from ' +
+      'this fixture’s boot hook for the reason the adapter registry above is: once feature 134’s ' +
+      'wave 2 removes `autopay`, `paypal`, `payu`, `stripe` and `tpay`, nothing else in this ' +
+      'repository registers a refund handler, and `GatewayRefundRegistryPort` would be compiled ' +
+      'against by no consumer at all (FR-021, FR-063). Same rung, same shape: the owner published ' +
+      'the seam, the consumer declares it, and nothing of `payments` is wrapped or replaced.',
     'decoration:example_overlay:pricingService':
       'Core resolves a line price from the price lists a customer is entitled to. This ' +
       'deployment prefixes the resolved list id so that a reference reader can see, on a live ' +

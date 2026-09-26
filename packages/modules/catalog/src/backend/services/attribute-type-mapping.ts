@@ -1,5 +1,6 @@
 import {
   ERROR_CODES,
+  apiAttributeTypeOf,
   type ApiAttributeType as ContractApiAttributeType,
   type AttributeValueType,
   type NumericKind,
@@ -186,30 +187,14 @@ export function dbToApiAttributeType(
   valueType: AttributeValueType,
   displayAsSlider: boolean,
 ): { type: ContractApiAttributeType; numericKind: NumericKind | null } {
-  if (displayAsSlider && (valueType === 'number' || valueType === 'price')) {
-    return { type: 'slider', numericKind: valueType };
+  // The `type` is the contract's single projection (`apiAttributeTypeOf`,
+  // feature 134 D19); `numericKind` is this module's own business: it names
+  // the numeric storage a slider sits on so an update can round-trip it.
+  const type = apiAttributeTypeOf(valueType, displayAsSlider);
+  if (type === 'slider' && (valueType === 'number' || valueType === 'price')) {
+    return { type, numericKind: valueType };
   }
-  switch (valueType) {
-    case 'string':
-      return { type: 'input', numericKind: null };
-    case 'number':
-      return { type: 'number', numericKind: null };
-    case 'enum':
-      return { type: 'select', numericKind: null };
-    case 'select':
-      // Feature 012 — `'select'` shares storage with `'enum'`; differs only in
-      // rendering intent (compact pill vs full dropdown). Maps to the same
-      // API affordance for now.
-      return { type: 'select', numericKind: null };
-    case 'multiselect':
-      return { type: 'multiselect', numericKind: null };
-    case 'price':
-      return { type: 'price', numericKind: null };
-    case 'boolean':
-    case 'date':
-      // These DB-only types have no API alias; surface the legacy form.
-      return { type: 'input', numericKind: null };
-  }
+  return { type, numericKind: null };
 }
 
 export class InvalidAttributeMappingError extends Error {

@@ -30,7 +30,6 @@ przypadkiem zostało napisane.
 | [Assets Library](./assets-library/index.md) | Centralna biblioteka zasobów cyfrowych z wymiennymi adapterami storage, soft-delete i strażnikami ochrony referencji | @endora-commerce/mod-assets-library |
 | [audit_logs](./audit_logs.md) | Ślad audytu wrażliwych akcji | @endora-commerce/mod-audit-logs |
 | [auth](./auth.md) | Sesje klienta i admina, hashowanie haseł, TOTP | @endora-commerce/mod-auth |
-| [Autopay](./autopay.md) | Bramka płatności Autopay (BLIK, karty, pay-by-link, portfele) | @endora-commerce/mod-autopay |
 | [Blog](./blog/index.md) | Posty redakcyjne z treścią Page Builder, taksonomią (Kategorie + Tagi) i feedami sklepu | @endora-commerce/mod-blog |
 | [carts](./carts.md) | Koszyk klienta z merge anonim→zalogowany | @endora-commerce/mod-carts |
 | [Catalog](./catalog.md) | Produkty, warianty, kategorie, atrybuty, kanały sprzedaży | @endora-commerce/mod-catalog |
@@ -65,9 +64,6 @@ przypadkiem zostało napisane.
 | [organizations](./organizations.md) | Organizacje klientów, rejestracja, zaproszenia | @endora-commerce/mod-organizations |
 | [payment_methods](./payment_methods.md) | Skonfigurowane metody płatności | @endora-commerce/mod-payment-methods |
 | [payments](./payments.md) | Dispatch driverów płatności + zdarzenia rozliczenia | @endora-commerce/mod-payments |
-| [PayPal](./paypal.md) | Bramka PayPal Checkout (Orders v2) — redirect lub inline Smart Payment Buttons, rozliczenie i refundy weryfikowane webhookiem | @endora-commerce/mod-paypal |
-| [PayU](./payu.md) | Bramka płatności PayU (BLIK, karty, pay-by-link) | @endora-commerce/mod-payu |
-| [Akeneo PIM](./pim-akeneo.md) | Wejście HMAC complete-record z self-hosted Akeneo — Endora stosuje dostarczone produkty bez pullowania PIM. | @endora-commerce/mod-pim-akeneo |
 | `pim_connector` | _brak strony_ | @endora-commerce/mod-pim-connector |
 | [Ergonode PIM](./pim_ergonode.md) | Inbound connector tylko do odczytu dla Ergonode PIM — produkty, wartości atrybutów, placement kategorii, media i opcjonalne ceny, na żądanie lub według harmonogramu | @endora-commerce/mod-pim-ergonode |
 | [Pimcore PIM](./pim_pimcore.md) | Wejście HMAC complete-record z Pimcore — Endora stosuje dostarczone produkty, kategorie, atrybuty, media i struktury bez czytania Data Hub | @endora-commerce/mod-pim-pimcore |
@@ -86,8 +82,6 @@ przypadkiem zostało napisane.
 | [Settings](./settings/index.md) | Konfiguracja platformy per kanał sprzedaży sterowana manifestem z cache'owanym API odczytu | @endora-commerce/mod-settings |
 | [shipments](./shipments.md) | Powtarzalny rekord Shipment i jego cykl życia — odpowiednik po stronie dostawy dla payments | @endora-commerce/mod-shipments |
 | [shopping_lists](./shopping_lists.md) | Nazwane zestawy per klient konwertowalne do Cart lub RFQ | @endora-commerce/mod-shopping-lists |
-| `stripe` | _brak strony_ | @endora-commerce/mod-stripe |
 | [taxes](./taxes.md) | Resolver stawek podatkowych zawężony przez kraj / typ produktu / status VAT | @endora-commerce/mod-taxes |
-| [TPay](./tpay.md) | Bramka płatności TPay (BLIK, karty, przelewy) | @endora-commerce/mod-tpay |
 | [transactional_emails](./transactional-emails.md) | E-maile transakcyjne edytowalne w adminie — temat, treść i wygląd, globalnie i per kanał sprzedaży | @endora-commerce/mod-transactional-emails |
 | [webhooks](./webhooks.md) | Subskrypcje zdarzeń wychodzących podpisane HMAC | @endora-commerce/mod-webhooks |

@@ -269,18 +269,29 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // the registration.
   'priceListsEnableStatusSweeper',
   'priceListsAdminAuditContext',
-  // Whether this process runs the Ergonode import and reaper consumers
-  // (Principle X). A deployment decision, read at construction because it
-  // decides whether the consumers are built at all (T131).
+  // Whether this process runs queue consumers (Principle X): the platform's one
+  // module-agnostic answer, read at construction because it decides whether a
+  // module's consumers are built at all (`specs/134-paid-module-extraction/`
+  // research D16, contract W1.1). `composeApp` registers it from
+  // `BACKEND_ROLE`; the test kit registers it `false`.
+  'processRunsWorkers',
+  // Deprecated by D16 (T122) and removed by T124: the module-named
+  // predecessors of `processRunsWorkers`, still registered by both roots for a
+  // published module release that may resolve them. No in-tree module other
+  // than `pim_akeneo` reads them.
   'pimErgonodeRunWorkers',
   'pimAkeneoRunWorkers',
   'pimPimcoreRunWorkers',
   'pimUnopimRunWorkers',
+  // `product_feeds`' own flag — a free module's copy of the same pattern, which
+  // D16 §6 records as not this feature's.
   'productFeedsRunWorkers',
   // Pinned per composition and read at construction, so each root registers
   // them early beside the worker flag: production derives the feed base URL
   // from the environment, the harness pins one because a test asserts the
-  // exact link an administrator is handed (T137).
+  // exact link an administrator is handed (T137). `pimAkeneoPublicBaseUrl` is
+  // deprecated by D16 (T122) — a module calls `resolvePublicApiBaseUrl()` — and
+  // removed by T124.
   'pimAkeneoPublicBaseUrl',
   'productFeedsPublicBaseUrl',
   'productFeedsTokenEncryptionKey',
@@ -505,6 +516,10 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // follows `BACKEND_ROLE`, the harness runs none — stays a root's.
   webhooksRunWorkers: 'webhooks',
   // Whether this composition runs the Comarch XL sync consumers (feature 119).
+  // Deprecated by `specs/134-paid-module-extraction/` D16 (T122): `comarch_xl`
+  // reads the platform's `processRunsWorkers` now, and both roots keep
+  // registering this name only for a published copy of the module. Removed by
+  // T124.
   comarchXlRunWorkers: 'comarch_xl',
 };
 
@@ -554,9 +569,15 @@ export const CAPTURABLE_NAMES: ReadonlySet<string> = new Set([
   // at all, and the TTL the pricing LRU is built with (T127).
   'priceListsEnableStatusSweeper',
   'priceListsPricingCacheTtlMs',
-  // Same category: a plain boolean that decides whether the Ergonode import and
-  // reaper consumers are constructed at all, so it cannot be deferred past
-  // construction (T131).
+  // Same category: the platform's one module-agnostic answer to "does this
+  // process run queue consumers?", a plain boolean that decides whether a
+  // module's consumers are constructed at all, so it cannot be deferred past
+  // construction (`specs/134-paid-module-extraction/` research D16).
+  'processRunsWorkers',
+  // Same category, and deprecated by D16 (T122), removed by T124 along with the
+  // Pimcore, Akeneo and UnoPim flags and `pimAkeneoPublicBaseUrl` below: a plain
+  // boolean that decides whether the Ergonode import and reaper consumers are
+  // constructed at all (T131).
   'pimErgonodeRunWorkers',
   // Same category: whether this process runs the Pimcore import consumer
   // (feature 089).

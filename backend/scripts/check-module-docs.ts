@@ -215,8 +215,6 @@ export const MODULES_WITHOUT_DOCUMENTATION: Readonly<Record<string, string>> = {
   pim_connector:
     'The mutual-exclusion registry the four PIM connectors register into. Infrastructure; a ' +
     'page or `docs: false` is spec.md Q3.',
-  stripe:
-    'The Stripe payment gateway. Operator-facing and wants a page (spec.md Q3).',
 };
 
 /**
@@ -374,10 +372,6 @@ export const DERIVED_FACTS_IN_PROSE: Readonly<Record<string, ProseLedgerEntry>> 
     'cites `packages/modules/assets_library/src/backend/services/storage` by address. The ' +
     'file is real and the sentence is worth keeping; the repair is to name the module and ' +
     'the file rather than the path.',
-  'modules/autopay#5cba8391':
-    'the page states `autopay`\'s own package directory. The generated reference page ' +
-    'carries the package that ships a module, so the sentence can link that instead of ' +
-    'restating it.',
   'modules/carts#278cbc02':
     'cites `packages/modules/carts/src/manifest.ts` by address. The file is real and the ' +
     'sentence is worth keeping; the repair is to name the module and the file rather than ' +
@@ -460,10 +454,6 @@ export const DERIVED_FACTS_IN_PROSE: Readonly<Record<string, ProseLedgerEntry>> 
     'cites `packages/modules/payments/src/backend/adapters/built-in-adapters.ts` by ' +
     'address. The file is real and the sentence is worth keeping; the repair is to name ' +
     'the module and the file rather than the path.',
-  'modules/paypal#2717d950':
-    'the page states `paypal`\'s own package directory. The generated reference page ' +
-    'carries the package that ships a module, so the sentence can link that instead of ' +
-    'restating it.',
   'modules/product_feeds#5ac59ce8':
     'cites `packages/modules/product_feeds/src/backend` by address. The file is real and ' +
     'the sentence is worth keeping; the repair is to name the module and the file rather ' +
@@ -488,10 +478,6 @@ export const DERIVED_FACTS_IN_PROSE: Readonly<Record<string, ProseLedgerEntry>> 
     'a template telling an author where to put a file. It spelled ' +
     '`backend/src/modules/<id>/` until F4 closed, which is the whole argument: the layout ' +
     'is derived and a page that restates it goes stale in silence.',
-  'modules/tpay#83639bdf':
-    'cites `packages/modules/tpay/README.md` by address. The file is real and the ' +
-    'sentence is worth keeping; the repair is to name the module and the file rather than ' +
-    'the path.',
 };
 
 /**
