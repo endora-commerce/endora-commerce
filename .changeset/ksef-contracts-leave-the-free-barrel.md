@@ -24,3 +24,7 @@ contract.
 
 `@endora-commerce/mod-ksef` gains the `./contracts` export. It already declared `zod` as a peer
 dependency, so installing it pulls in nothing new.
+
+`@endora-commerce/mod-ksef` also owns its seven error codes now: the root export gains
+`ksefErrorCodes`, declared with `defineModuleErrorCodes`, and every raise site in the module uses it
+instead of `ERROR_CODES.KSEF_*`. The codes' values on the wire do not change.

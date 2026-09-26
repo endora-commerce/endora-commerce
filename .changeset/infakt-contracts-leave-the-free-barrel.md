@@ -22,3 +22,7 @@ contract stays where it is.
 
 `@endora-commerce/mod-infakt` gains the `./contracts` export. It already declared `zod` as a peer
 dependency, so installing it pulls in nothing new.
+
+`@endora-commerce/mod-infakt` also owns its two error codes now: the root export gains
+`infaktErrorCodes`, declared with `defineModuleErrorCodes`, and the webhook's raise site uses it
+instead of `ERROR_CODES.INFAKT_WEBHOOK_UNAUTHORIZED`. The codes' values on the wire do not change.
