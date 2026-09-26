@@ -3102,6 +3102,12 @@ importers:
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
+      '@endora-commerce/mod-catalog':
+        specifier: workspace:*
+        version: link:../catalog
+      '@endora-commerce/mod-custom-fields':
+        specifier: workspace:*
+        version: link:../custom_fields
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform

@@ -255,6 +255,7 @@ import { Migration20260826T153500PimConnectorInit } from '@endora-commerce/mod-p
 // ── pim_ergonode ────────────────────────────────────────────────────────────
 import { Migration20260804T190439PimErgonodeInit } from '@endora-commerce/mod-pim-ergonode/migrations';
 import { Migration20260819T193653PimErgonodeFoldDerivedKeys } from '@endora-commerce/mod-pim-ergonode/migrations';
+import { Migration20260926T120000PimErgonodeKeyRepairs } from '@endora-commerce/mod-pim-ergonode/migrations';
 
 // ── pim_pimcore ─────────────────────────────────────────────────────────────
 import { Migration20260818T102204PimPimcoreInit } from '@endora-commerce/mod-pim-pimcore/migrations';
@@ -566,6 +567,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── pim_ergonode ────────────────────────────────────────────────────────────
   migration('pim_ergonode', Migration20260804T190439PimErgonodeInit),
   migration('pim_ergonode', Migration20260819T193653PimErgonodeFoldDerivedKeys),
+  migration('pim_ergonode', Migration20260926T120000PimErgonodeKeyRepairs),
 
   // ── pim_pimcore ─────────────────────────────────────────────────────────────
   migration('pim_pimcore', Migration20260818T102204PimPimcoreInit),
