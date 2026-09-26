@@ -4061,7 +4061,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     files: 2269,
     // **T042–T045, re-measured 2026-09-25: 276 -> 248.** The five modules' entity classes. Agreed
     // at `origin/master` `ce96b1e94`; see the header block above the table.
-    sites: 248,
+    // **T134 (`pim_ergonode`'s W7 key repair), re-measured 2026-09-26: 248 -> 249.** The one new
+    // entity, `ErgonodeKeyRepair` — the repair's checkpoint. Measured in two pristine detached
+    // worktrees stood up for the measurement (`origin/master` `52490b242` and this branch's tip
+    // `73b373132`, each after `setup-worktree.sh` and `build:packages`, no untracked files); this
+    // dimension agrees on `master` and drifts on the branch, the ones already drifting on `master`
+    // are left to their owner. No band widened, no value computed from a delta.
+    sites: 249,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-entry-presence.ts': {
@@ -9993,7 +9999,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T042–T045, re-measured 2026-09-25: 221 -> 204.** Port catches that lived in the five
     // gateway packages; measured, not decomposed. Agreed at `origin/master` `ce96b1e94`; see the
     // header block above the table.
-    sites: 204,
+    // **T134 (`pim_ergonode`'s W7 key repair), re-measured 2026-09-26: 204 -> 206.** The two
+    // catches around the repair — the boot hook's and `guardImportRunner`'s, each opening with
+    // `rethrowIfModuleDisabled`. Measured in two pristine detached worktrees stood up for the
+    // measurement (`origin/master` `52490b242` and this branch's tip `73b373132`, each after
+    // `setup-worktree.sh` and `build:packages`, no untracked files); this dimension agrees on
+    // `master` and drifts on the branch, the ones already drifting on `master` are left to their
+    // owner. No band widened, no value computed from a delta.
+    sites: 206,
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 2138 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
@@ -11048,7 +11061,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T042–T045, re-measured 2026-09-25: 835 -> 763.** Declarations, registrations and
     // resolutions supplied by the five gateway packages. Agreed at `origin/master` `ce96b1e94`; see
     // the header block above the table.
-    sites: 763,
+    // **T134 (`pim_ergonode`'s W7 key repair), re-measured 2026-09-26: 763 -> 767.** `catalog`'s
+    // new `./ports` declaration and `catalogAttributeValueKeyPort` registration, and the three
+    // `lazyPort` resolutions `pim_ergonode` adds for the repair's seams; measured, not
+    // decomposed. Measured in two pristine detached worktrees stood up for the measurement
+    // (`origin/master` `52490b242` and this branch's tip `73b373132`, each after `setup-worktree.sh`
+    // and `build:packages`, no untracked files); this dimension agrees on `master` and drifts on the
+    // branch, the ones already drifting on `master` are left to their owner. No band widened, no
+    // value computed from a delta.
+    sites: 767,
     sources: ['manifest-index', 'ports-subpaths'],
   },
   // Small on purpose: this population is the *workspace*, not a source tree —
