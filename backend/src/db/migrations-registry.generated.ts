@@ -258,9 +258,6 @@ import { Migration20260818T102204PimPimcoreInit } from '@endora-commerce/mod-pim
 import { Migration20260820T150317PimPimcoreCompleteRecordDelivery } from '@endora-commerce/mod-pim-pimcore/migrations';
 import { Migration20260901T102908PimPimcoreDeliveredRecordColumnWidths } from '@endora-commerce/mod-pim-pimcore/migrations';
 
-// ── pim_unopim ──────────────────────────────────────────────────────────────
-import { Migration20260826T160000PimUnopimInit } from '@endora-commerce/mod-pim-unopim/migrations';
-
 // ── price_lists ─────────────────────────────────────────────────────────────
 import { Migration20260426T075235PriceListsPricingInit } from '@endora-commerce/mod-price-lists/migrations';
 import { Migration20260504T125655PriceListsEngine } from '@endora-commerce/mod-price-lists/migrations';
@@ -565,9 +562,6 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('pim_pimcore', Migration20260818T102204PimPimcoreInit),
   migration('pim_pimcore', Migration20260820T150317PimPimcoreCompleteRecordDelivery),
   migration('pim_pimcore', Migration20260901T102908PimPimcoreDeliveredRecordColumnWidths),
-
-  // ── pim_unopim ──────────────────────────────────────────────────────────────
-  migration('pim_unopim', Migration20260826T160000PimUnopimInit),
 
   // ── price_lists ─────────────────────────────────────────────────────────────
   migration('price_lists', Migration20260426T075235PriceListsPricingInit),
