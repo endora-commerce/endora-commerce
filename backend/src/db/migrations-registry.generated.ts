@@ -253,9 +253,6 @@ import { Migration20260826T153500PimConnectorInit } from '@endora-commerce/mod-p
 import { Migration20260804T190439PimErgonodeInit } from '@endora-commerce/mod-pim-ergonode/migrations';
 import { Migration20260819T193653PimErgonodeFoldDerivedKeys } from '@endora-commerce/mod-pim-ergonode/migrations';
 
-// ── pim_unopim ──────────────────────────────────────────────────────────────
-import { Migration20260826T160000PimUnopimInit } from '@endora-commerce/mod-pim-unopim/migrations';
-
 // ── price_lists ─────────────────────────────────────────────────────────────
 import { Migration20260426T075235PriceListsPricingInit } from '@endora-commerce/mod-price-lists/migrations';
 import { Migration20260504T125655PriceListsEngine } from '@endora-commerce/mod-price-lists/migrations';
@@ -555,9 +552,6 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── pim_ergonode ────────────────────────────────────────────────────────────
   migration('pim_ergonode', Migration20260804T190439PimErgonodeInit),
   migration('pim_ergonode', Migration20260819T193653PimErgonodeFoldDerivedKeys),
-
-  // ── pim_unopim ──────────────────────────────────────────────────────────────
-  migration('pim_unopim', Migration20260826T160000PimUnopimInit),
 
   // ── price_lists ─────────────────────────────────────────────────────────────
   migration('price_lists', Migration20260426T075235PriceListsPricingInit),

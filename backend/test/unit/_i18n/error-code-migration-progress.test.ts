@@ -172,10 +172,9 @@ const MIGRATED_MODULES: readonly string[] = [
   // `pim_unopim` existed when the prefix chain was deleted, so the frozen
   // capture holds none of their thirteen codes and `MINTED_ERROR_CODES` is what
   // accounts for them. `pim_connector` owns one — the cross-connector
-  // exclusivity refusal every PIM module raises — and `pim_unopim` the other
-  // twelve.
+  // exclusivity refusal every PIM module raises; `pim_unopim` owned the other
+  // twelve and left this repository with them (feature 134).
   'pim_connector',
-  'pim_unopim',
   // Minted after the chain was deleted (!1159), so the frozen capture holds none
   // of its three codes and `MINTED_ERROR_CODES` is what accounts for them. The
   // roster's question — does this module declare exactly what the reference says

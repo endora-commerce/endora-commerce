@@ -118,9 +118,11 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'adapter, which `payments` owns along with the adapter registry (D-121 T1).',
   },
 
-  // The shared PIM connector layer and the UnoPim connector, minted together by
+  // The shared PIM connector layer, minted together with the UnoPim connector by
   // !1282 (feature 089). Neither module existed when the prefix chain was
-  // deleted, so the frozen capture holds none of their thirteen codes.
+  // deleted, so the frozen capture holds none of their thirteen codes. The
+  // UnoPim connector's twelve left this repository with the module (feature
+  // 134); the module declares them itself.
   PIM_CONNECTOR_ALREADY_ACTIVE: {
     to: 'pim_connector',
     reason:
@@ -128,90 +130,6 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       + 'operator meets when they enable a second PIM connector while another one is already '
       + 'active, and two writing one catalogue overwrite each other (FR-003). The noun is the '
       + 'connector-exclusivity claim, which `pim_connector` owns for every PIM module.',
-  },
-  PIM_UNOPIM_NOT_CONFIGURED: {
-    to: 'pim_unopim',
-    reason:
-      'Minted with the UnoPim connector (feature 089, !1282) for the refusal an operator meets '
-      + 'when no connection row exists yet, which is the first-run state every admin route '
-      + 'answers with. The noun is the UnoPim ingress, which `pim_unopim` owns.',
-  },
-  PIM_UNOPIM_CONNECTION_EXISTS: {
-    to: 'pim_unopim',
-    reason:
-      'Minted with the UnoPim connector (feature 089, !1282) for the refusal an operator meets '
-      + 'when a second enabled connection was attempted; the connector holds exactly one '
-      + '(FR-008). The noun is the UnoPim ingress, which `pim_unopim` owns.',
-  },
-  PIM_UNOPIM_SCHEDULE_INVALID: {
-    to: 'pim_unopim',
-    reason:
-      'Minted with the UnoPim connector (feature 089, !1282) for the refusal an operator meets '
-      + 'when a cron expression arrives without its timezone, or names an IANA zone that does '
-      + 'not exist. The noun is the UnoPim ingress, which `pim_unopim` owns.',
-  },
-  PIM_UNOPIM_IMPORT_ALREADY_RUNNING: {
-    to: 'pim_unopim',
-    reason:
-      'Minted with the UnoPim connector (feature 089, !1282) for the refusal an operator meets '
-      + 'when a second import was asked for while a run in flight holds the overlap claim. The '
-      + 'noun is the UnoPim ingress, which `pim_unopim` owns.',
-  },
-  PIM_UNOPIM_CONNECTION_DISABLED: {
-    to: 'pim_unopim',
-    reason:
-      'Minted with the UnoPim connector (feature 089, !1282) for the refusal an operator meets '
-      + 'when ingress is switched off at the connection, which is the operator’s own control. '
-      + 'The noun is the UnoPim ingress, which `pim_unopim` owns.',
-  },
-  PIM_UNOPIM_TYPE_INCOMPATIBLE: {
-    to: 'pim_unopim',
-    reason:
-      'Minted with the UnoPim connector (feature 089, !1282) for the refusal an operator meets '
-      + 'when the chosen Endora attribute cannot represent the delivered source type. The noun '
-      + 'is the UnoPim ingress, which `pim_unopim` owns.',
-  },
-  PIM_UNOPIM_TARGET_ATTRIBUTE_NOT_FOUND: {
-    to: 'pim_unopim',
-    reason:
-      'Minted with the UnoPim connector (feature 089, !1282) for the refusal an operator meets '
-      + 'when a mapping points at an Endora attribute that is gone. The noun is the UnoPim '
-      + 'ingress, which `pim_unopim` owns.',
-  },
-  PIM_UNOPIM_TARGET_ALREADY_MAPPED: {
-    to: 'pim_unopim',
-    reason:
-      'Minted with the UnoPim connector (feature 089, !1282) for the refusal an operator meets '
-      + 'when a second source attribute or category claims one Endora target. The noun is the '
-      + 'UnoPim ingress, which `pim_unopim` owns.',
-  },
-  PIM_UNOPIM_CURRENCY_INACTIVE: {
-    to: 'pim_unopim',
-    reason:
-      'Minted with the UnoPim connector (feature 089, !1282) for the refusal an operator meets '
-      + 'when a price binding names a currency Endora does not have active. The noun is the '
-      + 'UnoPim ingress, which `pim_unopim` owns.',
-  },
-  PIM_UNOPIM_ATTRIBUTE_NOT_PRICE_TYPE: {
-    to: 'pim_unopim',
-    reason:
-      'Minted with the UnoPim connector (feature 089, !1282) for the refusal an operator meets '
-      + 'when a price binding names an attribute that holds no price. The noun is the UnoPim '
-      + 'ingress, which `pim_unopim` owns.',
-  },
-  PIM_UNOPIM_BINDING_EXISTS: {
-    to: 'pim_unopim',
-    reason:
-      'Minted with the UnoPim connector (feature 089, !1282) for the refusal an operator meets '
-      + 'when a UnoPim attribute is already bound to that price target. The noun is the UnoPim '
-      + 'ingress, which `pim_unopim` owns.',
-  },
-  PIM_UNOPIM_FIELD_PATH_INVALID: {
-    to: 'pim_unopim',
-    reason:
-      'Minted with the UnoPim connector (feature 089, !1282) for the refusal an operator meets '
-      + 'when a field protection names a path the importer does not write. The noun is the '
-      + 'UnoPim ingress, which `pim_unopim` owns.',
   },
 
   // The shared invoice-ledger layer and the Infakt adapter, minted together by

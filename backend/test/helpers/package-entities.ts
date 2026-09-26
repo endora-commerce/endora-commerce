@@ -109,18 +109,6 @@ import type {
   ErgonodeProductLink as ErgonodeProductLinkRow,
   ErgonodeStreamCursor as ErgonodeStreamCursorRow,
 } from '@endora-commerce/mod-pim-ergonode/test-support';
-import type {
-  UnopimAssociationTypeMapping as UnopimAssociationTypeMappingRow,
-  UnopimAttributeMapping as UnopimAttributeMappingRow,
-  UnopimCategoryMapping as UnopimCategoryMappingRow,
-  UnopimConnection as UnopimConnectionRow,
-  UnopimImportIssue as UnopimImportIssueRow,
-  UnopimImportRun as UnopimImportRunRow,
-  UnopimMediaLink as UnopimMediaLinkRow,
-  UnopimPriceBinding as UnopimPriceBindingRow,
-  UnopimProductLink as UnopimProductLinkRow,
-  UnopimSyncBookmark as UnopimSyncBookmarkRow,
-} from '@endora-commerce/mod-pim-unopim/test-support';
 import type { EmailDelivery as EmailDeliveryRow } from '../../../packages/modules/email/src/backend/entities/email-delivery.entity.js';
 import type { InvoiceLedgerClientMap as InvoiceLedgerClientMapRow } from '../../../packages/modules/invoice_ledger/src/backend/entities/invoice-ledger-client-map.entity.js';
 import type { InvoiceLedgerDelivery as InvoiceLedgerDeliveryRow } from '../../../packages/modules/invoice_ledger/src/backend/entities/invoice-ledger-delivery.entity.js';
@@ -911,56 +899,6 @@ export const ErgonodeStreamCursor = classNamed<ErgonodeStreamCursorRow>(
   'pim_ergonode',
   'ErgonodeStreamCursor',
 );
-export const UnopimConnection = classNamed<UnopimConnectionRow>(
-  installedModuleEntities,
-  'pim_unopim',
-  'UnopimConnection',
-);
-export const UnopimImportRun = classNamed<UnopimImportRunRow>(
-  installedModuleEntities,
-  'pim_unopim',
-  'UnopimImportRun',
-);
-export const UnopimProductLink = classNamed<UnopimProductLinkRow>(
-  installedModuleEntities,
-  'pim_unopim',
-  'UnopimProductLink',
-);
-export const UnopimSyncBookmark = classNamed<UnopimSyncBookmarkRow>(
-  installedModuleEntities,
-  'pim_unopim',
-  'UnopimSyncBookmark',
-);
-export const UnopimCategoryMapping = classNamed<UnopimCategoryMappingRow>(
-  installedModuleEntities,
-  'pim_unopim',
-  'UnopimCategoryMapping',
-);
-export const UnopimAttributeMapping = classNamed<UnopimAttributeMappingRow>(
-  installedModuleEntities,
-  'pim_unopim',
-  'UnopimAttributeMapping',
-);
-export const UnopimAssociationTypeMapping = classNamed<UnopimAssociationTypeMappingRow>(
-  installedModuleEntities,
-  'pim_unopim',
-  'UnopimAssociationTypeMapping',
-);
-export const UnopimImportIssue = classNamed<UnopimImportIssueRow>(
-  installedModuleEntities,
-  'pim_unopim',
-  'UnopimImportIssue',
-);
-export const UnopimMediaLink = classNamed<UnopimMediaLinkRow>(
-  installedModuleEntities,
-  'pim_unopim',
-  'UnopimMediaLink',
-);
-export const UnopimPriceBinding = classNamed<UnopimPriceBindingRow>(
-  installedModuleEntities,
-  'pim_unopim',
-  'UnopimPriceBinding',
-);
 
 /**
  * The **row shapes** batch four's tests annotate with, on the same terms as
@@ -984,13 +922,6 @@ export type {
   ErgonodeImportIssueRow,
   ErgonodeImportRunRow,
   ErgonodeProductLinkRow,
-  UnopimConnectionRow,
-  UnopimImportRunRow,
-  UnopimProductLinkRow,
-  UnopimSyncBookmarkRow,
-  UnopimCategoryMappingRow,
-  UnopimAttributeMappingRow,
-  UnopimImportIssueRow,
 };
 
 /**
