@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-blog",
-  "version": "0.9.4",
+  "version": "0.9.5",
   "type": "module",
   "sideEffects": false,
   "description": "Multi-channel, multi-language blog with categories, tags, and Page Builder posts.",
