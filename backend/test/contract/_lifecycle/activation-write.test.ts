@@ -46,8 +46,7 @@ const ACTION = 'module.activation.set';
  * to clear), has no dependants (so its switch-off is never refused), and
  * declares `credentials`, which the T046 pair needs. It replaced
  * `pim_ergonode` in feature 134 (`research.md` D14 §7): a PIM connector
- * carried a family claim this file had to clear first, and it is a paid module
- * that leaves this repository.
+ * carried a family claim this file had to clear first.
  */
 const MODULE = 'newsletter';
 

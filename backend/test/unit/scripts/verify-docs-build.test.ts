@@ -466,7 +466,7 @@ describe('verify-docs-build — family 5, sitemaps', () => {
   });
 
   it('pins the floor SC-005 records from the current build', () => {
-    expect(SITEMAP_FLOOR).toBe(174);
+    expect(SITEMAP_FLOOR).toBe(172);
   });
 
   it('reds when the search route appears in a sitemap', () => {

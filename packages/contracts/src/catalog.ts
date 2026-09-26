@@ -91,6 +91,40 @@ export const apiAttributeTypeSchema = z.enum([
 ]);
 export type ApiAttributeType = z.infer<typeof apiAttributeTypeSchema>;
 
+/**
+ * The API-form type of a stored attribute, derived from the pair the catalogue
+ * persists (`valueType`, `displayAsSlider`). This is the single definition:
+ * the catalogue reports every attribute's `type` through it, and a connector
+ * that binds a source attribute to an existing one compares against it — two
+ * derivations of one rule drift, and a drift creates attributes the catalogue
+ * then reports as another kind.
+ *
+ * A slider flag only means something on a numeric type (`number`, `price`);
+ * elsewhere it is ignored. `string`, `boolean` and `date` have no richer API
+ * form and surface as `input`; `enum` and `select` share one affordance.
+ */
+export function apiAttributeTypeOf(
+  valueType: AttributeValueType,
+  displayAsSlider: boolean,
+): ApiAttributeType {
+  if (displayAsSlider && (valueType === 'number' || valueType === 'price')) return 'slider';
+  switch (valueType) {
+    case 'number':
+      return 'number';
+    case 'price':
+      return 'price';
+    case 'enum':
+    case 'select':
+      return 'select';
+    case 'multiselect':
+      return 'multiselect';
+    case 'string':
+    case 'boolean':
+    case 'date':
+      return 'input';
+  }
+}
+
 export const assetKindSchema = z.enum(['image', 'video', 'pdf', 'certificate', 'other']);
 export type AssetKind = z.infer<typeof assetKindSchema>;
 

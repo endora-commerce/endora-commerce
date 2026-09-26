@@ -73,7 +73,6 @@ const CONTRIBUTIONS: ReadonlyArray<{
   { call: 'register(llmConfigurationType)', owner: 'credentials' },
   { call: 'register(emailAdapterConfigurationType)', owner: 'credentials' },
   { call: 'register(ergonodeConfigurationType)', owner: 'pim_ergonode' },
-  { call: 'register(akeneoConfigurationType)', owner: 'pim_akeneo' },
   { call: 'register(feedDeliveryConfigurationType)', owner: 'product_feeds' },
   { call: 'registerCatalogAssetReferences(', owner: 'catalog' },
   { call: 'registerCmsAssetReferences(', owner: 'cms' },

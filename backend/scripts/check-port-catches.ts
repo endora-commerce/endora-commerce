@@ -206,6 +206,19 @@
  * more accurate in **both** directions, and it also reaches the class in another
  * module that the call-site rule could never see.
  *
+ * **And a call reaches a declaration by resolution, not by spelling** (feature
+ * 134 D18). Which declaration a `new C(…)` or `f(…)` binds used to be the one of
+ * that name read last, anywhere in the population: `pim_unopim`'s
+ * `requireRun(…)` bound `product_feeds`' unrelated `requireRun`, twelve
+ * file-scoped aliases crossed a module boundary that way, and removing one
+ * connector's sources moved nine `product_feeds` sites. A call now binds only a
+ * declaration its own file holds or imports through a relative specifier
+ * (followed through relative re-exports), and a relative specifier never crosses
+ * a module boundary. The rule this serves is **population independence**: a
+ * site's classification may depend on its own module's sources, the platform's
+ * and what other modules publish, never on another module's private sources — a
+ * module leaving the tree must not move a verdict on one that stays.
+ *
  * On top of that, a **bare identifier is resolved lexically**: when the nearest
  * enclosing binding of that spelling manifestly holds no port, the wider alias
  * does not apply there. That is the general form of the same rule — a name binds
@@ -233,11 +246,14 @@
  * A binding the alias table *did* introduce — a `const` bound to a proxy, a
  * parameter the port was passed as — is a carrier and is never a shadow.
  *
- * **The old over-approximation had a safety argument, and it survives where it
- * was actually made.** It was made about {@link Analysis.gatesOf} — merging
- * *gates* by name, which can only add owners and so can only make `OWNER LOCKED`
- * harder to satisfy. `gatesOf` is untouched here, and {@link gatesIn} stays
- * shadow-blind for exactly that reason. The argument was never made about alias
+ * **The old over-approximation had a safety argument, and it held for one tree
+ * only.** It was made about the gates — merging *gates* by name, which can only
+ * add owners and so can only make `OWNER LOCKED` harder to satisfy. Across two
+ * trees it fails the rule above: `product_feeds`' `credentials` carried 81 gates
+ * lent by `pim_pimcore`'s alias of that spelling. Gates are therefore kept per
+ * alias scope and a site unions the scopes visible to it (D18), which still
+ * over-collects within what the site can reach; {@link gatesIn} stays
+ * shadow-blind for the original reason. The argument was never made about alias
  * **visibility**, and does not transfer to it: a wider alias does not add owners
  * to a site, it invents a site — and a site invented in one module is a site an
  * author deletes by renaming something in another.
@@ -387,25 +403,6 @@ export const PORT_CATCHES_TO_DRAIN: Readonly<Record<string, string>> = {
     'an answer to anybody, which is D-62/D-67 verbatim. Retires when the analysis ' +
     "attributes a holder's gates per method rather than per value — not before, and " +
     'not by renaming the binding, because the alias follows the value.',
-  'packages/modules/product_feeds/src/backend/services/feed-generation.service.ts:deliverArtefact#promise':
-    'AFTER THE FACT — the shape is right, the argument written beside it is not, and ' +
-    'this is drainable rather than permanent. The site absorbs a presence answer from ' +
-    'the inline (no-Redis) delivery path after the artefact is published and the run ' +
-    'row is `finished`. Its comment cites the `webhooks` entry below, and the load-' +
-    'bearing half of that argument does not transfer: `webhooks` re-throws into a ' +
-    'BullMQ retry that would deliver the same event **twice**, a duplicate side effect ' +
-    'the consumer must not see. Nothing is delivered here, so there is no duplicate — ' +
-    'what is left is only "do not fail a run that succeeded", which is real and is ' +
-    'satisfied by **recording** the refusal rather than by discarding it. What the ' +
-    'operator sees today: a published feed, no delivery attempt row, and no reason — ' +
-    'they cannot tell an unreachable Redis from a `credentials` module they themselves ' +
-    'switched off, which is the disclosure Principle XVII exists for. The entry retires ' +
-    'when the inline path writes a delivery attempt whose failure names the absent ' +
-    'module, which is this module\'s own attempt history doing the job it already has ' +
-    '(`delivery-config.service.ts` keeps that history precisely so "did the partner get ' +
-    'last month\'s file?" stays answerable). That is a `product_feeds` product change ' +
-    'and not a `catch` somebody forgot to narrow, which is why it is ledgered and not ' +
-    'repaired here.',
   'packages/modules/product_feeds/src/backend/index.ts:run':
     'BOOT HOOK, and now a genuine tolerance rather than a swallowed presence ' +
     'answer (issue #147, D-62). The hook asks ' +

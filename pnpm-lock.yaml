@@ -158,9 +158,6 @@ importers:
       '@endora-commerce/mod-payments':
         specifier: workspace:*
         version: link:../packages/modules/payments
-      '@endora-commerce/mod-pim-akeneo':
-        specifier: workspace:*
-        version: link:../packages/modules/pim_akeneo
       '@endora-commerce/mod-pim-ergonode':
         specifier: workspace:*
         version: link:../packages/modules/pim_ergonode
@@ -471,9 +468,6 @@ importers:
       '@endora-commerce/mod-payments':
         specifier: workspace:*
         version: link:../packages/modules/payments
-      '@endora-commerce/mod-pim-akeneo':
-        specifier: workspace:*
-        version: link:../packages/modules/pim_akeneo
       '@endora-commerce/mod-pim-connector':
         specifier: workspace:*
         version: link:../packages/modules/pim_connector
@@ -3012,60 +3006,6 @@ importers:
       vitest:
         specifier: ^2.1.4
         version: 2.1.9(@types/node@22.19.17)(jsdom@29.1.1(@noble/hashes@2.0.1))(lightningcss@1.32.0)(terser@5.46.2)
-
-  packages/modules/pim_akeneo:
-    devDependencies:
-      '@endora-commerce/admin-kit':
-        specifier: workspace:*
-        version: link:../../admin-kit
-      '@endora-commerce/contracts':
-        specifier: workspace:*
-        version: link:../../contracts
-      '@endora-commerce/platform':
-        specifier: workspace:*
-        version: link:../../platform
-      '@mikro-orm/core':
-        specifier: ^6.6.13
-        version: 6.6.13
-      '@mikro-orm/migrations':
-        specifier: ^6.6.13
-        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
-      '@mikro-orm/postgresql':
-        specifier: ^6.6.13
-        version: 6.6.13(@mikro-orm/core@6.6.13)
-      '@types/node':
-        specifier: ^22.9.0
-        version: 22.19.17
-      '@types/react':
-        specifier: ^19.2.14
-        version: 19.2.14
-      bullmq:
-        specifier: ^5.76.1
-        version: 5.76.1
-      fastify:
-        specifier: ^5.8.5
-        version: 5.8.5
-      ioredis:
-        specifier: ^5.10.1
-        version: 5.10.1
-      lucide-react:
-        specifier: ^1.11.0
-        version: 1.11.0(react@19.2.5)
-      react:
-        specifier: ^19.2.5
-        version: 19.2.5
-      react-router-dom:
-        specifier: ^7.14.2
-        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^2.1.4
-        version: 2.1.9(@types/node@22.19.17)(jsdom@29.1.1(@noble/hashes@2.0.1))(lightningcss@1.32.0)(terser@5.46.2)
-      zod:
-        specifier: ^4.2.0
-        version: 4.3.6
 
   packages/modules/pim_connector:
     devDependencies:

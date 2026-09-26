@@ -230,12 +230,14 @@ narrowness above exists so that a rule about *comments* is not used to reject a 
 
 ## Licence
 
-Endora Commerce is **MIT** (`LICENSE`), and every published package carries the same text in
-its own directory. By contributing you agree that your contribution is licensed under MIT.
+Endora Commerce is **MIT** (`LICENSE`), and every published package declaring `MIT` carries the
+same text in its own directory. By contributing you agree that your contribution is licensed
+under MIT.
 
-`LICENSE-COMMERCIAL.md` at the root is a **placeholder** that reserves a mechanism for a future
-commercially licensed subset. It applies to **no package today** — every package in this
-repository declares `MIT` — and nothing in it affects a contribution.
+A package whose `package.json` declares `SEE LICENSE IN LICENSE.md` is **not** MIT: it ships its
+own `LICENSE.md` in place of the MIT text, and that file is what applies to it.
+`LICENSE-COMMERCIAL.md` at the root explains that mechanism. It is not a licence — it carries no
+terms, grants nothing and names no package; each package's own declaration is the only list.
 
 ---
 
