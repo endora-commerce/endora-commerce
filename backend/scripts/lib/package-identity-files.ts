@@ -100,8 +100,11 @@ export interface PackageIdentityRun {
   readonly filesRead: number;
 }
 
-/** npm's `SEE LICENSE IN <file>` form — the SPDX spelling for a proprietary licence. */
-const SEE_LICENSE_IN = /^SEE LICENSE IN\s+\S/;
+/**
+ * npm's `SEE LICENSE IN <file>` form — the SPDX spelling for a proprietary licence —
+ * capturing the file it names.
+ */
+const SEE_LICENSE_IN = /^SEE LICENSE IN\s+(\S.*)$/;
 
 /**
  * What each published subpath of a **module package** holds.
@@ -383,11 +386,24 @@ export function renderPackageReadme(input: ReadmeInput): string {
     '',
     '## Licence',
     '',
-    `${manifestString(manifest, 'license') ?? 'MIT'} — the text is in \`LICENSE\`, beside this file.`,
+    licenceSentence(manifestString(manifest, 'license') ?? 'MIT'),
     '',
   );
 
   return `${sections.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd()}\n`;
+}
+
+/**
+ * The README's one line about the package's terms. A package taking the
+ * workspace default ships the rendered `LICENSE`; one declaring
+ * `SEE LICENSE IN <file>` ships that file and no `LICENSE` at all — the renderer
+ * writes none beside it — so pointing its reader at `LICENSE` would point them
+ * at nothing.
+ */
+function licenceSentence(declared: string): string {
+  const own = SEE_LICENSE_IN.exec(declared);
+  if (own !== null) return `The terms are in \`${own[1]!.trim()}\`, beside this file.`;
+  return `${declared} — the text is in \`LICENSE\`, beside this file.`;
 }
 
 /**

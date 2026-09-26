@@ -11256,7 +11256,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T042–T045, re-measured 2026-09-25: 88 -> 83.** Five versionable package manifests. Agreed
     // at `origin/master` `ce96b1e94`; see the header block above the table.
     // **T055 (`pim_akeneo` leaves): 83 -> 82.** one versionable package manifest.
-    files: 82,
+    // **`specs/136-open-source-publication/` GAP-2, re-measured 2026-09-26: 82 -> 88.** Six
+    // module packages now declare `SEE LICENSE IN LICENSE.md`, and the check opens the file each
+    // one names — six `LICENSE.md` files, +6; `sites` stays 471. Two measurements in one pristine
+    // detached worktree stood up for them after `setup-worktree.sh` and `build:packages`:
+    // `origin/master` `c90da1d31` reads 82, which is this record, and the merged branch tip
+    // `a14e32d61` reads 88.
+    files: 88,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 495 -> 501.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
