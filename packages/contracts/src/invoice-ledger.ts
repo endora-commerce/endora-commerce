@@ -10,6 +10,12 @@ export const INVOICE_LEDGER_NUMBERING_MODES = ['endora', 'vendor'] as const;
 export const invoiceLedgerNumberingModeSchema = z.enum(INVOICE_LEDGER_NUMBERING_MODES);
 export type InvoiceLedgerNumberingMode = z.infer<typeof invoiceLedgerNumberingModeSchema>;
 
+/**
+ * Who submits a delivered invoice to KSeF — the platform's own path (`native`)
+ * or the accounting vendor (`vendor`). Free vocabulary on purpose (feature 134,
+ * T067): KSeF is Poland's statutory clearing system, not a vendor, and the
+ * routing to it belongs to the free ledger, not to the `ksef` module.
+ */
 export const INVOICE_LEDGER_KSEF_ROUTINGS = ['native', 'vendor'] as const;
 export const invoiceLedgerKsefRoutingSchema = z.enum(INVOICE_LEDGER_KSEF_ROUTINGS);
 export type InvoiceLedgerKsefRouting = z.infer<typeof invoiceLedgerKsefRoutingSchema>;
