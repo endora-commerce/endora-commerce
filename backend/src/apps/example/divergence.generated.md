@@ -15,7 +15,6 @@ sentence this deployment wrote when it made the change.
 | Overlay module |
 | --- |
 | `carrier_fixture` |
-| `comarch_xl_example_overlay` |
 | `erp_incumbent_fixture` |
 | `example_overlay` |
 | `ledger_vendor_fixture` |
@@ -60,7 +59,6 @@ rung 4 — change what the container hands out. Costs a contract-version couplin
 
 | What | Changed by | Owned by | Why |
 | --- | --- | --- | --- |
-| `comarchXlSellabilityPort` | `comarch_xl_example_overlay` | `comarch_xl` | Core leaves new XL catalogue products not sellable until an overlay policy allows it (004 FR-012). This reference overlay marks SKUs matching ^DEMO- as sellable and listed, delegating every other SKU to the core default so a fix to `DefaultComarchXlSellabilityPort` still reaches this deployment — which is the whole difference between decorating and replacing (D-28). |
 | `pricingService` | `example_overlay` | `price_lists` | Core resolves a line price from the price lists a customer is entitled to. This deployment prefixes the resolved list id so that a reference reader can see, on a live response, which layer produced the price. The wrap delegates to `price_lists` and adjusts what core returned, so a core fix to `resolveLinePrice` still reaches this deployment — which is the whole difference between decorating and replacing (D-28). |
 
 ### Services this deployment adds to the container
