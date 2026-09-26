@@ -45,6 +45,15 @@ however obliquely it is phrased.
   that is announced; a release timed to a sales event; work sequenced against a commercial
   deadline; what the owner believes about competitors.
 
+  **The first sub-class has been announced for one population (D-265, 2026-09-26).** The owner
+  announced the paid tier and its population, by category, in `README.md` § Overview. From that
+  date a statement that a module **in that population** is paid, commercially licensed, available
+  separately or no longer in this repository is **N4**, not C4 — see N4 below, including the
+  condition the announcement was made on. What stays C4 is a **change** to the population before it
+  is announced (a module entering or leaving the tier, a paid module in preparation), the three
+  other sub-classes, and the commercial reasoning behind the partition beyond what the announcement
+  itself says.
+
 ---
 
 ## 3. What is explicitly **not** commercial, because publishing it is the point
@@ -61,6 +70,35 @@ however obliquely it is phrased.
   a product decision that has not been made"*. Publishing the **mechanism** is not a leak;
   publishing the **decision** before it is announced would be C4. **A statement the owner has
   chosen to publish cannot leak, because publishing it *is* the decision.**
+
+  **The paid tier is such a statement, and it was published on a condition (D-265).** Its one home
+  is `README.md` § Overview; no other file needs to repeat the list, and a second list is the one
+  that drifts. The owner's condition, verbatim — *"Informing about paid modules is not a problem if
+  it not forced people to buy them"* — is not a commercial-data class: a sentence can disclose
+  nothing and still fail it. It is stated here because this is the document opened to judge
+  whether something may be published. **Inform, never press:**
+
+  - **Permitted** — that a paid tier exists; that a named module in the announced population is
+    paid, commercially licensed, available separately or released from elsewhere; what such a
+    module does and which free abstraction it plugs into.
+  - **Refused** — saying or implying that the free core is a trial, demo, lite or limited edition,
+    or that it cannot run a real shop without a purchase.
+  - **Refused** — saying that a purchase is needed for something the free core does, or presenting
+    a paid module as the only way to a capability that has a free path (a vendor-neutral
+    abstraction a third party can build on, or a free alternative such as bank transfer or a credit
+    limit). A sentence is judged with the free path its immediate context states, not cut out of
+    it; `README.md` § Overview is the reference instance of the permitted shape.
+  - **Refused** — a purchase prompt in the running free core: an upsell, a nag, a teaser of a
+    disabled capability or an *upgrade* link, in the admin, the storefront, CLI output, logs or the
+    e-mails it sends. Where a surface notes that an integration is available separately, it does so
+    once, neutrally, on the surface where that capability would appear, beside the free path, and
+    it never interrupts, repeats or blocks.
+  - **Refused** — any mechanism in the free core that degrades, time-limits or gates a free
+    capability on the presence of a paid module or a licence: a licence key, an entitlement check,
+    a tier gate. None exists; this makes its absence a condition of the announcement.
+
+  C1–C3 are untouched by it — a paid module's price, who bought it and on what terms stay
+  commercial — and so is accuracy: a status statement must be true at the tip.
 
 ---
 
@@ -153,6 +191,7 @@ scratch. Record that as a disposition with its reason; do not argue it back into
 | §3's N4 applied to `LICENSE-COMMERCIAL.md` | **ruled public** — put as P-1(c) | D-239, second amendment |
 | §4(d) *scan class by class* | **ruled, not merely recommended** — put as P-1(d) | D-239, second amendment |
 | This document's path and its public disposition | **ruled** | D-239, amendment |
+| §2 C4's first sub-class announced for the paid tier's population; §3 N4 applied to `README.md` § Overview, with the *inform, never press* condition | **ruled by the owner, 2026-09-26** — option A, *"not a problem if it not forced people to buy them"* | D-265 (amends D-253) |
 
 **Nothing below the line is unruled**, and that matters: an earlier statement of this relocation
 expected §4(d) to arrive here as *an architect's recommendation awaiting a ruling*. It was ruled
