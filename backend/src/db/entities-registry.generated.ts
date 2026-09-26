@@ -86,7 +86,6 @@ import { entities as ordersEntities } from '@endora-commerce/mod-orders/backend'
 import { entities as paymentMethodsEntities } from '@endora-commerce/mod-payment-methods/backend';
 import { entities as paymentsEntities } from '@endora-commerce/mod-payments/backend';
 import { entities as pimConnectorEntities } from '@endora-commerce/mod-pim-connector/backend';
-import { entities as pimPimcoreEntities } from '@endora-commerce/mod-pim-pimcore/backend';
 import { entities as priceListsEntities } from '@endora-commerce/mod-price-lists/backend';
 import { entities as promptActionsEntities } from '@endora-commerce/mod-prompt-actions/backend';
 import { entities as pwaEntities } from '@endora-commerce/mod-pwa/backend';
@@ -153,7 +152,6 @@ export const ALL_ENTITIES = [
   ...(paymentMethodsEntities as readonly EntityClassLike[]),
   ...(paymentsEntities as readonly EntityClassLike[]),
   ...(pimConnectorEntities as readonly EntityClassLike[]),
-  ...(pimPimcoreEntities as readonly EntityClassLike[]),
   ...(priceListsEntities as readonly EntityClassLike[]),
   ...(promptActionsEntities as readonly EntityClassLike[]),
   ...(pwaEntities as readonly EntityClassLike[]),

@@ -47,10 +47,11 @@ const PREFIX = '[verify-docs-build]';
  * Re-measured, never computed from a delta, from a fresh build counted off the
  * built `sitemap.xml` and `pl/sitemap.xml`. **2026-09-25: 193 -> 174**, at
  * 20129efdb; **2026-09-25: 174 -> 172**, on a tree based on 447510342;
- * **2026-09-26: 172 -> 170**, on a tree based on cb54356ae. Every move is
+ * **2026-09-26: 172 -> 170**, on a tree based on cb54356ae;
+ * **2026-09-26: 170 -> 168**, on a tree based on 961634f66. Every move is
  * pages that left this repository; the URL inventory records which.
  */
-export const SITEMAP_FLOOR = 170;
+export const SITEMAP_FLOOR = 168;
 
 /**
  * Hosts that are never a published origin, as `URL.hostname` spells them — the
