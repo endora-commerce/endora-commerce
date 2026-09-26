@@ -436,8 +436,18 @@
  * derivation rather than a judgement: no read-size line, no findings, and exit 2
  * for every way the scope cannot be resolved.
  *
+ * ## A fourth, about the target rather than the tree — `--publish-registry <url>`
+ *
+ * The publish job sends the workspace to whichever registry its environment
+ * names. A package declaring `SEE LICENSE IN` is legitimate on the private
+ * registry and refused on public npmjs, so the job hands the registry over and
+ * {@link publicRegistryLicence} answers for the pair
+ * (`specs/136-open-source-publication/` FR-011). Like the scope, a precondition
+ * of one job rather than the check's verdict: no read-size line.
+ *
  * Usage: `tsx scripts/check-release-intent.ts [--root <dir>] [--since <ref>]`
  *        `tsx scripts/check-release-intent.ts --print-publish-scope`
+ *        `tsx scripts/check-release-intent.ts --publish-registry <url>`
  * Exit 0 = the flow can still go red; 1 = a finding; 2 = it did not read.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
@@ -1063,6 +1073,84 @@ export function publishScope(members: readonly ClassifiedMember[]): PublishScope
   }
 
   return { scope: scopes[0]!, packages: publishable, refusal: '' };
+}
+
+/** What {@link publicRegistryLicence} decided about one publish target. */
+export interface PublicRegistryLicence {
+  /**
+   * Whether the registry is public npmjs; `null` when the value could not be
+   * read as a URL at all, which is refused rather than guessed at.
+   */
+  readonly publicRegistry: boolean | null;
+  /** The public versionable members declaring `SEE LICENSE IN`, sorted. */
+  readonly ownLicence: readonly string[];
+  /** Why the publish is refused, or `''` when it is not. */
+  readonly refusal: string;
+}
+
+/**
+ * The hosts `npm publish` reaches public npmjs through. A host, not a URL
+ * prefix, so a trailing slash, a scheme or a capital letter cannot move the
+ * answer.
+ */
+const PUBLIC_NPM_HOSTS: ReadonlySet<string> = new Set(['registry.npmjs.org', 'registry.npmjs.com']);
+
+/**
+ * Whether this checkout may be published to `registry` as far as licence
+ * terms go (`specs/136-open-source-publication/` FR-011).
+ *
+ * A package declaring `SEE LICENSE IN <file>` states terms of its own, and
+ * such a package belongs on the private registry — `unresolvable-license-file`
+ * already holds it to shipping the file, and nothing refused it going to
+ * npmjs, where a version is permanent and readable by anyone. The publish job
+ * sends the same workspace to whichever registry its environment names, so the
+ * question is asked about the **pair**: the private registry is answered yes,
+ * public npmjs is answered no for as long as any public member declares that
+ * form.
+ *
+ * The population is {@link publishScope}'s — family and not private, the set
+ * `changeset publish` packs — and nothing here names a package. A registry that
+ * is not a URL is refused, because answering "private" for a value this could
+ * not read would be the permissive guess in the one direction that cannot be
+ * taken back.
+ */
+export function publicRegistryLicence(
+  members: readonly ClassifiedMember[],
+  registry: string,
+): PublicRegistryLicence {
+  const ownLicence = members
+    .filter((member) => member.family && !member.isPrivate)
+    .filter((member) => member.license !== null && SEE_LICENSE_IN.test(member.license))
+    .map((member) => member.name)
+    .sort();
+
+  let host: string;
+  try {
+    host = new URL(registry.trim()).hostname.toLowerCase();
+  } catch {
+    return {
+      publicRegistry: null,
+      ownLicence,
+      refusal:
+        `the registry \`${registry}\` is not a URL, so whether it is public npmjs cannot be ` +
+        'told. Treating it as private would let a package with terms of its own go wherever ' +
+        'the client default registry points',
+    };
+  }
+
+  const publicRegistry = PUBLIC_NPM_HOSTS.has(host);
+  if (!publicRegistry || ownLicence.length === 0) {
+    return { publicRegistry, ownLicence, refusal: '' };
+  }
+  return {
+    publicRegistry,
+    ownLicence,
+    refusal:
+      `${ownLicence.join(', ')} ${ownLicence.length === 1 ? 'declares' : 'declare'} ` +
+      '`SEE LICENSE IN`, and this publish targets public npmjs. Terms of their own belong on ' +
+      'the private registry; a version on npmjs is permanent and readable by anyone, whatever ' +
+      'the file it names says',
+  };
 }
 
 /**
@@ -2698,6 +2786,37 @@ function reportPublishScope(repoRoot: string): number {
   return 0;
 }
 
+/**
+ * The `--publish-registry <url>` half of the CLI. Returns the process exit code:
+ * 0 when this checkout may go to that registry, 1 when a package declaring its
+ * own terms would reach public npmjs, 2 when the checkout or the registry could
+ * not be read. Reports no read size, like `--print-publish-scope`: it is a
+ * precondition of one job, not the check's verdict.
+ */
+function reportPublishRegistry(repoRoot: string, registry: string): number {
+  const inputs = readReleaseIntent(repoRoot, nodeWorkspaceFs(), listDirectoryFiles);
+  if ('reason' in inputs) {
+    console.error(`${PREFIX} ${inputs.reason}; refusing to judge a publish it did not read.`);
+    return 2;
+  }
+
+  const verdict = publicRegistryLicence(inputs.members, registry);
+  if (verdict.publicRegistry === null) {
+    console.error(`${PREFIX} --publish-registry: ${verdict.refusal}.`);
+    return 2;
+  }
+  if (verdict.refusal !== '') {
+    console.error(`${PREFIX} --publish-registry: ${verdict.refusal}.`);
+    return 1;
+  }
+  console.log(
+    `${PREFIX} --publish-registry: ${verdict.publicRegistry ? 'public npmjs' : 'not public npmjs'}, ` +
+      `${String(verdict.ownLicence.length)} public member(s) declaring \`SEE LICENSE IN\` — ` +
+      'nothing refused',
+  );
+  return 0;
+}
+
 /** The `--since` half of the CLI. Returns the process exit code. */
 function reportPublishedSurface(repoRoot: string, since: string): number {
   const diff = readBranchDiff(repoRoot, since);
@@ -2771,6 +2890,16 @@ function main(): void {
     // nothing on stdout to lose.
     if (code !== 0) process.exit(code);
     return;
+  }
+
+  const registryFlag = process.argv.indexOf('--publish-registry');
+  if (registryFlag >= 0) {
+    const registry = process.argv[registryFlag + 1];
+    if (registry === undefined || registry.startsWith('--')) {
+      console.error(`${PREFIX} \`--publish-registry\` needs a URL; refusing to judge a publish it cannot name.`);
+      process.exit(2);
+    }
+    process.exit(reportPublishRegistry(repoRoot, registry));
   }
 
   const sinceFlag = process.argv.indexOf('--since');

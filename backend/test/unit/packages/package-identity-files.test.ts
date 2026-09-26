@@ -143,6 +143,20 @@ describe('every published package ships a LICENSE and a README (FR-020, FR-021)'
       }
     });
 
+    it('leaves no LICENSE beside a package that declares its own terms', () => {
+      // The renderer skips such a member, so a `LICENSE` left over from the
+      // days it took the workspace default is nobody's to delete — and it is
+      // the permissive text, which npm packs whatever `files` says. Two
+      // licences in one tarball is the grant `packageLicense` exists to stop.
+      const run = renderPackageIdentityFiles(repoRoot!, nodeManifestFs());
+      const own = new Set(run.ownLicenceMembers);
+      const leftover = publishableMembers()
+        .filter((member) => own.has(member.name))
+        .filter((member) => existsSync(join(member.dir, 'LICENSE')))
+        .map((member) => member.name);
+      expect(leftover).toEqual([]);
+    });
+
     it('rewrites no README a human owns', () => {
       const run = renderPackageIdentityFiles(repoRoot!, nodeManifestFs());
       expect(run.handWrittenReadmes.length).toBeGreaterThan(0);
@@ -263,6 +277,25 @@ describe('every published package ships a LICENSE and a README (FR-020, FR-021)'
       const [readme] = renderPackageIdentityFiles(ROOT, fixtureFs(files)).readmes;
       expect(readme!.content).toContain('puts `endora` on the path');
       expect(readme!.content).toContain('pnpm add -D @endora-commerce/tooling');
+    });
+
+    it('points the licence section at the file a `SEE LICENSE IN` declaration names', () => {
+      // Such a package ships no `LICENSE` — the renderer writes none beside it —
+      // so a README sending the reader to `LICENSE` sends them to nothing.
+      const files = checkoutWith(
+        libraryMember('alpha', { license: 'SEE LICENSE IN LICENSE.md' }),
+      );
+      const [readme] = renderPackageIdentityFiles(ROOT, fixtureFs(files)).readmes;
+      const licence = readme!.content.slice(readme!.content.indexOf('## Licence'));
+      expect(licence).toContain('`LICENSE.md`');
+      expect(licence).not.toContain('`LICENSE`');
+      expect(licence).not.toContain('SEE LICENSE IN');
+    });
+
+    it('keeps pointing a package that takes the default at `LICENSE`', () => {
+      const files = checkoutWith(libraryMember('alpha'));
+      const [readme] = renderPackageIdentityFiles(ROOT, fixtureFs(files)).readmes;
+      expect(readme!.content).toContain('MIT — the text is in `LICENSE`, beside this file.');
     });
 
     it('leaves a README without the marker alone and regenerates one with it', () => {
