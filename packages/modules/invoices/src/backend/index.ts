@@ -29,6 +29,7 @@ import type { InvoicePlacementApplyPort } from '../ports/index.js';
 import { invoicesModule, type InvoicesModuleOptions, type InvoicesModuleHandle } from './plugin.js';
 import { CorrectiveInvoiceProvider } from './services/corrective-invoice.js';
 import { ErpSaleDocumentWritePortService } from './services/erp-sale-document-write-port.js';
+import { InvoicePdfBlockRegistry } from './services/invoice-pdf-block-registry.js';
 import { InvoicePlacementApplyService } from './services/invoice-placement-apply-port.js';
 import { InvoiceCopyHostService } from './services/invoice-copy-host.service.js';
 import { InvoiceReadService, createInvoicePdfPort } from './services/invoice-read-port.js';
@@ -76,13 +77,18 @@ import { Invoice } from './entities/invoice.entity.js';
  * decline to supply is not an option, and typing one as omittable leaves a
  * branch no test can drive.
  *
- * **The KSeF verification resolver is separate and stays separate.** A root
- * called `pdfRenderer.setKsefVerificationResolver(...)` after building both
- * modules, because `ksef` is constructed later. It is its own contribution
- * point rather than a bridge member: a deployment without KSeF has no verifier
- * and the PDF simply carries no verification block, whereas a deployment
- * missing half the bridge is incoherent. Same distinction `pwa`'s auto-trigger
- * resolvers drew — absence removes a feature, it does not weaken a check.
+ * **Blocks another module renders are a contribution registry, not an
+ * option.** `invoicePdfBlockRegistry` is this module's own; a module that
+ * declares an invoice template block registers its renderer, its description
+ * and the per-render data it needs from its own composition root, and a
+ * deployment without that module simply has no such section on the PDF. It
+ * replaced the `ksefVerificationResolver` contribution point a root had to
+ * fill (`specs/134-paid-module-extraction/` T063, T126): only this repository's
+ * reference root filled it, so an instance composed through the platform
+ * rendered no KSeF verification block with `ksef` installed and on, and this
+ * module's cradle carried a name belonging to a module that may be absent.
+ * Same distinction `pwa`'s auto-trigger resolvers drew — absence removes a
+ * feature, it does not weaken a check.
  *
  * `audit` and `auditLog` are two different sinks and both stop being optional:
  * the first records issuance and correction (FR-035), the second is the
@@ -109,10 +115,8 @@ export interface InvoicesCradle {
    * composes — the reason it is an accessor rather than the sender itself.
    */
   readonly transactionalEmailSenderAccessor: () => TransactionalEmailSender | undefined;
-  /** Absent on a deployment without KSeF; the PDF then carries no verification block. */
-  readonly ksefVerificationResolver:
-    | Parameters<InvoicesModuleHandle['pdfRenderer']['setKsefVerificationResolver']>[0]
-    | undefined;
+  /** The blocks other modules render onto the PDF (T063/T126). */
+  readonly invoicePdfBlockRegistry: InvoicePdfBlockRegistry;
   readonly invoices: { handle: InvoicesModuleHandle; plugin: unknown };
   readonly invoiceService: InvoicesModuleHandle['invoiceService'];
   readonly invoiceNumberGenerator: InvoicesModuleHandle['numberGenerator'];
@@ -137,13 +141,24 @@ export function registerModule(ctx: ModuleContext): void {
       })
       .singleton(),
 
-    // Contribution point, absent by default: no KSeF, no verification block.
-    ksefVerificationResolver: ctx
-      .asFunction((): InvoicesCradle['ksefVerificationResolver'] => undefined)
+    /**
+     * `specs/134-paid-module-extraction/` T063 / T126 — the contributed PDF
+     * block seam, a **contribution registry** and a plain `di.register` on
+     * purpose. A contributor pushes its block from `ctx.onBoot`, which runs
+     * whatever this module's effective state is, so a `providePort` gate here
+     * would stop the backend from starting for an operator who switched
+     * invoicing off. Presence is answered per render and per descriptor read,
+     * keyed on the contributor recorded with each block; the policy is stated
+     * at the class.
+     */
+    invoicePdfBlockRegistry: ctx
+      .asFunction(
+        () => new InvoicePdfBlockRegistry((moduleId) => effectiveState.isPresent(moduleId)),
+      )
       .singleton(),
 
     invoices: ctx
-      .asFunction(({ emFactory, eventBus, auditLogService }: InvoicesCradle) => {
+      .asFunction(({ emFactory, eventBus, auditLogService, invoicePdfBlockRegistry }: InvoicesCradle) => {
         const cradle = (): InvoicesCradle => ctx.cradle<InvoicesCradle>();
         const result = invoicesModule({
           emFactory,
@@ -189,6 +204,7 @@ export function registerModule(ctx: ModuleContext): void {
           ),
           resolveLanguage: createChannelLanguageResolver(emFactory),
           loadAssetImage: createAssetImageLoader(lazyPort<AssetReadPort>(ctx, 'assetReadPort')),
+          pdfBlocks: invoicePdfBlockRegistry,
           ledgerRouting: {
             numberingModeFor: async (salesChannelId) => {
               if (!effectiveState.isPresent('invoice_ledger')) return 'endora';
@@ -205,12 +221,6 @@ export function registerModule(ctx: ModuleContext): void {
               ).activeVendorModuleId();
             },
           },
-        });
-        // Installed once, reading the contribution per call, so a root may
-        // contribute the verifier at any point in its own ordering.
-        result.handle.pdfRenderer.setKsefVerificationResolver(async (invoiceId) => {
-          const resolve = ctx.cradle<InvoicesCradle>().ksefVerificationResolver;
-          return resolve === undefined ? null : resolve(invoiceId);
         });
         return result;
       })

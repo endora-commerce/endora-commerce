@@ -824,87 +824,6 @@ const InvoiceNotes = invoiceSection({
 }) as ComponentConfig<TextBlockProps>;
 
 /* -------------------------------------------------------------------------- */
-/* InvoiceKsef                                                                */
-/* -------------------------------------------------------------------------- */
-
-type KsefProps = {
-  fontSize?: number;
-  color?: string;
-  showProcessedAt?: boolean;
-  hideWhenEmpty?: boolean;
-  labelNumber?: string;
-  labelProcessedAt?: string;
-  marginTop?: number;
-  marginBottom?: number;
-};
-
-const InvoiceKsef = invoiceSection({
-  label: 'KSeF verification',
-  fields: {
-    fontSize: { type: 'number', label: 'Font size' },
-    color: createColorField({ label: 'Text color' }),
-    showProcessedAt: radio('Show processed at'),
-    hideWhenEmpty: radio('Hide when empty'),
-    labelNumber: { type: 'text', label: 'Number label' },
-    labelProcessedAt: { type: 'text', label: 'Processed at label' },
-    marginTop: { type: 'number', label: 'Margin top (px)' },
-    marginBottom: { type: 'number', label: 'Margin bottom (px)' },
-  },
-  defaultProps: {
-    fontSize: 8,
-    color: '#0f172a',
-    showProcessedAt: true,
-    hideWhenEmpty: true,
-    labelNumber: 'KSeF number',
-    labelProcessedAt: 'KSeF processed at',
-    marginTop: 8,
-    marginBottom: 0,
-  },
-  render: (props) => {
-    const inv = sampleInvoice;
-    const fontSize = asNum(props.fontSize, 8);
-    const color = asColor(props.color, '#0f172a');
-    const hideWhenEmpty = asBool(props.hideWhenEmpty, true);
-
-    if (!inv.ksefReferenceNumber) {
-      if (hideWhenEmpty) {
-        return (
-          <Section marginTop={asNum(props.marginTop, 8)} marginBottom={asNum(props.marginBottom, 0)}>
-            <div style={{ fontSize, color: '#94a3b8' }}>
-              [KSeF — hidden until a reference number is assigned]
-            </div>
-          </Section>
-        );
-      }
-      return (
-        <Section marginTop={asNum(props.marginTop, 8)} marginBottom={asNum(props.marginBottom, 0)}>
-          <div style={{ fontSize, color: '#94a3b8' }}>
-            <div>
-              {props.labelNumber || 'KSeF number'}: (assigned after submission to KSeF)
-            </div>
-          </div>
-        </Section>
-      );
-    }
-
-    return (
-      <Section marginTop={asNum(props.marginTop, 8)} marginBottom={asNum(props.marginBottom, 0)}>
-        <div style={{ fontSize, color }}>
-          <div>
-            {props.labelNumber || 'KSeF number'}: {inv.ksefReferenceNumber}
-          </div>
-          {asBool(props.showProcessedAt, true) && inv.ksefProcessedAt ? (
-            <div>
-              {props.labelProcessedAt || 'KSeF processed at'}: {inv.ksefProcessedAt}
-            </div>
-          ) : null}
-        </div>
-      </Section>
-    );
-  },
-}) as ComponentConfig<KsefProps>;
-
-/* -------------------------------------------------------------------------- */
 /* InvoiceSpacer                                                              */
 /* -------------------------------------------------------------------------- */
 
@@ -1167,11 +1086,18 @@ const InvoiceFooter = invoiceSection({
  * with `ksef.InvoiceSection` still insertable — which a category list in this
  * file could not express.
  *
- * The eleventh entry is **`ksef`'s**, not this module's: the block was stored as
- * `InvoiceKsef` and the owner ruling of 2026-09-02 gave it to `ksef` as
- * `ksef.InvoiceSection` (`data-model.md` §7.3). The React binding still lives
- * here — moving it is F7's work, not this feature's — but the name it is keyed
- * by now says who owns it.
+ * **Every entry is this module's own.** The palette's eleventh block,
+ * `ksef.InvoiceSection`, is declared by `ksef`, and its binding moved there
+ * with the rest of its uses (`specs/134-paid-module-extraction/` T063, ruling
+ * E4 with ε, `spec.md` §11.3.2). No contribution kind brings it back into this
+ * map: a module's admin layer contributes routes, nav entries and zones, and a
+ * page-builder-component kind is F7's roadmap row (α), not built here. So this
+ * editor does not offer that block, and a template that already places it
+ * shows Puck's own stand-in for a type this map has no renderer for
+ * (*"No configuration for …"*) — not the FR-019 placeholder the CMS editor
+ * wires, which this editor does not use. The node stays in the tree the editor
+ * saves. The PDF — the legal document — renders the block wherever `ksef` is
+ * present, because the backend half has a seam.
  */
 export const invoicePuckConfig: Config = {
   components: {
@@ -1181,7 +1107,6 @@ export const invoicePuckConfig: Config = {
     'invoices.InvoiceVatSummary': InvoiceVatSummary,
     'invoices.InvoiceTotals': InvoiceTotals,
     'invoices.InvoiceNotes': InvoiceNotes,
-    'ksef.InvoiceSection': InvoiceKsef,
     'invoices.InvoiceSpacer': InvoiceSpacer,
     'invoices.InvoiceDivider': InvoiceDivider,
     'invoices.InvoiceLogo': InvoiceLogo,

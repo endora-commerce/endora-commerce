@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import type { TDocumentDefinitions, TFontDictionary, Content } from 'pdfmake/interfaces.js';
-import type { InvoiceDetail } from '@endora-commerce/contracts';
+import type { InvoiceDetail, InvoicePdfBlockRegistration } from '@endora-commerce/contracts';
 import type { AmountToWordsLocale } from './amount-to-words.js';
 import {
   headerSection,
@@ -9,10 +9,14 @@ import {
   lineItemsSection,
   vatSummarySection,
   totalsSection,
-  ksefSection,
-  type KsefVerificationData,
 } from '../pdf-components/sections.js';
-import { treeToContent } from '../pdf-components/tree-mapper.js';
+import {
+  INVOICE_COMPONENT_NAMES,
+  placedBlockNames,
+  treeToContent,
+  type ContributedBlockRenderer,
+} from '../pdf-components/tree-mapper.js';
+import { InvoicePdfBlockRegistry } from './invoice-pdf-block-registry.js';
 import {
   embedInvoiceLogoImages,
   type LoadAssetImage,
@@ -45,8 +49,19 @@ function buildFontDictionary(): TFontDictionary {
 
 let fontsRegistered = false;
 
-/** Built-in generic layout — the FR-016 fallback when no valid template exists. */
-function builtinLayout(inv: InvoiceDetail, locale: AmountToWordsLocale): Content[] {
+/**
+ * Built-in generic layout — the FR-016 fallback when no valid template exists.
+ *
+ * Its last entries are the present contributors' blocks, with their default
+ * props. That is where `ksefSection(inv)` used to be written out: a use of the
+ * KSeF block the E4 ruling's table did not list, generalised with the other
+ * four rather than kept (`specs/134-paid-module-extraction/` T063).
+ */
+function builtinLayout(
+  inv: InvoiceDetail,
+  locale: AmountToWordsLocale,
+  contributed: readonly Content[],
+): Content[] {
   return [
     headerSection(inv),
     partiesSection(inv),
@@ -61,13 +76,21 @@ function builtinLayout(inv: InvoiceDetail, locale: AmountToWordsLocale): Content
     ...(inv.kind === 'correction' && inv.originalInvoiceId
       ? [{ text: 'Dokument korygujący do faktury pierwotnej.', italics: true, margin: [0, 0, 0, 8] } as Content]
       : []),
-    ksefSection(inv),
+    ...contributed,
   ];
 }
+
+const OWN_BLOCKS: ReadonlySet<string> = new Set(INVOICE_COMPONENT_NAMES);
 
 export type InvoicePdfRendererOptions = {
   /** Load library asset bytes for InvoiceLogo (avoids pdfmake self-HTTP). */
   loadAssetImage?: LoadAssetImage;
+  /**
+   * The blocks other modules render (T063/T126). Defaults to an empty,
+   * always-present registry, so a renderer a unit test builds renders this
+   * module's own blocks and nothing else.
+   */
+  blocks?: InvoicePdfBlockRegistry;
 };
 
 /**
@@ -81,23 +104,22 @@ export class InvoicePdfRenderer {
   readonly #loadAssetImage: LoadAssetImage | undefined;
 
   /**
-   * Feature 059 — optional KSeF-verification resolver, late-bound in
-   * composition when the ksef module is active. Covers every render path
-   * (admin PDF, regenerate, customer download, email attachment) with one
-   * seam; absent ⇒ pre-059 output byte-for-byte.
+   * The contributed-block seam — the generalisation of the
+   * `setKsefVerificationResolver` this class carried from feature 059 to 134.
+   *
+   * That setter was one vendor's contribution point: a composition root had to
+   * call it after building both modules, which only this repository's
+   * reference root did, so on an instance composed through the platform the
+   * PDF carried no KSeF verification block while `ksef` was installed and on
+   * (`research.md` D16 §1 item 7). A contributor now registers the whole block —
+   * renderer, description and the per-render data it needs — from its own
+   * composition, and every render path reads it here.
    */
-  private ksefVerificationResolver?: (
-    invoiceId: string,
-  ) => Promise<KsefVerificationData | null>;
+  readonly blocks: InvoicePdfBlockRegistry;
 
   constructor(opts: InvoicePdfRendererOptions = {}) {
     this.#loadAssetImage = opts.loadAssetImage;
-  }
-
-  setKsefVerificationResolver(
-    resolver: (invoiceId: string) => Promise<KsefVerificationData | null>,
-  ): void {
-    this.ksefVerificationResolver = resolver;
+    this.blocks = opts.blocks ?? new InvoicePdfBlockRegistry();
   }
 
   async render(
@@ -111,25 +133,79 @@ export class InvoicePdfRenderer {
       pdfMake.setUrlAccessPolicy(() => false);
       fontsRegistered = true;
     }
+    const content = await this.content(invoice, locale, templateTree);
+    return pdfMake.createPdf(this.buildDoc(content)).getBuffer();
+  }
 
-    let enriched = invoice;
-    if (this.ksefVerificationResolver) {
-      try {
-        const verification = await this.ksefVerificationResolver(invoice.id);
-        if (verification) {
-          enriched = { ...invoice, ksefVerification: verification } as InvoiceDetail;
-        }
-      } catch {
-        // Verification data is an enrichment — rendering never fails on it.
-      }
-    }
-
+  /**
+   * The pdfmake content an invoice renders to — the template's blocks, or the
+   * built-in layout when the template places none this module or a present
+   * contributor renders (FR-016).
+   *
+   * Public because it is the one place every render path meets, which makes it
+   * the place a test asserts what a PDF carries without parsing one.
+   */
+  async content(
+    invoice: InvoiceDetail,
+    locale: AmountToWordsLocale = 'pl',
+    templateTree?: unknown,
+  ): Promise<Content[]> {
     const tree = templateTree
       ? await embedInvoiceLogoImages(templateTree, this.#loadAssetImage)
       : undefined;
-    const fromTemplate = tree ? treeToContent(tree, enriched, locale) : null;
-    const content = fromTemplate ?? builtinLayout(enriched, locale);
-    return pdfMake.createPdf(this.buildDoc(content)).getBuffer();
+
+    const present = this.blocks.present();
+    const placed = tree ? new Set(placedBlockNames(tree)) : null;
+    const resolved = await this.resolveContributed(
+      invoice.id,
+      present.filter((block) => placed === null || placed.has(block.name)),
+    );
+    const contributed: ContributedBlockRenderer = (name) => {
+      if (OWN_BLOCKS.has(name)) return undefined;
+      const block = this.blocks.find(name);
+      if (!block) return undefined;
+      return (props) =>
+        block.render({ props, invoice, locale, resolved: resolved.get(name) ?? null }) as Content;
+    };
+
+    const fromTemplate = tree ? treeToContent(tree, invoice, locale, contributed) : null;
+    if (fromTemplate) return fromTemplate;
+    const fallbackResolved =
+      placed === null ? resolved : await this.resolveContributed(invoice.id, present);
+    return builtinLayout(
+      invoice,
+      locale,
+      present.map(
+        (block) =>
+          block.render({
+            props: {},
+            invoice,
+            locale,
+            resolved: fallbackResolved.get(block.name) ?? null,
+          }) as Content,
+      ),
+    );
+  }
+
+  /**
+   * Each block's per-render data, read once. A rejection is the block's `null`:
+   * the data is an enrichment, and an invoice — a legal document — never fails
+   * to render on it. The `catch` is around a contributed callback, not a port.
+   */
+  private async resolveContributed(
+    invoiceId: string,
+    blocks: readonly InvoicePdfBlockRegistration[],
+  ): Promise<Map<string, unknown>> {
+    const out = new Map<string, unknown>();
+    for (const block of blocks) {
+      if (!block.resolve) continue;
+      try {
+        out.set(block.name, (await block.resolve(invoiceId)) ?? null);
+      } catch {
+        out.set(block.name, null);
+      }
+    }
+    return out;
   }
 
   private buildDoc(content: Content[]): TDocumentDefinitions {

@@ -414,6 +414,70 @@ export const invoiceCorrectedEventSchema = z.object({
 export type InvoiceCorrectedEvent = z.infer<typeof invoiceCorrectedEventSchema>;
 
 // ---------------------------------------------------------------------------
+// Contributed invoice template blocks (feature 134, T063 and T126)
+// ---------------------------------------------------------------------------
+//
+// An invoice template block another module declares is rendered, described
+// and enriched by that module, which registers it into `invoices`' own
+// `invoicePdfBlockRegistry` from its composition root. `invoices` renders its
+// own blocks and walks the registry for the rest, skipping a contributor that
+// is not present (`specs/134-paid-module-extraction/research.md` D11, D12 and
+// D16 §2(e)). Before this seam the one such block, `ksef.InvoiceSection`, was
+// declared by `ksef` and seeded, rendered and described by `invoices`, and its
+// verification data reached the renderer only where a composition root wired
+// the two together.
+
+/** One configurable field of an invoice template block, as the builder descriptor serves it. */
+export interface InvoiceTemplateBlockField {
+  type: 'text' | 'textarea' | 'number' | 'select' | 'radio' | 'color';
+  label: string;
+  options?: Array<{ label: string; value: string | boolean | number }>;
+}
+
+/** What a contributed block tells the invoice template builder about itself. */
+export interface InvoiceTemplateBlockDescription {
+  readonly label: string;
+  readonly fields: Readonly<Record<string, InvoiceTemplateBlockField>>;
+}
+
+/** A block another module renders onto the invoice PDF. */
+export interface InvoicePdfBlockRegistration {
+  /** The full block name, `<moduleId>.<LocalName>`, exactly as the contributor's manifest declares it. */
+  readonly name: string;
+  /** The declaring module. While it is not present the block is neither rendered nor described. */
+  readonly moduleId: string;
+  /** Label and field schema for the builder descriptor. */
+  describe(): InvoiceTemplateBlockDescription;
+  /**
+   * Data the block needs beyond the invoice, read once per render — the KSeF
+   * verification link, for instance. A rejection renders the block with
+   * `null`: the data is an enrichment and never fails the document.
+   */
+  resolve?(invoiceId: string): Promise<unknown>;
+  /**
+   * One pdfmake content node. `props` are the stored block props (`{}` in the
+   * built-in layout), and `resolved` is what {@link resolve} answered, or `null`.
+   */
+  render(input: {
+    readonly props: Readonly<Record<string, unknown>>;
+    readonly invoice: InvoiceDetail;
+    readonly locale: string;
+    readonly resolved: unknown;
+  }): unknown;
+}
+
+/**
+ * Container name: `invoicePdfBlockRegistry`. Owner: `invoices`.
+ *
+ * The registry of contributed PDF blocks. An ungated contribution registry: a
+ * contributor pushes from its boot hook, and `invoices` skips the block of a
+ * contributor that is not present on every render and descriptor read.
+ */
+export interface InvoicePdfBlockRegistryPort {
+  register(registration: InvoicePdfBlockRegistration): void;
+}
+
+// ---------------------------------------------------------------------------
 // Numbering — the pattern vocabulary and the collision shapes (feature 078, D-95)
 // ---------------------------------------------------------------------------
 

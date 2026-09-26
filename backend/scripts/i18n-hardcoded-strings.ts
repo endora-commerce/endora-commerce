@@ -424,7 +424,12 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // baseline is a ledger *about* the files it names rather than one of them,
   // so the merge request that moves a file is structurally the one that
   // cannot see the entry go stale.
-  'packages/modules/invoices/src/admin/templates/invoice-puck-config.tsx': 6,
+  'packages/modules/invoices/src/admin/templates/invoice-puck-config.tsx': 4,
+  // `specs/134-paid-module-extraction/` T063 — re-keyed, not raised and not
+  // dropped: two of the six strings above were the KSeF block's editor
+  // preview, and they moved with its binding into the module that declares the
+  // block. Same two strings, same components, new address.
+  'packages/modules/ksef/src/admin/templates/invoice-section-puck.tsx': 2,
   // Feature 091, Phase 4 batch three: the screen moved into its module's
   // package and the entry is **re-keyed**, not raised and not dropped. The
   // finding is one LinkedIn URN format example in a `placeholder`, and it is

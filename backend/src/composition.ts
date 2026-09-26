@@ -255,20 +255,6 @@ interface ContainerReads {
   };
   /** Owner: `email`. The one mailer six senders share (D-59). */
   readonly emailMailer: EmailMailerPort;
-  /**
-   * Owner: `ksef`. The PDF QR seam
-   * (`specs/059-ksef-integration/contracts/invoices-integration.md` §3).
-   *
-   * Deliberately *not* a port, and `ksef`'s own barrel says why — so there is
-   * no published shape for this one and the read declares the call.
-   */
-  readonly ksef: {
-    readonly handle: {
-      buildVerification(
-        invoiceId: string,
-      ): Promise<{ verificationUrl: string; offline: boolean } | null>;
-    };
-  };
   /** Owner: `organizations`. The VAT facts a quote's tax rate depends on (T143c). */
   readonly organizationTaxProfilePort: OrganizationTaxProfilePort;
   /**
@@ -1492,14 +1478,11 @@ async function contributeReferenceDeployment(
   // setting `ksef` may read — it declares `invoices` — and stripping a `PL`
   // prefix off a NIP is a KSeF format rule, not composition policy.
 
-  // PDF QR seam (contracts/invoices-integration.md §3) — one resolver covers
-  // every render path; absent/disabled module ⇒ pre-059 output.
-  // Feature 072 (T113) — contributed, not set. `invoices` installs its own
-  // resolver at construction and reads this per call, so a deployment without
-  // KSeF simply has no verification block rather than an unset setter.
-  composedModules.contribute({
-    ksefVerificationResolver: reads().ksef.handle.buildVerification,
-  });
+  // The PDF QR is no longer this root's to wire. `ksef` registers its own
+  // invoice PDF block — verification read included — into `invoices`'
+  // `invoicePdfBlockRegistry` from its composition
+  // (`specs/134-paid-module-extraction/` T126), so an instance composed
+  // through the platform alone prints it too.
 
   // Feature 067 — Product Feed. Projects a sales channel's catalogue into
   // provider-shaped feed files published at a tokenised URL.
