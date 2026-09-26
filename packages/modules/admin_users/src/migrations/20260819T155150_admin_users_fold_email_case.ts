@@ -4,8 +4,8 @@ import { Migration } from '@mikro-orm/migrations';
  * Fold `admin_users.email` to the form the code now stores and compares.
  *
  * `AdminUserService.create` folded the address and the login read compared it
- * verbatim, so an operator created as `Anna.Nowak@endora.pl` had
- * `anna.nowak@endora.pl` on record and could never sign in with the address
+ * verbatim, so an operator created as `Operator.Mixed@example.com` had
+ * `operator.mixed@example.com` on record and could never sign in with the address
  * they were handed: Postgres' `=` on `text` is case-sensitive. The code side of
  * the repair makes every read and every write go through
  * `normalizeEmailAddress`; this migration brings the rows written before it to
