@@ -157,7 +157,6 @@
     "@endora-commerce/mod-payments": "workspace:*",
     "@endora-commerce/mod-pim-connector": "workspace:*",
     "@endora-commerce/mod-pim-ergonode": "workspace:*",
-    "@endora-commerce/mod-pim-pimcore": "workspace:*",
     "@endora-commerce/mod-price-lists": "workspace:*",
     "@endora-commerce/mod-product-feeds": "workspace:*",
     "@endora-commerce/mod-promotions": "workspace:*",

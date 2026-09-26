@@ -175,12 +175,6 @@ const MIGRATED_MODULES: readonly string[] = [
   // exclusivity refusal every PIM module raises; `pim_unopim` owned the other
   // twelve and left this repository with them (feature 134).
   'pim_connector',
-  // Minted with the module (feature 092): `pim_pimcore` did not exist when the
-  // prefix chain was deleted, so the frozen capture holds none of its seventeen
-  // codes and `MINTED_ERROR_CODES` is what accounts for them. The roster line is
-  // the other half — the ledger alone would say where each code belongs and
-  // leave the manifest's declaration unmeasured.
-  'pim_pimcore',
   // Minted after the chain was deleted (!1159), so the frozen capture holds none
   // of its three codes and `MINTED_ERROR_CODES` is what accounts for them. The
   // roster's question — does this module declare exactly what the reference says

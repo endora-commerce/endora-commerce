@@ -83,10 +83,8 @@ export const UNDEFINED_CLASS_RENDERS: UndefinedClassRenderLedger = {
     'the same missing block',
   'packages/modules/inventory/src/admin/pages/WarehouseEditor.tsx::b2b-grid--cols-3':
     'a modifier of the same missing block',
-  'packages/modules/pim_pimcore/src/admin/pages/PimcoreConnectionPage.tsx::b2b-code':
-    'no `b2b-code` block exists; the deleted shim had an unprefixed `.code` and nothing replaced it',
   'packages/modules/product_feeds/src/admin/components/FeedLinkCard.tsx::b2b-code':
-    'the same missing block',
+    'no `b2b-code` block exists; the deleted shim had an unprefixed `.code` and nothing replaced it',
   'packages/modules/product_feeds/src/admin/components/RunIssueGroups.tsx::b2b-code':
     'the same missing block',
   'packages/modules/product_feeds/src/admin/pages/FeedTemplateImportPage.tsx::b2b-code':
