@@ -64,7 +64,6 @@ przypadkiem zostało napisane.
 | [organizations](./organizations.md) | Organizacje klientów, rejestracja, zaproszenia | @endora-commerce/mod-organizations |
 | [payment_methods](./payment_methods.md) | Skonfigurowane metody płatności | @endora-commerce/mod-payment-methods |
 | [payments](./payments.md) | Dispatch driverów płatności + zdarzenia rozliczenia | @endora-commerce/mod-payments |
-| [Akeneo PIM](./pim-akeneo.md) | Wejście HMAC complete-record z self-hosted Akeneo — Endora stosuje dostarczone produkty bez pullowania PIM. | @endora-commerce/mod-pim-akeneo |
 | `pim_connector` | _brak strony_ | @endora-commerce/mod-pim-connector |
 | [Ergonode PIM](./pim_ergonode.md) | Inbound connector tylko do odczytu dla Ergonode PIM — produkty, wartości atrybutów, placement kategorii, media i opcjonalne ceny, na żądanie lub według harmonogramu | @endora-commerce/mod-pim-ergonode |
 | [Pimcore PIM](./pim_pimcore.md) | Wejście HMAC complete-record z Pimcore — Endora stosuje dostarczone produkty, kategorie, atrybuty, media i struktury bez czytania Data Hub | @endora-commerce/mod-pim-pimcore |
