@@ -109,38 +109,6 @@ import type {
   ErgonodeProductLink as ErgonodeProductLinkRow,
   ErgonodeStreamCursor as ErgonodeStreamCursorRow,
 } from '@endora-commerce/mod-pim-ergonode/test-support';
-import type {
-  UnopimAssociationTypeMapping as UnopimAssociationTypeMappingRow,
-  UnopimAttributeMapping as UnopimAttributeMappingRow,
-  UnopimCategoryMapping as UnopimCategoryMappingRow,
-  UnopimConnection as UnopimConnectionRow,
-  UnopimImportIssue as UnopimImportIssueRow,
-  UnopimImportRun as UnopimImportRunRow,
-  UnopimMediaLink as UnopimMediaLinkRow,
-  UnopimPriceBinding as UnopimPriceBindingRow,
-  UnopimProductLink as UnopimProductLinkRow,
-  UnopimSyncBookmark as UnopimSyncBookmarkRow,
-} from '@endora-commerce/mod-pim-unopim/test-support';
-import type {
-  PimcoreCatalogueDelivery as PimcoreCatalogueDeliveryRow,
-  PimcoreConnection as PimcoreConnectionRow,
-  PimcoreDeliveredRecord as PimcoreDeliveredRecordRow,
-  PimcoreFieldProtection as PimcoreFieldProtectionRow,
-  PimcoreImportIssue as PimcoreImportIssueRow,
-  PimcoreImportRun as PimcoreImportRunRow,
-  PimcoreMediaLink as PimcoreMediaLinkRow,
-  PimcoreSourceLink as PimcoreSourceLinkRow,
-} from '@endora-commerce/mod-pim-pimcore/test-support';
-import type {
-  AkeneoConnection as AkeneoConnectionRow,
-  AkeneoDeliveredRecord as AkeneoDeliveredRecordRow,
-  AkeneoFieldProtection as AkeneoFieldProtectionRow,
-  AkeneoHmacReplay as AkeneoHmacReplayRow,
-  AkeneoImportIssue as AkeneoImportIssueRow,
-  AkeneoImportRun as AkeneoImportRunRow,
-  AkeneoMediaLink as AkeneoMediaLinkRow,
-  AkeneoSourceLink as AkeneoSourceLinkRow,
-} from '@endora-commerce/mod-pim-akeneo/test-support';
 import type { EmailDelivery as EmailDeliveryRow } from '../../../packages/modules/email/src/backend/entities/email-delivery.entity.js';
 import type { InvoiceLedgerClientMap as InvoiceLedgerClientMapRow } from '../../../packages/modules/invoice_ledger/src/backend/entities/invoice-ledger-client-map.entity.js';
 import type { InvoiceLedgerDelivery as InvoiceLedgerDeliveryRow } from '../../../packages/modules/invoice_ledger/src/backend/entities/invoice-ledger-delivery.entity.js';
@@ -931,138 +899,6 @@ export const ErgonodeStreamCursor = classNamed<ErgonodeStreamCursorRow>(
   'pim_ergonode',
   'ErgonodeStreamCursor',
 );
-export const UnopimConnection = classNamed<UnopimConnectionRow>(
-  installedModuleEntities,
-  'pim_unopim',
-  'UnopimConnection',
-);
-export const UnopimImportRun = classNamed<UnopimImportRunRow>(
-  installedModuleEntities,
-  'pim_unopim',
-  'UnopimImportRun',
-);
-export const UnopimProductLink = classNamed<UnopimProductLinkRow>(
-  installedModuleEntities,
-  'pim_unopim',
-  'UnopimProductLink',
-);
-export const UnopimSyncBookmark = classNamed<UnopimSyncBookmarkRow>(
-  installedModuleEntities,
-  'pim_unopim',
-  'UnopimSyncBookmark',
-);
-export const UnopimCategoryMapping = classNamed<UnopimCategoryMappingRow>(
-  installedModuleEntities,
-  'pim_unopim',
-  'UnopimCategoryMapping',
-);
-export const UnopimAttributeMapping = classNamed<UnopimAttributeMappingRow>(
-  installedModuleEntities,
-  'pim_unopim',
-  'UnopimAttributeMapping',
-);
-export const UnopimAssociationTypeMapping = classNamed<UnopimAssociationTypeMappingRow>(
-  installedModuleEntities,
-  'pim_unopim',
-  'UnopimAssociationTypeMapping',
-);
-export const UnopimImportIssue = classNamed<UnopimImportIssueRow>(
-  installedModuleEntities,
-  'pim_unopim',
-  'UnopimImportIssue',
-);
-export const UnopimMediaLink = classNamed<UnopimMediaLinkRow>(
-  installedModuleEntities,
-  'pim_unopim',
-  'UnopimMediaLink',
-);
-export const UnopimPriceBinding = classNamed<UnopimPriceBindingRow>(
-  installedModuleEntities,
-  'pim_unopim',
-  'UnopimPriceBinding',
-);
-
-export const PimcoreCatalogueDelivery = classNamed<PimcoreCatalogueDeliveryRow>(
-  installedModuleEntities,
-  'pim_pimcore',
-  'PimcoreCatalogueDelivery',
-);
-export const PimcoreConnection = classNamed<PimcoreConnectionRow>(
-  installedModuleEntities,
-  'pim_pimcore',
-  'PimcoreConnection',
-);
-export const PimcoreDeliveredRecord = classNamed<PimcoreDeliveredRecordRow>(
-  installedModuleEntities,
-  'pim_pimcore',
-  'PimcoreDeliveredRecord',
-);
-export const PimcoreFieldProtection = classNamed<PimcoreFieldProtectionRow>(
-  installedModuleEntities,
-  'pim_pimcore',
-  'PimcoreFieldProtection',
-);
-export const PimcoreImportIssue = classNamed<PimcoreImportIssueRow>(
-  installedModuleEntities,
-  'pim_pimcore',
-  'PimcoreImportIssue',
-);
-export const PimcoreImportRun = classNamed<PimcoreImportRunRow>(
-  installedModuleEntities,
-  'pim_pimcore',
-  'PimcoreImportRun',
-);
-export const PimcoreMediaLink = classNamed<PimcoreMediaLinkRow>(
-  installedModuleEntities,
-  'pim_pimcore',
-  'PimcoreMediaLink',
-);
-export const PimcoreSourceLink = classNamed<PimcoreSourceLinkRow>(
-  installedModuleEntities,
-  'pim_pimcore',
-  'PimcoreSourceLink',
-);
-
-export const AkeneoConnection = classNamed<AkeneoConnectionRow>(
-  installedModuleEntities,
-  'pim_akeneo',
-  'AkeneoConnection',
-);
-export const AkeneoDeliveredRecord = classNamed<AkeneoDeliveredRecordRow>(
-  installedModuleEntities,
-  'pim_akeneo',
-  'AkeneoDeliveredRecord',
-);
-export const AkeneoFieldProtection = classNamed<AkeneoFieldProtectionRow>(
-  installedModuleEntities,
-  'pim_akeneo',
-  'AkeneoFieldProtection',
-);
-export const AkeneoHmacReplay = classNamed<AkeneoHmacReplayRow>(
-  installedModuleEntities,
-  'pim_akeneo',
-  'AkeneoHmacReplay',
-);
-export const AkeneoImportIssue = classNamed<AkeneoImportIssueRow>(
-  installedModuleEntities,
-  'pim_akeneo',
-  'AkeneoImportIssue',
-);
-export const AkeneoImportRun = classNamed<AkeneoImportRunRow>(
-  installedModuleEntities,
-  'pim_akeneo',
-  'AkeneoImportRun',
-);
-export const AkeneoMediaLink = classNamed<AkeneoMediaLinkRow>(
-  installedModuleEntities,
-  'pim_akeneo',
-  'AkeneoMediaLink',
-);
-export const AkeneoSourceLink = classNamed<AkeneoSourceLinkRow>(
-  installedModuleEntities,
-  'pim_akeneo',
-  'AkeneoSourceLink',
-);
 
 /**
  * The **row shapes** batch four's tests annotate with, on the same terms as
@@ -1086,13 +922,6 @@ export type {
   ErgonodeImportIssueRow,
   ErgonodeImportRunRow,
   ErgonodeProductLinkRow,
-  UnopimConnectionRow,
-  UnopimImportRunRow,
-  UnopimProductLinkRow,
-  UnopimSyncBookmarkRow,
-  UnopimCategoryMappingRow,
-  UnopimAttributeMappingRow,
-  UnopimImportIssueRow,
 };
 
 /**
@@ -1293,35 +1122,6 @@ export type Payment = PaymentRow;
 export type Shipment = ShipmentRow;
 export type NewsletterSubscriber = NewsletterSubscriberRow;
 
-/**
- * The `pim_pimcore` names the test tree also uses as a **type**, on the terms
- * the block above states: `classNamed` returns only the value, so a
- * `Promise<PimcoreImportRun>` or a `Partial<PimcoreImportRun>` needs the type
- * declared beside it. `export type` erases, so nothing is constructed.
- */
-export type PimcoreCatalogueDelivery = PimcoreCatalogueDeliveryRow;
-export type PimcoreConnection = PimcoreConnectionRow;
-export type PimcoreDeliveredRecord = PimcoreDeliveredRecordRow;
-export type PimcoreFieldProtection = PimcoreFieldProtectionRow;
-export type PimcoreImportIssue = PimcoreImportIssueRow;
-export type PimcoreImportRun = PimcoreImportRunRow;
-export type PimcoreMediaLink = PimcoreMediaLinkRow;
-export type PimcoreSourceLink = PimcoreSourceLinkRow;
-
-/**
- * The `pim_akeneo` names the test tree also uses as a **type**, on the terms
- * the block above states: `classNamed` returns the value alone, so a test that
- * annotates a `Promise<AkeneoImportRun>` needs the type declared beside it.
- * `export type` erases, so nothing is constructed.
- */
-export type AkeneoConnection = AkeneoConnectionRow;
-export type AkeneoDeliveredRecord = AkeneoDeliveredRecordRow;
-export type AkeneoFieldProtection = AkeneoFieldProtectionRow;
-export type AkeneoHmacReplay = AkeneoHmacReplayRow;
-export type AkeneoImportIssue = AkeneoImportIssueRow;
-export type AkeneoImportRun = AkeneoImportRunRow;
-export type AkeneoMediaLink = AkeneoMediaLinkRow;
-export type AkeneoSourceLink = AkeneoSourceLinkRow;
 export type AdminNotification = AdminNotificationRow;
 
 /**

@@ -64,11 +64,8 @@ of the platform, not of what happens to be written.
 | [organizations](./organizations.md) | Customer Organizations, registration, invitations | @endora-commerce/mod-organizations |
 | [payment_methods](./payment_methods.md) | Configured payment methods | @endora-commerce/mod-payment-methods |
 | [payments](./payments.md) | Payment driver dispatch + settlement events | @endora-commerce/mod-payments |
-| [Akeneo PIM](./pim-akeneo.md) | HMAC complete-record ingress from self-hosted Akeneo — Endora applies delivered products without pulling the PIM. | @endora-commerce/mod-pim-akeneo |
 | `pim_connector` | _no page yet_ | @endora-commerce/mod-pim-connector |
 | [Ergonode PIM](./pim_ergonode.md) | Read-only inbound connector for the Ergonode PIM — products, attribute values, category placement, media and optional prices, on demand or on a schedule | @endora-commerce/mod-pim-ergonode |
-| [Pimcore PIM](./pim_pimcore.md) | HMAC complete-record ingress from Pimcore — Endora applies delivered products, categories, attributes, media and structures without reading Data Hub | @endora-commerce/mod-pim-pimcore |
-| [UnoPim PIM](./pim_unopim.md) | Read-only inbound connector for UnoPim — OAuth REST import, delta bookmarks, signed webhooks, channel/locale mapping, field protection and optional price bindings | @endora-commerce/mod-pim-unopim |
 | [price_lists](./price_lists.md) | Customer / group / default pricing with volume tiers + per-category adjustments | @endora-commerce/mod-price-lists |
 | [Product Feeds](./product_feeds.md) | Provider-shaped product feeds per sales channel — scheduled generation, tokenised pull URLs and SFTP/FTP/HTTP push | @endora-commerce/mod-product-feeds |
 | [promotions](./promotions.md) | Cart-level percentage / amount / free-delivery discounts with eligibility filters | @endora-commerce/mod-promotions |

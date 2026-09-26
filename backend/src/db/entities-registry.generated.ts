@@ -47,7 +47,6 @@ import { entities as addressesEntities } from '@endora-commerce/mod-addresses/ba
 import { entities as adminNotificationsEntities } from '@endora-commerce/mod-admin-notifications/backend';
 import { entities as adminRolesEntities } from '@endora-commerce/mod-admin-roles/backend';
 import { entities as adminUsersEntities } from '@endora-commerce/mod-admin-users/backend';
-import { entities as pimAkeneoEntities } from '@endora-commerce/mod-pim-akeneo/backend';
 import { entities as analyticsEntities } from '@endora-commerce/mod-analytics/backend';
 import { entities as apiKeysEntities } from '@endora-commerce/mod-api-keys/backend';
 import { entities as assetsLibraryEntities } from '@endora-commerce/mod-assets-library/backend';
@@ -87,7 +86,6 @@ import { entities as ordersEntities } from '@endora-commerce/mod-orders/backend'
 import { entities as paymentMethodsEntities } from '@endora-commerce/mod-payment-methods/backend';
 import { entities as paymentsEntities } from '@endora-commerce/mod-payments/backend';
 import { entities as pimConnectorEntities } from '@endora-commerce/mod-pim-connector/backend';
-import { entities as pimPimcoreEntities } from '@endora-commerce/mod-pim-pimcore/backend';
 import { entities as priceListsEntities } from '@endora-commerce/mod-price-lists/backend';
 import { entities as promptActionsEntities } from '@endora-commerce/mod-prompt-actions/backend';
 import { entities as pwaEntities } from '@endora-commerce/mod-pwa/backend';
@@ -101,7 +99,6 @@ import { entities as shipmentsEntities } from '@endora-commerce/mod-shipments/ba
 import { entities as shoppingListsEntities } from '@endora-commerce/mod-shopping-lists/backend';
 import { entities as taxesEntities } from '@endora-commerce/mod-taxes/backend';
 import { entities as i18nEntities } from '@endora-commerce/mod-i18n/backend';
-import { entities as pimUnopimEntities } from '@endora-commerce/mod-pim-unopim/backend';
 import { entities as webhooksEntities } from '@endora-commerce/mod-webhooks/backend';
 import { entities as comarchXlEntities } from '@endora-commerce/mod-comarch-xl/backend';
 
@@ -116,7 +113,6 @@ export const ALL_ENTITIES = [
   ...(adminNotificationsEntities as readonly EntityClassLike[]),
   ...(adminRolesEntities as readonly EntityClassLike[]),
   ...(adminUsersEntities as readonly EntityClassLike[]),
-  ...(pimAkeneoEntities as readonly EntityClassLike[]),
   ...(analyticsEntities as readonly EntityClassLike[]),
   ...(apiKeysEntities as readonly EntityClassLike[]),
   ...(assetsLibraryEntities as readonly EntityClassLike[]),
@@ -156,7 +152,6 @@ export const ALL_ENTITIES = [
   ...(paymentMethodsEntities as readonly EntityClassLike[]),
   ...(paymentsEntities as readonly EntityClassLike[]),
   ...(pimConnectorEntities as readonly EntityClassLike[]),
-  ...(pimPimcoreEntities as readonly EntityClassLike[]),
   ...(priceListsEntities as readonly EntityClassLike[]),
   ...(promptActionsEntities as readonly EntityClassLike[]),
   ...(pwaEntities as readonly EntityClassLike[]),
@@ -170,7 +165,6 @@ export const ALL_ENTITIES = [
   ...(shoppingListsEntities as readonly EntityClassLike[]),
   ...(taxesEntities as readonly EntityClassLike[]),
   ...(i18nEntities as readonly EntityClassLike[]),
-  ...(pimUnopimEntities as readonly EntityClassLike[]),
   ...(webhooksEntities as readonly EntityClassLike[]),
   ...(comarchXlEntities as readonly EntityClassLike[]),
 ] as const;

@@ -690,9 +690,10 @@ export function productFeedsModule(
     // never delivered to. That path is safe by construction: the run is finished
     // and published before either branch runs, and the caller absorbs whatever
     // comes back. `deliver()` throws for one thing — `credentials` being
-    // switched off — and the caller absorbs that too, deliberately: the artefact
-    // is published and the run is over, so refusing here would report a failure
-    // for work that succeeded. See the note at that call site.
+    // switched off — so the inline branch calls `deliverInline`, which records
+    // that as a failed attempt naming the module rather than letting the caller
+    // discard it: refusing would report a failure for work that succeeded, and
+    // saying nothing would leave the operator no reason (feature 134 D18).
     ...(deliveryService
       ? {
           deliverArtefact: async ({ feedId, runId, artefactId }) => {
@@ -704,7 +705,7 @@ export function productFeedsModule(
               });
               return;
             }
-            await deliveryService.deliver({
+            await deliveryService.deliverInline({
               feedId,
               runId,
               artefactId,

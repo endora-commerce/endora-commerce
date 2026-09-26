@@ -175,13 +175,10 @@ export * from './invoice-ledger.js';
 export * from './infakt.js';
 export * from './product-feeds.js';
 export * from './pim-ergonode.js';
-export * from './pim-akeneo.js';
 export * from './pim-connector.js';
 export * from './erp-connector.js';
 export * from './comarch-xl.js';
 export { canonicalisePimFieldPath, isValidPimFieldPath } from './pim-field-path.js';
-export * from './pim-unopim.js';
-export * from './pim-pimcore.js';
 export * from './kernel.js';
 // Who is asking. The request actor's vocabulary, session-free and
 // Fastify-free, so the platform and every module can name one shape instead of

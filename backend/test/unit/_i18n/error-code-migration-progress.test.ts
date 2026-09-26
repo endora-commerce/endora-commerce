@@ -172,24 +172,9 @@ const MIGRATED_MODULES: readonly string[] = [
   // `pim_unopim` existed when the prefix chain was deleted, so the frozen
   // capture holds none of their thirteen codes and `MINTED_ERROR_CODES` is what
   // accounts for them. `pim_connector` owns one — the cross-connector
-  // exclusivity refusal every PIM module raises — and `pim_unopim` the other
-  // twelve.
+  // exclusivity refusal every PIM module raises; `pim_unopim` owned the other
+  // twelve and left this repository with them (feature 134).
   'pim_connector',
-  'pim_unopim',
-  // Minted with the module (feature 092): `pim_pimcore` did not exist when the
-  // prefix chain was deleted, so the frozen capture holds none of its seventeen
-  // codes and `MINTED_ERROR_CODES` is what accounts for them. The roster line is
-  // the other half — the ledger alone would say where each code belongs and
-  // leave the manifest's declaration unmeasured.
-  'pim_pimcore',
-  // Minted with the module (feature 094): `pim_akeneo` did not exist when the
-  // prefix chain was deleted, so the frozen capture holds none of its seven
-  // codes and `MINTED_ERROR_CODES` is what accounts for them, on exactly the
-  // terms `pim_pimcore` states above. `PIM_CONNECTOR_ALREADY_ACTIVE` is not one
-  // of the seven — `pim_akeneo` raises it and `pim_connector` owns it, so it is
-  // ledgered and rostered under that owner, and the equality below is what
-  // measures that this module declares the seven and not the eighth.
-  'pim_akeneo',
   // Minted after the chain was deleted (!1159), so the frozen capture holds none
   // of its three codes and `MINTED_ERROR_CODES` is what accounts for them. The
   // roster's question — does this module declare exactly what the reference says

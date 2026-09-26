@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-sales-channels",
-  "version": "0.10.4",
+  "version": "0.10.5",
   "type": "module",
   "sideEffects": false,
   "description": "Multi-channel storefront resolver and channel registry.",

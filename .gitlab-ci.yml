@@ -2314,7 +2314,10 @@ acceptance:instance:
 # "the docs tree": the site's own tree and its translation state, every module
 # package's `docs/` layer, the generator that writes the sidebar fragment, the
 # artefact helper the generator shares with the CLI, the verifier that judges
-# the emitted build, and the publication script itself — a change to any of them
+# the emitted build and the two records it judges it against (the URL inventory
+# and the redirect map — the latter listed before it exists, a `changes:` path
+# that matches nothing being inert), and the publication script itself — a
+# change to any of them
 # changes what is published, so a pipeline that skipped the build for one would
 # publish a site nothing had judged.
 .docs-rules:
@@ -2332,6 +2335,8 @@ acceptance:instance:
         - backend/scripts/generate-composer.ts
         - backend/scripts/check-docs-translations.ts
         - backend/scripts/verify-docs-build.ts
+        - specs/133-docs-site-publication/url-inventory.txt
+        - specs/133-docs-site-publication/redirect-map.txt
         - backend/scripts/lib/docs-*.ts
         - packages/cli/src/lib/module-docs.ts
         - packages/cli/src/lib/docs-artefacts.ts
@@ -2931,6 +2936,12 @@ publish:packages:
       printf '%s:registry=%s\n' "$scope" "$ENDORA_NPM_REGISTRY" > "$HOME/.npmrc"
       printf '%s:_authToken=${ENDORA_NPM_TOKEN}\n' "${ENDORA_NPM_REGISTRY#*:}" >> "$HOME/.npmrc"
       echo "publish:packages — publishing $scope to $ENDORA_NPM_REGISTRY"
+    # A package declaring `SEE LICENSE IN` states terms of its own and belongs
+    # on the private registry; on npmjs a version is permanent and readable by
+    # anyone. The registry this job targets is handed over rather than assumed,
+    # and the private registry is answered yes
+    # (`specs/136-open-source-publication/` FR-011).
+    - pnpm --filter backend exec tsx scripts/check-release-intent.ts --publish-registry "$ENDORA_NPM_REGISTRY"
     # The last gate before a publish. `quality` does not run on a branch
     # pipeline — its rules are a merge request or the default branch — so
     # without this line the release branch would publish having been judged only

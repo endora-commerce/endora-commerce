@@ -502,56 +502,6 @@ export const ERROR_CODES = {
   COMARCH_XL_WAREHOUSE_UNMAPPED: 'COMARCH_XL_WAREHOUSE_UNMAPPED',
   COMARCH_XL_AVAILABILITY_LABEL_UNKNOWN: 'COMARCH_XL_AVAILABILITY_LABEL_UNKNOWN',
 
-  // UnoPim PIM integration (feature 089). See specs/089-unopim-pim-sync/contracts/admin-api.md.
-  PIM_UNOPIM_NOT_CONFIGURED: 'PIM_UNOPIM_NOT_CONFIGURED',
-  PIM_UNOPIM_CONNECTION_EXISTS: 'PIM_UNOPIM_CONNECTION_EXISTS',
-  PIM_UNOPIM_SCHEDULE_INVALID: 'PIM_UNOPIM_SCHEDULE_INVALID',
-  PIM_UNOPIM_IMPORT_ALREADY_RUNNING: 'PIM_UNOPIM_IMPORT_ALREADY_RUNNING',
-  PIM_UNOPIM_CONNECTION_DISABLED: 'PIM_UNOPIM_CONNECTION_DISABLED',
-  PIM_UNOPIM_TYPE_INCOMPATIBLE: 'PIM_UNOPIM_TYPE_INCOMPATIBLE',
-  PIM_UNOPIM_TARGET_ATTRIBUTE_NOT_FOUND: 'PIM_UNOPIM_TARGET_ATTRIBUTE_NOT_FOUND',
-  PIM_UNOPIM_TARGET_ALREADY_MAPPED: 'PIM_UNOPIM_TARGET_ALREADY_MAPPED',
-  PIM_UNOPIM_CURRENCY_INACTIVE: 'PIM_UNOPIM_CURRENCY_INACTIVE',
-  PIM_UNOPIM_ATTRIBUTE_NOT_PRICE_TYPE: 'PIM_UNOPIM_ATTRIBUTE_NOT_PRICE_TYPE',
-  PIM_UNOPIM_BINDING_EXISTS: 'PIM_UNOPIM_BINDING_EXISTS',
-  PIM_UNOPIM_FIELD_PATH_INVALID: 'PIM_UNOPIM_FIELD_PATH_INVALID',
-
-  // Pimcore PIM integration (feature 092). Transport-level codes for the
-  // module's admin surface — see specs/092-pimcore-pim-sync/contracts/admin-api.md.
-  /** No connection row exists yet, so there is nothing to read or import from. */
-  PIM_PIMCORE_NOT_CONFIGURED: 'PIM_PIMCORE_NOT_CONFIGURED',
-  /** A second *enabled* connection was attempted (FR-004). */
-  PIM_PIMCORE_CONNECTION_EXISTS: 'PIM_PIMCORE_CONNECTION_EXISTS',
-  /** Another PIM module already has an enabled connection (FR-075). */
-  PIM_PIMCORE_OTHER_PIM_ENABLED: 'PIM_PIMCORE_OTHER_PIM_ENABLED',
-  /** Enabling a connection or triggering an import without a category root (FR-043). */
-  PIM_PIMCORE_ROOT_REQUIRED: 'PIM_PIMCORE_ROOT_REQUIRED',
-  /** Enabling a connection without a product folder (FR-093). */
-  PIM_PIMCORE_PRODUCT_FOLDER_REQUIRED: 'PIM_PIMCORE_PRODUCT_FOLDER_REQUIRED',
-  /** Media host allowlist entry failed validation (FR-060). */
-  PIM_PIMCORE_ALLOWLIST_INVALID: 'PIM_PIMCORE_ALLOWLIST_INVALID',
-  /** The overlap claim is held by a run already in flight (FR-006). */
-  PIM_PIMCORE_IMPORT_ALREADY_RUNNING: 'PIM_PIMCORE_IMPORT_ALREADY_RUNNING',
-  PIM_PIMCORE_CONNECTION_DISABLED: 'PIM_PIMCORE_CONNECTION_DISABLED',
-  /** The chosen Endora attribute cannot represent that source type; `details[]` lists what can (FR-029). */
-  PIM_PIMCORE_TYPE_INCOMPATIBLE: 'PIM_PIMCORE_TYPE_INCOMPATIBLE',
-  PIM_PIMCORE_TARGET_ATTRIBUTE_NOT_FOUND: 'PIM_PIMCORE_TARGET_ATTRIBUTE_NOT_FOUND',
-  /** Another source field already binds that Endora target. */
-  PIM_PIMCORE_TARGET_ALREADY_MAPPED: 'PIM_PIMCORE_TARGET_ALREADY_MAPPED',
-  /** A price binding named a currency that is not active; `details[]` lists the active codes (FR-072). */
-  PIM_PIMCORE_CURRENCY_INACTIVE: 'PIM_PIMCORE_CURRENCY_INACTIVE',
-  PIM_PIMCORE_ATTRIBUTE_NOT_PRICE_TYPE: 'PIM_PIMCORE_ATTRIBUTE_NOT_PRICE_TYPE',
-  PIM_PIMCORE_BINDING_EXISTS: 'PIM_PIMCORE_BINDING_EXISTS',
-  /** A protected field path does not match the grammar (data-model.md §9). */
-  PIM_PIMCORE_FIELD_PATH_INVALID: 'PIM_PIMCORE_FIELD_PATH_INVALID',
-  /**
-   * Push / manual object sync refused because the connection has not finished
-   * its first full import yet (FR-083 / FR-087).
-   */
-  PIM_PIMCORE_BOOTSTRAP_INCOMPLETE: 'PIM_PIMCORE_BOOTSTRAP_INCOMPLETE',
-  /** Inbound push rejected: missing or invalid HMAC signature (FR-088). */
-  PIM_PIMCORE_PUSH_AUTH_REJECTED: 'PIM_PIMCORE_PUSH_AUTH_REJECTED',
-
   // Payments — the buyer's retry refusals (!1159). Three codes and not one,
   // because the money term and the lifecycle term are orthogonal rather than
   // alternative: an order can be unpaid and cancelled, or paid and open, so
@@ -569,22 +519,6 @@ export const ERROR_CODES = {
    * neither claimant.
    */
   PAYMENT_ADAPTER_UNAVAILABLE: 'PAYMENT_ADAPTER_UNAVAILABLE',
-
-  // Akeneo PIM complete-record delivery (feature 094).
-  /** No Akeneo connection row exists yet. */
-  PIM_AKENEO_NOT_CONFIGURED: 'PIM_AKENEO_NOT_CONFIGURED',
-  /** Ingress or apply refused because the connection is disabled. */
-  PIM_AKENEO_CONNECTION_DISABLED: 'PIM_AKENEO_CONNECTION_DISABLED',
-  /** Live records while bootstrap is still required and neither completed nor skipped. */
-  PIM_AKENEO_BOOTSTRAP_INCOMPLETE: 'PIM_AKENEO_BOOTSTRAP_INCOMPLETE',
-  /** Same delivery id reused with a different start body. */
-  PIM_AKENEO_DELIVERY_ID_CONFLICT: 'PIM_AKENEO_DELIVERY_ID_CONFLICT',
-  /** Enabling requires a resolvable active default sales channel. */
-  PIM_AKENEO_CHANNEL_REQUIRED: 'PIM_AKENEO_CHANNEL_REQUIRED',
-  /** Enabling requires a stored HMAC secret. */
-  PIM_AKENEO_SECRET_REQUIRED: 'PIM_AKENEO_SECRET_REQUIRED',
-  /** A protected field key does not match the grammar (data-model.md §5). */
-  PIM_AKENEO_FIELD_KEY_INVALID: 'PIM_AKENEO_FIELD_KEY_INVALID',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
