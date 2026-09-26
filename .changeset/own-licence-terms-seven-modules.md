@@ -1,11 +1,11 @@
 ---
-'@endora-commerce/mod-comarch-xl': patch
-'@endora-commerce/mod-infakt': patch
-'@endora-commerce/mod-ksef': patch
-'@endora-commerce/mod-pim-akeneo': patch
-'@endora-commerce/mod-pim-ergonode': patch
-'@endora-commerce/mod-pim-pimcore': patch
-'@endora-commerce/mod-pim-unopim': patch
+'@endora-commerce/mod-comarch-xl': minor
+'@endora-commerce/mod-infakt': minor
+'@endora-commerce/mod-ksef': minor
+'@endora-commerce/mod-pim-akeneo': minor
+'@endora-commerce/mod-pim-ergonode': minor
+'@endora-commerce/mod-pim-pimcore': minor
+'@endora-commerce/mod-pim-unopim': minor
 ---
 
 These packages now declare `"license": "SEE LICENSE IN LICENSE.md"` and ship `LICENSE.md` in place of the MIT `LICENSE`
@@ -16,3 +16,7 @@ the package README points at `LICENSE.md`. The `.` subpath additionally exports
 `packageLicense`, the string constant the manifest generator reads the field from; every other
 export on every subpath is unchanged, so a deployment using any of these modules sees no change in
 behaviour.
+
+`minor` rather than `patch`: `packageLicense` is additive published surface on `.`, on the
+`mod-ksef` `./test-support` precedent. In a `0.x` series a minor takes every caret dependent out
+of range, which is what a consumer should notice about the licence field changing.
