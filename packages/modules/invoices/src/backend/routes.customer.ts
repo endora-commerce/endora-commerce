@@ -4,7 +4,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import {
   ERROR_CODES,
   type AssetsLibraryPort,
-  type ComarchXlSaleDocumentAttachmentPort,
+  type InvoiceAttachmentFetchPort,
   type OrderReadPort,
   type OrderRecord,
 } from '@endora-commerce/contracts';
@@ -20,7 +20,11 @@ export interface InvoicesCustomerDeps {
   orderReadPort: OrderReadPort;
   /** `assets_library` — resolves signed URLs for private attachment bytes. */
   assetsLibrary: AssetsLibraryPort;
-  saleDocumentAttachments: ComarchXlSaleDocumentAttachmentPort;
+  /**
+   * This module's own attachment fetch registry (feature 134, T061): the
+   * provider of the document's source system, or `null` when none is present.
+   */
+  saleDocumentAttachments: InvoiceAttachmentFetchPort;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   resolveCustomerContext: (req: FastifyRequest) => { customerAccountId: string; organizationId: string };
   invoiceService: InvoiceService;

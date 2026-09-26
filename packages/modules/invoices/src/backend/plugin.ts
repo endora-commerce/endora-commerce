@@ -3,7 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   AssetReadPort,
   AssetsLibraryPort,
-  ComarchXlSaleDocumentAttachmentPort,
+  InvoiceAttachmentFetchPort,
   OrderReadPort,
   OrderRecord,
   TransactionalEmailSender,
@@ -55,7 +55,7 @@ export interface InvoicesModuleOptions {
   orderReadPort: OrderReadPort;
   assetReadPort: AssetReadPort;
   assetsLibrary: AssetsLibraryPort;
-  saleDocumentAttachments: ComarchXlSaleDocumentAttachmentPort;
+  saleDocumentAttachments: InvoiceAttachmentFetchPort;
   requireAdmin: RequireAdminFactory;
   requireCustomer: (req: FastifyRequest, reply: unknown) => Promise<void>;
   settingsService: SettingsReader;

@@ -1,7 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   ERP_SALE_DOCUMENT_WRITE_PORT,
+  INVOICE_ATTACHMENT_FETCH_REGISTRY,
   type ErpSaleDocumentWritePort,
+  type InvoiceAttachmentFetchRegistryPort,
 } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
@@ -163,5 +165,45 @@ describe('invoices — organization sale-document customer routes [contract]', (
       cookies: CUSTOMER_COOKIE,
     });
     expect(res.statusCode).toBe(404);
+  });
+
+  // Feature 134, T061/T065 (`research.md` D12): the source system is open, and
+  // the attachment seam dispatches on it. A system no connector registered a
+  // fetch provider for is answered like any attachment that cannot be fetched.
+  it('answers 404 for an attachment from a source system no connector serves', async () => {
+    const port = resolvePort(h);
+    const imported = await port.upsertImportedDocument({
+      organizationId: TEST_ORGANIZATION_ID,
+      externalDocumentRef: {
+        system: 'erp_unregistered',
+        xlSaleDocumentId: 'unregistered-system-doc-1',
+        documentKind: 'invoice',
+      },
+      kind: 'invoice',
+      number: 'FV/UNREG/2026/1',
+      currency: 'PLN',
+      issuedAt: '2026-09-14T13:00:00.000Z',
+      grossTotal: '10.00',
+      attachments: [
+        { xlAttachmentId: 'att-unregistered', fileName: 'x.pdf', contentType: 'application/pdf' },
+      ],
+    });
+    const attachment = await h
+      .em()
+      .findOneOrFail(InvoiceExternalAttachment, { invoiceId: imported.invoiceId });
+
+    const res = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/account/organization/invoices/${imported.invoiceId}/attachments/${attachment.id}`,
+      cookies: CUSTOMER_COOKIE,
+    });
+    expect(res.statusCode, res.body).toBe(404);
+  });
+
+  it('registers the attachment fetch seam ungated, under its contract name', () => {
+    const registry = h.container.resolve<InvoiceAttachmentFetchRegistryPort>(
+      INVOICE_ATTACHMENT_FETCH_REGISTRY,
+    );
+    expect(typeof registry.register).toBe('function');
   });
 });

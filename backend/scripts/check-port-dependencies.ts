@@ -1054,6 +1054,12 @@ export const CONTRIBUTION_POLICY_STATED: Readonly<Record<string, 'skip' | 'honou
   // is what a deployment that never installed the gateway already does, so the
   // obligation stays on the platform's books and a person settles it.
   'payments:gatewayRefundRegistry': 'skip',
+  // Skipped: a connector that is off must not reach its ERP with the operator's
+  // credentials. The customer route answers the absent provider with the 404 it
+  // already gave an attachment that could not be fetched, a file fetched earlier
+  // stays downloadable from `assets_library`, and switching the connector back
+  // on takes effect on the next download (feature 134, T061; D12).
+  'invoices:invoiceAttachmentFetchRegistry': 'skip',
 };
 
 /**

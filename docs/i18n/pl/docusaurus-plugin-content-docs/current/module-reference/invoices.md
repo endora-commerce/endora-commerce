@@ -36,7 +36,6 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyzja to us
 | `organizations` | tak | instaluje się i migruje po nim; operator nie może go wyłączyć pod tym modułem |
 | `settings` | tak | instaluje się i migruje po nim; operator nie może go wyłączyć pod tym modułem |
 | `transactional_emails` | tak | instaluje się i migruje po nim; operator nie może go wyłączyć pod tym modułem |
-| `comarch_xl` | nie | refuses-without `comarchXlSaleDocumentAttachmentPort` — Załączniki dokumentów sprzedaży importowanych z ERP nie mogą być pobierane z Comarch XL. |
 | `invoice_ledger` | nie | degrades-without `invoiceLedgerRoutingPort` — Wystawianie pozostaje z numeracją Endora i gotowe; oczekiwanie trybu B jest ignorowane. |
 
 ## Uprawnienia
