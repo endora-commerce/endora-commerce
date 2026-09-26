@@ -2,7 +2,6 @@
 '@endora-commerce/mod-comarch-xl': minor
 '@endora-commerce/mod-infakt': minor
 '@endora-commerce/mod-ksef': minor
-'@endora-commerce/mod-pim-akeneo': minor
 '@endora-commerce/mod-pim-ergonode': minor
 '@endora-commerce/mod-pim-pimcore': minor
 '@endora-commerce/mod-pim-unopim': minor
