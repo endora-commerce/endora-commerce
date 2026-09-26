@@ -1,6 +1,5 @@
 ---
 '@endora-commerce/contracts': minor
-'@endora-commerce/mod-pim-unopim': minor
 ---
 
 `@endora-commerce/contracts` no longer exports the UnoPim PIM connector's schemas; the connector publishes its own
@@ -21,9 +20,18 @@ Nothing else in `@endora-commerce/contracts` changes. The catalogue and PIM-conn
 UnoPim shapes compose — `apiAttributeTypeSchema`, `productLinkKindSchema`, `pimFieldPathSchema` and
 the `pimImport*` schemas — stay where they are, and the module now imports them from there.
 
-`@endora-commerce/mod-pim-unopim` gains the `./contracts` export. It already declared `zod` as a
-peer dependency, so installing it pulls in nothing new.
+**`ERROR_CODES` also loses its twelve `PIM_UNOPIM_*` members**, because the enumeration is the
+vocabulary of the codes this repository's own modules declare and the UnoPim connector is no longer
+one of them: `PIM_UNOPIM_NOT_CONFIGURED`, `PIM_UNOPIM_CONNECTION_EXISTS`,
+`PIM_UNOPIM_SCHEDULE_INVALID`, `PIM_UNOPIM_IMPORT_ALREADY_RUNNING`,
+`PIM_UNOPIM_CONNECTION_DISABLED`, `PIM_UNOPIM_TYPE_INCOMPATIBLE`,
+`PIM_UNOPIM_TARGET_ATTRIBUTE_NOT_FOUND`, `PIM_UNOPIM_TARGET_ALREADY_MAPPED`,
+`PIM_UNOPIM_CURRENCY_INACTIVE`, `PIM_UNOPIM_ATTRIBUTE_NOT_PRICE_TYPE`,
+`PIM_UNOPIM_BINDING_EXISTS` and `PIM_UNOPIM_FIELD_PATH_INVALID`. The strings on the wire are
+unchanged; code that compared against them takes `pimUnopimErrorCodes` from
+`@endora-commerce/mod-pim-unopim` instead.
 
-`@endora-commerce/mod-pim-unopim` also owns its twelve error codes now: the root export gains
-`pimUnopimErrorCodes`, declared with `defineModuleErrorCodes`, and every raise site in the module
-uses it instead of `ERROR_CODES.PIM_UNOPIM_*`. The codes' values on the wire do not change.
+`@endora-commerce/mod-pim-unopim` itself is no longer released from this repository: it leaves for
+the paid-modules repository in the same change, and its next version — with the `./contracts`
+export and a root `pimUnopimErrorCodes`, declared with `defineModuleErrorCodes` — is cut there.
+It already declared `zod` as a peer dependency, so installing it pulls in nothing new.
