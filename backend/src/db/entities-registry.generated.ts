@@ -100,7 +100,6 @@ import { entities as shipmentsEntities } from '@endora-commerce/mod-shipments/ba
 import { entities as shoppingListsEntities } from '@endora-commerce/mod-shopping-lists/backend';
 import { entities as taxesEntities } from '@endora-commerce/mod-taxes/backend';
 import { entities as i18nEntities } from '@endora-commerce/mod-i18n/backend';
-import { entities as pimUnopimEntities } from '@endora-commerce/mod-pim-unopim/backend';
 import { entities as webhooksEntities } from '@endora-commerce/mod-webhooks/backend';
 import { entities as comarchXlEntities } from '@endora-commerce/mod-comarch-xl/backend';
 
@@ -168,7 +167,6 @@ export const ALL_ENTITIES = [
   ...(shoppingListsEntities as readonly EntityClassLike[]),
   ...(taxesEntities as readonly EntityClassLike[]),
   ...(i18nEntities as readonly EntityClassLike[]),
-  ...(pimUnopimEntities as readonly EntityClassLike[]),
   ...(webhooksEntities as readonly EntityClassLike[]),
   ...(comarchXlEntities as readonly EntityClassLike[]),
 ] as const;

@@ -103,12 +103,6 @@ export const ACTION_PERMISSION_DISAGREEMENTS: Readonly<Record<string, string>> =
     '`open-pim-ergonode` already advertises with the read code. Retire this entry by ' +
     'deciding whether the row promises the import (write, and it stays) or the screen ' +
     'the import is started from (read, and it becomes a duplicate of the open action).',
-  'pim_unopim:run-unopim-import':
-    '"Import from UnoPim now" declares `pim_unopim:write` and lands on ' +
-    '`/pim-unopim`, whose landing GETs are `pim_unopim:read` — the same route ' +
-    '`open-unopim` already advertises with the read code. Retire this entry by ' +
-    'deciding whether the row promises the import (write, and it stays) or the screen ' +
-    'the import is started from (read, and it becomes a duplicate of the open action).',
   'product_feeds:import-feed-template':
     '"Import a feed template" declares `product_feeds:write`; the import screen it ' +
     'opens is behind read-gated landing routes, and the POST that performs the import ' +
