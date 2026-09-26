@@ -1310,6 +1310,20 @@ export interface RecordedReadSize {
  * changeset), net −153, and `check-nul-bytes`, `scripts/check-naming.sh` and
  * `check-root-dispositions` each move by exactly that, 8399 → 8246, 8459 → 8306 and
  * 8460 → 8307. No band was widened and no figure was computed from a delta.
+ *
+ * ## `specs/134-paid-module-extraction/` T068 + T115, 2026-09-26 — the comarch prologue
+ *
+ * Two detached worktrees, prepared identically and worked in nowhere else — `origin/master`
+ * `82b04cb11` and this branch's tip — `scripts/setup-worktree.sh`, `pnpm run build:packages`, no
+ * `docs/docs/modules` copies, no `docs/.module-docs-copies.json`, no untracked file. The base
+ * census is **3 drifted, 44 agree, 0 not measured, of 47**; the tip is **31 drifted, 16 agree**,
+ * both green. Thirty-three dimensions agree on `master` and move at the tip; they are
+ * re-recorded to the tip's readings, each marked at its entry. The three that drift on `master`
+ * (`check-port-dependencies` sites, `check-env-inputs` sites, `check-lock-claims` files) are left
+ * to their owners — `check-lock-claims` moves one further here (290 → 291), inside the band. The
+ * whole-repository walks corroborate the measurement: the branch adds four tracked files (the
+ * fixture's two, two changesets) and relocates one page, and `check-nul-bytes`,
+ * `scripts/check-naming.sh` and `check-root-dispositions` each move by exactly four.
  */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
@@ -2021,7 +2035,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_unopim` leaves): 2269 -> 1993.** the `pim_unopim` package's sources. `master` already read 2067 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 1993 -> 1927.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 1927,
+    // **T068/T115 (comarch prologue): 1927 -> 1929.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    files: 1929,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2166,7 +2181,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_akeneo` leaves): 1804 -> 1621.** (breach) already drifting on `master` at 1680, which the five gateways' departure left there; this extraction takes it below the band's floor, so the tip's reading replaces the stale record.
     // **T055 (`pim_unopim` leaves): 1621 -> 1552.** the `pim_unopim` package's sources.
     // **T055 (`pim_pimcore` leaves): 1552 -> 1491.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 1491,
+    // **T068/T115 (comarch prologue): 1491 -> 1493.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    files: 1493,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -2350,7 +2366,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 2191 -> 2099.** the `pim_unopim` package's sources.
     // **T055 (`pim_pimcore` leaves): 2099 -> 2008.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 2008,
+    // **T068/T115 (comarch prologue): 2008 -> 2010.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    files: 2010,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -2971,7 +2988,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 5478 -> 5323.** the `pim_unopim` package's sources.
     // **T055 (`pim_pimcore` leaves): 5323 -> 5188.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 5188,
+    // **T068/T115 (comarch prologue): 5188 -> 5190.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    files: 5190,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -3436,7 +3454,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 2412 -> 2320.** the `pim_unopim` package's sources.
     // **T055 (`pim_pimcore` leaves): 2320 -> 2229.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 2229,
+    // **T068/T115 (comarch prologue): 2229 -> 2233.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    files: 2233,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -4181,7 +4200,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_unopim` leaves): 2269 -> 1993.** the `pim_unopim` package's sources. `master` already read 2067 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 1993 -> 1927.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 1927,
+    // **T068/T115 (comarch prologue): 1927 -> 1929.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    files: 1929,
     // **T042–T045, re-measured 2026-09-25: 276 -> 248.** The five modules' entity classes. Agreed
     // at `origin/master` `ce96b1e94`; see the header block above the table.
     // **T055 (`pim_akeneo` leaves): 248 -> 239.** the package's nine declared entities (E1 read `sites=9`).
@@ -4539,7 +4559,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_unopim` leaves): 2269 -> 1993.** the `pim_unopim` package's sources. `master` already read 2067 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 1993 -> 1927.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 1927,
+    // **T068/T115 (comarch prologue): 1927 -> 1929.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    files: 1929,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4889,7 +4910,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_unopim` leaves): 2269 -> 1993.** the `pim_unopim` package's sources. `master` already read 2067 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 1993 -> 1927.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 1927,
+    // **T068/T115 (comarch prologue): 1927 -> 1929.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    files: 1929,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -5185,7 +5207,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_unopim` leaves): 2910 -> 2614.** the `pim_unopim` package's sources. `master` already read 2701 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 2614 -> 2539.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 2539,
+    // **T068/T115 (comarch prologue): 2539 -> 2541.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    files: 2541,
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 138 -> 137.** **One fewer `process.env` read, and it is the subject of the change rather than a side effect of it.** `index.ts` and `worker.ts` each read `SESSION_COOKIE_SECRET` and `NODE_ENV` — four reads over two entry points — and the one resolution they now share is three reads in `composition.ts`. `files` does not move: the resolution landed in a file this walk already read, and the test beside it is out of the population by `NOT_RUNTIME`. `specs/117-instance-bring-up/` Phase 6 recorded the identical shape, 139 -> 138, when the deployment root's `NEWSLETTER_TOKEN_SECRET` chain moved into `composeApp` — which is the read this branch exists to make reachable.
@@ -5654,7 +5677,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test is the only file this branch adds that this signal reads.
     // **T055 (`pim_unopim` leaves): 595 -> 563.** the sites those host test files held.
     // **T055 (`pim_pimcore` leaves): 563 -> 557.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    sites: 557,
+    // **T068/T115 (comarch prologue): 557 -> 556.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    sites: 556,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -6301,7 +6325,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_unopim` leaves): 2269 -> 1993.** the `pim_unopim` package's sources. `master` already read 2067 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 1993 -> 1927.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 1927,
+    // **T068/T115 (comarch prologue): 1927 -> 1929.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    files: 1929,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -6827,7 +6852,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 2714 -> 2608.** the `pim_unopim` package's sources.
     // **T055 (`pim_pimcore` leaves): 2608 -> 2507.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 2507,
+    // **T068/T115 (comarch prologue): 2507 -> 2509.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    files: 2509,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 56 -> 66.**
     // The header block above this table has the arithmetic; nothing here
@@ -6994,7 +7020,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_unopim` leaves): 2218 -> 1935.** the `pim_unopim` package's sources. `master` already read 2021 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 1935 -> 1863.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 1863,
+    // **T068/T115 (comarch prologue): 1863 -> 1865.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    files: 1865,
     // The finer population, and it is the one that moves when nothing else does
     // (issues #235/#237): tree sites, unreadable sites, renderer-map sites, the
     // block declarations and the declared `(key, context)` sections. A block
@@ -7162,7 +7189,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 2812 -> 2706.** the `pim_unopim` package's sources.
     // **T055 (`pim_pimcore` leaves): 2706 -> 2605.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 2605,
+    // **T068/T115 (comarch prologue): 2605 -> 2607.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    files: 2607,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -7387,7 +7415,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`fix/instance-docs-foreign-link-catalog`: sites 259 -> 258 (-1), `files` unmoved at 108.** One relative link into a sibling module's page became prose — `catalog/attributes.md` -> `../promotions.md`, the last `foreign-module-link` a default instance's documentation build refuses, `promotions` not being in the set `endora new instance` writes. It is `../search.md`'s repair a second time and the shard is deleted with it, an empty one being a done signal that says nothing. 36 links -> 35; no page was written or deleted, which is why `files` does not move. Re-measured on the **merged** tree (`origin/master` at c99c2cd09) in a fresh detached `git worktree` of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and the resolution staged first — `check-naming.sh` and `check-language.sh` take their population from the index. This file's conflict was resolved wholly to the incoming side and every value was then re-measured rather than reconciled, per `specs/conventions/check-estate.md`. **The attribution is the whole of it and it is one cause**: the branch's own pre-merge run named eight entries, three of which were `docs(128)`'s +4 standing on `master` unrecorded, and `fix/availability-notification-existence-oracle` re-recorded those three before this merge — so five are left and every one of them is this branch's. The branch adds one `.changeset/*.md` and deletes one tracked `.ts`, which is why the two whole-repository walks net to zero and do not appear. No band was widened and no value was computed from a delta: the run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
     // **T055 (`pim_unopim` leaves): 249 -> 221.** the package's module page and its links. `master` already read 224 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 221 -> 219.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    sites: 219,
+    // **T068/T115 (comarch prologue): 219 -> 221.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    sites: 221,
     // Three authors, each seeing something the others cannot. `manifest-index`
     // is issue #215's shared floor over the module walk, whose unit is the
     // module's own directory. `sidebar-entries` is the **committed artefact's**
@@ -7617,7 +7646,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 1648 -> 1576.** the `pim_unopim` package's sources.
     // **T055 (`pim_pimcore` leaves): 1576 -> 1514.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 1514,
+    // **T068/T115 (comarch prologue): 1514 -> 1516.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    files: 1516,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -7722,7 +7752,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_akeneo` leaves): 36259 -> 32388.** (breach) already drifting on `master` at 33688 after the gateways left; this extraction takes it below the floor, so the tip's reading replaces the stale record.
     // **T055 (`pim_unopim` leaves): 32344 -> 30581.** the sites the `pim_unopim` package held, measured.
     // **T055 (`pim_pimcore` leaves): 30581 -> 29080.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    sites: 29080,
+    // **T068/T115 (comarch prologue): 29080 -> 29094.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    sites: 29094,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -8408,7 +8439,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 5009 -> 4811.** the `pim_unopim` package's sources.
     // **T055 (`pim_pimcore` leaves): 4811 -> 4619.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 4619,
+    // **T068/T115 (comarch prologue): 4619 -> 4623.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    files: 4623,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -8520,7 +8552,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // is added or deleted.
     // **T055 (`pim_unopim` leaves): 12319 -> 11744.** the sites the `pim_unopim` package held, measured.
     // **T055 (`pim_pimcore` leaves): 11744 -> 11275.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    sites: 11275,
+    // **T068/T115 (comarch prologue): 11275 -> 11277.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    sites: 11277,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -9653,7 +9686,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 8569 -> 8399.** the branch deletes 172 tracked files and adds 2 against its base, net -170.
     // **T055 (`pim_pimcore` leaves): 8399 -> 8246.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 8246,
+    // **T068/T115 (comarch prologue): 8246 -> 8250.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    files: 8250,
     sites: null,
     sources: [],
     //
@@ -9914,7 +9948,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and never computed from a delta.
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_pimcore` leaves): 981 -> 876.** Already 890 on `master` (961634f66), inside the band; this departure takes it past the floor, so it is re-recorded to the tip's measured reading.
-    sites: 876,
+    // **T068/T115 (comarch prologue): 876 -> 877.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    sites: 877,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 86 -> 87.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -10379,7 +10414,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // arrived handled. The file count is `master`'s own drift from the paid-module departures.
     // **T055 (`pim_unopim` leaves): 2067 -> 1993.** the `pim_unopim` package's sources.
     // **T055 (`pim_pimcore` leaves): 1993 -> 1927.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 1927,
+    // **T068/T115 (comarch prologue): 1927 -> 1929.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    files: 1929,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -10557,7 +10593,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Same rebase, 2026-09-25: `sources` gains `capability-families`.** Unrelated to any conflict this rebase resolved — `master` had already added a second corroboration source to `check-port-dependencies.ts` (capability-family membership, alongside the manifest index) before this branch's base point, and the recorded entry had not caught up.
     // **T055 (`pim_unopim` leaves): 2082 -> 1804.** the `pim_unopim` package's sources. `master` already read 1878 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 1804 -> 1738.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 1738,
+    // **T068/T115 (comarch prologue): 1738 -> 1740.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    files: 1740,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 1471 -> 1535.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
@@ -11002,7 +11039,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 2352 -> 2264.** the `pim_unopim` package's sources.
     // **T055 (`pim_pimcore` leaves): 2264 -> 2189.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 2189,
+    // **T068/T115 (comarch prologue): 2189 -> 2191.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    files: 2191,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -11112,7 +11150,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the verdict does not.
     // **T055 (`pim_unopim` leaves): 1761 -> 1702.** the sites the `pim_unopim` package held, measured.
     // **T055 (`pim_pimcore` leaves): 1702 -> 1640.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    sites: 1640,
+    // **T068/T115 (comarch prologue): 1640 -> 1641.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    sites: 1641,
     // count moves with the file count here because the reaches that went are exactly
     // the files that went.
     // **T119a: sites 1870 -> 1861.** The same nine files, each the single relative
@@ -11326,7 +11365,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_unopim` leaves): 2181 -> 1901.** the `pim_unopim` package's sources. `master` already read 1976 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 1901 -> 1834.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 1834,
+    // **T068/T115 (comarch prologue): 1834 -> 1836.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    files: 1836,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 692 -> 721.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -11401,7 +11441,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_unopim` leaves): 2269 -> 1993.** the `pim_unopim` package's sources. `master` already read 2067 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 1993 -> 1927.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 1927,
+    // **T068/T115 (comarch prologue): 1927 -> 1929.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    files: 1929,
     // **T055 (`pim_akeneo` leaves): 48 -> 44.** the package's four queue sites (E1 read `sites=4`).
     // **T055 (`pim_unopim` leaves): 44 -> 38.** the sites the `pim_unopim` package held, measured.
     // **T055 (`pim_pimcore` leaves): 38 -> 34.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
@@ -11772,7 +11813,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 8630 -> 8460.** the branch deletes 172 tracked files and adds 2 against its base, net -170.
     // **T055 (`pim_pimcore` leaves): 8460 -> 8307.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 8307,
+    // **T068/T115 (comarch prologue): 8307 -> 8311.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    files: 8311,
     // **T055 (`pim_unopim` leaves): 1335 -> 1336.** measured on the branch's tree and not attributed further; it is inside the band either way and is re-recorded because it agreed on `master`.
     // **T055 (`pim_pimcore` leaves): 1336 -> 1337.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
     sites: 1337,
@@ -12502,7 +12544,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_unopim` leaves): 2269 -> 1993.** the `pim_unopim` package's sources. `master` already read 2067 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 1993 -> 1927.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 1927,
+    // **T068/T115 (comarch prologue): 1927 -> 1929.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    files: 1929,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -13211,7 +13254,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_unopim` leaves): 2269 -> 1993.** the `pim_unopim` package's sources. `master` already read 2067 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 1993 -> 1927.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 1927,
+    // **T068/T115 (comarch prologue): 1927 -> 1929.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    files: 1929,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -13779,7 +13823,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 4522 -> 4367.** the `pim_unopim` package's sources.
     // **T055 (`pim_pimcore` leaves): 4367 -> 4233.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 4233,
+    // **T068/T115 (comarch prologue): 4233 -> 4235.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    files: 4235,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -14941,7 +14986,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 8629 -> 8459.** the branch deletes 172 tracked files and adds 2 against its base, net -170.
     // **T055 (`pim_pimcore` leaves): 8459 -> 8306.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 8306,
+    // **T068/T115 (comarch prologue): 8306 -> 8310.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    files: 8310,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -15642,7 +15688,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 6128 -> 5969.** the branch deletes 172 tracked files and adds 2 against its base, net -170.
     // **T055 (`pim_pimcore` leaves): 5969 -> 5831.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 5831,
+    // **T068/T115 (comarch prologue): 5831 -> 5833.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
+    files: 5833,
     sites: null,
     sources: ['manifest-index'],
     //
