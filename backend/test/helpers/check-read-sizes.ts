@@ -1647,7 +1647,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 1808 -> 1809.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    files: 1809,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 1809 -> 1810.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    files: 1810,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -2031,7 +2032,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 1933 -> 1932.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    files: 1932,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 1932 -> 1933.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    files: 1933,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2370,7 +2372,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 2019 -> 2021.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    files: 2021,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 2021 -> 2022.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    files: 2022,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -2995,7 +2998,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
-    files: 5204,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 5204 -> 5206.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    files: 5206,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -3469,7 +3473,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
-    files: 2240,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 2240 -> 2241.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    files: 2241,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -4220,7 +4225,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 1933 -> 1932.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    files: 1932,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 1932 -> 1933.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    files: 1933,
     // **T042–T045, re-measured 2026-09-25: 276 -> 248.** The five modules' entity classes. Agreed
     // at `origin/master` `ce96b1e94`; see the header block above the table.
     // **T055 (`pim_akeneo` leaves): 248 -> 239.** the package's nine declared entities (E1 read `sites=9`).
@@ -4587,7 +4593,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 1933 -> 1932.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    files: 1932,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 1932 -> 1933.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    files: 1933,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4942,7 +4949,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 1933 -> 1932.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    files: 1932,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 1932 -> 1933.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    files: 1933,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -5238,7 +5246,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_unopim` leaves): 2910 -> 2614.** the `pim_unopim` package's sources. `master` already read 2701 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 2614 -> 2539.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 2544,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 2544 -> 2545.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    files: 2545,
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 138 -> 137.** **One fewer `process.env` read, and it is the subject of the change rather than a side effect of it.** `index.ts` and `worker.ts` each read `SESSION_COOKIE_SECRET` and `NODE_ENV` — four reads over two entry points — and the one resolution they now share is three reads in `composition.ts`. `files` does not move: the resolution landed in a file this walk already read, and the test beside it is out of the population by `NOT_RUNTIME`. `specs/117-instance-bring-up/` Phase 6 recorded the identical shape, 139 -> 138, when the deployment root's `NEWSLETTER_TOKEN_SECRET` chain moved into `composeApp` — which is the read this branch exists to make reachable.
@@ -5648,7 +5657,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
-    files: 1521,
+    files: 1522,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -5717,7 +5726,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: sites 558 -> 559, files 1520 -> 1521.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    sites: 559,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): sites 559 -> 560, files 1521 -> 1522.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    sites: 560,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -6000,7 +6010,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 1520 -> 1521.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    files: 1521,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 1521 -> 1522.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    files: 1522,
     sites: null,
     sources: [],
   },
@@ -6374,7 +6385,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 1933 -> 1932.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    files: 1932,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 1932 -> 1933.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    files: 1933,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -6906,7 +6918,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 2518 -> 2520.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    files: 2520,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 2520 -> 2521.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    files: 2521,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 56 -> 66.**
     // The header block above this table has the arithmetic; nothing here
@@ -7251,7 +7264,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 2616 -> 2618.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    files: 2618,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 2618 -> 2619.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    files: 2619,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -7820,7 +7834,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: sites 29158 -> 29129, files 1519 -> 1518.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    sites: 29129,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): sites 29129 -> 29132.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    sites: 29132,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -8510,7 +8525,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
-    files: 4647,
+    files: 4649,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -8627,7 +8642,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: sites 11326 -> 11335, files 4643 -> 4647.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    sites: 11335,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): sites 11335 -> 11339, files 4647 -> 4649.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    sites: 11339,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -9761,7 +9777,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_unopim` leaves): 8569 -> 8399.** the branch deletes 172 tracked files and adds 2 against its base, net -170.
     // **T055 (`pim_pimcore` leaves): 8399 -> 8246.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 8246 -> 8243.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    files: 8243,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 8243 -> 8248.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    files: 8248,
     sites: null,
     sources: [],
     //
@@ -10026,7 +10043,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
-    sites: 877,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): sites 877 -> 878.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    sites: 878,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 86 -> 87.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -10500,7 +10518,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 1933 -> 1932.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    files: 1932,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 1932 -> 1933.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    files: 1933,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -10678,7 +10697,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Same rebase, 2026-09-25: `sources` gains `capability-families`.** Unrelated to any conflict this rebase resolved — `master` had already added a second corroboration source to `check-port-dependencies.ts` (capability-family membership, alongside the manifest index) before this branch's base point, and the recorded entry had not caught up.
     // **T055 (`pim_unopim` leaves): 2082 -> 1804.** the `pim_unopim` package's sources. `master` already read 1878 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 1804 -> 1738.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 1743,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 1743 -> 1744.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    files: 1744,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 1471 -> 1535.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
@@ -11128,7 +11148,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
-    files: 2193,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 2193 -> 2194.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    files: 2194,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -11462,7 +11483,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 1841 -> 1840.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    files: 1840,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 1840 -> 1841.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    files: 1841,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 692 -> 721.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -11546,7 +11568,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 1933 -> 1932.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    files: 1932,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 1932 -> 1933.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    files: 1933,
     // **T055 (`pim_akeneo` leaves): 48 -> 44.** the package's four queue sites (E1 read `sites=4`).
     // **T055 (`pim_unopim` leaves): 44 -> 38.** the sites the `pim_unopim` package held, measured.
     // **T055 (`pim_pimcore` leaves): 38 -> 34.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
@@ -11918,7 +11941,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_unopim` leaves): 8630 -> 8460.** the branch deletes 172 tracked files and adds 2 against its base, net -170.
     // **T055 (`pim_pimcore` leaves): 8460 -> 8307.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 8307 -> 8304.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    files: 8304,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 8304 -> 8309.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    files: 8309,
     // **T055 (`pim_unopim` leaves): 1335 -> 1336.** measured on the branch's tree and not attributed further; it is inside the band either way and is re-recorded because it agreed on `master`.
     // **T055 (`pim_pimcore` leaves): 1336 -> 1337.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
     sites: 1337,
@@ -12248,14 +12272,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 1520 -> 1521.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    files: 1521,
+    files: 1522,
     // **T055 (`pim_unopim` leaves): 166 -> 157.** the sites those host test files held.
     // **T055 (`pim_pimcore` leaves): 157 -> 156.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
     // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 156 -> 157.**
     // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
-    sites: 157,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): sites 157 -> 158, files 1521 -> 1522.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    sites: 158,
     sources: [],
   },
   'backend/scripts/check-storefront-indexability.ts': {
@@ -12662,7 +12687,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 1933 -> 1932.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    files: 1932,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 1932 -> 1933.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    files: 1933,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -12980,7 +13006,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
-    files: 1653,
+    files: 1654,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -13016,7 +13042,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: sites 1082 -> 1084, files 1649 -> 1653.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    sites: 1084,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): sites 1084 -> 1085, files 1653 -> 1654.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    sites: 1085,
     // Two independent authors. `manifest-index` is issue #215's shared floor
     // over the module walk, whose unit is the module's own directory rather than
     // a test file — 14 of the 70 packages ship no test and a floor over test
@@ -13385,7 +13412,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 1933 -> 1932.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    files: 1932,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 1932 -> 1933.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    files: 1933,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -13958,7 +13986,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 4244 -> 4247.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    files: 4247,
+    files: 4249,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -14022,7 +14050,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
-    sites: 728,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): sites 728 -> 729, files 4247 -> 4249.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    sites: 729,
     sources: ['manifest-index', 'entities-registry', 'tenant-chains'],
     //
     // **852 -> 851 sites, 4336 -> 4337 files, and the two have different causes.**
@@ -15125,7 +15154,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_unopim` leaves): 8629 -> 8459.** the branch deletes 172 tracked files and adds 2 against its base, net -170.
     // **T055 (`pim_pimcore` leaves): 8459 -> 8306.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 8306 -> 8303.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    files: 8303,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 8303 -> 8308.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    files: 8308,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -15831,7 +15861,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 5842 -> 5846.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    files: 5846,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 5846 -> 5848.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    files: 5848,
     sites: null,
     sources: ['manifest-index'],
     //
