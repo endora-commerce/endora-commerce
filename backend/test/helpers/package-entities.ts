@@ -121,16 +121,6 @@ import type {
   UnopimProductLink as UnopimProductLinkRow,
   UnopimSyncBookmark as UnopimSyncBookmarkRow,
 } from '@endora-commerce/mod-pim-unopim/test-support';
-import type {
-  PimcoreCatalogueDelivery as PimcoreCatalogueDeliveryRow,
-  PimcoreConnection as PimcoreConnectionRow,
-  PimcoreDeliveredRecord as PimcoreDeliveredRecordRow,
-  PimcoreFieldProtection as PimcoreFieldProtectionRow,
-  PimcoreImportIssue as PimcoreImportIssueRow,
-  PimcoreImportRun as PimcoreImportRunRow,
-  PimcoreMediaLink as PimcoreMediaLinkRow,
-  PimcoreSourceLink as PimcoreSourceLinkRow,
-} from '@endora-commerce/mod-pim-pimcore/test-support';
 import type { EmailDelivery as EmailDeliveryRow } from '../../../packages/modules/email/src/backend/entities/email-delivery.entity.js';
 import type { InvoiceLedgerClientMap as InvoiceLedgerClientMapRow } from '../../../packages/modules/invoice_ledger/src/backend/entities/invoice-ledger-client-map.entity.js';
 import type { InvoiceLedgerDelivery as InvoiceLedgerDeliveryRow } from '../../../packages/modules/invoice_ledger/src/backend/entities/invoice-ledger-delivery.entity.js';
@@ -972,47 +962,6 @@ export const UnopimPriceBinding = classNamed<UnopimPriceBindingRow>(
   'UnopimPriceBinding',
 );
 
-export const PimcoreCatalogueDelivery = classNamed<PimcoreCatalogueDeliveryRow>(
-  installedModuleEntities,
-  'pim_pimcore',
-  'PimcoreCatalogueDelivery',
-);
-export const PimcoreConnection = classNamed<PimcoreConnectionRow>(
-  installedModuleEntities,
-  'pim_pimcore',
-  'PimcoreConnection',
-);
-export const PimcoreDeliveredRecord = classNamed<PimcoreDeliveredRecordRow>(
-  installedModuleEntities,
-  'pim_pimcore',
-  'PimcoreDeliveredRecord',
-);
-export const PimcoreFieldProtection = classNamed<PimcoreFieldProtectionRow>(
-  installedModuleEntities,
-  'pim_pimcore',
-  'PimcoreFieldProtection',
-);
-export const PimcoreImportIssue = classNamed<PimcoreImportIssueRow>(
-  installedModuleEntities,
-  'pim_pimcore',
-  'PimcoreImportIssue',
-);
-export const PimcoreImportRun = classNamed<PimcoreImportRunRow>(
-  installedModuleEntities,
-  'pim_pimcore',
-  'PimcoreImportRun',
-);
-export const PimcoreMediaLink = classNamed<PimcoreMediaLinkRow>(
-  installedModuleEntities,
-  'pim_pimcore',
-  'PimcoreMediaLink',
-);
-export const PimcoreSourceLink = classNamed<PimcoreSourceLinkRow>(
-  installedModuleEntities,
-  'pim_pimcore',
-  'PimcoreSourceLink',
-);
-
 /**
  * The **row shapes** batch four's tests annotate with, on the same terms as
  * `PaymentMethodRow` above: `classNamed` returns a value, so a test that writes
@@ -1241,21 +1190,6 @@ export type OrderPlacementIntent = OrderPlacementIntentRow;
 export type Payment = PaymentRow;
 export type Shipment = ShipmentRow;
 export type NewsletterSubscriber = NewsletterSubscriberRow;
-
-/**
- * The `pim_pimcore` names the test tree also uses as a **type**, on the terms
- * the block above states: `classNamed` returns only the value, so a
- * `Promise<PimcoreImportRun>` or a `Partial<PimcoreImportRun>` needs the type
- * declared beside it. `export type` erases, so nothing is constructed.
- */
-export type PimcoreCatalogueDelivery = PimcoreCatalogueDeliveryRow;
-export type PimcoreConnection = PimcoreConnectionRow;
-export type PimcoreDeliveredRecord = PimcoreDeliveredRecordRow;
-export type PimcoreFieldProtection = PimcoreFieldProtectionRow;
-export type PimcoreImportIssue = PimcoreImportIssueRow;
-export type PimcoreImportRun = PimcoreImportRunRow;
-export type PimcoreMediaLink = PimcoreMediaLinkRow;
-export type PimcoreSourceLink = PimcoreSourceLinkRow;
 
 export type AdminNotification = AdminNotificationRow;
 

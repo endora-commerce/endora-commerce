@@ -3,7 +3,6 @@
 '@endora-commerce/mod-infakt': minor
 '@endora-commerce/mod-ksef': minor
 '@endora-commerce/mod-pim-ergonode': minor
-'@endora-commerce/mod-pim-pimcore': minor
 '@endora-commerce/mod-pim-unopim': minor
 ---
 
@@ -19,3 +18,5 @@ behaviour.
 `minor` rather than `patch`: `packageLicense` is additive published surface on `.`, on the
 `mod-ksef` `./test-support` precedent. In a `0.x` series a minor takes every caret dependent out
 of range, which is what a consumer should notice about the licence field changing.
+
+`@endora-commerce/mod-pim-pimcore` carries this change as well; it has left for the paid-modules repository, and its next version is cut there.
