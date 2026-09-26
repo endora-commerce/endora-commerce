@@ -381,6 +381,39 @@ export interface InvoiceCopyHostPort {
 }
 
 // ---------------------------------------------------------------------------
+// Domain events — `invoice.issued.v1`, `invoice.corrected.v1`
+// ---------------------------------------------------------------------------
+//
+// Raised by this module and read by whoever subscribes: `invoice_ledger`
+// routes them to an accounting vendor, and `ksef` submits them to the national
+// clearing system. They were declared in the KSeF vendor file until feature
+// 134's T062 (`specs/134-paid-module-extraction/research.md` §C.4): the payload
+// of an event is the contract of the module that raises it, so a subscriber
+// never has to read another subscriber's contract to understand it.
+//
+// Both describe the fields a subscriber reads. The emitter also sends the
+// `eventId` / `occurredAt` envelope every in-process event carries, which a
+// subscriber's parse ignores.
+
+/** `invoice.issued.v1` payload, emitted when `invoices` issues a VAT invoice or a proforma. */
+export const invoiceIssuedEventSchema = z.object({
+  invoiceId: z.string().uuid(),
+  orderId: z.string().uuid(),
+  kind: z.enum(['invoice', 'proforma']),
+  salesChannelId: z.string().uuid().nullable(),
+});
+export type InvoiceIssuedEvent = z.infer<typeof invoiceIssuedEventSchema>;
+
+/** `invoice.corrected.v1` payload, emitted when `invoices` issues a corrective invoice. */
+export const invoiceCorrectedEventSchema = z.object({
+  invoiceId: z.string().uuid(),
+  originalInvoiceId: z.string().uuid().nullable(),
+  orderId: z.string().uuid(),
+  salesChannelId: z.string().uuid().nullable(),
+});
+export type InvoiceCorrectedEvent = z.infer<typeof invoiceCorrectedEventSchema>;
+
+// ---------------------------------------------------------------------------
 // Numbering — the pattern vocabulary and the collision shapes (feature 078, D-95)
 // ---------------------------------------------------------------------------
 
