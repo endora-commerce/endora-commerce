@@ -4,7 +4,6 @@
 '@endora-commerce/mod-ksef': minor
 '@endora-commerce/mod-pim-ergonode': minor
 '@endora-commerce/mod-pim-pimcore': minor
-'@endora-commerce/mod-pim-unopim': minor
 ---
 
 These packages now declare `"license": "SEE LICENSE IN LICENSE.md"` and ship `LICENSE.md` in place of the MIT `LICENSE`

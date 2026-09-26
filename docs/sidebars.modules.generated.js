@@ -515,14 +515,6 @@ const modules = [
   },
   {
     type: 'category',
-    label: 'UnoPim PIM', key: 'pim_unopim',
-    link: { type: 'doc', id: 'modules/pim_unopim' },
-    items: [
-      'module-reference/pim-unopim',
-    ],
-  },
-  {
-    type: 'category',
     label: 'webhooks', key: 'webhooks',
     link: { type: 'doc', id: 'modules/webhooks' },
     items: [

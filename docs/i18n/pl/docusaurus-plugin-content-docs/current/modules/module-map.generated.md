@@ -67,7 +67,6 @@ przypadkiem zostało napisane.
 | `pim_connector` | _brak strony_ | @endora-commerce/mod-pim-connector |
 | [Ergonode PIM](./pim_ergonode.md) | Inbound connector tylko do odczytu dla Ergonode PIM — produkty, wartości atrybutów, placement kategorii, media i opcjonalne ceny, na żądanie lub według harmonogramu | @endora-commerce/mod-pim-ergonode |
 | [Pimcore PIM](./pim_pimcore.md) | Wejście HMAC complete-record z Pimcore — Endora stosuje dostarczone produkty, kategorie, atrybuty, media i struktury bez czytania Data Hub | @endora-commerce/mod-pim-pimcore |
-| [UnoPim PIM](./pim_unopim.md) | Inbound connector tylko do odczytu dla UnoPim — import OAuth REST, zakładki delta, podpisane webhooki, mapowanie kanału/locale, ochrona pól i opcjonalne powiązania cen | @endora-commerce/mod-pim-unopim |
 | [price_lists](./price_lists.md) | Cenniki klient / grupa / domyślny z progami wolumenowymi + korekty per kategoria | @endora-commerce/mod-price-lists |
 | [Product Feeds](./product_feeds.md) | Feed produktowy w kształcie providera per kanał sprzedaży — generowanie według harmonogramu, tokenizowane URL pull i push SFTP/FTP/HTTP | @endora-commerce/mod-product-feeds |
 | [promotions](./promotions.md) | Rabaty na poziomie koszyka procent / kwota / darmowa dostawa z filtrami kwalifikacji | @endora-commerce/mod-promotions |
