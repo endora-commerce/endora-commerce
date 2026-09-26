@@ -40,7 +40,7 @@
   whether the vendor's sentence is one of the vendor's sentences.
 
   **`@endora-commerce/mod-wfirma` is no longer named here, and the release it was promised is
-  the paid repository's to make.** Feature 134's wave 4 took that package out of this workspace
+  not this repository's to make.** Feature 134's wave 4 took that package out of this workspace
   between this changeset being written and this release going out, so `changeset version` can no
   longer honour an intent for it — `check:release-intent`'s `unversionable-changeset`, which is
   the finding that exists because a changeset naming a non-member exits 0 from `changeset status`
