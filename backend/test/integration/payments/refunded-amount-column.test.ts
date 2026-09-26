@@ -8,7 +8,7 @@ import { Migration20260925T115728PaymentsRefundedAmount } from '../../../../pack
 
 /**
  * `payments.refunded_amount` belongs to `payments` — feature 134's T117,
- * `specs/134-paid-module-extraction/research.md` D14 §4 and FR-065.
+ * feature 134's research D14 §4 and FR-065.
  *
  * `payments`' entity maps the column, and until this repair the only migration
  * creating it was `stripe`'s: an instance without `stripe` could not insert a

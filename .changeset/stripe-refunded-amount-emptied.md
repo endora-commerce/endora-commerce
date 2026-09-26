@@ -1,4 +1,4 @@
 ---
 ---
 
-`@endora-commerce/mod-stripe` left this repository with feature 134's gateway departure; the emptied `refunded_amount` migration it described is carried and released from the paid-modules repository. No package in this workspace changes.
+`@endora-commerce/mod-stripe` is no longer a member of this workspace; the emptied `refunded_amount` migration it described is carried and released from the repository that now holds its source. No package in this workspace changes.

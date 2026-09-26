@@ -28,7 +28,7 @@ Nothing else in `@endora-commerce/contracts` changes. The two catalogue schemas 
 compose — `apiAttributeTypeSchema` and `productLinkKindSchema` — stay where they are, and the
 module now imports them from there.
 
-`@endora-commerce/mod-pim-akeneo` itself is no longer released from this repository: it leaves for
-the paid-modules repository in the same change, and its next version — with the `./contracts`
-export and a root `pimAkeneoErrorCodes`, declared with `defineModuleErrorCodes` — is cut there.
+`@endora-commerce/mod-pim-akeneo` itself is no longer released from this repository, from this
+change on; its next version — with the `./contracts` export and a root `pimAkeneoErrorCodes`,
+declared with `defineModuleErrorCodes` — is cut from the repository that now holds its source.
 It already declared `zod` as a peer dependency, so installing it pulls in nothing new.
