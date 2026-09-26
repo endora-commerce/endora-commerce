@@ -1089,18 +1089,15 @@ const InvoiceFooter = invoiceSection({
  * with `ksef.InvoiceSection` still insertable — which a category list in this
  * file could not express.
  *
- * **Every entry is this module's own.** The palette's eleventh block,
- * `ksef.InvoiceSection`, is declared by `ksef`, and its binding moved there
- * with the rest of its uses (`specs/134-paid-module-extraction/` T063, ruling
- * E4 with ε, `spec.md` §11.3.2). No contribution kind brings it back into this
- * map: a module's admin layer contributes routes, nav entries and zones, and a
- * page-builder-component kind is F7's roadmap row (α), not built here. So this
- * editor does not offer that block, and a template that already places it
- * shows Puck's own stand-in for a type this map has no renderer for
- * (*"No configuration for …"*) — not the FR-019 placeholder the CMS editor
- * wires, which this editor does not use. The node stays in the tree the editor
- * saves. The PDF — the legal document — renders the block wherever `ksef` is
- * present, because the backend half has a seam.
+ * **Every entry is this module's own.** A block another module declares is not
+ * bound here: its binding lives with its declarant, and no page-builder
+ * component contribution kind (α, F7's roadmap row) is built. The editor
+ * reaches such a block through the served descriptor instead —
+ * `withDescribedInvoiceBlocks` (`./described-blocks.tsx`,
+ * `specs/134-paid-module-extraction/` T138) makes a present contributor's block
+ * insertable and configurable with a neutral canvas stand-in, and keeps a stored
+ * block nothing covers as FR-019's placeholder. The PDF — the legal document —
+ * renders it through the contributor's registration on the backend.
  */
 export const invoicePuckConfig: Config = {
   components: {
