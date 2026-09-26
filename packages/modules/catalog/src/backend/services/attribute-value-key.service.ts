@@ -3,19 +3,24 @@ import { customFieldDefinitionSchema, isSystemAttributeKey } from '@endora-comme
 import type {
   CatalogAttributeValueKeyApi,
   CatalogAttributeValueKeyMove,
+  CatalogAttributeValueKeyRenameOptions,
+  CatalogDisplacedAttributeValue,
+  CatalogDisplacedValueOverride,
 } from '../../ports/index.js';
 
 /**
- * A value-key rename `catalog` refused before issuing a statement.
+ * A value-key rename `catalog` refused before writing anything.
  *
  * `system_attribute` — `name` and `description` are product columns, not
  * attribute values, and an override row carrying one of them is a slot of the
  * product's own field; neither can be the source or the target of a key move.
  * `invalid_key` — outside the grammar every product attribute key satisfies.
+ * `target_occupied` — the caller asked to `refuse` and data is already stored
+ * under the destination.
  */
 export class AttributeValueKeyError extends Error {
   constructor(
-    readonly code: 'system_attribute' | 'invalid_key',
+    readonly code: 'system_attribute' | 'invalid_key' | 'target_occupied',
     message: string,
   ) {
     super(message);
@@ -23,10 +28,23 @@ export class AttributeValueKeyError extends Error {
   }
 }
 
+interface DestinationValueRow {
+  readonly product_id: string;
+  readonly value: unknown;
+}
+
+interface DestinationOverrideRow {
+  readonly product_id: string;
+  readonly channel_id: string;
+  readonly language_code: string | null;
+  readonly value: unknown;
+}
+
 /**
  * Renames an attribute's **value key** everywhere `catalog` stores it as a
  * string (`specs/134-paid-module-extraction/research.md` D12, *Ergonode
- * fallback boundary*).
+ * fallback boundary* and *what a rename does to data already under its
+ * destination*).
  *
  * Two places, and only two: `products.attribute_values`, a JSONB map keyed by
  * the attribute key, and `product_value_overrides.attribute_key`. Everything
@@ -36,10 +54,16 @@ export class AttributeValueKeyError extends Error {
  * `EntityManager` and runs every statement on its transaction context rather
  * than on a connection of its own.
  *
- * Both statements are conditioned on the old key, so re-running one is a no-op.
- * A product carrying **both** keys keeps the moved value under the new one; a
- * dormant value left under the target by a deleted definition is overwritten,
- * which is what `jsonb ||` means and what the historical migration did.
+ * In order, all on that transaction:
+ *
+ *   1. the destination's baseline values and override rows are read and
+ *      locked (`for update`);
+ *   2. if there are any, `refuse` throws `target_occupied` — nothing has been
+ *      written — and `displace` strips the key from those products and deletes
+ *      those override rows, keeping what it removed to return;
+ *   3. the two moves run. The destination is empty by now, so the `jsonb ||`
+ *      in the first one only adds a key and the second can meet no unique
+ *      index — the result does not depend on which products held what.
  *
  * No command, no audit, no cache publish: the caller's composite operation owns
  * those, exactly as for `custom_fields`' apply seam.
@@ -49,6 +73,7 @@ export class AttributeValueKeyService implements CatalogAttributeValueKeyApi {
     em: EntityManager,
     fromKey: string,
     toKey: string,
+    options: CatalogAttributeValueKeyRenameOptions,
   ): Promise<CatalogAttributeValueKeyMove> {
     for (const key of [fromKey, toKey]) {
       if (isSystemAttributeKey(key)) {
@@ -61,7 +86,9 @@ export class AttributeValueKeyService implements CatalogAttributeValueKeyApi {
         throw new AttributeValueKeyError('invalid_key', `"${key}" is not a valid attribute key.`);
       }
     }
-    if (fromKey === toKey) return { products: 0, overrides: 0 };
+    if (fromKey === toKey) {
+      return { products: 0, overrides: 0, displaced: { values: [], overrides: [] } };
+    }
 
     // command-coverage-ignore: owner-published rename seam — runs on the caller's
     // transactional EM. Its one caller is a system-invariant repair with no
@@ -71,6 +98,66 @@ export class AttributeValueKeyService implements CatalogAttributeValueKeyApi {
     // nobody to attribute. Contract: specs/134-paid-module-extraction/research.md D12.
     const connection = em.getConnection();
     const ctx = em.getTransactionContext();
+
+    const occupiedValues = (await connection.execute(
+      `select "id" as product_id, "attribute_values" -> ?::text as value
+         from "products"
+        where jsonb_exists("attribute_values", ?::text)
+        for update`,
+      [toKey, toKey],
+      'all',
+      ctx,
+    )) as DestinationValueRow[];
+    const occupiedOverrides = (await connection.execute(
+      `select "product_id", "channel_id", "language_code", "value"
+         from "product_value_overrides"
+        where "attribute_key" = ?
+        for update`,
+      [toKey],
+      'all',
+      ctx,
+    )) as DestinationOverrideRow[];
+
+    let displacedValues: CatalogDisplacedAttributeValue[] = [];
+    let displacedOverrides: CatalogDisplacedValueOverride[] = [];
+    if (occupiedValues.length > 0 || occupiedOverrides.length > 0) {
+      if (options.occupied === 'refuse') {
+        throw new AttributeValueKeyError(
+          'target_occupied',
+          `"${toKey}" already holds ${occupiedValues.length} product value(s) and ` +
+            `${occupiedOverrides.length} override row(s); nothing was renamed.`,
+        );
+      }
+      if (occupiedValues.length > 0) {
+        await connection.execute(
+          `update "products" set "attribute_values" = "attribute_values" - ?::text
+            where jsonb_exists("attribute_values", ?::text)`,
+          [toKey, toKey],
+          'run',
+          ctx,
+        );
+        displacedValues = occupiedValues.map((row) => ({
+          productId: row.product_id,
+          value: row.value,
+        }));
+      }
+      if (occupiedOverrides.length > 0) {
+        const removed = (await connection.execute(
+          `delete from "product_value_overrides" where "attribute_key" = ?
+            returning "product_id", "channel_id", "language_code", "value"`,
+          [toKey],
+          'all',
+          ctx,
+        )) as DestinationOverrideRow[];
+        displacedOverrides = removed.map((row) => ({
+          productId: row.product_id,
+          channelId: row.channel_id,
+          languageCode: row.language_code,
+          value: row.value,
+        }));
+      }
+    }
+
     const products = await connection.execute(
       `update "products"
           set "attribute_values" = ("attribute_values" - ?::text) || jsonb_build_object(?::text, "attribute_values" -> ?::text)
@@ -88,6 +175,7 @@ export class AttributeValueKeyService implements CatalogAttributeValueKeyApi {
     return {
       products: affectedRowsOf(products),
       overrides: affectedRowsOf(overrides),
+      displaced: { values: displacedValues, overrides: displacedOverrides },
     };
   }
 }
