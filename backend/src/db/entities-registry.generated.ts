@@ -47,7 +47,6 @@ import { entities as addressesEntities } from '@endora-commerce/mod-addresses/ba
 import { entities as adminNotificationsEntities } from '@endora-commerce/mod-admin-notifications/backend';
 import { entities as adminRolesEntities } from '@endora-commerce/mod-admin-roles/backend';
 import { entities as adminUsersEntities } from '@endora-commerce/mod-admin-users/backend';
-import { entities as pimAkeneoEntities } from '@endora-commerce/mod-pim-akeneo/backend';
 import { entities as analyticsEntities } from '@endora-commerce/mod-analytics/backend';
 import { entities as apiKeysEntities } from '@endora-commerce/mod-api-keys/backend';
 import { entities as assetsLibraryEntities } from '@endora-commerce/mod-assets-library/backend';
@@ -116,7 +115,6 @@ export const ALL_ENTITIES = [
   ...(adminNotificationsEntities as readonly EntityClassLike[]),
   ...(adminRolesEntities as readonly EntityClassLike[]),
   ...(adminUsersEntities as readonly EntityClassLike[]),
-  ...(pimAkeneoEntities as readonly EntityClassLike[]),
   ...(analyticsEntities as readonly EntityClassLike[]),
   ...(apiKeysEntities as readonly EntityClassLike[]),
   ...(assetsLibraryEntities as readonly EntityClassLike[]),

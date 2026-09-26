@@ -569,22 +569,6 @@ export const ERROR_CODES = {
    * neither claimant.
    */
   PAYMENT_ADAPTER_UNAVAILABLE: 'PAYMENT_ADAPTER_UNAVAILABLE',
-
-  // Akeneo PIM complete-record delivery (feature 094).
-  /** No Akeneo connection row exists yet. */
-  PIM_AKENEO_NOT_CONFIGURED: 'PIM_AKENEO_NOT_CONFIGURED',
-  /** Ingress or apply refused because the connection is disabled. */
-  PIM_AKENEO_CONNECTION_DISABLED: 'PIM_AKENEO_CONNECTION_DISABLED',
-  /** Live records while bootstrap is still required and neither completed nor skipped. */
-  PIM_AKENEO_BOOTSTRAP_INCOMPLETE: 'PIM_AKENEO_BOOTSTRAP_INCOMPLETE',
-  /** Same delivery id reused with a different start body. */
-  PIM_AKENEO_DELIVERY_ID_CONFLICT: 'PIM_AKENEO_DELIVERY_ID_CONFLICT',
-  /** Enabling requires a resolvable active default sales channel. */
-  PIM_AKENEO_CHANNEL_REQUIRED: 'PIM_AKENEO_CHANNEL_REQUIRED',
-  /** Enabling requires a stored HMAC secret. */
-  PIM_AKENEO_SECRET_REQUIRED: 'PIM_AKENEO_SECRET_REQUIRED',
-  /** A protected field key does not match the grammar (data-model.md §5). */
-  PIM_AKENEO_FIELD_KEY_INVALID: 'PIM_AKENEO_FIELD_KEY_INVALID',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];

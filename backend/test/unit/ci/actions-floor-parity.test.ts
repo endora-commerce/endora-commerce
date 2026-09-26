@@ -305,6 +305,22 @@ describe('the refusals survive the port', () => {
     expect(publish).toBeGreaterThan(gate);
   });
 
+  it('`publish:packages` refuses own licence terms on the public registry before publishing', () => {
+    // `specs/136-open-source-publication/` FR-011: a `SEE LICENSE IN` package
+    // belongs on the private registry, and this job publishes to whichever
+    // registry its environment names — so the registry is handed to the check
+    // rather than assumed, and the refusal sits before the publish.
+    const lines = PUBLISH_JOBS[0]!.runLines;
+    const refusal = lines.findIndex(
+      (line) =>
+        line.includes('scripts/check-release-intent.ts') &&
+        line.includes('--publish-registry "$ENDORA_NPM_REGISTRY"'),
+    );
+    const publish = lines.findIndex((line) => line.startsWith('pnpm exec changeset publish'));
+    expect(refusal, 'the publish job lost its own-licence refusal').toBeGreaterThan(-1);
+    expect(publish).toBeGreaterThan(refusal);
+  });
+
   it('is a deliberate act — the publish workflow is dispatched, never triggered by a push', () => {
     expect(PUBLISH_WORKFLOW).toContain('workflow_dispatch');
     expect(
