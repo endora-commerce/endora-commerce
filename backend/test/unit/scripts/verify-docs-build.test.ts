@@ -1,12 +1,12 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import * as verifier from '../../../scripts/verify-docs-build.js';
 import {
   DEV_HOSTS,
   ENGLISH_INTERNAL_FOOTER_LINE,
-  SITEMAP_FLOOR,
   docsBuildExitCode,
   verifyDocsBuild,
   type DocsBuildVerificationInput,
@@ -175,10 +175,9 @@ function input(dir: string, overrides: Partial<DocsBuildVerificationInput> = {})
         footerCopyright: PL_COPYRIGHT,
       },
     ],
-    // Two routes per locale is a deliberate fixture: the real floor is asserted
-    // separately, on the constant rather than on a 193-page fixture.
-    sitemapFloor: 2,
-    inventory: null,
+    // An empty inventory, not an absent one: fixtures that do not exercise
+    // family 12 record no URL, and an absent inventory is itself a finding.
+    inventory: [],
     redirects: new Set<string>(),
     ...overrides,
   };
@@ -459,14 +458,36 @@ describe('verify-docs-build — family 5, sitemaps', () => {
     expect(kinds(result)).toContain('sitemap-count-mismatch');
   });
 
-  it('reds when a sitemap falls below the recorded floor', () => {
+  it('accepts a sitemap shorter than before that still holds every inventory URL of its locale', () => {
+    // The floor is the inventory (D17 §2(a)): a withdrawal that re-records the
+    // inventory in the same change lowers the count and stays clean.
     const dir = cleanBuild();
-    const result = verifyDocsBuild(input(dir, { sitemapFloor: 50 }));
-    expect(kinds(result)).toContain('sitemap-below-floor');
+    write(dir, 'sitemap.xml', sitemap(['/']));
+    write(dir, 'pl/sitemap.xml', sitemap(['/pl/']));
+    const result = verifyDocsBuild(input(dir, { inventory: [`${ORIGIN}/`, `${ORIGIN}/pl/`] }));
+    expect(result.findings).toEqual([]);
+    expect(docsBuildExitCode(result)).toBe(0);
   });
 
-  it('pins the floor SC-005 records from the current build', () => {
-    expect(SITEMAP_FLOOR).toBe(170);
+  it('refuses a sitemap missing an inventory URL of its locale, as family 12', () => {
+    const dir = cleanBuild();
+    write(dir, 'pl/sitemap.xml', sitemap(['/pl/']));
+    write(dir, 'sitemap.xml', sitemap(['/']));
+    const result = verifyDocsBuild(
+      input(dir, { inventory: [`${ORIGIN}/`, `${ORIGIN}/guide/`, `${ORIGIN}/pl/`, `${ORIGIN}/pl/guide/`] }),
+    );
+    expect(families(result)).toEqual([12]);
+    expect(result.findings.map((finding) => finding.detail)).toEqual([
+      `inventory-url-dropped:${ORIGIN}/guide/`,
+      `inventory-url-dropped:${ORIGIN}/pl/guide/`,
+    ]);
+    expect(docsBuildExitCode(result)).toBe(2);
+  });
+
+  it('reads no recorded floor — the inventory is the one record of it', () => {
+    expect(Object.keys(verifier)).not.toContain('SITEMAP_FLOOR');
+    const source = readFileSync(new URL('../../../scripts/verify-docs-build.ts', import.meta.url), 'utf8');
+    expect(source).not.toMatch(/SITEMAP_FLOOR|sitemapFloor|sitemap-below-floor/);
   });
 
   it('reds when the search route appears in a sitemap', () => {
@@ -880,11 +901,13 @@ describe('verify-docs-build — family 11, third-party requests and specs hyperl
 });
 
 describe('verify-docs-build — family 12, the URL inventory', () => {
-  it('skips with a printed note, not silently, when the inventory does not exist yet', () => {
+  it('reds when the inventory does not exist — its absence is a deletion, not a skip', () => {
     const dir = cleanBuild();
-    const result = verifyDocsBuild(input(dir));
-    expect(result.notes.some((note) => note.includes('inventory absent'))).toBe(true);
-    expect(families(result)).not.toContain(12);
+    const result = verifyDocsBuild(input(dir, { inventory: null }));
+    expect(families(result)).toEqual([12]);
+    expect(kinds(result)).toEqual(['inventory-absent']);
+    expect(result.notes.some((note) => note.includes('skipped'))).toBe(false);
+    expect(docsBuildExitCode(result)).toBe(2);
   });
 
   it('reds when an inventoried URL is no longer published and no redirect covers it', () => {

@@ -89,9 +89,11 @@ export const DIACRITIC_FOLDS_ALLOWED: Readonly<Record<string, LedgerEntry>> = {}
  *
  * The owner took that decision (2026-08-19, "do it properly"). The derivations
  * now compose `slugify` — the option value with `preserve: '-'`, since its
- * stored grammar has two usable punctuation characters — and
- * `…_pim_ergonode_fold_derived_keys.ts` re-derives every imported attribute key
- * and renames the rows, collisions the fold creates included.
+ * stored grammar has two usable punctuation characters — and the connector's
+ * key repair (`key-repair-coordinator.ts`, which replaced the body of
+ * `…_pim_ergonode_fold_derived_keys.ts`) re-derives every imported attribute
+ * key and renames the rows through their owners' seams, collisions the fold
+ * creates included.
  *
  * Note what is **not** a reason to add an entry back: "this value is a lookup
  * key". That was this ledger's whole content and it is now a statement about

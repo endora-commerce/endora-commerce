@@ -21,9 +21,19 @@ export type InvoiceOrigin = z.infer<typeof invoiceOriginSchema>;
 export const erpSaleDocumentKindSchema = z.enum(['invoice', 'wz']);
 export type ErpSaleDocumentKind = z.infer<typeof erpSaleDocumentKindSchema>;
 
-/** Stable XL identity for an ERP-imported sale document (feature 119, FR-087/FR-088). */
+/**
+ * Stable identity for an ERP-imported sale document (feature 119, FR-087/FR-088).
+ *
+ * `system` names the source system the document was imported from, and it is
+ * the key an attachment fetch provider registers under
+ * ({@link InvoiceAttachmentFetchRegistryPort}). It is open rather than a literal
+ * since feature 134 (T065): a free contract that enumerates its connectors has
+ * to be edited for every connector that is added, which is the coupling the
+ * seam removes. Stored references keep the value they were written with, and
+ * the `xl*` field names are persisted keys, so they are left as they are.
+ */
 export const externalDocumentRefSchema = z.object({
-  system: z.literal('comarch_xl'),
+  system: z.string().min(1).max(64),
   xlSaleDocumentId: z.string().max(128),
   xlDocumentNumber: z.string().max(64).optional(),
   documentKind: erpSaleDocumentKindSchema,
@@ -607,6 +617,8 @@ export type ErpSaleDocumentListItem = z.infer<typeof erpSaleDocumentListItemSche
  * attachment fetch (FR-088).
  */
 export interface ErpSaleDocumentAttachmentContext {
+  /** The imported document's `externalDocumentRef.system`. */
+  system: string;
   xlSaleDocumentId: string;
   xlAttachmentId: string;
   fileName: string;
@@ -628,4 +640,51 @@ export interface ErpSaleDocumentWritePort {
     assetId: string;
     contentType?: string | null;
   }): Promise<boolean>;
+}
+
+// ---------------------------------------------------------------------------
+// ERP attachment fetch — the seam an importing connector contributes to
+// (feature 134, T061; `specs/134-paid-module-extraction/research.md` D12)
+// ---------------------------------------------------------------------------
+
+export const INVOICE_ATTACHMENT_FETCH_REGISTRY = 'invoiceAttachmentFetchRegistry' as const;
+
+/**
+ * Fetches and stores the bytes of one attachment of an ERP-imported sale
+ * document, on its first download (feature 119, FR-086). Answers the stored
+ * asset, or `null` when the attachment cannot be fetched.
+ *
+ * Implemented by the connector that imported the document. `invoices` calls it
+ * only through its own registry, after it has checked that the invoice and the
+ * attachment belong to the calling organization.
+ */
+export interface InvoiceAttachmentFetchPort {
+  ensureAttachmentBytes(input: {
+    invoiceId: string;
+    attachmentId: string;
+    organizationId: string;
+  }): Promise<{ assetId: string } | null>;
+}
+
+/** One contributed fetch provider, with the module that contributed it. */
+export interface InvoiceAttachmentFetchRegistration {
+  /** The `externalDocumentRef.system` value of the documents this provider serves. */
+  readonly system: string;
+  /** The contributing module; its effective presence is read on every download. */
+  readonly moduleId: string;
+  readonly provider: InvoiceAttachmentFetchPort;
+}
+
+/**
+ * Container name: `invoiceAttachmentFetchRegistry`. Owner: `invoices`.
+ *
+ * A contribution registry: a connector registers its provider from a boot
+ * hook, keyed by the source system it imports from. It is an ungated
+ * registration, and `invoices` skips a provider whose module is not
+ * effectively present, so the customer route answers the attachment as not
+ * found rather than reaching a switched-off connector. A second provider for a
+ * system that already has one is refused, not ordered.
+ */
+export interface InvoiceAttachmentFetchRegistryPort {
+  register(registration: InvoiceAttachmentFetchRegistration): void;
 }

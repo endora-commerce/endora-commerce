@@ -127,6 +127,11 @@ const SEAMS: ReadonlyArray<{ readonly owner: string; readonly name: string }> = 
   { owner: 'dictionaries', name: 'countryReferenceRegistry' },
   { owner: 'languages', name: 'languageReferenceRegistry' },
   { owner: 'currencies', name: 'currencyReferenceRegistry' },
+  // Feature 134, T061 (`research.md` D12): the ERP attachment fetch. A connector
+  // pushes its provider from a boot hook, keyed by the source system it imports
+  // from; gating the name would take the backend down for an operator who
+  // switched invoicing off while a connector is composed.
+  { owner: 'invoices', name: 'invoiceAttachmentFetchRegistry' },
 ];
 
 /**
@@ -329,6 +334,27 @@ describe('InvoicePdfBlockRegistry — an absent contributor’s block is skipped
     // module composes is the one that has to read the real presence.
     expect(flat(backendSource('invoices'))).toContain(
       flat('new InvoicePdfBlockRegistry((moduleId) => effectiveState.isPresent(moduleId))'),
+    );
+  });
+});
+
+describe('InvoiceAttachmentFetchRegistry — an absent contributor’s provider is skipped', () => {
+  it('states a skip policy', () => {
+    // A connector that is off must not reach its ERP with the operator's
+    // credentials. The customer route answers the absent provider with the
+    // 404 it already gave an attachment that could not be fetched, and a file
+    // stored earlier stays downloadable, so nothing is lost with the skip.
+    expect(CONTRIBUTION_POLICY_STATED['invoices:invoiceAttachmentFetchRegistry']).toBe('skip');
+  });
+
+  it('wires the registry to the kernel effective state', () => {
+    // The class defaults its probe to always-present so a unit test that builds
+    // its own registry answers about what it registered; the one instance the
+    // module composes is the one that has to read the real presence.
+    expect(flat(backendSource('invoices'))).toContain(
+      flat(
+        'new InvoiceAttachmentFetchRegistry( (input) => context.resolveAttachmentContext(input), (moduleId) => effectiveState.isPresent(moduleId),',
+      ),
     );
   });
 });

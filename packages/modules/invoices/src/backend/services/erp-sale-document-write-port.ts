@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
+  type ErpSaleDocumentAttachmentContext,
   type ErpSaleDocumentAttachmentInput,
   type ErpSaleDocumentUpsertInput,
   type ErpSaleDocumentUpsertResult,
@@ -70,12 +71,7 @@ export class ErpSaleDocumentWritePortService implements ErpSaleDocumentWritePort
     invoiceId: string;
     attachmentId: string;
     organizationId: string;
-  }): Promise<{
-    xlSaleDocumentId: string;
-    xlAttachmentId: string;
-    fileName: string;
-    contentType: string | null;
-  } | null> {
+  }): Promise<ErpSaleDocumentAttachmentContext | null> {
     const em = this.emFactory();
     const invoice = await em.findOne(Invoice, {
       id: input.invoiceId,
@@ -96,6 +92,7 @@ export class ErpSaleDocumentWritePortService implements ErpSaleDocumentWritePort
     }
 
     return {
+      system: invoice.externalDocumentRef.system,
       xlSaleDocumentId: invoice.externalDocumentRef.xlSaleDocumentId,
       xlAttachmentId: attachment.xlAttachmentId,
       fileName: attachment.fileName,

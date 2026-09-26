@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-credit-limits",
-  "version": "0.9.4",
+  "version": "0.9.5",
   "type": "module",
   "sideEffects": false,
   "description": "Per-organization credit limits and credit-check enforcement at checkout.",

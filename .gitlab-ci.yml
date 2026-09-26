@@ -2314,7 +2314,10 @@ acceptance:instance:
 # "the docs tree": the site's own tree and its translation state, every module
 # package's `docs/` layer, the generator that writes the sidebar fragment, the
 # artefact helper the generator shares with the CLI, the verifier that judges
-# the emitted build, and the publication script itself — a change to any of them
+# the emitted build and the two records it judges it against (the URL inventory
+# and the redirect map — the latter listed before it exists, a `changes:` path
+# that matches nothing being inert), and the publication script itself — a
+# change to any of them
 # changes what is published, so a pipeline that skipped the build for one would
 # publish a site nothing had judged.
 .docs-rules:
@@ -2332,6 +2335,8 @@ acceptance:instance:
         - backend/scripts/generate-composer.ts
         - backend/scripts/check-docs-translations.ts
         - backend/scripts/verify-docs-build.ts
+        - specs/133-docs-site-publication/url-inventory.txt
+        - specs/133-docs-site-publication/redirect-map.txt
         - backend/scripts/lib/docs-*.ts
         - packages/cli/src/lib/module-docs.ts
         - packages/cli/src/lib/docs-artefacts.ts

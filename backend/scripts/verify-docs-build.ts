@@ -41,18 +41,6 @@ import { reportReadSize } from './lib/read-size.js';
 const PREFIX = '[verify-docs-build]';
 
 /**
- * The floor SC-005 records from the build that first carried the public origin.
- * A sitemap that shrinks past it has lost pages, whatever the build said.
- *
- * Re-measured, never computed from a delta, from a fresh build counted off the
- * built `sitemap.xml` and `pl/sitemap.xml`. **2026-09-25: 193 -> 174**, at
- * 20129efdb; **2026-09-25: 174 -> 172**, on a tree based on 447510342;
- * **2026-09-26: 172 -> 170**, on a tree based on cb54356ae. Every move is
- * pages that left this repository; the URL inventory records which.
- */
-export const SITEMAP_FLOOR = 170;
-
-/**
  * Hosts that are never a published origin, as `URL.hostname` spells them — the
  * IPv6 loopback included in its bracketed form, because that is the value the
  * parser reports and a bare `::1` does not parse as a URL host at all.
@@ -118,9 +106,12 @@ export interface DocsBuildVerificationInput {
   readonly buildDir: string;
   readonly site: DocsBuildSiteConfig;
   readonly chrome: readonly DocsBuildLocaleChrome[];
-  /** Defaults to {@link SITEMAP_FLOOR}; a fixture may lower it, the CLI never does. */
-  readonly sitemapFloor?: number;
-  /** `null` when `url-inventory.txt` does not exist yet — family 12 skips, with a note. */
+  /**
+   * The URLs `url-inventory.txt` records — the one record of what each sitemap
+   * must hold at least (SC-005 as amended 2026-09-26). `null` when the file is
+   * absent, which is a family-12 finding: the inventory exists, so its absence
+   * is a deletion, not a bootstrap.
+   */
   readonly inventory: readonly string[] | null;
   readonly redirects: ReadonlySet<string>;
 }
@@ -339,7 +330,6 @@ export function verifyDocsBuild(input: DocsBuildVerificationInput): DocsBuildVer
   const { buildDir, site } = input;
   const base = normalisedBase(site.baseUrl);
   const origin = site.url.replace(/\/+$/, '');
-  const floor = input.sitemapFloor ?? SITEMAP_FLOOR;
   let files = 0;
 
   findings.push(...originShapeFindings(site.url));
@@ -644,13 +634,6 @@ export function verifyDocsBuild(input: DocsBuildVerificationInput): DocsBuildVer
         findings.push({ family: 7, kind: 'loc-unresolved', detail: `loc-unresolved:${sitemapPath}:${loc}` });
       }
     }
-    if (locs.length < floor) {
-      findings.push({
-        family: 5,
-        kind: 'sitemap-below-floor',
-        detail: `sitemap-below-floor:${sitemapPath}:${locs.length} < ${floor}`,
-      });
-    }
   }
   const counts = [...new Set([...locsByLocale.values()].map((locs) => locs.length))];
   if (counts.length > 1) {
@@ -715,8 +698,15 @@ export function verifyDocsBuild(input: DocsBuildVerificationInput): DocsBuildVer
   }
 
   // ---- Family 12: the URL inventory --------------------------------------
+  // This is also each sitemap's floor: every inventory URL of a locale is in
+  // that locale's sitemap or in the redirect map, and family 5 keeps the counts
+  // equal. No count is recorded beside it.
   if (input.inventory === null) {
-    notes.push('family 12 — URL inventory absent, skipped (the build that creates it is the one that skips).');
+    findings.push({
+      family: 12,
+      kind: 'inventory-absent',
+      detail: 'inventory-absent:specs/133-docs-site-publication/url-inventory.txt',
+    });
   } else {
     files += 1;
     for (const url of input.inventory) {
