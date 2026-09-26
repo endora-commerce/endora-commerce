@@ -7421,7 +7421,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
     // and never computed from a delta.
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
-    files: 1832,
+    // **`feat/134-attachment-seam` (T061, T065, T066): files 1832 -> 1647 (breach), sites 32388 -> 32365.** `origin/master` at `077b90f42` already read 1648, one file above the floor; deleting `comarch_xl_example_overlay` and the attachment port while adding `invoices`' registry and its tests takes the walk to 1647. Measured, not computed, in a fresh detached `git worktree` of the branch tip after `setup-worktree.sh` and `build:packages`, beside a pristine `origin/master` worktree run the same way (1648 / 32394); only this entry left its band, so only this entry is re-recorded; the other 36 drifting entries already drift on `master` (35 of them; `check-command-coverage` moves by one file here) and stay inside their bands.
+    files: 1647,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -7524,7 +7525,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // classifies, and the new co-located test adds its own; the file count is unchanged
     // here because this walk's population is not the whole tree.
     // **T055 (`pim_akeneo` leaves): 36259 -> 32388.** (breach) already drifting on `master` at 33688 after the gateways left; this extraction takes it below the floor, so the tip's reading replaces the stale record.
-    sites: 32388,
+    sites: 32365,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
