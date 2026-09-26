@@ -72,10 +72,12 @@ function codeOf(relativePath: string): string {
  *
  * ## The zones are asserted here as a **set**, and driven where they live
  *
- * Every one of the four already has a zone file of its own — `price-lists-zones`,
- * `quick-order-zones`, `channel-warehouses-zone` and `field-protection-zone` —
- * each of which drives the real `<AdminZone>` over the real provider and, for
- * the three switchable modules, its presence and permission off-states. What
+ * Every one of the four had a zone file of its own — `price-lists-zones`,
+ * `quick-order-zones`, `channel-warehouses-zone` and, for `pim_ergonode`,
+ * `field-protection-zone` — each of which drove the real `<AdminZone>` over the
+ * real provider and, for the switchable modules, its presence and permission
+ * off-states. The first three still do; the fourth was dispositioned by subject
+ * with the rest of `pim_ergonode`'s rows (below). What
  * this file adds is the claim those files cannot make: that the batch moved
  * sixteen routes and nine nav entries **without disturbing the contribution
  * set**, asserted as an equality per module so a zone silently dropped in the
@@ -100,6 +102,63 @@ function codeOf(relativePath: string): string {
  * is that half. What this file asserts about the palette is the half that is
  * the admin's: that the shell keeps no hand-written copy for the server's
  * answer to disagree with.
+ *
+ * ## `pim_ergonode`'s half, dispositioned by subject (feature 134 W2.2)
+ *
+ * `pim_ergonode` leaves this repository, so its rows here were split by
+ * **subject** (**D-262** clause 3) rather than carried, moved wholesale or
+ * deleted wholesale:
+ *
+ * | subject | where it is now |
+ * | --- | --- |
+ * | the module's **declaration** — its five routes, lazily loaded, all on the read code; its one nav entry on the landing route's code, in `catalog`, labelled out of its own bundle; nav-to-route agreement; its three zones in declaration order; its activation shape | inside the package, at its own `src/admin/index.test.ts`, under its own `environment: 'node'` config |
+ * | the package's own **source hygiene** — its admin sources naming no `@/` alias, no `import.meta.env` and no sibling module package | the same file in the package, each read relative to the package's own sources |
+ * | **host hygiene** — `App.tsx`, `AppShell.tsx`, the shared `_i18n` bundle and `admin-shell/src/modules/` never naming `pim_ergonode` by hand | **here**, in `describe('the shell no longer names pim_ergonode by hand')`, over string literals only |
+ * | the **rendered** off-state and permission cases | deleted, under W2.3's condition and against the drivers named below |
+ *
+ * The per-module positive `toContain` of `pim_ergonode`'s specifier in
+ * `src/modules.generated.ts` went rather than stayed: it would refuse the
+ * extraction rather than report a defect, the half
+ * `carrier-settings.module-owned-surface.test.tsx` had to drop twice. The
+ * general rule (`not.toContain('packages/modules')`) stays, driven by the
+ * remaining subjects, each of which also asserts its own specifier is there.
+ *
+ * Six rendered cases were deleted, all over `pim_ergonode`'s real declaration:
+ * from `describe.each(SUBJECTS)('$module owns its admin surface')`, *contributes
+ * its sidebar entries from the registry, labelled in its own namespace*,
+ * *renders every one of its screens at its own route while present*,
+ * *contributes no surface while the module is absent from the platform*,
+ * *contributes no surface to an operator without the code its route enforces*
+ * and *restores both surfaces when the code is granted again, with no
+ * rebuild*; and from the operator-axis `describe`, *withdraws every
+ * pim_ergonode surface when the operator switches it off*. They rendered `App`
+ * and drove `ModuleRoute`'s gate and `registryNavFor`.
+ *
+ * W2.3 permits that deletion **only against a module that is staying and still
+ * drives the same member of the same mechanism over a real declaration**,
+ * named per case. For every one of the six the surviving driver is **this
+ * file**: the same six cases, unchanged, over **`inventory`** and
+ * **`quick_order`** (both switchable, so the operator-axis case keeps two
+ * subjects and its control that the other stays present), and **`price_lists`**
+ * on the platform axis — including the near-miss permission shape
+ * (`inventory:write`, the module's own write code, as `pim_ergonode:write` was).
+ * `batch-sixteen-surfaces.module-owned-surface.test.tsx` over `cms` and `blog`
+ * drives the same six a second time.
+ *
+ * The deleted bodies are read back from `master` before the split:
+ *
+ * ```
+ * git show 077b90f42:admin/test/modules/batch-thirteen-surfaces.module-owned-surface.test.tsx
+ * ```
+ *
+ * **What is genuinely lost is stated rather than smuggled**: the *conjunction*
+ * over `pim_ergonode`'s **real** declaration. The mechanism keeps real subjects
+ * here, and the declaration keeps a test — a stronger one, because it now runs
+ * in the module's own suite as well. The repository the module leaves for
+ * holds no admin off-state proof for any module it receives and will hold none
+ * until it has an admin test host; that is D-262 clause 3's accepted reduction in the admin
+ * half of Constitution XVII item 6's proof, and when it is repaired is the
+ * owner's decision.
  */
 
 interface Subject {
@@ -233,47 +292,9 @@ const SUBJECTS: readonly Subject[] = [
     surfaceDirectories: ['inventory', 'warehouses'],
     locked: false,
   },
-  {
-    module: 'pim_ergonode',
-    route: '/pim-ergonode',
-    permission: 'pim_ergonode:read',
-    // The module's own write code: starting an import, saving a mapping and
-    // creating a price binding all enforce it, and every screen gates its
-    // controls on it while opening on the read code.
-    nearMiss: 'pim_ergonode:write',
-    labelKey: 'nav.pimErgonode.label',
-    specifier: '@endora-commerce/mod-pim-ergonode/admin',
-    section: 'catalog',
-    routes: [
-      '/pim-ergonode',
-      '/pim-ergonode/attribute-mappings',
-      '/pim-ergonode/category-mappings',
-      '/pim-ergonode/runs',
-      '/pim-ergonode/runs/:runId',
-    ],
-    // One row for five screens, which the host table's own comment records as
-    // deliberate: the other four are reached through the tab strip on the
-    // connector page, and three sidebar rows for one connector read as three
-    // destinations.
-    navTargets: ['/pim-ergonode'],
-    retiredSharedKeys: [
-      'appShell.nav.pimErgonode',
-      'appShell.nav.pimErgonodeRuns',
-      'appShell.nav.pimErgonodeAttributeMappings',
-      'appShell.nav.pimErgonodeCategoryMappings',
-      'appShell.crumb.importRun',
-    ],
-    zones: [
-      'product.editor.details.before',
-      'product.editor.pricing.before',
-      'product.editor.field.after',
-    ],
-    surfaceDirectories: ['pim_ergonode'],
-    locked: false,
-  },
 ];
 
-/** The three modules an operator can genuinely switch off. */
+/** The modules an operator can genuinely switch off. */
 const SWITCHABLE = SUBJECTS.filter((subject) => !subject.locked);
 
 let presentModules = new Set<string>();
@@ -536,7 +557,7 @@ describe.each(SUBJECTS)('$module owns its admin surface', (subject) => {
   });
 });
 
-describe('the three switchable modules withdraw everything the operator switches off', () => {
+describe('the switchable modules withdraw everything the operator switches off', () => {
   it.each(SWITCHABLE)('withdraws every $module surface when the operator switches it off', async (subject) => {
     // The frontend answers both axes from one presence projection, so the
     // assertion has the shape of the platform case above — what differs is that
@@ -728,6 +749,72 @@ describe.each(SUBJECTS)('the shell no longer names $module by hand', (subject) =
   });
 });
 
+/**
+ * `pim_ergonode`'s host hygiene, which stays after the module goes (feature 134
+ * W2.2).
+ *
+ * **String literals, never specifiers**, so that these absences keep working
+ * once `pim_ergonode` is installed from a tarball, or not installed at all. What
+ * they refuse is a host file *regaining* the module's name.
+ */
+const PIM_ERGONODE_HOST = {
+  module: 'pim_ergonode',
+  routes: [
+    '/pim-ergonode',
+    '/pim-ergonode/attribute-mappings',
+    '/pim-ergonode/category-mappings',
+    '/pim-ergonode/runs',
+    '/pim-ergonode/runs/:runId',
+  ],
+  navTargets: ['/pim-ergonode'],
+  retiredSharedKeys: [
+    'appShell.nav.pimErgonode',
+    'appShell.nav.pimErgonodeRuns',
+    'appShell.nav.pimErgonodeAttributeMappings',
+    'appShell.nav.pimErgonodeCategoryMappings',
+    'appShell.crumb.importRun',
+  ],
+} as const;
+
+describe('the shell no longer names pim_ergonode by hand', () => {
+  it('has no host route, nav entry or palette row for the module', () => {
+    const shell = codeOf('../packages/admin-shell/src/components/AppShell.tsx');
+    for (const target of PIM_ERGONODE_HOST.navTargets) {
+      expect(shell, target).not.toContain(`to: '${target}'`);
+    }
+    for (const key of PIM_ERGONODE_HOST.retiredSharedKeys) {
+      expect(shell, key).not.toContain(key);
+    }
+  });
+
+  it('drops the retired keys from the shared _i18n bundle, in both languages', () => {
+    for (const language of ['en', 'pl']) {
+      const shared = JSON.parse(
+        sourceOf(`../packages/modules/_i18n/i18n/${language}.json`),
+      ) as Record<string, string>;
+      for (const key of PIM_ERGONODE_HOST.retiredSharedKeys) {
+        expect(shared[key], `${key} (${language})`).toBeUndefined();
+      }
+    }
+  });
+
+  it('leaves no surface directory behind under admin/src/modules', () => {
+    expect(() =>
+      sourceOf(`../packages/admin-shell/src/modules/${PIM_ERGONODE_HOST.module}`),
+    ).toThrow();
+  });
+
+  it('declares none of its routes in App.tsx', () => {
+    // The declaration half of this case — that the module declares exactly
+    // these routes — is the package's now.
+    const app = codeOf('../packages/admin-shell/src/App.tsx');
+    for (const path of PIM_ERGONODE_HOST.routes) {
+      expect(app, path).not.toContain(`<Route path="${path}"`);
+    }
+    expect(app).not.toContain(`modules/${PIM_ERGONODE_HOST.module}`);
+  });
+});
+
 describe('the axis each module has is read off its manifest, never carried in this table', () => {
   it.each(SUBJECTS)('$module declares the activation shape this file assumes', async (subject) => {
     // `plan.md`'s Ruling 2, asserted rather than restated. What a lock would
@@ -755,8 +842,8 @@ describe('the surfaces each module does not contribute, derived from the contrib
     // contributors already — which is what let them be scheduled after their
     // hosts — so this is the case that fails if the move dropped one, and each
     // module's own file (`price-lists-zones`, `quick-order-zones`,
-    // `channel-warehouses-zone`, `field-protection-zone`) drives the renderer
-    // over the real provider, presence and permission included.
+    // `channel-warehouses-zone`) drives the renderer over the real provider,
+    // presence and permission included.
     const contributions = CONTRIBUTIONS.get(subject.module);
     expect((contributions?.zones ?? []).map((zone) => zone.zone)).toEqual(subject.zones);
   });
@@ -789,16 +876,6 @@ describe('the moved screens take no reach the package cannot resolve', () => {
     'inventory/src/admin/pages/StockImportWizard.tsx',
     'inventory/src/admin/pages/WarehouseEditor.tsx',
     'inventory/src/admin/pages/WarehousesList.tsx',
-    'pim_ergonode/src/admin/api/ergonode-client.ts',
-    'pim_ergonode/src/admin/components/ErgonodeIssueGroups.tsx',
-    'pim_ergonode/src/admin/components/ErgonodeRunStatusBadge.tsx',
-    'pim_ergonode/src/admin/components/ErgonodeSectionTabs.tsx',
-    'pim_ergonode/src/admin/format.ts',
-    'pim_ergonode/src/admin/pages/ErgonodeAttributeMappingPage.tsx',
-    'pim_ergonode/src/admin/pages/ErgonodeCategoryMappingPage.tsx',
-    'pim_ergonode/src/admin/pages/ErgonodeConnectionPage.tsx',
-    'pim_ergonode/src/admin/pages/ErgonodeRunDetailPage.tsx',
-    'pim_ergonode/src/admin/pages/ErgonodeRunsPage.tsx',
   ];
 
   it('names no `@/` alias and reads no bundler environment', () => {
