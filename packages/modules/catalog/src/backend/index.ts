@@ -88,6 +88,8 @@ import { CatalogProductReadService } from './services/catalog-product-read.servi
 import { CatalogQueryService } from './services/catalog-query.service.js';
 import { CatalogQuickSearchService } from './services/catalog-quick-search.service.js';
 import { ProductOverridesService } from './services/product-overrides.service.js';
+import { AttributeValueKeyService } from './services/attribute-value-key.service.js';
+import type { CatalogAttributeValueKeyApi } from '../ports/index.js';
 import {
   createCatalogCategoryWritePort,
   createCatalogProductWritePort,
@@ -686,6 +688,18 @@ export function registerModule(ctx: ModuleContext): void {
         };
       })
       .singleton(),
+  );
+
+  /**
+   * The value-key rename seam (`specs/134-paid-module-extraction/research.md`
+   * D12). Its interface is on this module's `./ports` rather than in
+   * `@endora-commerce/contracts` because the method takes the caller's
+   * `EntityManager` (D-169, FR-034): the product values and `custom_fields`'
+   * definition key must move in one transaction.
+   */
+  ctx.di.providePort<CatalogAttributeValueKeyApi>(
+    'catalogAttributeValueKeyPort',
+    ctx.asFunction(() => new AttributeValueKeyService()).singleton(),
   );
 
   ctx.di.providePort<CatalogCategoryWritePort>(

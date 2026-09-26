@@ -52,7 +52,7 @@
  */
 
 import { existsSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, posix } from 'node:path';
 
 import ts from 'typescript';
 
@@ -367,20 +367,20 @@ interface Analysis {
   /** Alias → the modules whose files may read it as a gated port. */
   readonly aliases: ReadonlyMap<string, ReadonlySet<string>>;
   /**
-   * Alias → the gated port names it carries.
+   * The gated port names `name` carries **as read inside `moduleId`/`file`** —
+   * the union over the alias scopes visible there.
    *
-   * Keyed by name alone rather than by name and scope, and deliberately
-   * over-approximating: two modules spelling one alias differently merge their
-   * gates, which can only make the `OWNER LOCKED` test *harder* to satisfy. The
-   * error this cannot make is the one that matters — retiring a site whose gate
-   * an operator can still close.
-   *
-   * This is where the over-approximation argument was made and it still holds —
-   * see the header. It is a claim about **which gates a site carries**, not
-   * about **which sites exist**; issue #278 narrowed the second and left this
-   * one exactly as it was.
+   * This was keyed by name alone, deliberately over-approximating: two modules
+   * spelling one alias differently merged their gates, on the argument that
+   * more gates can only make the `OWNER LOCKED` test harder to pass. That holds
+   * for one tree and fails across two (feature 134 D18): a staying module's
+   * site carried whatever a departing module's alias of the same spelling had
+   * collected — `product_feeds`' `credentials` carried 81 gates through
+   * `pim_pimcore`'s — so a departure moved another module's classification.
+   * Scoping to where the alias is visible keeps every gate a site can actually
+   * reach and drops only the ones another module's sources lent it.
    */
-  readonly gatesOf: ReadonlyMap<string, ReadonlySet<string>>;
+  gatesAt(name: string, moduleId: string, file: string): ReadonlySet<string>;
   /**
    * Does `name`, read inside `moduleId`, stand for a gated port?
    *
@@ -479,8 +479,8 @@ function analyze(
   }
 
   const aliases = new Map<string, Set<string>>();
-  /** Alias → the gated port names it carries; see {@link Analysis.gatesOf}. */
-  const gatesOf = new Map<string, Set<string>>();
+  /** Alias → scope → the gated port names it carries there; see {@link Analysis.gatesAt}. */
+  const gatesOf = new Map<string, Map<string, Set<string>>>();
   /**
    * The declarations the alias table itself introduced — a `const` bound to a
    * carrying value, a parameter the port was passed as (issue #278).
@@ -517,8 +517,10 @@ function analyze(
     if (gates === undefined) return;
     // Gates keep the fixpoint running on their own: a holder can be bound
     // before the round that discovers what it was built from.
-    const carried = gatesOf.get(name) ?? new Set<string>();
-    gatesOf.set(name, carried);
+    const byScope = gatesOf.get(name) ?? new Map<string, Set<string>>();
+    gatesOf.set(name, byScope);
+    const carried = byScope.get(scope) ?? new Set<string>();
+    byScope.set(scope, carried);
     for (const gate of gates) {
       if (carried.has(gate)) continue;
       carried.add(gate);
@@ -539,6 +541,18 @@ function analyze(
     if (at !== undefined && shadowsAlias(at, name, carrierBindings)) return false;
     if (scopes.has(moduleId) || scopes.has(file)) return true;
     return scopes.has(EVERYWHERE) && portOwners.get(name) !== moduleId;
+  };
+
+  const gatesAt = (name: string, moduleId: string, file: string): ReadonlySet<string> => {
+    const found = new Set<string>();
+    for (const [scope, gates] of gatesOf.get(name) ?? []) {
+      const visible =
+        scope === moduleId ||
+        scope === file ||
+        (scope === EVERYWHERE && portOwners.get(name) !== moduleId);
+      if (visible) for (const gate of gates) found.add(gate);
+    }
+    return found;
   };
 
   /** `lazyPort<T>(ctx, 'gatedName')`, and only a gated one. */
@@ -562,31 +576,36 @@ function analyze(
   // name the receiving code reads it by — and, since issue #278, into the file
   // that file is read *in*, which is the file that declares it rather than the
   // one the call happens to sit in.
+  //
+  // **Per file, and reached by resolution rather than by spelling** (feature
+  // 134 D18). These were two population-wide maps keyed by the bare name, so a
+  // call bound whichever declaration of that spelling was read last, anywhere:
+  // `pim_unopim`'s `requireRun(…)` bound `product_feeds`' unrelated
+  // `requireRun`, and removing one module's sources moved nine sites in
+  // another. A call now binds a declaration only when its own file resolves the
+  // callee to it — declared in the same file, or imported through a relative
+  // specifier (following relative re-exports) from the file that declares it.
+  // Relative specifiers never cross a module boundary (Principle I,
+  // `check:module-boundary`), so no call binds another module's parameter.
   interface Declared<T> {
     readonly file: string;
     readonly declaration: T;
   }
-  const classes = new Map<string, Declared<ts.ClassDeclaration>>();
-  const functions = new Map<string, Declared<ts.FunctionDeclaration | ts.ArrowFunction>>();
-  for (const [file, sf] of parsed) {
-    const collect = (node: ts.Node): void => {
-      if (ts.isClassDeclaration(node) && node.name) {
-        classes.set(node.name.text, { file, declaration: node });
-      }
-      if (ts.isFunctionDeclaration(node) && node.name) {
-        functions.set(node.name.text, { file, declaration: node });
-      }
-      if (
-        ts.isVariableDeclaration(node) &&
-        ts.isIdentifier(node.name) &&
-        node.initializer &&
-        ts.isArrowFunction(node.initializer)
-      ) {
-        functions.set(node.name.text, { file, declaration: node.initializer });
-      }
-      node.forEachChild(collect);
-    };
-    sf.forEachChild(collect);
+  const declarations = collectDeclarations(parsed);
+  const resolveClass = (file: string, name: string): Declared<ts.ClassDeclaration> | undefined =>
+    resolveDeclaration(declarations, (perFile) => perFile.classes, file, name);
+  const resolveFunction = (
+    file: string,
+    name: string,
+  ): Declared<ts.FunctionDeclaration | ts.ArrowFunction> | undefined =>
+    resolveDeclaration(declarations, (perFile) => perFile.functions, file, name);
+  /**
+   * Every spelling some file declares a function under — what the factory
+   * clause in `carries` asks. Deliberately still by name: see that clause.
+   */
+  const functionNames = new Set<string>();
+  for (const perFile of declarations.values()) {
+    for (const name of perFile.functions.keys()) functionNames.add(name);
   }
 
   /**
@@ -648,6 +667,17 @@ function analyze(
         // `this.deps.anythingAtAll()` in the receiving class read as a port
         // call. Its carrying keys become aliases one by one instead, which is
         // where the port is actually reached.
+        //
+        // So a holder **built from** a bag does not carry either, and that
+        // blind spot is known and kept (feature 134 D18 §2, half 2 withdrawn).
+        // Letting `new C({ k: <carrier> })` carry was measured: it made the
+        // `product_feeds` inline-delivery chain visible, and it also added
+        // fourteen unhandled sites, among them `catch` blocks around holder
+        // methods that never touch the port — `connections.getOrFail()` reads a
+        // row, yet the holder carries `credentials` as a whole, because gates
+        // are attributed per value rather than per method. A site the analysis
+        // cannot tell apart from a real swallow has no honest classification,
+        // so the widening waits for per-method attribution.
         if (ts.isArrayLiteralExpression(node)) return node.elements.some(carries);
         if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) return bodyReads(node, reads);
         if (ts.isNewExpression(node)) return (node.arguments ?? []).some(carries);
@@ -666,7 +696,7 @@ function analyze(
           }
           if (!ts.isIdentifier(callee)) return false;
           return (
-            (RESOLVER_ENTRIES.has(callee.text) || functions.has(callee.text)) && argumentsCarry()
+            (RESOLVER_ENTRIES.has(callee.text) || functionNames.has(callee.text)) && argumentsCarry()
           );
         }
         return false;
@@ -692,7 +722,7 @@ function analyze(
         const found = new Set<string>();
         const record = (name: string): void => {
           if (portOwners.has(name)) found.add(name);
-          for (const gate of gatesOf.get(name) ?? []) found.add(gate);
+          for (const gate of gatesAt(name, scope, file)) found.add(gate);
         };
         const scan = (inner: ts.Node): void => {
           if (ts.isTypeNode(inner)) return;
@@ -751,13 +781,13 @@ function analyze(
               // shapes, and merging them costs two casts for no gain.
               let declared: Declared<ts.SignatureDeclarationBase> | undefined;
               if (ts.isNewExpression(node)) {
-                const owner = classes.get(callee);
+                const owner = resolveClass(file, callee);
                 const constructor = owner?.declaration.members.find(ts.isConstructorDeclaration);
                 if (owner !== undefined && constructor !== undefined) {
                   declared = { file: owner.file, declaration: constructor };
                 }
               } else {
-                declared = functions.get(callee);
+                declared = resolveFunction(file, callee);
               }
               if (declared === undefined) return;
               const parameter = declared.declaration.parameters[index];
@@ -814,7 +844,146 @@ function analyze(
     if (!grew) break;
   }
 
-  return { portOwners, aliases, gatesOf, readsAsPort, parsed };
+  return { portOwners, aliases, gatesAt, readsAsPort, parsed };
+}
+
+/** The declarations one file makes, and what it imports and re-exports by relative path. */
+interface FileDeclarations {
+  readonly classes: Map<string, ts.ClassDeclaration>;
+  readonly functions: Map<string, ts.FunctionDeclaration | ts.ArrowFunction>;
+  /** Local binding → the file it is imported from and the name it is exported under. */
+  readonly imports: Map<string, { readonly from: string; readonly name: string }>;
+  /** `export * from './x.js'` (names `null`) and `export { a as b } from './x.js'`. */
+  readonly reExports: { readonly from: string; readonly names: Map<string, string> | null }[];
+}
+
+/**
+ * The file a relative specifier names, among the files read — or `null` for a
+ * bare specifier, which names a package and is never another module's private
+ * source (D18), or for a path the walk does not hold.
+ */
+function resolveRelative(
+  fromFile: string,
+  specifier: string,
+  parsed: ReadonlyMap<string, ts.SourceFile>,
+): string | null {
+  if (!specifier.startsWith('./') && !specifier.startsWith('../')) return null;
+  const base = posix.normalize(posix.join(posix.dirname(fromFile), specifier));
+  const stem = base.replace(/\.(?:js|ts|mjs|mts)$/, '');
+  for (const candidate of [`${stem}.ts`, `${stem}.tsx`, `${stem}.mts`, `${stem}/index.ts`]) {
+    if (parsed.has(candidate)) return candidate;
+  }
+  return null;
+}
+
+function collectDeclarations(
+  parsed: ReadonlyMap<string, ts.SourceFile>,
+): Map<string, FileDeclarations> {
+  const all = new Map<string, FileDeclarations>();
+  for (const [file, sf] of parsed) {
+    const own: FileDeclarations = {
+      classes: new Map(),
+      functions: new Map(),
+      imports: new Map(),
+      reExports: [],
+    };
+    const collect = (node: ts.Node): void => {
+      if (ts.isClassDeclaration(node) && node.name) own.classes.set(node.name.text, node);
+      if (ts.isFunctionDeclaration(node) && node.name) own.functions.set(node.name.text, node);
+      if (
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        node.initializer &&
+        ts.isArrowFunction(node.initializer)
+      ) {
+        own.functions.set(node.name.text, node.initializer);
+      }
+      node.forEachChild(collect);
+    };
+    sf.forEachChild(collect);
+    for (const statement of sf.statements) {
+      if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier)) {
+        const from = resolveRelative(file, statement.moduleSpecifier.text, parsed);
+        const bindings = statement.importClause?.namedBindings;
+        if (from === null || bindings === undefined || !ts.isNamedImports(bindings)) continue;
+        for (const element of bindings.elements) {
+          own.imports.set(element.name.text, {
+            from,
+            name: (element.propertyName ?? element.name).text,
+          });
+        }
+      }
+      if (
+        ts.isExportDeclaration(statement) &&
+        statement.moduleSpecifier !== undefined &&
+        ts.isStringLiteral(statement.moduleSpecifier)
+      ) {
+        const from = resolveRelative(file, statement.moduleSpecifier.text, parsed);
+        if (from === null) continue;
+        const clause = statement.exportClause;
+        if (clause === undefined) {
+          own.reExports.push({ from, names: null });
+        } else if (ts.isNamedExports(clause)) {
+          const names = new Map<string, string>();
+          for (const element of clause.elements) {
+            names.set(element.name.text, (element.propertyName ?? element.name).text);
+          }
+          own.reExports.push({ from, names });
+        }
+      }
+    }
+    all.set(file, own);
+  }
+  return all;
+}
+
+/**
+ * The declaration `name`, written in `file`, resolves to: the file's own, or
+ * the one a relative import names, followed through relative re-exports.
+ * Never a declaration some unrelated file happens to spell the same way.
+ */
+function resolveDeclaration<D>(
+  declarations: ReadonlyMap<string, FileDeclarations>,
+  pick: (perFile: FileDeclarations) => ReadonlyMap<string, D>,
+  file: string,
+  name: string,
+): { readonly file: string; readonly declaration: D } | undefined {
+  type Found = { readonly file: string; readonly declaration: D };
+  const own = (at: string, exported: string): Found | undefined => {
+    const perFile = declarations.get(at);
+    const declaration = perFile === undefined ? undefined : pick(perFile).get(exported);
+    return declaration === undefined ? undefined : { file: at, declaration };
+  };
+  const seen = new Set<string>();
+  const exportedFrom = (at: string, exported: string): Found | undefined => {
+    const visit = `${at}#${exported}`;
+    if (seen.has(visit)) return undefined;
+    seen.add(visit);
+    const direct = own(at, exported);
+    if (direct !== undefined) return direct;
+    const perFile = declarations.get(at);
+    if (perFile === undefined) return undefined;
+    // `import { x } from './y.js'; export { x };` is not followed: no file in
+    // the tree re-exports that way, and following it would be one more shape
+    // nothing exercises.
+    for (const reExport of perFile.reExports) {
+      if (reExport.names === null) {
+        const found = exportedFrom(reExport.from, exported);
+        if (found !== undefined) return found;
+      } else {
+        const original = reExport.names.get(exported);
+        if (original !== undefined) {
+          const found = exportedFrom(reExport.from, original);
+          if (found !== undefined) return found;
+        }
+      }
+    }
+    return undefined;
+  };
+  const local = own(file, name);
+  if (local !== undefined) return local;
+  const imported = declarations.get(file)?.imports.get(name);
+  return imported === undefined ? undefined : exportedFrom(imported.from, imported.name);
 }
 
 /**
@@ -1363,7 +1532,7 @@ function scanSources(input: PortCatchInput): SiteScan {
               ...new Set(
                 [...via].flatMap((one) => [
                   ...(analysis.portOwners.has(one) ? [one] : []),
-                  ...(analysis.gatesOf.get(one) ?? []),
+                  ...analysis.gatesAt(one, moduleId, file),
                 ]),
               ),
             ].sort();

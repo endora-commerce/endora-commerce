@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  CAPABILITY_KEYS,
   PIM_CONNECTOR_REGISTRY_PORT,
   type PimConnectorRegistryPort,
 } from '@endora-commerce/contracts';
-import { clearFamilyFor } from '../../helpers/capability-families.js';
+import { clearFamilyFor, declaredMembersOf } from '../../helpers/capability-families.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -41,8 +42,16 @@ describe('pim_connector — registry port [contract]', () => {
     // every sibling has to be switched off for this assertion. Derived rather than
     // named: this line used to switch off `pim_ergonode` alone, which was the whole
     // family when it was written and is a quarter of it now (feature 132).
-    await clearFamilyFor(h, 'pim_unopim');
-    await expect(h.pimConnectorRegistry.assertCanActivate('pim_unopim')).resolves.toBeUndefined();
+    //
+    // The subject is derived too. It named `pim_unopim` until that module left
+    // for the paid repository (feature 134), and a module id no manifest declares
+    // is not a PIM connector this registry can be asked about: the case would
+    // have gone on asserting over a name, not a member. Any member proves the
+    // port's answer, so the first one the manifests declare is the subject.
+    const [subject] = declaredMembersOf(CAPABILITY_KEYS.PIM_CONNECTOR);
+    expect(subject, 'the composed deployment declares no PIM connector').toBeDefined();
+    await clearFamilyFor(h, subject!);
+    await expect(h.pimConnectorRegistry.assertCanActivate(subject!)).resolves.toBeUndefined();
   });
 
   it('registers under the contract port name', () => {

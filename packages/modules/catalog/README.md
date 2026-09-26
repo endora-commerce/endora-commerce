@@ -18,6 +18,7 @@ A module is not imported by application code. The platform discovers the extensi
 | `@endora-commerce/mod-catalog/admin` | the Admin UI contribution: the screens, navigation and palette actions it adds |
 | `@endora-commerce/mod-catalog/backend` | the composition root the platform calls, with the entities, services, routes and workers it registers |
 | `@endora-commerce/mod-catalog/migrations` | the module’s own schema migrations, in the order the platform runs them |
+| `@endora-commerce/mod-catalog/ports` | type-only — the port interfaces other modules resolve this one through |
 | `@endora-commerce/mod-catalog/tailwind.css` | the Tailwind source declaration for the admin code above |
 
 ## Depends on

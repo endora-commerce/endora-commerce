@@ -377,14 +377,6 @@ const modules = [
   { type: 'doc', id: 'module-reference/pim-connector', label: 'pim_connector', key: 'pim_connector' },
   {
     type: 'category',
-    label: 'Pimcore PIM', key: 'pim_pimcore',
-    link: { type: 'doc', id: 'modules/pim_pimcore' },
-    items: [
-      'module-reference/pim-pimcore',
-    ],
-  },
-  {
-    type: 'category',
     label: 'price_lists', key: 'price_lists',
     link: { type: 'doc', id: 'modules/price_lists' },
     items: [
@@ -511,14 +503,6 @@ const modules = [
     link: { type: 'doc', id: 'modules/transactional-emails' },
     items: [
       'module-reference/transactional-emails',
-    ],
-  },
-  {
-    type: 'category',
-    label: 'UnoPim PIM', key: 'pim_unopim',
-    link: { type: 'doc', id: 'modules/pim_unopim' },
-    items: [
-      'module-reference/pim-unopim',
     ],
   },
   {

@@ -1,5 +1,121 @@
 # @endora-commerce/contracts
 
+## 0.15.0
+
+### Minor Changes
+
+- 43f445d: `@endora-commerce/contracts` no longer exports the Akeneo PIM connector's schemas; the connector publishes its own
+
+  **If you import any `akeneo*`/`Akeneo*` symbol, `PIM_AKENEO_SETTING_CODES` or `PimAkeneoSettingCode`
+  from `@endora-commerce/contracts`, this release removes it.** Sixty-three exports go: the setting
+  codes, the connection, bootstrap and probe shapes, the full-delivery and live-record HMAC envelopes,
+  the import run and issue shapes, the lookup query and page shapes, the field-protection request and
+  product view, and every type inferred beside them. They are now on the module's own `./contracts`
+  subpath:
+
+  ```diff
+  - import { akeneoConnectionDtoSchema, PIM_AKENEO_SETTING_CODES } from '@endora-commerce/contracts';
+  + import { akeneoConnectionDtoSchema, PIM_AKENEO_SETTING_CODES } from '@endora-commerce/mod-pim-akeneo/contracts';
+  ```
+
+  **`ERROR_CODES` also loses its seven `PIM_AKENEO_*` members**, because the enumeration is the
+  vocabulary of the codes this repository's own modules declare and the Akeneo connector is no longer
+  one of them: `PIM_AKENEO_NOT_CONFIGURED`, `PIM_AKENEO_CONNECTION_DISABLED`,
+  `PIM_AKENEO_BOOTSTRAP_INCOMPLETE`, `PIM_AKENEO_DELIVERY_ID_CONFLICT`, `PIM_AKENEO_CHANNEL_REQUIRED`,
+  `PIM_AKENEO_SECRET_REQUIRED` and `PIM_AKENEO_FIELD_KEY_INVALID`. The strings on the wire are
+  unchanged; code that compared against them takes `pimAkeneoErrorCodes` from
+  `@endora-commerce/mod-pim-akeneo` instead.
+
+  Nothing else in `@endora-commerce/contracts` changes. The two catalogue schemas the Akeneo shapes
+  compose — `apiAttributeTypeSchema` and `productLinkKindSchema` — stay where they are, and the
+  module now imports them from there.
+
+  `@endora-commerce/mod-pim-akeneo` itself is no longer released from this repository, from this
+  change on; its next version — with the `./contracts` export and a root `pimAkeneoErrorCodes`,
+  declared with `defineModuleErrorCodes` — is cut from the repository that now holds its source.
+  It already declared `zod` as a peer dependency, so installing it pulls in nothing new.
+
+- 07f1e8c: `@endora-commerce/contracts` no longer exports the Pimcore PIM connector's schemas; the connector publishes its own
+
+  **If you import any `pimcore*`/`Pimcore*` symbol, `PIM_PIMCORE_SETTING_CODES` or
+  `PimPimcoreSettingCode` from `@endora-commerce/contracts`, this release removes it.** A hundred and
+  sixty-two exports go: the source vocabulary, the import run and issue shapes, the mapping-decision
+  vocabulary, the connection, bootstrap and probe shapes, the complete-record and full-delivery HMAC
+  envelopes, the lookup query and page shapes, the admin mapping, price-binding and field-protection
+  request and view shapes, the setting codes, and every type inferred beside them. They are now on
+  the module's own `./contracts` subpath:
+
+  ```diff
+  - import { pimcoreConnectionDtoSchema, PIM_PIMCORE_SETTING_CODES } from '@endora-commerce/contracts';
+  + import { pimcoreConnectionDtoSchema, PIM_PIMCORE_SETTING_CODES } from '@endora-commerce/mod-pim-pimcore/contracts';
+  ```
+
+  **`ERROR_CODES` also loses its seventeen `PIM_PIMCORE_*` members**, because the enumeration is the
+  vocabulary of the codes this repository's own modules declare and the Pimcore connector is no longer
+  one of them: `PIM_PIMCORE_ALLOWLIST_INVALID`, `PIM_PIMCORE_ATTRIBUTE_NOT_PRICE_TYPE`,
+  `PIM_PIMCORE_BINDING_EXISTS`, `PIM_PIMCORE_BOOTSTRAP_INCOMPLETE`, `PIM_PIMCORE_CONNECTION_DISABLED`,
+  `PIM_PIMCORE_CONNECTION_EXISTS`, `PIM_PIMCORE_CURRENCY_INACTIVE`, `PIM_PIMCORE_FIELD_PATH_INVALID`,
+  `PIM_PIMCORE_IMPORT_ALREADY_RUNNING`, `PIM_PIMCORE_NOT_CONFIGURED`, `PIM_PIMCORE_OTHER_PIM_ENABLED`,
+  `PIM_PIMCORE_PRODUCT_FOLDER_REQUIRED`, `PIM_PIMCORE_PUSH_AUTH_REJECTED`, `PIM_PIMCORE_ROOT_REQUIRED`,
+  `PIM_PIMCORE_TARGET_ALREADY_MAPPED`, `PIM_PIMCORE_TARGET_ATTRIBUTE_NOT_FOUND` and
+  `PIM_PIMCORE_TYPE_INCOMPATIBLE`. The strings on the wire are unchanged; code that compared against
+  them takes `pimPimcoreErrorCodes` from `@endora-commerce/mod-pim-pimcore` instead.
+
+  Nothing else in `@endora-commerce/contracts` changes. The two catalogue schemas the Pimcore shapes
+  compose — `apiAttributeTypeSchema` and `productLinkKindSchema` — stay where they are, and the
+  module now imports them from there.
+
+  `@endora-commerce/mod-pim-pimcore` itself is no longer released from this repository: it leaves for
+  the paid-modules repository in the same change, and its next version — with the `./contracts`
+  export and a root `pimPimcoreErrorCodes`, declared with `defineModuleErrorCodes` — is cut there.
+  It already declared `zod` as a peer dependency, so installing it pulls in nothing new.
+
+- 7392332: `@endora-commerce/contracts` no longer exports the UnoPim PIM connector's schemas; the connector publishes its own
+
+  **If you import any `unopim*`/`Unopim*` symbol, `PIM_UNOPIM_SETTING_CODES`, `PimUnopimSettingCode`
+  or the `PIM_UNOPIM_{READ,WRITE}_PERMISSION` constants from `@endora-commerce/contracts`, this
+  release removes it.** One hundred and five exports go: the permission and setting codes, the
+  connection, mapping, price-binding and field-protection request and response shapes, the import run
+  and issue shapes, the webhook event, and every type inferred beside them. They are now on the
+  module's own `./contracts` subpath:
+
+  ```diff
+  - import { unopimConnectionSchema, PIM_UNOPIM_SETTING_CODES } from '@endora-commerce/contracts';
+  + import { unopimConnectionSchema, PIM_UNOPIM_SETTING_CODES } from '@endora-commerce/mod-pim-unopim/contracts';
+  ```
+
+  Nothing else in `@endora-commerce/contracts` changes. The catalogue and PIM-connector schemas the
+  UnoPim shapes compose — `apiAttributeTypeSchema`, `productLinkKindSchema`, `pimFieldPathSchema` and
+  the `pimImport*` schemas — stay where they are, and the module now imports them from there.
+
+  **`ERROR_CODES` also loses its twelve `PIM_UNOPIM_*` members**, because the enumeration is the
+  vocabulary of the codes this repository's own modules declare and the UnoPim connector is no longer
+  one of them: `PIM_UNOPIM_NOT_CONFIGURED`, `PIM_UNOPIM_CONNECTION_EXISTS`,
+  `PIM_UNOPIM_SCHEDULE_INVALID`, `PIM_UNOPIM_IMPORT_ALREADY_RUNNING`,
+  `PIM_UNOPIM_CONNECTION_DISABLED`, `PIM_UNOPIM_TYPE_INCOMPATIBLE`,
+  `PIM_UNOPIM_TARGET_ATTRIBUTE_NOT_FOUND`, `PIM_UNOPIM_TARGET_ALREADY_MAPPED`,
+  `PIM_UNOPIM_CURRENCY_INACTIVE`, `PIM_UNOPIM_ATTRIBUTE_NOT_PRICE_TYPE`,
+  `PIM_UNOPIM_BINDING_EXISTS` and `PIM_UNOPIM_FIELD_PATH_INVALID`. The strings on the wire are
+  unchanged; code that compared against them takes `pimUnopimErrorCodes` from
+  `@endora-commerce/mod-pim-unopim` instead.
+
+  `@endora-commerce/mod-pim-unopim` itself is no longer released from this repository: it leaves for
+  the paid-modules repository in the same change, and its next version — with the `./contracts`
+  export and a root `pimUnopimErrorCodes`, declared with `defineModuleErrorCodes` — is cut there.
+  It already declared `zod` as a peer dependency, so installing it pulls in nothing new.
+
+### Patch Changes
+
+- b9c6686: Adds `apiAttributeTypeOf(valueType, displayAsSlider)`, exported beside `attributeValueTypeSchema` and `apiAttributeTypeSchema`: the one definition of how a stored attribute value type and its slider flag project onto the API attribute type. A slider flag on `number` or `price` answers `slider` and is ignored elsewhere; `string`, `boolean` and `date` answer `input`; `enum` and `select` answer `select`. Nothing existing changes.
+- f89d305: Add the `payment_method.list.integrations` admin zone so separately installed payment gateways can contribute their own configuration cards. Remove the five extracted gateways' breadcrumb and shared translation records from the free packages.
+- 32fdf20: The `LICENSE` file in each package now names the copyright holder as Endora sp. z o.o.
+
+  The MIT licence text is unchanged; only its copyright line moves from `Copyright (c) 2026 Endora`
+  to `Copyright (c) 2026 Endora sp. z o.o.`, the registered legal entity. Nothing a package exports,
+  declares or depends on changes. `@endora-commerce/contracts` and
+  `@endora-commerce/mod-invoice-ledger` also carry a one-sentence rewording in an already-published
+  `CHANGELOG.md` entry, with no change to what that entry says about the code.
+
 ## 0.14.0
 
 ### Minor Changes
@@ -207,7 +323,7 @@
   whether the vendor's sentence is one of the vendor's sentences.
 
   **`@endora-commerce/mod-wfirma` is no longer named here, and the release it was promised is
-  the paid repository's to make.** Feature 134's wave 4 took that package out of this workspace
+  not this repository's to make.** Feature 134's wave 4 took that package out of this workspace
   between this changeset being written and this release going out, so `changeset version` can no
   longer honour an intent for it — `check:release-intent`'s `unversionable-changeset`, which is
   the finding that exists because a changeset naming a non-member exits 0 from `changeset status`

@@ -1,5 +1,29 @@
 # @endora-commerce/mod-invoice-ledger
 
+## 0.12.1
+
+### Patch Changes
+
+- 32fdf20: The `LICENSE` file in each package now names the copyright holder as Endora sp. z o.o.
+
+  The MIT licence text is unchanged; only its copyright line moves from `Copyright (c) 2026 Endora`
+  to `Copyright (c) 2026 Endora sp. z o.o.`, the registered legal entity. Nothing a package exports,
+  declares or depends on changes. `@endora-commerce/contracts` and
+  `@endora-commerce/mod-invoice-ledger` also carry a one-sentence rewording in an already-published
+  `CHANGELOG.md` entry, with no change to what that entry says about the code.
+
+- Updated dependencies [43f445d]
+- Updated dependencies [b9c6686]
+- Updated dependencies [f89d305]
+- Updated dependencies [32fdf20]
+- Updated dependencies [07f1e8c]
+- Updated dependencies [67dfca3]
+- Updated dependencies [f89d305]
+- Updated dependencies [7392332]
+  - @endora-commerce/contracts@0.15.0
+  - @endora-commerce/admin-kit@0.9.5
+  - @endora-commerce/platform@0.13.1
+
 ## 0.12.0
 
 ### Minor Changes
@@ -40,7 +64,7 @@
   whether the vendor's sentence is one of the vendor's sentences.
 
   **`@endora-commerce/mod-wfirma` is no longer named here, and the release it was promised is
-  the paid repository's to make.** Feature 134's wave 4 took that package out of this workspace
+  not this repository's to make.** Feature 134's wave 4 took that package out of this workspace
   between this changeset being written and this release going out, so `changeset version` can no
   longer honour an intent for it — `check:release-intent`'s `unversionable-changeset`, which is
   the finding that exists because a changeset naming a non-member exits 0 from `changeset status`

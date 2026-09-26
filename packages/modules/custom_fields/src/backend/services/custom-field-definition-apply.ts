@@ -1,9 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type {
-  CreateCustomFieldDefinitionRequest,
-  CustomFieldOptionDto,
-  SupportedEntityType,
-  UpdateCustomFieldDefinitionRequest,
+import {
+  customFieldDefinitionSchema,
+  type CreateCustomFieldDefinitionRequest,
+  type CustomFieldOptionDto,
+  type SupportedEntityType,
+  type UpdateCustomFieldDefinitionRequest,
 } from '@endora-commerce/contracts';
 import { CustomFieldDefinition } from '../entities/custom-field-definition.entity.js';
 import { CustomFieldOption } from '../entities/custom-field-option.entity.js';
@@ -32,7 +33,9 @@ export class CustomFieldDefinitionError extends Error {
       | 'options_forbidden'
       | 'entity_type_unknown'
       | 'value_type_locked'
-      | 'option_in_use',
+      | 'option_in_use'
+      | 'key_changed'
+      | 'invalid_key',
     message: string,
   ) {
     super(message);
@@ -136,6 +139,58 @@ export async function applyUpdateDefinition(
   if (patch.required !== undefined) def.required = patch.required;
   if (patch.sortOrder !== undefined) def.sortOrder = patch.sortOrder;
   if (patch.config !== undefined) def.config = patch.config;
+  return def;
+}
+
+/**
+ * Rename a definition's key on the caller's EM — the one path by which a key
+ * changes after create (`specs/134-paid-module-extraction/research.md` D12).
+ *
+ * Not an edit: `UpdateCustomFieldDefinitionRequest` omits `key` on purpose,
+ * because every host stores its values **under** the key and an ordinary rename
+ * would orphan them. The caller of this function is therefore one that renames
+ * the host's values in the same transaction — today a connector repairing keys
+ * it derived itself, with `catalog` moving the product values beside it.
+ *
+ * `expectedKey` is the key the caller planned from. A definition whose key has
+ * moved since is refused with `key_changed` rather than renamed from a state the
+ * caller never saw. Flushes before it returns, so a caller sequencing a
+ * two-phase rename (park, then move) gets its statements in the order it asked
+ * for them and a unique-index violation surfaces at the call that caused it.
+ */
+export async function applyRenameDefinitionKey(
+  em: EntityManager,
+  id: string,
+  expectedKey: string,
+  newKey: string,
+): Promise<CustomFieldDefinition> {
+  // command-coverage-ignore: apply-seam primitive — mutates on the caller's
+  // transactional EM. Its one caller is a system-invariant repair with no
+  // operator and no actor (a connector re-keying the attributes it derived,
+  // committed atomically with the host's value rename and the connector's own
+  // repair checkpoint); an audit entry for it would have nobody to attribute.
+  // Contract: specs/134-paid-module-extraction/research.md D12.
+  const def = await em.findOne(CustomFieldDefinition, { id });
+  if (!def) throw new CustomFieldDefinitionError('not_found', `Custom field ${id} not found.`);
+  if (def.key !== expectedKey) {
+    throw new CustomFieldDefinitionError(
+      'key_changed',
+      `Custom field ${id} is keyed "${def.key}", not "${expectedKey}"; nothing was renamed.`,
+    );
+  }
+  if (!customFieldDefinitionSchema.shape.key.safeParse(newKey).success) {
+    throw new CustomFieldDefinitionError('invalid_key', `"${newKey}" is not a valid field key.`);
+  }
+  if (newKey === def.key) return def;
+  const holder = await em.findOne(CustomFieldDefinition, { entityType: def.entityType, key: newKey });
+  if (holder) {
+    throw new CustomFieldDefinitionError(
+      'duplicate_key',
+      `A field "${newKey}" already exists on ${def.entityType}.`,
+    );
+  }
+  def.key = newKey;
+  await em.flush();
   return def;
 }
 

@@ -73,11 +73,11 @@ describe('admin_users — folding e-mail case over existing rows', () => {
   });
 
   it('folds a mixed-case address that collides with nothing', async () => {
-    const id = await seed(`Anna.Nowak${SUFFIX}`, '2026-01-01T00:00:00Z');
+    const id = await seed(`Operator.Mixed${SUFFIX}`, '2026-01-01T00:00:00Z');
 
     await runMigration();
 
-    expect(await emailOf(id)).toBe(`anna.nowak${SUFFIX}`);
+    expect(await emailOf(id)).toBe(`operator.mixed${SUFFIX}`);
   });
 
   it('leaves the address with the row that already holds it, and drops nobody', async () => {
