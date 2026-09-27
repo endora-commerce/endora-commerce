@@ -19,7 +19,7 @@ Wygenerowane z manifestu modułu, bez ręcznych edycji. Co moduł *robi*, opisuj
 | Nazwa | Search |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-search` |
-| Poziom licencji | — |
+| Licencja | `MIT` |
 
 ## Aktywacja
 

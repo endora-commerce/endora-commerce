@@ -19,7 +19,7 @@ Wygenerowane z manifestu modułu, bez ręcznych edycji. Co moduł *robi*, opisuj
 | Nazwa | Blog |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-blog` |
-| Poziom licencji | — |
+| Licencja | `MIT` |
 
 ## Aktywacja
 

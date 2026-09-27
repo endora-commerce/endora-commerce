@@ -1223,7 +1223,9 @@ describe('check-diacritic-folds — the tree it guards', () => {
    */
   const slugGenerators = [
     'packages/modules/product_feeds/src/backend/services/feed-template-io.service.ts',
-    'packages/modules/pim_ergonode/src/backend/services/import/category-phase.ts',
+    // `pim_ergonode`'s `services/import/category-phase.ts` stood here and left with
+    // that module for the paid repository (feature 134); its slug still goes
+    // through `@endora-commerce/contracts`' `slugify` there.
     'packages/modules/catalog/src/backend/services/catalog-admin.service.ts',
     // Feature 091, Phase 4 batch 11 — re-keyed, not dropped: `newsletter` took
     // its admin surface into its package and this screen went with it. The

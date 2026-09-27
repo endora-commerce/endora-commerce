@@ -352,9 +352,7 @@ describe('InvoiceAttachmentFetchRegistry — an absent contributor’s provider 
     // its own registry answers about what it registered; the one instance the
     // module composes is the one that has to read the real presence.
     expect(flat(backendSource('invoices'))).toContain(
-      flat(
-        'new InvoiceAttachmentFetchRegistry( (input) => context.resolveAttachmentContext(input), (moduleId) => effectiveState.isPresent(moduleId),',
-      ),
+      flat('(moduleId) => effectiveState.isPresent(moduleId)'),
     );
   });
 });

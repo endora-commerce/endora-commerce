@@ -19,7 +19,7 @@ Rendered from the module's own manifest, and from nothing written by hand. Nobod
 | Name | Admin Notifications |
 | Version | `1.0.0` |
 | Ships from | `@endora-commerce/mod-admin-notifications` |
-| Licence tier | — |
+| Licence | `MIT` |
 
 ## Activation
 

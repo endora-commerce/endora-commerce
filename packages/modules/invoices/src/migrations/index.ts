@@ -27,6 +27,7 @@ import { Migration20260801T111000InvoicesGenericTemplateReseed } from './2026080
 import { Migration20260817T201110InvoicesCorrectionIdempotencyKey } from './20260817T201110_invoices_correction_idempotency_key.js';
 import { Migration20260903T101756InvoicesNamespaceBlockNames } from './20260903T101756_invoices_namespace_block_names.js';
 import { Migration20260914T133603InvoicesErpImportedSaleDocuments } from './20260914T133603_invoices_erp_imported_sale_documents.js';
+import { Migration20260926T230239InvoicesImportIdentity } from './20260926T230239_invoices_import_identity.js';
 
 export const migrations = [
   Migration20260629T125121InvoicesModule,
@@ -34,6 +35,7 @@ export const migrations = [
   Migration20260817T201110InvoicesCorrectionIdempotencyKey,
   Migration20260903T101756InvoicesNamespaceBlockNames,
   Migration20260914T133603InvoicesErpImportedSaleDocuments,
+  Migration20260926T230239InvoicesImportIdentity,
 ];
 
 export {
@@ -42,4 +44,5 @@ export {
   Migration20260817T201110InvoicesCorrectionIdempotencyKey,
   Migration20260903T101756InvoicesNamespaceBlockNames,
   Migration20260914T133603InvoicesErpImportedSaleDocuments,
+  Migration20260926T230239InvoicesImportIdentity,
 };

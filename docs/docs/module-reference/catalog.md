@@ -19,7 +19,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | Name | Catalog |
 | Version | `1.6.0` |
 | Ships from | `@endora-commerce/mod-catalog` |
-| Licence tier | — |
+| Licence | `MIT` |
 
 ## Activation
 

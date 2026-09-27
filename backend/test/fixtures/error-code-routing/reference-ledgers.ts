@@ -332,7 +332,9 @@ export const REHOMED_ERROR_CODES: RehomedErrorCodes = {
   // operator-visible moves with them; each was already on
   // `UNTRANSLATED_ERROR_CODES` under `_i18n` and is now on it under its own
   // module's group. Both modules already shipped an i18n bundle, and neither
-  // bundle gains a key.
+  // bundle gains a key. `pim_ergonode`'s thirteen entries left with the module
+  // (feature 134, T055), which took the codes to the paid repository as its own;
+  // the frozen capture records their departure where they used to be.
   KSEF_ALREADY_SUBMITTED: {
     from: '_i18n',
     to: 'ksef',
@@ -392,119 +394,6 @@ export const REHOMED_ERROR_CODES: RehomedErrorCodes = {
       'The noun is the KSeF service itself, and this module is the only thing in the ' +
       'platform that talks to it; `KsefUnavailableError` in its client interface is the one ' +
       'thing that produces the code.',
-  },
-  PIM_ERGONODE_ATTRIBUTE_NOT_PRICE_TYPE: {
-    from: '_i18n',
-    to: 'pim_ergonode',
-    tier: 'T1',
-    reason:
-      'The noun is an Ergonode attribute inside a price binding, and `pim_ergonode` owns ' +
-      'both the binding and the notion of an Ergonode attribute; the refusal is about the ' +
-      'remote schema, which no other module reads.',
-  },
-  PIM_ERGONODE_BINDING_EXISTS: {
-    from: '_i18n',
-    to: 'pim_ergonode',
-    tier: 'T1',
-    reason:
-      'The noun is a price binding, an entity `pim_ergonode` owns outright, and the ' +
-      'uniqueness it refuses belongs to that entity.',
-  },
-  PIM_ERGONODE_CONNECTION_DISABLED: {
-    from: '_i18n',
-    to: 'pim_ergonode',
-    tier: 'T1',
-    reason:
-      'The noun is the Ergonode connection, this module central entity. It is the enabled ' +
-      'flag on that connection and not the module activation control, which answers ' +
-      '`MODULE_DISABLED` and stays with the platform.',
-  },
-  PIM_ERGONODE_CONNECTION_EXISTS: {
-    from: '_i18n',
-    to: 'pim_ergonode',
-    tier: 'T1',
-    reason:
-      'Same noun as `PIM_ERGONODE_CONNECTION_DISABLED`: it refuses a second connection row, ' +
-      'which is the single-connection invariant `pim_ergonode` holds.',
-  },
-  PIM_ERGONODE_CURRENCY_INACTIVE: {
-    from: '_i18n',
-    to: 'pim_ergonode',
-    tier: 'T1',
-    reason:
-      'A currency is the noun `currencies` owns, but this code names neither a currency nor ' +
-      'a currency rule: it refuses an Ergonode price binding onto a currency the shop does ' +
-      'not have active, which is a mapping rule of this module and is raised nowhere else. ' +
-      'The word in the code is not what decides the owner; the sentence an operator needs ' +
-      'here is about the mapping.',
-  },
-  PIM_ERGONODE_FIELD_PATH_INVALID: {
-    from: '_i18n',
-    to: 'pim_ergonode',
-    tier: 'T1',
-    reason:
-      'The noun is a protected field path, part of the field-protection model ' +
-      '`pim_ergonode` owns; the path is validated against that model and against nothing ' +
-      'the catalog owns.',
-  },
-  PIM_ERGONODE_IMPORT_ALREADY_RUNNING: {
-    from: '_i18n',
-    to: 'pim_ergonode',
-    tier: 'T1',
-    reason:
-      'The noun is an Ergonode import run, whose entity and single-flight rule both belong ' +
-      'to `pim_ergonode`.',
-  },
-  PIM_ERGONODE_NOT_CONFIGURED: {
-    from: '_i18n',
-    to: 'pim_ergonode',
-    tier: 'T1',
-    reason:
-      'It refuses the absence of the Ergonode connection, the same noun as ' +
-      '`PIM_ERGONODE_CONNECTION_EXISTS`, read rather than written.',
-  },
-  PIM_ERGONODE_SCHEDULE_INVALID: {
-    from: '_i18n',
-    to: 'pim_ergonode',
-    tier: 'T1',
-    reason:
-      'The noun is the import schedule on the connection, a field of an entity ' +
-      '`pim_ergonode` owns, with a validity rule of its own.',
-  },
-  PIM_ERGONODE_TARGET_ALREADY_MAPPED: {
-    from: '_i18n',
-    to: 'pim_ergonode',
-    tier: 'T1',
-    reason:
-      'The noun is an Ergonode attribute or category mapping, an entity `pim_ergonode` ' +
-      'owns; the refusal is its one-target-one-mapping invariant, raised from three places ' +
-      'in this module and nowhere else.',
-  },
-  PIM_ERGONODE_TARGET_ATTRIBUTE_NOT_FOUND: {
-    from: '_i18n',
-    to: 'pim_ergonode',
-    tier: 'T1',
-    reason:
-      'Same noun as `PIM_ERGONODE_TARGET_ALREADY_MAPPED`: the target of a mapping cannot be ' +
-      'resolved. It is about the mapping rather than about the attribute the mapping points ' +
-      'at, so it is not `catalog`.',
-  },
-  PIM_ERGONODE_TREE_REQUIRED: {
-    from: '_i18n',
-    to: 'pim_ergonode',
-    tier: 'T1',
-    reason:
-      'The noun is the Ergonode category tree an import has to be told to walk, a concept ' +
-      'of the remote PIM that exists only inside this module.',
-  },
-  PIM_ERGONODE_TYPE_INCOMPATIBLE: {
-    from: '_i18n',
-    to: 'pim_ergonode',
-    tier: 'T1',
-    reason:
-      'It refuses a mapping between an Ergonode attribute type and a local one that cannot ' +
-      'carry it. The judgement belongs to the mapping, which is the noun `pim_ergonode` ' +
-      'owns; neither of the two type systems involved is the platform.',
   },
   // ---- Tier A, MR 3 of the sweep: the rest of the sentence-free block —
   // `prompt_actions` (6), `custom_fields` (5), `customers` (2),

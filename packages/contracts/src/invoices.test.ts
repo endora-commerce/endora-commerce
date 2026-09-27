@@ -15,7 +15,7 @@ import {
  */
 describe('externalDocumentRefSchema', () => {
   const ref = {
-    xlSaleDocumentId: 'doc-1',
+    externalId: 'doc-1',
     documentKind: 'invoice',
   } as const;
 
@@ -34,6 +34,62 @@ describe('externalDocumentRefSchema', () => {
   it('refuses an empty source system, which no provider can be registered under', () => {
     expect(externalDocumentRefSchema.safeParse({ ...ref, system: '' }).success).toBe(false);
     expect(externalDocumentRefSchema.safeParse({ ...ref }).success).toBe(false);
+  });
+
+  // T135 (`research.md` D21): an imported document is identified by its
+  // source system and its id there, and the free contract names no vendor.
+  it('requires a non-empty externalId, the source system’s own id', () => {
+    const { externalId: _omitted, ...withoutId } = ref;
+    expect(externalDocumentRefSchema.safeParse({ ...ref, system: 'comarch_xl' }).success).toBe(
+      true,
+    );
+    expect(
+      externalDocumentRefSchema.safeParse({ ...ref, system: 'comarch_xl', externalId: '' })
+        .success,
+    ).toBe(false);
+    expect(
+      externalDocumentRefSchema.safeParse({ ...withoutId, system: 'comarch_xl' }).success,
+    ).toBe(false);
+  });
+
+  it('refuses a reference carrying only the pre-T135 xlSaleDocumentId', () => {
+    const oldShape = {
+      system: 'comarch_xl',
+      xlSaleDocumentId: 'doc-1',
+      xlDocumentNumber: 'FV/1',
+      documentKind: 'invoice',
+    };
+    expect(externalDocumentRefSchema.safeParse(oldShape).success).toBe(false);
+  });
+
+  it('carries the source system’s document number as externalNumber', () => {
+    expect(
+      externalDocumentRefSchema.parse({ ...ref, system: 'comarch_xl', externalNumber: 'FV/1' })
+        .externalNumber,
+    ).toBe('FV/1');
+  });
+
+  it('names the attachment id externalAttachmentId in the upsert input', () => {
+    const base = {
+      organizationId: '00000000-0000-4000-8000-000000000001',
+      externalDocumentRef: { ...ref, system: 'erp_fixture' },
+      kind: 'invoice',
+      number: 'FV/1',
+      currency: 'PLN',
+      issuedAt: '2026-09-14T10:00:00.000Z',
+      grossTotal: '1.00',
+    } as const;
+    const parsed = erpSaleDocumentUpsertInputSchema.parse({
+      ...base,
+      attachments: [{ externalAttachmentId: 'att-1', fileName: 'a.pdf' }],
+    });
+    expect(parsed.attachments?.[0]?.externalAttachmentId).toBe('att-1');
+    expect(
+      erpSaleDocumentUpsertInputSchema.safeParse({
+        ...base,
+        attachments: [{ xlAttachmentId: 'att-1', fileName: 'a.pdf' }],
+      }).success,
+    ).toBe(false);
   });
 
   it('flows through the upsert input', () => {

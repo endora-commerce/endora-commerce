@@ -6,6 +6,7 @@ import {
   type ErpSaleDocumentUpsertInput,
   type ErpSaleDocumentUpsertResult,
   type ErpSaleDocumentWritePort,
+  erpSaleDocumentUpsertInputSchema,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { isOrgInScope } from '@endora-commerce/platform/tenancy';
@@ -16,24 +17,42 @@ export class ErpSaleDocumentWritePortService implements ErpSaleDocumentWritePort
   constructor(private readonly emFactory: () => EntityManager) {}
 
   async upsertImportedDocument(
-    input: ErpSaleDocumentUpsertInput,
+    untrusted: ErpSaleDocumentUpsertInput,
   ): Promise<ErpSaleDocumentUpsertResult> {
     // command-coverage-ignore: projection of a sale document the ERP owns.
     // `origin: 'erp_import'` is the whole of this port's subject — the row
-    // mirrors a document Comarch XL issued, and the decision to issue it was
-    // never taken in Endora, so there is no actor for a Command to name. The
-    // run that carried it is recorded by the caller: `comarch_xl` writes an
-    // `xl_sync_job_events` row per applied change. An Endora-issued invoice
-    // never reaches this method; `InvoiceService` owns that path and audits it.
+    // mirrors a document the source system issued, and the decision to issue
+    // it was never taken in Endora, so there is no actor for a Command to name.
+    // The run that carried it is recorded by the calling connector in its own
+    // sync log. An Endora-issued invoice never reaches this method;
+    // `InvoiceService` owns that path and audits it.
+    //
+    // The input is parsed rather than trusted to its TypeScript type: a writer
+    // compiled against another version of the contract (feature 134, T135 —
+    // the pre-T135 key shape) is refused here, loudly and with
+    // nothing written, instead of by a database constraint.
+    const parsed = erpSaleDocumentUpsertInputSchema.safeParse(untrusted);
+    if (!parsed.success) {
+      throw new HttpError(
+        422,
+        ERROR_CODES.VALIDATION_FAILED,
+        'Imported sale document failed validation.',
+        parsed.error.issues.map((issue) => ({
+          path: issue.path.map(String).join('.'),
+          issue: issue.message,
+        })),
+      );
+    }
+    const input = parsed.data;
     if (!isOrgInScope(input.organizationId)) {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
     }
 
     const em = this.emFactory();
-    const existing = await this.findByXlSaleDocumentId(
-      em,
-      input.externalDocumentRef.xlSaleDocumentId,
-    );
+    const existing = await this.findImportedDocument(em, {
+      system: input.externalDocumentRef.system,
+      externalId: input.externalDocumentRef.externalId,
+    });
 
     if (existing) {
       this.applyHeader(existing, input);
@@ -79,7 +98,7 @@ export class ErpSaleDocumentWritePortService implements ErpSaleDocumentWritePort
       organizationId: input.organizationId,
       status: 'ready',
     });
-    if (!invoice?.externalDocumentRef?.xlSaleDocumentId) {
+    if (!invoice?.externalDocumentRef?.externalId) {
       return null;
     }
 
@@ -93,8 +112,8 @@ export class ErpSaleDocumentWritePortService implements ErpSaleDocumentWritePort
 
     return {
       system: invoice.externalDocumentRef.system,
-      xlSaleDocumentId: invoice.externalDocumentRef.xlSaleDocumentId,
-      xlAttachmentId: attachment.xlAttachmentId,
+      externalId: invoice.externalDocumentRef.externalId,
+      externalAttachmentId: attachment.externalAttachmentId,
       fileName: attachment.fileName,
       contentType: attachment.contentType ?? null,
     };
@@ -134,13 +153,31 @@ export class ErpSaleDocumentWritePortService implements ErpSaleDocumentWritePort
     return true;
   }
 
-  private async findByXlSaleDocumentId(
+  /**
+   * The imported document with this identity, in any organization.
+   *
+   * Raw SQL, deliberately outside the tenant global filter: identity belongs to
+   * the source document, not to an organization. Within one source system a
+   * document the source system reassigns to another contractor moves with it —
+   * that is the source system's decision, and `applyHeader` follows it. What the
+   * identity does guarantee is that a document from **another** system can never
+   * be reached (feature 134, T135; `research.md` D21 §3).
+   *
+   * The predicate states `invoices_external_document_uq`'s expression and
+   * partial-index condition verbatim, so the planner can answer it from that
+   * index.
+   */
+  private async findImportedDocument(
     em: EntityManager,
-    xlSaleDocumentId: string,
+    identity: { system: string; externalId: string },
   ): Promise<Invoice | null> {
     const rows = await em.getConnection().execute<Array<{ id: string }>>(
-      `select id from invoices where origin = 'erp_import' and external_document_ref->>'xlSaleDocumentId' = ? limit 1`,
-      [xlSaleDocumentId],
+      `select id from invoices
+        where origin = 'erp_import'
+          and (external_document_ref->>'system') = ?
+          and (external_document_ref->>'externalId') = ?
+        limit 1`,
+      [identity.system, identity.externalId],
     );
     const id = rows[0]?.id;
     return id ? em.findOne(Invoice, { id }) : null;
@@ -180,10 +217,10 @@ export class ErpSaleDocumentWritePortService implements ErpSaleDocumentWritePort
     if (attachments.length === 0) return;
 
     const existing = await em.find(InvoiceExternalAttachment, { invoiceId: invoice.id });
-    const byXlId = new Map(existing.map((row) => [row.xlAttachmentId, row]));
+    const byExternalId = new Map(existing.map((row) => [row.externalAttachmentId, row]));
 
     for (const attachment of attachments) {
-      const row = byXlId.get(attachment.xlAttachmentId);
+      const row = byExternalId.get(attachment.externalAttachmentId);
       if (row) {
         row.fileName = attachment.fileName;
         row.contentType = attachment.contentType ?? null;
@@ -191,7 +228,7 @@ export class ErpSaleDocumentWritePortService implements ErpSaleDocumentWritePort
       }
       em.create(InvoiceExternalAttachment, {
         invoiceId: invoice.id,
-        xlAttachmentId: attachment.xlAttachmentId,
+        externalAttachmentId: attachment.externalAttachmentId,
         fileName: attachment.fileName,
         contentType: attachment.contentType ?? null,
       });

@@ -1,5 +1,14 @@
 # @endora-commerce/mod-customers
 
+## 0.10.6
+
+### Patch Changes
+
+- Updated dependencies [8a88460]
+  - @endora-commerce/contracts@0.16.0
+  - @endora-commerce/admin-kit@0.9.6
+  - @endora-commerce/platform@0.13.2
+
 ## 0.10.5
 
 ### Patch Changes

@@ -172,7 +172,6 @@ export * from './custom-fields.js';
 export * from './credentials.js';
 export * from './invoice-ledger.js';
 export * from './product-feeds.js';
-export * from './pim-ergonode.js';
 export * from './pim-connector.js';
 export * from './erp-connector.js';
 export * from './comarch-xl.js';

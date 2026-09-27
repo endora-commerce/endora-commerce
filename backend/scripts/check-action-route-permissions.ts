@@ -97,16 +97,10 @@ export const ACTION_PERMISSION_DISAGREEMENTS: Readonly<Record<string, string>> =
     '`megamenu.read` and an operator who cannot save still sees the tree — or is it ' +
     'the edit itself, in which case it stays as it is and hides from a read-only ' +
     'operator by design. Issue #232 left the verb-labelled actions undecided.',
-  'pim_ergonode:run-ergonode-import':
-    '"Import from Ergonode now" declares `pim_ergonode:write` and lands on ' +
-    '`/pim-ergonode`, whose landing GETs are `pim_ergonode:read` — the same route ' +
-    '`open-pim-ergonode` already advertises with the read code. Retire this entry by ' +
-    'deciding whether the row promises the import (write, and it stays) or the screen ' +
-    'the import is started from (read, and it becomes a duplicate of the open action).',
   'product_feeds:import-feed-template':
     '"Import a feed template" declares `product_feeds:write`; the import screen it ' +
     'opens is behind read-gated landing routes, and the POST that performs the import ' +
-    'is the write one. Retire this entry with the same answer as the two above: a ' +
+    'is the write one. Retire this entry with the same answer as the one above: a ' +
     'palette row is a navigation, and the field is a single code, so the label and the ' +
     'gate cannot both be honoured.',
 };

@@ -17,25 +17,29 @@ export type InvoiceKind = z.infer<typeof invoiceKindSchema>;
 export const invoiceOriginSchema = z.enum(['platform', 'erp_import']);
 export type InvoiceOrigin = z.infer<typeof invoiceOriginSchema>;
 
-/** XL sale-document kind carried inside {@link externalDocumentRefSchema}. */
+/** Sale-document kind carried inside {@link externalDocumentRefSchema}. */
 export const erpSaleDocumentKindSchema = z.enum(['invoice', 'wz']);
 export type ErpSaleDocumentKind = z.infer<typeof erpSaleDocumentKindSchema>;
 
 /**
  * Stable identity for an ERP-imported sale document (feature 119, FR-087/FR-088).
  *
- * `system` names the source system the document was imported from, and it is
- * the key an attachment fetch provider registers under
+ * An imported document is identified by the pair `(system, externalId)`: the
+ * source system it was imported from, and its id in that system. Ids from two
+ * source systems come from unrelated id spaces, so the same `externalId` from
+ * another `system` is another document (feature 134, T135; `research.md` D21).
+ *
+ * `system` is also the key an attachment fetch provider registers under
  * ({@link InvoiceAttachmentFetchRegistryPort}). It is open rather than a literal
  * since feature 134 (T065): a free contract that enumerates its connectors has
  * to be edited for every connector that is added, which is the coupling the
- * seam removes. Stored references keep the value they were written with, and
- * the `xl*` field names are persisted keys, so they are left as they are.
+ * seam removes. `externalNumber` is the document number the source system
+ * shows, when it has one.
  */
 export const externalDocumentRefSchema = z.object({
   system: z.string().min(1).max(64),
-  xlSaleDocumentId: z.string().max(128),
-  xlDocumentNumber: z.string().max(64).optional(),
+  externalId: z.string().min(1).max(128),
+  externalNumber: z.string().max(64).optional(),
   documentKind: erpSaleDocumentKindSchema,
 });
 export type ExternalDocumentRef = z.infer<typeof externalDocumentRefSchema>;
@@ -552,9 +556,13 @@ export type NumberPatternSequenceDefect = 'no_sequence_token';
 
 export const ERP_SALE_DOCUMENT_WRITE_PORT = 'erpSaleDocumentWritePort' as const;
 
-/** Metadata for an XL attachment registered on import; bytes arrive on first download (FR-086). */
+/**
+ * Metadata for a source-system attachment registered on import; bytes arrive on
+ * first download (FR-086). `externalAttachmentId` is the attachment's id in the
+ * source system, unique within its document.
+ */
 export const erpSaleDocumentAttachmentInputSchema = z.object({
-  xlAttachmentId: z.string().max(128),
+  externalAttachmentId: z.string().max(128),
   fileName: z.string().max(256),
   contentType: z.string().max(128).nullable().optional(),
 });
@@ -612,15 +620,21 @@ export type ErpSaleDocumentListItem = z.infer<typeof erpSaleDocumentListItemSche
 /**
  * Container name: `erpSaleDocumentWritePort`. Owner: `invoices`.
  *
- * `comarch_xl` calls this during `xl.change.sale_document` apply (FR-087). The
- * module owns persistence; the connector owns XL identity mapping and lazy
- * attachment fetch (FR-088).
+ * An importing connector calls this when it applies a sale document from its
+ * source system (FR-087). `invoices` owns persistence and identifies a document
+ * by `(externalDocumentRef.system, externalDocumentRef.externalId)`; the
+ * connector owns the mapping from its source system and lazy attachment fetch
+ * (FR-088). `upsertImportedDocument` validates its input against
+ * {@link erpSaleDocumentUpsertInputSchema} and writes nothing when it does not
+ * parse.
  */
 export interface ErpSaleDocumentAttachmentContext {
   /** The imported document's `externalDocumentRef.system`. */
   system: string;
-  xlSaleDocumentId: string;
-  xlAttachmentId: string;
+  /** The imported document's `externalDocumentRef.externalId`. */
+  externalId: string;
+  /** The attachment's id in the source system. */
+  externalAttachmentId: string;
   fileName: string;
   contentType: string | null;
 }
@@ -632,7 +646,7 @@ export interface ErpSaleDocumentWritePort {
     attachmentId: string;
     organizationId: string;
   }): Promise<ErpSaleDocumentAttachmentContext | null>;
-  /** Links fetched XL attachment bytes to an ERP-imported document (feature 119, FR-086). */
+  /** Links fetched attachment bytes to an ERP-imported document (feature 119, FR-086). */
   linkAttachmentAsset(input: {
     invoiceId: string;
     attachmentId: string;
