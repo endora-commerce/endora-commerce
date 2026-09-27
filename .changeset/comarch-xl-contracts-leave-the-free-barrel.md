@@ -28,3 +28,8 @@ port and is now declared beside its other contract types. Nothing else in
 
 `@endora-commerce/mod-comarch-xl` gains the `./contracts` export. It already declared `zod` as a
 peer dependency, so installing it pulls in nothing new.
+
+`@endora-commerce/mod-comarch-xl` also owns its ten error codes now: the root export gains
+`comarchXlErrorCodes`, declared with `defineModuleErrorCodes`, and every raise site in the module
+uses it instead of `ERROR_CODES.COMARCH_XL_*` and `ERROR_CODES.XL_CONTRACT_VERSION_MISMATCH`. The
+codes' values on the wire do not change.
