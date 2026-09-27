@@ -240,6 +240,16 @@ const SCRIPTS_NO_JOB_RUNS: Readonly<Record<string, Verdict>> = {
       'it. What CI does ask about the same subject is the disposition record the filter reads, ' +
       'through `check:root-dispositions`.',
   },
+  'backend::history:scan': {
+    kind: 'local-operation',
+    reason:
+      'The one-time pre-publication scan (feature 136 GAP-1), and like the filter it reads it is ' +
+      'kept out of the `check-*` namespace deliberately (129 FR-014). Its subject is the ' +
+      "filter's dry-run projection, which exists only on the machine that ran the filter, and " +
+      'its secret scanner is a container the operator runs; no branch contains what it reads, so ' +
+      'there is no verdict for a pipeline to hold one to. Its value-free output is what CI does ' +
+      'hold, through its unit test.',
+  },
   '<root>::version:packages': {
     kind: 'local-operation',
     reason:
