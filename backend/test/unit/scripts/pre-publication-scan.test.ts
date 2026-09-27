@@ -15,24 +15,36 @@
  * the very string the fixture planted, which is the only way *"never the
  * matched value"* is a measurement rather than a promise.
  */
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   CLASS_SURFACES,
   detectContent,
   detectForPath,
+  formatFinding,
   formatScanReport,
+  formatStaleReview,
   gitleaksArguments,
   isPersonalEmail,
   parseGitleaksReport,
   parsePaidIds,
+  parseReviewedRecord,
+  reviewedCandidates,
+  reviewedRecordInsideRepo,
+  type ReviewedRecord,
   runScan,
   type ScanContext,
+  scanExitCode,
+  type ScanReport,
+  type TarballInput,
   vacuousScanReason,
+  verdictOf,
   validNip,
   validPesel,
 } from '../../../scripts/pre-publication-scan.js';
@@ -289,29 +301,48 @@ describe('the walk refuses to be vacuous', () => {
   });
 });
 
+const created: string[] = [];
+afterEach(() => {
+  for (const dir of created.splice(0)) rmSync(dir, { recursive: true, force: true });
+});
+
+function scratch(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'endora-pre-publication-scan-'));
+  created.push(dir);
+  return dir;
+}
+
+interface Fixture {
+  root: string;
+  git: (args: string[]) => string;
+  write: (p: string, c: string) => void;
+  commit: (message: string) => string;
+  blob: (path: string) => string;
+}
+
+function fixture(): Fixture {
+  const root = scratch();
+  const git = (args: string[]): string =>
+    execFileSync('git', ['-C', root, ...args], { encoding: 'utf8' });
+  execFileSync('git', ['init', '--quiet', '--initial-branch=main', root], { stdio: 'ignore' });
+  git(['config', 'user.name', 'Fixture']);
+  git(['config', 'user.email', 'fixture@example.test']);
+  git(['config', 'commit.gpgsign', 'false']);
+  const write = (path: string, content: string): void => {
+    const full = join(root, path);
+    mkdirSync(dirname(full), { recursive: true });
+    writeFileSync(full, content, 'utf8');
+  };
+  const commit = (message: string): string => {
+    git(['add', '-A']);
+    git(['commit', '--quiet', '-m', message]);
+    return git(['rev-parse', 'HEAD']).trim();
+  };
+  const blob = (path: string): string => git(['rev-parse', `HEAD:${path}`]).trim();
+  return { root, git, write, commit, blob };
+}
+
 describe('a fixture history — a key in a blob deleted before the tip (spec §10 scenario 2)', () => {
-  const created: string[] = [];
-  afterEach(() => {
-    for (const dir of created.splice(0)) rmSync(dir, { recursive: true, force: true });
-  });
-
-  function fixture(): { root: string; git: (args: string[]) => string; write: (p: string, c: string) => void } {
-    const root = mkdtempSync(join(tmpdir(), 'endora-pre-publication-scan-'));
-    created.push(root);
-    const git = (args: string[]): string =>
-      execFileSync('git', ['-C', root, ...args], { encoding: 'utf8' });
-    execFileSync('git', ['init', '--quiet', '--initial-branch=main', root], { stdio: 'ignore' });
-    git(['config', 'user.name', 'Fixture']);
-    git(['config', 'user.email', 'fixture@example.test']);
-    git(['config', 'commit.gpgsign', 'false']);
-    const write = (path: string, content: string): void => {
-      const full = join(root, path);
-      mkdirSync(dirname(full), { recursive: true });
-      writeFileSync(full, content, 'utf8');
-    };
-    return { root, git, write };
-  }
-
   it('reports the path, the class and the commits, and never the key or the address', async () => {
     const f = fixture();
     f.write('README.md', '# fixture\n');
@@ -364,5 +395,420 @@ describe('a fixture history — a key in a blob deleted before the tip (spec §1
     expect(lines).toMatch(/verdict: incomplete/);
     expect(report.sizes.tipFiles).toBe(1);
     expect(report.sizes.commits).toBe(1);
+  });
+});
+
+// --- the reviewed-findings record (contract §4, amendment of 2026-09-27) -----
+
+const BACKEND_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+const TSX = join(BACKEND_ROOT, 'node_modules', '.bin', 'tsx');
+const SCRIPT = join(BACKEND_ROOT, 'scripts', 'pre-publication-scan.ts');
+/** The vocabulary's clearance annotation, assembled so this file does not carry one. */
+const clearance = (term: string, reason: string): string =>
+  j('<!-- commercial', '-data: cleared `', term, '` — ', reason, ' -->');
+
+const CTX_PLAIN: ScanContext = { paidIds: [], internalHosts: [], internalZones: [] };
+
+/** A tip with one planted token on line 2, committed once. */
+function tokenFixture(): Fixture & { oid: string } {
+  const f = fixture();
+  f.write('README.md', '# fixture\n');
+  f.write('config/app.env', `# app\nREGISTRY_TOKEN=${FAKE_GITLAB_TOKEN}\n`);
+  f.commit('add configuration');
+  return { ...f, oid: f.blob('config/app.env') };
+}
+
+function sRow(oid: string, over: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    class: 'S',
+    rule: 'gitlab-token',
+    path: 'config/app.env',
+    blobs: [oid],
+    lines: [2],
+    review: 'synthetic',
+    reason: 'an invented token planted by this fixture',
+    ref: 'T1',
+    ...over,
+  };
+}
+
+function record(rows: readonly Record<string, unknown>[]): ReviewedRecord {
+  return parseReviewedRecord(JSON.stringify({ rows }), 'reviewed-findings.json');
+}
+
+async function scanWith(
+  f: { root: string },
+  rows: readonly Record<string, unknown>[] | null,
+  extra: { tarballs?: TarballInput[] } = {},
+): Promise<ScanReport> {
+  return runScan({
+    repo: f.root,
+    ctx: CTX_PLAIN,
+    scanner: null,
+    tarballs: extra.tarballs ?? null,
+    workDir: scratch(),
+    reviewed: rows === null ? null : record(rows),
+  });
+}
+
+function cli(args: string[]): { status: number | null; stderr: string } {
+  const result = spawnSync(TSX, [SCRIPT, ...args], { cwd: BACKEND_ROOT, encoding: 'utf8' });
+  return { status: result.status, stderr: result.stderr };
+}
+
+describe('amendment 1: one record, kept outside the scanned tree', () => {
+  it('knows a record inside the repository from one outside it', () => {
+    const f = tokenFixture();
+    expect(reviewedRecordInsideRepo(join(f.root, 'reviewed.json'), f.root)).toBe(true);
+    expect(reviewedRecordInsideRepo(join(f.root, 'nested', 'reviewed.json'), f.root)).toBe(true);
+    expect(reviewedRecordInsideRepo(join(scratch(), 'reviewed.json'), f.root)).toBe(false);
+  });
+
+  it('exits 2 when --reviewed resolves inside --repo, because the scanned tree must not vouch for itself', () => {
+    const f = tokenFixture();
+    const inside = join(f.root, 'reviewed.json');
+    writeFileSync(inside, JSON.stringify({ rows: [sRow(f.oid)] }), 'utf8');
+    const run = cli(['--repo', f.root, '--out', scratch(), '--no-scanner', '--rehearsal', '--reviewed', inside]);
+    expect(run.status).toBe(2);
+    expect(run.stderr).toMatch(/inside --repo/);
+  });
+
+  it('exits 2 on a record outside the repository that the schema refuses', () => {
+    const f = tokenFixture();
+    const outside = join(scratch(), 'reviewed.json');
+    writeFileSync(outside, JSON.stringify({ rows: [sRow(f.oid, { review: 'looked-fine' })] }), 'utf8');
+    const run = cli(['--repo', f.root, '--out', scratch(), '--no-scanner', '--rehearsal', '--reviewed', outside]);
+    expect(run.status).toBe(2);
+  });
+});
+
+describe('amendment 2: keyed by content, never by value', () => {
+  it('carries the blob id on every T and Y finding, and prints it', async () => {
+    const f = tokenFixture();
+    const report = await scanWith(f, null);
+    const s = report.findings.filter((x) => x.klass === 'S');
+    expect(s.map((x) => [x.surface, x.blob])).toEqual(
+      expect.arrayContaining([
+        ['T', f.oid],
+        ['Y', f.oid],
+      ]),
+    );
+    for (const x of s) expect(formatFinding(x)).toContain(`blob=${f.oid}`);
+  });
+
+  it('carries package, version and SHA-256 on every K finding, and prints them', async () => {
+    const f = tokenFixture();
+    const dir = scratch();
+    const body = `export const token = "${FAKE_GITLAB_TOKEN}";\n`;
+    mkdirSync(join(dir, 'package'), { recursive: true });
+    writeFileSync(join(dir, 'package', 'package.json'), JSON.stringify({ name: '@s/x', version: '1.2.3', license: 'MIT' }));
+    writeFileSync(join(dir, 'package', 'LICENSE'), 'Permission is hereby granted, free of charge');
+    writeFileSync(join(dir, 'package', 'lib.js'), body);
+    const tgz = join(dir, 'x.tgz');
+    execFileSync('tar', ['-czf', tgz, '-C', dir, 'package']);
+    const report = await scanWith(f, null, { tarballs: [{ tarball: tgz, memberDir: 'packages/x' }] });
+    const k = report.findings.find((x) => x.surface === 'K' && x.klass === 'S')!;
+    const sha256 = createHash('sha256').update(body).digest('hex');
+    expect(k.path).toBe('packages/x/lib.js');
+    expect(k.tarballFile).toEqual({ package: '@s/x', version: '1.2.3', sha256 });
+    expect(formatFinding(k)).toContain(`tarball=@s/x@1.2.3 sha256=${sha256}`);
+
+    const reviewed = await scanWith(f, [
+      {
+        class: 'S',
+        rule: 'gitlab-token',
+        path: 'packages/x/lib.js',
+        tarballFiles: [{ package: '@s/x', version: '1.2.3', sha256 }],
+        lines: [1],
+        review: 'synthetic',
+        reason: 'the compiled fixture token',
+        ref: 'K1',
+      },
+      sRow(f.oid),
+    ], { tarballs: [{ tarball: tgz, memberDir: 'packages/x' }] });
+    expect(reviewed.findings.find((x) => x.surface === 'K' && x.klass === 'S')!.mark).toBe('reviewed');
+  });
+
+  it('matches one blob wherever the scan reads it, at the tip and in history', async () => {
+    const f = tokenFixture();
+    const report = await scanWith(f, [sRow(f.oid)]);
+    const s = report.findings.filter((x) => x.klass === 'S');
+    expect(s.map((x) => [x.surface, x.mark, x.ref])).toEqual(
+      expect.arrayContaining([
+        ['T', 'reviewed', 'T1'],
+        ['Y', 'reviewed', 'T1'],
+      ]),
+    );
+  });
+
+  it('returns the site as a finding once one byte of the file changes (a new blob)', async () => {
+    const f = tokenFixture();
+    const reviewedOid = f.oid;
+    f.write('config/app.env', `# app!\nREGISTRY_TOKEN=${FAKE_GITLAB_TOKEN}\n`);
+    f.commit('touch configuration');
+    const report = await scanWith(f, [sRow(reviewedOid)]);
+    const tip = report.findings.find((x) => x.surface === 'T' && x.klass === 'S')!;
+    expect(tip.blob).not.toBe(reviewedOid);
+    expect(tip.mark).toBeUndefined();
+    // The old blob is still in history, still reviewed, so the row is not stale.
+    const old = report.findings.find((x) => x.surface === 'Y' && x.blob === reviewedOid)!;
+    expect(old.mark).toBe('reviewed');
+    expect(report.staleReviews).toEqual([]);
+    expect(verdictOf(report).findings).toBeGreaterThan(0);
+  });
+
+  it('refuses an unknown field in a row and at the top, so no column can hold a value', () => {
+    const oid = 'a'.repeat(40);
+    expect(() => record([sRow(oid, { match: 'anything' })])).toThrow(/unrecognized|unknown/i);
+    expect(() =>
+      parseReviewedRecord(JSON.stringify({ rows: [sRow(oid)], values: [] }), 'r.json'),
+    ).toThrow(/unrecognized|unknown/i);
+  });
+
+  it('refuses a row keyed by neither content nor both', () => {
+    const oid = 'a'.repeat(40);
+    const { blobs: _blobs, ...unkeyed } = sRow(oid);
+    expect(() => record([unkeyed])).toThrow(/blobs|tarballFiles/);
+    expect(() =>
+      record([sRow(oid, { tarballFiles: [{ package: '@s/x', version: '1.0.0', sha256: 'b'.repeat(64) }] })]),
+    ).toThrow(/blobs|tarballFiles/);
+    expect(() => record([sRow('not-a-blob-id')])).toThrow();
+  });
+
+  it('prints the record name, its SHA-256 and its row count in the header', async () => {
+    const f = tokenFixture();
+    const raw = JSON.stringify({ rows: [sRow(f.oid)] });
+    const parsed = parseReviewedRecord(raw, 'reviewed-findings.json');
+    expect(parsed.sha256).toBe(createHash('sha256').update(raw).digest('hex'));
+    const report = await runScan({
+      repo: f.root,
+      ctx: CTX_PLAIN,
+      scanner: null,
+      tarballs: null,
+      workDir: scratch(),
+      reviewed: parsed,
+    });
+    expect(formatScanReport(report).join('\n')).toContain(
+      `reviewed record: reviewed-findings.json sha256=${parsed.sha256} rows=1`,
+    );
+    const none = await scanWith(f, null);
+    expect(formatScanReport(none).join('\n')).toMatch(/reviewed record: none/);
+  });
+});
+
+describe('amendment 3: the rules for each class, inside the one record', () => {
+  const oid = 'c'.repeat(40);
+
+  it('admits each class only its own review values', () => {
+    expect(() => record([sRow(oid, { review: 'not-a-secret' })])).not.toThrow();
+    expect(() => record([sRow(oid, { review: 'not-personal' })])).toThrow(/review/);
+    expect(() =>
+      record([{ class: 'P', rule: 'email', path: 'a.ts', blobs: [oid], review: 'not-personal', reason: 'a role mailbox' }]),
+    ).not.toThrow();
+    expect(() =>
+      record([{ class: 'P', rule: 'email', path: 'a.ts', blobs: [oid], review: 'not-a-secret', reason: 'a role mailbox' }]),
+    ).toThrow(/review/);
+    for (const basis of ['§1', 'N1', 'N4', '§4(a)', '§4(c)']) {
+      expect(() =>
+        record([{ class: 'C2', rule: 'the-client', path: 'a.ts', blobs: [oid], review: basis, reason: 'the software client role' }]),
+      ).not.toThrow();
+    }
+    expect(() =>
+      record([{ class: 'C2', rule: 'the-client', path: 'a.ts', blobs: [oid], review: 'synthetic', reason: 'the software client role' }]),
+    ).toThrow(/review/);
+  });
+
+  it('has no review value that records a real credential, person or disclosure', () => {
+    for (const review of ['real', 'real-credential', 'revoked', 'c', '(c)', 'accepted']) {
+      expect(() => record([sRow(oid, { review })])).toThrow(/review/);
+    }
+  });
+
+  it('refuses a reason shorter than eight characters', () => {
+    expect(() => record([sRow(oid, { reason: 'fixture' })])).toThrow(/reason/);
+    expect(() => record([sRow(oid, { reason: '   fixture   ' })])).toThrow(/reason/);
+    expect(() => record([sRow(oid, { reason: 'a fixture' })])).not.toThrow();
+  });
+
+  it('refuses a row of H, L, R or C4, which are not recordable', () => {
+    for (const klass of ['H', 'L', 'R', 'C4-partition', 'C4-other', 'C4']) {
+      expect(() => record([sRow(oid, { class: klass })])).toThrow(/class|recordable/);
+    }
+  });
+
+  it('refuses an S row without lines, because S is recorded one site at a time', () => {
+    const { lines: _lines, ...lineless } = sRow(oid);
+    expect(() => record([lineless])).toThrow(/lines/);
+  });
+});
+
+describe('amendment 4: a reviewed site is counted, never silenced', () => {
+  it('keeps the site in its row, marks it reviewed with the ref, and takes it out of findings only', async () => {
+    const f = tokenFixture();
+    const bare = await scanWith(f, null);
+    const report = await scanWith(f, [sRow(f.oid)]);
+    const text = formatScanReport(report).join('\n');
+    // No scanner here, so the S rows read *not scanned* and carry the pattern counts.
+    expect(text).toMatch(/\nS\s+T\s+[^\n]* 1 1 reviewed 1 1\n/);
+    expect(text).toMatch(/\nS\s+Y\s+[^\n]* 1 1 reviewed 1 1\n/);
+    expect(verdictOf(report).findings).toBe(verdictOf(bare).findings - 2);
+    expect(verdictOf(report).reviewed).toBe(2);
+    expect(text).toMatch(/reviewed=2 stale-review=0/);
+    const line = formatFinding(report.findings.find((x) => x.surface === 'T' && x.klass === 'S')!);
+    expect(line).toMatch(/^T S reviewed gitlab-token config\/app\.env:2 /);
+    expect(line).toContain('ref=T1');
+  });
+
+  it('reviews only the recorded lines of a location and leaves the others findings', async () => {
+    const f = fixture();
+    f.write('config/two.env', `A=${FAKE_GITLAB_TOKEN}\nB=${FAKE_GITLAB_TOKEN}\n`);
+    f.commit('two tokens');
+    const oid = f.blob('config/two.env');
+    const report = await scanWith(f, [sRow(oid, { path: 'config/two.env', lines: [1] })]);
+    const tip = report.findings.filter((x) => x.surface === 'T' && x.klass === 'S');
+    expect(tip.map((x) => [x.lines, x.mark ?? 'finding'])).toEqual(
+      expect.arrayContaining([
+        [[1], 'reviewed'],
+        [[2], 'finding'],
+      ]),
+    );
+  });
+});
+
+describe('amendment 5: stale rows fail', () => {
+  it('lists a row that matches nothing as stale-review and makes the verdict findings', async () => {
+    const f = tokenFixture();
+    const report = await scanWith(f, [sRow(f.oid), sRow('d'.repeat(40), { ref: 'T2' })]);
+    expect(report.staleReviews.map((s) => [s.ref, s.what])).toEqual([['T2', 'row']]);
+    expect(verdictOf(report).staleReview).toBe(1);
+    expect(formatStaleReview(report.staleReviews[0]!)).toMatch(/^stale-review S gitlab-token config\/app\.env row ref=T2/);
+  });
+
+  it('lists an unmatched blob and an unmatched line inside a matching row', async () => {
+    const f = tokenFixture();
+    const ghost = 'e'.repeat(40);
+    const report = await scanWith(f, [sRow(f.oid, { blobs: [f.oid, ghost], lines: [2, 7] })]);
+    expect(report.staleReviews.map((s) => [s.what, s.blob ?? null, s.line ?? null])).toEqual(
+      expect.arrayContaining([
+        ['blob', ghost, null],
+        ['line', null, 7],
+      ]),
+    );
+    expect(report.staleReviews).toHaveLength(2);
+  });
+
+  it('is findings, and therefore exit 1, with no finding but a stale row', async () => {
+    const f = fixture();
+    f.write('README.md', '# fixture\n');
+    f.commit('initial');
+    const report = await scanWith(f, [sRow('d'.repeat(40))]);
+    const v = verdictOf(report);
+    expect(v.findings).toBe(0);
+    expect(v.staleReview).toBe(1);
+    expect(scanExitCode(v)).toBe(1);
+    expect(scanExitCode({ ...v, staleReview: 0 })).toBe(0);
+  });
+});
+
+describe('amendment 6: inline vocabulary clearances are counted as cleared, not dropped', () => {
+  it('counts a cleared hit in the reviewed column with the mode cleared', async () => {
+    const f = fixture();
+    f.write('docs/a.md', [clearance(C2_WORD, 'names the programme module, not a client'), `the ${C2_WORD} module`, ''].join('\n'));
+    f.commit('a doc');
+    const hits = detectContent(`${clearance(C2_WORD, 'names the programme module')}\nthe ${C2_WORD} module`, CTX_PLAIN);
+    expect(hits.filter((h) => h.klass === 'C2').map((h) => [h.line, h.mark])).toEqual([[2, 'cleared']]);
+
+    const report = await scanWith(f, null);
+    const c2 = report.findings.filter((x) => x.klass === 'C2');
+    expect(c2.map((x) => [x.surface, x.mark])).toEqual(
+      expect.arrayContaining([
+        ['T', 'cleared'],
+        ['Y', 'cleared'],
+      ]),
+    );
+    expect(verdictOf(report).findings).toBe(0);
+    expect(formatScanReport(report).join('\n')).toMatch(/\nC2\s+T\s+scanned 1 1 reviewed 1 1\n/);
+    expect(formatFinding(c2[0]!)).toMatch(/ C2 cleared /);
+  });
+
+  it('lists a stale clearance without counting it toward the exit code', async () => {
+    const f = fixture();
+    f.write('docs/a.md', `${clearance(C2_WORD, 'the term left this page long ago')}\nnothing here\n`);
+    f.commit('a doc');
+    const report = await scanWith(f, null);
+    const stale = report.findings.filter((x) => x.mark === 'stale-clearance');
+    expect(stale.length).toBeGreaterThan(0);
+    const v = verdictOf(report);
+    expect(v.staleClearance).toBe(stale.length);
+    expect(v.findings).toBe(0);
+    expect(scanExitCode(v)).toBe(0);
+  });
+});
+
+describe('amendment 7: what the record does not change', () => {
+  it('cannot silence the same rule and line in other content', async () => {
+    const f = tokenFixture();
+    f.write('config/other.env', `# other\nREGISTRY_TOKEN=${FAKE_GITLAB_TOKEN}\n`);
+    f.commit('a second file');
+    const report = await scanWith(f, [sRow(f.oid)]);
+    const other = report.findings.filter((x) => x.path === 'config/other.env' && x.klass === 'S');
+    expect(other.length).toBeGreaterThan(0);
+    for (const x of other) expect(x.mark).toBeUndefined();
+  });
+
+  it('cannot silence another rule in the recorded content', async () => {
+    const f = fixture();
+    f.write('config/app.env', `# app\nREGISTRY_TOKEN=${FAKE_GITLAB_TOKEN}\nNPM=${FAKE_NPM_TOKEN}\n`);
+    f.commit('two kinds');
+    const report = await scanWith(f, [sRow(f.blob('config/app.env'))]);
+    const npm = report.findings.filter((x) => x.rule === 'npm-token');
+    expect(npm.length).toBeGreaterThan(0);
+    for (const x of npm) expect(x.mark).toBeUndefined();
+  });
+
+  it('never records a commit-message finding', async () => {
+    const f = tokenFixture();
+    f.write('README.md', '# fixture, again\n');
+    f.commit(`a message carrying ${FAKE_NPM_TOKEN}`);
+    const report = await scanWith(f, [sRow(f.blob('config/app.env'))]);
+    const message = report.findings.find((x) => x.path === 'commit-message' && x.klass === 'S')!;
+    expect(message.mark).toBeUndefined();
+    expect(message.blob).toBeUndefined();
+    expect(reviewedCandidates(report).some((row) => row.path === 'commit-message')).toBe(false);
+  });
+
+  it('writes the unreviewed recordable groups as candidates with review and reason absent', async () => {
+    const f = tokenFixture();
+    f.write('people.md', `owner: ${FAKE_PERSON}\n`);
+    f.write('hosts.md', `db: ${PRIVATE_ADDRESS}\n`);
+    f.commit('more');
+    const report = await scanWith(f, null);
+    const candidates = reviewedCandidates(report);
+    const s = candidates.find((row) => row.class === 'S')!;
+    expect(s).toEqual({ class: 'S', rule: 'gitlab-token', path: 'config/app.env', blobs: [f.oid], lines: [2] });
+    const p = candidates.find((row) => row.class === 'P')!;
+    expect(p.lines).toBeUndefined();
+    expect(candidates.some((row) => (row.class as string) === 'H')).toBe(false);
+    for (const row of candidates) {
+      expect('review' in row).toBe(false);
+      expect('reason' in row).toBe(false);
+    }
+    // A candidate applies only once a person writes both.
+    expect(() => record([s])).toThrow();
+    expect(() => record([{ ...s, review: 'synthetic', reason: 'an invented fixture token' }])).not.toThrow();
+  });
+
+  it('holds no matched value in the report, the findings, the stale list or the candidates', async () => {
+    const f = tokenFixture();
+    f.write('people.md', `owner: ${FAKE_PERSON}\n`);
+    f.commit(`more, with ${FAKE_NPM_TOKEN}`);
+    const report = await scanWith(f, [sRow(f.oid), sRow('d'.repeat(40), { ref: 'T2' })]);
+    const everything = [
+      formatScanReport(report).join('\n'),
+      report.findings.map(formatFinding).join('\n'),
+      report.staleReviews.map(formatStaleReview).join('\n'),
+      JSON.stringify(reviewedCandidates(report)),
+    ].join('\n');
+    for (const value of everyValue()) expect(everything).not.toContain(value);
   });
 });
