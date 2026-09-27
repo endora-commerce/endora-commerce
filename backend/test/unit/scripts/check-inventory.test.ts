@@ -300,6 +300,7 @@ import {
   findViolations,
   importedContributionSeams,
   ledgerReads,
+  platformReadNames,
   providedPortNames,
   registeredNames,
   resolvedNames,
@@ -1213,6 +1214,11 @@ function rootIssues(input: {
   readonly kernelSource?: string;
   /** A module's `backend.ts`, for the names it registers or provides as its own. */
   readonly ownerSource?: string;
+  /**
+   * A platform source outside any module, for the names the platform itself
+   * reads back (`specs/134-paid-module-extraction/` research D16 §5).
+   */
+  readonly platformSource?: string;
 }): RootRegistrationIssue[] {
   const rootNames = new Map<string, ReadonlySet<string>>(
     Object.entries(input.roots).map(([label, source]) => [
@@ -1247,6 +1253,7 @@ function rootIssues(input: {
         'payment_methods',
       ]),
     ),
+    platformReadNames: new Set(platformReadNames(input.platformSource ?? '', COMPOSE_APP_FILE)),
   });
 }
 
@@ -1364,6 +1371,17 @@ const MODULE_OWNS_THE_PLATFORM_NAME = [
  * scanner a kernel file that registers something else.
  */
 const KERNEL_REGISTERS_SOMETHING_ELSE = 'container.register({ orm: asValue(orm) });';
+
+/**
+ * The platform reading a name back, and not the one under test — so the
+ * `platform-name-unread` proof enters through `platformReadNames` rather than a
+ * finished empty set (issue #130), and says "the platform does not read it
+ * either" the honest way, as the kernel fixture above does for supply.
+ */
+const PLATFORM_READS_SOMETHING_ELSE = [
+  'const reads = (): Reads => container.cradle as never;',
+  'export const channels = () => reads().salesChannelsService;',
+].join('\n');
 
 /**
  * A contribution host and the module that pushes into it, as source text — the
@@ -7524,6 +7542,26 @@ const CHECKS: readonly CheckEntry[] = [
             kernelSource: KERNEL_REGISTERS_SOMETHING_ELSE,
           }).filter((issue) => issue.kind === 'platform-name-stale').length,
       ),
+      // `specs/134-paid-module-extraction/` research D16 §5 (T124): the mirror
+      // of `stale`. Both roots supply the name — so none of the four shapes
+      // above applies — and neither a module nor the platform reads it back:
+      // a slot for a consumer that is not in the tree, which is exactly what a
+      // departing module leaves behind.
+      'platform-name-unread': top(
+        () =>
+          rootIssues({
+            roots: {
+              production: ROOT_SUPPLIES_THE_PLATFORM_NAME,
+              harness: ROOT_SUPPLIES_THE_PLATFORM_NAME,
+            },
+            moduleSource: '',
+            hostRegistered: {},
+            consumerSource: ORDERS_RESOLVES_THE_BRIDGE,
+            platformNames: [PLATFORM_NAME],
+            kernelSource: KERNEL_REGISTERS_SOMETHING_ELSE,
+            platformSource: PLATFORM_READS_SOMETHING_ELSE,
+          }).filter((issue) => issue.kind === 'platform-name-unread').length,
+      ),
       // `findNonBindingIssues` — D-44's five. The first two hold every kind of
       // entry to the tree; the last three are the guard-rails `contributes-to`
       // rests on, so each of those fixtures satisfies the other two guard-rails
@@ -11686,8 +11724,10 @@ describe('every red proof enters at the top of the analysis', () => {
       // `specs/117-instance-bring-up/` FR-034's one: a name a module reads that
       // **both** deployment roots supply and `composeApp` does not, which the
       // three root sweeps beside it could not see — they compare the two roots
-      // to each other, and a client's instance is neither of them.
-      'backend/scripts/check-port-dependencies.ts': 24,
+      // to each other, and a client's instance is neither of them. Plus
+      // `specs/134-paid-module-extraction/` T124's one, `platform-name-unread`:
+      // a name a root supplies that no module and no platform source reads.
+      'backend/scripts/check-port-dependencies.ts': 25,
       // Two for the optional-method rule: the published port and the interface
       // widening one, which is exactly where it bites. Plus issue #192's three
       // for the container-name signal — the two shapes a wrong name takes, and
