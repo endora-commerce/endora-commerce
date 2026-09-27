@@ -11,29 +11,15 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
   },
   "overlayModules": [
     "carrier_fixture",
-    "comarch_xl_example_overlay",
-    "erp_challenger_fixture",
     "erp_incumbent_fixture",
     "example_overlay",
+    "ledger_challenger_fixture",
     "ledger_vendor_fixture",
     "payment_gateway_fixture",
     "pim_challenger_fixture",
     "pim_incumbent_fixture"
   ],
   "entries": [
-    {
-      "key": "decoration:comarch_xl_example_overlay:comarchXlSellabilityPort",
-      "kind": "decoration",
-      "module": "comarch_xl_example_overlay",
-      "subject": "comarchXlSellabilityPort",
-      "owner": "comarch_xl",
-      "rung": 4,
-      "detail": {
-        "kind": "decoration",
-        "depth": null
-      },
-      "reason": "Core leaves new XL catalogue products not sellable until an overlay policy allows it (004 FR-012). This reference overlay marks SKUs matching ^DEMO- as sellable and listed, delegating every other SKU to the core default so a fix to `DefaultComarchXlSellabilityPort` still reaches this deployment — which is the whole difference between decorating and replacing (D-28)."
-    },
     {
       "key": "decoration:example_overlay:pricingService",
       "kind": "decoration",
@@ -64,6 +50,22 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
       "reason": "Core serves nothing on this endpoint: the route is this deployment’s own, and the interceptor stamps its response so that the reference deployment demonstrates the rung-2 seam end to end. It runs after the handler and adds a field; it vetoes nothing and writes nothing, which is what a `post` interceptor may do."
     },
     {
+      "key": "interceptor:ledger_challenger_fixture:POST /api/v1/admin/modules/:id/activation#pre",
+      "kind": "interceptor",
+      "module": "ledger_challenger_fixture",
+      "subject": "POST /api/v1/admin/modules/:id/activation",
+      "owner": "_lifecycle",
+      "rung": 2,
+      "detail": {
+        "kind": "interceptor",
+        "phase": "pre",
+        "order": 0,
+        "id": "refuse-when-sibling-ledger-vendor-active",
+        "targetMatched": true
+      },
+      "reason": "The same enforcement `ledger_vendor_fixture` carries, for this member: it runs before the kernel’s activation handler and vetoes only a request switching this module on while a sibling vendor is active. Every other activation, and every deactivation, passes through untouched."
+    },
+    {
       "key": "interceptor:ledger_vendor_fixture:POST /api/v1/admin/modules/:id/activation#pre",
       "kind": "interceptor",
       "module": "ledger_vendor_fixture",
@@ -90,6 +92,18 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
         "kind": "port-consumed"
       },
       "reason": "The contribution seam `delivery_methods` publishes for a module that ships parcels, reached from this fixture’s boot hook so that the carrier port keeps an implementor in this repository after feature 134’s wave 1 removes `inpost` and `dhl_parcel` (FR-021, FR-063). It is rung 3 read exactly as the ladder intends: the owner published the seam, the consumer declares the dependency, and nothing of `delivery_methods` is wrapped or replaced. The fixture is a reference implementor rather than a delivery capability — it seeds no method, owns no table and serves no route — so what this deployment gains is a contributor to an existing registry and no behaviour a shop would notice."
+    },
+    {
+      "key": "port-consumed:ledger_challenger_fixture:invoiceLedgerRegistryPort",
+      "kind": "port-consumed",
+      "module": "ledger_challenger_fixture",
+      "subject": "invoiceLedgerRegistryPort",
+      "owner": "invoice_ledger",
+      "rung": 3,
+      "detail": {
+        "kind": "port-consumed"
+      },
+      "reason": "The vendor mutex, asked from this module’s own activation interceptor. A second declared member is what keeps the refusal a property of a pair once the paid vendors leave: with `ledger_vendor_fixture` alone the family would have no sibling the registry knows from a declaration and no second interceptor on the shared route."
     },
     {
       "key": "port-consumed:ledger_vendor_fixture:configurationTypeRegistry",

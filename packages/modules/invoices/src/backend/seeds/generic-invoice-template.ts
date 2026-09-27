@@ -134,20 +134,21 @@ function genericTree() {
           marginBottom: 16,
         },
       },
-      {
-        type: 'ksef.InvoiceSection',
-        props: {
-          id: 'inv-ksef',
-          fontSize: 8,
-          color: '#0f172a',
-          showProcessedAt: true,
-          hideWhenEmpty: true,
-          labelNumber: 'KSeF number',
-          labelProcessedAt: 'KSeF processed at',
-          marginTop: 8,
-          marginBottom: 0,
-        },
-      },
+      // A `ksef.InvoiceSection` node stood here until feature 134's T063, and
+      // this is the record of why it left. The comment that used to sit in
+      // `pdf-components/descriptor.ts` said it first: the descriptor's owner
+      // was *"derived from the name's owner segment rather than asserted: ten
+      // of the eleven are `invoices`' and the eleventh, `ksef.InvoiceSection`,
+      // is `ksef`'s (feature 096, T201). A literal here would have said
+      // `invoices` for a block `invoices` does not own."* The eleventh was
+      // different in kind — declared by another module and still seeded,
+      // rendered, described and previewed here — so it went to the module
+      // that declares it (`specs/134-paid-module-extraction/spec.md` §11.3,
+      // exit E4). A free instance has no KSeF, so its generic template has no
+      // KSeF section. Installing `ksef` does not put one back: the operator
+      // places the block in the builder. Templates seeded before the change
+      // keep their node — the seed revision is deliberately unchanged, so
+      // nothing rewrites them — and it renders wherever `ksef` is present.
       {
         type: 'invoices.InvoiceFooter',
         props: {

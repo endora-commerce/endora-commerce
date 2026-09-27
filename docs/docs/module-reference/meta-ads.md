@@ -19,7 +19,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | Name | Meta Ads |
 | Version | `1.0.0` |
 | Ships from | `@endora-commerce/mod-meta-ads` |
-| Licence tier | — |
+| Licence | `MIT` |
 
 ## Activation
 

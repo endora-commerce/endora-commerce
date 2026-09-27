@@ -1,5 +1,42 @@
 # @endora-commerce/mod-custom-fields
 
+## 0.9.6
+
+### Patch Changes
+
+- cbe6b7f: Two `EntityManager`-taking seams for renaming an attribute key after create, both additive and both run on the caller's transaction so a definition key and the values stored under it move together.
+  - `@endora-commerce/mod-custom-fields/ports`: `CustomFieldDefinitionApplyApi.applyRenameKey(em, id, expectedKey, newKey)`, served by the existing `customFieldDefinitionService` registration. It is not an edit — `UpdateCustomFieldDefinitionRequest` still omits `key` — and it refuses a definition whose key is no longer `expectedKey` (`key_changed`), a key another definition of the same entity type holds (`duplicate_key`) and a key outside the grammar (`invalid_key`). It flushes before it returns, dispatches no command and publishes no invalidation: call `publishInvalidate` after your transaction commits. A test double implementing `CustomFieldDefinitionApplyApi` needs the new method.
+  - `@endora-commerce/mod-catalog/ports` (new, type-only subpath): `CatalogAttributeValueKeyApi.renameValueKey(em, fromKey, toKey, { occupied })`, registered as `catalogAttributeValueKeyPort`. It moves the key in `products.attribute_values` and `product_value_overrides.attribute_key` and answers how many rows of each moved. `occupied` is required and decides what happens to data already stored under `toKey`, which it reads and locks first: `'refuse'` throws `target_occupied` with both counts before anything is written; `'displace'` removes those values and override rows — on every product holding them — and returns them in `displaced.values` / `displaced.overrides` before the key moves, so nothing is merged over and no unique index is hit. `name`, `description` and keys outside the attribute grammar are refused before any statement runs.
+
+- Updated dependencies [8a88460]
+  - @endora-commerce/contracts@0.16.0
+  - @endora-commerce/admin-kit@0.9.6
+  - @endora-commerce/platform@0.13.2
+
+## 0.9.5
+
+### Patch Changes
+
+- 32fdf20: The `LICENSE` file in each package now names the copyright holder as Endora sp. z o.o.
+
+  The MIT licence text is unchanged; only its copyright line moves from `Copyright (c) 2026 Endora`
+  to `Copyright (c) 2026 Endora sp. z o.o.`, the registered legal entity. Nothing a package exports,
+  declares or depends on changes. `@endora-commerce/contracts` and
+  `@endora-commerce/mod-invoice-ledger` also carry a one-sentence rewording in an already-published
+  `CHANGELOG.md` entry, with no change to what that entry says about the code.
+
+- Updated dependencies [43f445d]
+- Updated dependencies [b9c6686]
+- Updated dependencies [f89d305]
+- Updated dependencies [32fdf20]
+- Updated dependencies [07f1e8c]
+- Updated dependencies [67dfca3]
+- Updated dependencies [f89d305]
+- Updated dependencies [7392332]
+  - @endora-commerce/contracts@0.15.0
+  - @endora-commerce/admin-kit@0.9.5
+  - @endora-commerce/platform@0.13.1
+
 ## 0.9.4
 
 ### Patch Changes

@@ -12,7 +12,7 @@ import { z } from 'zod';
 import type { InvoiceService } from './services/invoice-service.js';
 import type { InvoicePdfRenderer } from './services/invoice-pdf-renderer.js';
 import type { InvoiceTemplateService } from './services/invoice-template-service.js';
-import { INVOICE_PAGE_BUILDER_DESCRIPTOR } from './pdf-components/descriptor.js';
+import { invoicePageBuilderDescriptor } from './pdf-components/descriptor.js';
 import { sampleInvoiceDetail } from './pdf-components/sample.js';
 import { pickLanguageTree } from './pdf-components/tree-mapper.js';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -221,7 +221,7 @@ export async function registerInvoicesAdminRoutes(
   app.get(
     '/api/v1/admin/invoice-templates/page-builder/config',
     { preHandler: requireAdmin('invoices:read') },
-    async () => ({ data: INVOICE_PAGE_BUILDER_DESCRIPTOR }),
+    async () => ({ data: invoicePageBuilderDescriptor(pdfRenderer.blocks) }),
   );
 
   app.get<{ Params: { id: string } }>(

@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-customer-accounts",
-  "version": "0.10.4",
+  "version": "0.10.6",
   "type": "module",
   "sideEffects": false,
   "description": "Customer (B2B) account records, including organization membership and role.",

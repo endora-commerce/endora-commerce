@@ -17,15 +17,29 @@ export type InvoiceKind = z.infer<typeof invoiceKindSchema>;
 export const invoiceOriginSchema = z.enum(['platform', 'erp_import']);
 export type InvoiceOrigin = z.infer<typeof invoiceOriginSchema>;
 
-/** XL sale-document kind carried inside {@link externalDocumentRefSchema}. */
+/** Sale-document kind carried inside {@link externalDocumentRefSchema}. */
 export const erpSaleDocumentKindSchema = z.enum(['invoice', 'wz']);
 export type ErpSaleDocumentKind = z.infer<typeof erpSaleDocumentKindSchema>;
 
-/** Stable XL identity for an ERP-imported sale document (feature 119, FR-087/FR-088). */
+/**
+ * Stable identity for an ERP-imported sale document (feature 119, FR-087/FR-088).
+ *
+ * An imported document is identified by the pair `(system, externalId)`: the
+ * source system it was imported from, and its id in that system. Ids from two
+ * source systems come from unrelated id spaces, so the same `externalId` from
+ * another `system` is another document (feature 134, T135; `research.md` D21).
+ *
+ * `system` is also the key an attachment fetch provider registers under
+ * ({@link InvoiceAttachmentFetchRegistryPort}). It is open rather than a literal
+ * since feature 134 (T065): a free contract that enumerates its connectors has
+ * to be edited for every connector that is added, which is the coupling the
+ * seam removes. `externalNumber` is the document number the source system
+ * shows, when it has one.
+ */
 export const externalDocumentRefSchema = z.object({
-  system: z.literal('comarch_xl'),
-  xlSaleDocumentId: z.string().max(128),
-  xlDocumentNumber: z.string().max(64).optional(),
+  system: z.string().min(1).max(64),
+  externalId: z.string().min(1).max(128),
+  externalNumber: z.string().max(64).optional(),
   documentKind: erpSaleDocumentKindSchema,
 });
 export type ExternalDocumentRef = z.infer<typeof externalDocumentRefSchema>;
@@ -381,6 +395,112 @@ export interface InvoiceCopyHostPort {
 }
 
 // ---------------------------------------------------------------------------
+// Domain events — `invoice.issued.v1`, `invoice.corrected.v1`
+// ---------------------------------------------------------------------------
+//
+// Raised by this module and read by whoever subscribes: `invoice_ledger`
+// routes them to an accounting vendor, and `ksef` submits them to the national
+// clearing system. They were declared in the KSeF vendor file until feature
+// 134's T062 (`specs/134-paid-module-extraction/research.md` §C.4): the payload
+// of an event is the contract of the module that raises it, so a subscriber
+// never has to read another subscriber's contract to understand it.
+//
+// Both describe the fields a subscriber reads. The emitter also sends the
+// `eventId` / `occurredAt` envelope every in-process event carries, which a
+// subscriber's parse ignores.
+
+/** `invoice.issued.v1` payload, emitted when `invoices` issues a VAT invoice or a proforma. */
+export const invoiceIssuedEventSchema = z.object({
+  invoiceId: z.string().uuid(),
+  orderId: z.string().uuid(),
+  kind: z.enum(['invoice', 'proforma']),
+  salesChannelId: z.string().uuid().nullable(),
+});
+export type InvoiceIssuedEvent = z.infer<typeof invoiceIssuedEventSchema>;
+
+/** `invoice.corrected.v1` payload, emitted when `invoices` issues a corrective invoice. */
+export const invoiceCorrectedEventSchema = z.object({
+  invoiceId: z.string().uuid(),
+  originalInvoiceId: z.string().uuid().nullable(),
+  orderId: z.string().uuid(),
+  salesChannelId: z.string().uuid().nullable(),
+});
+export type InvoiceCorrectedEvent = z.infer<typeof invoiceCorrectedEventSchema>;
+
+// ---------------------------------------------------------------------------
+// Contributed invoice template blocks (feature 134, T063 and T126)
+// ---------------------------------------------------------------------------
+//
+// An invoice template block another module declares is rendered, described
+// and enriched by that module, which registers it into `invoices`' own
+// `invoicePdfBlockRegistry` from its composition root. `invoices` renders its
+// own blocks and walks the registry for the rest, skipping a contributor that
+// is not present (`specs/134-paid-module-extraction/research.md` D11, D12 and
+// D16 §2(e)). Before this seam the one such block, `ksef.InvoiceSection`, was
+// declared by `ksef` and seeded, rendered and described by `invoices`, and its
+// verification data reached the renderer only where a composition root wired
+// the two together.
+
+/** One configurable field of an invoice template block, as the builder descriptor serves it. */
+export interface InvoiceTemplateBlockField {
+  type: 'text' | 'textarea' | 'number' | 'select' | 'radio' | 'color';
+  label: string;
+  options?: Array<{ label: string; value: string | boolean | number }>;
+}
+
+/** What a contributed block tells the invoice template builder about itself. */
+export interface InvoiceTemplateBlockDescription {
+  readonly label: string;
+  readonly fields: Readonly<Record<string, InvoiceTemplateBlockField>>;
+}
+
+/** A block another module renders onto the invoice PDF. */
+export interface InvoicePdfBlockRegistration {
+  /** The full block name, `<moduleId>.<LocalName>`, exactly as the contributor's manifest declares it. */
+  readonly name: string;
+  /** The declaring module. While it is not present the block is neither rendered nor described. */
+  readonly moduleId: string;
+  /**
+   * `true` when this block prints the invoice's KSeF number itself
+   * (`specs/134-paid-module-extraction/` T137, `research.md` D22 §3(a)). The
+   * number is `invoices`' statutory data and is printed exactly once: while a
+   * block with this flag is present **and placed** in the template being
+   * rendered (present, for the built-in layout), `invoices`' own header row for
+   * the number is suppressed; otherwise the header prints it.
+   */
+  readonly printsKsefReferenceNumber?: boolean;
+  /** Label and field schema for the builder descriptor. */
+  describe(): InvoiceTemplateBlockDescription;
+  /**
+   * Data the block needs beyond the invoice, read once per render — the KSeF
+   * verification link, for instance. A rejection renders the block with
+   * `null`: the data is an enrichment and never fails the document.
+   */
+  resolve?(invoiceId: string): Promise<unknown>;
+  /**
+   * One pdfmake content node. `props` are the stored block props (`{}` in the
+   * built-in layout), and `resolved` is what {@link resolve} answered, or `null`.
+   */
+  render(input: {
+    readonly props: Readonly<Record<string, unknown>>;
+    readonly invoice: InvoiceDetail;
+    readonly locale: string;
+    readonly resolved: unknown;
+  }): unknown;
+}
+
+/**
+ * Container name: `invoicePdfBlockRegistry`. Owner: `invoices`.
+ *
+ * The registry of contributed PDF blocks. An ungated contribution registry: a
+ * contributor pushes from its boot hook, and `invoices` skips the block of a
+ * contributor that is not present on every render and descriptor read.
+ */
+export interface InvoicePdfBlockRegistryPort {
+  register(registration: InvoicePdfBlockRegistration): void;
+}
+
+// ---------------------------------------------------------------------------
 // Numbering — the pattern vocabulary and the collision shapes (feature 078, D-95)
 // ---------------------------------------------------------------------------
 
@@ -436,9 +556,13 @@ export type NumberPatternSequenceDefect = 'no_sequence_token';
 
 export const ERP_SALE_DOCUMENT_WRITE_PORT = 'erpSaleDocumentWritePort' as const;
 
-/** Metadata for an XL attachment registered on import; bytes arrive on first download (FR-086). */
+/**
+ * Metadata for a source-system attachment registered on import; bytes arrive on
+ * first download (FR-086). `externalAttachmentId` is the attachment's id in the
+ * source system, unique within its document.
+ */
 export const erpSaleDocumentAttachmentInputSchema = z.object({
-  xlAttachmentId: z.string().max(128),
+  externalAttachmentId: z.string().max(128),
   fileName: z.string().max(256),
   contentType: z.string().max(128).nullable().optional(),
 });
@@ -496,13 +620,21 @@ export type ErpSaleDocumentListItem = z.infer<typeof erpSaleDocumentListItemSche
 /**
  * Container name: `erpSaleDocumentWritePort`. Owner: `invoices`.
  *
- * `comarch_xl` calls this during `xl.change.sale_document` apply (FR-087). The
- * module owns persistence; the connector owns XL identity mapping and lazy
- * attachment fetch (FR-088).
+ * An importing connector calls this when it applies a sale document from its
+ * source system (FR-087). `invoices` owns persistence and identifies a document
+ * by `(externalDocumentRef.system, externalDocumentRef.externalId)`; the
+ * connector owns the mapping from its source system and lazy attachment fetch
+ * (FR-088). `upsertImportedDocument` validates its input against
+ * {@link erpSaleDocumentUpsertInputSchema} and writes nothing when it does not
+ * parse.
  */
 export interface ErpSaleDocumentAttachmentContext {
-  xlSaleDocumentId: string;
-  xlAttachmentId: string;
+  /** The imported document's `externalDocumentRef.system`. */
+  system: string;
+  /** The imported document's `externalDocumentRef.externalId`. */
+  externalId: string;
+  /** The attachment's id in the source system. */
+  externalAttachmentId: string;
   fileName: string;
   contentType: string | null;
 }
@@ -514,7 +646,7 @@ export interface ErpSaleDocumentWritePort {
     attachmentId: string;
     organizationId: string;
   }): Promise<ErpSaleDocumentAttachmentContext | null>;
-  /** Links fetched XL attachment bytes to an ERP-imported document (feature 119, FR-086). */
+  /** Links fetched attachment bytes to an ERP-imported document (feature 119, FR-086). */
   linkAttachmentAsset(input: {
     invoiceId: string;
     attachmentId: string;
@@ -522,4 +654,51 @@ export interface ErpSaleDocumentWritePort {
     assetId: string;
     contentType?: string | null;
   }): Promise<boolean>;
+}
+
+// ---------------------------------------------------------------------------
+// ERP attachment fetch — the seam an importing connector contributes to
+// (feature 134, T061; `specs/134-paid-module-extraction/research.md` D12)
+// ---------------------------------------------------------------------------
+
+export const INVOICE_ATTACHMENT_FETCH_REGISTRY = 'invoiceAttachmentFetchRegistry' as const;
+
+/**
+ * Fetches and stores the bytes of one attachment of an ERP-imported sale
+ * document, on its first download (feature 119, FR-086). Answers the stored
+ * asset, or `null` when the attachment cannot be fetched.
+ *
+ * Implemented by the connector that imported the document. `invoices` calls it
+ * only through its own registry, after it has checked that the invoice and the
+ * attachment belong to the calling organization.
+ */
+export interface InvoiceAttachmentFetchPort {
+  ensureAttachmentBytes(input: {
+    invoiceId: string;
+    attachmentId: string;
+    organizationId: string;
+  }): Promise<{ assetId: string } | null>;
+}
+
+/** One contributed fetch provider, with the module that contributed it. */
+export interface InvoiceAttachmentFetchRegistration {
+  /** The `externalDocumentRef.system` value of the documents this provider serves. */
+  readonly system: string;
+  /** The contributing module; its effective presence is read on every download. */
+  readonly moduleId: string;
+  readonly provider: InvoiceAttachmentFetchPort;
+}
+
+/**
+ * Container name: `invoiceAttachmentFetchRegistry`. Owner: `invoices`.
+ *
+ * A contribution registry: a connector registers its provider from a boot
+ * hook, keyed by the source system it imports from. It is an ungated
+ * registration, and `invoices` skips a provider whose module is not
+ * effectively present, so the customer route answers the attachment as not
+ * found rather than reaching a switched-off connector. A second provider for a
+ * system that already has one is refused, not ordered.
+ */
+export interface InvoiceAttachmentFetchRegistryPort {
+  register(registration: InvoiceAttachmentFetchRegistration): void;
 }

@@ -19,7 +19,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | Name | Quick Order |
 | Version | `2.0.0` |
 | Ships from | `@endora-commerce/mod-quick-order` |
-| Licence tier | — |
+| Licence | `MIT` |
 
 ## Activation
 

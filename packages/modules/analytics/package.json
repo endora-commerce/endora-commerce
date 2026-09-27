@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-analytics",
-  "version": "0.10.4",
+  "version": "0.10.6",
   "type": "module",
   "sideEffects": false,
   "description": "Server-side analytics aggregation and dashboard data feeds.",

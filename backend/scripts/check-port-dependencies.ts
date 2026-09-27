@@ -1048,12 +1048,24 @@ export const CONTRIBUTION_POLICY_STATED: Readonly<Record<string, 'skip' | 'honou
   // and its audit snapshot has to keep knowing which of its values is a secret
   // (issue #129).
   'credentials:configurationTypeRegistry': 'skip',
+  // Skipped: a module that is off must not print its block on a legal
+  // document. The PDF simply has no such section, the descriptor stops
+  // describing it, a stored template keeps the node and its props, and
+  // switching the module back on takes effect on the next render (feature 134,
+  // T063/T126; feature 096 FR-019/FR-020).
+  'invoices:invoicePdfBlockRegistry': 'skip',
   // Skipped: a PSP handler whose module is switched off must not charge or
   // refund through that PSP's API. The refund is not dropped with it —
   // `PaymentRefundProvider` records `pending_manual` naming the module, which
   // is what a deployment that never installed the gateway already does, so the
   // obligation stays on the platform's books and a person settles it.
   'payments:gatewayRefundRegistry': 'skip',
+  // Skipped: a connector that is off must not reach its ERP with the operator's
+  // credentials. The customer route answers the absent provider with the 404 it
+  // already gave an attachment that could not be fetched, a file fetched earlier
+  // stays downloadable from `assets_library`, and switching the connector back
+  // on takes effect on the next download (feature 134, T061; D12).
+  'invoices:invoiceAttachmentFetchRegistry': 'skip',
 };
 
 /**

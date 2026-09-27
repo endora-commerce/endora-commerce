@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-megamenu",
-  "version": "0.9.4",
+  "version": "0.9.6",
   "type": "module",
   "sideEffects": false,
   "description": "Multi-column dropdown navigation builder.",

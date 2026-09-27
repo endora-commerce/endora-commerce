@@ -352,12 +352,8 @@ export const UNTRANSLATED_ERROR_CODES: ReadonlySet<string> = new Set([
   // external intake API. The batch's third `orders` code, `CURRENCY_MISMATCH`,
   // carried a placeholder and arrives with prose, so it is not here.
   'IDEMPOTENCY_KEY_REQUIRED', 'IDEMPOTENCY_KEY_REUSED',
-  // pim_ergonode (13) — same move, same merge request, same terms.
-  'PIM_ERGONODE_ATTRIBUTE_NOT_PRICE_TYPE', 'PIM_ERGONODE_BINDING_EXISTS',
-  'PIM_ERGONODE_CONNECTION_DISABLED', 'PIM_ERGONODE_CONNECTION_EXISTS', 'PIM_ERGONODE_CURRENCY_INACTIVE',
-  'PIM_ERGONODE_FIELD_PATH_INVALID', 'PIM_ERGONODE_IMPORT_ALREADY_RUNNING', 'PIM_ERGONODE_NOT_CONFIGURED',
-  'PIM_ERGONODE_SCHEDULE_INVALID', 'PIM_ERGONODE_TARGET_ALREADY_MAPPED', 'PIM_ERGONODE_TARGET_ATTRIBUTE_NOT_FOUND',
-  'PIM_ERGONODE_TREE_REQUIRED', 'PIM_ERGONODE_TYPE_INCOMPATIBLE',
+  // pim_ergonode's thirteen, re-homed in the same MR on the same terms, left the
+  // repository with the module (feature 134, T055).
   // price_lists (1) — MR 3. `pim_ergonode` raises it and does not own it, which
   // is why MR 2 moved thirteen of that module's codes and left this one.
   'PRICE_LIST_NOT_FOUND',

@@ -19,7 +19,7 @@ Wygenerowane z manifestu modułu, bez ręcznych edycji. Co moduł *robi*, opisuj
 | Nazwa | CMS |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-cms` |
-| Poziom licencji | — |
+| Licencja | `MIT` |
 
 ## Aktywacja
 

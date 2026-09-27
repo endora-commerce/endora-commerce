@@ -302,7 +302,6 @@ export const LEGACY_PERMISSION_LABELS: Readonly<Record<string, number>> = {
   organizations: 2,
   payment_methods: 2,
   payments: 2,
-  pim_ergonode: 2,
   price_lists: 2,
   product_feeds: 2,
   promotions: 3,

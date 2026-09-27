@@ -19,7 +19,7 @@ Wygenerowane z manifestu modułu, bez ręcznych edycji. Co moduł *robi*, opisuj
 | Nazwa | Organizations |
 | Wersja | `1.1.0` |
 | Pakiet | `@endora-commerce/mod-organizations` |
-| Poziom licencji | — |
+| Licencja | `MIT` |
 
 ## Aktywacja
 

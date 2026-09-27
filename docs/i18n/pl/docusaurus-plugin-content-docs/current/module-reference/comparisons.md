@@ -19,7 +19,7 @@ Wygenerowane z manifestu modułu, bez ręcznych edycji. Co moduł *robi*, opisuj
 | Nazwa | Compare Products |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-comparisons` |
-| Poziom licencji | — |
+| Licencja | `MIT` |
 
 ## Aktywacja
 

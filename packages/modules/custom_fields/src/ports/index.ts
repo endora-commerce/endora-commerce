@@ -66,7 +66,7 @@ import type {
  * package, so it holds zero `@mikro-orm` imports and FR-034 keeps it that way.
  * The qualifying test D-171 states is not *"is this a real published port"* but
  * *"does this signature stop the interface living in `packages/contracts`"*,
- * and six of these seven methods do.
+ * and seven of these eight methods do.
  *
  * **The returns are published records, not live entities** (D-77's first
  * narrowing). A host reads `id`, `sortOrder`, `labelDefault` and the rest off
@@ -98,6 +98,31 @@ export interface CustomFieldDefinitionApplyApi {
     patch: UpdateCustomFieldDefinitionRequest,
   ): Promise<CustomFieldDefinitionRecord>;
   applyDelete(em: EntityManager, id: string): Promise<void>;
+  /**
+   * Rename a definition's key — the one path by which a key changes after
+   * create, and **not** an edit: {@link applyUpdate}'s patch omits `key`
+   * deliberately, because every host stores its values under the key and an
+   * ordinary rename would orphan them (`specs/134-paid-module-extraction/`
+   * research D12).
+   *
+   * The caller is expected to rename the host's values **in the same
+   * transaction** — for `product`, through `catalog`'s value-key seam on
+   * `@endora-commerce/mod-catalog/ports` — and to call
+   * {@link publishInvalidate} after it commits.
+   *
+   * `expectedKey` is the key the caller planned from: a definition whose key
+   * has moved since is refused (`key_changed`) rather than renamed from a
+   * state the caller never saw. A key held by another definition of the same
+   * entity type is refused (`duplicate_key`), and so is one outside the key
+   * grammar (`invalid_key`). Flushes before it returns, so a two-phase rename
+   * (park every key, then move it) runs its statements in the order written.
+   */
+  applyRenameKey(
+    em: EntityManager,
+    id: string,
+    expectedKey: string,
+    newKey: string,
+  ): Promise<CustomFieldDefinitionRecord>;
   applyCreateOption(
     em: EntityManager,
     definitionId: string,

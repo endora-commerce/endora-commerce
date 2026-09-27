@@ -4,9 +4,27 @@
  *
  * Normative contract: `specs/096-page-builder-block-ownership/contracts/block-name-check.md`.
  *
- * Usage: `tsx scripts/check-block-names.ts`
+ * Usage: `tsx scripts/check-block-names.ts [--absent <moduleId>]…`
  * Exit 0 = clean; exit 1 = at least one finding; exit 2 = the run could not see
  * the population it judges.
+ *
+ * ## `--absent <moduleId>` — the tree without a module
+ *
+ * Judges the tree as it would stand with that module **absent**: its manifest
+ * leaves the declarations, and its sources leave both the module walk and the
+ * page-builder family. Repeatable, and comma-separated ids are accepted.
+ *
+ * **Absent, not switched off, and the difference is the whole point.** This
+ * check reads manifests and sources, never presence, so a switched-off module
+ * is invisible to it. A declaration one module makes and another module *uses*
+ * is therefore green for as long as both are in the tree — which reads exactly
+ * like a sound design, and is how `ksef.InvoiceSection` stayed declared by
+ * `ksef` while free `invoices` seeded and previewed it
+ * (`specs/134-paid-module-extraction/` T063, `spec.md` §11.3.2). Run with the
+ * declaring module absent, the split is finding 6 (and finding 2 for a seed).
+ * `contracts/extraction-procedure.md` W6 asks every wave for this run over its
+ * departing modules; the summary line carries `absent=` so the two runs are
+ * never mistaken for each other.
  *
  * ## Why a check of its own
  *
@@ -657,6 +675,61 @@ function readRendererCase(
 }
 
 // ---------------------------------------------------------------------------
+// `--absent` — pure, so the flag's rules are proven where a real run enters
+// ---------------------------------------------------------------------------
+
+/**
+ * The module ids `--absent` names, sorted and de-duplicated.
+ *
+ * Throws on a flag that names nothing, because the alternative is a run that
+ * removes nothing and prints the present tree's line.
+ */
+export function parseAbsentModules(argv: readonly string[]): string[] {
+  const ids = new Set<string>();
+  const take = (value: string | undefined): void => {
+    const named = (value ?? '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter((id) => id !== '');
+    if (named.length === 0) {
+      throw new Error('`--absent` names no module — pass a module id, e.g. `--absent ksef`');
+    }
+    for (const id of named) ids.add(id);
+  };
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index]!;
+    if (arg === '--absent') {
+      const value = argv[index + 1];
+      take(value !== undefined && !value.startsWith('--') ? value : undefined);
+      index += 1;
+    } else if (arg.startsWith('--absent=')) {
+      take(arg.slice('--absent='.length));
+    }
+  }
+  return [...ids].sort();
+}
+
+/**
+ * Why an `--absent` list may not be applied, or `null`.
+ *
+ * An id the manifest index does not register removes nothing, and the run would
+ * print the present tree's clean line under an `absent=` label.
+ */
+export function absentModuleRefusal(
+  absent: readonly string[],
+  registered: readonly string[],
+): string | null {
+  const known = new Set(registered);
+  const unknown = absent.filter((id) => !known.has(id));
+  if (unknown.length === 0) return null;
+  return (
+    `\`--absent\` names ${unknown.map((id) => `\`${id}\``).join(', ')}, and the manifest index ` +
+    'registers no such module — removing it would remove nothing and print the present ' +
+    "tree's line; refusing to report a vacuous pass"
+  );
+}
+
+// ---------------------------------------------------------------------------
 // The host
 // ---------------------------------------------------------------------------
 
@@ -777,8 +850,22 @@ function refuse(message: string): never {
 }
 
 async function main(): Promise<void> {
+  let absentIds: string[];
+  try {
+    absentIds = parseAbsentModules(process.argv.slice(2));
+  } catch (error: unknown) {
+    refuse((error as Error).message);
+  }
+  const absent = new Set(absentIds);
+
   // §6.1 — no layout, no population at all.
   const layout: ModuleTreeLayout = await requireModuleLayout(PREFIX);
+  const absentRefusal = absentModuleRefusal(absentIds, layout.registeredIds);
+  if (absentRefusal !== null) refuse(absentRefusal);
+  const isAbsent = (path: string): boolean => {
+    const id = layout.moduleIdOfPath(path);
+    return id !== null && absent.has(id);
+  };
 
   // §6.8 — the manifest half is *imported*, and a module package resolves
   // through its own `exports` map at its build output (D-164). An author who
@@ -786,7 +873,9 @@ async function main(): Promise<void> {
   // which for a check whose whole subject is what a manifest declares is a false
   // green. Exit 2 rather than 1: the tree is not in violation, the run could not
   // see it.
-  const { modules, manifestLocations } = await loadManifests(layout.manifestIndexPath);
+  const loaded = await loadManifests(layout.manifestIndexPath);
+  const { manifestLocations } = loaded;
+  const modules = loaded.modules.filter((module) => !absent.has(module.id));
   refuseStaleEmittedArtefacts(
     PREFIX,
     checkEmittedFreshness({
@@ -800,16 +889,19 @@ async function main(): Promise<void> {
   // tree is named as a moved tree rather than reported as 74 violations.
   const moduleFiles: WalkedFile[] = [];
   for (const root of layout.moduleWalkRoots) {
-    moduleFiles.push(...walkSources(root, layout.keyOf));
+    moduleFiles.push(...walkSources(root, layout.keyOf).filter((file) => !isAbsent(file.path)));
   }
   const population = await refuseVacuousModulePopulation({
     prefix: PREFIX,
     manifestIndexPath: layout.manifestIndexPath,
     files: moduleFiles.map((file) => file.path),
+    ...(absentIds.length === 0 ? {} : { excluded: absentIds }),
     moduleIdOf: layout.moduleIdOfPath,
   });
 
-  const family = pageBuilderFamily(layout.repoRoot);
+  const family = pageBuilderFamily(layout.repoRoot).filter(
+    (member) => !isAbsent(join(member.directory, 'src', 'manifest.ts')),
+  );
 
   const familyFiles: WalkedFile[] = [];
   for (const member of family) {
@@ -927,7 +1019,8 @@ async function main(): Promise<void> {
     `${PREFIX} declared=${analysis.declaredNames.length} rendered=${analysis.renderedNames.length} ` +
       `tree-sites=${sites.tree.length} renderer-sites=${sites.renderer.length} ` +
       `family=${family.length} ledger-size=${Object.keys(BLOCKS_WITHOUT_A_RENDERER).length} ` +
-      `findings=${analysis.findings.length}`,
+      `findings=${analysis.findings.length}` +
+      (absentIds.length === 0 ? '' : ` absent=${absentIds.join(',')}`),
   );
   process.exit(analysis.findings.length === 0 ? 0 : 1);
 }

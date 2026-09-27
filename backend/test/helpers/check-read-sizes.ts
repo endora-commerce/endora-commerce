@@ -1311,19 +1311,41 @@ export interface RecordedReadSize {
  * `check-root-dispositions` each move by exactly that, 8399 → 8246, 8459 → 8306 and
  * 8460 → 8307. No band was widened and no figure was computed from a delta.
  *
- * ## `specs/134-paid-module-extraction/` T068 + T115, 2026-09-26 — the comarch prologue
+ * ## `specs/134-paid-module-extraction/` T055, 2026-09-26 — `pim_ergonode` leaves
  *
- * Two detached worktrees, prepared identically and worked in nowhere else — `origin/master`
- * `82b04cb11` and this branch's tip — `scripts/setup-worktree.sh`, `pnpm run build:packages`, no
- * `docs/docs/modules` copies, no `docs/.module-docs-copies.json`, no untracked file. The base
- * census is **3 drifted, 44 agree, 0 not measured, of 47**; the tip is **31 drifted, 16 agree**,
- * both green. Thirty-three dimensions agree on `master` and move at the tip; they are
- * re-recorded to the tip's readings, each marked at its entry. The three that drift on `master`
- * (`check-port-dependencies` sites, `check-env-inputs` sites, `check-lock-claims` files) are left
- * to their owners — `check-lock-claims` moves one further here (290 → 291), inside the band. The
- * whole-repository walks corroborate the measurement: the branch adds four tracked files (the
- * fixture's two, two changesets) and relocates one page, and `check-nul-bytes`,
- * `scripts/check-naming.sh` and `check-root-dispositions` each move by exactly four.
+ * Two detached worktrees, prepared identically and worked in nowhere else — the branch's base
+ * `3f0568e5b` (`origin/master` plus !1822, the module's W2) and this branch's tip `a49bc092d` —
+ * `scripts/setup-worktree.sh`, `pnpm run build:packages`, `git clean -fX docs/docs/modules`,
+ * `docs/.module-docs-copies.json` removed, no untracked file, no residue directory under
+ * `packages/modules/`, and the index staged before the run. The base census is **6 drifted,
+ * 41 agree, 0 not measured, of 47**, green; the tip is **43 drifted, 4 agree**, 2 cases red.
+ *
+ * Sixty-three dimensions are re-recorded to the tip's readings, each marked at its entry:
+ * sixty-two agree on the base and drift at the tip, and one (`check-port-dependencies`' sites)
+ * had already drifted on the base inside the band and this departure takes it past the floor,
+ * so leaving it to its owner would leave the test red. The other seven dimensions that drift on
+ * the base (`check-env-inputs` both, `check-lock-claims`, `check-port-dependencies`' files and
+ * the three whole-repository walks' files) are left to their owners. The walks corroborate the
+ * measurement: the branch deletes 159 tracked files and adds 3 (the E1 baseline and two
+ * changesets), net −156, and `check-nul-bytes`, `scripts/check-naming.sh` and
+ * `check-root-dispositions` each move by exactly that from the base, 8237 → 8081, 8297 → 8141
+ * and 8298 → 8142. No band was widened and no figure was computed from a delta.
+ *
+ * ## `specs/134-paid-module-extraction/` T139, 2026-09-27 — `ledger_challenger_fixture` joins
+ *
+ * Two readings in one detached worktree, prepared with `scripts/setup-worktree.sh` and
+ * `pnpm run build:packages`, worked in nowhere else, no untracked or ignored residue under
+ * `docs/` or `packages/modules/`: `origin/master` `c9da51e8d`, then this branch's tip
+ * `de937323a`, which has that commit merged in. The base census is **3 drifted, 44 agree, 0 not
+ * measured, of 47**; the tip is **32 drifted, 15 agree**, 240/240 green both times. The branch
+ * adds three tracked files: the fixture's `manifest.ts` and `backend.ts`, and
+ * `contract/infakt/mutex-activation.test.ts`. The three whole-repository walks corroborate that,
+ * each moving by exactly +3 from the base (8091 → 8094, 8151 → 8154, 8152 → 8155).
+ *
+ * Thirty-five dimensions are re-recorded to the tip's readings, each marked at its entry: every
+ * one agrees on the base and drifts at the tip. The three walks already drift on the base by +1
+ * and stay inside the band, so they are left to their owners. No band was widened and no figure
+ * was computed from a delta.
  */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
@@ -1656,7 +1678,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_unopim` leaves): 2126 -> 1864.** the `pim_unopim` package's sources. `master` already read 1933 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 1864 -> 1802.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 1802,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 1802 -> 1808.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **T055 (`pim_ergonode` leaves): 1808 -> 1751.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1751 -> 1752.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 1752 -> 1753.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    files: 1753,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -1681,7 +1710,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_akeneo` leaves): 84 -> 82.** the package's permission-gated admin route sites.
     // **T055 (`pim_unopim` leaves): 82 -> 75.** the sites the `pim_unopim` package held, measured.
     // **T055 (`pim_pimcore` leaves): 75 -> 72.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    sites: 72,
+    // **T055 (`pim_ergonode` leaves): 72 -> 68.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    sites: 68,
     // `emitted-manifests` is this check saying which artefact its manifest half
     // came from: the manifests are imported rather than walked, and a packaged
     // module's resolves at its build output. It is the disclosure half of the
@@ -2035,8 +2065,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_unopim` leaves): 2269 -> 1993.** the `pim_unopim` package's sources. `master` already read 2067 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 1993 -> 1927.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 1927 -> 1929.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 1929,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 1927 -> 1933.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **T055 (`pim_ergonode` leaves): 1933 -> 1871.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1871 -> 1870.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 1870 -> 1871.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 1871 -> 1873.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 1873,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2181,8 +2218,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_akeneo` leaves): 1804 -> 1621.** (breach) already drifting on `master` at 1680, which the five gateways' departure left there; this extraction takes it below the band's floor, so the tip's reading replaces the stale record.
     // **T055 (`pim_unopim` leaves): 1621 -> 1552.** the `pim_unopim` package's sources.
     // **T055 (`pim_pimcore` leaves): 1552 -> 1491.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 1491 -> 1493.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 1493,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 1491 -> 1496.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **T055 (`pim_ergonode` leaves): 1496 -> 1441.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1441 -> 1440.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 1440 -> 1442.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 1442,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -2366,8 +2409,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 2191 -> 2099.** the `pim_unopim` package's sources.
     // **T055 (`pim_pimcore` leaves): 2099 -> 2008.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 2008 -> 2010.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 2010,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 2008 -> 2019.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **`feat/134-ergonode-host-tests` (feature 134, `pim_ergonode`'s W2), measured 2026-09-26**
+    // after merging `origin/master` `82a716f1f`, in two pristine detached worktrees of that
+    // commit and of the merge, each after `setup-worktree.sh` and `build:packages` with no
+    // module-doc copies and no ignored residue outside `node_modules` and `dist`, never
+    // computed from a delta. This dimension agrees on `master` and drifts at the tip. The
+    // branch moves `boot-hook-presence.test.ts` into `pim_ergonode`'s package, adds four
+    // co-located package tests and one changeset, and deletes two admin tests and the module's
+    // test-ownership shard.
+    // **T055 (`pim_ergonode` leaves): 2024 -> 1938.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1938 -> 1940.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 1940 -> 1941.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 1941 -> 1943.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 1943,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -2988,8 +3046,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 5478 -> 5323.** the `pim_unopim` package's sources.
     // **T055 (`pim_pimcore` leaves): 5323 -> 5188.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 5188 -> 5190.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 5190,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 5188 -> 5200.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **`feat/134-ergonode-host-tests` (feature 134, `pim_ergonode`'s W2), measured 2026-09-26**
+    // after merging `origin/master` `82a716f1f`, in two pristine detached worktrees of that
+    // commit and of the merge, each after `setup-worktree.sh` and `build:packages` with no
+    // module-doc copies and no ignored residue outside `node_modules` and `dist`, never
+    // computed from a delta. This dimension agrees on `master` and drifts at the tip. The
+    // branch moves `boot-hook-presence.test.ts` into `pim_ergonode`'s package, adds four
+    // co-located package tests and one changeset, and deletes two admin tests and the module's
+    // test-ownership shard.
+    // **T055 (`pim_ergonode` leaves): 5202 -> 5059.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 5063 -> 5065.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 5065 -> 5068.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 5068,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -3176,7 +3248,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 564 -> 566.** **+2, this branch's**, and not a file count: the two `.replace()` calls in the new test's `code()` helper, which strips block and line comments before asserting on source — a mention of a call in prose is not a call. Neither is a slug construction and neither is a violation; they are two more expressions in the population this check examines.
     // **T055 (`pim_unopim` leaves): 520 -> 493.** the sites the `pim_unopim` package held, measured.
     // **T055 (`pim_pimcore` leaves): 493 -> 477.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    sites: 477,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 477 -> 476.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **T055 (`pim_ergonode` leaves): 478 -> 468.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: sites 468 -> 469, files 5059 -> 5063.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    sites: 469,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -3454,8 +3532,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 2412 -> 2320.** the `pim_unopim` package's sources.
     // **T055 (`pim_pimcore` leaves): 2320 -> 2229.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 2229 -> 2233.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 2233,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 2229 -> 2240.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **`feat/134-ergonode-host-tests` (feature 134, `pim_ergonode`'s W2), measured 2026-09-26**
+    // after merging `origin/master` `82a716f1f`, in two pristine detached worktrees of that
+    // commit and of the merge, each after `setup-worktree.sh` and `build:packages` with no
+    // module-doc copies and no ignored residue outside `node_modules` and `dist`, never
+    // computed from a delta. This dimension agrees on `master` and drifts at the tip. The
+    // branch moves `boot-hook-presence.test.ts` into `pim_ergonode`'s package, adds four
+    // co-located package tests and one changeset, and deletes two admin tests and the module's
+    // test-ownership shard.
+    // **T055 (`pim_ergonode` leaves): 2245 -> 2159.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 2159 -> 2160.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 2160 -> 2164.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 2164,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -3464,7 +3556,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T042–T045, re-measured 2026-09-25: 21 -> 22.** The example deployment's fixture now
     // consumes `gatewayRefundRegistry`, a declared divergence. Agreed at `origin/master`
     // `ce96b1e94`; see the header block above the table.
-    sites: 22,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: sites 22 -> 21.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 21 -> 23.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    sites: 23,
     // Three independent authors, none of them the check's own count.
     // `overlay-modules` is `resolveOverlay()`'s directory walk against the
     // modules the walk actually opened a source for, so a discovered overlay
@@ -3564,13 +3658,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_akeneo` leaves): 505 -> 499.** the two English sources and the four Polish files (two pages, two cache entries) this branch retires.
     // **T055 (`pim_unopim` leaves): 499 -> 493.** the English module and reference pages that leave with the package, and the three Polish pages and cache entries retired before it.
     // **T055 (`pim_pimcore` leaves): 493 -> 487.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 487,
+    // **T055 (`pim_ergonode` leaves): 487 -> 481.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    files: 481,
     // **T042–T045, re-measured 2026-09-25: 332 -> 315.** The same pages' entries; measured, not
     // decomposed. Agreed at `origin/master` `ce96b1e94`; see the header block above the table.
     // **T055 (`pim_akeneo` leaves): 315 -> 311.** the same two sources, two sites each, measured.
     // **T055 (`pim_unopim` leaves): 311 -> 307.** the English module and reference pages that leave with the package, and the three Polish pages and cache entries retired before it.
     // **T055 (`pim_pimcore` leaves): 307 -> 303.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    sites: 303,
+    // **T055 (`pim_ergonode` leaves): 303 -> 299.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    sites: 299,
     sources: [],
   },
   'backend/scripts/check-doc-snippets.ts': {
@@ -3837,7 +3933,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the walk; measured, not decomposed. Agreed at `origin/master` `ce96b1e94`; see the header
     // block above the table.
     // **T055 (`pim_pimcore` leaves): 1394 -> 1392.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 1392,
+    // **T055 (`pim_ergonode` leaves): 1392 -> 1390.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1390 -> 1391.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    files: 1391,
     sites: 13,
     sources: [],
     //
@@ -4200,14 +4298,26 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_unopim` leaves): 2269 -> 1993.** the `pim_unopim` package's sources. `master` already read 2067 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 1993 -> 1927.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 1927 -> 1929.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 1929,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 1927 -> 1933.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **T055 (`pim_ergonode` leaves): 1933 -> 1871.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1871 -> 1870.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 1870 -> 1871.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 1871 -> 1873.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 1873,
     // **T042–T045, re-measured 2026-09-25: 276 -> 248.** The five modules' entity classes. Agreed
     // at `origin/master` `ce96b1e94`; see the header block above the table.
     // **T055 (`pim_akeneo` leaves): 248 -> 239.** the package's nine declared entities (E1 read `sites=9`).
     // **T055 (`pim_unopim` leaves): 239 -> 225.** the sites the `pim_unopim` package held, measured.
     // **T055 (`pim_pimcore` leaves): 225 -> 217.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    sites: 217,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 217 -> 218.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **T055 (`pim_ergonode` leaves): 218 -> 207.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    sites: 207,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-entry-presence.ts': {
@@ -4559,8 +4669,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_unopim` leaves): 2269 -> 1993.** the `pim_unopim` package's sources. `master` already read 2067 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 1993 -> 1927.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 1927 -> 1929.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 1929,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 1927 -> 1933.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **T055 (`pim_ergonode` leaves): 1933 -> 1871.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1871 -> 1870.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 1870 -> 1871.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 1871 -> 1873.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 1873,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4910,8 +5027,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_unopim` leaves): 2269 -> 1993.** the `pim_unopim` package's sources. `master` already read 2067 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 1993 -> 1927.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 1927 -> 1929.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 1929,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 1927 -> 1933.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **T055 (`pim_ergonode` leaves): 1933 -> 1871.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1871 -> 1870.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 1870 -> 1871.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 1871 -> 1873.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 1873,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -4959,7 +5083,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_akeneo` leaves): 45 -> 43.** the package's two entry sites (E1 read `sites=2`).
     // **T055 (`pim_unopim` leaves): 43 -> 40.** the sites the `pim_unopim` package held, measured.
     // **T055 (`pim_pimcore` leaves): 40 -> 38.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    sites: 38,
+    // **T055 (`pim_ergonode` leaves): 38 -> 36.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    sites: 36,
     sources: ['manifest-index', 'package-scripts'],
   },
   'backend/scripts/check-env-inputs.ts': {
@@ -5207,15 +5332,17 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_unopim` leaves): 2910 -> 2614.** the `pim_unopim` package's sources. `master` already read 2701 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 2614 -> 2539.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 2539 -> 2541.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 2541,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 2472 -> 2473.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 2473 -> 2475.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 2475,
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 138 -> 137.** **One fewer `process.env` read, and it is the subject of the change rather than a side effect of it.** `index.ts` and `worker.ts` each read `SESSION_COOKIE_SECRET` and `NODE_ENV` — four reads over two entry points — and the one resolution they now share is three reads in `composition.ts`. `files` does not move: the resolution landed in a file this walk already read, and the test beside it is out of the population by `NOT_RUNTIME`. `specs/117-instance-bring-up/` Phase 6 recorded the identical shape, 139 -> 138, when the deployment root's `NEWSLETTER_TOKEN_SECRET` chain moved into `composeApp` — which is the read this branch exists to make reachable.
     // **T042–T045, re-measured 2026-09-25: 139 -> 129.** The gateways' environment inputs leave
     // with their packages (`backend/.env.example` is edited in the same change); measured, not
     // decomposed. Agreed at `origin/master` `ce96b1e94`; see the header block above the table.
-    sites: 129,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: sites 129 -> 124, files 2539 -> 2472.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    sites: 124,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
     // anything a declaration does. A consumer counts as covered only when it
@@ -5280,7 +5407,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_akeneo` leaves): 124 -> 122.** the package's two bundles.
     // **T055 (`pim_unopim` leaves): 122 -> 120.** the package's two i18n bundles.
     // **T055 (`pim_pimcore` leaves): 120 -> 118.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 118,
+    // **T055 (`pim_ergonode` leaves): 118 -> 116.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    files: 116,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 867 -> 883.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -5296,7 +5424,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_akeneo` leaves): 934 -> 913.** seven `PIM_AKENEO_*` codes, each an `ERROR_CODES` member and an `en` and a `pl` sentence.
     // **T055 (`pim_unopim` leaves): 913 -> 877.** the twelve `PIM_UNOPIM_*` codes and their sentences, measured.
     // **T055 (`pim_pimcore` leaves): 877 -> 826.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    sites: 826,
+    // **T055 (`pim_ergonode` leaves): 826 -> 813.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    sites: 813,
     // Feature 080's T010, and feature 090's Phase 4 for the second entry.
     // `manifest-index` expects the module directories that declare a code:
     // every id the generated index registers, less the ones whose manifest
@@ -5613,7 +5742,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // worktree reproduces.
     // **T055 (`pim_unopim` leaves): 1600 -> 1552.** the 46 host test files and `unopim-import-fixtures.ts` that leave with the module.
     // **T055 (`pim_pimcore` leaves): 1552 -> 1519.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 1519,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 1519 -> 1520.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **`feat/134-ergonode-host-tests` (feature 134, `pim_ergonode`'s W2), measured 2026-09-26**
+    // after merging `origin/master` `82a716f1f`, in two pristine detached worktrees of that
+    // commit and of the merge, each after `setup-worktree.sh` and `build:packages` with no
+    // module-doc copies and no ignored residue outside `node_modules` and `dist`, never
+    // computed from a delta. This dimension agrees on `master` and drifts at the tip. The
+    // branch moves `boot-hook-presence.test.ts` into `pim_ergonode`'s package, adds four
+    // co-located package tests and one changeset, and deletes two admin tests and the module's
+    // test-ownership shard.
+    // **T055 (`pim_ergonode` leaves): 1519 -> 1475.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **T139 (`ledger_challenger_fixture` joins): 1477 -> 1478.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 1478,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -5677,8 +5820,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test is the only file this branch adds that this signal reads.
     // **T055 (`pim_unopim` leaves): 595 -> 563.** the sites those host test files held.
     // **T055 (`pim_pimcore` leaves): 563 -> 557.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 557 -> 556.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    sites: 556,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 557 -> 558.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **T055 (`pim_ergonode` leaves): 558 -> 530.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: sites 530 -> 531, files 1475 -> 1476.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: sites 531 -> 532, files 1476 -> 1477.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    sites: 532,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -5956,7 +6105,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // worktree reproduces.
     // **T055 (`pim_unopim` leaves): 1600 -> 1552.** the 46 host test files and `unopim-import-fixtures.ts` that leave with the module.
     // **T055 (`pim_pimcore` leaves): 1552 -> 1519.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 1519,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 1519 -> 1520.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **`feat/134-ergonode-host-tests` (feature 134, `pim_ergonode`'s W2), measured 2026-09-26**
+    // after merging `origin/master` `82a716f1f`, in two pristine detached worktrees of that
+    // commit and of the merge, each after `setup-worktree.sh` and `build:packages` with no
+    // module-doc copies and no ignored residue outside `node_modules` and `dist`, never
+    // computed from a delta. This dimension agrees on `master` and drifts at the tip. The
+    // branch moves `boot-hook-presence.test.ts` into `pim_ergonode`'s package, adds four
+    // co-located package tests and one changeset, and deletes two admin tests and the module's
+    // test-ownership shard.
+    // **T055 (`pim_ergonode` leaves): 1519 -> 1475.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1475 -> 1476.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 1476 -> 1477.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 1477 -> 1478.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 1478,
     sites: null,
     sources: [],
   },
@@ -6325,8 +6490,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_unopim` leaves): 2269 -> 1993.** the `pim_unopim` package's sources. `master` already read 2067 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 1993 -> 1927.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 1927 -> 1929.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 1929,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 1927 -> 1933.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **T055 (`pim_ergonode` leaves): 1933 -> 1871.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1871 -> 1870.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 1870 -> 1871.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 1871 -> 1873.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 1873,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -6525,7 +6697,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // seven script arrivals it kept would be exactly the reasoning the record
     // forbids.
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
-    files: 312,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 312 -> 285.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 285 -> 286.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 286,
     // **2026-09-04: 14 -> 15.** One further named-subject lock claim.
     // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge` retired):**
     // sites 15 -> 17, files unchanged. `pwa`'s manifest gains `orders` in its
@@ -6852,8 +7026,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 2714 -> 2608.** the `pim_unopim` package's sources.
     // **T055 (`pim_pimcore` leaves): 2608 -> 2507.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 2507 -> 2509.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 2509,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 2507 -> 2518.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **`feat/134-ergonode-host-tests` (feature 134, `pim_ergonode`'s W2), measured 2026-09-26**
+    // after merging `origin/master` `82a716f1f`, in two pristine detached worktrees of that
+    // commit and of the merge, each after `setup-worktree.sh` and `build:packages` with no
+    // module-doc copies and no ignored residue outside `node_modules` and `dist`, never
+    // computed from a delta. This dimension agrees on `master` and drifts at the tip. The
+    // branch moves `boot-hook-presence.test.ts` into `pim_ergonode`'s package, adds four
+    // co-located package tests and one changeset, and deletes two admin tests and the module's
+    // test-ownership shard.
+    // **T055 (`pim_ergonode` leaves): 2523 -> 2426.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 2426 -> 2428.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 2428 -> 2429.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 2429 -> 2431.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 2431,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 56 -> 66.**
     // The header block above this table has the arithmetic; nothing here
@@ -6864,7 +7053,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_akeneo` leaves): 63 -> 60.** the package's three product-editor zone contributions.
     // **T055 (`pim_unopim` leaves): 60 -> 57.** the sites the `pim_unopim` package held, measured.
     // **T055 (`pim_pimcore` leaves): 57 -> 54.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    sites: 54,
+    // **T055 (`pim_ergonode` leaves): 54 -> 51.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    sites: 51,
     // `zone-enum` is `AdminZoneNameSchema` held against `AdminZonePropsMap`:
     // the enum is the independent author of this check's population and the map
     // is the second declaration reconciled against it, so a member added
@@ -7020,8 +7210,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_unopim` leaves): 2218 -> 1935.** the `pim_unopim` package's sources. `master` already read 2021 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 1935 -> 1863.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 1863 -> 1865.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 1865,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 1863 -> 1868.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **T055 (`pim_ergonode` leaves): 1868 -> 1799.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1799 -> 1798.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 1798 -> 1800.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 1800,
     // The finer population, and it is the one that moves when nothing else does
     // (issues #235/#237): tree sites, unreadable sites, renderer-map sites, the
     // block declarations and the declared `(key, context)` sections. A block
@@ -7189,8 +7385,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 2812 -> 2706.** the `pim_unopim` package's sources.
     // **T055 (`pim_pimcore` leaves): 2706 -> 2605.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 2605 -> 2607.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 2607,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 2605 -> 2616.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **`feat/134-ergonode-host-tests` (feature 134, `pim_ergonode`'s W2), measured 2026-09-26**
+    // after merging `origin/master` `82a716f1f`, in two pristine detached worktrees of that
+    // commit and of the merge, each after `setup-worktree.sh` and `build:packages` with no
+    // module-doc copies and no ignored residue outside `node_modules` and `dist`, never
+    // computed from a delta. This dimension agrees on `master` and drifts at the tip. The
+    // branch moves `boot-hook-presence.test.ts` into `pim_ergonode`'s package, adds four
+    // co-located package tests and one changeset, and deletes two admin tests and the module's
+    // test-ownership shard.
+    // **T055 (`pim_ergonode` leaves): 2621 -> 2524.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 2524 -> 2526.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 2526 -> 2527.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 2527 -> 2529.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 2529,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -7205,7 +7416,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_akeneo` leaves): 5320 -> 5250.** the class usages of the package's admin layer, measured rather than decomposed.
     // **T055 (`pim_unopim` leaves): 5250 -> 4999.** the sites the `pim_unopim` package held, measured.
     // **T055 (`pim_pimcore` leaves): 4999 -> 4822.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    sites: 4822,
+    // **T055 (`pim_ergonode` leaves): 4822 -> 4574.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    sites: 4574,
     // `manifest-index` is issue #215's shared floor over the module half of the
     // render walk. `design-system` is the `exports` maps' own answer to *"which
     // packages publish `./theme.css`"* against the stylesheets this run opened,
@@ -7267,7 +7479,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_akeneo` leaves): 124 -> 122.** the package's `en` and `pl` bundles.
     // **T055 (`pim_unopim` leaves): 122 -> 120.** the package's two i18n bundles.
     // **T055 (`pim_pimcore` leaves): 120 -> 118.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 118,
+    // **T055 (`pim_ergonode` leaves): 118 -> 116.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    files: 116,
     // Every registered module, shipping or not. It moves only with the module
     // set, so a run whose `sites` fell while `files` held is a module that left
     // the index rather than a translation that left a package.
@@ -7283,7 +7496,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_akeneo` leaves): 68 -> 67.** one module's bundle pair.
     // **T055 (`pim_unopim` leaves): 67 -> 66.** the sites the `pim_unopim` package held, measured.
     // **T055 (`pim_pimcore` leaves): 66 -> 65.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    sites: 65,
+    // **T055 (`pim_ergonode` leaves): 65 -> 64.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    sites: 64,
     // `manifest-index` is issue #215's shared floor over the module walk, whose
     // unit here is the module's **own directory** — `dirname(manifestPath)`, the
     // anchor the boot reconciler joins `bundlesDir` to. `shipped-languages` is
@@ -7366,7 +7580,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_akeneo` leaves): 102 -> 101.** the module's documentation page.
     // **T055 (`pim_unopim` leaves): 101 -> 100.** the package's module page and its links.
     // **T055 (`pim_pimcore` leaves): 100 -> 99.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 99,
+    // **T055 (`pim_ergonode` leaves): 99 -> 98.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    files: 98,
     // The finer population, and it answers a different question: the navigation
     // entries the committed sidebar names, the rows the committed map carries,
     // and the relative links a module-owned page writes (R3.7). A page added and
@@ -7415,8 +7630,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`fix/instance-docs-foreign-link-catalog`: sites 259 -> 258 (-1), `files` unmoved at 108.** One relative link into a sibling module's page became prose — `catalog/attributes.md` -> `../promotions.md`, the last `foreign-module-link` a default instance's documentation build refuses, `promotions` not being in the set `endora new instance` writes. It is `../search.md`'s repair a second time and the shard is deleted with it, an empty one being a done signal that says nothing. 36 links -> 35; no page was written or deleted, which is why `files` does not move. Re-measured on the **merged** tree (`origin/master` at c99c2cd09) in a fresh detached `git worktree` of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` reporting zero residue outside `node_modules` and `dist` and the resolution staged first — `check-naming.sh` and `check-language.sh` take their population from the index. This file's conflict was resolved wholly to the incoming side and every value was then re-measured rather than reconciled, per `specs/conventions/check-estate.md`. **The attribution is the whole of it and it is one cause**: the branch's own pre-merge run named eight entries, three of which were `docs(128)`'s +4 standing on `master` unrecorded, and `fix/availability-notification-existence-oracle` re-recorded those three before this merge — so five are left and every one of them is this branch's. The branch adds one `.changeset/*.md` and deletes one tracked `.ts`, which is why the two whole-repository walks net to zero and do not appear. No band was widened and no value was computed from a delta: the run's own `[read-size drift]` census named these five and confirmed the other 39 agree.
     // **T055 (`pim_unopim` leaves): 249 -> 221.** the package's module page and its links. `master` already read 224 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 221 -> 219.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 219 -> 221.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    sites: 221,
+    // **T055 (`pim_ergonode` leaves): 219 -> 217.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    sites: 217,
     // Three authors, each seeing something the others cannot. `manifest-index`
     // is issue #215's shared floor over the module walk, whose unit is the
     // module's own directory. `sidebar-entries` is the **committed artefact's**
@@ -7646,8 +7861,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 1648 -> 1576.** the `pim_unopim` package's sources.
     // **T055 (`pim_pimcore` leaves): 1576 -> 1514.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 1514 -> 1516.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 1516,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 1514 -> 1519.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **T055 (`pim_ergonode` leaves): 1519 -> 1461.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **T139 (`ledger_challenger_fixture` joins): 1460 -> 1462.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 1462,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -7752,8 +7972,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_akeneo` leaves): 36259 -> 32388.** (breach) already drifting on `master` at 33688 after the gateways left; this extraction takes it below the floor, so the tip's reading replaces the stale record.
     // **T055 (`pim_unopim` leaves): 32344 -> 30581.** the sites the `pim_unopim` package held, measured.
     // **T055 (`pim_pimcore` leaves): 30581 -> 29080.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 29080 -> 29094.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    sites: 29094,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 29080 -> 29158.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **T055 (`pim_ergonode` leaves): 29158 -> 27716.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: sites 27716 -> 27687, files 1461 -> 1460.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: sites 27687 -> 27690.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 27690 -> 27739.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    sites: 27739,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -7976,7 +8203,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_unopim` leaves): 422 -> 372.** the `pim_unopim` package's sources. `master` already read 392 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 372 -> 356.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 356,
+    // **`feat/134-ergonode-host-tests` (feature 134, `pim_ergonode`'s W2), measured 2026-09-26**
+    // after merging `origin/master` `82a716f1f`, in two pristine detached worktrees of that
+    // commit and of the merge, each after `setup-worktree.sh` and `build:packages` with no
+    // module-doc copies and no ignored residue outside `node_modules` and `dist`, never
+    // computed from a delta. This dimension agrees on `master` and drifts at the tip. The
+    // branch moves `boot-hook-presence.test.ts` into `pim_ergonode`'s package, adds four
+    // co-located package tests and one changeset, and deletes two admin tests and the module's
+    // test-ownership shard.
+    // **T055 (`pim_ergonode` leaves): 359 -> 340.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    files: 340,
     // **Batch 13 (feature 091, Phase 4): 2361 -> 2305, and the cause is the move's
     // spelling rather than its size.** A published-symbol reach is counted per
     // import statement, and the twenty-four moved screens rewrote thirty `@/…`
@@ -8023,7 +8259,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **T055 (`pim_unopim` leaves): 2329 -> 2067.** the sites the `pim_unopim` package held, measured. `master` already read 2184 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 2067 -> 1987.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    sites: 1987,
+    // **T055 (`pim_ergonode` leaves): 1999 -> 1894.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    sites: 1894,
     // **Three** derivations since Phase 5's T3, none of them the walk counting
     // itself: the generated manifest index for the modules a walked file is
     // attributed to; the kit's own `exports` map against the barrels on disk —
@@ -8439,8 +8676,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 5009 -> 4811.** the `pim_unopim` package's sources.
     // **T055 (`pim_pimcore` leaves): 4811 -> 4619.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 4619 -> 4623.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 4623,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 4619 -> 4643.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **`feat/134-ergonode-host-tests` (feature 134, `pim_ergonode`'s W2), measured 2026-09-26**
+    // after merging `origin/master` `82a716f1f`, in two pristine detached worktrees of that
+    // commit and of the merge, each after `setup-worktree.sh` and `build:packages` with no
+    // module-doc copies and no ignored residue outside `node_modules` and `dist`, never
+    // computed from a delta. This dimension agrees on `master` and drifts at the tip. The
+    // branch moves `boot-hook-presence.test.ts` into `pim_ergonode`'s package, adds four
+    // co-located package tests and one changeset, and deletes two admin tests and the module's
+    // test-ownership shard.
+    // **T055 (`pim_ergonode` leaves): 4653 -> 4468.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **T139 (`ledger_challenger_fixture` joins): 4474 -> 4478.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 4478,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -8552,8 +8802,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // is added or deleted.
     // **T055 (`pim_unopim` leaves): 12319 -> 11744.** the sites the `pim_unopim` package held, measured.
     // **T055 (`pim_pimcore` leaves): 11744 -> 11275.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 11275 -> 11277.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    sites: 11277,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 11275 -> 11326.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **T055 (`pim_ergonode` leaves): 11348 -> 10817.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: sites 10817 -> 10826, files 4468 -> 4472.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: sites 10826 -> 10830, files 4472 -> 4474.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 10830 -> 10834.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    sites: 10834,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -9686,8 +9943,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 8569 -> 8399.** the branch deletes 172 tracked files and adds 2 against its base, net -170.
     // **T055 (`pim_pimcore` leaves): 8399 -> 8246.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 8246 -> 8250.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 8250,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 8246 -> 8091.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 8091 -> 8090.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Of this entry's move, -6 is master's own: the pristine `origin/master` worktree already reads 6 fewer files than master records, and the branch adds 5. Not computed from a delta.
+    files: 8090,
     sites: null,
     sources: [],
     //
@@ -9758,7 +10016,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_akeneo` leaves): 101 -> 100.** `integration/pim_akeneo/off-state.test.ts` leaves with its subject; `switchable` and `proven` both fall by one, findings 0.
     // **T055 (`pim_unopim` leaves): 100 -> 98.** the `pim_unopim` package's sources.
     // **T055 (`pim_pimcore` leaves): 98 -> 97.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 97,
+    // **T055 (`pim_ergonode` leaves): 97 -> 96.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    files: 96,
     // The finer population, and the one that moves when a **resolver shape** is
     // added or lost: every `expectModuleAbsent` and `withModuleOff` call the
     // walk read, both helpers, one per call however many modules the call
@@ -9781,7 +10040,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_akeneo` leaves): 165 -> 164.** the one harness call in that file.
     // **T055 (`pim_unopim` leaves): 164 -> 162.** the sites the `pim_unopim` package held, measured.
     // **T055 (`pim_pimcore` leaves): 162 -> 161.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    sites: 161,
+    // **T055 (`pim_ergonode` leaves): 161 -> 160.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    sites: 160,
     // Two independent authors, so the check computes no module list and no
     // call-name list of its own. `manifest-index` is every entry the generated
     // index carries against every entry whose manifest this run could classify
@@ -9948,8 +10208,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // and never computed from a delta.
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_pimcore` leaves): 981 -> 876.** Already 890 on `master` (961634f66), inside the band; this departure takes it past the floor, so it is re-recorded to the tip's measured reading.
-    // **T068/T115 (comarch prologue): 876 -> 877.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    sites: 877,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 876 -> 877.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **T055 (`pim_ergonode` leaves): 877 -> 863.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: sites 863 -> 864.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    sites: 864,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 86 -> 87.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -9961,7 +10226,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_akeneo` leaves): 83 -> 82.** measured, one generated input fewer.
     // **T055 (`pim_unopim` leaves): 82 -> 81.** the `pim_unopim` package's sources.
     // **T055 (`pim_pimcore` leaves): 81 -> 80.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 80,
+    // **T055 (`pim_ergonode` leaves): 80 -> 79.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    files: 79,
     sources: [],
   },
   'backend/scripts/check-port-catches.ts': {
@@ -10314,7 +10580,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_akeneo` leaves): 204 -> 187.** the package's 17 gated port sites (E1 read `sites=17`).
     // **T055 (`pim_unopim` leaves): 177 -> 161.** the sites the `pim_unopim` package held, measured.
     // **T055 (`pim_pimcore` leaves): 161 -> 142.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    sites: 142,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 142 -> 144.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **T055 (`pim_ergonode` leaves): 144 -> 125.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    sites: 125,
     // co-located test and a contract test, and carries a changeset — files this walk reads,
     // and none of them counted in the 2138 recorded against the tree before it. Measured on
     // the combined tree, never summed from the two sides' deltas.
@@ -10414,8 +10685,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // arrived handled. The file count is `master`'s own drift from the paid-module departures.
     // **T055 (`pim_unopim` leaves): 2067 -> 1993.** the `pim_unopim` package's sources.
     // **T055 (`pim_pimcore` leaves): 1993 -> 1927.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 1927 -> 1929.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 1929,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 1927 -> 1933.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **T055 (`pim_ergonode` leaves): 1933 -> 1871.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1871 -> 1870.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 1870 -> 1871.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 1871 -> 1873.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 1873,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -10593,8 +10871,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Same rebase, 2026-09-25: `sources` gains `capability-families`.** Unrelated to any conflict this rebase resolved — `master` had already added a second corroboration source to `check-port-dependencies.ts` (capability-family membership, alongside the manifest index) before this branch's base point, and the recorded entry had not caught up.
     // **T055 (`pim_unopim` leaves): 2082 -> 1804.** the `pim_unopim` package's sources. `master` already read 1878 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 1804 -> 1738.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 1738 -> 1740.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 1740,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 1681 -> 1682.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 1682 -> 1684.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 1684,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 1471 -> 1535.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
@@ -10629,7 +10908,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T042–T045, re-measured 2026-09-25: 1714 -> 1567.** Resolution sites supplied by the five
     // gateway packages. Agreed at `origin/master` `ce96b1e94`; see the header block above the
     // table.
-    sites: 1567,
+    // **T055 (`pim_ergonode` leaves): 1567 -> 1403.** Already drifted on the base (3f0568e5b read 1436) inside the band; this departure takes it past the floor, so it is re-recorded here to the tip's measured reading rather than left to its owner.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: sites 1403 -> 1405, files 1738 -> 1681.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 1405 -> 1406.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    sites: 1406,
     sources: ['manifest-index', 'capability-families'],
   },
   // Two derivations, deliberately, because the check has two inputs that can be
@@ -11039,8 +11321,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 2352 -> 2264.** the `pim_unopim` package's sources.
     // **T055 (`pim_pimcore` leaves): 2264 -> 2189.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 2189 -> 2191.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 2191,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 2189 -> 2194.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **`feat/134-ergonode-host-tests` (feature 134, `pim_ergonode`'s W2), measured 2026-09-26**
+    // after merging `origin/master` `82a716f1f`, in two pristine detached worktrees of that
+    // commit and of the merge, each after `setup-worktree.sh` and `build:packages` with no
+    // module-doc copies and no ignored residue outside `node_modules` and `dist`, never
+    // computed from a delta. This dimension agrees on `master` and drifts at the tip. The
+    // branch moves `boot-hook-presence.test.ts` into `pim_ergonode`'s package, adds four
+    // co-located package tests and one changeset, and deletes two admin tests and the module's
+    // test-ownership shard.
+    // **T055 (`pim_ergonode` leaves): 2193 -> 2121.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 2120 -> 2121.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 2121 -> 2123.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 2123,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -11150,8 +11446,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // the verdict does not.
     // **T055 (`pim_unopim` leaves): 1761 -> 1702.** the sites the `pim_unopim` package held, measured.
     // **T055 (`pim_pimcore` leaves): 1702 -> 1640.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 1640 -> 1641.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    sites: 1641,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 1640 -> 1643.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **T055 (`pim_ergonode` leaves): 1643 -> 1591.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: sites 1591 -> 1590, files 2121 -> 2120.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 1590 -> 1592.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    sites: 1592,
     // count moves with the file count here because the reaches that went are exactly
     // the files that went.
     // **T119a: sites 1870 -> 1861.** The same nine files, each the single relative
@@ -11365,8 +11667,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_unopim` leaves): 2181 -> 1901.** the `pim_unopim` package's sources. `master` already read 1976 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 1901 -> 1834.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 1834 -> 1836.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 1836,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 1834 -> 1841.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **T055 (`pim_ergonode` leaves): 1841 -> 1778.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1778 -> 1777.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 1777 -> 1778.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 1778 -> 1780.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 1780,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 692 -> 721.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -11401,7 +11710,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_akeneo` leaves): 763 -> 736.** the package's declarations, registrations and resolutions, measured.
     // **T055 (`pim_unopim` leaves): 736 -> 715.** the sites the `pim_unopim` package held, measured.
     // **T055 (`pim_pimcore` leaves): 715 -> 693.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    sites: 693,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 693 -> 697.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **T055 (`pim_ergonode` leaves): 697 -> 677.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **T139 (`ledger_challenger_fixture` joins): 677 -> 678.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    sites: 678,
     sources: ['manifest-index', 'ports-subpaths'],
   },
   // Small on purpose: this population is the *workspace*, not a source tree —
@@ -11441,12 +11756,20 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_unopim` leaves): 2269 -> 1993.** the `pim_unopim` package's sources. `master` already read 2067 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 1993 -> 1927.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 1927 -> 1929.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 1929,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 1927 -> 1933.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **T055 (`pim_ergonode` leaves): 1933 -> 1871.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1871 -> 1870.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 1870 -> 1871.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 1871 -> 1873.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 1873,
     // **T055 (`pim_akeneo` leaves): 48 -> 44.** the package's four queue sites (E1 read `sites=4`).
     // **T055 (`pim_unopim` leaves): 44 -> 38.** the sites the `pim_unopim` package held, measured.
     // **T055 (`pim_pimcore` leaves): 38 -> 34.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    sites: 34,
+    // **T055 (`pim_ergonode` leaves): 34 -> 30.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    sites: 30,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-release-intent.ts': {
@@ -11580,7 +11903,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // `a14e32d61` reads 88.
     // **T055 (`pim_unopim` leaves): 88 -> 86.** the `pim_unopim` package's sources.
     // **T055 (`pim_pimcore` leaves): 86 -> 84.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 84,
+    // **T055 (`pim_ergonode` leaves): 84 -> 82.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    files: 82,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 495 -> 501.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -11593,7 +11917,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_akeneo` leaves): 477 -> 471.** measured rather than decomposed: the package leaves and the changeset stops naming it.
     // **T055 (`pim_unopim` leaves): 471 -> 465.** the sites the `pim_unopim` package held, measured.
     // **T055 (`pim_pimcore` leaves): 465 -> 459.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    sites: 459,
+    // **T055 (`pim_ergonode` leaves): 459 -> 453.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    sites: 453,
     // **Feature 114 Phase 3 (FR-017, D-225): a second author, and neither count
     // moves.** `changeset-subjects` is the distinct package names the changeset
     // files name, reconciled against the members the workspace globs produce.
@@ -11813,11 +12138,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 8630 -> 8460.** the branch deletes 172 tracked files and adds 2 against its base, net -170.
     // **T055 (`pim_pimcore` leaves): 8460 -> 8307.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 8307 -> 8311.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 8311,
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 8152 -> 8151.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Of this entry's move, -6 is master's own: the pristine `origin/master` worktree already reads 6 fewer files than master records, and the branch adds 5. Not computed from a delta.
+    files: 8151,
     // **T055 (`pim_unopim` leaves): 1335 -> 1336.** measured on the branch's tree and not attributed further; it is inside the band either way and is re-recorded because it agreed on `master`.
     // **T055 (`pim_pimcore` leaves): 1336 -> 1337.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    sites: 1337,
+    // **T055 (`pim_ergonode` leaves): 1337 -> 1338.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: sites 1338 -> 1339, files 8307 -> 8152.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    sites: 1339,
     // `git-tree-entries` — the committed tree's own root entries, read from a
     // different git store than the index this walk uses. Not `self-reported`:
     // two derivations of one population by two routes is precisely the second
@@ -12139,10 +12466,31 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // worktree reproduces.
     // **T055 (`pim_unopim` leaves): 1600 -> 1552.** the 46 host test files and `unopim-import-fixtures.ts` that leave with the module.
     // **T055 (`pim_pimcore` leaves): 1552 -> 1519.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 1519,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 1519 -> 1520.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **`feat/134-ergonode-host-tests` (feature 134, `pim_ergonode`'s W2), measured 2026-09-26**
+    // after merging `origin/master` `82a716f1f`, in two pristine detached worktrees of that
+    // commit and of the merge, each after `setup-worktree.sh` and `build:packages` with no
+    // module-doc copies and no ignored residue outside `node_modules` and `dist`, never
+    // computed from a delta. This dimension agrees on `master` and drifts at the tip. The
+    // branch moves `boot-hook-presence.test.ts` into `pim_ergonode`'s package, adds four
+    // co-located package tests and one changeset, and deletes two admin tests and the module's
+    // test-ownership shard.
+    // **T055 (`pim_ergonode` leaves): 1519 -> 1475.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1475 -> 1476.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 1477 -> 1478.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 1478,
     // **T055 (`pim_unopim` leaves): 166 -> 157.** the sites those host test files held.
     // **T055 (`pim_pimcore` leaves): 157 -> 156.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    sites: 156,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 156 -> 157.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **T055 (`pim_ergonode` leaves): 157 -> 153.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: sites 153 -> 154, files 1476 -> 1477.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    sites: 154,
     sources: [],
   },
   'backend/scripts/check-storefront-indexability.ts': {
@@ -12544,8 +12892,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_unopim` leaves): 2269 -> 1993.** the `pim_unopim` package's sources. `master` already read 2067 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 1993 -> 1927.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 1927 -> 1929.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 1929,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 1927 -> 1933.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **T055 (`pim_ergonode` leaves): 1933 -> 1871.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1871 -> 1870.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 1870 -> 1871.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 1871 -> 1873.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 1873,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -12859,7 +13214,21 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 1763 -> 1698.** the 46 host test files and `unopim-import-fixtures.ts` that leave with the module.
     // **T055 (`pim_pimcore` leaves): 1698 -> 1643.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 1643,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 1643 -> 1649.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **`feat/134-ergonode-host-tests` (feature 134, `pim_ergonode`'s W2), measured 2026-09-26**
+    // after merging `origin/master` `82a716f1f`, in two pristine detached worktrees of that
+    // commit and of the merge, each after `setup-worktree.sh` and `build:packages` with no
+    // module-doc copies and no ignored residue outside `node_modules` and `dist`, never
+    // computed from a delta. This dimension agrees on `master` and drifts at the tip. The
+    // branch moves `boot-hook-presence.test.ts` into `pim_ergonode`'s package, adds four
+    // co-located package tests and one changeset, and deletes two admin tests and the module's
+    // test-ownership shard.
+    // **T055 (`pim_ergonode` leaves): 1653 -> 1586.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **T139 (`ledger_challenger_fixture` joins): 1591 -> 1592.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 1592,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -12890,7 +13259,14 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Merging `origin/master` into `feat/121-platform-liveness` (MR !1640): sites 1115 -> 1114.** Feature 121 deletes the `health_checks` package, so every walk that reads module packages loses whatever share of its eleven files that walk can see — which is why 34 entries move at once and why most of the deltas are small and negative. Re-measured on the merged tree after resolving this file's conflict wholly to the incoming side, per `specs/conventions/check-estate.md`: a read size is a measurement, not text to reconcile. Measured in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the module-doc copy stamp, with `git status --porcelain --ignored` confirming zero unignored residue; the resolution was staged before measuring, because `check-naming.sh` and `check-language.sh` read the index and count a conflicted path once per stage. No band was widened and no value was computed from a delta — the run's own `[read-size drift]` census named all 34 and confirmed the other 10 agree.
     // **T055 (`pim_unopim` leaves): 1203 -> 1102.** the sites those host test files held.
     // **T055 (`pim_pimcore` leaves): 1102 -> 1081.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    sites: 1081,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 1081 -> 1082.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **T055 (`pim_ergonode` leaves): 1078 -> 993.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: sites 993 -> 995, files 1586 -> 1590.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: sites 995 -> 996, files 1590 -> 1591.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    sites: 996,
     // Two independent authors. `manifest-index` is issue #215's shared floor
     // over the module walk, whose unit is the module's own directory rather than
     // a test file — 14 of the 70 packages ship no test and a floor over test
@@ -13254,8 +13630,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_unopim` leaves): 2269 -> 1993.** the `pim_unopim` package's sources. `master` already read 2067 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 1993 -> 1927.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 1927 -> 1929.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 1929,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 1927 -> 1933.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **T055 (`pim_ergonode` leaves): 1933 -> 1871.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1871 -> 1870.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 1870 -> 1871.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 1871 -> 1873.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 1873,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -13823,8 +14206,22 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 4522 -> 4367.** the `pim_unopim` package's sources.
     // **T055 (`pim_pimcore` leaves): 4367 -> 4233.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 4233 -> 4235.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 4235,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 4233 -> 4244.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **`feat/134-ergonode-host-tests` (feature 134, `pim_ergonode`'s W2), measured 2026-09-26**
+    // after merging `origin/master` `82a716f1f`, in two pristine detached worktrees of that
+    // commit and of the merge, each after `setup-worktree.sh` and `build:packages` with no
+    // module-doc copies and no ignored residue outside `node_modules` and `dist`, never
+    // computed from a delta. This dimension agrees on `master` and drifts at the tip. The
+    // branch moves `boot-hook-presence.test.ts` into `pim_ergonode`'s package, adds four
+    // co-located package tests and one changeset, and deletes two admin tests and the module's
+    // test-ownership shard.
+    // **T055 (`pim_ergonode` leaves): 4247 -> 4106.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 4106 -> 4109.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 4111 -> 4114.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 4114,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -13884,7 +14281,13 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The value reaches into a package's source that the module's tests make.
     // **T055 (`pim_unopim` leaves): 742 -> 737.** the sites the `pim_unopim` package held, measured.
     // **T055 (`pim_pimcore` leaves): 737 -> 729.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    sites: 729,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 729 -> 728.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **T055 (`pim_ergonode` leaves): 728 -> 724.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: sites 724 -> 725, files 4109 -> 4111.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    sites: 725,
     sources: ['manifest-index', 'entities-registry', 'tenant-chains'],
     //
     // **852 -> 851 sites, 4336 -> 4337 files, and the two have different causes.**
@@ -13988,7 +14391,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_akeneo` leaves): 430 -> 422.** the package's admin files the scan read, measured.
     // **T055 (`pim_unopim` leaves): 422 -> 408.** the `pim_unopim` package's sources.
     // **T055 (`pim_pimcore` leaves): 408 -> 398.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 398,
+    // **T055 (`pim_ergonode` leaves): 398 -> 387.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    files: 387,
     sites: null,
     // `admin-ui` is the workspace manifests' own answer to "how many packages
     // ship a tree of admin UI", reconciled against how many of them the walk
@@ -14986,8 +15390,9 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 8629 -> 8459.** the branch deletes 172 tracked files and adds 2 against its base, net -170.
     // **T055 (`pim_pimcore` leaves): 8459 -> 8306.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 8306 -> 8310.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 8310,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 8306 -> 8151.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 8151 -> 8150.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Of this entry's move, -6 is master's own: the pristine `origin/master` worktree already reads 6 fewer files than master records, and the branch adds 5. Not computed from a delta.
+    files: 8150,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -15688,8 +16093,23 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 6128 -> 5969.** the branch deletes 172 tracked files and adds 2 against its base, net -170.
     // **T055 (`pim_pimcore` leaves): 5969 -> 5831.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T068/T115 (comarch prologue): 5831 -> 5833.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 5833,
+    // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 5831 -> 5842.**
+    // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
+    // (drifts); the branch adds the repair's package sources, co-located tests and two
+    // integration files. No band widened, no value computed from a delta.
+    // **`feat/134-ergonode-host-tests` (feature 134, `pim_ergonode`'s W2), measured 2026-09-26**
+    // after merging `origin/master` `82a716f1f`, in two pristine detached worktrees of that
+    // commit and of the merge, each after `setup-worktree.sh` and `build:packages` with no
+    // module-doc copies and no ignored residue outside `node_modules` and `dist`, never
+    // computed from a delta. This dimension agrees on `master` and drifts at the tip. The
+    // branch moves `boot-hook-presence.test.ts` into `pim_ergonode`'s package, adds four
+    // co-located package tests and one changeset, and deletes two admin tests and the module's
+    // test-ownership shard.
+    // **T055 (`pim_ergonode` leaves): 5843 -> 5697.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 5697 -> 5701.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 5701 -> 5703.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
+    // **T139 (`ledger_challenger_fixture` joins): 5703 -> 5706.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
+    files: 5706,
     sites: null,
     sources: ['manifest-index'],
     //

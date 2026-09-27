@@ -349,7 +349,15 @@ describe('T118 — the contribution wiring is the platform’s and the values ar
     // them, so they were **required** values supplied through the override
     // window, and the cost of that fell entirely on the compositions that are
     // neither of the two roots — which is every client instance.
-    expect(deployment.size + PLATFORM_CONTRIBUTIONS.length).toBe(44);
+    //
+    // **44 -> 43, measured on this tree by `specs/134-paid-module-extraction/`
+    // T126.** `ksefVerificationResolver` left the deployment and went nowhere:
+    // `ksef` now registers its PDF block, verification read included, into
+    // `invoices`' own registry from its composition, so an instance that
+    // contributes nothing prints the QR too. It is deliberately not added to
+    // the two-way list above: the name no longer exists anywhere, and a free
+    // test is no place to keep a departing module's name alive.
+    expect(deployment.size + PLATFORM_CONTRIBUTIONS.length).toBe(43);
   });
 
   it('contributes before the caller’s callback, so a deployment can still override', () => {

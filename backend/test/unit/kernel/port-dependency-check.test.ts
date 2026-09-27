@@ -779,13 +779,13 @@ describe('rootRegisteredNames — what a composition root writes into the contai
 describe('providedPortNames — the gated subset', () => {
   it('takes providePort and leaves di.register alone', () => {
     const source = `
-      ctx.di.register({ ksefVerificationResolver: ctx.asFunction(() => undefined).singleton() });
+      ctx.di.register({ searchRunWorkers: ctx.asFunction(() => true).singleton() });
       ctx.di.providePort('invoiceService', ctx.asFunction(() => svc).singleton());
     `;
     expect(providedPortNames(source, 'backend.ts')).toEqual(['invoiceService']);
     expect(registeredNames(source, 'backend.ts').sort()).toEqual([
       'invoiceService',
-      'ksefVerificationResolver',
+      'searchRunWorkers',
     ]);
   });
 });
@@ -830,11 +830,14 @@ describe('findRootIssues', () => {
 
   it('does not flag a root overriding a contribution point', () => {
     // The module registered it with `di.register`, so it never reaches
-    // `moduleRegistered` — overriding it is the design, not a bug.
+    // `moduleRegistered` — overriding it is the design, not a bug. A free
+    // module's name on purpose: this fixture named `ksefVerificationResolver`
+    // until `specs/134-paid-module-extraction/` T126 deleted that contribution
+    // point, and a fixture is no place to keep a departing module's name.
     expect(
       findRootIssues({
         moduleRegistered: new Map(),
-        rootNames: roots(['ksefVerificationResolver'], []),
+        rootNames: roots(['searchRunWorkers'], []),
         hostRegistered: {},
         ...noPlatformSweep,
         resolvedNames: new Set<string>(),

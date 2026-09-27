@@ -1,14 +1,15 @@
+import type { InvoiceTemplateBlockField } from '@endora-commerce/contracts';
+import type { InvoicePdfBlockRegistry } from '../services/invoice-pdf-block-registry.js';
 import { INVOICE_COMPONENT_NAMES } from './tree-mapper.js';
 
 /**
  * Page-builder descriptor for the invoice template WYSIWYG palette (US6).
  * Served to the admin editor so it can offer the bounded invoice component set.
+ *
+ * The field shape is the published contract's, because a contributed block
+ * describes its own fields (`specs/134-paid-module-extraction/` T063).
  */
-export interface InvoiceComponentField {
-  type: 'text' | 'textarea' | 'number' | 'select' | 'radio' | 'color';
-  label: string;
-  options?: Array<{ label: string; value: string | boolean | number }>;
-}
+export type InvoiceComponentField = InvoiceTemplateBlockField;
 
 export interface InvoiceComponentDescriptor {
   name: string;
@@ -24,7 +25,6 @@ const LABELS: Record<string, string> = {
   'invoices.InvoiceVatSummary': 'VAT summary',
   'invoices.InvoiceTotals': 'Totals & amount in words',
   'invoices.InvoiceNotes': 'Notes (free text)',
-  'ksef.InvoiceSection': 'KSeF verification',
   'invoices.InvoiceSpacer': 'Spacer',
   'invoices.InvoiceDivider': 'Divider',
   'invoices.InvoiceLogo': 'Logo',
@@ -67,6 +67,9 @@ const FIELDS: Record<string, Record<string, InvoiceComponentField>> = {
     labelSaleDate: { type: 'text', label: 'Sale date label' },
     labelPaymentDue: { type: 'text', label: 'Payment due label' },
     labelPaymentMethod: { type: 'text', label: 'Payment method label' },
+    // T137: the KSeF number row prints whenever the invoice has one and no
+    // placed block prints it; the operator may relabel it and not hide it.
+    labelKsefNumber: { type: 'text', label: 'KSeF number label' },
     ...SHARED_MARGIN,
   },
   'invoices.InvoiceParties': {
@@ -149,15 +152,6 @@ const FIELDS: Record<string, Record<string, InvoiceComponentField>> = {
     showTopDivider: radio('Top divider'),
     ...SHARED_MARGIN,
   },
-  'ksef.InvoiceSection': {
-    fontSize: { type: 'number', label: 'Font size' },
-    color: { type: 'color', label: 'Text color' },
-    showProcessedAt: radio('Show processed at'),
-    hideWhenEmpty: radio('Hide when empty'),
-    labelNumber: { type: 'text', label: 'Number label' },
-    labelProcessedAt: { type: 'text', label: 'Processed at label' },
-    ...SHARED_MARGIN,
-  },
   'invoices.InvoiceSpacer': {
     height: { type: 'number', label: 'Height (px)' },
     backgroundColor: { type: 'color', label: 'Background color' },
@@ -229,18 +223,33 @@ const FIELDS: Record<string, Record<string, InvoiceComponentField>> = {
   },
 };
 
-export const INVOICE_PAGE_BUILDER_DESCRIPTOR = {
-  schemaVersion: 1,
-  components: INVOICE_COMPONENT_NAMES.map(
-    (name): InvoiceComponentDescriptor => ({
-      name,
-      // Derived from the name's owner segment rather than asserted: ten of the
-      // eleven are `invoices`' and the eleventh, `ksef.InvoiceSection`, is
-      // `ksef`'s (feature 096, T201). A literal here would have said `invoices`
-      // for a block `invoices` does not own.
-      ownerModule: name.slice(0, name.indexOf('.')),
-      label: LABELS[name] ?? name,
-      fields: FIELDS[name] ?? {},
-    }),
-  ),
-};
+/**
+ * The descriptor `GET /api/v1/admin/invoice-templates/page-builder/config`
+ * serves: this module's ten blocks, then every present contributor's.
+ *
+ * Built per request rather than held as a constant, because a contributor's
+ * presence is read on every call — switching one off removes its block from
+ * the palette description without a restart, and switching it on restores it.
+ */
+export function invoicePageBuilderDescriptor(blocks: InvoicePdfBlockRegistry): {
+  schemaVersion: 1;
+  components: InvoiceComponentDescriptor[];
+} {
+  return {
+    schemaVersion: 1,
+    components: [
+      ...INVOICE_COMPONENT_NAMES.map(
+        (name): InvoiceComponentDescriptor => ({
+          name,
+          ownerModule: 'invoices',
+          label: LABELS[name] ?? name,
+          fields: FIELDS[name] ?? {},
+        }),
+      ),
+      ...blocks.present().map((block): InvoiceComponentDescriptor => {
+        const { label, fields } = block.describe();
+        return { name: block.name, ownerModule: block.moduleId, label, fields: { ...fields } };
+      }),
+    ],
+  };
+}

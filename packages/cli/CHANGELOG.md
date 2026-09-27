@@ -1,5 +1,67 @@
 # @endora-commerce/cli
 
+## 0.13.1
+
+### Patch Changes
+
+- Updated dependencies [8a88460]
+  - @endora-commerce/contracts@0.16.0
+
+## 0.13.0
+
+### Minor Changes
+
+- 9b7a884: Generated documentation pages emit their YAML front matter before the do-not-edit banner.
+
+  `emitModuleReference` and `emitModuleMap` (`lib/docs-artefacts.js`, and therefore
+  `renderModuleReferencesFrom`, `renderModuleMapFrom` and `endora generate`'s documentation
+  artefacts) used to write the `<!-- AUTO-GENERATED … -->` comment first and open the `---` fence
+  underneath it. Front matter is front matter only at byte 0, so Docusaurus never parsed that
+  block: `title`, `sidebar_label` and `description` were inert on every generated page, and
+  because the banner was then also the page's first content node — an HTML comment rather than a
+  `# ` heading — the `contentTitle` fallback was closed too. Every module reference page and the
+  module map shipped titled with its own doc id (`catalog | Your Site`) instead of the title it
+  declared, in the site navigation, the browser tab, the `<title>` element and the social preview.
+
+  A front-matter value that YAML would misread is now double-quoted. The reference page's
+  `description` is the sentence _"Everything the `<id>` module's manifest declares: permissions,
+  …"_, and `: ` inside a plain scalar is an incomplete mapping pair — so the moment the block above
+  became parseable, `docusaurus build` failed in `gray-matter` on the first generated page it read.
+  Quoting is on demand: a value that needs none is still emitted plain, so `title` and
+  `sidebar_label` are unchanged.
+
+  The banner is unchanged and still emitted, one blank line below the closing fence, where it is
+  still a plain "do not edit" instruction to anyone reading the source and is invisible in the
+  rendered page. The `header` parameter of both functions keeps its meaning, so a host passing its
+  own banner string needs no change.
+
+  **Regenerate and commit the rewritten pages** — `pnpm --filter backend run composer:generate` in
+  this repository, `endora generate` in an instance. The bytes of every generated page change, so a
+  tree that does not regenerate will fail `overlay:check` (or its instance equivalent) on the
+  drift. If you keep translated copies of these pages, their front matter has to move too, and any
+  hash you have pinned against the English body changes with it: the body now begins with the
+  banner.
+
+### Patch Changes
+
+- 86f6a5e: `endora new` declares `@docusaurus/core` and `@docusaurus/preset-classic` at `^3.10.2`, the version the documentation site now builds with, instead of `^3.10.0`.
+- 32fdf20: The `LICENSE` file in each package now names the copyright holder as Endora sp. z o.o.
+
+  The MIT licence text is unchanged; only its copyright line moves from `Copyright (c) 2026 Endora`
+  to `Copyright (c) 2026 Endora sp. z o.o.`, the registered legal entity. Nothing a package exports,
+  declares or depends on changes. `@endora-commerce/contracts` and
+  `@endora-commerce/mod-invoice-ledger` also carry a one-sentence rewording in an already-published
+  `CHANGELOG.md` entry, with no change to what that entry says about the code.
+
+- c45614b: The `port-catches` rule no longer reads one module's catches through another module's sources. A call's arguments bind a callee's parameters only when the call site's file declares the callee or imports it through a relative specifier (followed through relative re-exports), instead of whichever declaration of that name the walk read last; and the gates an alias carries are those of the alias scopes visible where the site reads it, instead of every alias of the same spelling. A module's classification therefore no longer changes when another module's sources are added to or removed from the population. Sites that existed only through a same-named declaration in another module disappear from `findPortCatches`.
+- Updated dependencies [43f445d]
+- Updated dependencies [b9c6686]
+- Updated dependencies [f89d305]
+- Updated dependencies [32fdf20]
+- Updated dependencies [07f1e8c]
+- Updated dependencies [7392332]
+  - @endora-commerce/contracts@0.15.0
+
 ## 0.12.1
 
 ### Patch Changes
