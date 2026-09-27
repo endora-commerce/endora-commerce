@@ -278,14 +278,6 @@ const modules = [
   },
   {
     type: 'category',
-    label: 'KSeF', key: 'ksef',
-    link: { type: 'doc', id: 'modules/ksef' },
-    items: [
-      'module-reference/ksef',
-    ],
-  },
-  {
-    type: 'category',
     label: 'languages', key: 'languages',
     link: { type: 'doc', id: 'modules/languages' },
     items: [

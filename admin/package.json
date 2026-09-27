@@ -46,7 +46,6 @@
     "@endora-commerce/mod-inventory": "workspace:*",
     "@endora-commerce/mod-invoice-ledger": "workspace:*",
     "@endora-commerce/mod-invoices": "workspace:*",
-    "@endora-commerce/mod-ksef": "workspace:*",
     "@endora-commerce/mod-linkedin-ads": "workspace:*",
     "@endora-commerce/mod-megamenu": "workspace:*",
     "@endora-commerce/mod-meta-ads": "workspace:*",

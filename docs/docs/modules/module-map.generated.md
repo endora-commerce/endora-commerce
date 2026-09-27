@@ -53,7 +53,6 @@ of the platform, not of what happens to be written.
 | [inventory](./inventory.md) | Stock levels, reservations, availability notifications | @endora-commerce/mod-inventory |
 | [Invoice ledger](./invoice-ledger.md) | Shared vendor mutex, numbering and KSeF routing, and durable invoice deliveries for ledger adapters. | @endora-commerce/mod-invoice-ledger |
 | [invoices](./invoices.md) | PDF invoice / proforma generation + asset linkage | @endora-commerce/mod-invoices |
-| [KSeF](./ksef.md) | Krajowy System e-Faktur integration — FA(3) submission of issued invoices, KSeF numbers + UPO, certificate management | @endora-commerce/mod-ksef |
 | [languages](./languages.md) | Pool of supported BCP-47 language tags + translation-fallback helper | @endora-commerce/mod-languages |
 | [LinkedIn Ads](./linkedin-ads.md) | LinkedIn Insight Tag per sales channel, reporting storefront actions against Campaign Manager conversion rules | @endora-commerce/mod-linkedin-ads |
 | [Megamenu](./megamenu/index.md) | Configurable navigation tree with per-channel + per-language bindings | @endora-commerce/mod-megamenu |
