@@ -66,8 +66,6 @@
   "adminRoles.permission.inventory:write": "Manage stock and warehouses",
   "adminRoles.permission.invoices:read": "View invoices and download invoice PDFs",
   "adminRoles.permission.invoices:write": "Issue/correct invoices, edit templates, and configure invoicing",
-  "adminRoles.permission.ksef:read": "View KSeF status",
-  "adminRoles.permission.ksef:write": "Manage KSeF integration",
   "adminRoles.permission.linkedin_ads:read": "View LinkedIn Ads configuration",
   "adminRoles.permission.linkedin_ads:write": "Manage LinkedIn Ads configuration and conversion mappings",
   "adminRoles.permission.megamenu.read": "View megamenu",

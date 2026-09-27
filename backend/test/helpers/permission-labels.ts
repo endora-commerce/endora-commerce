@@ -293,7 +293,6 @@ export const LEGACY_PERMISSION_LABELS: Readonly<Record<string, number>> = {
   google_analytics: 2,
   inventory: 2,
   invoices: 2,
-  ksef: 2,
   linkedin_ads: 2,
   megamenu: 2,
   meta_ads: 2,

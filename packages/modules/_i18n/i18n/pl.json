@@ -66,8 +66,6 @@
   "adminRoles.permission.inventory:write": "Zarządzanie stanami i magazynami",
   "adminRoles.permission.invoices:read": "Podgląd faktur i pobieranie PDF faktur",
   "adminRoles.permission.invoices:write": "Wystawianie/korygowanie faktur, edycja szablonów i konfiguracja fakturowania",
-  "adminRoles.permission.ksef:read": "Podgląd statusu KSeF",
-  "adminRoles.permission.ksef:write": "Zarządzanie integracją KSeF",
   "adminRoles.permission.linkedin_ads:read": "Podgląd konfiguracji LinkedIn Ads",
   "adminRoles.permission.linkedin_ads:write": "Zarządzanie konfiguracją LinkedIn Ads i mapowaniem konwersji",
   "adminRoles.permission.megamenu.read": "Wyświetlanie megamenu",
