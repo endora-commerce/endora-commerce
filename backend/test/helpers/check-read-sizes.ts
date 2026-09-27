@@ -1346,6 +1346,18 @@ export interface RecordedReadSize {
  * one agrees on the base and drifts at the tip. The three walks already drift on the base by +1
  * and stay inside the band, so they are left to their owners. No band was widened and no figure
  * was computed from a delta.
+ *
+ * ## `specs/134-paid-module-extraction/` T068 + T115, 2026-09-27 — the comarch prologue
+ *
+ * Two detached worktrees, prepared identically and worked in nowhere else — `origin/master`
+ * `655a22edc` and this branch's tip — `scripts/setup-worktree.sh`, `pnpm run build:packages`, no
+ * `docs/docs/modules` copies, no untracked file. The base census is **36 drifted, 11 agree, 0 not
+ * measured, of 47**; the tip is **38 drifted, 9 agree**; both 240/240. Three dimensions agree on
+ * `master` and move at the tip, and are re-recorded to the tip's readings, each marked at its
+ * entry. The thirty-one that already drift on `master` and that this branch moves by a few files
+ * more (the fixture's two, one changeset, the relocated page), all inside the band, are left to
+ * their owners' re-record rather than folding somebody else's drift into this one. No band was
+ * widened and no figure was computed from a delta.
  */
 export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
   'backend/scripts/check-action-route-permissions.ts': {
@@ -7631,7 +7643,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_unopim` leaves): 249 -> 221.** the package's module page and its links. `master` already read 224 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 221 -> 219.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
     // **T055 (`pim_ergonode` leaves): 219 -> 217.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    sites: 217,
+    // **T068/T115 (comarch prologue): 217 -> 220.** Agrees on `master` (655a22edc) and moves with the second ERP fixture and the relocated comarch architecture page; measured on the pristine pair.
+    sites: 220,
     // Three authors, each seeing something the others cannot. `manifest-index`
     // is issue #215's shared floor over the module walk, whose unit is the
     // module's own directory. `sidebar-entries` is the **committed artefact's**
@@ -10214,7 +10227,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // integration files. No band widened, no value computed from a delta.
     // **T055 (`pim_ergonode` leaves): 877 -> 863.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: sites 863 -> 864.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
-    sites: 864,
+    // **T068/T115 (comarch prologue): 864 -> 865.** Agrees on `master` (655a22edc) and moves with the second ERP fixture and the relocated comarch architecture page; measured on the pristine pair.
+    sites: 865,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 86 -> 87.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -11453,7 +11467,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_ergonode` leaves): 1643 -> 1591.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: sites 1591 -> 1590, files 2121 -> 2120.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **T139 (`ledger_challenger_fixture` joins): 1590 -> 1592.** Agrees on `master` (c9da51e8d) and moves with the fixture's two files and the `infakt` mutex host test; measured on the pristine pair.
-    sites: 1592,
+    // **T068/T115 (comarch prologue): 1592 -> 1593.** Agrees on `master` (655a22edc) and moves with the second ERP fixture and the relocated comarch architecture page; measured on the pristine pair.
+    sites: 1593,
     // count moves with the file count here because the reaches that went are exactly
     // the files that went.
     // **T119a: sites 1870 -> 1861.** The same nine files, each the single relative
