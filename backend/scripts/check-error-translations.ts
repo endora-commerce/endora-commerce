@@ -331,12 +331,8 @@ export const UNTRANSLATED_ERROR_CODES: ReadonlySet<string> = new Set([
   // record is that module's and only the address one is this module's — even
   // though this module raises two of the four.
   'CUSTOMER_ADDRESS_NOT_FOUND', 'REGISTRATION_REQUIRES_ORGANIZATION',
-  // ksef (7) — re-homed from `_i18n` by D-129's sweep, MR 2 (Tier A). Membership
-  // is unchanged: none of the seven had a sentence in either language before the
-  // move and none has one after, so what moved is which module owes it.
-  'KSEF_ALREADY_SUBMITTED', 'KSEF_CREDENTIAL_EXISTS', 'KSEF_CREDENTIAL_INVALID',
-  'KSEF_ENROLLMENT_REJECTED', 'KSEF_NOT_CONFIGURED', 'KSEF_NOT_SUBMITTABLE',
-  'KSEF_UNAVAILABLE',
+  // ksef's seven, re-homed from `_i18n` by D-129's sweep (MR 2, Tier A), left the
+  // repository with the module (feature 134, T069).
   // mfa (2) — MR 4, and the two entries whose reason is not "nobody has written
   // it yet". Nothing in the tree raises either code, so the placeholder each
   // carried in `_i18n`'s bundle was deleted rather than rewritten: with no

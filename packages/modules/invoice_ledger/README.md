@@ -2,7 +2,7 @@
 
 # @endora-commerce/mod-invoice-ledger
 
-Shared invoice-ledger rails: vendor mutex, numbering and KSeF routing, deliveries, and document maps. Vendor HTTP lives in adapter modules such as Infakt.
+Shared invoice-ledger rails: vendor mutex, numbering and KSeF routing, deliveries, and document maps. Vendor HTTP lives in the vendor adapter modules.
 
 ## What this is
 

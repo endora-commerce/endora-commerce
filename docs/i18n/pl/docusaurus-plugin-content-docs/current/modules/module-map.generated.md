@@ -48,11 +48,9 @@ przypadkiem zostało napisane.
 | [Google Analytics](./google-analytics.md) | Google Analytics 4 dla sklepu — Measurement ID per kanał, Enhanced Ecommerce, builder zdarzeń niestandardowych i opcjonalny tagging po stronie serwera | @endora-commerce/mod-google-analytics |
 | [Google Tag Manager](./google-tag-manager.md) | Kontenery Google Tag Manager per kanał sprzedaży, z udokumentowanym commerce dataLayer i opcjonalnym relay po stronie serwera | @endora-commerce/mod-google-tag-manager |
 | [import_export](./import_export.md) | Import / eksport CSV dla encji bulk-edit | @endora-commerce/mod-import-export |
-| [Infakt](./infakt.md) | Cienki adapter Infakt na księdze faktur — poświadczenia, kopia VAT, webhooki i opcjonalny vendor KSeF. | @endora-commerce/mod-infakt |
 | [inventory](./inventory.md) | Poziomy stanów, rezerwacje, powiadomienia o dostępności | @endora-commerce/mod-inventory |
 | [Invoice ledger](./invoice-ledger.md) | Wspólny mutex dostawcy, numeracja i routing KSeF oraz trwałe dostarczenia faktur dla adapterów księgi. | @endora-commerce/mod-invoice-ledger |
 | [invoices](./invoices.md) | Generowanie PDF faktury / proformy + powiązanie z assetami | @endora-commerce/mod-invoices |
-| [KSeF](./ksef.md) | Integracja Krajowego Systemu e-Faktur — wysyłka FA(3) wystawionych faktur, numery KSeF + UPO, zarządzanie certyfikatami | @endora-commerce/mod-ksef |
 | [languages](./languages.md) | Pula obsługiwanych tagów językowych BCP-47 + helper fallback tłumaczeń | @endora-commerce/mod-languages |
 | [LinkedIn Ads](./linkedin-ads.md) | LinkedIn Insight Tag per kanał sprzedaży, raportowanie akcji sklepu względem reguł konwersji Campaign Manager | @endora-commerce/mod-linkedin-ads |
 | [Megamenu](./megamenu/index.md) | Konfigurowalne drzewo nawigacji z powiązaniami per kanał + per język | @endora-commerce/mod-megamenu |

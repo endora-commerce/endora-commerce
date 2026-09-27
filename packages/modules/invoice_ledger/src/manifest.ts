@@ -25,7 +25,7 @@ export const invoiceLedgerSettingsManifest = defineModuleSettingsManifest({
       code: INVOICE_LEDGER_SETTING_CODES.KSEF_ROUTING,
       name: 'KSeF submission routing',
       description:
-        'Native submits through the KSeF module. Vendor skips native enqueue even when the ledger adapter is off. Sales-channel value overrides the instance default.',
+        'Native leaves submission to the platform (a KSeF submission module, when one is installed). Vendor skips native enqueue even when the ledger adapter is off. Sales-channel value overrides the instance default.',
       groupCode: 'invoice_ledger',
       valueType: 'string',
       enumOptions: ['native', 'vendor'],
@@ -38,7 +38,7 @@ export const manifest = defineModuleManifest({
   id: 'invoice_ledger',
   name: 'Invoice ledger',
   description:
-    'Shared invoice-ledger rails: vendor mutex, numbering and KSeF routing, deliveries, and document maps. Vendor HTTP lives in adapter modules such as Infakt.',
+    'Shared invoice-ledger rails: vendor mutex, numbering and KSeF routing, deliveries, and document maps. Vendor HTTP lives in the vendor adapter modules.',
   version: '1.0.0',
   dependencies: ['settings', 'organizations', 'admin_users', 'sales_channels'],
   nonBindingDependencies: [
@@ -54,7 +54,7 @@ export const manifest = defineModuleManifest({
       moduleId: 'invoices',
       name: 'invoicePaidHostPort',
       kind: 'refuses-without',
-      whenAbsent: 'Webhook apply cannot stamp paid from Infakt while invoices is off.',
+      whenAbsent: 'Webhook apply cannot stamp an invoice paid from the vendor while invoices is off.',
       reason:
         'invoice_ledger is non-deactivatable, so invoices cannot be a hard dependency.',
     },
@@ -62,7 +62,7 @@ export const manifest = defineModuleManifest({
       moduleId: 'invoices',
       name: 'invoiceKsefAssignmentPort',
       kind: 'refuses-without',
-      whenAbsent: 'Webhook apply cannot record Infakt KSeF numbers while invoices is off.',
+      whenAbsent: 'Webhook apply cannot record a vendor-assigned KSeF number while invoices is off.',
       reason:
         'invoice_ledger is non-deactivatable, so invoices cannot be a hard dependency.',
     },
@@ -122,7 +122,7 @@ export const manifest = defineModuleManifest({
       icon: 'ClipboardList',
       targetRoute: '/invoice-ledger/deliveries',
       requiredPermission: INVOICE_LEDGER_READ_PERMISSION,
-      keywords: ['infakt', 'ledger', 'deliveries', 'invoices', 'faktury'],
+      keywords: ['ledger', 'deliveries', 'invoices', 'faktury'],
       weight: 245,
     },
   ],

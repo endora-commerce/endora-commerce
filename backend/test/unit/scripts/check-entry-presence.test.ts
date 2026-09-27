@@ -506,7 +506,6 @@ describe('the tree itself', () => {
     // split, which is why the split is what this list is measuring.
     for (const moduleId of [
       'price_lists',
-      'ksef',
       'search',
       'blog',
       'cms',

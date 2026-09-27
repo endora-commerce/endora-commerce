@@ -524,9 +524,9 @@ Dwa szczegóły, które check czyni explicite. **Warunkowy** re-throw
 (`catch (e) { if (rare) throw e; }`) to naruszenie: `ModuleDisabledError`
 rozszerza `HttpError`, więc test `statusCode === 409` przepuszcza go przez
 przypadek, a nie decyzję. A **callback timera** w ogóle nie może re-throw —
-sweep reconcile `ksef` pyta `effectiveState.isPresent` zanim startuje zamiast
-tego, co uwolniło jego `catch`, by logować prawdziwe awarie sweep, które wcześniej
-znikały obok odpowiedzi obecności.
+zamiast tego pyta `effectiveState.isPresent`, zanim wystartuje, co uwalnia jego
+`catch`, by logował prawdziwe awarie, które inaczej znikałyby obok odpowiedzi
+obecności.
 
 Jedna rzecz celowo dozwolona: `catch` może przekazać błąd **delegatowi, który go
 re-throwuje** — helper kończący na `throw <własny parametr>`

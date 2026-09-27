@@ -76,20 +76,22 @@ describe('the committed platform’s transitive tenancy chains', () => {
     expect(transitive.map((meta) => meta.className).sort()).toEqual([
       'Invoice',
       'InvoiceExternalAttachment',
-      'KsefSubmission',
     ]);
+    // `KsefSubmission` (`Invoice`'s chain, owned by a dependant) was a member
+    // too, until `ksef` left this repository (feature 134, T069). Its two-hop
+    // walk below is carried by `InvoiceExternalAttachment`, the one other class
+    // on the same chain.
 
     const invoice = transitive.find((meta) => meta.className === 'Invoice');
-    const submission = transitive.find((meta) => meta.className === 'KsefSubmission');
     const attachment = transitive.find(
       (meta) => meta.className === 'InvoiceExternalAttachment',
     );
     expect(invoice).toMatchObject({ parentClassName: 'Order', fk: 'orderId' });
-    expect(submission).toMatchObject({ parentClassName: 'Invoice', fk: 'invoiceId' });
     expect(attachment).toMatchObject({ parentClassName: 'Invoice', fk: 'invoiceId' });
 
-    // KsefSubmission -> Invoice -> Order, and Order carries the org column.
-    const middle = resolveTransitiveParent(submission!);
+    // InvoiceExternalAttachment -> Invoice -> Order, and Order carries the org
+    // column.
+    const middle = resolveTransitiveParent(attachment!);
     expect(middle.className).toBe('Invoice');
     const root = resolveTransitiveParent(middle);
     expect(root).toMatchObject({ className: 'Order', scope: 'org', key: 'organizationId' });

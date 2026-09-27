@@ -30,7 +30,7 @@ import {
  * ## What this file asserts that an off-state test cannot
  *
  * Constitution XVII item 6's five surfaces are asserted for these modules
- * already — `backend/test/integration/{cms,invoices,ksef}/off-state.test.ts`,
+ * already — `backend/test/integration/{cms,invoices}/off-state.test.ts`,
  * each through `expectModuleAbsent`, which is the argument
  * `check:off-state-coverage` keys on. They are not repeated here: two
  * derivations of one claim are two answers waiting to disagree, and the cms
@@ -46,11 +46,13 @@ import {
  *
  * ## Two owners, because they answer different halves
  *
- * `ksef` is a real, deactivatable, block-owning module and is the subject of the
- * descriptor assertions. It is also the one whose block a seeded document
- * genuinely carries: `invoices`' generic invoice template seeds
- * `ksef.InvoiceSection`, deliberately, and that is the accepted cost recorded in
- * T505 rather than something to repair.
+ * `invoices` is a real, deactivatable, block-owning module and is the subject of
+ * the descriptor assertions: its ten invoice-template blocks are in the served
+ * descriptor while it is present and leave it while it is off. Until feature
+ * 134 (T069) that subject was `ksef`, whose one block `ksef.InvoiceSection` was
+ * the case; `ksef` left this repository, and the same mechanism member is driven
+ * here over the staying owner of the section that block joined. Recovery:
+ * `git show f75de58e9:backend/test/integration/cms/block-owner-off-state.test.ts`.
  *
  * `test_ext` is the synthetic CMS-context owner, seeded into the registry cache
  * in the shape `check:off-state-coverage` recognises for a module a test builds
@@ -120,16 +122,6 @@ describe('a block whose owning module is switched off (FR-019, FR-020, SC-006)',
     return body.data.components.map((component) => component.name);
   }
 
-  async function sectionKeys(): Promise<string[]> {
-    const res = await h.app.inject({
-      method: 'GET',
-      url: '/api/v1/admin/cms/page-builder/config',
-      cookies: admin,
-    });
-    const body = res.json() as { data: { categories?: Array<{ key: string }> } };
-    return (body.data.categories ?? []).map((category) => category.key);
-  }
-
   it('spells the synthetic owner’s id as the fixture declares it', () => {
     expect(TEST_EXTENSION_ID).toBe(TEST_EXTENSION_MODULE_CODE);
     expect(TEST_EXTENSION_COMPONENT_NAME.startsWith(`${TEST_EXTENSION_ID}.`)).toBe(true);
@@ -166,24 +158,21 @@ describe('a block whose owning module is switched off (FR-019, FR-020, SC-006)',
   });
 
   it('withdraws a switched-off owner’s blocks from the palette and restores them (T604)', async () => {
-    expect(await descriptorNames()).toContain('ksef.InvoiceSection');
+    expect(await descriptorNames()).toContain('invoices.InvoiceHeader');
 
     // Axis 1 — the operator switched it off and the platform still offers it.
     // This is the case Constitution XVII names, and it is the one an operator
-    // creates: `ksef` ships with its activation control defaulting to `false`,
-    // so a shop that has not enrolled in KSeF is in exactly this state.
-    await withModuleOff('ksef', 'deactivated', async () => {
-      expect(await descriptorNames()).not.toContain('ksef.InvoiceSection');
-      // The section `ksef` joins is `invoices`', so it survives its joiner.
-      expect(await sectionKeys()).toContain('invoice');
+    // creates.
+    await withModuleOff('invoices', 'deactivated', async () => {
+      expect(await descriptorNames()).not.toContain('invoices.InvoiceHeader');
     });
-    expect(await descriptorNames()).toContain('ksef.InvoiceSection');
+    expect(await descriptorNames()).toContain('invoices.InvoiceHeader');
 
     // Axis 2 — the deployment does not offer the module at all.
-    await withModuleOff('ksef', 'platform-unavailable', async () => {
-      expect(await descriptorNames()).not.toContain('ksef.InvoiceSection');
+    await withModuleOff('invoices', 'platform-unavailable', async () => {
+      expect(await descriptorNames()).not.toContain('invoices.InvoiceHeader');
     });
-    expect(await descriptorNames()).toContain('ksef.InvoiceSection');
+    expect(await descriptorNames()).toContain('invoices.InvoiceHeader');
   });
 
   it('keeps the stored document byte-identical across the round trip (T603, SC-006)', async () => {

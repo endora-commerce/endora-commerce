@@ -162,20 +162,9 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       + 'meets when they retry a delivery that has already succeeded or is otherwise not in a '
       + 'retryable state. The noun is the ledger delivery, which `invoice_ledger` owns.',
   },
-  INFAKT_CONNECTION_FAILED: {
-    to: 'infakt',
-    reason:
-      'Minted with the Infakt adapter (feature 119) for the failure an operator meets when the '
-      + 'connection test cannot read the account details the stored API key should open. The '
-      + 'noun is the Infakt connection, which `infakt` owns.',
-  },
-  INFAKT_WEBHOOK_UNAUTHORIZED: {
-    to: 'infakt',
-    reason:
-      'Minted with the Infakt adapter (feature 119) for the refusal a webhook delivery meets '
-      + 'when its HMAC signature is missing or does not verify against the stored secret. The '
-      + 'noun is the Infakt ingress, which `infakt` owns.',
-  },
+  // `INFAKT_CONNECTION_FAILED` and `INFAKT_WEBHOOK_UNAUTHORIZED` were minted here with
+  // the Infakt adapter (feature 119) and left the repository with it (feature 134,
+  // T069); `ERROR_CODES` no longer holds them.
   // ---- Minted with the Comarch ERP XL connector (`specs/130-comarch-xl-sync/`). The
   // connector's own ten left with it for the paid repository (feature 134, T069); the
   // shared ERP layer's one stays.
@@ -263,68 +252,9 @@ export const REHOMED_ERROR_CODES: RehomedErrorCodes = {
   // `UNTRANSLATED_ERROR_CODES` under `_i18n` and is now on it under its own
   // module's group. Both modules already shipped an i18n bundle, and neither
   // bundle gains a key. `pim_ergonode`'s thirteen entries left with the module
-  // (feature 134, T055), which took the codes to the paid repository as its own;
-  // the frozen capture records their departure where they used to be.
-  KSEF_ALREADY_SUBMITTED: {
-    from: '_i18n',
-    to: 'ksef',
-    tier: 'T1',
-    reason:
-      'The noun is a KSeF submission, whose entity (`ksef_submissions`) and whole lifecycle ' +
-      'belong to `ksef`; the refusal is of a second filing of an invoice this module has ' +
-      'already sent.',
-  },
-  KSEF_CREDENTIAL_EXISTS: {
-    from: '_i18n',
-    to: 'ksef',
-    tier: 'T1',
-    reason:
-      'The noun is a KSeF credential, which `ksef` owns as `ksef_credentials`, one active ' +
-      'row per environment. The uniqueness it refuses is an invariant of that table and of ' +
-      'nothing outside this module.',
-  },
-  KSEF_CREDENTIAL_INVALID: {
-    from: '_i18n',
-    to: 'ksef',
-    tier: 'T1',
-    reason:
-      'Same noun and same owner as `KSEF_CREDENTIAL_EXISTS`: it refuses a certificate or ' +
-      'token that cannot be used against the configured KSeF environment.',
-  },
-  KSEF_ENROLLMENT_REJECTED: {
-    from: '_i18n',
-    to: 'ksef',
-    tier: 'T1',
-    reason:
-      'The noun is a KSeF certificate enrollment, a step of the KSeF protocol that `ksef` ' +
-      'performs and that no other module knows about.',
-  },
-  KSEF_NOT_CONFIGURED: {
-    from: '_i18n',
-    to: 'ksef',
-    tier: 'T1',
-    reason:
-      'It refuses the absence of a KSeF credential for the target environment, which is the ' +
-      'same noun as the two above, read rather than written.',
-  },
-  KSEF_NOT_SUBMITTABLE: {
-    from: '_i18n',
-    to: 'ksef',
-    tier: 'T1',
-    reason:
-      'The noun is the KSeF submission again: it refuses an invoice whose state does not ' +
-      'admit filing. The invoice belongs to `invoices`, but the judgement is about whether ' +
-      'KSeF will take it, and that belongs to `ksef`.',
-  },
-  KSEF_UNAVAILABLE: {
-    from: '_i18n',
-    to: 'ksef',
-    tier: 'T1',
-    reason:
-      'The noun is the KSeF service itself, and this module is the only thing in the ' +
-      'platform that talks to it; `KsefUnavailableError` in its client interface is the one ' +
-      'thing that produces the code.',
-  },
+  // (feature 134, T055), which took the codes to the paid repository as its own,
+  // and `ksef`'s seven left the same way (T069); the frozen capture records both
+  // departures where the codes used to be.
   // ---- Tier A, MR 3 of the sweep: the rest of the sentence-free block —
   // `prompt_actions` (6), `custom_fields` (5), `customers` (2),
   // `shopping_lists` (2), `price_lists` (1), `transactional_emails` (1).

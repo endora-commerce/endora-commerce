@@ -196,7 +196,7 @@ granicy API i referencjonowane z Settings przez typ wartości `credential_ref`.
 Konfiguruj je w **Panel admina → Credentials**. Zobacz
 [Credentials](../modules/credentials.md).
 
-Integracje vendor-specific (Stripe, TPay, PayU, Autopay, Google Analytics, KSeF, newsletter
+Integracje vendor-specific (Stripe, TPay, PayU, Autopay, Google Analytics, newsletter
 providers, wyszukiwania VIES / Biała lista) każda jest osobnym modułem z własnymi
 ustawieniami i powierzchnią admina — nie ma generycznego rejestru adapterów vendorów.
 

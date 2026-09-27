@@ -413,8 +413,6 @@ export interface BackendServerHandle {
      */
     loadAssetImage: InvoicesCradle['invoices']['handle']['loadAssetImage'];
   };
-  /** Feature 119 — drive the Infakt delivery processor (no BullMQ in this harness). */
-  infakt: { processDelivery: (deliveryId: string) => Promise<void> };
   /**
    * Feature 134 / D-256 — drive **any** composed ledger vendor's delivery
    * processor, by its container registration name.
@@ -2552,33 +2550,16 @@ export async function setupBackendServer(
 
       invoicesCradle = container.cradle as unknown as InvoicesCradle;
 
-      // Feature 059 — KSeF. No redis queue in tests (submissions are processed by
-      // driving `submissions.process(...)` directly); the sweep interval is off.
-      // Feature 072 (T104) — `ksef` owns its services and routes now.
-      // `ksefSellerNipResolver` was contributed here and is `ksef`'s own since
-      // `specs/117-instance-bring-up/` Phase 6 — this copy read the same
-      // setting through the same port and normalised the NIP the same way.
-      //
-      // `ksefTestOverrides` is **not** that, and went with it by accident in
-      // Phase 6 (8e86e55b5). The module registers the name with an empty
-      // default so that production takes its own cadence against the real API;
-      // this is the only composition that fills it, and without it every KSeF
-      // integration test built the **real** client and drove it at production
-      // polling — every submission reached `failed` carrying
-      // `KSEF_AUTH_REJECTED` from a live 400, rather than the fake's outcome.
-      // `ksefTestOverrides` is `ksef`'s own contribution now
-      // (`src/test-support/index.ts`): the sweep is off and the poll is three
-      // attempts 5 ms apart because this composition has no queue and drives
-      // `submissions.process(...)` directly, which is a fact about the module and
-      // not about this file. A test that scripts a client passes
-      // `registrations: { ksefTestOverrides: { clientFactory } }` and keeps the
-      // cadence, because the merge below is one level deep.
+      // Feature 059 — KSeF used to be composed and substituted here
+      // (`ksefTestOverrides`, the module's own `test-support` default); the module
+      // left this repository with its host tests (feature 134, T069), and the
+      // composition that fills that name is the paid host's now.
 
       // Feature 067 — Product Feed. Deliberately NO `redis` and NO `runWorkers`:
       // `setupBackendServer()` runs once per test file in a single fork, and adding
       // BullMQ connections here has previously taken ~225 files down with "too many
       // clients" (research §R18). Tests drive `productFeeds.generation.generateNow`
-      // directly, exactly as the KSeF tests drive `submissions.process`.
+      // directly, as the KSeF tests drove `submissions.process` before that module left.
       //
       // **This root contributes nothing to it either** (T118c). `productFeedsBridge`
       // was four members written twice, and the drain that deleted the interface
@@ -2783,14 +2764,6 @@ export async function setupBackendServer(
       numberGenerator: invoicesCradle.invoiceNumberGenerator,
       pdfRenderer: invoicesCradle.invoicePdfRenderer,
       loadAssetImage: invoicesCradle.invoices.handle.loadAssetImage,
-    },
-    infakt: {
-      processDelivery: (deliveryId: string) =>
-        (
-          container.cradle as unknown as {
-            infaktDeliveryProcessor: { process: (id: string) => Promise<void> };
-          }
-        ).infaktDeliveryProcessor.process(deliveryId),
     },
     ledgerDeliveryProcessor: (registrationName: string) => (deliveryId: string) =>
       (
