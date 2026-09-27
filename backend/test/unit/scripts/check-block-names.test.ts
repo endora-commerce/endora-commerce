@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { BLOCKS_WITHOUT_A_RENDERER, PREFIX } from '../../../scripts/check-block-names.js';
+import {
+  BLOCKS_WITHOUT_A_RENDERER,
+  PREFIX,
+  absentModuleRefusal,
+  parseAbsentModules,
+} from '../../../scripts/check-block-names.js';
 import {
   blockNameFindings,
   blockNameFindingsOfKind,
@@ -428,5 +433,36 @@ describe('check:block-names — the vacuous-pass proofs', () => {
     // refusal is what the reader is given.
     expect(blockNameRefusalOf({ declaredBlocks: 0, treeSites: 0 })?.kind).toBe('no-declared-block');
     expect(blockNameRefusalOf({})).toBeNull();
+  });
+});
+
+/**
+ * `--absent <id>` — the tree judged with a module **absent**, not switched off
+ * (`specs/134-paid-module-extraction/` T063; `contracts/extraction-procedure.md`
+ * W6). The run over the real tree is `check-block-names-absent.test.ts`; these
+ * are the flag's own two rules.
+ */
+describe('check:block-names — the absent harness', () => {
+  it('reads the flag in both spellings, repeated and comma-separated', () => {
+    expect(parseAbsentModules([])).toEqual([]);
+    expect(parseAbsentModules(['--absent', 'ksef'])).toEqual(['ksef']);
+    expect(parseAbsentModules(['--absent=ksef,infakt'])).toEqual(['infakt', 'ksef']);
+    expect(parseAbsentModules(['--absent', 'ksef', '--absent', 'ksef', '--absent=wfirma'])).toEqual([
+      'ksef',
+      'wfirma',
+    ]);
+  });
+
+  it('refuses a flag with no module id rather than judging the whole tree', () => {
+    expect(() => parseAbsentModules(['--absent'])).toThrow(/names no module/);
+    expect(() => parseAbsentModules(['--absent='])).toThrow(/names no module/);
+  });
+
+  it('refuses an id the manifest index does not register', () => {
+    // A typo would otherwise remove nothing and print the present tree's clean
+    // line under an `absent=` label — a vacuous pass of exactly the kind W6 is
+    // written against.
+    expect(absentModuleRefusal(['ksef'], ['invoices', 'ksef'])).toBeNull();
+    expect(absentModuleRefusal(['kseff'], ['invoices', 'ksef'])).toMatch(/`kseff`.*registers no such module/);
   });
 });

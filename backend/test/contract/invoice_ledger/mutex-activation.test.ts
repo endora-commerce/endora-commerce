@@ -1,10 +1,8 @@
-import { randomBytes } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CAPABILITY_KEYS, ERROR_CODES } from '@endora-commerce/contracts';
 import { effectiveState } from '@endora-commerce/platform/kernel';
 import { HttpError } from '@endora-commerce/platform/http';
-import { resolvedManifestEntries } from '../../../src/lifecycle/registered-manifests.js';
-import { ensureSalesChannel } from '../../helpers/sales-channel-fixtures.js';
+import { deploymentFamilyOf } from '../../helpers/capability-families.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -12,67 +10,113 @@ import {
 } from '../../helpers/test-server.js';
 
 /**
- * T079 / SC-008. Each ledger vendor's `refuse-when-sibling-ledger-vendor-active`
- * interceptor on POST `/api/v1/admin/modules/:id/activation`.
+ * T079 / SC-008 — `invoice_ledger`'s vendor mutex, as the free module's own
+ * **generic** contract (feature 134, T139, `research.md` D23 §2).
  *
- * Feature 132 — the shipped vendor family is **derived** from the members' own
- * manifest declarations rather than read off `INVOICE_LEDGER_MODULES`, which is
- * deleted. The `ledger_fixture` entry is still injected for the Infakt-only case
- * that needs a sibling whose presence is asserted rather than activated.
+ * `invoice-ledger-vendor` is an exclusive capability, and its refusal is split
+ * between two owners: `invoice_ledger` mints it (`assertCanActivate`), while the
+ * `refuse-when-sibling-ledger-vendor-active` interceptor that asks for it on
+ * `POST /api/v1/admin/modules/:id/activation` is **each member's own code**. So
+ * what this file proves is a property of a *pair*: for every ordered pair
+ * `(a, b)` of the declared family, with `b` operator-active, `a`'s activation is
+ * refused naming `b` — on the route, which reaches `a`'s interceptor, and on the
+ * live port. One member gives zero pairs (D13 §6).
  *
- * ## The second **real** member is `ledger_vendor_fixture` — feature 134, D-256
+ * ## The family is derived, and no vendor is named here
  *
- * This file is `invoice_ledger`'s own contract, so it stays here when a vendor
- * leaves; what it needs and cannot own is a second real member, because half of
- * what it proves is that the interceptor sits on **each member's** route rather
- * than only on the one the family was built with. That second member was
- * `wfirma` until 2026-09-21 and is now the example deployment's synthetic
- * vendor, on the same re-pointing `deliveries.test.ts` and
- * `historical-remote-id.test.ts` already took.
+ * The population is the `example` deployment's resolved manifest set, filtered
+ * by the capability key — never a written-down list (D-100). `deployment:
+ * 'example'` is load-bearing twice: it composes the overlay fixtures, and an
+ * overlay module's capability declaration is invisible to a resolution taken
+ * under any other deployment. Every packaged ledger vendor is a paid module
+ * leaving this repository (wave 4), so the guard below asks that the members the
+ * deployment declares **itself** form a pair on their own — the shape
+ * `integration/pim_connector/*` took for the PIM family (T113). Without that, a
+ * departure would turn this file vacuous on `master`, where no merge-request
+ * pipeline runs the contract tree (D-198).
  *
- * `deployment: 'example'` is therefore load-bearing twice over: it composes the
- * fixture, and it is the value `shippedLedgerVendors` derives the family under —
- * an overlay module's capability declaration is invisible to a resolution taken
- * under any other deployment, which is why the env is passed rather than read.
+ * The `infakt`-specific cases — its own activation and its channel API key save —
+ * live in `../infakt/mutex-activation.test.ts`, a host file that leaves with the
+ * package.
+ *
+ * ## The injected sibling is a different property
+ *
+ * The harness's `invoiceLedgerVendorModules` option adds a sibling the registry
+ * knows only by **injection** — no manifest, no route, no interceptor. It proves
+ * that the registry refuses on behalf of a sibling it was handed, which the
+ * declared pairs cannot, and it is kept for that reason alone.
  */
 
 const DEPLOYMENT = 'example';
 const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
-const INFAKT_ACTIVATION_URL = '/api/v1/admin/modules/infakt/activation';
-const FIXTURE_VENDOR_ID = 'ledger_vendor_fixture';
-const FIXTURE_ACTIVATION_URL = `/api/v1/admin/modules/${FIXTURE_VENDOR_ID}/activation`;
-const CHANNEL_API_KEY = 'infakt-mutex-channel-key-008';
-const LEDGER_FIXTURE = {
+const INJECTED_SIBLING = {
   id: 'ledger_fixture',
   activationSettingCode: 'ledger_fixture.activation',
 } as const;
 
+const FAMILY = await deploymentFamilyOf(CAPABILITY_KEYS.INVOICE_LEDGER_VENDOR, DEPLOYMENT);
+
+const ORDERED_PAIRS: ReadonlyArray<readonly [string, string]> = FAMILY.members.flatMap((a) =>
+  FAMILY.members.filter((b) => b !== a).map((b) => [a, b] as const),
+);
+
+const activationUrl = (moduleId: string): string =>
+  `/api/v1/admin/modules/${moduleId}/activation`;
+
 const extraActive = new Set<string>();
 
-/** The vendors this tree ships, from their own declarations. Never a written-down list (D-100). */
-async function shippedLedgerVendors(): Promise<readonly { id: string }[]> {
-  const entries = await resolvedManifestEntries({ ...process.env, DEPLOYMENT });
-  const vendors = entries
-    .filter((entry) =>
-      (entry.manifest.capabilities ?? []).includes(CAPABILITY_KEYS.INVOICE_LEDGER_VENDOR),
-    )
-    .map((entry) => ({ id: entry.manifest.id }));
-  expect(vendors.length, 'the derived ledger family must not be empty').toBeGreaterThan(0);
-  return vendors;
+function expectAlreadyActive(error: unknown, activeModuleId: string): true {
+  expect(error).toBeInstanceOf(HttpError);
+  const httpError = error as HttpError;
+  expect(httpError.statusCode).toBe(409);
+  expect(httpError.code).toBe(ERROR_CODES.INVOICE_LEDGER_VENDOR_ALREADY_ACTIVE);
+  expect(httpError.details).toEqual({ activeModuleId });
+  expect(httpError.details).not.toHaveProperty('salesChannelId');
+  return true;
 }
 
-describe('invoice_ledger — vendor mutex [contract]', () => {
+describe('invoice_ledger — vendor mutex over every ordered pair [contract]', () => {
   let h: BackendServerHandle;
-  let channelId: string;
+
+  async function setActive(moduleId: string, active: boolean): Promise<void> {
+    const res = await h.app.inject({
+      method: 'POST',
+      url: activationUrl(moduleId),
+      ...ADMIN,
+      payload: { active },
+    });
+    expect(
+      res.statusCode,
+      `${active ? 'activating' : 'deactivating'} '${moduleId}': ${res.body}`,
+    ).toBe(200);
+  }
+
+  /** Deactivation is never refused by the exclusion seam (R2.4), so this always clears. */
+  async function familyOff(): Promise<void> {
+    for (const member of FAMILY.members) await setActive(member, false);
+  }
+
+  async function expectRouteRefusal(moduleId: string, activeModuleId: string): Promise<void> {
+    const refused = await h.app.inject({
+      method: 'POST',
+      url: activationUrl(moduleId),
+      ...ADMIN,
+      payload: { active: true },
+    });
+    expect(refused.statusCode, refused.body).toBe(409);
+    const body = refused.json() as {
+      error: { code: string; details?: { activeModuleId?: string; salesChannelId?: string } };
+    };
+    expect(body.error.code).toBe(ERROR_CODES.INVOICE_LEDGER_VENDOR_ALREADY_ACTIVE);
+    expect(body.error.details?.activeModuleId).toBe(activeModuleId);
+    expect(body.error.details).not.toHaveProperty('salesChannelId');
+  }
 
   beforeAll(async () => {
-    process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] =
-      process.env['SETTINGS_SECRET_ENCRYPTION_KEY'] ?? randomBytes(32).toString('base64');
     extraActive.clear();
-    const vendors = await shippedLedgerVendors();
     h = await setupBackendServer({
       deployment: DEPLOYMENT,
-      invoiceLedgerVendorModules: [...vendors, LEDGER_FIXTURE],
+      invoiceLedgerVendorModules: [...FAMILY.members.map((id) => ({ id })), INJECTED_SIBLING],
       invoiceLedgerPresence: {
         isOperatorActivated(moduleId) {
           if (extraActive.has(moduleId)) return true;
@@ -80,169 +124,88 @@ describe('invoice_ledger — vendor mutex [contract]', () => {
         },
       },
     });
-    // The harness seeds every module operator-active, and the suite shares one
-    // database, so a member left on by an earlier file is a real state rather
-    // than a hypothetical one. Every member off first — over the derived family,
-    // so no sibling is named here and a fifth vendor is handled by existing
-    // (D-100). Infakt is then switched on by the first case, as the Phase 2
-    // checkpoint has it.
-    for (const vendor of vendors) {
-      const off = await h.app.inject({
-        method: 'POST',
-        url: `/api/v1/admin/modules/${vendor.id}/activation`,
-        ...ADMIN,
-        payload: { active: false },
-      });
-      expect(off.statusCode, `deactivating '${vendor.id}': ${off.body}`).toBe(200);
-    }
-    channelId = (await ensureSalesChannel(h.em(), 'il-mutex-ch')).id;
+    // The harness seeds every module operator-active and the suite shares one
+    // database, so a member left on by an earlier file is a real state.
+    await familyOff();
   }, 60_000);
 
   afterAll(async () => {
     extraActive.clear();
+    // Leave the family clear for whatever file runs next against this database.
+    await familyOff();
     await teardownBackendServer(h);
   });
 
-  it('activates Infakt through the interceptor when no sibling is operator-active', async () => {
+  it('the deployment declares a pair of ledger vendors of its own (D23 §2)', () => {
+    // Exclusion is a property of a pair, and one member gives zero pairs. The
+    // overlay members are the ones that stay when every packaged vendor has left
+    // this repository, so they must form a pair on their own.
+    expect(
+      FAMILY.members.length,
+      'research.md D23 §2 — the declared invoice-ledger-vendor family needs two members',
+    ).toBeGreaterThanOrEqual(2);
+    expect(
+      FAMILY.overlay.length,
+      'research.md D23 §2 — the example deployment must declare two ledger vendors itself',
+    ).toBeGreaterThanOrEqual(2);
+    expect(ORDERED_PAIRS).toHaveLength(FAMILY.members.length * (FAMILY.members.length - 1));
+  });
+
+  it.each(FAMILY.members)('activates %s when no sibling is operator-active', async (member) => {
+    await familyOff();
     const res = await h.app.inject({
       method: 'POST',
-      url: INFAKT_ACTIVATION_URL,
+      url: activationUrl(member),
       ...ADMIN,
       payload: { active: true },
     });
     expect(res.statusCode, res.body).toBe(200);
-    expect(res.json()).toMatchObject({
-      module: { id: 'infakt', activated: true, present: true },
-    });
+    expect(res.json()).toMatchObject({ module: { id: member, activated: true, present: true } });
+    await setActive(member, false);
   });
 
-  it('assertCanActivate(ledger_fixture) on the live port names Infakt (FR-003)', async () => {
-    await expect(h.invoiceLedgerRegistry.assertCanActivate('ledger_fixture')).rejects.toSatisfy(
-      (error: unknown) => {
-        expect(error).toBeInstanceOf(HttpError);
-        const httpError = error as HttpError;
-        expect(httpError.statusCode).toBe(409);
-        expect(httpError.code).toBe(ERROR_CODES.INVOICE_LEDGER_VENDOR_ALREADY_ACTIVE);
-        expect(httpError.details).toEqual({ activeModuleId: 'infakt' });
-        expect(httpError.details).not.toHaveProperty('salesChannelId');
-        return true;
-      },
-    );
-  });
-
-  it('saves a second Infakt channel API key while Infakt is the instance vendor', async () => {
-    const saved = await h.app.inject({
-      method: 'PUT',
-      url: `/api/v1/admin/infakt/connection/channels/${channelId}`,
-      ...ADMIN,
-      payload: { apiKey: CHANNEL_API_KEY, environment: 'sandbox' },
-    });
-    expect(saved.statusCode, saved.body).toBe(200);
-    const view = (
-      saved.json() as {
-        data: {
-          channelOverrides: Array<{ salesChannelId: string; apiKeyLastFour: string | null }>;
-        };
+  it.each(ORDERED_PAIRS)(
+    'refuses activating %s while %s is operator-active — route and live port',
+    async (subject, incumbent) => {
+      await familyOff();
+      await setActive(incumbent, true);
+      try {
+        await expectRouteRefusal(subject, incumbent);
+        await expect(h.invoiceLedgerRegistry.assertCanActivate(subject)).rejects.toSatisfy(
+          (error: unknown) => expectAlreadyActive(error, incumbent),
+        );
+        expect(effectiveState.presence(subject)?.operatorActivated).toBe(false);
+      } finally {
+        await setActive(incumbent, false);
       }
-    ).data;
-    expect(view.channelOverrides).toEqual([
-      expect.objectContaining({
-        salesChannelId: channelId,
-        apiKeyLastFour: CHANNEL_API_KEY.slice(-4),
-      }),
-    ]);
-    expect(JSON.stringify(saved.json())).not.toContain(CHANNEL_API_KEY);
-  });
+    },
+  );
 
-  it('POST Infakt activate 409s when the test sibling is operator-active', async () => {
-    const off = await h.app.inject({
-      method: 'POST',
-      url: INFAKT_ACTIVATION_URL,
-      ...ADMIN,
-      payload: { active: false },
-    });
-    expect(off.statusCode, off.body).toBe(200);
+  it.each(FAMILY.members)(
+    'refuses activating %s while the injected sibling is operator-active',
+    async (member) => {
+      await familyOff();
+      extraActive.add(INJECTED_SIBLING.id);
+      try {
+        await expectRouteRefusal(member, INJECTED_SIBLING.id);
+      } finally {
+        extraActive.delete(INJECTED_SIBLING.id);
+      }
+    },
+  );
 
-    extraActive.add('ledger_fixture');
-
-    const refused = await h.app.inject({
-      method: 'POST',
-      url: INFAKT_ACTIVATION_URL,
-      ...ADMIN,
-      payload: { active: true },
-    });
-    expect(refused.statusCode, refused.body).toBe(409);
-    const body = refused.json() as {
-      error: { code: string; details?: { activeModuleId?: string; salesChannelId?: string } };
-    };
-    expect(body.error.code).toBe(ERROR_CODES.INVOICE_LEDGER_VENDOR_ALREADY_ACTIVE);
-    expect(body.error.details?.activeModuleId).toBe('ledger_fixture');
-    expect(body.error.details).not.toHaveProperty('salesChannelId');
-
-    extraActive.delete('ledger_fixture');
-  });
-
-  it('POST the second vendor activate 409s when Infakt is operator-active', async () => {
-    const infaktOn = await h.app.inject({
-      method: 'POST',
-      url: INFAKT_ACTIVATION_URL,
-      ...ADMIN,
-      payload: { active: true },
-    });
-    expect(infaktOn.statusCode, infaktOn.body).toBe(200);
-
-    const refused = await h.app.inject({
-      method: 'POST',
-      url: FIXTURE_ACTIVATION_URL,
-      ...ADMIN,
-      payload: { active: true },
-    });
-    expect(refused.statusCode, refused.body).toBe(409);
-    const body = refused.json() as {
-      error: { code: string; details?: { activeModuleId?: string; salesChannelId?: string } };
-    };
-    expect(body.error.code).toBe(ERROR_CODES.INVOICE_LEDGER_VENDOR_ALREADY_ACTIVE);
-    expect(body.error.details?.activeModuleId).toBe('infakt');
-    expect(body.error.details).not.toHaveProperty('salesChannelId');
-  });
-
-  it('POST Infakt activate 409s when the second vendor is operator-active', async () => {
-    await h.app.inject({
-      method: 'POST',
-      url: INFAKT_ACTIVATION_URL,
-      ...ADMIN,
-      payload: { active: false },
-    });
-
-    const fixtureOn = await h.app.inject({
-      method: 'POST',
-      url: FIXTURE_ACTIVATION_URL,
-      ...ADMIN,
-      payload: { active: true },
-    });
-    expect(fixtureOn.statusCode, fixtureOn.body).toBe(200);
-
-    const refused = await h.app.inject({
-      method: 'POST',
-      url: INFAKT_ACTIVATION_URL,
-      ...ADMIN,
-      payload: { active: true },
-    });
-    expect(refused.statusCode, refused.body).toBe(409);
-    const body = refused.json() as {
-      error: { code: string; details?: { activeModuleId?: string; salesChannelId?: string } };
-    };
-    expect(body.error.code).toBe(ERROR_CODES.INVOICE_LEDGER_VENDOR_ALREADY_ACTIVE);
-    expect(body.error.details?.activeModuleId).toBe(FIXTURE_VENDOR_ID);
-    expect(body.error.details).not.toHaveProperty('salesChannelId');
-
-    // Leave the family clear for whatever file runs next against this database.
-    const fixtureOff = await h.app.inject({
-      method: 'POST',
-      url: FIXTURE_ACTIVATION_URL,
-      ...ADMIN,
-      payload: { active: false },
-    });
-    expect(fixtureOff.statusCode, fixtureOff.body).toBe(200);
-  });
+  it.each(FAMILY.members)(
+    'assertCanActivate(injected sibling) on the live port names %s while it is active (FR-003)',
+    async (member) => {
+      await familyOff();
+      await setActive(member, true);
+      try {
+        await expect(
+          h.invoiceLedgerRegistry.assertCanActivate(INJECTED_SIBLING.id),
+        ).rejects.toSatisfy((error: unknown) => expectAlreadyActive(error, member));
+      } finally {
+        await setActive(member, false);
+      }
+    },
+  );
 });

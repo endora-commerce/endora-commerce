@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Puck, type Data } from '@measured/puck';
 import '@measured/puck/puck.css';
@@ -7,7 +7,13 @@ import { Alert, AlertDescription, Button, Card, CardContent, PageHeader, SaveBut
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { PageBuilderHeaderActions } from '@endora-commerce/page-builder-admin';
 import { PageBuilderOverlayBridge } from '@endora-commerce/page-builder-admin';
+import { countBlockNames } from '@endora-commerce/page-builder-core';
 import { invoicePuckConfig, invoicePuckPalette } from '../templates/invoice-puck-config.js';
+import {
+  withDescribedInvoiceBlocks,
+  type DescribedBlockText,
+  type InvoiceBuilderDescriptor,
+} from '../templates/described-blocks.js';
 import { createInvoiceBuilderEditorPlugin } from '../templates/invoice-builder-plugin.js';
 
 interface TemplateDetail {
@@ -30,11 +36,12 @@ const API_BASE = apiBaseUrl;
 const invoiceBuilderPlugin = createInvoiceBuilderEditorPlugin();
 
 /**
- * The config Puck renders: the namespaced renderer map plus its one derived
- * section (feature 096, T303). Built once at module scope because both halves
- * are constants.
+ * This module's own config: the namespaced renderer map plus its one derived
+ * section (feature 096, T303). The config Puck renders is this merged with the
+ * served descriptor and the stored document's names
+ * (`withDescribedInvoiceBlocks`, `specs/134-paid-module-extraction/` T138).
  */
-const puckConfig = { ...invoicePuckConfig, categories: invoicePuckPalette };
+const localConfig = { ...invoicePuckConfig, categories: invoicePuckPalette };
 
 /**
  * Fill missing props from each component's `defaultProps`. Persisted trees
@@ -69,6 +76,47 @@ export function InvoiceTemplateEditor(): ReactNode {
   const [fullscreen, setFullscreen] = useState(false);
   const [canvasEpoch, setCanvasEpoch] = useState(0);
   const [previewBusy, setPreviewBusy] = useState(false);
+  /**
+   * The served descriptor — `null` until it arrives or when it cannot be
+   * fetched, in which case the editor keeps its own blocks and gives every
+   * stored block it cannot render a placeholder; it never drops a node (T138).
+   */
+  const [descriptor, setDescriptor] = useState<InvoiceBuilderDescriptor | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiClient
+      .get<{ data: InvoiceBuilderDescriptor }>('/api/v1/admin/invoice-templates/page-builder/config')
+      .then((res) => {
+        if (!cancelled) setDescriptor(res.data);
+      })
+      .catch(() => {
+        if (!cancelled) setDescriptor(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Keyed on the sorted set of stored names, as the CMS editor's merge is: a
+  // keystroke moves the document, not the names, so typing does not rebuild
+  // the Puck config.
+  const storedNamesKey = [...countBlockNames(draft).keys()].sort().join('\n');
+  const puckConfig = useMemo(() => {
+    const text: DescribedBlockText = {
+      standIn: ({ label, owner }) => t('invoiceTemplates.describedBlock.standIn', { label, owner }),
+      placeholder: ({ owner, name }) =>
+        owner === null
+          ? t('invoiceTemplates.describedBlock.placeholderNoOwner', { name })
+          : t('invoiceTemplates.describedBlock.placeholder', { owner }),
+    };
+    return withDescribedInvoiceBlocks(
+      localConfig,
+      descriptor,
+      storedNamesKey === '' ? [] : storedNamesKey.split('\n'),
+      text,
+    );
+  }, [descriptor, storedNamesKey, t]);
 
   useEffect(() => {
     if (!fullscreen) return undefined;

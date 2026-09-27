@@ -116,6 +116,22 @@ export class Invoice {
   @Property({ type: 'json', nullable: true })
   buyerSnapshot?: InvoiceBuyer | null;
 
+  /**
+   * The invoice's number in KSeF and when KSeF processed it — **this module's
+   * columns, and staying here** (`specs/134-paid-module-extraction/` T067).
+   *
+   * KSeF is Poland's statutory e-invoicing clearing system, not a vendor.
+   * Whether and when an invoice reached it is a fact about the invoice, written
+   * by whichever module delivered it: the `ksef` module submitting directly
+   * (`recordKsefAssignment`), or an accounting vendor behind `invoice_ledger`
+   * submitting on the operator's behalf (`invoiceKsefAssignmentPort`). An
+   * operator's own finance system reads the same fields through the invoice API.
+   *
+   * The `ksef` prefix names the clearing system, not the module of that name,
+   * so these are not coupling to it and do not leave with it. Do not move,
+   * rename or drop them to "finish" that module's extraction;
+   * `packages/contracts/src/statutory-ksef-state.test.ts` is the guard.
+   */
   @Property({ type: 'string', length: 128, nullable: true })
   ksefReferenceNumber?: string | null;
 

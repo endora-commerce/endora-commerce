@@ -441,20 +441,14 @@ credentials, przełącz environment na production i zarejestruj callback URL —
 
 ### F5. KSeF, gdy klient fakturuje w Polsce
 
-**Dlaczego.** Platforma zapisuje, czy i jak faktura dotarła do KSeF — moduł Invoices przechowuje
-numer referencyjny KSeF i czas przetworzenia, a ustawienie `invoice_ledger.ksef.routing` rejestru
-faktur mówi, czy wysyłka jest natywna, czy zostawiona dostawcy rejestru — ale samą wysyłkę wykonuje
-moduł instalowany osobno: moduł `ksef` albo dostawca rejestru, który wysyła w imieniu klienta.
-Moduł wysyłki jest dostarczany wyłączony i skierowany na środowisko testowe KSeF — właściwy
-default — błędnie skonfigurowane production submission jest prawnie wiążące. Wejście live to więc
-świadomy akt. Klient, który nie fakturuje w Polsce, pomija ten punkt.
+**Dlaczego.** Moduł `ksef` domyślnie ustawia `ksef.integration.enabled` na `false`, a environment na
+`test` (`packages/modules/ksef/src/manifest.ts`) — właściwy default — błędnie skonfigurowane
+production submission jest prawnie wiążące. Wejście live to więc świadomy akt.
 
-**Zrób (operator).** Zdecyduj, która ścieżka wysyła, i ustaw `invoice_ledger.ksef.routing`
-zgodnie z nią. Skonfiguruj moduł wysyłający najpierw na środowisku testowym KSeF — credentials albo
-certyfikaty, potem sprawdzenie połączenia — i dopiero wtedy przełącz go na produkcję i włącz.
+**Zrób (operator).** Zainstaluj i skonfiguruj moduł na `/ksef`: wgraj albo wygeneruj certyfikaty,
+zweryfikuj połączenie w `test`, potem przełącz environment na `prod` i włącz integrację.
 
-**Zweryfikuj.** Jedna faktura wysłana na środowisku testowym i zaakceptowana, zanim przełączysz
-environment.
+**Zweryfikuj.** Jedna faktura wysłana w `test` i zaakceptowana, zanim przełączysz environment.
 
 ---
 

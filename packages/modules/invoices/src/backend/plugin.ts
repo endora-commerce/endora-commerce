@@ -12,6 +12,7 @@ import { InvoiceService, type InvoiceAuditRecorder } from './services/invoice-se
 import type { LedgerNumberingLookup } from './services/vendor-number-hold.js';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { InvoicePdfRenderer } from './services/invoice-pdf-renderer.js';
+import type { InvoicePdfBlockRegistry } from './services/invoice-pdf-block-registry.js';
 import type { LoadAssetImage } from './pdf-components/embed-logo-images.js';
 import { InvoiceNumberGenerator, createSettingsPatternResolver } from './services/invoice-number-generator.js';
 import { SellerSettingsResolver, type SettingsReader } from './services/seller-settings.js';
@@ -95,6 +96,12 @@ export interface InvoicesModuleOptions {
   loadAssetImage: LoadAssetImage;
   /** Mode B wait. Absent ledger degrades to today's ready path. */
   ledgerRouting?: LedgerNumberingLookup;
+  /**
+   * The blocks other modules render onto the PDF (`specs/134-paid-module-extraction/`
+   * T063/T126) — this module's own `invoicePdfBlockRegistry`, which contributors
+   * push into from their composition roots.
+   */
+  pdfBlocks: InvoicePdfBlockRegistry;
 }
 
 export interface InvoicesModuleHandle {
@@ -143,7 +150,10 @@ export function invoicesModule(options: InvoicesModuleOptions): {
     },
     options.ledgerRouting,
   );
-  const pdfRenderer = new InvoicePdfRenderer({ loadAssetImage: options.loadAssetImage });
+  const pdfRenderer = new InvoicePdfRenderer({
+    loadAssetImage: options.loadAssetImage,
+    blocks: options.pdfBlocks,
+  });
   const templateService = new InvoiceTemplateService(options.emFactory, options.auditLog);
 
   // T118c — built unconditionally. The three inputs used to be optional bridge

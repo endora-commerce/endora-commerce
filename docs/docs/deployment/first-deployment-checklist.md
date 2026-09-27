@@ -449,21 +449,15 @@ reaches the paid state from the provider's callback — not from a manual status
 
 ### F5. KSeF, if the client invoices in Poland
 
-**Why.** The platform records whether and how an invoice reached KSeF — the Invoices module
-stores the KSeF reference number and processing time, and the invoice ledger's
-`invoice_ledger.ksef.routing` setting says whether submission is native or left to a ledger
-vendor — but the submission itself is made by a module installed separately: the `ksef` module,
-or a ledger vendor that submits on the client's behalf. A submission module ships switched off
-and pointed at the KSeF test environment, which is the right default — a misconfigured
-production submission is legally binding. Going live is therefore a deliberate act. A client that
-does not invoice in Poland skips this item.
+**Why.** The `ksef` module defaults `ksef.integration.enabled` to `false` and its environment to
+`test` (`packages/modules/ksef/src/manifest.ts`), which is the right default — a misconfigured
+production submission is legally binding. Going live is therefore a deliberate act.
 
-**Do (operator).** Decide which path submits, and set `invoice_ledger.ksef.routing` to match.
-Configure the submitting module against the KSeF test environment first — credentials or
-certificates, then a connection check — and only then switch it to production and enable it.
+**Do (operator).** Install and configure the module on `/ksef`: upload or generate the
+certificates, verify the connection in `test`, then switch the environment to `prod` and enable
+the integration.
 
-**Verify.** One invoice submitted in the test environment and accepted, before the environment is
-switched.
+**Verify.** One invoice submitted in `test` and accepted, before the environment is switched.
 
 ---
 

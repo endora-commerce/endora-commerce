@@ -311,9 +311,9 @@ export const DERIVED_FACTS_IN_PROSE: Readonly<Record<string, ProseLedgerEntry>> 
     'a template telling an author where to put a file. It spelled ' +
     '`backend/src/modules/<id>/` until F4 closed, which is the whole argument: the layout ' +
     'is derived and a page that restates it goes stale in silence.',
-  // Feature 134 / T068 — two entries drained by repair: the F4 gateway and F5 KSeF
-  // sentences cited `payu`'s, `tpay`'s and `ksef`'s manifests by address and were
-  // rewritten to describe what the free platform does, naming no manifest path.
+  // Feature 134 / T068 — one entry drained by repair: the F4 gateway sentence cited
+  // `payu`'s and `tpay`'s manifests by address and was rewritten to describe what the
+  // free platform does, naming no manifest path. F5's `ksef` entry is T142's.
   'deployment/first-deployment-checklist#0ad6acda':
     'cites `packages/modules/orders/src/manifest.ts` by address. The file is real and the ' +
     'sentence is worth keeping; the repair is to name the module and the file rather than ' +
@@ -347,6 +347,10 @@ export const DERIVED_FACTS_IN_PROSE: Readonly<Record<string, ProseLedgerEntry>> 
     'cites `packages/modules/dictionaries/src/backend/index.ts` by address. The file is ' +
     'real and the sentence is worth keeping; the repair is to name the module and the ' +
     'file rather than the path.',
+  'deployment/first-deployment-checklist#77daf6d5':
+    'cites `packages/modules/ksef/src/manifest.ts` by address. The file is real and the ' +
+    'sentence is worth keeping; the repair is to name the module and the file rather than ' +
+    'the path.',
   'deployment/first-deployment-checklist#f4382a7b':
     'cites `packages/modules/invoices/src/manifest.ts` by address. The file is real and ' +
     'the sentence is worth keeping; the repair is to name the module and the file rather ' +

@@ -218,6 +218,8 @@ type HeaderProps = {
   labelSaleDate?: string;
   labelPaymentDue?: string;
   labelPaymentMethod?: string;
+  /** The KSeF number row's label (T137). There is no show/hide prop by design. */
+  labelKsefNumber?: string;
   marginTop?: number;
   marginBottom?: number;
 };
@@ -237,6 +239,7 @@ const InvoiceHeader = invoiceSection({
     labelSaleDate: { type: 'text', label: 'Sale date label' },
     labelPaymentDue: { type: 'text', label: 'Payment due label' },
     labelPaymentMethod: { type: 'text', label: 'Payment method label' },
+    labelKsefNumber: { type: 'text', label: 'KSeF number label' },
     marginTop: { type: 'number', label: 'Margin top (px)' },
     marginBottom: { type: 'number', label: 'Margin bottom (px)' },
   },
@@ -824,87 +827,6 @@ const InvoiceNotes = invoiceSection({
 }) as ComponentConfig<TextBlockProps>;
 
 /* -------------------------------------------------------------------------- */
-/* InvoiceKsef                                                                */
-/* -------------------------------------------------------------------------- */
-
-type KsefProps = {
-  fontSize?: number;
-  color?: string;
-  showProcessedAt?: boolean;
-  hideWhenEmpty?: boolean;
-  labelNumber?: string;
-  labelProcessedAt?: string;
-  marginTop?: number;
-  marginBottom?: number;
-};
-
-const InvoiceKsef = invoiceSection({
-  label: 'KSeF verification',
-  fields: {
-    fontSize: { type: 'number', label: 'Font size' },
-    color: createColorField({ label: 'Text color' }),
-    showProcessedAt: radio('Show processed at'),
-    hideWhenEmpty: radio('Hide when empty'),
-    labelNumber: { type: 'text', label: 'Number label' },
-    labelProcessedAt: { type: 'text', label: 'Processed at label' },
-    marginTop: { type: 'number', label: 'Margin top (px)' },
-    marginBottom: { type: 'number', label: 'Margin bottom (px)' },
-  },
-  defaultProps: {
-    fontSize: 8,
-    color: '#0f172a',
-    showProcessedAt: true,
-    hideWhenEmpty: true,
-    labelNumber: 'KSeF number',
-    labelProcessedAt: 'KSeF processed at',
-    marginTop: 8,
-    marginBottom: 0,
-  },
-  render: (props) => {
-    const inv = sampleInvoice;
-    const fontSize = asNum(props.fontSize, 8);
-    const color = asColor(props.color, '#0f172a');
-    const hideWhenEmpty = asBool(props.hideWhenEmpty, true);
-
-    if (!inv.ksefReferenceNumber) {
-      if (hideWhenEmpty) {
-        return (
-          <Section marginTop={asNum(props.marginTop, 8)} marginBottom={asNum(props.marginBottom, 0)}>
-            <div style={{ fontSize, color: '#94a3b8' }}>
-              [KSeF — hidden until a reference number is assigned]
-            </div>
-          </Section>
-        );
-      }
-      return (
-        <Section marginTop={asNum(props.marginTop, 8)} marginBottom={asNum(props.marginBottom, 0)}>
-          <div style={{ fontSize, color: '#94a3b8' }}>
-            <div>
-              {props.labelNumber || 'KSeF number'}: (assigned after submission to KSeF)
-            </div>
-          </div>
-        </Section>
-      );
-    }
-
-    return (
-      <Section marginTop={asNum(props.marginTop, 8)} marginBottom={asNum(props.marginBottom, 0)}>
-        <div style={{ fontSize, color }}>
-          <div>
-            {props.labelNumber || 'KSeF number'}: {inv.ksefReferenceNumber}
-          </div>
-          {asBool(props.showProcessedAt, true) && inv.ksefProcessedAt ? (
-            <div>
-              {props.labelProcessedAt || 'KSeF processed at'}: {inv.ksefProcessedAt}
-            </div>
-          ) : null}
-        </div>
-      </Section>
-    );
-  },
-}) as ComponentConfig<KsefProps>;
-
-/* -------------------------------------------------------------------------- */
 /* InvoiceSpacer                                                              */
 /* -------------------------------------------------------------------------- */
 
@@ -1167,11 +1089,15 @@ const InvoiceFooter = invoiceSection({
  * with `ksef.InvoiceSection` still insertable — which a category list in this
  * file could not express.
  *
- * The eleventh entry is **`ksef`'s**, not this module's: the block was stored as
- * `InvoiceKsef` and the owner ruling of 2026-09-02 gave it to `ksef` as
- * `ksef.InvoiceSection` (`data-model.md` §7.3). The React binding still lives
- * here — moving it is F7's work, not this feature's — but the name it is keyed
- * by now says who owns it.
+ * **Every entry is this module's own.** A block another module declares is not
+ * bound here: its binding lives with its declarant, and no page-builder
+ * component contribution kind (α, F7's roadmap row) is built. The editor
+ * reaches such a block through the served descriptor instead —
+ * `withDescribedInvoiceBlocks` (`./described-blocks.tsx`,
+ * `specs/134-paid-module-extraction/` T138) makes a present contributor's block
+ * insertable and configurable with a neutral canvas stand-in, and keeps a stored
+ * block nothing covers as FR-019's placeholder. The PDF — the legal document —
+ * renders it through the contributor's registration on the backend.
  */
 export const invoicePuckConfig: Config = {
   components: {
@@ -1181,7 +1107,6 @@ export const invoicePuckConfig: Config = {
     'invoices.InvoiceVatSummary': InvoiceVatSummary,
     'invoices.InvoiceTotals': InvoiceTotals,
     'invoices.InvoiceNotes': InvoiceNotes,
-    'ksef.InvoiceSection': InvoiceKsef,
     'invoices.InvoiceSpacer': InvoiceSpacer,
     'invoices.InvoiceDivider': InvoiceDivider,
     'invoices.InvoiceLogo': InvoiceLogo,

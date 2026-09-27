@@ -113,6 +113,10 @@ const noEm = (): EntityManager => {
 
 const SEAMS: ReadonlyArray<{ readonly owner: string; readonly name: string }> = [
   { owner: 'transactional_emails', name: 'emailDefaultsPort' },
+  // Feature 134, T063/T126: invoice PDF blocks another module renders. The
+  // declaring module pushes its block from a boot hook; gating the name would
+  // take the backend down for an operator who switched invoicing off.
+  { owner: 'invoices', name: 'invoicePdfBlockRegistry' },
   { owner: 'assets_library', name: 'assetReferenceRegistry' },
   { owner: 'cms', name: 'cmsReferenceRegistry' },
   { owner: 'megamenu', name: 'megamenuReferenceRegistry' },
@@ -314,6 +318,23 @@ describe('ConfigurationTypeRegistry — an absent contributor’s type is skippe
 
     expect(instance.list().map((d) => d.code)).toEqual(['throwaway']);
     expect(instance.resolve('throwaway').code).toBe('throwaway');
+  });
+});
+
+describe('InvoicePdfBlockRegistry — an absent contributor’s block is skipped', () => {
+  it('states a skip policy', () => {
+    // A module that is off must not print its block on a legal document; the
+    // stored template keeps the node, so nothing is lost with the skip.
+    expect(CONTRIBUTION_POLICY_STATED['invoices:invoicePdfBlockRegistry']).toBe('skip');
+  });
+
+  it('wires the registry to the kernel effective state', () => {
+    // The class defaults its probe to always-present so a unit test that builds
+    // its own registry answers about what it registered; the one instance the
+    // module composes is the one that has to read the real presence.
+    expect(flat(backendSource('invoices'))).toContain(
+      flat('new InvoicePdfBlockRegistry((moduleId) => effectiveState.isPresent(moduleId))'),
+    );
   });
 });
 
