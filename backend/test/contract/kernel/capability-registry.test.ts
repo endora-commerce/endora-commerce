@@ -26,7 +26,15 @@ import {
  * (R2.1).
  */
 
-const RESOLVED_MANIFESTS = await resolvedManifestEntries();
+/**
+ * **Composed as the `example` deployment** (feature 134, T055). Every packaged PIM
+ * connector has left for the paid repository, so over bare core the PIM family is
+ * empty and the coverage guard at the bottom reds; the deployment's overlay fixtures
+ * (T113, `research.md` D13 §6) are the members that stay, and an overlay declaring on
+ * identical terms is R2.1's own point.
+ */
+const DEPLOYMENT = 'example';
+const RESOLVED_MANIFESTS = await resolvedManifestEntries({ ...process.env, DEPLOYMENT });
 
 /** Side A — who *says* they are in the family, read from their own manifests. */
 function declaredMembers(key: string): string[] {
@@ -51,7 +59,7 @@ describe('the composed container derives every family from the manifests [contra
   let h: BackendServerHandle;
 
   beforeAll(async () => {
-    h = await setupBackendServer();
+    h = await setupBackendServer({ deployment: DEPLOYMENT });
   }, 120_000);
 
   afterAll(async () => {

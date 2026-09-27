@@ -263,9 +263,13 @@ describe('collectRuntimeAssets — what a compiled tree is missing', () => {
     // **Non-vacuity.** D-218 landed with nothing to drain — zero `.json` files
     // sat under any `packages/modules/*/src/` when it was ruled — and a
     // predicate that reclassifies nothing is one that may not be running. The
-    // ruling's own repair supplies the subject: `pim_pimcore`'s HMAC vectors
-    // moved into the package with the test that reads them, which is the whole
-    // reason that file's deferral could be retired.
+    // ruling's own repair supplied the first subject, `pim_pimcore`'s HMAC
+    // vectors, and that subject left this repository with the module (feature
+    // 134, T055). No staying package holds a fixture beside its tests today, so
+    // the fixture classification is proven over the synthetic tree above, and
+    // the live half asserts the walk ruled on something real: `product_feeds`'
+    // taxonomy files, which ship and have no test beside them. Every fixture
+    // the walk does find is still held to its sibling test below.
     //
     // **And no genuine asset went with it.** The sibling set is re-derived here
     // with `readdirSync`, independently of the walk that classified the file, so
@@ -277,6 +281,7 @@ describe('collectRuntimeAssets — what a compiled tree is missing', () => {
       if (existsSync(src)) roots.push(src);
     }
     const fixtures: string[] = [];
+    const assets: string[] = [];
     for (const root of roots) {
       const walk = collectRuntimeAssets(root);
       for (const path of walk.fixtures) {
@@ -287,6 +292,7 @@ describe('collectRuntimeAssets — what a compiled tree is missing', () => {
         ).toBe(true);
       }
       for (const path of walk.assets) {
+        assets.push(join(root, path));
         expect(
           readdirSync(dirname(join(root, path))).some(isTestFileName),
           `${path} still ships and a test sits beside it`,
@@ -294,7 +300,8 @@ describe('collectRuntimeAssets — what a compiled tree is missing', () => {
       }
     }
     expect(roots.length).toBeGreaterThan(1);
-    expect(fixtures.length).toBeGreaterThan(0);
+    expect(assets.length + fixtures.length).toBeGreaterThan(0);
+    expect(assets.some((path) => path.includes('/product_feeds/src/'))).toBe(true);
   });
 
   it('classifies an extension-less dotfile by its own name', () => {

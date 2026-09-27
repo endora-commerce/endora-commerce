@@ -10,12 +10,17 @@ import { randomUUID } from 'crypto';
 import { TransitivelyScoped } from '@endora-commerce/platform/tenancy';
 
 /**
- * Metadata for an XL attachment linked to an ERP-imported sale document. Bytes
- * are stored in `assets_library` on first download (feature 119, FR-086).
+ * Metadata for a source-system attachment linked to an ERP-imported sale
+ * document. Bytes are stored in `assets_library` on first download (feature
+ * 119, FR-086). `externalAttachmentId` is the attachment's id in the source
+ * system, unique within its document (feature 134, T135).
  */
 @TransitivelyScoped('Invoice', 'invoiceId')
 @Entity({ tableName: 'invoice_external_attachments' })
-@Unique({ properties: ['invoiceId', 'xlAttachmentId'] })
+@Unique({
+  name: 'invoice_external_attachments_invoice_external_uq',
+  properties: ['invoiceId', 'externalAttachmentId'],
+})
 export class InvoiceExternalAttachment {
   [OptionalProps]?:
     | 'id'
@@ -33,7 +38,7 @@ export class InvoiceExternalAttachment {
   invoiceId!: string;
 
   @Property({ type: 'string', length: 128 })
-  xlAttachmentId!: string;
+  externalAttachmentId!: string;
 
   @Property({ type: 'string', length: 256 })
   fileName!: string;

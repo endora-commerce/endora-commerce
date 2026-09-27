@@ -167,7 +167,8 @@ const MIGRATED_MODULES: readonly string[] = [
   // and `UNTRANSLATED_ERROR_CODES` **shrinks** by one — `ORG_OWNER_DEPLETION`
   // had no sentence anywhere and now has one.
   'organizations',
-  'pim_ergonode',
+  // `pim_ergonode` was here — Tier A, MR 2 re-homed its thirteen codes from
+  // `_i18n` — and left this repository with them (feature 134, T055).
   // Minted with the modules (feature 089, !1282): neither `pim_connector` nor
   // `pim_unopim` existed when the prefix chain was deleted, so the frozen
   // capture holds none of their thirteen codes and `MINTED_ERROR_CODES` is what
@@ -175,12 +176,6 @@ const MIGRATED_MODULES: readonly string[] = [
   // exclusivity refusal every PIM module raises; `pim_unopim` owned the other
   // twelve and left this repository with them (feature 134).
   'pim_connector',
-  // Minted with the module (feature 092): `pim_pimcore` did not exist when the
-  // prefix chain was deleted, so the frozen capture holds none of its seventeen
-  // codes and `MINTED_ERROR_CODES` is what accounts for them. The roster line is
-  // the other half — the ledger alone would say where each code belongs and
-  // leave the manifest's declaration unmeasured.
-  'pim_pimcore',
   // Minted after the chain was deleted (!1159), so the frozen capture holds none
   // of its three codes and `MINTED_ERROR_CODES` is what accounts for them. The
   // roster's question — does this module declare exactly what the reference says

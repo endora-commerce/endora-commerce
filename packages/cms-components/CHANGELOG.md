@@ -1,5 +1,20 @@
 # @endora-commerce/cms-components
 
+## 0.9.5
+
+### Patch Changes
+
+- 32fdf20: The `LICENSE` file in each package now names the copyright holder as Endora sp. z o.o.
+
+  The MIT licence text is unchanged; only its copyright line moves from `Copyright (c) 2026 Endora`
+  to `Copyright (c) 2026 Endora sp. z o.o.`, the registered legal entity. Nothing a package exports,
+  declares or depends on changes. `@endora-commerce/contracts` and
+  `@endora-commerce/mod-invoice-ledger` also carry a one-sentence rewording in an already-published
+  `CHANGELOG.md` entry, with no change to what that entry says about the code.
+
+- Updated dependencies [32fdf20]
+  - @endora-commerce/page-builder-core@0.9.5
+
 ## 0.9.1
 
 ### Patch Changes

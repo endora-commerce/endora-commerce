@@ -1,5 +1,59 @@
 # @endora-commerce/mod-catalog
 
+## 0.11.1
+
+### Patch Changes
+
+- cbe6b7f: Two `EntityManager`-taking seams for renaming an attribute key after create, both additive and both run on the caller's transaction so a definition key and the values stored under it move together.
+  - `@endora-commerce/mod-custom-fields/ports`: `CustomFieldDefinitionApplyApi.applyRenameKey(em, id, expectedKey, newKey)`, served by the existing `customFieldDefinitionService` registration. It is not an edit — `UpdateCustomFieldDefinitionRequest` still omits `key` — and it refuses a definition whose key is no longer `expectedKey` (`key_changed`), a key another definition of the same entity type holds (`duplicate_key`) and a key outside the grammar (`invalid_key`). It flushes before it returns, dispatches no command and publishes no invalidation: call `publishInvalidate` after your transaction commits. A test double implementing `CustomFieldDefinitionApplyApi` needs the new method.
+  - `@endora-commerce/mod-catalog/ports` (new, type-only subpath): `CatalogAttributeValueKeyApi.renameValueKey(em, fromKey, toKey, { occupied })`, registered as `catalogAttributeValueKeyPort`. It moves the key in `products.attribute_values` and `product_value_overrides.attribute_key` and answers how many rows of each moved. `occupied` is required and decides what happens to data already stored under `toKey`, which it reads and locks first: `'refuse'` throws `target_occupied` with both counts before anything is written; `'displace'` removes those values and override rows — on every product holding them — and returns them in `displaced.values` / `displaced.overrides` before the key moves, so nothing is merged over and no unique index is hit. `name`, `description` and keys outside the attribute grammar are refused before any statement runs.
+
+- Updated dependencies [cbe6b7f]
+- Updated dependencies [8a88460]
+  - @endora-commerce/mod-custom-fields@0.9.6
+  - @endora-commerce/contracts@0.16.0
+  - @endora-commerce/admin-kit@0.9.6
+  - @endora-commerce/platform@0.13.2
+
+## 0.11.0
+
+### Minor Changes
+
+- e915c1e: `catalog` now creates the nine stock-management columns its entities map, in `Migration20260925T125527CatalogInventoryColumns`: `products.{manage_stock, backorder_enabled, low_stock_threshold, low_stock_threshold_mode, fulfilment_strategy, fulfilment_strategy_warehouse_order}` and `categories.inventory_threshold_{high,medium,low}`, together with `products_fulfilment_strategy_check` and `products_low_stock_threshold_mode_check`.
+
+  Until now only `@endora-commerce/mod-inventory`'s migrations created them. `inventory` is switchable and `catalog` does not depend on it, so an instance assembled without `inventory` — the default free set — could not read or insert a product or a category, and a hard uninstall of `inventory` dropped the columns. The new migration uses `add column if not exists` with the original types and defaults, and adds each constraint behind a `pg_constraint` check: on every database that already has them it is a no-op that keeps every value, and on a fresh one it creates them. Its `down()` is deliberately empty, because `products` and `categories` are the platform's tables and their rows outlive `catalog`.
+
+  Regenerate the migration registry (`pnpm --filter backend run composer:generate` in this repository, `endora generate` in an instance) so the migration runs.
+
+### Patch Changes
+
+- b9c6686: These modules derive an attribute's API type from `@endora-commerce/contracts`' `apiAttributeTypeOf` instead of each carrying its own copy of the rule. `catalog`'s `dbToApiAttributeType` keeps its `numericKind`; `pim_ergonode` checks a binding candidate against the shared function (`pim_unopim` made the same move and has since left this repository; its version with the change is cut from the paid-modules repository). The internal `endoraApiAttributeTypeOf` helper is removed from `pim_unopim`, `pim_ergonode` and `pim_pimcore`; no published subpath exported it.
+
+  Behaviour is unchanged. The modules require a `@endora-commerce/contracts` release that exports `apiAttributeTypeOf`.
+
+  `@endora-commerce/mod-pim-pimcore` carries this change as well; it has left for the paid-modules repository, and its next version is cut there.
+
+- 32fdf20: The `LICENSE` file in each package now names the copyright holder as Endora sp. z o.o.
+
+  The MIT licence text is unchanged; only its copyright line moves from `Copyright (c) 2026 Endora`
+  to `Copyright (c) 2026 Endora sp. z o.o.`, the registered legal entity. Nothing a package exports,
+  declares or depends on changes. `@endora-commerce/contracts` and
+  `@endora-commerce/mod-invoice-ledger` also carry a one-sentence rewording in an already-published
+  `CHANGELOG.md` entry, with no change to what that entry says about the code.
+
+- Updated dependencies [43f445d]
+- Updated dependencies [b9c6686]
+- Updated dependencies [f89d305]
+- Updated dependencies [32fdf20]
+- Updated dependencies [07f1e8c]
+- Updated dependencies [67dfca3]
+- Updated dependencies [f89d305]
+- Updated dependencies [7392332]
+  - @endora-commerce/contracts@0.15.0
+  - @endora-commerce/admin-kit@0.9.5
+  - @endora-commerce/mod-custom-fields@0.9.5
+  - @endora-commerce/platform@0.13.1
+
 ## 0.10.4
 
 ### Patch Changes

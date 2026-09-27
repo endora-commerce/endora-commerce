@@ -15,8 +15,12 @@ import {
  * Feature 073 / US1, FR-031 and FR-032 — the Admin UI resolves its surfaces
  * from the server's effective enabled-set.
  *
- * The driving case: an operator switches `pim_ergonode` off and it is gone from
- * the sidebar and from ⌘K. Two properties beyond that are worth pinning here,
+ * The driving case: an operator switches `product_feeds` off and it is gone
+ * from the sidebar and from ⌘K. It was `pim_ergonode` until feature 134 (E9's
+ * string-literal-subject class): a case switching off, by string, a module
+ * that has left the repository switches off nothing and passes vacuously for
+ * ever, so the subject is re-pointed at a switchable module that stays and
+ * shares the Catalog section with `catalog`'s own rows. Two properties beyond that are worth pinning here,
  * because both were live defects before this feature:
  *
  *  - **A section with nothing left folds away.** The sidebar already did this
@@ -110,13 +114,13 @@ function sidebarHrefs(): (string | null)[] {
 describe('AppShell — module presence drives the sidebar (FR-031)', () => {
   it('lists a present module', () => {
     renderShell();
-    expect(sidebarHrefs()).toContain('/pim-ergonode');
+    expect(sidebarHrefs()).toContain('/product-feeds');
   });
 
   it('drops a switched-off module and leaves its neighbours alone', () => {
-    renderShell(['pim_ergonode']);
+    renderShell(['product_feeds']);
     const hrefs = sidebarHrefs();
-    expect(hrefs).not.toContain('/pim-ergonode');
+    expect(hrefs).not.toContain('/product-feeds');
     // Same section, different module — the Catalog group survives.
     expect(hrefs).toContain('/catalog/products');
     expect(screen.queryByRole('button', { name: 'appShell.section.catalog' })).not.toBeNull();

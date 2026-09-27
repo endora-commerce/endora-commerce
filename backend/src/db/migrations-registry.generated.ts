@@ -186,6 +186,7 @@ import { Migration20260801T111000InvoicesGenericTemplateReseed } from '@endora-c
 import { Migration20260817T201110InvoicesCorrectionIdempotencyKey } from '@endora-commerce/mod-invoices/migrations';
 import { Migration20260903T101756InvoicesNamespaceBlockNames } from '@endora-commerce/mod-invoices/migrations';
 import { Migration20260914T133603InvoicesErpImportedSaleDocuments } from '@endora-commerce/mod-invoices/migrations';
+import { Migration20260926T230239InvoicesImportIdentity } from '@endora-commerce/mod-invoices/migrations';
 
 // ── ksef ────────────────────────────────────────────────────────────────────
 import { Migration20260722T224358KsefInit } from '@endora-commerce/mod-ksef/migrations';
@@ -248,15 +249,6 @@ import { Migration20260925T115728PaymentsRefundedAmount } from '@endora-commerce
 
 // ── pim_connector ───────────────────────────────────────────────────────────
 import { Migration20260826T153500PimConnectorInit } from '@endora-commerce/mod-pim-connector/migrations';
-
-// ── pim_ergonode ────────────────────────────────────────────────────────────
-import { Migration20260804T190439PimErgonodeInit } from '@endora-commerce/mod-pim-ergonode/migrations';
-import { Migration20260819T193653PimErgonodeFoldDerivedKeys } from '@endora-commerce/mod-pim-ergonode/migrations';
-
-// ── pim_pimcore ─────────────────────────────────────────────────────────────
-import { Migration20260818T102204PimPimcoreInit } from '@endora-commerce/mod-pim-pimcore/migrations';
-import { Migration20260820T150317PimPimcoreCompleteRecordDelivery } from '@endora-commerce/mod-pim-pimcore/migrations';
-import { Migration20260901T102908PimPimcoreDeliveredRecordColumnWidths } from '@endora-commerce/mod-pim-pimcore/migrations';
 
 // ── price_lists ─────────────────────────────────────────────────────────────
 import { Migration20260426T075235PriceListsPricingInit } from '@endora-commerce/mod-price-lists/migrations';
@@ -491,6 +483,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('invoices', Migration20260817T201110InvoicesCorrectionIdempotencyKey),
   migration('invoices', Migration20260903T101756InvoicesNamespaceBlockNames),
   migration('invoices', Migration20260914T133603InvoicesErpImportedSaleDocuments),
+  migration('invoices', Migration20260926T230239InvoicesImportIdentity),
 
   // ── ksef ────────────────────────────────────────────────────────────────────
   migration('ksef', Migration20260722T224358KsefInit),
@@ -553,15 +546,6 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── pim_connector ───────────────────────────────────────────────────────────
   migration('pim_connector', Migration20260826T153500PimConnectorInit),
-
-  // ── pim_ergonode ────────────────────────────────────────────────────────────
-  migration('pim_ergonode', Migration20260804T190439PimErgonodeInit),
-  migration('pim_ergonode', Migration20260819T193653PimErgonodeFoldDerivedKeys),
-
-  // ── pim_pimcore ─────────────────────────────────────────────────────────────
-  migration('pim_pimcore', Migration20260818T102204PimPimcoreInit),
-  migration('pim_pimcore', Migration20260820T150317PimPimcoreCompleteRecordDelivery),
-  migration('pim_pimcore', Migration20260901T102908PimPimcoreDeliveredRecordColumnWidths),
 
   // ── price_lists ─────────────────────────────────────────────────────────────
   migration('price_lists', Migration20260426T075235PriceListsPricingInit),

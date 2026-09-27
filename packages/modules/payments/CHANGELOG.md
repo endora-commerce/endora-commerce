@@ -1,5 +1,50 @@
 # @endora-commerce/mod-payments
 
+## 0.10.1
+
+### Patch Changes
+
+- Updated dependencies [8a88460]
+  - @endora-commerce/contracts@0.16.0
+  - @endora-commerce/admin-kit@0.9.6
+  - @endora-commerce/mod-orders@0.10.6
+  - @endora-commerce/platform@0.13.2
+
+## 0.10.0
+
+### Minor Changes
+
+- 7f14ad6: `payments` now creates the `payments.refunded_amount` column its `Payment` entity maps, in its first own migration, `Migration20260925T115728PaymentsRefundedAmount`.
+
+  Until now the only migration creating that column was `@endora-commerce/mod-stripe`'s, so an instance without `stripe` could not record a payment, and a hard uninstall of `stripe` dropped a column this module reads and writes. The new migration runs `alter table "payments" add column if not exists "refunded_amount" numeric(14,2) not null default '0'`: on every database that already has the column it is a no-op and keeps every value; on a fresh one it creates it with `0`. Its `down()` is deliberately empty, because the `payments` table is the platform's and its rows outlive this module's uninstall — dropping the column would silently reset every surviving payment's refunded amount.
+
+  The package gains a `./migrations` subpath and a `@mikro-orm/migrations` `^6` peer dependency, the same shape every module that ships a migration has. Regenerate the migration registry (`pnpm --filter backend run composer:generate` in this repository, `endora generate` in an instance) so the migration runs.
+
+### Patch Changes
+
+- 0261b2f: Source comments only: the mixed-case e-mail example uses an `example.com` address, and a migration comment cites its design record without a repository path. No runtime change.
+- 32fdf20: The `LICENSE` file in each package now names the copyright holder as Endora sp. z o.o.
+
+  The MIT licence text is unchanged; only its copyright line moves from `Copyright (c) 2026 Endora`
+  to `Copyright (c) 2026 Endora sp. z o.o.`, the registered legal entity. Nothing a package exports,
+  declares or depends on changes. `@endora-commerce/contracts` and
+  `@endora-commerce/mod-invoice-ledger` also carry a one-sentence rewording in an already-published
+  `CHANGELOG.md` entry, with no change to what that entry says about the code.
+
+- Updated dependencies [43f445d]
+- Updated dependencies [b9c6686]
+- Updated dependencies [f89d305]
+- Updated dependencies [32fdf20]
+- Updated dependencies [07f1e8c]
+- Updated dependencies [67dfca3]
+- Updated dependencies [f89d305]
+- Updated dependencies [7392332]
+  - @endora-commerce/contracts@0.15.0
+  - @endora-commerce/admin-kit@0.9.5
+  - @endora-commerce/email-components@0.9.5
+  - @endora-commerce/mod-orders@0.10.5
+  - @endora-commerce/platform@0.13.1
+
 ## 0.9.4
 
 ### Patch Changes

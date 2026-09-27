@@ -28,6 +28,7 @@ import {
   applyCreateOption,
   applyDeleteDefinition,
   applyDeleteOption,
+  applyRenameDefinitionKey,
   applyUpdateDefinition,
   applyUpdateOption,
   assertOptionsRule,
@@ -270,6 +271,17 @@ export class CustomFieldDefinitionService implements DefinitionSource, CustomFie
   ): Promise<CustomFieldDefinitionRecord> {
     return toCustomFieldDefinitionRecord(
       await applyUpdateDefinition(em, id, patch, this.valueService),
+    );
+  }
+
+  async applyRenameKey(
+    em: EntityManager,
+    id: string,
+    expectedKey: string,
+    newKey: string,
+  ): Promise<CustomFieldDefinitionRecord> {
+    return toCustomFieldDefinitionRecord(
+      await applyRenameDefinitionKey(em, id, expectedKey, newKey),
     );
   }
 

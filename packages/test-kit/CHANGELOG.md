@@ -1,5 +1,50 @@
 # @endora-commerce/test-kit
 
+## 0.11.3
+
+### Patch Changes
+
+- Updated dependencies [8a88460]
+  - @endora-commerce/contracts@0.16.0
+  - @endora-commerce/platform@0.13.2
+
+## 0.11.2
+
+### Patch Changes
+
+- 32fdf20: The `LICENSE` file in each package now names the copyright holder as Endora sp. z o.o.
+
+  The MIT licence text is unchanged; only its copyright line moves from `Copyright (c) 2026 Endora`
+  to `Copyright (c) 2026 Endora sp. z o.o.`, the registered legal entity. Nothing a package exports,
+  declares or depends on changes. `@endora-commerce/contracts` and
+  `@endora-commerce/mod-invoice-ledger` also carry a one-sentence rewording in an already-published
+  `CHANGELOG.md` entry, with no change to what that entry says about the code.
+
+- 67dfca3: A composition now registers `processRunsWorkers: boolean`, the one module-agnostic answer to "does this process run queue consumers?". `composeApp` registers it above the modules from `BACKEND_ROLE` (`false` for `api`, `true` for `all`, `worker` or unset — the same value it acts on itself), and `composeTestServer` registers it `false` beside `redis` and `eventBus`, overridable through `options.values` like every other platform value.
+
+  A module that starts queue consumers should read `processRunsWorkers` from its cradle rather than read `BACKEND_ROLE` itself or resolve a flag named after itself:
+
+  ```ts
+  // before
+  const { pimErgonodeRunWorkers } = ctx.cradle<Cradle>();
+  // or: process.env['BACKEND_ROLE'] !== 'api'
+  // after
+  const { processRunsWorkers } = ctx.cradle<Cradle>();
+  ```
+
+  The six module-named values `composeApp` registers — `pimErgonodeRunWorkers`, `pimAkeneoRunWorkers`, `pimPimcoreRunWorkers`, `pimUnopimRunWorkers`, `comarchXlRunWorkers` and `pimAkeneoPublicBaseUrl` — are unchanged and deprecated. Read `processRunsWorkers` instead of the five flags, and call `resolvePublicApiBaseUrl()` from `@endora-commerce/platform/kernel` instead of the base URL. They will be removed in a later breaking platform release.
+
+- Updated dependencies [43f445d]
+- Updated dependencies [b9c6686]
+- Updated dependencies [f89d305]
+- Updated dependencies [32fdf20]
+- Updated dependencies [07f1e8c]
+- Updated dependencies [67dfca3]
+- Updated dependencies [f89d305]
+- Updated dependencies [7392332]
+  - @endora-commerce/contracts@0.15.0
+  - @endora-commerce/platform@0.13.1
+
 ## 0.11.1
 
 ### Patch Changes

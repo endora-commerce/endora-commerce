@@ -81,11 +81,19 @@ describe('no member of an exclusive capability ships activated [contract]', () =
   it('had a population to judge — members, and exclusive keys for them to belong to', () => {
     // The vacuous-pass guard. Every assertion above is satisfied by a tree with no
     // families at all, which is what a broken manifest walk looks like.
-    for (const { label, manifests } of RESOLVED) {
-      const members = manifests.filter((m) => (m.capabilities ?? []).length > 0);
-      const owners = manifests.filter((m) => (m.exclusiveCapabilities ?? []).length > 0);
-      expect(members.length, `${label}: declared members`).toBeGreaterThan(3);
-      expect(owners.length, `${label}: capability owners`).toBeGreaterThan(2);
+    //
+    // Judged over the example deployment, which resolves bare core plus its overlay
+    // fixtures. Bare core's own member count falls with every module that leaves this
+    // repository (feature 134) and may reach zero legitimately; the fixtures exist so the
+    // families always have members to judge (T113, T115), and a walk that lost bare core
+    // would lose them with it.
+    const { label, manifests } = RESOLVED.find((r) => r.label === 'example')!;
+    const members = manifests.filter((m) => (m.capabilities ?? []).length > 0);
+    const owners = manifests.filter((m) => (m.exclusiveCapabilities ?? []).length > 0);
+    expect(members.length, `${label}: declared members`).toBeGreaterThan(3);
+    expect(owners.length, `${label}: capability owners`).toBeGreaterThan(2);
+    for (const resolved of RESOLVED) {
+      expect(resolved.manifests.length, `${resolved.label}: manifests resolved`).toBeGreaterThan(0);
     }
   });
 

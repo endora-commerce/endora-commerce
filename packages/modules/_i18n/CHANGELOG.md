@@ -1,5 +1,46 @@
 # @endora-commerce/mod-i18n
 
+## 0.9.5
+
+### Patch Changes
+
+- ba12af9: The Ergonode connector's two permission labels move into its own bundle
+
+  `adminRoles.permission.pim_ergonode:read` and `adminRoles.permission.pim_ergonode:write` ("View
+  Ergonode integration", "Manage Ergonode integration", with their Polish translations) leave
+  `@endora-commerce/mod-i18n`'s shared bundle. `@endora-commerce/mod-pim-ergonode` ships them in its
+  own `i18n/` bundle from its next release, which is cut from the paid-modules repository now that the
+  connector has left this one; until an instance runs that release beside this `mod-i18n`, the two
+  permissions show their codes in the role editor.
+
+- Updated dependencies [8a88460]
+  - @endora-commerce/contracts@0.16.0
+  - @endora-commerce/platform@0.13.2
+
+## 0.9.4
+
+### Patch Changes
+
+- f89d305: Add the `payment_method.list.integrations` admin zone so separately installed payment gateways can contribute their own configuration cards. Remove the five extracted gateways' breadcrumb and shared translation records from the free packages.
+- 32fdf20: The `LICENSE` file in each package now names the copyright holder as Endora sp. z o.o.
+
+  The MIT licence text is unchanged; only its copyright line moves from `Copyright (c) 2026 Endora`
+  to `Copyright (c) 2026 Endora sp. z o.o.`, the registered legal entity. Nothing a package exports,
+  declares or depends on changes. `@endora-commerce/contracts` and
+  `@endora-commerce/mod-invoice-ledger` also carry a one-sentence rewording in an already-published
+  `CHANGELOG.md` entry, with no change to what that entry says about the code.
+
+- Updated dependencies [43f445d]
+- Updated dependencies [b9c6686]
+- Updated dependencies [f89d305]
+- Updated dependencies [32fdf20]
+- Updated dependencies [07f1e8c]
+- Updated dependencies [67dfca3]
+- Updated dependencies [f89d305]
+- Updated dependencies [7392332]
+  - @endora-commerce/contracts@0.15.0
+  - @endora-commerce/platform@0.13.1
+
 ## 0.9.3
 
 ### Patch Changes
