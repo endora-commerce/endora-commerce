@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
+import { discoverOverlayModuleManifests } from '../../../src/overlay/overlay-runtime.js';
 
 /**
  * Feature 085 (FR-005 / SC-003) — no payment method a freshly installed platform
@@ -30,12 +31,26 @@ import { DISCOVERED_MANIFESTS } from '../../../src/manifest-index.generated.js';
  *
  * ### So the subject is the install hooks, and it is still derived
  *
- * The population is every module in the generated manifest index that declares
- * `payment_methods` in its `dependencies` **and** exports an `installHook`. That
- * is the set of modules that can write a `payment_methods` row at install, read
- * off the registry the platform actually composes from — so a sixth gateway is
- * covered the day it is added, without anybody editing a list. PayPal arrived
- * exactly that way and was un-covered for a release.
+ * The population is every module that declares `payment_methods` in its
+ * `dependencies` **and** exports an `installHook`. That is the set of modules
+ * that can write a `payment_methods` row at install, read off the registries the
+ * platform actually composes from — so a sixth gateway is covered the day it is
+ * added, without anybody editing a list. PayPal arrived exactly that way and was
+ * un-covered for a release.
+ *
+ * **Two registries, and the second is why this file is not vacuous.** The
+ * generated manifest index is bare core, and bare core held every member of this
+ * population until feature 134's wave 2 took the five gateways out of the
+ * repository — after which the derivation found nothing and the floor below went
+ * red on `master`. The example deployment's overlay modules are the second
+ * source, discovered by the same `discoverOverlayModuleManifests` the deployment
+ * path runs: `payment_gateway_fixture` is FR-021's standing consumer of
+ * `payment_methods`' seed surface and seeds its one row from an `installHook`, so
+ * it carries exactly the behaviour under test. That is the re-pointing
+ * `gateway-presence.test.ts` and `gateway-seed-install-hook.integration.test.ts`
+ * took for the same departure. Both sources stay in the derivation: a gateway
+ * that returns to core, or a second fixture, joins the population without an
+ * edit here.
  *
  * `setupTestDb` rather than `setupMigratorTestDb`: the rows are written by this
  * file, inside a transaction that is rolled back, so there is nothing to clone a
@@ -59,8 +74,12 @@ interface SeedingModule {
   readonly installHook: NonNullable<(typeof DISCOVERED_MANIFESTS)[number]['installHook']>;
 }
 
-function seedingModules(): SeedingModule[] {
-  return DISCOVERED_MANIFESTS.flatMap((entry) => {
+/** The deployment whose overlay modules join the population — see the file doc. */
+const EXAMPLE_DEPLOYMENT = { DEPLOYMENT: 'example' } as NodeJS.ProcessEnv;
+
+async function seedingModules(): Promise<SeedingModule[]> {
+  const overlay = await discoverOverlayModuleManifests(EXAMPLE_DEPLOYMENT);
+  return [...DISCOVERED_MANIFESTS, ...overlay].flatMap((entry) => {
     if (!entry.installHook) return [];
     if (!(entry.manifest.dependencies ?? []).includes('payment_methods')) return [];
     return [{ id: entry.id, installHook: entry.installHook }];
@@ -100,7 +119,7 @@ describe('shipped status_on_failure default [integration]', () => {
 
   beforeAll(async () => {
     db = await setupTestDb();
-    modules = seedingModules();
+    modules = await seedingModules();
   }, 60_000);
   afterAll(async () => {
     await db.close();
@@ -143,7 +162,8 @@ describe('shipped status_on_failure default [integration]', () => {
     // avoid and then, at FR-064, inherited in a new form.
     expect(
       modules.map((m) => m.id),
-      'no module in the manifest index both depends on payment_methods and exports an ' +
+      'no module in the manifest index or the example deployment both depends on ' +
+        'payment_methods and exports an ' +
         'installHook — the derivation found nothing and every assertion below is vacuous',
     ).not.toEqual([]);
   });
