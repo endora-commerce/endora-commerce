@@ -158,7 +158,7 @@ export const CHAIN_ROUTING_ANSWERS: Readonly<Record<string, string>> = {
   COMPARISON_NOT_FOUND: 'comparisons',
   PDF_GENERATION_FAILED: 'comparisons',
 
-  // core (100)
+  // core (100 captured; 87 since pim_ergonode's thirteen left — see below)
   ACCOUNT_BLOCKED: 'core',
   ACTIVE_RESERVATIONS_EXIST: 'core',
   ADDRESS_IN_USE: 'core',
@@ -224,19 +224,13 @@ export const CHAIN_ROUTING_ANSWERS: Readonly<Record<string, string>> = {
   PACKAGING_UNIT_NAME_CONFLICT: 'core',
   PACKAGING_UNIT_NOT_FOUND: 'core',
   PACKAGING_UNIT_NOT_SUPPORTED_FOR_TYPE: 'core',
-  PIM_ERGONODE_ATTRIBUTE_NOT_PRICE_TYPE: 'core',
-  PIM_ERGONODE_BINDING_EXISTS: 'core',
-  PIM_ERGONODE_CONNECTION_DISABLED: 'core',
-  PIM_ERGONODE_CONNECTION_EXISTS: 'core',
-  PIM_ERGONODE_CURRENCY_INACTIVE: 'core',
-  PIM_ERGONODE_FIELD_PATH_INVALID: 'core',
-  PIM_ERGONODE_IMPORT_ALREADY_RUNNING: 'core',
-  PIM_ERGONODE_NOT_CONFIGURED: 'core',
-  PIM_ERGONODE_SCHEDULE_INVALID: 'core',
-  PIM_ERGONODE_TARGET_ALREADY_MAPPED: 'core',
-  PIM_ERGONODE_TARGET_ATTRIBUTE_NOT_FOUND: 'core',
-  PIM_ERGONODE_TREE_REQUIRED: 'core',
-  PIM_ERGONODE_TYPE_INCOMPATIBLE: 'core',
+  // PIM_ERGONODE_* (13) were here, answered `core`, and are not any more: D-129's
+  // sweep re-homed them to `pim_ergonode`, and that module left this repository
+  // for the paid one with them as its own `pimErgonodeErrorCodes` (feature 134,
+  // T055). `ERROR_CODES` no longer holds them, so the capture's own rule — one
+  // entry per member — drops them; this is the deliberate change the header
+  // asks to be argued rather than regenerated, and nothing else in the capture
+  // moves. The chain's answer for them is `git show ec3f86cb4:` this file.
   PRICE_LIST_NOT_FOUND: 'core',
   PRICE_UNAVAILABLE: 'core',
   PROMOTION_INVALID: 'core',

@@ -290,14 +290,20 @@ describe('the scan reaches every file a module owns (issue #122)', () => {
   const has = (suffix: string): boolean => files.some((f) => f.endsWith(suffix));
 
   it('opens nested service directories, not just services/<file>.ts', () => {
-    expect(has('/pim_ergonode/services/import/import-orchestrator.ts')).toBe(true);
+    // `pim_ergonode`'s import phases stood first here until that module left for
+    // the paid repository (feature 134); a staying module's nested directory
+    // takes its place.
+    expect(has('/assets_library/services/storage/s3-adapter.ts')).toBe(true);
     expect(has('/product_feeds/services/delivery/delivery.service.ts')).toBe(true);
     expect(has('/product_feeds/services/queues/feed-scheduler.ts')).toBe(true);
   });
 
   it('opens queue consumers — workers, queues and jobs', () => {
     expect(has('/product_feeds/workers/taxonomy-refresh-worker.ts')).toBe(true);
-    expect(has('/pim_ergonode/queues/import-scheduler.ts')).toBe(true);
+    // Was `pim_ergonode`'s `queues/import-scheduler.ts` (feature 134 took it to the
+    // paid repository). The walk opens every file a module owns, so a queue file
+    // under `services/` answers the same question over a module that stays.
+    expect(has('/newsletter/services/queues/newsletter-queues.ts')).toBe(true);
     expect(has('/assets_library/jobs/hard-delete-asset.job.ts')).toBe(true);
   });
 
