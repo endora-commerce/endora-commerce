@@ -19,7 +19,7 @@ Wygenerowane z manifestu modułu, bez ręcznych edycji. Co moduł *robi*, opisuj
 | Nazwa | Inventory |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-inventory` |
-| Poziom licencji | — |
+| Licencja | `MIT` |
 
 ## Aktywacja
 

@@ -19,7 +19,7 @@ Wygenerowane z manifestu modułu, bez ręcznych edycji. Co moduł *robi*, opisuj
 | Nazwa | Carts |
 | Wersja | `2.0.0` |
 | Pakiet | `@endora-commerce/mod-carts` |
-| Poziom licencji | — |
+| Licencja | `MIT` |
 
 ## Aktywacja
 

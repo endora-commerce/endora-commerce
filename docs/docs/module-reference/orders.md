@@ -19,7 +19,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | Name | Orders |
 | Version | `1.3.0` |
 | Ships from | `@endora-commerce/mod-orders` |
-| Licence tier | — |
+| Licence | `MIT` |
 
 ## Activation
 

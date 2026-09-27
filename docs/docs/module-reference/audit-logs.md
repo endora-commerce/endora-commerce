@@ -19,7 +19,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | Name | Audit Logs |
 | Version | `1.0.0` |
 | Ships from | `@endora-commerce/mod-audit-logs` |
-| Licence tier | — |
+| Licence | `MIT` |
 
 ## Activation
 

@@ -19,7 +19,7 @@ Wygenerowane z manifestu modułu, bez ręcznych edycji. Co moduł *robi*, opisuj
 | Nazwa | Catalog |
 | Wersja | `1.6.0` |
 | Pakiet | `@endora-commerce/mod-catalog` |
-| Poziom licencji | — |
+| Licencja | `MIT` |
 
 ## Aktywacja
 
