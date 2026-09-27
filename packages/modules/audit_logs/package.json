@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-audit-logs",
-  "version": "0.9.6",
+  "version": "0.9.7",
   "type": "module",
   "sideEffects": false,
   "description": "Append-only audit log for sensitive admin and customer actions.",

@@ -1,5 +1,28 @@
 # @endora-commerce/mod-invoice-ledger
 
+## 0.12.3
+
+### Patch Changes
+
+- 8d644b6: The invoice ledger's own texts stop naming a particular vendor
+
+  The package description, the two `whenAbsent` sentences of its `invoices` edges, the KSeF routing
+  setting's description and its module page now describe "a vendor adapter module" rather than one
+  named adapter, and the deliveries palette action no longer lists `infakt` among its keywords. The
+  KSeF routing itself — native or vendor — and every setting code, route and permission are
+  unchanged.
+
+- Updated dependencies [0af8db8]
+- Updated dependencies [7b1f09e]
+- Updated dependencies [8418b7d]
+- Updated dependencies [a12d4bf]
+- Updated dependencies [6738f35]
+- Updated dependencies [9ef7f4b]
+- Updated dependencies [1b3fb93]
+  - @endora-commerce/contracts@0.17.0
+  - @endora-commerce/admin-kit@0.9.7
+  - @endora-commerce/platform@0.13.3
+
 ## 0.12.2
 
 ### Patch Changes

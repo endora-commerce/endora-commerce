@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-delivery-methods",
-  "version": "0.10.6",
+  "version": "0.10.7",
   "type": "module",
   "sideEffects": false,
   "description": "Shipping/delivery method definitions and per-channel availability.",

@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/platform",
-  "version": "0.13.2",
+  "version": "0.13.3",
   "type": "module",
   "sideEffects": false,
   "endora": {
