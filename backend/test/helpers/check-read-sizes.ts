@@ -5822,7 +5822,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/136-pre-publication-scan` merged with `origin/master` at `655a22edc`: files 1478 -> 1482 (origin/master reads 1481, this branch +1); sites 532 -> 535 (origin/master reads 534, this branch +1).** Resolved wholly to master, then re-measured on a pristine pair (fresh worktree, `build:packages`, `git clean -fX docs/docs/modules`): master already read past the record from merges that did not re-record; this branch's own share is its two files, `backend/scripts/pre-publication-scan.ts` and its test.
     // **T069 (`comarch_xl` leaves), after merging `origin/master` at !1841: files 1482 -> 1446.** The record was resolved wholly to `master` and re-measured on a pristine detached worktree of the merge commit `8c875cb4a`, after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the tree is this branch's E5 and `comarch_xl`'s departure (package, 34 host test files and their support file, three Polish pages, E1 baseline) over `master`. Not computed from a delta.
     // **T069 (`ksef` and `infakt` leave): 1446 -> 1413.** Agrees on `origin/master` (d6808271f, after `comarch_xl` left) and moves with the branch: E5, the two packages, their host tests, their Polish pages, the E9 drain and T140/T142; measured on the pristine pair.
-    files: 1413,
+    // **T124/T125 (the module-named host values go; W1 reads names): 1413 -> 1414.** Agrees on `origin/master` (3b8b19d89) and moves with the branch: the W1 root-name library test; measured on the pristine pair.
+    files: 1414,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -6192,7 +6193,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/136-pre-publication-scan` merged with `origin/master` at `655a22edc`: files 1478 -> 1482 (origin/master reads 1481, this branch +1).** Resolved wholly to master, then re-measured on a pristine pair (fresh worktree, `build:packages`, `git clean -fX docs/docs/modules`): master already read past the record from merges that did not re-record; this branch's own share is its two files, `backend/scripts/pre-publication-scan.ts` and its test.
     // **T069 (`comarch_xl` leaves), after merging `origin/master` at !1841: files 1482 -> 1446.** The record was resolved wholly to `master` and re-measured on a pristine detached worktree of the merge commit `8c875cb4a`, after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the tree is this branch's E5 and `comarch_xl`'s departure (package, 34 host test files and their support file, three Polish pages, E1 baseline) over `master`. Not computed from a delta.
     // **T069 (`ksef` and `infakt` leave): 1446 -> 1413.** Agrees on `origin/master` (d6808271f, after `comarch_xl` left) and moves with the branch: E5, the two packages, their host tests, their Polish pages, the E9 drain and T140/T142; measured on the pristine pair.
-    files: 1413,
+    // **T124/T125 (the module-named host values go; W1 reads names): 1413 -> 1414.** Agrees on `origin/master` (3b8b19d89) and moves with the branch: the W1 root-name library test; measured on the pristine pair.
+    files: 1414,
     sites: null,
     sources: [],
   },
@@ -10065,7 +10067,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`docs/136-secret-review`, merged with `origin/master` `b28ed6cfc` after !1839 and !1842: files 8119 -> 8123.** Measured on a pristine pair — a detached worktree of this branch's tip `ad886ce8c` and one of `origin/master` `b28ed6cfc`, each after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and `git status --porcelain` empty — with this record first resolved wholly to master. The branch adds one tracked file, `specs/136-open-source-publication/secret-review-2026-09-27.md`, and edits `root-dispositions.json`. The pristine `origin/master` reads 8122, so +3 is master's own and +1 is the new file. Not computed from a delta.
     // **T069 (`comarch_xl` leaves), after merging `origin/master` at !1841: files 8123 -> 7966.** The record was resolved wholly to `master` and re-measured on a pristine detached worktree of the merge commit `8c875cb4a`, after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the tree is this branch's E5 and `comarch_xl`'s departure (package, 34 host test files and their support file, three Polish pages, E1 baseline) over `master`. Not computed from a delta.
     // **T069 (`ksef` and `infakt` leave): 7966 -> 7817.** Agrees on `origin/master` (d6808271f, after `comarch_xl` left) and moves with the branch: E5, the two packages, their host tests, their Polish pages, the E9 drain and T140/T142; measured on the pristine pair.
-    files: 7817,
+    // **T124/T125 (the module-named host values go; W1 reads names): 7817 -> 7800.** 7817 -> 7796 on `origin/master` (3b8b19d89, the 0.17.0 release consumed its changesets), then +4 with this branch: the W1 root-name library and its test, and two changesets; measured on the pristine pair.
+    files: 7800,
     sites: null,
     sources: [],
     //
@@ -12303,7 +12306,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`docs/136-secret-review`, merged with `origin/master` `b28ed6cfc` after !1839 and !1842: files 8180 -> 8184.** Measured on a pristine pair — a detached worktree of this branch's tip `ad886ce8c` and one of `origin/master` `b28ed6cfc`, each after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and `git status --porcelain` empty — with this record first resolved wholly to master. The branch adds one tracked file, `specs/136-open-source-publication/secret-review-2026-09-27.md`, and edits `root-dispositions.json`. The pristine `origin/master` reads 8183, so +3 is master's own and +1 is the new file. Not computed from a delta.
     // **T069 (`comarch_xl` leaves), after merging `origin/master` at !1841: files 8184 -> 8027.** The record was resolved wholly to `master` and re-measured on a pristine detached worktree of the merge commit `8c875cb4a`, after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the tree is this branch's E5 and `comarch_xl`'s departure (package, 34 host test files and their support file, three Polish pages, E1 baseline) over `master`. Not computed from a delta.
     // **T069 (`ksef` and `infakt` leave): 8027 -> 7878.** Agrees on `origin/master` (d6808271f, after `comarch_xl` left) and moves with the branch: E5, the two packages, their host tests, their Polish pages, the E9 drain and T140/T142; measured on the pristine pair.
-    files: 7878,
+    // **T124/T125 (the module-named host values go; W1 reads names): 7878 -> 7861.** 7878 -> 7857 on `origin/master` (3b8b19d89, the 0.17.0 release consumed its changesets), then +4 with this branch: the W1 root-name library and its test, and two changesets; measured on the pristine pair.
+    files: 7861,
     // **T055 (`pim_unopim` leaves): 1335 -> 1336.** measured on the branch's tree and not attributed further; it is inside the band either way and is re-recorded because it agreed on `master`.
     // **T055 (`pim_pimcore` leaves): 1336 -> 1337.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
     // **T055 (`pim_ergonode` leaves): 1337 -> 1338.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
@@ -12651,7 +12655,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/136-pre-publication-scan` merged with `origin/master` at `655a22edc`: files 1478 -> 1482 (origin/master reads 1481, this branch +1); sites 154 -> 155 (origin/master reads 155).** Resolved wholly to master, then re-measured on a pristine pair (fresh worktree, `build:packages`, `git clean -fX docs/docs/modules`): master already read past the record from merges that did not re-record; this branch's own share is its two files, `backend/scripts/pre-publication-scan.ts` and its test.
     // **T069 (`comarch_xl` leaves), after merging `origin/master` at !1841: files 1482 -> 1446.** The record was resolved wholly to `master` and re-measured on a pristine detached worktree of the merge commit `8c875cb4a`, after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the tree is this branch's E5 and `comarch_xl`'s departure (package, 34 host test files and their support file, three Polish pages, E1 baseline) over `master`. Not computed from a delta.
     // **T069 (`ksef` and `infakt` leave): 1446 -> 1413.** Agrees on `origin/master` (d6808271f, after `comarch_xl` left) and moves with the branch: E5, the two packages, their host tests, their Polish pages, the E9 drain and T140/T142; measured on the pristine pair.
-    files: 1413,
+    // **T124/T125 (the module-named host values go; W1 reads names): 1413 -> 1414.** Agrees on `origin/master` (3b8b19d89) and moves with the branch: the W1 root-name library test; measured on the pristine pair.
+    files: 1414,
     // **T055 (`pim_unopim` leaves): 166 -> 157.** the sites those host test files held.
     // **T055 (`pim_pimcore` leaves): 157 -> 156.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
     // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 156 -> 157.**
@@ -13405,7 +13410,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/136-pre-publication-scan` merged with `origin/master` at `655a22edc`: files 1592 -> 1600 (origin/master reads 1599, this branch +1); sites 996 -> 998 (origin/master reads 998).** Resolved wholly to master, then re-measured on a pristine pair (fresh worktree, `build:packages`, `git clean -fX docs/docs/modules`): master already read past the record from merges that did not re-record; this branch's own share is its two files, `backend/scripts/pre-publication-scan.ts` and its test.
     // **T069 (`comarch_xl` leaves), after merging `origin/master` at !1841: files 1600 -> 1549.** The record was resolved wholly to `master` and re-measured on a pristine detached worktree of the merge commit `8c875cb4a`, after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the tree is this branch's E5 and `comarch_xl`'s departure (package, 34 host test files and their support file, three Polish pages, E1 baseline) over `master`. Not computed from a delta.
     // **T069 (`ksef` and `infakt` leave): 1549 -> 1495.** Agrees on `origin/master` (d6808271f, after `comarch_xl` left) and moves with the branch: E5, the two packages, their host tests, their Polish pages, the E9 drain and T140/T142; measured on the pristine pair.
-    files: 1495,
+    // **T124/T125 (the module-named host values go; W1 reads names): 1495 -> 1496.** Agrees on `origin/master` (3b8b19d89) and moves with the branch: the W1 root-name library test; measured on the pristine pair.
+    files: 1496,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -14406,7 +14412,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/136-pre-publication-scan` merged with `origin/master` at `655a22edc`: files 4114 -> 4128 (origin/master reads 4126, this branch +2); sites 725 -> 726 (origin/master reads 726).** Resolved wholly to master, then re-measured on a pristine pair (fresh worktree, `build:packages`, `git clean -fX docs/docs/modules`): master already read past the record from merges that did not re-record; this branch's own share is its two files, `backend/scripts/pre-publication-scan.ts` and its test.
     // **T069 (`comarch_xl` leaves), after merging `origin/master` at !1841: files 4128 -> 3999.** The record was resolved wholly to `master` and re-measured on a pristine detached worktree of the merge commit `8c875cb4a`, after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the tree is this branch's E5 and `comarch_xl`'s departure (package, 34 host test files and their support file, three Polish pages, E1 baseline) over `master`. Not computed from a delta.
     // **T069 (`ksef` and `infakt` leave): 3999 -> 3878.** Agrees on `origin/master` (d6808271f, after `comarch_xl` left) and moves with the branch: E5, the two packages, their host tests, their Polish pages, the E9 drain and T140/T142; measured on the pristine pair.
-    files: 3878,
+    // **T124/T125 (the module-named host values go; W1 reads names): 3878 -> 3879.** Agrees on `origin/master` (3b8b19d89) and moves with the branch: the W1 root-name library test; measured on the pristine pair.
+    files: 3879,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -15586,7 +15593,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`docs/136-secret-review`, merged with `origin/master` `b28ed6cfc` after !1839 and !1842: files 8179 -> 8183.** Measured on a pristine pair — a detached worktree of this branch's tip `ad886ce8c` and one of `origin/master` `b28ed6cfc`, each after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and `git status --porcelain` empty — with this record first resolved wholly to master. The branch adds one tracked file, `specs/136-open-source-publication/secret-review-2026-09-27.md`, and edits `root-dispositions.json`. The pristine `origin/master` reads 8182, so +3 is master's own and +1 is the new file. Not computed from a delta.
     // **T069 (`comarch_xl` leaves), after merging `origin/master` at !1841: files 8183 -> 8026.** The record was resolved wholly to `master` and re-measured on a pristine detached worktree of the merge commit `8c875cb4a`, after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the tree is this branch's E5 and `comarch_xl`'s departure (package, 34 host test files and their support file, three Polish pages, E1 baseline) over `master`. Not computed from a delta.
     // **T069 (`ksef` and `infakt` leave): 8026 -> 7877.** Agrees on `origin/master` (d6808271f, after `comarch_xl` left) and moves with the branch: E5, the two packages, their host tests, their Polish pages, the E9 drain and T140/T142; measured on the pristine pair.
-    files: 7877,
+    // **T124/T125 (the module-named host values go; W1 reads names): 7877 -> 7860.** 7877 -> 7856 on `origin/master` (3b8b19d89, the 0.17.0 release consumed its changesets), then +4 with this branch: the W1 root-name library and its test, and two changesets; measured on the pristine pair.
+    files: 7860,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -16306,7 +16314,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/136-pre-publication-scan` merged with `origin/master` at `655a22edc`: files 5706 -> 5724 (origin/master reads 5722, this branch +2).** Resolved wholly to master, then re-measured on a pristine pair (fresh worktree, `build:packages`, `git clean -fX docs/docs/modules`): master already read past the record from merges that did not re-record; this branch's own share is its two files, `backend/scripts/pre-publication-scan.ts` and its test.
     // **T069 (`comarch_xl` leaves), after merging `origin/master` at !1841: files 5724 -> 5589.** The record was resolved wholly to `master` and re-measured on a pristine detached worktree of the merge commit `8c875cb4a`, after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the tree is this branch's E5 and `comarch_xl`'s departure (package, 34 host test files and their support file, three Polish pages, E1 baseline) over `master`. Not computed from a delta.
     // **T069 (`ksef` and `infakt` leave): 5589 -> 5460.** Agrees on `origin/master` (d6808271f, after `comarch_xl` left) and moves with the branch: E5, the two packages, their host tests, their Polish pages, the E9 drain and T140/T142; measured on the pristine pair.
-    files: 5460,
+    // **T124/T125 (the module-named host values go; W1 reads names): 5460 -> 5462.** Agrees on `origin/master` (3b8b19d89) and moves with the branch: the W1 root-name library and its test; measured on the pristine pair.
+    files: 5462,
     sites: null,
     sources: ['manifest-index'],
     //
