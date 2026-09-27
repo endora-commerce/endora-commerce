@@ -19,7 +19,7 @@ Wygenerowane z manifestu modułu, bez ręcznych edycji. Co moduł *robi*, opisuj
 | Nazwa | Payment Methods |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-payment-methods` |
-| Poziom licencji | — |
+| Licencja | `MIT` |
 
 ## Aktywacja
 

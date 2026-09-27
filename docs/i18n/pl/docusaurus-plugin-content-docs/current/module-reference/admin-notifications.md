@@ -19,7 +19,7 @@ Wygenerowane z manifestu modułu, bez ręcznych edycji. Nikt nie napisał jeszcz
 | Nazwa | Admin Notifications |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-admin-notifications` |
-| Poziom licencji | — |
+| Licencja | `MIT` |
 
 ## Aktywacja
 

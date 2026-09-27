@@ -422,6 +422,14 @@ export interface ModuleReference {
   readonly version: string;
   /** `@endora-commerce/mod-<id>` for a packaged module, `core` for a host-owned one. */
   readonly shipsFrom: string;
+  /**
+   * What the shipping package is **published under** — its `package.json`
+   * `license`, `MIT` or `SEE LICENSE IN <file>` — or `null` where no package
+   * publishes the module ({@link publishedLicenseOf}). Never the manifest's
+   * `license` field: that is an edition-tier enum reserved for gating, which no
+   * module sets, and a page reading it said `—` about every package
+   * (`specs/136-open-source-publication/` W3.4).
+   */
   readonly license: string | null;
   readonly activation:
     | { readonly kind: 'control'; readonly settingCode: string; readonly default: boolean }
@@ -505,6 +513,7 @@ export function referenceOf(
   loaded: LoadedManifestModule,
   shipsFrom: string,
   prosePage: string | null,
+  publishedLicense: string | null = null,
 ): ModuleReference {
   const manifest = loaded.manifest ?? {};
   const activationRaw = manifest.activation as Record<string, unknown> | undefined;
@@ -526,7 +535,7 @@ export function referenceOf(
     name: stringOr(manifest.name, moduleId),
     version: stringOr(manifest.version, '0.0.0'),
     shipsFrom,
-    license: stringOrNull(manifest.license),
+    license: publishedLicense,
     activation,
     dependencies: [...arrayOf(manifest.dependencies).map(String)].sort(),
     acknowledgedDependencies: arrayOf(manifest.acknowledgedDependencies)
@@ -574,6 +583,47 @@ export function referenceOf(
       .sort((a, b) => a.name.localeCompare(b.name)),
     prosePage,
   };
+}
+
+/**
+ * The licence the package shipping a module is published under, read from the
+ * nearest `package.json` above its manifest — or `null` when that file is not
+ * the shipping package's (a host-owned module, `shipsFrom === 'core'`, whose
+ * nearest `package.json` is the host's) or declares none.
+ *
+ * The nearest file is the package's own in both trees this renders over: in
+ * this repository the manifest is `packages/modules/<id>/src/manifest.ts`, and
+ * in an instance it is the installed package's `dist/manifest.js`, whose
+ * `package.json` is exactly what the registry published. The name is checked
+ * rather than assumed, because a licence read off the wrong file is a public
+ * statement about the wrong package.
+ */
+export function publishedLicenseOf(manifestPath: string, shipsFrom: string): string | null {
+  let dir = dirname(manifestPath);
+  for (;;) {
+    const candidate = join(dir, 'package.json');
+    if (existsSync(candidate)) {
+      const pkg = JSON.parse(readFileSync(candidate, 'utf8')) as Record<string, unknown>;
+      if (pkg.name !== shipsFrom) return null;
+      return stringOrNull(pkg.license);
+    }
+    const parent = dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+
+/**
+ * The licence row's value. An SPDX expression is shown as declared; a
+ * `SEE LICENSE IN <file>` is shown as declared and says where the terms are —
+ * the file ships in the package. Flat on purpose: this is a statement of fact
+ * about a package, and `specs/conventions/commercial-data.md` §3 N4 holds it to
+ * *inform, never press*.
+ */
+function licenceCell(license: string | null): string {
+  const own = license === null ? null : /^SEE LICENSE IN (.+)$/.exec(license);
+  if (own === null) return code(license);
+  return `${code(license)} — the package's own terms, shipped in its ${code(own[1]!.trim())}`;
 }
 
 /** A markdown table, or the sentence that says there is nothing in it. */
@@ -663,7 +713,7 @@ export function emitModuleReference(
     `| Name | ${markdownCell(reference.name)} |\n` +
     `| Version | ${code(reference.version)} |\n` +
     `| Ships from | ${code(reference.shipsFrom)} |\n` +
-    `| Licence tier | ${code(reference.license)} |\n\n` +
+    `| Licence | ${licenceCell(reference.license)} |\n\n` +
     `## Activation\n\n${activation}\n` +
     `## Dependencies\n\n${dependencies}\n` +
     `## Permissions\n\n` +
@@ -992,11 +1042,13 @@ export async function renderModuleReferencesFrom(
     if (outputPath === undefined) continue;
     const entry = byModule.get(module.id);
     const loaded = (await import(pathToFileURL(module.manifestPath).href)) as LoadedManifestModule;
+    const shipsFrom = entry?.shipsFrom ?? 'core';
     const reference = referenceOf(
       module.id,
       loaded,
-      entry?.shipsFrom ?? 'core',
+      shipsFrom,
       entry?.docs == null ? null : `../${MODULES_CATEGORY}/${entry.docs.entry.relativePath}`,
+      publishedLicenseOf(module.manifestPath, shipsFrom),
     );
     rendered.push({
       label: `module-reference (${module.id})`,

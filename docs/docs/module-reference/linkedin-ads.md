@@ -19,7 +19,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | Name | LinkedIn Ads |
 | Version | `1.0.0` |
 | Ships from | `@endora-commerce/mod-linkedin-ads` |
-| Licence tier | — |
+| Licence | `MIT` |
 
 ## Activation
 

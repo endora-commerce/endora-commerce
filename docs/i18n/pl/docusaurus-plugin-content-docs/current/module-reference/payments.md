@@ -19,7 +19,7 @@ Wygenerowane z manifestu modułu, bez ręcznych edycji. Co moduł *robi*, opisuj
 | Nazwa | Payments |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-payments` |
-| Poziom licencji | — |
+| Licencja | `MIT` |
 
 ## Aktywacja
 

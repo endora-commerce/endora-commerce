@@ -19,7 +19,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | Name | API Keys |
 | Version | `1.0.0` |
 | Ships from | `@endora-commerce/mod-api-keys` |
-| Licence tier | — |
+| Licence | `MIT` |
 
 ## Activation
 

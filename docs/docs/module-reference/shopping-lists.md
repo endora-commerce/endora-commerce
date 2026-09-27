@@ -19,7 +19,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | Name | Shopping Lists |
 | Version | `1.0.0` |
 | Ships from | `@endora-commerce/mod-shopping-lists` |
-| Licence tier | — |
+| Licence | `MIT` |
 
 ## Activation
 

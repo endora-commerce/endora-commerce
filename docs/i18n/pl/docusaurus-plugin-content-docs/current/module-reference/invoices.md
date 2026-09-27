@@ -19,7 +19,7 @@ Wygenerowane z manifestu modułu, bez ręcznych edycji. Co moduł *robi*, opisuj
 | Nazwa | Invoices |
 | Wersja | `2.0.0` |
 | Pakiet | `@endora-commerce/mod-invoices` |
-| Poziom licencji | — |
+| Licencja | `MIT` |
 
 ## Aktywacja
 

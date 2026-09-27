@@ -19,7 +19,7 @@ Wygenerowane z manifestu modułu, bez ręcznych edycji. Nikt jeszcze nie napisa�
 | Nazwa | PIM connector shared layer |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-pim-connector` |
-| Poziom licencji | — |
+| Licencja | `MIT` |
 
 ## Aktywacja
 

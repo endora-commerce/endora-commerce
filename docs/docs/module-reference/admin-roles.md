@@ -19,7 +19,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | Name | Admin Roles |
 | Version | `1.0.0` |
 | Ships from | `@endora-commerce/mod-admin-roles` |
-| Licence tier | — |
+| Licence | `MIT` |
 
 ## Activation
 
