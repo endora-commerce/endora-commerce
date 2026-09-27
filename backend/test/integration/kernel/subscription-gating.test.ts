@@ -10,7 +10,6 @@ import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { effectiveState } from '../../../src/kernel/lifecycle/effective-state.js';
 import { InventoryThreshold } from '../../helpers/package-entities.js';
 import { INVENTORY_SETTING_CODES } from '../../../../packages/modules/inventory/src/manifest.js';
-import { pimErgonodeHandle } from '@endora-commerce/mod-pim-ergonode/test-support';
 
 /**
  * Issue #107 — a module's EventBus subscriptions stop when the module does.
@@ -34,6 +33,12 @@ import { pimErgonodeHandle } from '@endora-commerce/mod-pim-ergonode/test-suppor
  * which is not absence — it is wasted work with the same output. Every handler
  * is replaced by a counter for the file's lifetime, so nothing here reaches
  * Meilisearch, Redis or a mailbox either.
+ *
+ * **The PIM connector's probe left this file by subject** (feature 134, W2.4):
+ * its reaction under the gate is that module's own behaviour and needs no
+ * server, so it is asserted inside its package, over its real registration,
+ * and travels with it. What this file proves is the mechanism, and the
+ * Job-Scheduler shape of it is still driven here by `product_feeds`.
  */
 
 const ALL_IDS = REGISTERED_MANIFESTS.map((entry) => entry.manifest.id);
@@ -157,13 +162,6 @@ const PROBES: readonly Probe[] = [
       };
       return countCalls(invoices.handle.autoIssueReactor, 'onOrderStatusChanged', count);
     },
-  },
-  {
-    moduleId: 'pim_ergonode',
-    what: 'reinstates the import Job Scheduler that pulls the client’s PIM',
-    event: 'pim_ergonode.connection_changed',
-    payload: () => ({ eventId: randomUUID() }),
-    spy: (h, count) => countCalls(pimErgonodeHandle(h.container).schedules, 'syncOne', count),
   },
   {
     moduleId: 'catalog',

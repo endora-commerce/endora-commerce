@@ -2366,7 +2366,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
-    files: 2019,
+    // **`feat/134-ergonode-host-tests` (feature 134, `pim_ergonode`'s W2), measured 2026-09-26**
+    // after merging `origin/master` `82a716f1f`, in two pristine detached worktrees of that
+    // commit and of the merge, each after `setup-worktree.sh` and `build:packages` with no
+    // module-doc copies and no ignored residue outside `node_modules` and `dist`, never
+    // computed from a delta. This dimension agrees on `master` and drifts at the tip. The
+    // branch moves `boot-hook-presence.test.ts` into `pim_ergonode`'s package, adds four
+    // co-located package tests and one changeset, and deletes two admin tests and the module's
+    // test-ownership shard.
+    files: 2024,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -2991,7 +2999,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
-    files: 5200,
+    // **`feat/134-ergonode-host-tests` (feature 134, `pim_ergonode`'s W2), measured 2026-09-26**
+    // after merging `origin/master` `82a716f1f`, in two pristine detached worktrees of that
+    // commit and of the merge, each after `setup-worktree.sh` and `build:packages` with no
+    // module-doc copies and no ignored residue outside `node_modules` and `dist`, never
+    // computed from a delta. This dimension agrees on `master` and drifts at the tip. The
+    // branch moves `boot-hook-presence.test.ts` into `pim_ergonode`'s package, adds four
+    // co-located package tests and one changeset, and deletes two admin tests and the module's
+    // test-ownership shard.
+    files: 5202,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -3182,7 +3198,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
-    sites: 476,
+    sites: 478,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -3464,7 +3480,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
-    files: 2240,
+    // **`feat/134-ergonode-host-tests` (feature 134, `pim_ergonode`'s W2), measured 2026-09-26**
+    // after merging `origin/master` `82a716f1f`, in two pristine detached worktrees of that
+    // commit and of the merge, each after `setup-worktree.sh` and `build:packages` with no
+    // module-doc copies and no ignored residue outside `node_modules` and `dist`, never
+    // computed from a delta. This dimension agrees on `master` and drifts at the tip. The
+    // branch moves `boot-hook-presence.test.ts` into `pim_ergonode`'s package, adds four
+    // co-located package tests and one changeset, and deletes two admin tests and the module's
+    // test-ownership shard.
+    files: 2245,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -5638,7 +5662,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
-    files: 1520,
+    // **`feat/134-ergonode-host-tests` (feature 134, `pim_ergonode`'s W2), measured 2026-09-26**
+    // after merging `origin/master` `82a716f1f`, in two pristine detached worktrees of that
+    // commit and of the merge, each after `setup-worktree.sh` and `build:packages` with no
+    // module-doc copies and no ignored residue outside `node_modules` and `dist`, never
+    // computed from a delta. This dimension agrees on `master` and drifts at the tip. The
+    // branch moves `boot-hook-presence.test.ts` into `pim_ergonode`'s package, adds four
+    // co-located package tests and one changeset, and deletes two admin tests and the module's
+    // test-ownership shard.
+    files: 1519,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -5988,7 +6020,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
-    files: 1520,
+    // **`feat/134-ergonode-host-tests` (feature 134, `pim_ergonode`'s W2), measured 2026-09-26**
+    // after merging `origin/master` `82a716f1f`, in two pristine detached worktrees of that
+    // commit and of the merge, each after `setup-worktree.sh` and `build:packages` with no
+    // module-doc copies and no ignored residue outside `node_modules` and `dist`, never
+    // computed from a delta. This dimension agrees on `master` and drifts at the tip. The
+    // branch moves `boot-hook-presence.test.ts` into `pim_ergonode`'s package, adds four
+    // co-located package tests and one changeset, and deletes two admin tests and the module's
+    // test-ownership shard.
+    files: 1519,
     sites: null,
     sources: [],
   },
@@ -6891,7 +6931,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
-    files: 2518,
+    // **`feat/134-ergonode-host-tests` (feature 134, `pim_ergonode`'s W2), measured 2026-09-26**
+    // after merging `origin/master` `82a716f1f`, in two pristine detached worktrees of that
+    // commit and of the merge, each after `setup-worktree.sh` and `build:packages` with no
+    // module-doc copies and no ignored residue outside `node_modules` and `dist`, never
+    // computed from a delta. This dimension agrees on `master` and drifts at the tip. The
+    // branch moves `boot-hook-presence.test.ts` into `pim_ergonode`'s package, adds four
+    // co-located package tests and one changeset, and deletes two admin tests and the module's
+    // test-ownership shard.
+    files: 2523,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 56 -> 66.**
     // The header block above this table has the arithmetic; nothing here
@@ -7234,7 +7282,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
-    files: 2616,
+    // **`feat/134-ergonode-host-tests` (feature 134, `pim_ergonode`'s W2), measured 2026-09-26**
+    // after merging `origin/master` `82a716f1f`, in two pristine detached worktrees of that
+    // commit and of the merge, each after `setup-worktree.sh` and `build:packages` with no
+    // module-doc copies and no ignored residue outside `node_modules` and `dist`, never
+    // computed from a delta. This dimension agrees on `master` and drifts at the tip. The
+    // branch moves `boot-hook-presence.test.ts` into `pim_ergonode`'s package, adds four
+    // co-located package tests and one changeset, and deletes two admin tests and the module's
+    // test-ownership shard.
+    files: 2621,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -8025,7 +8081,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_unopim` leaves): 422 -> 372.** the `pim_unopim` package's sources. `master` already read 392 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 372 -> 356.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 356,
+    // **`feat/134-ergonode-host-tests` (feature 134, `pim_ergonode`'s W2), measured 2026-09-26**
+    // after merging `origin/master` `82a716f1f`, in two pristine detached worktrees of that
+    // commit and of the merge, each after `setup-worktree.sh` and `build:packages` with no
+    // module-doc copies and no ignored residue outside `node_modules` and `dist`, never
+    // computed from a delta. This dimension agrees on `master` and drifts at the tip. The
+    // branch moves `boot-hook-presence.test.ts` into `pim_ergonode`'s package, adds four
+    // co-located package tests and one changeset, and deletes two admin tests and the module's
+    // test-ownership shard.
+    files: 359,
     // **Batch 13 (feature 091, Phase 4): 2361 -> 2305, and the cause is the move's
     // spelling rather than its size.** A published-symbol reach is counted per
     // import statement, and the twenty-four moved screens rewrote thirty `@/…`
@@ -8072,7 +8136,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **T055 (`pim_unopim` leaves): 2329 -> 2067.** the sites the `pim_unopim` package held, measured. `master` already read 2184 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 2067 -> 1987.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    sites: 1987,
+    sites: 1999,
     // **Three** derivations since Phase 5's T3, none of them the walk counting
     // itself: the generated manifest index for the modules a walked file is
     // attributed to; the kit's own `exports` map against the barrels on disk —
@@ -8492,7 +8556,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
-    files: 4643,
+    // **`feat/134-ergonode-host-tests` (feature 134, `pim_ergonode`'s W2), measured 2026-09-26**
+    // after merging `origin/master` `82a716f1f`, in two pristine detached worktrees of that
+    // commit and of the merge, each after `setup-worktree.sh` and `build:packages` with no
+    // module-doc copies and no ignored residue outside `node_modules` and `dist`, never
+    // computed from a delta. This dimension agrees on `master` and drifts at the tip. The
+    // branch moves `boot-hook-presence.test.ts` into `pim_ergonode`'s package, adds four
+    // co-located package tests and one changeset, and deletes two admin tests and the module's
+    // test-ownership shard.
+    files: 4653,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -8608,7 +8680,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
-    sites: 11326,
+    sites: 11348,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -11106,7 +11178,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
-    files: 2194,
+    // **`feat/134-ergonode-host-tests` (feature 134, `pim_ergonode`'s W2), measured 2026-09-26**
+    // after merging `origin/master` `82a716f1f`, in two pristine detached worktrees of that
+    // commit and of the merge, each after `setup-worktree.sh` and `build:packages` with no
+    // module-doc copies and no ignored residue outside `node_modules` and `dist`, never
+    // computed from a delta. This dimension agrees on `master` and drifts at the tip. The
+    // branch moves `boot-hook-presence.test.ts` into `pim_ergonode`'s package, adds four
+    // co-located package tests and one changeset, and deletes two admin tests and the module's
+    // test-ownership shard.
+    files: 2193,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -12221,7 +12301,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
-    files: 1520,
+    // **`feat/134-ergonode-host-tests` (feature 134, `pim_ergonode`'s W2), measured 2026-09-26**
+    // after merging `origin/master` `82a716f1f`, in two pristine detached worktrees of that
+    // commit and of the merge, each after `setup-worktree.sh` and `build:packages` with no
+    // module-doc copies and no ignored residue outside `node_modules` and `dist`, never
+    // computed from a delta. This dimension agrees on `master` and drifts at the tip. The
+    // branch moves `boot-hook-presence.test.ts` into `pim_ergonode`'s package, adds four
+    // co-located package tests and one changeset, and deletes two admin tests and the module's
+    // test-ownership shard.
+    files: 1519,
     // **T055 (`pim_unopim` leaves): 166 -> 157.** the sites those host test files held.
     // **T055 (`pim_pimcore` leaves): 157 -> 156.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
     // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 156 -> 157.**
@@ -12952,7 +13040,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
-    files: 1649,
+    // **`feat/134-ergonode-host-tests` (feature 134, `pim_ergonode`'s W2), measured 2026-09-26**
+    // after merging `origin/master` `82a716f1f`, in two pristine detached worktrees of that
+    // commit and of the merge, each after `setup-worktree.sh` and `build:packages` with no
+    // module-doc copies and no ignored residue outside `node_modules` and `dist`, never
+    // computed from a delta. This dimension agrees on `master` and drifts at the tip. The
+    // branch moves `boot-hook-presence.test.ts` into `pim_ergonode`'s package, adds four
+    // co-located package tests and one changeset, and deletes two admin tests and the module's
+    // test-ownership shard.
+    files: 1653,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -12987,7 +13083,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
-    sites: 1082,
+    sites: 1078,
     // Two independent authors. `manifest-index` is issue #215's shared floor
     // over the module walk, whose unit is the module's own directory rather than
     // a test file — 14 of the 70 packages ship no test and a floor over test
@@ -13927,7 +14023,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
-    files: 4244,
+    // **`feat/134-ergonode-host-tests` (feature 134, `pim_ergonode`'s W2), measured 2026-09-26**
+    // after merging `origin/master` `82a716f1f`, in two pristine detached worktrees of that
+    // commit and of the merge, each after `setup-worktree.sh` and `build:packages` with no
+    // module-doc copies and no ignored residue outside `node_modules` and `dist`, never
+    // computed from a delta. This dimension agrees on `master` and drifts at the tip. The
+    // branch moves `boot-hook-presence.test.ts` into `pim_ergonode`'s package, adds four
+    // co-located package tests and one changeset, and deletes two admin tests and the module's
+    // test-ownership shard.
+    files: 4247,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -15798,7 +15902,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
-    files: 5842,
+    // **`feat/134-ergonode-host-tests` (feature 134, `pim_ergonode`'s W2), measured 2026-09-26**
+    // after merging `origin/master` `82a716f1f`, in two pristine detached worktrees of that
+    // commit and of the merge, each after `setup-worktree.sh` and `build:packages` with no
+    // module-doc copies and no ignored residue outside `node_modules` and `dist`, never
+    // computed from a delta. This dimension agrees on `master` and drifts at the tip. The
+    // branch moves `boot-hook-presence.test.ts` into `pim_ergonode`'s package, adds four
+    // co-located package tests and one changeset, and deletes two admin tests and the module's
+    // test-ownership shard.
+    files: 5843,
     sites: null,
     sources: ['manifest-index'],
     //
