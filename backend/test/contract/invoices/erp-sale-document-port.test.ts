@@ -240,6 +240,7 @@ describe('invoices — imported-document identity is (system, externalId) [contr
     } as unknown as ErpSaleDocumentUpsertInput;
 
     await expect(port.upsertImportedDocument(oldShape)).rejects.toMatchObject({
+      statusCode: 422,
       code: ERROR_CODES.VALIDATION_FAILED,
     });
 

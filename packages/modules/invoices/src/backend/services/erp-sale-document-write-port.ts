@@ -34,7 +34,7 @@ export class ErpSaleDocumentWritePortService implements ErpSaleDocumentWritePort
     const parsed = erpSaleDocumentUpsertInputSchema.safeParse(untrusted);
     if (!parsed.success) {
       throw new HttpError(
-        400,
+        422,
         ERROR_CODES.VALIDATION_FAILED,
         'Imported sale document failed validation.',
         parsed.error.issues.map((issue) => ({
