@@ -18,6 +18,7 @@ import {
 import { ScriptedLedgerFixtureClient } from '../../helpers/ledger-fixture-client.js';
 import { switchCapabilityFamilyOff } from '../../helpers/capability-families.js';
 import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
+import { effectiveState } from '@endora-commerce/platform/kernel';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import { seedInvoiceableOrder, setSellerSettings } from '../invoices/helpers.js';
 import {
@@ -280,7 +281,16 @@ describe('invoice ledger — the fixture vendor, end to end [integration]', () =
       expect(delivery.status).toBe('dead');
       expect(delivery.ksefRouting).toBe('vendor');
       expect(delivery.ksefDelegated).toBe(true);
-      expect(delivery.adapterId).not.toBe(FIXTURE_MODULE_ID);
+      // Attributed the way the ledger attributes a dead letter: to the first
+      // member the family declares, derived, never a vendor this file names. It
+      // read `not.toBe(FIXTURE_MODULE_ID)` first, which held only while another
+      // declared vendor sorted ahead of the fixture — the rehearsed departure of
+      // the last packaged vendor turned it red (feature 134, T069).
+      expect(delivery.adapterId).toBe(
+        effectiveState.declaredMembersOfCapability(CAPABILITY_KEYS.INVOICE_LEDGER_VENDOR)[0] ??
+          'invoice_ledger',
+      );
+      expect(delivery.credentialCode).toBe(delivery.adapterId);
       expect(delivery.lastError).toBe(INVOICE_LEDGER_VENDOR_KSEF_ABSENT_MESSAGE);
       expect(ledgerFixtureHttp.createCalls).toEqual([]);
     } finally {
