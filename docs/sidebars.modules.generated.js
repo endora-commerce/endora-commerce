@@ -246,14 +246,6 @@ const modules = [
   },
   {
     type: 'category',
-    label: 'Infakt', key: 'infakt',
-    link: { type: 'doc', id: 'modules/infakt' },
-    items: [
-      'module-reference/infakt',
-    ],
-  },
-  {
-    type: 'category',
     label: 'inventory', key: 'inventory',
     link: { type: 'doc', id: 'modules/inventory' },
     items: [

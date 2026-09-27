@@ -140,7 +140,6 @@
     "@endora-commerce/mod-google-tag-manager": "workspace:*",
     "@endora-commerce/mod-i18n": "workspace:*",
     "@endora-commerce/mod-import-export": "workspace:*",
-    "@endora-commerce/mod-infakt": "workspace:*",
     "@endora-commerce/mod-inventory": "workspace:*",
     "@endora-commerce/mod-invoice-ledger": "workspace:*",
     "@endora-commerce/mod-invoices": "workspace:*",

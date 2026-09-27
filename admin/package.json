@@ -42,7 +42,6 @@
     "@endora-commerce/mod-dictionaries": "workspace:*",
     "@endora-commerce/mod-google-analytics": "workspace:*",
     "@endora-commerce/mod-import-export": "workspace:*",
-    "@endora-commerce/mod-infakt": "workspace:*",
     "@endora-commerce/mod-inventory": "workspace:*",
     "@endora-commerce/mod-invoice-ledger": "workspace:*",
     "@endora-commerce/mod-invoices": "workspace:*",
