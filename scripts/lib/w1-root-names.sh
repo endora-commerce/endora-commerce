@@ -16,7 +16,7 @@
 # ## What it matches, and where
 #
 # A property key or member access that is `<camelId>` or `<camelId>` followed by an upper-case
-# letter (`pimAkeneoRunWorkers:`, `reads().ksef.handle`), in non-comment lines of the two roots —
+# letter (`<camelId>RunWorkers:`, `reads().<camelId>.handle`), in non-comment lines of the two roots —
 # `packages/platform/src/**` and `backend/src/composition.ts` — tests excluded.
 #
 # **Scoped to the roots on purpose.** Widened to every free package, `ksef`'s prefix matches
