@@ -19,7 +19,7 @@ Wygenerowane z manifestu modułu, bez ręcznych edycji. Co moduł *robi*, opisuj
 | Nazwa | Settings |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-settings` |
-| Poziom licencji | — |
+| Licencja | `MIT` |
 
 ## Aktywacja
 

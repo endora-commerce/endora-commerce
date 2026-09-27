@@ -19,7 +19,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | Name | Admin Users |
 | Version | `1.0.0` |
 | Ships from | `@endora-commerce/mod-admin-users` |
-| Licence tier | — |
+| Licence | `MIT` |
 
 ## Activation
 

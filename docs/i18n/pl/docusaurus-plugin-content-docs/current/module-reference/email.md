@@ -19,7 +19,7 @@ Wygenerowane z manifestu modułu, bez ręcznych edycji. Nikt nie napisał jeszcz
 | Nazwa | Email |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-email` |
-| Poziom licencji | — |
+| Licencja | `MIT` |
 
 ## Aktywacja
 

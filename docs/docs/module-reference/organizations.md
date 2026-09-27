@@ -19,7 +19,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | Name | Organizations |
 | Version | `1.1.0` |
 | Ships from | `@endora-commerce/mod-organizations` |
-| Licence tier | — |
+| Licence | `MIT` |
 
 ## Activation
 
