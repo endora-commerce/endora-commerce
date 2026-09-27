@@ -19,7 +19,7 @@ Wygenerowane z manifestu modułu, bez ręcznych edycji. Co moduł *robi*, opisuj
 | Nazwa | Credit Limits |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-credit-limits` |
-| Poziom licencji | — |
+| Licencja | `MIT` |
 
 ## Aktywacja
 

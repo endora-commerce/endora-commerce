@@ -19,7 +19,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | Name | Compare Products |
 | Version | `1.0.0` |
 | Ships from | `@endora-commerce/mod-comparisons` |
-| Licence tier | — |
+| Licence | `MIT` |
 
 ## Activation
 

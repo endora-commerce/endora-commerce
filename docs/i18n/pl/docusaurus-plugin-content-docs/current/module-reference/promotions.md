@@ -19,7 +19,7 @@ Wygenerowane z manifestu modułu, bez ręcznych edycji. Co moduł *robi*, opisuj
 | Nazwa | Promotions |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-promotions` |
-| Poziom licencji | — |
+| Licencja | `MIT` |
 
 ## Aktywacja
 

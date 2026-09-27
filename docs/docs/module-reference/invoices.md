@@ -19,7 +19,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | Name | Invoices |
 | Version | `2.0.0` |
 | Ships from | `@endora-commerce/mod-invoices` |
-| Licence tier | — |
+| Licence | `MIT` |
 
 ## Activation
 

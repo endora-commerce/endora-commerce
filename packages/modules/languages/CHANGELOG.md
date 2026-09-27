@@ -1,5 +1,13 @@
 # @endora-commerce/mod-languages
 
+## 0.8.5
+
+### Patch Changes
+
+- Updated dependencies [8a88460]
+  - @endora-commerce/contracts@0.16.0
+  - @endora-commerce/platform@0.13.2
+
 ## 0.8.4
 
 ### Patch Changes

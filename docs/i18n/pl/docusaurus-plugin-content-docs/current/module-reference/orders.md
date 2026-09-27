@@ -19,7 +19,7 @@ Wygenerowane z manifestu modułu, bez ręcznych edycji. Co moduł *robi*, opisuj
 | Nazwa | Orders |
 | Wersja | `1.3.0` |
 | Pakiet | `@endora-commerce/mod-orders` |
-| Poziom licencji | — |
+| Licencja | `MIT` |
 
 ## Aktywacja
 

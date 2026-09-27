@@ -19,7 +19,7 @@ Wygenerowane z manifestu modułu, bez ręcznych edycji. Nikt nie napisał jeszcz
 | Nazwa | MFA |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-mfa` |
-| Poziom licencji | — |
+| Licencja | `MIT` |
 
 ## Aktywacja
 
