@@ -178,8 +178,8 @@ To zamyka wypadek, nie decyzję. Seed nadal jest osiągalny, a ten krok nadal je
 operator mówi nie.
 
 **Zrób (operator + inżynier).** Nie uruchamiaj seed. Załaduj prawdziwy katalog klienta przez
-moduł Import/Export albo integrację Ergonode PIM. Wdrożenie startuje z pustym katalogiem
-celowo.
+moduł Import/Export — albo, gdy klient trzyma katalog w PIM, przez łącznik PIM, który wdrożenie
+dla niego instaluje. Wdrożenie startuje z pustym katalogiem celowo.
 
 **Zweryfikuj.** Brak demo produktów, demo organizacji, konta `platform_admin`, którego sam nie
 utworzyłeś. `select count(*) from products` zwraca to, co wyprodukował import klienta.
@@ -291,7 +291,7 @@ jawnie:
 | --- | --- |
 | zarządza cennikami, bracketami, regułami albo override display-mode (`/price-lists`, `/price-lists/:id`, `/price-lists/display-modes`) | `price_lists:read` + `price_lists:write` |
 | tylko musi zobaczyć wyjaśnioną cenę — czyta cenniki albo otwiera zakładkę **Pricing** na produkcie | `price_lists:read` |
-| mapuje atrybuty Ergonode (`/pim/ergonode/attribute-mapping`), których pickery cennika i waluty czytają `GET /api/v1/admin/price-lists-engine` i `GET /api/v1/admin/pricing/rule-targets/currencies` | `price_lists:read`, oprócz `pim_ergonode:*` |
+| pracuje na ekranie innego modułu, który oferuje pickery cennika albo waluty — czytają one `GET /api/v1/admin/price-lists-engine` i `GET /api/v1/admin/pricing/rule-targets/currencies` | `price_lists:read`, oprócz własnych uprawnień tego modułu |
 | edytuje treść katalogu i **nie** może zmieniać cen | żadnego — zostaw `catalog:write` jak jest |
 
 Ostatni wiersz to sens zmiany: po tym `catalog:write` znaczy treść katalogu i nic więcej.
@@ -424,17 +424,17 @@ by wyprodukował.
 
 ### F4. Przełącz każdą bramkę płatności z sandbox na production
 
-**Dlaczego.** Każdy moduł bramki domyślnie ustawia environment na `sandbox`
-(`packages/modules/tpay/src/manifest.ts:28`, `packages/modules/payu/src/manifest.ts:28`, i ten
-sam kształt w `autopay` i `stripe`), i trzyma osobne credentials per environment. Wdrożenie live
-w sandbox nie bierze pieniędzy; wdrożenie, które zapomni zarejestrować production callback URL,
-bierze pieniądze i nigdy nie potwierdza zamówienia.
+**Dlaczego.** Moduł bramki płatności instaluje się osobno od platformy, a moduł bramki zwykle
+jest dostarczany z environment ustawionym na `sandbox` i trzyma osobne credentials per
+environment. Wdrożenie live w sandbox nie bierze pieniędzy; wdrożenie, które zapomni zarejestrować
+production callback URL, bierze pieniądze i nigdy nie potwierdza zamówienia. Klient, który nie
+przyjmuje płatności online — przelew bankowy albo limit kredytowy z odroczonym terminem — nie ma
+bramki i pomija ten punkt.
 
 **Zrób (operator + inżynier).** Dla każdej bramki, której klient używa: wprowadź production
-credentials, przełącz environment na `production` i zarejestruj callback URL — zbudowany na
-`PUBLIC_API_BASE_URL` (B2) — w portalu providera. Dla Autopay URL ITN to
-`{PUBLIC_API_BASE_URL}/api/v1/autopay/itn`; endpoint ISTN musi być włączony przez providera na
-żądanie.
+credentials, przełącz environment na production i zarejestruj callback URL — zbudowany na
+`PUBLIC_API_BASE_URL` (B2) — w portalu providera. Własna dokumentacja modułu bramki podaje
+ścieżkę callback i każdy endpoint, który provider musi włączyć na żądanie.
 
 **Zweryfikuj.** Jedna prawdziwa transakcja o niskiej wartości per bramka end to end i potwierdź,
 że zamówienie dochodzi do stanu paid z callback providera — nie z ręcznej zmiany statusu.
@@ -542,8 +542,8 @@ obowiązywać, punkt idzie wyżej.
   **świeżość presence**. Default jest bezpieczny i nie gryzie przez rok, a ustawienie można
   edytować w dowolnym momencie bez konsekwencji danych. Należy do przeglądu GDPR, nie bramki
   go-live.
-- **Credentials integracji per moduł dla modułów, których klient nie używa** — Ergonode, product
-  feeds, providerzy newsletter, pixele marketing. Jest dziesiątki settings z defaultem pustego
+- **Credentials integracji per moduł dla modułów, których klient nie używa** — łączniki PIM i
+  ERP, product feeds, providerzy newsletter, pixele marketing. Jest dziesiątki settings z defaultem pustego
   stringa; każde jest inertne, dopóki capability modułu nie zostanie włączone. E1 decyduje,
   które z nich w ogóle istnieją; wypisanie każdego credential tutaj byłoby zrzutem settings, nie
   checklistą.

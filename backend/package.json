@@ -69,6 +69,7 @@
     "db:reset": "pnpm run setup && pnpm run cli demo seed",
     "dev": "node scripts/dev.mjs src/index.ts",
     "history:filter": "tsx scripts/public-history-filter.ts",
+    "history:scan": "tsx scripts/pre-publication-scan.ts",
     "i18n:coverage": "tsx --env-file-if-exists=.env src/cli.ts _i18n coverage",
     "i18n:hardcoded": "tsx scripts/i18n-hardcoded-strings.ts",
     "i18n:reload": "tsx --env-file-if-exists=.env src/cli.ts _i18n reload",

@@ -11,6 +11,7 @@ export const DIVERGENCE_REPORT: DivergenceReport = {
   },
   "overlayModules": [
     "carrier_fixture",
+    "erp_challenger_fixture",
     "erp_incumbent_fixture",
     "example_overlay",
     "ledger_challenger_fixture",
