@@ -1,6 +1,5 @@
 ---
 '@endora-commerce/contracts': minor
-'@endora-commerce/mod-comarch-xl': minor
 ---
 
 `@endora-commerce/contracts` no longer exports the Comarch XL module's schemas; the module publishes its own
@@ -26,10 +25,6 @@ port and is now declared beside its other contract types. Nothing else in
 `@endora-commerce/contracts` changes: the ERP connector family's shared vocabulary
 (`erp-connector`) and the vendor-neutral imported-invoice seam stay in the free contracts.
 
-`@endora-commerce/mod-comarch-xl` gains the `./contracts` export. It already declared `zod` as a
-peer dependency, so installing it pulls in nothing new.
-
-`@endora-commerce/mod-comarch-xl` also owns its ten error codes now: the root export gains
-`comarchXlErrorCodes`, declared with `defineModuleErrorCodes`, and every raise site in the module
-uses it instead of `ERROR_CODES.COMARCH_XL_*` and `ERROR_CODES.XL_CONTRACT_VERSION_MISMATCH`. The
-codes' values on the wire do not change.
+`@endora-commerce/mod-comarch-xl`'s half of this change — the `./contracts` export and the module
+owning its ten error codes as `comarchXlErrorCodes` — is released from the paid repository, which
+the module has moved to.
