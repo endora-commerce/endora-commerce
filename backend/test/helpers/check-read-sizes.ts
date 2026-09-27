@@ -5752,7 +5752,6 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): sites 559 -> 560, files 1521 -> 1522.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
     sites: 560,
     // **T068/T115 (comarch prologue): 557 -> 556.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    sites: 556,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -7868,7 +7867,6 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): sites 29129 -> 29132.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
     sites: 29132,
     // **T068/T115 (comarch prologue): 29080 -> 29094.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    sites: 29094,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -8679,7 +8677,6 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): sites 11335 -> 11339, files 4647 -> 4649.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
     sites: 11339,
     // **T068/T115 (comarch prologue): 11275 -> 11277.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    sites: 11277,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -10083,7 +10080,6 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): sites 877 -> 878.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
     sites: 878,
     // **T068/T115 (comarch prologue): 876 -> 877.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    sites: 877,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 86 -> 87.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -11308,7 +11304,6 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: sites 1643 -> 1642, files 2194 -> 2193.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     sites: 1642,
     // **T068/T115 (comarch prologue): 1640 -> 1641.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    sites: 1641,
     // count moves with the file count here because the reaches that went are exactly
     // the files that went.
     // **T119a: sites 1870 -> 1861.** The same nine files, each the single relative
