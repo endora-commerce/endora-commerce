@@ -1667,7 +1667,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **T055 (`pim_ergonode` leaves): 1808 -> 1751.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 1751,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1751 -> 1752.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    files: 1752,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -2052,7 +2053,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **T055 (`pim_ergonode` leaves): 1933 -> 1871.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 1871,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1871 -> 1870.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    files: 1870,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2202,7 +2204,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **T055 (`pim_ergonode` leaves): 1496 -> 1441.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 1441,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1441 -> 1440.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    files: 1440,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -2399,7 +2402,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located package tests and one changeset, and deletes two admin tests and the module's
     // test-ownership shard.
     // **T055 (`pim_ergonode` leaves): 2024 -> 1938.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 1938,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1938 -> 1940.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    files: 1940,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -3033,7 +3037,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located package tests and one changeset, and deletes two admin tests and the module's
     // test-ownership shard.
     // **T055 (`pim_ergonode` leaves): 5202 -> 5059.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 5059,
+    files: 5063,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -3225,7 +3229,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **T055 (`pim_ergonode` leaves): 478 -> 468.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    sites: 468,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: sites 468 -> 469, files 5059 -> 5063.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    sites: 469,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -3525,7 +3530,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T042–T045, re-measured 2026-09-25: 21 -> 22.** The example deployment's fixture now
     // consumes `gatewayRefundRegistry`, a declared divergence. Agreed at `origin/master`
     // `ce96b1e94`; see the header block above the table.
-    sites: 22,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: sites 22 -> 21.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    sites: 21,
     // Three independent authors, none of them the check's own count.
     // `overlay-modules` is `resolveOverlay()`'s directory walk against the
     // modules the walk actually opened a source for, so a discovered overlay
@@ -3901,7 +3907,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // block above the table.
     // **T055 (`pim_pimcore` leaves): 1394 -> 1392.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
     // **T055 (`pim_ergonode` leaves): 1392 -> 1390.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 1390,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1390 -> 1391.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    files: 1391,
     sites: 13,
     sources: [],
     //
@@ -4269,7 +4276,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **T055 (`pim_ergonode` leaves): 1933 -> 1871.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 1871,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1871 -> 1870.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    files: 1870,
     // **T042–T045, re-measured 2026-09-25: 276 -> 248.** The five modules' entity classes. Agreed
     // at `origin/master` `ce96b1e94`; see the header block above the table.
     // **T055 (`pim_akeneo` leaves): 248 -> 239.** the package's nine declared entities (E1 read `sites=9`).
@@ -4637,7 +4645,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **T055 (`pim_ergonode` leaves): 1933 -> 1871.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 1871,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1871 -> 1870.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    files: 1870,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4992,7 +5001,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **T055 (`pim_ergonode` leaves): 1933 -> 1871.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 1871,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1871 -> 1870.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    files: 1870,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -5289,14 +5299,15 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
     // **T055 (`pim_unopim` leaves): 2910 -> 2614.** the `pim_unopim` package's sources. `master` already read 2701 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 2614 -> 2539.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 2539,
+    files: 2472,
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 138 -> 137.** **One fewer `process.env` read, and it is the subject of the change rather than a side effect of it.** `index.ts` and `worker.ts` each read `SESSION_COOKIE_SECRET` and `NODE_ENV` — four reads over two entry points — and the one resolution they now share is three reads in `composition.ts`. `files` does not move: the resolution landed in a file this walk already read, and the test beside it is out of the population by `NOT_RUNTIME`. `specs/117-instance-bring-up/` Phase 6 recorded the identical shape, 139 -> 138, when the deployment root's `NEWSLETTER_TOKEN_SECRET` chain moved into `composeApp` — which is the read this branch exists to make reachable.
     // **T042–T045, re-measured 2026-09-25: 139 -> 129.** The gateways' environment inputs leave
     // with their packages (`backend/.env.example` is edited in the same change); measured, not
     // decomposed. Agreed at `origin/master` `ce96b1e94`; see the header block above the table.
-    sites: 129,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: sites 129 -> 124, files 2539 -> 2472.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    sites: 124,
     // `declared-consumers` is `ENVIRONMENT_CONSUMERS`, the contract package's
     // own enum: an author written nowhere near this check and unmoved by
     // anything a declaration does. A consumer counts as covered only when it
@@ -5709,7 +5720,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located package tests and one changeset, and deletes two admin tests and the module's
     // test-ownership shard.
     // **T055 (`pim_ergonode` leaves): 1519 -> 1475.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 1475,
+    files: 1476,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -5778,7 +5789,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **T055 (`pim_ergonode` leaves): 558 -> 530.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    sites: 530,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: sites 530 -> 531, files 1475 -> 1476.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    sites: 531,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -6069,7 +6081,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located package tests and one changeset, and deletes two admin tests and the module's
     // test-ownership shard.
     // **T055 (`pim_ergonode` leaves): 1519 -> 1475.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 1475,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1475 -> 1476.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    files: 1476,
     sites: null,
     sources: [],
   },
@@ -6443,7 +6456,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **T055 (`pim_ergonode` leaves): 1933 -> 1871.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 1871,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1871 -> 1870.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    files: 1870,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -6642,7 +6656,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // seven script arrivals it kept would be exactly the reasoning the record
     // forbids.
     // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
-    files: 312,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 312 -> 285.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    files: 285,
     // **2026-09-04: 14 -> 15.** One further named-subject lock claim.
     // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge` retired):**
     // sites 15 -> 17, files unchanged. `pwa`'s manifest gains `orders` in its
@@ -6982,7 +6997,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located package tests and one changeset, and deletes two admin tests and the module's
     // test-ownership shard.
     // **T055 (`pim_ergonode` leaves): 2523 -> 2426.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 2426,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 2426 -> 2428.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    files: 2428,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 56 -> 66.**
     // The header block above this table has the arithmetic; nothing here
@@ -7155,7 +7171,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **T055 (`pim_ergonode` leaves): 1868 -> 1799.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 1799,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1799 -> 1798.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    files: 1798,
     // The finer population, and it is the one that moves when nothing else does
     // (issues #235/#237): tree sites, unreadable sites, renderer-map sites, the
     // block declarations and the declared `(key, context)` sections. A block
@@ -7336,7 +7353,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located package tests and one changeset, and deletes two admin tests and the module's
     // test-ownership shard.
     // **T055 (`pim_ergonode` leaves): 2621 -> 2524.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 2524,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 2524 -> 2526.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    files: 2526,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -7801,7 +7819,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **T055 (`pim_ergonode` leaves): 1519 -> 1461.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 1461,
+    files: 1460,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -7911,7 +7929,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **T055 (`pim_ergonode` leaves): 29158 -> 27716.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    sites: 27716,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: sites 27716 -> 27687, files 1461 -> 1460.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    sites: 27687,
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
     // against the languages this check has a detector for: `1/1` today, and a
@@ -8620,7 +8639,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located package tests and one changeset, and deletes two admin tests and the module's
     // test-ownership shard.
     // **T055 (`pim_ergonode` leaves): 4653 -> 4468.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 4468,
+    files: 4472,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -8737,7 +8756,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **T055 (`pim_ergonode` leaves): 11348 -> 10817.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    sites: 10817,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: sites 10817 -> 10826, files 4468 -> 4472.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    sites: 10826,
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
     // manifest, reconciled against the package roots the layout found by
@@ -9870,7 +9890,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 8569 -> 8399.** the branch deletes 172 tracked files and adds 2 against its base, net -170.
     // **T055 (`pim_pimcore` leaves): 8399 -> 8246.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 8246,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 8246 -> 8091.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    files: 8091,
     sites: null,
     sources: [],
     //
@@ -10614,7 +10635,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **T055 (`pim_ergonode` leaves): 1933 -> 1871.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 1871,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1871 -> 1870.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    files: 1870,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -10792,7 +10814,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **Same rebase, 2026-09-25: `sources` gains `capability-families`.** Unrelated to any conflict this rebase resolved — `master` had already added a second corroboration source to `check-port-dependencies.ts` (capability-family membership, alongside the manifest index) before this branch's base point, and the recorded entry had not caught up.
     // **T055 (`pim_unopim` leaves): 2082 -> 1804.** the `pim_unopim` package's sources. `master` already read 1878 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 1804 -> 1738.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 1738,
+    files: 1681,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 1471 -> 1535.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
@@ -10828,7 +10850,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // gateway packages. Agreed at `origin/master` `ce96b1e94`; see the header block above the
     // table.
     // **T055 (`pim_ergonode` leaves): 1567 -> 1403.** Already drifted on the base (3f0568e5b read 1436) inside the band; this departure takes it past the floor, so it is re-recorded here to the tip's measured reading rather than left to its owner.
-    sites: 1403,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: sites 1403 -> 1405, files 1738 -> 1681.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    sites: 1405,
     sources: ['manifest-index', 'capability-families'],
   },
   // Two derivations, deliberately, because the check has two inputs that can be
@@ -11251,7 +11274,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located package tests and one changeset, and deletes two admin tests and the module's
     // test-ownership shard.
     // **T055 (`pim_ergonode` leaves): 2193 -> 2121.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 2121,
+    files: 2120,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -11366,7 +11389,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **T055 (`pim_ergonode` leaves): 1643 -> 1591.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    sites: 1591,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: sites 1591 -> 1590, files 2121 -> 2120.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    sites: 1590,
     // count moves with the file count here because the reaches that went are exactly
     // the files that went.
     // **T119a: sites 1870 -> 1861.** The same nine files, each the single relative
@@ -11585,7 +11609,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **T055 (`pim_ergonode` leaves): 1841 -> 1778.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 1778,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1778 -> 1777.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    files: 1777,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 692 -> 721.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -11670,7 +11695,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **T055 (`pim_ergonode` leaves): 1933 -> 1871.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 1871,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1871 -> 1870.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    files: 1870,
     // **T055 (`pim_akeneo` leaves): 48 -> 44.** the package's four queue sites (E1 read `sites=4`).
     // **T055 (`pim_unopim` leaves): 44 -> 38.** the sites the `pim_unopim` package held, measured.
     // **T055 (`pim_pimcore` leaves): 38 -> 34.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
@@ -12044,11 +12070,12 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 8630 -> 8460.** the branch deletes 172 tracked files and adds 2 against its base, net -170.
     // **T055 (`pim_pimcore` leaves): 8460 -> 8307.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 8307,
+    files: 8152,
     // **T055 (`pim_unopim` leaves): 1335 -> 1336.** measured on the branch's tree and not attributed further; it is inside the band either way and is re-recorded because it agreed on `master`.
     // **T055 (`pim_pimcore` leaves): 1336 -> 1337.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
     // **T055 (`pim_ergonode` leaves): 1337 -> 1338.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    sites: 1338,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: sites 1338 -> 1339, files 8307 -> 8152.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    sites: 1339,
     // `git-tree-entries` — the committed tree's own root entries, read from a
     // different git store than the index this walk uses. Not `self-reported`:
     // two derivations of one population by two routes is precisely the second
@@ -12383,7 +12410,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located package tests and one changeset, and deletes two admin tests and the module's
     // test-ownership shard.
     // **T055 (`pim_ergonode` leaves): 1519 -> 1475.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 1475,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1475 -> 1476.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    files: 1476,
     // **T055 (`pim_unopim` leaves): 166 -> 157.** the sites those host test files held.
     // **T055 (`pim_pimcore` leaves): 157 -> 156.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
     // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 156 -> 157.**
@@ -12798,7 +12826,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **T055 (`pim_ergonode` leaves): 1933 -> 1871.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 1871,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1871 -> 1870.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    files: 1870,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -13125,7 +13154,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located package tests and one changeset, and deletes two admin tests and the module's
     // test-ownership shard.
     // **T055 (`pim_ergonode` leaves): 1653 -> 1586.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 1586,
+    files: 1590,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -13161,7 +13190,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **T055 (`pim_ergonode` leaves): 1078 -> 993.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    sites: 993,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: sites 993 -> 995, files 1586 -> 1590.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    sites: 995,
     // Two independent authors. `manifest-index` is issue #215's shared floor
     // over the module walk, whose unit is the module's own directory rather than
     // a test file — 14 of the 70 packages ship no test and a floor over test
@@ -13530,7 +13560,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **T055 (`pim_ergonode` leaves): 1933 -> 1871.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 1871,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1871 -> 1870.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    files: 1870,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -14111,7 +14142,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located package tests and one changeset, and deletes two admin tests and the module's
     // test-ownership shard.
     // **T055 (`pim_ergonode` leaves): 4247 -> 4106.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 4106,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 4106 -> 4109.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    files: 4109,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -15279,7 +15311,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // pristine `bf8564b29` worktree reproduces.
     // **T055 (`pim_unopim` leaves): 8629 -> 8459.** the branch deletes 172 tracked files and adds 2 against its base, net -170.
     // **T055 (`pim_pimcore` leaves): 8459 -> 8306.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    files: 8306,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 8306 -> 8151.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    files: 8151,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -15993,7 +16026,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located package tests and one changeset, and deletes two admin tests and the module's
     // test-ownership shard.
     // **T055 (`pim_ergonode` leaves): 5843 -> 5697.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 5697,
+    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 5697 -> 5701.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
+    files: 5701,
     sites: null,
     sources: ['manifest-index'],
     //
