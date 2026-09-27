@@ -223,14 +223,6 @@ const modules = [
   { type: 'doc', id: 'module-reference/email', label: 'email', key: 'email' },
   {
     type: 'category',
-    label: 'Ergonode PIM', key: 'pim_ergonode',
-    link: { type: 'doc', id: 'modules/pim_ergonode' },
-    items: [
-      'module-reference/pim-ergonode',
-    ],
-  },
-  {
-    type: 'category',
     label: 'Google Analytics', key: 'google_analytics',
     link: { type: 'doc', id: 'modules/google-analytics' },
     items: [

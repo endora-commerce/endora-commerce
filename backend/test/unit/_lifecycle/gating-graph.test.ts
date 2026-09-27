@@ -228,7 +228,11 @@ describe('dependents — the deactivation direction', () => {
   });
 
   it('reports nothing for a module nothing depends on', () => {
-    expect(graph.presentDependentsOf('pim_ergonode', allPresent)).toEqual([]);
+    // `product_feeds`, a leaf that stays. This read `pim_ergonode` until that
+    // module left for the paid repository (feature 134), after which the case
+    // passed over an unknown id — vacuously, which is E9's third class.
+    expect(MANIFESTS.some((manifest) => manifest.id === 'product_feeds')).toBe(true);
+    expect(graph.presentDependentsOf('product_feeds', allPresent)).toEqual([]);
   });
 });
 
@@ -246,16 +250,19 @@ describe('dependencies — the activation direction', () => {
     ]);
   });
 
+  // Both cases below read `pim_ergonode` until feature 134 took it to the paid
+  // repository; `product_feeds` declares `price_lists` the same way and stays.
   it('names the declared dependencies that are absent', () => {
     const present = new Set(MANIFESTS.map((manifest) => manifest.id));
     present.delete('price_lists');
     expect(
-      graph.absentDependenciesOf('pim_ergonode', (id) => present.has(id)),
+      graph.absentDependenciesOf('product_feeds', (id) => present.has(id)),
     ).toEqual(['price_lists']);
   });
 
   it('reports nothing when everything the module needs is present', () => {
-    expect(graph.absentDependenciesOf('pim_ergonode', allPresent)).toEqual([]);
+    expect(MANIFESTS.some((manifest) => manifest.id === 'product_feeds')).toBe(true);
+    expect(graph.absentDependenciesOf('product_feeds', allPresent)).toEqual([]);
   });
 });
 

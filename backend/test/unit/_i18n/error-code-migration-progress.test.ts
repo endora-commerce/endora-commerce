@@ -167,7 +167,8 @@ const MIGRATED_MODULES: readonly string[] = [
   // and `UNTRANSLATED_ERROR_CODES` **shrinks** by one — `ORG_OWNER_DEPLETION`
   // had no sentence anywhere and now has one.
   'organizations',
-  'pim_ergonode',
+  // `pim_ergonode` was here — Tier A, MR 2 re-homed its thirteen codes from
+  // `_i18n` — and left this repository with them (feature 134, T055).
   // Minted with the modules (feature 089, !1282): neither `pim_connector` nor
   // `pim_unopim` existed when the prefix chain was deleted, so the frozen
   // capture holds none of their thirteen codes and `MINTED_ERROR_CODES` is what

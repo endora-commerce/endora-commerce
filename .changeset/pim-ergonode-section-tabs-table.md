@@ -1,5 +1,6 @@
 ---
-'@endora-commerce/mod-pim-ergonode': patch
 ---
 
-The connector's section tab strip reads its tabs from an exported `ERGONODE_SECTION_TABS` table (`{ to, labelKey }` per tab), so the package's own tests can state which tab a route selects without rendering the strip. The rendered strip is unchanged: the same three tabs, the same routes, the same labels.
+`@endora-commerce/mod-pim-ergonode` left this repository with feature 134's `pim_ergonode` departure;
+the exported `ERGONODE_SECTION_TABS` table this changeset described is carried in the module's
+history and released from the paid-modules repository. No package in this workspace changes.

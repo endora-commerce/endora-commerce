@@ -1,7 +1,9 @@
 ---
-'@endora-commerce/mod-pim-ergonode': minor
 ---
 
-The attribute-key repair for keys derived before the `sanitiseSourceCode` fold no longer runs inside `Migration20260819T193653PimErgonodeFoldDerivedKeys`, which wrote other modules' tables. That class keeps its name and position and is now a no-op in both directions. The repair runs from the module instead: at boot whenever the module is present, before its import schedule is re-asserted, and at the start of every import, which waits for it. It renames through `custom_fields`' `applyRenameKey` and `catalog`'s `catalogAttributeValueKeyPort` in one transaction, records completion in a new table, `ergonode_key_repairs` (`Migration20260926T120000PimErgonodeKeyRepairs`), and takes a transaction-held advisory lock, so API and worker processes starting together apply it once. Data a deleted attribute left under a destination key is not inherited by the renamed attribute: `catalog` removes it and the repair keeps it, values included, in `ergonode_key_repairs.displaced`, and logs the affected keys and counts (never the values). An `ergonode_migrating_<n>` key already in use is skipped, not refused. If the repair fails, imports are refused as `internal_error` with a detail naming the repair until it succeeds.
-
-What an instance does: regenerate the migration registry (`endora generate`, or `pnpm --filter backend run composer:generate` in this repository) so the new migration runs, and upgrade `@endora-commerce/mod-custom-fields` and `@endora-commerce/mod-catalog` to the releases that publish those two seams. A database that already ran the old migration body finds nothing to rename and just records the checkpoint.
+`@endora-commerce/mod-pim-ergonode` left this repository with feature 134's `pim_ergonode` departure;
+the attribute-key repair coordinator this changeset described — the `ergonode_key_repairs`
+checkpoint, the advisory lock, and the renames through `custom_fields`' `applyRenameKey` and
+`catalog`'s `catalogAttributeValueKeyPort` — is carried in the module's history and released from
+the paid-modules repository. The two owner seams it needs stay here and are released by
+`attribute-key-rename-seams`. No other package in this workspace changes.

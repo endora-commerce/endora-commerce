@@ -438,28 +438,6 @@ export const ERROR_CODES = {
    */
   PRODUCT_FEED_TAXONOMY_CONFLICT: 'PRODUCT_FEED_TAXONOMY_CONFLICT',
 
-  // Ergonode PIM integration (feature 068). Transport-level codes for the
-  // module's admin surface — see specs/068-ergonode-pim-sync/contracts/admin-api.md.
-  /** No connection row exists yet, so there is nothing to read or import from. */
-  PIM_ERGONODE_NOT_CONFIGURED: 'PIM_ERGONODE_NOT_CONFIGURED',
-  /** A second *enabled* connection was attempted (FR-004). */
-  PIM_ERGONODE_CONNECTION_EXISTS: 'PIM_ERGONODE_CONNECTION_EXISTS',
-  /** Cron supplied without its timezone (or the other way round), or an unknown IANA zone. */
-  PIM_ERGONODE_SCHEDULE_INVALID: 'PIM_ERGONODE_SCHEDULE_INVALID',
-  /** Enabling a connection or triggering an import without a selected category tree (FR-033). */
-  PIM_ERGONODE_TREE_REQUIRED: 'PIM_ERGONODE_TREE_REQUIRED',
-  /** The overlap claim is held by a run already in flight (FR-006). */
-  PIM_ERGONODE_IMPORT_ALREADY_RUNNING: 'PIM_ERGONODE_IMPORT_ALREADY_RUNNING',
-  PIM_ERGONODE_CONNECTION_DISABLED: 'PIM_ERGONODE_CONNECTION_DISABLED',
-  /** The chosen Endora attribute cannot represent that source type; `details[]` lists what can (FR-026). */
-  PIM_ERGONODE_TYPE_INCOMPATIBLE: 'PIM_ERGONODE_TYPE_INCOMPATIBLE',
-  PIM_ERGONODE_TARGET_ATTRIBUTE_NOT_FOUND: 'PIM_ERGONODE_TARGET_ATTRIBUTE_NOT_FOUND',
-  /** Another source attribute or category already binds that Endora target. */
-  PIM_ERGONODE_TARGET_ALREADY_MAPPED: 'PIM_ERGONODE_TARGET_ALREADY_MAPPED',
-  /** A price binding named a currency that is not active; `details[]` lists the active codes (FR-061). */
-  PIM_ERGONODE_CURRENCY_INACTIVE: 'PIM_ERGONODE_CURRENCY_INACTIVE',
-  PIM_ERGONODE_ATTRIBUTE_NOT_PRICE_TYPE: 'PIM_ERGONODE_ATTRIBUTE_NOT_PRICE_TYPE',
-  PIM_ERGONODE_BINDING_EXISTS: 'PIM_ERGONODE_BINDING_EXISTS',
   /**
    * A price binding named a price list that does not exist. Named after the
    * resource rather than the module (admin-api.md § Price bindings): the caller
@@ -467,8 +445,6 @@ export const ERROR_CODES = {
    * identifiers says nothing about which one was wrong.
    */
   PRICE_LIST_NOT_FOUND: 'PRICE_LIST_NOT_FOUND',
-  /** A protected field path does not match the grammar (data-model.md §8). */
-  PIM_ERGONODE_FIELD_PATH_INVALID: 'PIM_ERGONODE_FIELD_PATH_INVALID',
 
   // Shared PIM connector layer (feature 089).
   /** Another PIM connector is operator-active; activation refused (FR-003). */
