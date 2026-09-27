@@ -5729,7 +5729,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located package tests and one changeset, and deletes two admin tests and the module's
     // test-ownership shard.
     // **T055 (`pim_ergonode` leaves): 1519 -> 1475.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 1477,
+    // **`feat/136-pre-publication-scan` (feature 136 W2.3, the one-time pre-publication scan): files 1477 -> 1478, sites 532 -> 533.** Two new tracked files, `backend/scripts/pre-publication-scan.ts` and `backend/test/unit/scripts/pre-publication-scan.test.ts`; no deletion, no changeset. Measured in one fresh worktree after `build:packages` and `git clean -fX docs/docs/modules`, on `origin/master` at `c9da51e8d` and on the branch tip. The base agreed; +1 file and +1 site is the test file, the one of the two under this walk.
+    files: 1478,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -5800,7 +5801,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_ergonode` leaves): 558 -> 530.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: sites 530 -> 531, files 1475 -> 1476.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: sites 531 -> 532, files 1476 -> 1477.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
-    sites: 532,
+    sites: 533,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -6093,7 +6094,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_ergonode` leaves): 1519 -> 1475.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1475 -> 1476.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 1476 -> 1477.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
-    files: 1477,
+    // **`feat/136-pre-publication-scan` (feature 136 W2.3, the one-time pre-publication scan): files 1477 -> 1478.** Two new tracked files, `backend/scripts/pre-publication-scan.ts` and `backend/test/unit/scripts/pre-publication-scan.test.ts`; no deletion, no changeset. Measured in one fresh worktree after `build:packages` and `git clean -fX docs/docs/modules`, on `origin/master` at `c9da51e8d` and on the branch tip. The base agreed; +1 is the test file — same population as `check-fixture-substitution`.
+    files: 1478,
     sites: null,
     sources: [],
   },
@@ -9908,7 +9910,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_pimcore` leaves): 8399 -> 8246.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 8246 -> 8091.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 8091 -> 8090.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Of this entry's move, -6 is master's own: the pristine `origin/master` worktree already reads 6 fewer files than master records, and the branch adds 5. Not computed from a delta.
-    files: 8090,
+    // **`feat/136-pre-publication-scan` (feature 136 W2.3, the one-time pre-publication scan): files 8090 -> 8093.** Two new tracked files, `backend/scripts/pre-publication-scan.ts` and `backend/test/unit/scripts/pre-publication-scan.test.ts`; no deletion, no changeset. Measured in one fresh worktree after `build:packages` and `git clean -fX docs/docs/modules`, on `origin/master` at `c9da51e8d` and on the branch tip. The base read **8091**, already 1 above the record before this branch; the tip adds its two files.
+    files: 8093,
     sites: null,
     sources: [],
     //
@@ -11295,7 +11298,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test-ownership shard.
     // **T055 (`pim_ergonode` leaves): 2193 -> 2121.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 2120 -> 2121.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
-    files: 2121,
+    // **`feat/136-pre-publication-scan` (feature 136 W2.3, the one-time pre-publication scan): files 2121 -> 2122.** Two new tracked files, `backend/scripts/pre-publication-scan.ts` and `backend/test/unit/scripts/pre-publication-scan.test.ts`; no deletion, no changeset. Measured in one fresh worktree after `build:packages` and `git clean -fX docs/docs/modules`, on `origin/master` at `c9da51e8d` and on the branch tip. The base agreed; +1 is one of the two files, the other being outside this walk.
+    files: 2122,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -12094,7 +12098,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_unopim` leaves): 8630 -> 8460.** the branch deletes 172 tracked files and adds 2 against its base, net -170.
     // **T055 (`pim_pimcore` leaves): 8460 -> 8307.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 8152 -> 8151.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Of this entry's move, -6 is master's own: the pristine `origin/master` worktree already reads 6 fewer files than master records, and the branch adds 5. Not computed from a delta.
-    files: 8151,
+    // **`feat/136-pre-publication-scan` (feature 136 W2.3, the one-time pre-publication scan): files 8151 -> 8154.** Two new tracked files, `backend/scripts/pre-publication-scan.ts` and `backend/test/unit/scripts/pre-publication-scan.test.ts`; no deletion, no changeset. Measured in one fresh worktree after `build:packages` and `git clean -fX docs/docs/modules`, on `origin/master` at `c9da51e8d` and on the branch tip. The base read **8152**, already 1 above the record before this branch; the tip adds its two files. Sites agree.
+    files: 8154,
     // **T055 (`pim_unopim` leaves): 1335 -> 1336.** measured on the branch's tree and not attributed further; it is inside the band either way and is re-recorded because it agreed on `master`.
     // **T055 (`pim_pimcore` leaves): 1336 -> 1337.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
     // **T055 (`pim_ergonode` leaves): 1337 -> 1338.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
@@ -12435,7 +12440,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test-ownership shard.
     // **T055 (`pim_ergonode` leaves): 1519 -> 1475.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 1475 -> 1476.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    files: 1477,
+    // **`feat/136-pre-publication-scan` (feature 136 W2.3, the one-time pre-publication scan): files 1477 -> 1478.** Two new tracked files, `backend/scripts/pre-publication-scan.ts` and `backend/test/unit/scripts/pre-publication-scan.test.ts`; no deletion, no changeset. Measured in one fresh worktree after `build:packages` and `git clean -fX docs/docs/modules`, on `origin/master` at `c9da51e8d` and on the branch tip. The base agreed; +1 is the test file — same population as `check-fixture-substitution`.
+    files: 1478,
     // **T055 (`pim_unopim` leaves): 166 -> 157.** the sites those host test files held.
     // **T055 (`pim_pimcore` leaves): 157 -> 156.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
     // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 156 -> 157.**
@@ -13180,7 +13186,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // co-located package tests and one changeset, and deletes two admin tests and the module's
     // test-ownership shard.
     // **T055 (`pim_ergonode` leaves): 1653 -> 1586.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    files: 1591,
+    // **`feat/136-pre-publication-scan` (feature 136 W2.3, the one-time pre-publication scan): files 1591 -> 1592.** Two new tracked files, `backend/scripts/pre-publication-scan.ts` and `backend/test/unit/scripts/pre-publication-scan.test.ts`; no deletion, no changeset. Measured in one fresh worktree after `build:packages` and `git clean -fX docs/docs/modules`, on `origin/master` at `c9da51e8d` and on the branch tip. The base agreed; +1 is one of the two files, the other being outside this walk.
+    files: 1592,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -14171,7 +14178,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // test-ownership shard.
     // **T055 (`pim_ergonode` leaves): 4247 -> 4106.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 4106 -> 4109.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    files: 4111,
+    // **`feat/136-pre-publication-scan` (feature 136 W2.3, the one-time pre-publication scan): files 4111 -> 4113.** Two new tracked files, `backend/scripts/pre-publication-scan.ts` and `backend/test/unit/scripts/pre-publication-scan.test.ts`; no deletion, no changeset. Measured in one fresh worktree after `build:packages` and `git clean -fX docs/docs/modules`, on `origin/master` at `c9da51e8d` and on the branch tip. The base agreed; +2 is both files.
+    files: 4113,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -15342,7 +15350,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_pimcore` leaves): 8459 -> 8306.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 8306 -> 8151.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 8151 -> 8150.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Of this entry's move, -6 is master's own: the pristine `origin/master` worktree already reads 6 fewer files than master records, and the branch adds 5. Not computed from a delta.
-    files: 8150,
+    // **`feat/136-pre-publication-scan` (feature 136 W2.3, the one-time pre-publication scan): files 8150 -> 8153.** Two new tracked files, `backend/scripts/pre-publication-scan.ts` and `backend/test/unit/scripts/pre-publication-scan.test.ts`; no deletion, no changeset. Measured in one fresh worktree after `build:packages` and `git clean -fX docs/docs/modules`, on `origin/master` at `c9da51e8d` and on the branch tip. The base read **8151**, already 1 above the record before this branch; the tip adds its two files.
+    files: 8153,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -16058,7 +16067,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_ergonode` leaves): 5843 -> 5697.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: files 5697 -> 5701.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 5701 -> 5703.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
-    files: 5703,
+    // **`feat/136-pre-publication-scan` (feature 136 W2.3, the one-time pre-publication scan): files 5703 -> 5705.** Two new tracked files, `backend/scripts/pre-publication-scan.ts` and `backend/test/unit/scripts/pre-publication-scan.test.ts`; no deletion, no changeset. Measured in one fresh worktree after `build:packages` and `git clean -fX docs/docs/modules`, on `origin/master` at `c9da51e8d` and on the branch tip. The base agreed; +2 is both files.
+    files: 5705,
     sites: null,
     sources: ['manifest-index'],
     //
