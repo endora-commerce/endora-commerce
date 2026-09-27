@@ -7,7 +7,6 @@ import type {
   CorrectiveInvoicePort,
   CustomerAccountReadPort,
   EmailDefaultsRegistryPort,
-  ComarchXlSaleDocumentAttachmentPort,
   ErpSaleDocumentWritePort,
   InvoiceCopyHostPort,
   InvoiceKsefAssignmentPort,
@@ -29,6 +28,7 @@ import type { InvoicePlacementApplyPort } from '../ports/index.js';
 import { invoicesModule, type InvoicesModuleOptions, type InvoicesModuleHandle } from './plugin.js';
 import { CorrectiveInvoiceProvider } from './services/corrective-invoice.js';
 import { ErpSaleDocumentWritePortService } from './services/erp-sale-document-write-port.js';
+import { InvoiceAttachmentFetchRegistry } from './services/invoice-attachment-fetch-registry.js';
 import { InvoicePlacementApplyService } from './services/invoice-placement-apply-port.js';
 import { InvoiceCopyHostService } from './services/invoice-copy-host.service.js';
 import { InvoiceReadService, createInvoicePdfPort } from './services/invoice-read-port.js';
@@ -113,6 +113,7 @@ export interface InvoicesCradle {
   readonly ksefVerificationResolver:
     | Parameters<InvoicesModuleHandle['pdfRenderer']['setKsefVerificationResolver']>[0]
     | undefined;
+  readonly invoiceAttachmentFetchRegistry: InvoiceAttachmentFetchRegistry;
   readonly invoices: { handle: InvoicesModuleHandle; plugin: unknown };
   readonly invoiceService: InvoicesModuleHandle['invoiceService'];
   readonly invoiceNumberGenerator: InvoicesModuleHandle['numberGenerator'];
@@ -137,6 +138,25 @@ export function registerModule(ctx: ModuleContext): void {
       })
       .singleton(),
 
+    /**
+     * Feature 134, T061 (`research.md` D12) — the ERP attachment fetch seam, a
+     * **contribution registry** and a plain `di.register` on purpose. A
+     * connector pushes its provider from `ctx.onBoot`, which runs whatever this
+     * module's effective state is, so a `providePort` gate here would stop the
+     * backend from starting for an operator who switched invoicing off. The
+     * presence question is answered per download, keyed on the contributor
+     * recorded with each provider; the policy is stated at the class.
+     */
+    invoiceAttachmentFetchRegistry: ctx
+      .asFunction(({ emFactory }: InvoicesCradle) => {
+        const context = new ErpSaleDocumentWritePortService(emFactory);
+        return new InvoiceAttachmentFetchRegistry(
+          (input) => context.resolveAttachmentContext(input),
+          (moduleId) => effectiveState.isPresent(moduleId),
+        );
+      })
+      .singleton(),
+
     // Contribution point, absent by default: no KSeF, no verification block.
     ksefVerificationResolver: ctx
       .asFunction((): InvoicesCradle['ksefVerificationResolver'] => undefined)
@@ -156,10 +176,10 @@ export function registerModule(ctx: ModuleContext): void {
           orderReadPort: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
           assetReadPort: lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
           assetsLibrary: lazyPort<AssetsLibraryPort>(ctx, 'assetsLibraryPort'),
-          saleDocumentAttachments: lazyPort<ComarchXlSaleDocumentAttachmentPort>(
-            ctx,
-            'comarchXlSaleDocumentAttachmentPort',
-          ),
+          // Feature 134, T061 — this module's own registry, not a connector's
+          // port: it dispatches on the document's source system and answers
+          // `null` for a provider that is absent, off or unknown.
+          saleDocumentAttachments: cradle().invoiceAttachmentFetchRegistry,
           eventBus,
           audit: auditLogService,
           auditLog: auditLogService,

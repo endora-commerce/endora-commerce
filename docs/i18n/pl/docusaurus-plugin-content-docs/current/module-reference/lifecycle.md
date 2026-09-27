@@ -19,7 +19,7 @@ Wygenerowane z manifestu modułu, bez ręcznych edycji. Co moduł *robi*, opisuj
 | Nazwa | Module Lifecycle |
 | Wersja | `1.0.0` |
 | Pakiet | `core` |
-| Poziom licencji | — |
+| Licencja | — |
 
 ## Aktywacja
 

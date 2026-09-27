@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -34,6 +34,20 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await teardownBackendServer(h);
+});
+
+/**
+ * Every case starts from an empty cache, because boot is entitled to fill it.
+ * The cache is one instance per composition and its entries live for
+ * `CUSTOM_FIELDS_CACHE_TTL_MS`, so any install or boot hook that reads
+ * definitions leaves a warm entry the first case runs into — `pim_ergonode`'s
+ * attribute-key repair reads `product` past the cache on a fresh database, and
+ * a warm `product` entry made the counting loader's first read a hit (0 calls,
+ * not 1). Clearing locally touches no Redis traffic, so it cannot stand in for
+ * the invalidation each case then asserts.
+ */
+beforeEach(() => {
+  h.customFields.cache.invalidateLocal();
 });
 
 /** Give the subscriber's event-loop turn a chance to deliver the message. */
@@ -100,8 +114,8 @@ describe('cross-process invalidation over Redis pub/sub', () => {
 
   it('drops everything when the payload cannot be read', async () => {
     const cache = h.customFields.cache;
-    // A type no earlier case primed. The cache is shared across this file, so
-    // reusing one would make the first read a hit and the assertion vacuous.
+    // A type no earlier case primed. The cache is cleared before each case,
+    // but a distinct type keeps this case independent of that ordering.
     const customer = countingLoader();
 
     await cache.getForEntity('customer', customer.load);

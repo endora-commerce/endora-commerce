@@ -19,7 +19,7 @@ Wygenerowane z manifestu modułu, bez ręcznych edycji. Nikt nie napisał jeszcz
 | Nazwa | Custom Fields |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-custom-fields` |
-| Poziom licencji | — |
+| Licencja | `MIT` |
 
 ## Aktywacja
 

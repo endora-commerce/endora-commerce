@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-api-keys",
-  "version": "0.10.5",
+  "version": "0.10.6",
   "type": "module",
   "sideEffects": false,
   "description": "Programmatic API keys (Bearer tokens) used by integrations and webhooks.",

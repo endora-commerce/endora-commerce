@@ -19,7 +19,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | Name | Module Lifecycle |
 | Version | `1.0.0` |
 | Ships from | `core` |
-| Licence tier | — |
+| Licence | — |
 
 ## Activation
 

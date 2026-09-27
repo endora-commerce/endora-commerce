@@ -19,7 +19,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | Name | Invoices |
 | Version | `2.0.0` |
 | Ships from | `@endora-commerce/mod-invoices` |
-| Licence tier | — |
+| Licence | `MIT` |
 
 ## Activation
 
@@ -36,7 +36,6 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | `organizations` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `settings` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `transactional_emails` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
-| `comarch_xl` | no | refuses-without `comarchXlSaleDocumentAttachmentPort` — ERP-imported sale document attachments cannot be downloaded from Comarch XL. |
 | `invoice_ledger` | no | degrades-without `invoiceLedgerRoutingPort` — Issuance stays Endora-numbered and ready; mode B wait is ignored. |
 
 ## Permissions

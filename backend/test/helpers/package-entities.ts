@@ -97,18 +97,6 @@ import type { StockAllocation as StockAllocationRow } from '../../../packages/mo
 import type { StockLevel as StockLevelRow } from '../../../packages/modules/inventory/src/backend/entities/stock-level.entity.js';
 import type { WarehouseChannelAssignment as WarehouseChannelAssignmentRow } from '../../../packages/modules/inventory/src/backend/entities/warehouse-channel-assignment.entity.js';
 import type { Warehouse as WarehouseRow } from '../../../packages/modules/inventory/src/backend/entities/warehouse.entity.js';
-import type {
-  ErgonodeAttributeMapping as ErgonodeAttributeMappingRow,
-  ErgonodeCategoryMapping as ErgonodeCategoryMappingRow,
-  ErgonodeConnection as ErgonodeConnectionRow,
-  ErgonodeFieldProtection as ErgonodeFieldProtectionRow,
-  ErgonodeImportIssue as ErgonodeImportIssueRow,
-  ErgonodeImportRun as ErgonodeImportRunRow,
-  ErgonodeMediaLink as ErgonodeMediaLinkRow,
-  ErgonodePriceBinding as ErgonodePriceBindingRow,
-  ErgonodeProductLink as ErgonodeProductLinkRow,
-  ErgonodeStreamCursor as ErgonodeStreamCursorRow,
-} from '@endora-commerce/mod-pim-ergonode/test-support';
 import type { EmailDelivery as EmailDeliveryRow } from '../../../packages/modules/email/src/backend/entities/email-delivery.entity.js';
 import type { InvoiceLedgerClientMap as InvoiceLedgerClientMapRow } from '../../../packages/modules/invoice_ledger/src/backend/entities/invoice-ledger-client-map.entity.js';
 import type { InvoiceLedgerDelivery as InvoiceLedgerDeliveryRow } from '../../../packages/modules/invoice_ledger/src/backend/entities/invoice-ledger-delivery.entity.js';
@@ -840,67 +828,6 @@ export const InvoiceTemplate = classNamed<InvoiceTemplateRow>(
 );
 
 /**
- * `pim_ergonode`'s ten entity classes — the largest block in this file, and the
- * one worth reading if you are wiring a second PIM integration.
- *
- * Every one of them is `@GlobalEntity()`: a connector's identity map, its run
- * history and its field protections describe the *catalogue*, which is
- * platform-global, so there is no organization dimension to scope by. An import
- * runs on a schedule with no request and therefore no tenant, so a tenant-scoped
- * connection row would be a row the importer could not read.
- */
-export const ErgonodeAttributeMapping = classNamed<ErgonodeAttributeMappingRow>(
-  installedModuleEntities,
-  'pim_ergonode',
-  'ErgonodeAttributeMapping',
-);
-export const ErgonodeCategoryMapping = classNamed<ErgonodeCategoryMappingRow>(
-  installedModuleEntities,
-  'pim_ergonode',
-  'ErgonodeCategoryMapping',
-);
-export const ErgonodeConnection = classNamed<ErgonodeConnectionRow>(
-  installedModuleEntities,
-  'pim_ergonode',
-  'ErgonodeConnection',
-);
-export const ErgonodeFieldProtection = classNamed<ErgonodeFieldProtectionRow>(
-  installedModuleEntities,
-  'pim_ergonode',
-  'ErgonodeFieldProtection',
-);
-export const ErgonodeImportIssue = classNamed<ErgonodeImportIssueRow>(
-  installedModuleEntities,
-  'pim_ergonode',
-  'ErgonodeImportIssue',
-);
-export const ErgonodeImportRun = classNamed<ErgonodeImportRunRow>(
-  installedModuleEntities,
-  'pim_ergonode',
-  'ErgonodeImportRun',
-);
-export const ErgonodeMediaLink = classNamed<ErgonodeMediaLinkRow>(
-  installedModuleEntities,
-  'pim_ergonode',
-  'ErgonodeMediaLink',
-);
-export const ErgonodePriceBinding = classNamed<ErgonodePriceBindingRow>(
-  installedModuleEntities,
-  'pim_ergonode',
-  'ErgonodePriceBinding',
-);
-export const ErgonodeProductLink = classNamed<ErgonodeProductLinkRow>(
-  installedModuleEntities,
-  'pim_ergonode',
-  'ErgonodeProductLink',
-);
-export const ErgonodeStreamCursor = classNamed<ErgonodeStreamCursorRow>(
-  installedModuleEntities,
-  'pim_ergonode',
-  'ErgonodeStreamCursor',
-);
-
-/**
  * The **row shapes** batch four's tests annotate with, on the same terms as
  * `PaymentMethodRow` above: `classNamed` returns a value, so a test that writes
  * `Promise<Cart>` needs the type under its own name. Four sites do —
@@ -909,20 +836,6 @@ export const ErgonodeStreamCursor = classNamed<ErgonodeStreamCursorRow>(
  * `export type` erases, so nothing is constructed and no second copy exists.
  */
 export type { CartRow, CartItemRow, InvoiceRow, EmailDeliveryRow, AssetRow };
-
-/**
- * `pim_ergonode`'s row shapes, on the same terms — five of its tests annotate a
- * helper's return type (`Promise<ErgonodeImportRun>`), and `classNamed` returns
- * a value, so the *type* has to arrive under its own name. `export type`
- * erases, so nothing is constructed and no second class object exists.
- */
-export type {
-  ErgonodeAttributeMappingRow,
-  ErgonodeConnectionRow,
-  ErgonodeImportIssueRow,
-  ErgonodeImportRunRow,
-  ErgonodeProductLinkRow,
-};
 
 /**
  * Criterion 8 (feature 080, T040b). Twelve classes from one package, and the

@@ -19,7 +19,7 @@ Wygenerowane z manifestu modułu, bez ręcznych edycji. Co moduł *robi*, opisuj
 | Nazwa | Admin Users |
 | Wersja | `1.0.0` |
 | Pakiet | `@endora-commerce/mod-admin-users` |
-| Poziom licencji | — |
+| Licencja | `MIT` |
 
 ## Aktywacja
 

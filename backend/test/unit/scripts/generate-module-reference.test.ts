@@ -1,6 +1,7 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
@@ -14,6 +15,7 @@ import {
   strayReferencePages,
   type ModuleReference,
 } from '../../../scripts/generate-composer.js';
+import { publishedLicenseOf } from '../../../scripts/lib/docs-artefacts.js';
 import { resolveDocTitle } from '../../../scripts/lib/docs-title-resolution.js';
 import { ModulePackageError, type ModulePackage } from '../../../scripts/lib/module-packages.js';
 import {
@@ -78,8 +80,9 @@ function referenceFor(
   loaded: ReturnType<typeof manifestModule>,
   shipsFrom = '@endora-commerce/mod-catalog',
   prosePage: string | null = '../modules/catalog.md',
+  publishedLicense: string | null = 'MIT',
 ): ModuleReference {
-  return referenceOf('catalog', loaded, shipsFrom, prosePage);
+  return referenceOf('catalog', loaded, shipsFrom, prosePage, publishedLicense);
 }
 
 describe('the reference page reads the manifest', () => {
@@ -191,6 +194,90 @@ describe('the reference page reads the manifest', () => {
     expect(bare).toContain('## Permissions\n\n_None._');
     expect(bare).toContain('This module declares no translation bundles.');
     expect(bare).toContain('This module declares no activation control');
+  });
+});
+
+/**
+ * The licence row publishes what the package is **published under** — its
+ * `package.json` `license` — and nothing else (`specs/136-open-source-publication/`
+ * W3.4). It used to read the manifest's `license` tier, an enum reserved for
+ * edition gating that no module sets, so every page said `—` about packages
+ * that are in fact MIT or under their own terms. Under D-265 the paid tier may
+ * be named; what the row owes is accuracy, stated flatly — inform, never press
+ * (`specs/conventions/commercial-data.md` §3 N4).
+ */
+describe('the licence row reads the published licence', () => {
+  it('renders an SPDX licence as the package declares it', () => {
+    const page = emitModuleReference(referenceFor(CATALOG));
+    expect(page).toContain('| Licence | `MIT` |');
+    expect(page).not.toContain('Licence tier');
+  });
+
+  it("ignores the manifest's edition-tier field, which is not a licence", () => {
+    const tiered = manifestModule({ id: 'catalog', name: 'Catalog', version: '1.0.0', license: 'enterprise' });
+    const page = emitModuleReference(referenceFor(tiered));
+    expect(page).toContain('| Licence | `MIT` |');
+    expect(page).not.toContain('enterprise');
+  });
+
+  it("states a package's own terms flatly, naming the file that carries them", () => {
+    const page = emitModuleReference(
+      referenceFor(CATALOG, '@endora-commerce/mod-catalog', null, 'SEE LICENSE IN LICENSE.md'),
+    );
+    expect(page).toContain(
+      "| Licence | `SEE LICENSE IN LICENSE.md` — the package's own terms, shipped in its `LICENSE.md` |",
+    );
+    // Inform, never press: no prompt, no price, no call to act.
+    expect(page).not.toMatch(/\b(buy|purchase|upgrade|pricing|contact sales)\b/i);
+  });
+
+  it('says there is none where nothing publishes one — a host-owned module', () => {
+    const page = emitModuleReference(referenceFor(CATALOG, 'core', null, null));
+    expect(page).toContain('| Licence | — |');
+  });
+});
+
+describe('where the published licence is read from', () => {
+  function packageTree(pkg: Record<string, unknown>): { root: string; manifestPath: string } {
+    const root = mkdtempSync(join(tmpdir(), 'module-licence-'));
+    mkdirSync(join(root, 'src'), { recursive: true });
+    writeFileSync(join(root, 'package.json'), JSON.stringify(pkg), 'utf8');
+    const manifestPath = join(root, 'src', 'manifest.ts');
+    writeFileSync(manifestPath, 'export const manifest = {};\n', 'utf8');
+    return { root, manifestPath };
+  }
+
+  it("reads the nearest package.json above the manifest, when it is the shipping package's", () => {
+    const { root, manifestPath } = packageTree({
+      name: '@endora-commerce/mod-catalog',
+      license: 'SEE LICENSE IN LICENSE.md',
+    });
+    try {
+      expect(publishedLicenseOf(manifestPath, '@endora-commerce/mod-catalog')).toBe(
+        'SEE LICENSE IN LICENSE.md',
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("answers null for a package.json that is not the shipping package's — never a host's", () => {
+    const { root, manifestPath } = packageTree({ name: 'backend', license: 'MIT' });
+    try {
+      expect(publishedLicenseOf(manifestPath, '@endora-commerce/mod-catalog')).toBeNull();
+      expect(publishedLicenseOf(manifestPath, 'core')).toBeNull();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('answers null for a package that declares no licence', () => {
+    const { root, manifestPath } = packageTree({ name: '@endora-commerce/mod-catalog' });
+    try {
+      expect(publishedLicenseOf(manifestPath, '@endora-commerce/mod-catalog')).toBeNull();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
 
@@ -437,6 +524,34 @@ describe('a page in the category that no module claims', () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+});
+
+describe('no page, in any locale, for a module this repository does not hold (136 W3.4)', () => {
+  // The generator refuses an English page nothing renders; nothing refuses its
+  // Polish copy or its translation-cache entry, and `check:docs-translations`
+  // never opens a cache entry whose source has gone (c1c437ca8 retired nineteen
+  // such pages). Read over the tree, because the tree is what gets published.
+  const repoRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '../../../..');
+  const english = new Set(
+    readdirSync(join(repoRoot, 'docs/docs', MODULE_REFERENCE_CATEGORY)).filter((f) => f.endsWith('.md')),
+  );
+
+  it('holds no Polish reference page without its English page', () => {
+    const polish = readdirSync(
+      join(repoRoot, 'docs/i18n/pl/docusaurus-plugin-content-docs/current', MODULE_REFERENCE_CATEGORY),
+    ).filter((f) => f.endsWith('.md'));
+    expect(polish.length).toBeGreaterThan(0);
+    expect(polish.filter((f) => !english.has(f))).toEqual([]);
+  });
+
+  it('holds no reference translation-cache entry without its English page', () => {
+    const prefix = `generated:${MODULE_REFERENCE_CATEGORY}--`;
+    const cached = readdirSync(join(repoRoot, 'docs/translation-cache/pl'))
+      .filter((f) => f.startsWith(prefix) && f.endsWith('.json'))
+      .map((f) => `${f.slice(prefix.length, -'.json'.length)}.md`);
+    expect(cached.length).toBeGreaterThan(0);
+    expect(cached.filter((f) => !english.has(f))).toEqual([]);
   });
 });
 

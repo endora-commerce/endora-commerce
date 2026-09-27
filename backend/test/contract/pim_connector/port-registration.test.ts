@@ -4,7 +4,10 @@ import {
   PIM_CONNECTOR_REGISTRY_PORT,
   type PimConnectorRegistryPort,
 } from '@endora-commerce/contracts';
-import { clearFamilyFor, declaredMembersOf } from '../../helpers/capability-families.js';
+import {
+  deploymentFamilyOf,
+  switchCapabilityFamilyOff,
+} from '../../helpers/capability-families.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -19,11 +22,22 @@ import {
  * withdrawal is covered by the kernel port-fail-closed contract suite.
  */
 
+/**
+ * **Composed as the `example` deployment** (feature 134, T055): every packaged PIM
+ * connector has left for the paid repository, and the deployment's overlay fixtures
+ * are the members that stay (T113, `research.md` D13 §6).
+ */
+const DEPLOYMENT = 'example';
+const { members: PIM_MEMBERS } = await deploymentFamilyOf(
+  CAPABILITY_KEYS.PIM_CONNECTOR,
+  DEPLOYMENT,
+);
+
 describe('pim_connector — registry port [contract]', () => {
   let h: BackendServerHandle;
 
   beforeAll(async () => {
-    h = await setupBackendServer();
+    h = await setupBackendServer({ deployment: DEPLOYMENT });
   });
 
   afterAll(async () => {
@@ -47,10 +61,13 @@ describe('pim_connector — registry port [contract]', () => {
     // for the paid repository (feature 134), and a module id no manifest declares
     // is not a PIM connector this registry can be asked about: the case would
     // have gone on asserting over a name, not a member. Any member proves the
-    // port's answer, so the first one the manifests declare is the subject.
-    const [subject] = declaredMembersOf(CAPABILITY_KEYS.PIM_CONNECTOR);
+    // port's answer, so the first one the manifests declare is the subject. Since
+    // `pim_ergonode` left (feature 134), the only members are the example
+    // deployment's overlay fixtures, so the whole composed family is switched off —
+    // the subject included, which the port's answer does not depend on.
+    const [subject] = PIM_MEMBERS;
     expect(subject, 'the composed deployment declares no PIM connector').toBeDefined();
-    await clearFamilyFor(h, subject!);
+    await switchCapabilityFamilyOff(h, CAPABILITY_KEYS.PIM_CONNECTOR);
     await expect(h.pimConnectorRegistry.assertCanActivate(subject!)).resolves.toBeUndefined();
   });
 

@@ -307,3 +307,28 @@ describe('resolvedManifestEntries — the deployment-resolved set, discovered at
     expect(withDeployment.length).toBe(bareCore.length + overlayModules.length);
   });
 });
+
+describe('the example deployment’s overlays (feature 134, T066)', () => {
+  it('declare no edge onto the Comarch XL connector', async () => {
+    // Constitution XV, from the reference deployment's side: an overlay shows
+    // how a deployment customises the modules it ships with, and this
+    // repository's reference deployment is composed without that connector once
+    // it is published on its own. `comarch_xl_example_overlay` decorated its
+    // sellability port and declared it in `dependencies`; it was deleted rather
+    // than re-pointed, because the fixture ERP connector publishes no
+    // sellability port to decorate and giving it one would build a surface no
+    // module reads.
+    const resolved = await resolvedManifestEntries({ DEPLOYMENT: 'example' } as NodeJS.ProcessEnv);
+    const coreIds = new Set(REGISTERED_MANIFESTS.map((e) => e.manifest.id));
+    const overlays = resolved.filter((e) => !coreIds.has(e.manifest.id));
+    expect(overlays.length).toBeGreaterThan(0);
+
+    const edges = overlays.flatMap((e) => [
+      ...(e.manifest.dependencies ?? []).map((id) => `${e.manifest.id} -> ${id}`),
+      ...(e.manifest.nonBindingDependencies ?? []).map(
+        (edge) => `${e.manifest.id} -> ${edge.moduleId}`,
+      ),
+    ]);
+    expect(edges.filter((edge) => edge.endsWith(' -> comarch_xl'))).toEqual([]);
+  });
+});
