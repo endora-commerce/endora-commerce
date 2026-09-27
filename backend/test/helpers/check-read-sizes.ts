@@ -1662,7 +1662,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 1808 -> 1809.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 1809 -> 1810.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
-    files: 1810,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 1810 -> 1811.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 1811,
     // **Batch 13 (feature 091, Phase 4): +1**, `price_lists`' `open-price-lists`.
     // That module declared no palette action at all, so its hand-written
     // `PALETTE_ITEMS` row becomes a manifest one; `inventory`'s row was a
@@ -2048,7 +2049,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 1933 -> 1932.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 1932 -> 1933.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
     // **T068/T115 (comarch prologue): 1927 -> 1929.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 1933,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 1933 -> 1936.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 1936,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -2199,7 +2201,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 1496 -> 1495.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **T068/T115 (comarch prologue): 1491 -> 1493.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 1495,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 1495 -> 1498.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 1498,
     sites: null,
     // 64, not 65: this check excludes modules by argument, and the expectation
     // is derived after the exclusion rather than despite it.
@@ -2390,7 +2393,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 2019 -> 2021.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 2021 -> 2022.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
     // **T068/T115 (comarch prologue): 2008 -> 2010.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 2022,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 2022 -> 2026.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 2026,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -3017,7 +3021,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 5204 -> 5206.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
     // **T068/T115 (comarch prologue): 5188 -> 5190.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 5206,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 5206 -> 5208.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 5208,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -3493,7 +3498,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 2240 -> 2241.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
     // **T068/T115 (comarch prologue): 2229 -> 2233.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 2241,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 2241 -> 2247.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 2247,
     // Every seam call examined across every deployment, resolved or not. This is
     // the number that moves when a call shape stops resolving while the file
     // count stands still (#235/#237's shape), and here the file count cannot
@@ -4246,7 +4252,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 1933 -> 1932.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 1932 -> 1933.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
     // **T068/T115 (comarch prologue): 1927 -> 1929.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 1933,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 1933 -> 1936.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 1936,
     // **T042–T045, re-measured 2026-09-25: 276 -> 248.** The five modules' entity classes. Agreed
     // at `origin/master` `ce96b1e94`; see the header block above the table.
     // **T055 (`pim_akeneo` leaves): 248 -> 239.** the package's nine declared entities (E1 read `sites=9`).
@@ -4615,7 +4622,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 1933 -> 1932.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 1932 -> 1933.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
     // **T068/T115 (comarch prologue): 1927 -> 1929.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 1933,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 1933 -> 1936.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 1936,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -4972,7 +4980,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 1933 -> 1932.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 1932 -> 1933.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
     // **T068/T115 (comarch prologue): 1927 -> 1929.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 1933,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 1933 -> 1936.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 1936,
     // Re-recorded twice, both downward and both deliberately.
     //
     // 47 → 41, by feature 080's T042b: seven module CLI scripts became
@@ -5270,7 +5279,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_pimcore` leaves): 2614 -> 2539.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 2544 -> 2545.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
     // **T068/T115 (comarch prologue): 2539 -> 2541.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 2545,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 2545 -> 2548.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 2548,
     // **`specs/117-instance-bring-up/` Phase 6 (FR-033/FR-034).** The header
     // block above this table has the arithmetic; nothing here widened a band.
     // **`fix/reference-deployment-session-secret`, 2026-09-15: 138 -> 137.** **One fewer `process.env` read, and it is the subject of the change rather than a side effect of it.** `index.ts` and `worker.ts` each read `SESSION_COOKIE_SECRET` and `NODE_ENV` — four reads over two entry points — and the one resolution they now share is three reads in `composition.ts`. `files` does not move: the resolution landed in a file this walk already read, and the test beside it is out of the population by `NOT_RUNTIME`. `specs/117-instance-bring-up/` Phase 6 recorded the identical shape, 139 -> 138, when the deployment root's `NEWSLETTER_TOKEN_SECRET` chain moved into `composeApp` — which is the read this branch exists to make reachable.
@@ -5680,7 +5690,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // Re-measured in a pristine detached pair, master `516e2a790` (agrees) and the merged tip
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
-    files: 1522,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 1522 -> 1521.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 1521,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -5750,7 +5761,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: sites 558 -> 559, files 1520 -> 1521.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): sites 559 -> 560, files 1521 -> 1522.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
-    sites: 560,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): sites 560 -> 559.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    sites: 559,
     // **T068/T115 (comarch prologue): 557 -> 556.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
     sources: [],
   },
@@ -6035,7 +6047,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 1520 -> 1521.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 1521 -> 1522.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
-    files: 1522,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 1522 -> 1521.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 1521,
     sites: null,
     sources: [],
   },
@@ -6411,7 +6424,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 1933 -> 1932.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 1932 -> 1933.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
     // **T068/T115 (comarch prologue): 1927 -> 1929.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 1933,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 1933 -> 1936.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 1936,
     // **Not this branch's.** `feat/110-t118-composition-split` merged after this branch recorded, adding one platform source (`kernel/i18n/error-envelope-options.ts`) and its changeset. The site is that file's own contracts import.
     // **`specs/110-instance-repository/` T118: sites 103 -> 137 (+34).** Rule B's population is
     // the platform's outward imports, and T118a had just widened it to every platform
@@ -6945,7 +6959,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 2518 -> 2520.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 2520 -> 2521.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
     // **T068/T115 (comarch prologue): 2507 -> 2509.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 2521,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 2521 -> 2525.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 2525,
     // **Re-measured on the union of `master` and `094-akeneo-pim-sync`.** The branch brings the `pim_akeneo` module into the tree: 163 files added, 100 of them the package under `packages/modules/pim_akeneo`, 42 backend tests, 12 spec pages, 3 admin tests, 2 documentation pages, a contract and a changeset. The module's three admin render or contribution sites.
     // **Feature 119 (`specs/119-infakt-integration/`), adapted by `review/119-infakt-adaptations`: sites 56 -> 66.**
     // The header block above this table has the arithmetic; nothing here
@@ -7118,7 +7133,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 1868 -> 1867.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **T068/T115 (comarch prologue): 1863 -> 1865.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 1867,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 1867 -> 1870.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 1870,
     // The finer population, and it is the one that moves when nothing else does
     // (issues #235/#237): tree sites, unreadable sites, renderer-map sites, the
     // block declarations and the declared `(key, context)` sections. A block
@@ -7293,7 +7309,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 2616 -> 2618.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 2618 -> 2619.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
     // **T068/T115 (comarch prologue): 2605 -> 2607.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 2619,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 2619 -> 2623.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 2623,
     // Class-attribute positions classified — `className=`, `class=`, and an
     // argument of `cn(`/`clsx(`/`classNames(`/`twMerge(` outside one. It moves
     // with every screen written, and a run whose `sites` fell while `files` held
@@ -7754,7 +7771,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **T068/T115 (comarch prologue): 1514 -> 1516.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 1518,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 1518 -> 1521.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 1521,
     // Every string and template literal the walk offered the classifier. It is
     // deliberately not the findings — a number that moves with the tree's
     // health cannot answer "did you read the tree" — and it is two orders
@@ -7865,7 +7883,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: sites 29158 -> 29129, files 1519 -> 1518.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): sites 29129 -> 29132.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
-    sites: 29132,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): sites 29132 -> 29183.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    sites: 29183,
     // **T068/T115 (comarch prologue): 29080 -> 29094.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
     // `manifest-index` is issue #215's shared floor over the module walk.
     // `detected-languages` is `SUPPORTED_LANGUAGES` minus the default, held
@@ -8136,7 +8155,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // widened a band.
     // **T055 (`pim_unopim` leaves): 2329 -> 2067.** the sites the `pim_unopim` package held, measured. `master` already read 2184 and this branch took it outside the band, so it is re-recorded here rather than left to its owner.
     // **T055 (`pim_pimcore` leaves): 2067 -> 1987.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    sites: 1987,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): sites 1987 -> 1989.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    sites: 1989,
     // **Three** derivations since Phase 5's T3, none of them the walk counting
     // itself: the generated manifest index for the modules a walked file is
     // attributed to; the kit's own `exports` map against the barrels on disk —
@@ -8557,7 +8577,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **T068/T115 (comarch prologue): 4619 -> 4623.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 4649,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 4649 -> 4657.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 4657,
     // **First recorded here** (feature 097). This entry read `null`, with a
     // reason in `READ_SIZE_WITHOUT_A_SITE_POPULATION` that named two obstacles:
     // the cleared specifiers and table references were not collected, and there
@@ -8675,7 +8696,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: sites 11326 -> 11335, files 4643 -> 4647.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): sites 11335 -> 11339, files 4647 -> 4649.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
-    sites: 11339,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): sites 11339 -> 11380.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    sites: 11380,
     // **T068/T115 (comarch prologue): 11275 -> 11277.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
     // `module-packages` joined when a bare specifier became able to reach a
     // module (feature 080): the names the walk read off each module package's
@@ -9812,7 +9834,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 8246 -> 8243.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 8243 -> 8248.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
     // **T068/T115 (comarch prologue): 8246 -> 8250.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 8248,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 8248 -> 8253.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 8253,
     sites: null,
     sources: [],
     //
@@ -10078,7 +10101,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): sites 877 -> 878.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
-    sites: 878,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): sites 878 -> 879.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    sites: 879,
     // **T068/T115 (comarch prologue): 876 -> 877.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
     // **`chore/094-akeneo-adapt` (!1496, over !1495): files 86 -> 87.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
@@ -10555,7 +10579,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 1933 -> 1932.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 1932 -> 1933.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
     // **T068/T115 (comarch prologue): 1927 -> 1929.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 1933,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 1933 -> 1936.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 1936,
     sources: ['manifest-index'],
   },
   'backend/scripts/check-port-dependencies.ts': {
@@ -10735,7 +10760,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_pimcore` leaves): 1804 -> 1738.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 1743 -> 1744.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
     // **T068/T115 (comarch prologue): 1738 -> 1740.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 1744,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 1744 -> 1747.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 1747,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 1471 -> 1535.** The
     // `pim_akeneo` module package arriving, plus `master` at 5c7a4d82a. This branch's test
     // move is net zero here — measured at the commit before it, which read the same number.
@@ -11187,7 +11213,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 2193 -> 2194.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
     // **T068/T115 (comarch prologue): 2189 -> 2191.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 2194,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 2194 -> 2197.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 2197,
     // **Re-recorded upward, and this is the move that ends the re-recording**
     // (feature 080, T060).
     //
@@ -11302,7 +11329,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: sites 1643 -> 1642, files 2194 -> 2193.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    sites: 1642,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): sites 1642 -> 1643.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    sites: 1643,
     // **T068/T115 (comarch prologue): 1640 -> 1641.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
     // count moves with the file count here because the reaches that went are exactly
     // the files that went.
@@ -11524,7 +11552,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 1841 -> 1840.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 1840 -> 1841.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
     // **T068/T115 (comarch prologue): 1834 -> 1836.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 1841,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 1841 -> 1843.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 1843,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 692 -> 721.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -11610,7 +11639,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 1933 -> 1932.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 1932 -> 1933.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
     // **T068/T115 (comarch prologue): 1927 -> 1929.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 1933,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 1933 -> 1936.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 1936,
     // **T055 (`pim_akeneo` leaves): 48 -> 44.** the package's four queue sites (E1 read `sites=4`).
     // **T055 (`pim_unopim` leaves): 44 -> 38.** the sites the `pim_unopim` package held, measured.
     // **T055 (`pim_pimcore` leaves): 38 -> 34.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
@@ -11984,7 +12014,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 8307 -> 8304.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 8304 -> 8309.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
     // **T068/T115 (comarch prologue): 8307 -> 8311.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 8309,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 8309 -> 8314.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 8314,
     // **T055 (`pim_unopim` leaves): 1335 -> 1336.** measured on the branch's tree and not attributed further; it is inside the band either way and is re-recorded because it agreed on `master`.
     // **T055 (`pim_pimcore` leaves): 1336 -> 1337.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
     sites: 1337,
@@ -12314,7 +12345,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // (drifts); the branch adds the repair's package sources, co-located tests and two
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 1520 -> 1521.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    files: 1522,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 1522 -> 1521.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 1521,
     // **T055 (`pim_unopim` leaves): 166 -> 157.** the sites those host test files held.
     // **T055 (`pim_pimcore` leaves): 157 -> 156.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
     // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 156 -> 157.**
@@ -12731,7 +12763,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 1933 -> 1932.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 1932 -> 1933.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
     // **T068/T115 (comarch prologue): 1927 -> 1929.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 1933,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 1933 -> 1936.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 1936,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -13086,7 +13119,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: sites 1082 -> 1084, files 1649 -> 1653.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): sites 1084 -> 1085, files 1653 -> 1654.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
-    sites: 1085,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): sites 1085 -> 1092.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    sites: 1092,
     // Two independent authors. `manifest-index` is issue #215's shared floor
     // over the module walk, whose unit is the module's own directory rather than
     // a test file — 14 of the 70 packages ship no test and a floor over test
@@ -13457,7 +13491,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 1933 -> 1932.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 1932 -> 1933.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
     // **T068/T115 (comarch prologue): 1927 -> 1929.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 1933,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 1933 -> 1936.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 1936,
     sites: null,
     sources: ['manifest-index'],
   },
@@ -14031,7 +14066,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // integration files. No band widened, no value computed from a delta.
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 4244 -> 4247.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **T068/T115 (comarch prologue): 4233 -> 4235.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 4249,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 4249 -> 4252.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 4252,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -15201,7 +15237,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 8306 -> 8303.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 8303 -> 8308.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
     // **T068/T115 (comarch prologue): 8306 -> 8310.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 8308,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 8308 -> 8313.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 8313,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -15909,7 +15946,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after release 0.15.0: files 5842 -> 5846.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
     // **`feat/134-invoice-import-identity` (T135, `research.md` D21): files 5846 -> 5848.** Measured on a pristine worktree of this branch's head beside a pristine worktree of its base (`origin/feat/134-attachment-seam` at `e4c720dc1`, which agrees on all 47), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Not computed from a delta.
     // **T068/T115 (comarch prologue): 5831 -> 5833.** Agrees on `master` (82b04cb11) and moves with the second ERP fixture, two changesets and the relocated comarch architecture page; measured on the pristine pair.
-    files: 5848,
+    // **`feat/134-comarch-xl-departure` (the comarch prologue merged into T135, then E5 and the module's own error codes): files 5848 -> 5850.** Measured on a pristine detached worktree of `4bf7aaffb` after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the branch merges !1827 into !1830 and moves `comarch_xl`'s vendor contract module, its OpenAPI fixture test and six fixtures into the package, with one changeset. Not computed from a delta.
+    files: 5850,
     sites: null,
     sources: ['manifest-index'],
     //
