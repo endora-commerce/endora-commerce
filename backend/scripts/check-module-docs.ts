@@ -344,10 +344,6 @@ export const DERIVED_FACTS_IN_PROSE: Readonly<Record<string, ProseLedgerEntry>> 
     'cites `packages/modules/dictionaries/src/backend/index.ts` by address. The file is ' +
     'real and the sentence is worth keeping; the repair is to name the module and the ' +
     'file rather than the path.',
-  'deployment/first-deployment-checklist#77daf6d5':
-    'cites `packages/modules/ksef/src/manifest.ts` by address. The file is real and the ' +
-    'sentence is worth keeping; the repair is to name the module and the file rather than ' +
-    'the path.',
   'deployment/first-deployment-checklist#ed0f90c4': {
     sites: 2,
     reason:

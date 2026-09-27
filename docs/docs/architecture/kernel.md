@@ -533,9 +533,9 @@ Two details the check makes explicit. A **conditional** re-throw
 (`catch (e) { if (rare) throw e; }`) is a violation: `ModuleDisabledError`
 extends `HttpError`, so a `statusCode === 409` test lets it through by accident
 rather than by decision. And a **timer callback** cannot re-throw at all —
-`ksef`'s reconcile sweep asks `effectiveState.isPresent` before it starts
-instead, which is what freed its `catch` to log the genuine sweep failures that
-used to vanish beside the presence answer.
+it asks `effectiveState.isPresent` before it starts instead, which is what frees
+its `catch` to log the genuine failures that would otherwise vanish beside the
+presence answer.
 
 One thing it allows on purpose: a `catch` may hand the error to a **delegate
 that re-throws it** — a helper ending in `throw <its own parameter>`

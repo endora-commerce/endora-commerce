@@ -34,9 +34,9 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | `sales_channels` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `settings` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `invoices` | no | degrades-without `invoiceCopyHostPort` — Delivery list shows invoice ids without numbers while invoices is off, and no new delivery is queued. |
-| `invoices` | no | refuses-without `invoiceKsefAssignmentPort` — Webhook apply cannot record Infakt KSeF numbers while invoices is off. |
+| `invoices` | no | refuses-without `invoiceKsefAssignmentPort` — Webhook apply cannot record a vendor-assigned KSeF number while invoices is off. |
 | `invoices` | no | refuses-without `invoiceNumberingHostPort` — Webhook apply cannot write vendor-assigned numbers while invoices is off. |
-| `invoices` | no | refuses-without `invoicePaidHostPort` — Webhook apply cannot stamp paid from Infakt while invoices is off. |
+| `invoices` | no | refuses-without `invoicePaidHostPort` — Webhook apply cannot stamp an invoice paid from the vendor while invoices is off. |
 
 ## Permissions
 
