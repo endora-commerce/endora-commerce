@@ -34,9 +34,9 @@ Wygenerowane z manifestu modułu, bez ręcznych edycji. Co moduł *robi*, opisuj
 | `sales_channels` | tak | instaluje się i migruje po nim; operator nie może go wyłączyć pod tym modułem |
 | `settings` | tak | instaluje się i migruje po nim; operator nie może go wyłączyć pod tym modułem |
 | `invoices` | nie | degrades-without `invoiceCopyHostPort` — Lista dostaw pokazuje identyfikatory faktur bez numerów, gdy moduł invoices jest wyłączony, i żadna nowa dostawa nie trafia do kolejki. |
-| `invoices` | nie | refuses-without `invoiceKsefAssignmentPort` — Zastosowanie webhooka nie może zapisać numerów KSeF zgłoszonych przez dostawcę, gdy moduł invoices jest wyłączony. |
+| `invoices` | nie | refuses-without `invoiceKsefAssignmentPort` — Zastosowanie webhooka nie może zapisać numerów KSeF z Infakt, gdy moduł invoices jest wyłączony. |
 | `invoices` | nie | refuses-without `invoiceNumberingHostPort` — Zastosowanie webhooka nie może zapisać numerów przypisanych przez dostawcę, gdy moduł invoices jest wyłączony. |
-| `invoices` | nie | refuses-without `invoicePaidHostPort` — Zastosowanie webhooka nie może oznaczyć faktury jako opłaconej na podstawie dostawcy rejestru, gdy moduł invoices jest wyłączony. |
+| `invoices` | nie | refuses-without `invoicePaidHostPort` — Zastosowanie webhooka nie może oznaczyć faktury jako opłaconej z Infakt, gdy moduł invoices jest wyłączony. |
 
 ## Uprawnienia
 

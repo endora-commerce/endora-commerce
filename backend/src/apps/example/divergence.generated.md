@@ -15,6 +15,7 @@ sentence this deployment wrote when it made the change.
 | Overlay module |
 | --- |
 | `carrier_fixture` |
+| `erp_challenger_fixture` |
 | `erp_incumbent_fixture` |
 | `example_overlay` |
 | `ledger_challenger_fixture` |
