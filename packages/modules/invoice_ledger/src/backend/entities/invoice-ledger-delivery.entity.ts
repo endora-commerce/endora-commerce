@@ -84,6 +84,15 @@ export class InvoiceLedgerDelivery {
   @Property({ type: 'varchar', length: 16, fieldName: 'numbering_mode' })
   numberingMode!: InvoiceLedgerNumberingMode;
 
+  /**
+   * Who submits this invoice to KSeF: `native` (the platform's own submission
+   * path) or `vendor` (the accounting vendor this delivery goes to). **Stays in
+   * this free module** (`specs/134-paid-module-extraction/` T067): KSeF is
+   * Poland's statutory clearing system, not a vendor, and recording how an
+   * invoice reached it is ledger routing, not coupling to the `ksef` module.
+   * Do not remove it to "finish" that module's extraction;
+   * `packages/contracts/src/statutory-ksef-state.test.ts` is the guard.
+   */
   @Property({ type: 'varchar', length: 16, fieldName: 'ksef_routing' })
   ksefRouting!: InvoiceLedgerKsefRouting;
 

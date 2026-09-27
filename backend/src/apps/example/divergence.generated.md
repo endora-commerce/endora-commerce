@@ -15,8 +15,10 @@ sentence this deployment wrote when it made the change.
 | Overlay module |
 | --- |
 | `carrier_fixture` |
+| `erp_challenger_fixture` |
 | `erp_incumbent_fixture` |
 | `example_overlay` |
+| `ledger_challenger_fixture` |
 | `ledger_vendor_fixture` |
 | `payment_gateway_fixture` |
 | `pim_challenger_fixture` |
@@ -31,6 +33,7 @@ rung 2 — run before or after what the owner already serves. Costs a coupling t
 | What | Changed by | Owned by | Why |
 | --- | --- | --- | --- |
 | `GET /api/v1/admin/example-overlay/ping` (post) | `example_overlay` | `example_overlay` | Core serves nothing on this endpoint: the route is this deployment’s own, and the interceptor stamps its response so that the reference deployment demonstrates the rung-2 seam end to end. It runs after the handler and adds a field; it vetoes nothing and writes nothing, which is what a `post` interceptor may do. |
+| `POST /api/v1/admin/modules/:id/activation` (pre) | `ledger_challenger_fixture` | `_lifecycle` | The same enforcement `ledger_vendor_fixture` carries, for this member: it runs before the kernel’s activation handler and vetoes only a request switching this module on while a sibling vendor is active. Every other activation, and every deactivation, passes through untouched. |
 | `POST /api/v1/admin/modules/:id/activation` (pre) | `ledger_vendor_fixture` | `_lifecycle` | The exclusive capability’s enforcement, which is each member’s own. It runs before the kernel’s activation handler, asks `invoice_ledger` whether a sibling vendor is already active, and refuses with the owner’s code when one is. It vetoes only a request naming this module and only when that request switches it on; every other activation, and every deactivation, passes through untouched. |
 
 ### Ports this deployment consumes
@@ -40,6 +43,7 @@ rung 3 — a strategy port the owner published. Costs a dependency edge in your 
 | What | Changed by | Owned by | Why |
 | --- | --- | --- | --- |
 | `shippingAdapterRegistry` | `carrier_fixture` | `delivery_methods` | The contribution seam `delivery_methods` publishes for a module that ships parcels, reached from this fixture’s boot hook so that the carrier port keeps an implementor in this repository after feature 134’s wave 1 removes `inpost` and `dhl_parcel` (FR-021, FR-063). It is rung 3 read exactly as the ladder intends: the owner published the seam, the consumer declares the dependency, and nothing of `delivery_methods` is wrapped or replaced. The fixture is a reference implementor rather than a delivery capability — it seeds no method, owns no table and serves no route — so what this deployment gains is a contributor to an existing registry and no behaviour a shop would notice. |
+| `invoiceLedgerRegistryPort` | `ledger_challenger_fixture` | `invoice_ledger` | The vendor mutex, asked from this module’s own activation interceptor. A second declared member is what keeps the refusal a property of a pair once the paid vendors leave: with `ledger_vendor_fixture` alone the family would have no sibling the registry knows from a declaration and no second interceptor on the shared route. |
 | `configurationTypeRegistry` | `ledger_vendor_fixture` | `credentials` | The credential shape this vendor’s connection takes, described to `credentials` from a boot hook so that its admin screen can render a form for it. A contribution, not a gate: the owner filters by contributor when it enumerates, so switching this module off withdraws the type while leaving any stored row visible. |
 | `credentialsService` | `ledger_vendor_fixture` | `credentials` | The fixture’s API key and webhook secret, resolved by the frozen credential code the delivery row carries rather than by a live settings read — freezing is the property the free ledger’s retry assertions are about, and a fixture that read live values would exercise the opposite of it. |
 | `credentialsService` | `ledger_vendor_fixture` | `credentials` | The fixture’s API key and webhook secret, resolved by the frozen credential code the delivery row carries rather than by a live settings read — freezing is the property the free ledger’s retry assertions are about, and a fixture that read live values would exercise the opposite of it. |
