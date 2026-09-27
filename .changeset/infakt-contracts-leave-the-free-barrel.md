@@ -1,6 +1,5 @@
 ---
 '@endora-commerce/contracts': minor
-'@endora-commerce/mod-infakt': minor
 ---
 
 `@endora-commerce/contracts` no longer exports the Infakt connector's schemas; the connector publishes its own
@@ -26,3 +25,6 @@ dependency, so installing it pulls in nothing new.
 `@endora-commerce/mod-infakt` also owns its two error codes now: the root export gains
 `infaktErrorCodes`, declared with `defineModuleErrorCodes`, and the webhook's raise site uses it
 instead of `ERROR_CODES.INFAKT_WEBHOOK_UNAUTHORIZED`. The codes' values on the wire do not change.
+
+The `mod-infakt` half of this change is released from the paid-modules repository, which the module left for
+(feature 134); this repository no longer versions `@endora-commerce/mod-infakt`.

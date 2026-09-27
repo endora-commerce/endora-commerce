@@ -1,6 +1,5 @@
 ---
 '@endora-commerce/contracts': minor
-'@endora-commerce/mod-ksef': minor
 ---
 
 `@endora-commerce/contracts` no longer exports the KSeF module's schemas; the module publishes its own
@@ -28,3 +27,6 @@ dependency, so installing it pulls in nothing new.
 `@endora-commerce/mod-ksef` also owns its seven error codes now: the root export gains
 `ksefErrorCodes`, declared with `defineModuleErrorCodes`, and every raise site in the module uses it
 instead of `ERROR_CODES.KSEF_*`. The codes' values on the wire do not change.
+
+The `mod-ksef` half of this change is released from the paid-modules repository, which the module left for
+(feature 134); this repository no longer versions `@endora-commerce/mod-ksef`.

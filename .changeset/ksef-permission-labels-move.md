@@ -1,6 +1,5 @@
 ---
 '@endora-commerce/mod-i18n': patch
-'@endora-commerce/mod-ksef': patch
 ---
 
 The KSeF module's two permission labels move into its own bundle
@@ -11,3 +10,6 @@ shared bundle and ship in `@endora-commerce/mod-ksef`'s own `i18n/` bundle, wher
 integrations' permission labels already are. The role editor shows the same text as before when
 both packages are upgraded together; with the new `mod-i18n` and an older `mod-ksef`, the two
 permissions show their codes until the module is upgraded too.
+
+The `mod-ksef` half of this change is released from the paid-modules repository, which the module left for
+(feature 134); this repository no longer versions `@endora-commerce/mod-ksef`.

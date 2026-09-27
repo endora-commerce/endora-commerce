@@ -1,11 +1,10 @@
 ---
-'@endora-commerce/mod-ksef': minor
 ---
 
-`ksef` renders its own `ksef.InvoiceSection` invoice PDF block, and the verification QR no longer depends on the composition root
-
-The module registers `ksef.InvoiceSection` (the KSeF number, the processing time, the verification QR and the offline marking) into `invoices`' `invoicePdfBlockRegistry` from its own boot hook. Every composition that includes the module prints the QR. Before this change only a root that contributed `ksefVerificationResolver` did, so an instance composed through the platform's `composeApp` printed none.
-
-The invoice template editor's preview binding for the block now ships in this package's admin layer (`src/admin/templates/invoice-section-puck.tsx`), which is why `@measured/puck` and `@endora-commerce/page-builder-core` are new optional peer dependencies. Nothing composes that binding yet: the editor offers the block through the served descriptor, with a short note on the canvas in place of the preview. Installing the module does not add the block to any existing invoice template.
-
-Requires a `@endora-commerce/mod-invoices` release that provides `invoicePdfBlockRegistry`.
+`@endora-commerce/mod-ksef` left this repository with feature 134's `ksef` departure; the change
+this changeset described — the module rendering, describing and registering its own
+`ksef.InvoiceSection` PDF block into `invoices`' `invoicePdfBlockRegistry` from its own boot hook,
+so every composition that includes it prints the verification QR — is carried in the module's
+history and released from the paid-modules repository. `invoices`' half of the same change is
+released by `invoices-contributed-pdf-blocks` and `invoice-pdf-block-seam-contract`. No other
+package in this workspace changes.
