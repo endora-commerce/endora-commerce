@@ -5,28 +5,50 @@ title: Wspólna warstwa łącznika ERP
 # Wspólna warstwa łącznika ERP (`erp_connector`)
 
 Cienki współdzielony moduł, który trzyma **zachowanie potrzebne każdemu
-przychodzącemu łącznikowi ERP**, bez importu transportu dostawcy. Comarch XL
-(`comarch_xl`) używa go dziś; przyszłe adaptery ERP mogą adoptować tę samą warstwę.
+przychodzącemu łącznikowi ERP**, bez importu transportu dostawcy. Jest dostarczany
+z Endorą, jest `nonDeactivatable` i nie zawiera żadnego kodu dostawcy: łącznik ERP
+to osobny pakiet, a deployment może zainstalować żaden, jeden albo kilka.
 
-Ta strona jest dla inżynierów rozszerzających integracje ERP lub recenzujących, jak dwa
-łączniki ERP współistnieją na jednej platformie. Transport Comarch XL, pipeline i
-logika apply są udokumentowane w [Łączniku Comarch ERP XL](./comarch-xl.md).
+Ta strona jest dla inżynierów piszących lub recenzujących łącznik ERP oraz dla
+każdego, kto pyta, jak dwa łączniki ERP współistnieją na jednej platformie. Własny
+transport łącznika, pipeline sync i logikę apply dokumentuje pakiet tego łącznika.
 
 ## Co posiada
 
 | Troska | Gdzie żyje |
 | --- | --- |
-| Wykluczanie wzajemne — tylko jeden łącznik ERP może być aktywny u operatora naraz | `ErpConnectorRegistryService`, tabela `erp_connector_activation_lock` |
+| Klucz capability `erp-connector` i deklaracja, że jest wzajemnie wykluczający | `exclusiveCapabilities` we własnym `manifest.ts` tego modułu |
+| Jedyny szew wykluczania, nad wyprowadzoną rodziną | interceptor `pre` w `src/backend/index.ts` |
+| Który członek trzyma roszczenie | `ErpConnectorRegistryService`, tabela `erp_connector_activation_lock` |
+| Kod odmowy `ERP_CONNECTOR_ALREADY_ACTIVE` i jego zdanie dla operatora | `errorCodes` manifestu, `i18n/{en,pl}.json` |
 | Wspólny słownik job/run/issue dla monitorów admin | `packages/contracts/src/erp-connector.ts` |
-| Port rejestru dla straży aktywacji | `erpConnectorRegistryPort` |
+| Port rejestru dla kodu, który musi zapytać, kto trzyma roszczenie | `erpConnectorRegistryPort` |
 
-**Nie** posiada zapisów katalogu, XL HTTP, procesorów BullMQ, ingressu webhooków
-ani tabel mapowań specyficznych dla dostawcy — to zostaje w każdym pakiecie łącznika.
+**Nie** posiada zapisów katalogu, klientów HTTP ERP, procesorów BullMQ, ingressu
+webhooków ani tabel mapowań specyficznych dla dostawcy — to zostaje w każdym
+pakiecie łącznika.
 
 **Łączniki PIM to osobna oś.** `erp_connector` nie wchodzi w interakcję z
-`pim_connector`. Deployment może mieć aktywny łącznik PIM i Comarch XL jednocześnie;
-podział domen (treść katalogu vs stock/ceny) jest egzekwowany w
-`comarch_xl`, nie tutaj.
+`pim_connector`. Deployment może mieć aktywny łącznik PIM i aktywny łącznik ERP
+jednocześnie; jak oba dzielą między siebie katalog — na przykład treść z PIM, stock
+i ceny z ERP — decydują łączniki, nie ta warstwa.
+
+## Rodzina jest deklarowana, nigdy wyliczana
+
+Łącznik dołącza do rodziny we **własnym** manifeście:
+
+```ts
+capabilities: [CAPABILITY_KEYS.ERP_CONNECTOR],
+```
+
+Platforma wyprowadza członkostwo z tych deklaracji przy każdej kompozycji —
+`effectiveState.membersOfCapability(key)` dla członków efektywnie obecnych,
+`declaredMembersOfCapability(key)` dla samego członkostwa. Nic w tym repozytorium
+nie trzyma listy łączników, więc łącznik zainstalowany z npm i overlay moduł per
+deployment dołączają do rodziny tak samo, bez edycji pliku core. `erp_incumbent_fixture`
+i `erp_challenger_fixture` z deploymentu example, pod
+`backend/src/apps/example/modules/`, to najmniejsi możliwi członkowie: manifest,
+setting aktywacji i nic więcej.
 
 ## Wykluczanie wzajemne
 
@@ -36,8 +58,8 @@ może aktywować **co najwyżej jeden** naraz.
 Rejestr czyta aktywację operatora przez `effectiveState` — tę samą
 koniunkcję, której kernel używa wszędzie — i persystuje id aktywnego modułu
 w `erp_connector_activation_lock`. Gdy operator próbuje aktywować drugi
-łącznik ERP, podczas gdy Comarch XL jest już aktywny, endpoint aktywacji zwraca
-`ERP_CONNECTOR_ALREADY_ACTIVE` z nazwą rodzeństwa.
+łącznik ERP, podczas gdy inny jest już aktywny, endpoint aktywacji zwraca
+`ERP_CONNECTOR_ALREADY_ACTIVE` z nazwą trzymającego.
 
 Przełączanie łączników jest **niedestrukcyjne**: mapowania tożsamości i wiersze
 konfiguracji zaimportowane przez poprzedni łącznik pozostają w bazie; nowy
@@ -45,15 +67,16 @@ konfiguracji zaimportowane przez poprzedni łącznik pozostają w bazie; nowy
 
 Notatki implementacyjne:
 
-- `comarch_xl` rejestruje **pre-interceptor** na
-  `POST /api/v1/admin/modules/:id/activation`, który woła
-  `assertCanActivate('comarch_xl')` zanim flip się zapisze.
+- `erp_connector` rejestruje **jeden** pre-interceptor na
+  `POST /api/v1/admin/modules/:id/activation`, nad wyprowadzoną rodziną. Woła
+  `assertCanActivate(<id modułu>)` zanim flip się zapisze. Członek nie rejestruje
+  własnego interceptora wykluczania.
 - `erp_connector` subskrybuje `module.activation.changed` i zapisuje albo czyści
-  wiersz lock — interceptor sam nie może persystować stanu.
-
-Moduły konsumentów deklarują członkostwo przez `erpConnector: true` w manifeście
-(odbicie `pimConnector` na pakietach PIM). Flaga jest walidowana w
-`packages/contracts/src/modules.ts`.
+  wiersz lock — interceptor nigdy sam nie persystuje stanu. Subskrybent sprawdza
+  członkostwo **zadeklarowane**, bo przy deaktywacji członek jest już nieobecny.
+- Żaden członek nie może zadeklarować `activation.default: true`: platforma odmawia
+  tego przy wyprowadzaniu dla każdej wykluczającej capability, więc świeża instalacja
+  nie ma aktywnego łącznika ERP, a operator wybiera go na `/platform/modules`.
 
 ## Wspólny słownik (kontrakty)
 
@@ -80,41 +103,51 @@ ERP_CONNECTOR_ALREADY_ACTIVE
 details: { activeModuleId: string }
 ```
 
-## Punkty rozszerzenia dla następnego łącznika ERP
+## Pisanie łącznika ERP
 
-Dodając drugi pakiet łącznika ERP:
-
-1. **Zadeklaruj** `dependencies: ['erp_connector']`, `erpConnector: true` i rozwiąż
-   `erpConnectorRegistryPort` przez `lazyPort`.
-2. **Zarejestruj** ten sam wzorzec pre-interceptora aktywacji co `comarch_xl` —
-   odmów aktywacji, gdy rodzeństwo jest aktywne.
-3. **Użyj ponownie** enumów kontraktu z `erp-connector.ts` dla statusu job, severity issue
-   i podsumowań monitora — utrzymuje badge admin spójne.
-4. **Nie** importuj backend pakietu innego łącznika; współdzielony kod należy do
+1. **Zadeklaruj członkostwo**: `capabilities: [CAPABILITY_KEYS.ERP_CONNECTOR]` w
+   manifeście. To całe dołączenie do rodziny.
+2. **Zadeklaruj przełącznik operatora**: blok `activation`, którego `settingCode`
+   wskazuje boolean Setting, z `default: false`. Nigdy `true`.
+3. **Nie** rejestruj interceptora aktywacji i nie zgłaszaj
+   `ERP_CONNECTOR_ALREADY_ACTIVE` — szew i kod należą do tego modułu. Zadeklaruj
+   `dependencies: ['erp_connector']` tylko wtedy, gdy łącznik sam rozwiązuje
+   `erpConnectorRegistryPort`.
+4. **Użyj ponownie** enumów kontraktu z `erp-connector.ts` dla statusu job, severity
+   issue i podsumowań monitora — utrzymuje badge admin spójne między łącznikami.
+5. **Nie** importuj pakietu innego łącznika; współdzielony kod należy do
    `erp_connector` albo `packages/contracts`.
 
-Skopiuj **układ** z `comarch_xl` (klient OpenAPI albo inny wire za portem,
-mapowanie tożsamości, pipeline BullMQ, serwisy apply), a nie nazwy pól specyficzne dla Comarch.
+Typowy łącznik trzyma swojego klienta wire (OpenAPI albo inny) za portem, posiada
+własne tabele mapowań tożsamości, prowadzi sync jako pipeline BullMQ i zapisuje do
+innych modułów wyłącznie przez ich eksportowane porty, więc Command Bus, straż
+tenantów i ślad audytu działają tam, gdzie moduł docelowy je egzekwuje.
 
 ## Gdzie leży kod
 
 Pakiet modułu `erp_connector` posiada serwis rejestru, encję activation-lock
-i migracje. Wspólny słownik Zod żyje w `packages/contracts` jako
-`erp-connector.ts`. Testy unit i contract żyją pod `backend/test/erp_connector/`.
+i migracje; jego testy unit leżą obok nich. Wspólny słownik Zod żyje w
+`packages/contracts` jako `erp-connector.ts`. Testy contract i integration żyją pod
+`backend/test/{contract,integration}/erp_connector/`.
 
 `erp_connector` nie wysyła strony dokumentacji operatora — celowo: nie ma własnej
 powierzchni operatora — brak ekranu admin, brak settingu, który operator ustawia — dokładnie jak
-`pim_connector`, którego strona architektury jest rodzeństwem tej. Operator czyta stronę modułu
-konsumenta; tę, którą ten rejestr dziś bramkuje, link poniżej.
+`pim_connector`, którego strona architektury jest rodzeństwem tej. Operator czyta własną
+stronę łącznika.
 
 ## Bramki
 
 ```bash
-pnpm --filter backend exec vitest run test/unit/erp_connector test/contract/erp_connector
+pnpm --filter @endora-commerce/mod-erp-connector run test
+pnpm --filter backend exec vitest run test/contract/erp_connector test/integration/erp_connector
 ```
+
+`test/integration/erp_connector/overlay-joins.test.ts` komponuje deployment example
+i asertuje, że same jego overlay moduły tworzą parę, więc przypadki wykluczania
+zachowują sens niezależnie od tego, jakie spakowane łączniki zawiera checkout.
 
 ## Powiązane lektury
 
-- [Łącznik Comarch ERP XL](./comarch-xl.md) — klient OpenAPI, pipeline sync, logika apply
+- [Wspólna warstwa łącznika PIM](./pim-connector.md) — ten sam wzorzec dla łączników PIM
 - [Wzorzec overlay](./overlay-pattern.md) — reguły klienta per deployment przez porty i dekoracje
-- Przewodnik operatora: [Comarch ERP XL](../modules/comarch_xl.md)
+- [Cykl życia modułu](../modules/lifecycle.md) — trasa aktywacji, którą przechwytuje szew wykluczania

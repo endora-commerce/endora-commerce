@@ -183,8 +183,9 @@ That closes the accident, not the decision. The seed is still reachable, and thi
 still the place where an operator says no to it.
 
 **Do (operator + engineer).** Run no seed. Load the client's real catalog through the
-Import/Export module or the Ergonode PIM integration instead. A deployment starts with an
-empty catalogue on purpose.
+Import/Export module instead — or, where the client keeps its catalogue in a PIM, through the
+PIM connector the deployment installs for it. A deployment starts with an empty catalogue on
+purpose.
 
 **Verify.** No demo products, no demo organizations, no `platform_admin` account you did not
 create yourself. `select count(*) from products` returns what the client's own import produced.
@@ -297,7 +298,7 @@ The wildcard `*` role is unaffected.
 | --- | --- |
 | manages price lists, brackets, rules or display-mode overrides (`/price-lists`, `/price-lists/:id`, `/price-lists/display-modes`) | `price_lists:read` + `price_lists:write` |
 | only needs to see a quoted price explained — reads price lists, or opens the **Pricing** tab on a product | `price_lists:read` |
-| maps Ergonode attributes (`/pim/ergonode/attribute-mapping`), whose price-list and currency pickers read `GET /api/v1/admin/price-lists-engine` and `GET /api/v1/admin/pricing/rule-targets/currencies` | `price_lists:read`, on top of `pim_ergonode:*` |
+| works in another module's screen that offers price-list or currency pickers — they read `GET /api/v1/admin/price-lists-engine` and `GET /api/v1/admin/pricing/rule-targets/currencies` | `price_lists:read`, on top of that module's own permissions |
 | edits catalogue content and must **not** change prices | neither — leave `catalog:write` as it is |
 
 The last row is the point of the change: after this, `catalog:write` means catalogue content and
@@ -431,32 +432,38 @@ options the client expects, and totals to the number the client's own system wou
 
 ### F4. Switch each payment gateway from sandbox to production
 
-**Why.** Every gateway module defaults its environment setting to `sandbox`
-(`packages/modules/tpay/src/manifest.ts:28`, `packages/modules/payu/src/manifest.ts:28`, and the
-same shape in `autopay` and `stripe`), and holds separate credentials per environment. A
-deployment that goes live in sandbox takes no money; one that forgets to register the production
-callback URL takes money and never confirms the order.
+**Why.** A payment gateway module is installed separately from the platform, and a gateway
+module normally ships with its environment setting at `sandbox` and holds separate credentials
+per environment. A deployment that goes live in sandbox takes no money; one that forgets to
+register the production callback URL takes money and never confirms the order. A client that
+takes no online payment — bank transfer, or a credit limit with deferred terms — has no gateway
+and skips this item.
 
 **Do (operator + engineer).** For each gateway the client uses: enter the production
-credentials, flip the environment setting to `production`, and register the callback URL —
-built on `PUBLIC_API_BASE_URL` (B2) — in the provider's own portal. For Autopay, the ITN URL is
-`{PUBLIC_API_BASE_URL}/api/v1/autopay/itn`; the ISTN endpoint must be enabled by the provider on
-request.
+credentials, flip the environment setting to production, and register the callback URL —
+built on `PUBLIC_API_BASE_URL` (B2) — in the provider's own portal. The gateway module's own
+documentation names the callback path and any endpoint the provider has to enable on request.
 
 **Verify.** One real low-value transaction per gateway, end to end, and confirm the order
 reaches the paid state from the provider's callback — not from a manual status change.
 
 ### F5. KSeF, if the client invoices in Poland
 
-**Why.** The `ksef` module defaults `ksef.integration.enabled` to `false` and its environment to
-`test` (`packages/modules/ksef/src/manifest.ts`), which is the right default — a misconfigured
-production submission is legally binding. Going live is therefore a deliberate act.
+**Why.** The platform records whether and how an invoice reached KSeF — the Invoices module
+stores the KSeF reference number and processing time, and the invoice ledger's
+`invoice_ledger.ksef.routing` setting says whether submission is native or left to a ledger
+vendor — but the submission itself is made by a module installed separately: the `ksef` module,
+or a ledger vendor that submits on the client's behalf. A submission module ships switched off
+and pointed at the KSeF test environment, which is the right default — a misconfigured
+production submission is legally binding. Going live is therefore a deliberate act. A client that
+does not invoice in Poland skips this item.
 
-**Do (operator).** Install and configure the module on `/ksef`: upload or generate the
-certificates, verify the connection in `test`, then switch the environment to `prod` and enable
-the integration.
+**Do (operator).** Decide which path submits, and set `invoice_ledger.ksef.routing` to match.
+Configure the submitting module against the KSeF test environment first — credentials or
+certificates, then a connection check — and only then switch it to production and enable it.
 
-**Verify.** One invoice submitted in `test` and accepted, before the environment is switched.
+**Verify.** One invoice submitted in the test environment and accepted, before the environment is
+switched.
 
 ---
 
@@ -548,8 +555,8 @@ moves up.
 - **Customer deletion retention** (`customers.deletion_retention_days`, default 365) and
   **presence freshness**. The default is safe and does not bite for a year, and the setting is
   editable at any time with no data consequence. It belongs on a GDPR review, not a go-live gate.
-- **Per-module integration credentials for modules the client is not using** — Ergonode, product
-  feeds, newsletter providers, the marketing pixels. There are dozens of settings whose default
+- **Per-module integration credentials for modules the client is not using** — PIM and ERP
+  connectors, product feeds, newsletter providers, the marketing pixels. There are dozens of settings whose default
   is an empty string; every one of them is inert until its module's capability is switched on.
   E1 is the item that decides which of those exist at all; listing each credential here would be
   a settings dump, not a checklist.

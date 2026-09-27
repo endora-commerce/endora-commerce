@@ -151,6 +151,7 @@ const modules = [
     label: 'Comarch ERP XL', key: 'comarch_xl',
     link: { type: 'doc', id: 'modules/comarch_xl' },
     items: [
+      'modules/comarch_xl/architecture',
       'module-reference/comarch-xl',
     ],
   },

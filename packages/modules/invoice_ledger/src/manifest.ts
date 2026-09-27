@@ -38,7 +38,7 @@ export const manifest = defineModuleManifest({
   id: 'invoice_ledger',
   name: 'Invoice ledger',
   description:
-    'Shared invoice-ledger rails: vendor mutex, numbering and KSeF routing, deliveries, and document maps. Vendor HTTP lives in adapter modules such as Infakt.',
+    'Shared invoice-ledger rails: vendor mutex, numbering and KSeF routing, deliveries, and document maps. Vendor HTTP lives in each ledger vendor adapter module.',
   version: '1.0.0',
   dependencies: ['settings', 'organizations', 'admin_users', 'sales_channels'],
   nonBindingDependencies: [
@@ -54,7 +54,7 @@ export const manifest = defineModuleManifest({
       moduleId: 'invoices',
       name: 'invoicePaidHostPort',
       kind: 'refuses-without',
-      whenAbsent: 'Webhook apply cannot stamp paid from Infakt while invoices is off.',
+      whenAbsent: 'Webhook apply cannot stamp an invoice paid from the ledger vendor while invoices is off.',
       reason:
         'invoice_ledger is non-deactivatable, so invoices cannot be a hard dependency.',
     },
@@ -62,7 +62,7 @@ export const manifest = defineModuleManifest({
       moduleId: 'invoices',
       name: 'invoiceKsefAssignmentPort',
       kind: 'refuses-without',
-      whenAbsent: 'Webhook apply cannot record Infakt KSeF numbers while invoices is off.',
+      whenAbsent: 'Webhook apply cannot record vendor-reported KSeF numbers while invoices is off.',
       reason:
         'invoice_ledger is non-deactivatable, so invoices cannot be a hard dependency.',
     },

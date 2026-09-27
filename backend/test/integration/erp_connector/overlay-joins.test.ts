@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CAPABILITY_KEYS, ERROR_CODES } from '@endora-commerce/contracts';
 import { effectiveState } from '@endora-commerce/platform/kernel';
-import { resolvedManifestEntries } from '../../../src/lifecycle/registered-manifests.js';
+import { deploymentFamilyOf } from '../../helpers/capability-families.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -26,6 +26,14 @@ import {
  * the array would name the same module — and then the violation would be back with
  * a passing test over it. So the file that used to carry the entry is read as text
  * and asserted not to name this module, beside the behaviour it no longer needs.
+ *
+ * **The pair partner is any other member, not a packaged connector** (feature 134,
+ * T115, `research.md` D13 §6). The one packaged ERP connector leaves this repository,
+ * so the `example` deployment declares a second overlay member,
+ * `erp_challenger_fixture`, and this file asserts that the overlay members alone form
+ * a pair. Without it, that departure leaves a family of one and the two exclusion
+ * cases below have nobody to be refused by — on `master`, after the merge, since no
+ * merge-request pipeline runs the integration tree (D-198).
  */
 
 const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
@@ -41,18 +49,17 @@ const activationUrl = (moduleId: string): string =>
 describe('erp_connector — an overlay module joins the family [Principle XV]', () => {
   let h: BackendServerHandle;
   let family: readonly string[];
+  let overlayMembers: readonly string[];
+  /** The member the overlay is paired with: another overlay member, so the pair outlives every packaged connector. */
+  let sibling: string;
 
   beforeAll(async () => {
     h = await setupBackendServer({ deployment: 'example' });
-    const entries = await resolvedManifestEntries({
-      DEPLOYMENT: 'example',
-    } as NodeJS.ProcessEnv);
-    family = entries
-      .filter((entry) =>
-        (entry.manifest.capabilities ?? []).includes(CAPABILITY_KEYS.ERP_CONNECTOR),
-      )
-      .map((entry) => entry.manifest.id)
-      .sort();
+    ({ members: family, overlay: overlayMembers } = await deploymentFamilyOf(
+      CAPABILITY_KEYS.ERP_CONNECTOR,
+      'example',
+    ));
+    sibling = overlayMembers.find((id) => id !== OVERLAY_ID) ?? family.find((id) => id !== OVERLAY_ID)!;
   }, 120_000);
 
   afterAll(async () => {
@@ -62,6 +69,10 @@ describe('erp_connector — an overlay module joins the family [Principle XV]', 
   it('is in the derived family, from its own overlay manifest', () => {
     expect(family).toContain(OVERLAY_ID);
     expect(family.length, 'the family needs a second member for the pair below').toBeGreaterThan(1);
+    // W6 — the pair must survive every packaged ERP connector's departure, so the
+    // deployment's own overlay members have to make it on their own.
+    expect(overlayMembers, family.join(', ')).toContain(OVERLAY_ID);
+    expect(overlayMembers.length, family.join(', ')).toBeGreaterThan(1);
     expect(effectiveState.declaredMembersOfCapability(CAPABILITY_KEYS.ERP_CONNECTOR)).toContain(
       OVERLAY_ID,
     );
@@ -94,8 +105,7 @@ describe('erp_connector — an overlay module joins the family [Principle XV]', 
     expect(offenders, 'no core contracts file may name a deployment-owned module').toEqual([]);
   });
 
-  it('holds the claim against the core ERP connector, and is refused by it', async () => {
-    const core = family.find((id) => id !== OVERLAY_ID)!;
+  it('holds the claim against a sibling ERP connector, and is refused by it', async () => {
 
     for (const moduleId of family) {
       const off = await h.app.inject({
@@ -116,10 +126,10 @@ describe('erp_connector — an overlay module joins the family [Principle XV]', 
     });
     expect(claimed.statusCode, claimed.body).toBe(200);
 
-    // …and the core connector is refused by it, naming it.
+    // …and the sibling is refused by it, naming it.
     const refused = await h.app.inject({
       method: 'POST',
-      url: activationUrl(core),
+      url: activationUrl(sibling),
       ...ADMIN,
       payload: { active: true },
     });
@@ -132,8 +142,7 @@ describe('erp_connector — an overlay module joins the family [Principle XV]', 
     });
   });
 
-  it('is refused while the core ERP connector holds the claim — the other direction', async () => {
-    const core = family.find((id) => id !== OVERLAY_ID)!;
+  it('is refused while a sibling ERP connector holds the claim — the other direction', async () => {
 
     for (const moduleId of family) {
       await h.app.inject({
@@ -146,7 +155,7 @@ describe('erp_connector — an overlay module joins the family [Principle XV]', 
 
     const claimed = await h.app.inject({
       method: 'POST',
-      url: activationUrl(core),
+      url: activationUrl(sibling),
       ...ADMIN,
       payload: { active: true },
     });
@@ -162,7 +171,7 @@ describe('erp_connector — an overlay module joins the family [Principle XV]', 
     expect(refused.json()).toMatchObject({
       error: {
         code: ERROR_CODES.ERP_CONNECTOR_ALREADY_ACTIVE,
-        details: { activeModuleId: core },
+        details: { activeModuleId: sibling },
       },
     });
   });
