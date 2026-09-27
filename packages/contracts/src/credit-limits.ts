@@ -87,3 +87,30 @@ export interface CreditLimitReadPort {
    */
   organizationsWithLimit(organizationIds: readonly string[]): Promise<string[]>;
 }
+
+/**
+ * Container name: `creditLimitService`. Owner: `credit_limits`.
+ *
+ * The narrow grant/adjust seam over `credit_limits`' own registration, for a
+ * module that imports contractor credit limits from an external system: grant
+ * on first sight, adjust thereafter. `orders` resolves the same registration
+ * under its own `CreditLimitPort` (D-94.5).
+ *
+ * It was filed in the Comarch XL vendor contract module, which was its first
+ * consumer, until that module left `@endora-commerce/contracts` (feature 134,
+ * E5). The name is `credit_limits`' to publish, not a vendor's, so it stays
+ * here with the owner's other contract types.
+ */
+export interface ContractorCreditLimitPort {
+  getForOrganization(organizationId: string): Promise<{ grantedAmount: string } | null>;
+  grant(input: {
+    organizationId: string;
+    grantedAmount: number;
+    currency: string;
+  }): Promise<unknown>;
+  adjust(input: {
+    organizationId: string;
+    grantedAmount: number;
+    allowOverAllocation?: boolean;
+  }): Promise<{ ok: boolean }>;
+}
