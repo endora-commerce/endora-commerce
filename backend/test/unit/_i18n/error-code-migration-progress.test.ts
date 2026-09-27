@@ -108,12 +108,6 @@ const MIGRATED_MODULES: readonly string[] = [
   'carts',
   'catalog',
   'cms',
-  // The Comarch ERP XL connector and the shared ERP layer beneath it
-  // (`specs/130-comarch-xl-sync/`). Both mint every one of their codes rather
-  // than receiving any, so the reference side that makes these two entries
-  // answerable is the minting half alone: eleven `MINTED_ERROR_CODES` entries,
-  // and nothing in the frozen capture.
-  'comarch_xl',
   'comparisons',
   'credentials',
   'credit_limits',
@@ -144,6 +138,13 @@ const MIGRATED_MODULES: readonly string[] = [
   // adapter owns the two whose noun is the vendor. The roster line is the other
   // half: the ledger alone would say where each code belongs and leave the
   // manifest's declaration unmeasured.
+  // The shared ERP layer (`specs/130-comarch-xl-sync/`). It mints its one code
+  // rather than receiving it, so the reference side that makes this entry
+  // answerable is the minting half alone: one `MINTED_ERROR_CODES` entry, and
+  // nothing in the frozen capture. The Comarch XL connector minted ten more
+  // beside it and sat on this roster until it left for the paid repository
+  // (feature 134, T069), taking its codes and their `MINTED_ERROR_CODES`
+  // entries with it.
   'erp_connector',
   // `infakt` was here — its two codes were minted with it — and left this
   // repository with them (feature 134, T069).

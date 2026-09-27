@@ -165,7 +165,9 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
   // `INFAKT_CONNECTION_FAILED` and `INFAKT_WEBHOOK_UNAUTHORIZED` were minted here with
   // the Infakt adapter (feature 119) and left the repository with it (feature 134,
   // T069); `ERROR_CODES` no longer holds them.
-  // ---- Minted with the Comarch ERP XL connector (`specs/130-comarch-xl-sync/`).
+  // ---- Minted with the Comarch ERP XL connector (`specs/130-comarch-xl-sync/`). The
+  // connector's own ten left with it for the paid repository (feature 134, T069); the
+  // shared ERP layer's one stays.
   ERP_CONNECTOR_ALREADY_ACTIVE: {
     to: 'erp_connector',
     reason:
@@ -173,78 +175,6 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       + 'the refusal an operator meets when a second ERP connector is switched on while one '
       + 'already holds the exclusive claim. The noun is the ERP connector claim, which '
       + '`erp_connector` owns.',
-  },
-  COMARCH_XL_NOT_CONFIGURED: {
-    to: 'comarch_xl',
-    reason:
-      'Minted with the Comarch ERP XL connector (`specs/130-comarch-xl-sync/`) for '
-      + 'the refusal a sync meets when no Comarch XL connection has been saved. The noun is '
-      + 'the Comarch XL connection, which `comarch_xl` owns.',
-  },
-  COMARCH_XL_TLS_REQUIRED: {
-    to: 'comarch_xl',
-    reason:
-      'Minted with the Comarch ERP XL connector (`specs/130-comarch-xl-sync/`) for '
-      + 'the refusal an operator meets when the saved base URL is not HTTPS outside '
-      + 'development. The noun is the Comarch XL connection, which `comarch_xl` owns.',
-  },
-  XL_CONTRACT_VERSION_MISMATCH: {
-    to: 'comarch_xl',
-    reason:
-      'Minted with the Comarch ERP XL connector (`specs/130-comarch-xl-sync/`) for '
-      + 'the refusal a call meets when the XL plugin answers a contract version this '
-      + 'connector does not support. The noun is the Comarch XL wire contract, which '
-      + '`comarch_xl` owns.',
-  },
-  COMARCH_XL_IDENTITY_DUPLICATE: {
-    to: 'comarch_xl',
-    reason:
-      'Minted with the Comarch ERP XL connector (`specs/130-comarch-xl-sync/`) for '
-      + 'the refusal an operator meets when an identifier is already mapped for that entity '
-      + 'type. The noun is the Comarch XL identity map, which `comarch_xl` owns.',
-  },
-  COMARCH_XL_IDENTITY_NOT_FOUND: {
-    to: 'comarch_xl',
-    reason:
-      'Minted with the Comarch ERP XL connector (`specs/130-comarch-xl-sync/`) for '
-      + 'the refusal an apply meets when no identity mapping exists for the record it was '
-      + 'handed. The noun is the Comarch XL identity map, which `comarch_xl` owns.',
-  },
-  COMARCH_XL_SKU_COLLISION: {
-    to: 'comarch_xl',
-    reason:
-      'Minted with the Comarch ERP XL connector (`specs/130-comarch-xl-sync/`) for '
-      + 'the refusal an apply meets when a SKU already belongs to a different XL article. The '
-      + 'noun is the Comarch XL identity map, which `comarch_xl` owns.',
-  },
-  COMARCH_XL_CATEGORY_MAPPING_MISSING: {
-    to: 'comarch_xl',
-    reason:
-      'Minted with the Comarch ERP XL connector (`specs/130-comarch-xl-sync/`) for '
-      + 'the refusal an apply meets when an XL group has no category mapping. The noun is the '
-      + 'Comarch XL category map, which `comarch_xl` owns.',
-  },
-  COMARCH_XL_STATUS_UNMAPPED: {
-    to: 'comarch_xl',
-    reason:
-      'Minted with the Comarch ERP XL connector (`specs/130-comarch-xl-sync/`) for '
-      + 'the refusal an apply meets when an XL status code maps to no shop status. The noun '
-      + 'is the Comarch XL status map, which `comarch_xl` owns.',
-  },
-  COMARCH_XL_WAREHOUSE_UNMAPPED: {
-    to: 'comarch_xl',
-    reason:
-      'Minted with the Comarch ERP XL connector (`specs/130-comarch-xl-sync/`) for '
-      + 'the refusal a stock apply meets when an XL warehouse maps to no shop warehouse. The '
-      + 'noun is the Comarch XL warehouse map, which `comarch_xl` owns.',
-  },
-  COMARCH_XL_AVAILABILITY_LABEL_UNKNOWN: {
-    to: 'comarch_xl',
-    reason:
-      'Minted with the Comarch ERP XL connector (`specs/130-comarch-xl-sync/`) for '
-      + 'the refusal a stock apply meets when an XL availability label is not one this '
-      + 'connector recognises. The noun is the Comarch XL stock projection, which '
-      + '`comarch_xl` owns.',
   },
 };
 

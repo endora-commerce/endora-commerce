@@ -34,7 +34,6 @@ przypadkiem zostało napisane.
 | [carts](./carts.md) | Koszyk klienta z merge anonim→zalogowany | @endora-commerce/mod-carts |
 | [Catalog](./catalog.md) | Produkty, warianty, kategorie, atrybuty, kanały sprzedaży | @endora-commerce/mod-catalog |
 | [CMS](./cms/index.md) | Powierzchnia autorska Page Builder — Strony, Bloki, Szablony, Hooki — per kanał + język | @endora-commerce/mod-cms |
-| [Comarch ERP XL](./comarch_xl.md) | Synchronizacja katalogu, stanów, cen, zamówień i kontrahentów z Comarch ERP XL / Optima przez plugin REST connector. | @endora-commerce/mod-comarch-xl |
 | [Compare Products](./comparisons.md) | Compare Products: zestaw kuratorowany przez klienta z trybami wyświetlania, linkiem do udostępnienia i eksportem PDF | @endora-commerce/mod-comparisons |
 | [Credentials](./credentials.md) | Wielokrotnego użytku typowane konfiguracje poświadczeń (LLM, adapter e-mail) referencjonowane z ustawień | @endora-commerce/mod-credentials |
 | [credit_limits](./credit_limits.md) | Przyznanie limitu kredytowego + atomowa rezerwacja | @endora-commerce/mod-credit-limits |

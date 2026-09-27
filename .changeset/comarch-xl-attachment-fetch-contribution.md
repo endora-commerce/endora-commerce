@@ -1,7 +1,8 @@
 ---
-'@endora-commerce/mod-comarch-xl': minor
 ---
 
-`comarch_xl` contributes its sale-document attachment fetch to `invoices` instead of publishing `comarchXlSaleDocumentAttachmentPort`
-
-The container name `comarchXlSaleDocumentAttachmentPort` is gone. The module registers its fetch provider into `invoices`' `invoiceAttachmentFetchRegistry` from a boot hook, under the source system `comarch_xl` that its sale-document import already writes, so it needs an `@endora-commerce/mod-invoices` and `@endora-commerce/contracts` that carry that seam. While the module is switched off, `invoices` skips its provider and a not-yet-fetched attachment answers 404; switching it back on takes effect on the next download.
+`@endora-commerce/mod-comarch-xl` left this repository with feature 134's `comarch_xl` departure;
+the attachment fetch this changeset described, contributed to `invoices`'
+`invoiceAttachmentFetchRegistry` instead of published as `comarchXlSaleDocumentAttachmentPort`, is
+carried in the module's history and released from the paid-modules repository. `invoices`' half of
+the same change, the registry itself, is released here by its own changesets.

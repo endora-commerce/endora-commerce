@@ -148,24 +148,22 @@ import * as module51 from '@endora-commerce/mod-quote-requests/backend';
 import { manifest as manifest51 } from '@endora-commerce/mod-quote-requests';
 import * as module52 from '@endora-commerce/mod-carts/backend';
 import { manifest as manifest52 } from '@endora-commerce/mod-carts';
-import * as module53 from '@endora-commerce/mod-comarch-xl/backend';
-import { manifest as manifest53 } from '@endora-commerce/mod-comarch-xl';
-import * as module54 from '@endora-commerce/mod-quick-order/backend';
-import { manifest as manifest54 } from '@endora-commerce/mod-quick-order';
-import * as module55 from '@endora-commerce/mod-customers/backend';
-import { manifest as manifest55 } from '@endora-commerce/mod-customers';
-import * as module56 from '@endora-commerce/mod-newsletter/backend';
-import { manifest as manifest56 } from '@endora-commerce/mod-newsletter';
-import * as module57 from '@endora-commerce/mod-returns/backend';
-import { manifest as manifest57 } from '@endora-commerce/mod-returns';
-import * as module58 from '@endora-commerce/mod-search/backend';
-import { manifest as manifest58 } from '@endora-commerce/mod-search';
-import * as module59 from '@endora-commerce/mod-shipments/backend';
-import { manifest as manifest59 } from '@endora-commerce/mod-shipments';
-import * as module60 from '@endora-commerce/mod-shopping-lists/backend';
-import { manifest as manifest60 } from '@endora-commerce/mod-shopping-lists';
-import * as module61 from '@endora-commerce/mod-webhooks/backend';
-import { manifest as manifest61 } from '@endora-commerce/mod-webhooks';
+import * as module53 from '@endora-commerce/mod-quick-order/backend';
+import { manifest as manifest53 } from '@endora-commerce/mod-quick-order';
+import * as module54 from '@endora-commerce/mod-customers/backend';
+import { manifest as manifest54 } from '@endora-commerce/mod-customers';
+import * as module55 from '@endora-commerce/mod-newsletter/backend';
+import { manifest as manifest55 } from '@endora-commerce/mod-newsletter';
+import * as module56 from '@endora-commerce/mod-returns/backend';
+import { manifest as manifest56 } from '@endora-commerce/mod-returns';
+import * as module57 from '@endora-commerce/mod-search/backend';
+import { manifest as manifest57 } from '@endora-commerce/mod-search';
+import * as module58 from '@endora-commerce/mod-shipments/backend';
+import { manifest as manifest58 } from '@endora-commerce/mod-shipments';
+import * as module59 from '@endora-commerce/mod-shopping-lists/backend';
+import { manifest as manifest59 } from '@endora-commerce/mod-shopping-lists';
+import * as module60 from '@endora-commerce/mod-webhooks/backend';
+import { manifest as manifest60 } from '@endora-commerce/mod-webhooks';
 
 export const MODULES: readonly ModuleEntry[] = [
   { id: '_lifecycle', version: manifest0.version, registerModule: module0.registerModule },
@@ -221,13 +219,12 @@ export const MODULES: readonly ModuleEntry[] = [
   { id: 'pwa', version: manifest50.version, registerModule: module50.registerModule },
   { id: 'quote_requests', version: manifest51.version, registerModule: module51.registerModule },
   { id: 'carts', version: manifest52.version, registerModule: module52.registerModule },
-  { id: 'comarch_xl', version: manifest53.version, registerModule: module53.registerModule },
-  { id: 'quick_order', version: manifest54.version, registerModule: module54.registerModule },
-  { id: 'customers', version: manifest55.version, registerModule: module55.registerModule },
-  { id: 'newsletter', version: manifest56.version, registerModule: module56.registerModule },
-  { id: 'returns', version: manifest57.version, registerModule: module57.registerModule },
-  { id: 'search', version: manifest58.version, registerModule: module58.registerModule },
-  { id: 'shipments', version: manifest59.version, registerModule: module59.registerModule },
-  { id: 'shopping_lists', version: manifest60.version, registerModule: module60.registerModule },
-  { id: 'webhooks', version: manifest61.version, registerModule: module61.registerModule },
+  { id: 'quick_order', version: manifest53.version, registerModule: module53.registerModule },
+  { id: 'customers', version: manifest54.version, registerModule: module54.registerModule },
+  { id: 'newsletter', version: manifest55.version, registerModule: module55.registerModule },
+  { id: 'returns', version: manifest56.version, registerModule: module56.registerModule },
+  { id: 'search', version: manifest57.version, registerModule: module57.registerModule },
+  { id: 'shipments', version: manifest58.version, registerModule: module58.registerModule },
+  { id: 'shopping_lists', version: manifest59.version, registerModule: module59.registerModule },
+  { id: 'webhooks', version: manifest60.version, registerModule: module60.registerModule },
 ];

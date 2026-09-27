@@ -31,7 +31,6 @@
     "@endora-commerce/mod-carts": "workspace:*",
     "@endora-commerce/mod-catalog": "workspace:*",
     "@endora-commerce/mod-cms": "workspace:*",
-    "@endora-commerce/mod-comarch-xl": "workspace:*",
     "@endora-commerce/mod-comparisons": "workspace:*",
     "@endora-commerce/mod-credentials": "workspace:*",
     "@endora-commerce/mod-credit-limits": "workspace:*",

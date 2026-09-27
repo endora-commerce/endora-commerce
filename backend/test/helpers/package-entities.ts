@@ -68,11 +68,6 @@ import type { CredentialConfiguration as CredentialConfigurationRow } from '../.
 import type { Country as CountryRow } from '../../../packages/modules/dictionaries/src/backend/entities/country.entity.js';
 import type { DictionaryTranslation as DictionaryTranslationRow } from '../../../packages/modules/dictionaries/src/backend/entities/dictionary-translation.entity.js';
 import type { LanguageCountry as LanguageCountryRow } from '../../../packages/modules/dictionaries/src/backend/entities/language-country.entity.js';
-import type {
-  XlCategoryMapping as XlCategoryMappingRow,
-  XlImportedOffer as XlImportedOfferRow,
-  XlSyncJob as XlSyncJobRow,
-} from '@endora-commerce/mod-comarch-xl/test-support';
 import type { SearchPhraseRecord as SearchPhraseRecordRow } from '../../../packages/modules/search/src/backend/entities/search-phrase-record.entity.js';
 import type { Tax as TaxRow } from '../../../packages/modules/taxes/src/backend/entities/tax.entity.js';
 import type { Asset as AssetRow } from '../../../packages/modules/assets_library/src/backend/entities/asset.entity.js';
@@ -1017,26 +1012,3 @@ export type NewsletterSubscriber = NewsletterSubscriberRow;
 
 export type AdminNotification = AdminNotificationRow;
 
-/**
- * `comarch_xl`'s entities, taken from the package's published `entities` array
- * — which is the array the ORM registered, and the only copy of these classes
- * the composed platform holds. A filesystem path into
- * `packages/modules/comarch_xl/src` evaluates the module a second time, and the
- * second copy's classes are not the ones any `em.find` will match
- * (`check:singleton-identity`, `composed-singleton-reach`).
- */
-export const XlCategoryMapping = classNamed<XlCategoryMappingRow>(
-  installedModuleEntities,
-  'comarch_xl',
-  'XlCategoryMapping',
-);
-export const XlImportedOffer = classNamed<XlImportedOfferRow>(
-  installedModuleEntities,
-  'comarch_xl',
-  'XlImportedOffer',
-);
-export const XlSyncJob = classNamed<XlSyncJobRow>(
-  installedModuleEntities,
-  'comarch_xl',
-  'XlSyncJob',
-);

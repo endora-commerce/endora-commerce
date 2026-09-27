@@ -50,52 +50,51 @@ import { entities as entities11 } from '@endora-commerce/mod-blog/backend';
 import { entities as entities12 } from '@endora-commerce/mod-carts/backend';
 import { entities as entities13 } from '@endora-commerce/mod-catalog/backend';
 import { entities as entities14 } from '@endora-commerce/mod-cms/backend';
-import { entities as entities15 } from '@endora-commerce/mod-comarch-xl/backend';
-import { entities as entities16 } from '@endora-commerce/mod-comparisons/backend';
-import { entities as entities17 } from '@endora-commerce/mod-credentials/backend';
-import { entities as entities18 } from '@endora-commerce/mod-credit-limits/backend';
-import { entities as entities19 } from '@endora-commerce/mod-currencies/backend';
-import { entities as entities20 } from '@endora-commerce/mod-custom-fields/backend';
-import { entities as entities21 } from '@endora-commerce/mod-customer-accounts/backend';
-import { entities as entities22 } from '@endora-commerce/mod-customers/backend';
-import { entities as entities23 } from '@endora-commerce/mod-delivery-methods/backend';
-import { entities as entities24 } from '@endora-commerce/mod-dictionaries/backend';
-import { entities as entities25 } from '@endora-commerce/mod-email/backend';
-import { entities as entities26 } from '@endora-commerce/mod-erp-connector/backend';
-import { entities as entities27 } from '@endora-commerce/mod-google-analytics/backend';
-import { entities as entities28 } from '@endora-commerce/mod-google-tag-manager/backend';
-import { entities as entities29 } from '@endora-commerce/mod-import-export/backend';
-import { entities as entities30 } from '@endora-commerce/mod-inventory/backend';
-import { entities as entities31 } from '@endora-commerce/mod-invoice-ledger/backend';
-import { entities as entities32 } from '@endora-commerce/mod-invoices/backend';
-import { entities as entities33 } from '@endora-commerce/mod-languages/backend';
-import { entities as entities34 } from '@endora-commerce/mod-linkedin-ads/backend';
-import { entities as entities35 } from '@endora-commerce/mod-megamenu/backend';
-import { entities as entities36 } from '@endora-commerce/mod-meta-ads/backend';
-import { entities as entities37 } from '@endora-commerce/mod-mfa/backend';
-import { entities as entities38 } from '@endora-commerce/mod-newsletter/backend';
-import { entities as entities39 } from '@endora-commerce/mod-orders/backend';
-import { entities as entities40 } from '@endora-commerce/mod-organizations/backend';
-import { entities as entities41 } from '@endora-commerce/mod-payment-methods/backend';
-import { entities as entities42 } from '@endora-commerce/mod-payments/backend';
-import { entities as entities43 } from '@endora-commerce/mod-pim-connector/backend';
-import { entities as entities44 } from '@endora-commerce/mod-price-lists/backend';
-import { entities as entities45 } from '@endora-commerce/mod-product-feeds/backend';
-import { entities as entities46 } from '@endora-commerce/mod-promotions/backend';
-import { entities as entities47 } from '@endora-commerce/mod-prompt-actions/backend';
-import { entities as entities48 } from '@endora-commerce/mod-pwa/backend';
-import { entities as entities49 } from '@endora-commerce/mod-quick-order/backend';
-import { entities as entities50 } from '@endora-commerce/mod-quote-requests/backend';
-import { entities as entities51 } from '@endora-commerce/mod-returns/backend';
-import { entities as entities52 } from '@endora-commerce/mod-sales-channels/backend';
-import { entities as entities53 } from '@endora-commerce/mod-search/backend';
-import { entities as entities54 } from '@endora-commerce/mod-seo/backend';
-import { entities as entities55 } from '@endora-commerce/mod-settings/backend';
-import { entities as entities56 } from '@endora-commerce/mod-shipments/backend';
-import { entities as entities57 } from '@endora-commerce/mod-shopping-lists/backend';
-import { entities as entities58 } from '@endora-commerce/mod-taxes/backend';
-import { entities as entities59 } from '@endora-commerce/mod-transactional-emails/backend';
-import { entities as entities60 } from '@endora-commerce/mod-webhooks/backend';
+import { entities as entities15 } from '@endora-commerce/mod-comparisons/backend';
+import { entities as entities16 } from '@endora-commerce/mod-credentials/backend';
+import { entities as entities17 } from '@endora-commerce/mod-credit-limits/backend';
+import { entities as entities18 } from '@endora-commerce/mod-currencies/backend';
+import { entities as entities19 } from '@endora-commerce/mod-custom-fields/backend';
+import { entities as entities20 } from '@endora-commerce/mod-customer-accounts/backend';
+import { entities as entities21 } from '@endora-commerce/mod-customers/backend';
+import { entities as entities22 } from '@endora-commerce/mod-delivery-methods/backend';
+import { entities as entities23 } from '@endora-commerce/mod-dictionaries/backend';
+import { entities as entities24 } from '@endora-commerce/mod-email/backend';
+import { entities as entities25 } from '@endora-commerce/mod-erp-connector/backend';
+import { entities as entities26 } from '@endora-commerce/mod-google-analytics/backend';
+import { entities as entities27 } from '@endora-commerce/mod-google-tag-manager/backend';
+import { entities as entities28 } from '@endora-commerce/mod-import-export/backend';
+import { entities as entities29 } from '@endora-commerce/mod-inventory/backend';
+import { entities as entities30 } from '@endora-commerce/mod-invoice-ledger/backend';
+import { entities as entities31 } from '@endora-commerce/mod-invoices/backend';
+import { entities as entities32 } from '@endora-commerce/mod-languages/backend';
+import { entities as entities33 } from '@endora-commerce/mod-linkedin-ads/backend';
+import { entities as entities34 } from '@endora-commerce/mod-megamenu/backend';
+import { entities as entities35 } from '@endora-commerce/mod-meta-ads/backend';
+import { entities as entities36 } from '@endora-commerce/mod-mfa/backend';
+import { entities as entities37 } from '@endora-commerce/mod-newsletter/backend';
+import { entities as entities38 } from '@endora-commerce/mod-orders/backend';
+import { entities as entities39 } from '@endora-commerce/mod-organizations/backend';
+import { entities as entities40 } from '@endora-commerce/mod-payment-methods/backend';
+import { entities as entities41 } from '@endora-commerce/mod-payments/backend';
+import { entities as entities42 } from '@endora-commerce/mod-pim-connector/backend';
+import { entities as entities43 } from '@endora-commerce/mod-price-lists/backend';
+import { entities as entities44 } from '@endora-commerce/mod-product-feeds/backend';
+import { entities as entities45 } from '@endora-commerce/mod-promotions/backend';
+import { entities as entities46 } from '@endora-commerce/mod-prompt-actions/backend';
+import { entities as entities47 } from '@endora-commerce/mod-pwa/backend';
+import { entities as entities48 } from '@endora-commerce/mod-quick-order/backend';
+import { entities as entities49 } from '@endora-commerce/mod-quote-requests/backend';
+import { entities as entities50 } from '@endora-commerce/mod-returns/backend';
+import { entities as entities51 } from '@endora-commerce/mod-sales-channels/backend';
+import { entities as entities52 } from '@endora-commerce/mod-search/backend';
+import { entities as entities53 } from '@endora-commerce/mod-seo/backend';
+import { entities as entities54 } from '@endora-commerce/mod-settings/backend';
+import { entities as entities55 } from '@endora-commerce/mod-shipments/backend';
+import { entities as entities56 } from '@endora-commerce/mod-shopping-lists/backend';
+import { entities as entities57 } from '@endora-commerce/mod-taxes/backend';
+import { entities as entities58 } from '@endora-commerce/mod-transactional-emails/backend';
+import { entities as entities59 } from '@endora-commerce/mod-webhooks/backend';
 
 /**
  * What a module package publishes in its `entities` array.
@@ -140,50 +139,49 @@ export const installedModuleEntities: Readonly<
   carts: entities12,
   catalog: entities13,
   cms: entities14,
-  comarch_xl: entities15,
-  comparisons: entities16,
-  credentials: entities17,
-  credit_limits: entities18,
-  currencies: entities19,
-  custom_fields: entities20,
-  customer_accounts: entities21,
-  customers: entities22,
-  delivery_methods: entities23,
-  dictionaries: entities24,
-  email: entities25,
-  erp_connector: entities26,
-  google_analytics: entities27,
-  google_tag_manager: entities28,
-  import_export: entities29,
-  inventory: entities30,
-  invoice_ledger: entities31,
-  invoices: entities32,
-  languages: entities33,
-  linkedin_ads: entities34,
-  megamenu: entities35,
-  meta_ads: entities36,
-  mfa: entities37,
-  newsletter: entities38,
-  orders: entities39,
-  organizations: entities40,
-  payment_methods: entities41,
-  payments: entities42,
-  pim_connector: entities43,
-  price_lists: entities44,
-  product_feeds: entities45,
-  promotions: entities46,
-  prompt_actions: entities47,
-  pwa: entities48,
-  quick_order: entities49,
-  quote_requests: entities50,
-  returns: entities51,
-  sales_channels: entities52,
-  search: entities53,
-  seo: entities54,
-  settings: entities55,
-  shipments: entities56,
-  shopping_lists: entities57,
-  taxes: entities58,
-  transactional_emails: entities59,
-  webhooks: entities60,
+  comparisons: entities15,
+  credentials: entities16,
+  credit_limits: entities17,
+  currencies: entities18,
+  custom_fields: entities19,
+  customer_accounts: entities20,
+  customers: entities21,
+  delivery_methods: entities22,
+  dictionaries: entities23,
+  email: entities24,
+  erp_connector: entities25,
+  google_analytics: entities26,
+  google_tag_manager: entities27,
+  import_export: entities28,
+  inventory: entities29,
+  invoice_ledger: entities30,
+  invoices: entities31,
+  languages: entities32,
+  linkedin_ads: entities33,
+  megamenu: entities34,
+  meta_ads: entities35,
+  mfa: entities36,
+  newsletter: entities37,
+  orders: entities38,
+  organizations: entities39,
+  payment_methods: entities40,
+  payments: entities41,
+  pim_connector: entities42,
+  price_lists: entities43,
+  product_feeds: entities44,
+  promotions: entities45,
+  prompt_actions: entities46,
+  pwa: entities47,
+  quick_order: entities48,
+  quote_requests: entities49,
+  returns: entities50,
+  sales_channels: entities51,
+  search: entities52,
+  seo: entities53,
+  settings: entities54,
+  shipments: entities55,
+  shopping_lists: entities56,
+  taxes: entities57,
+  transactional_emails: entities58,
+  webhooks: entities59,
 };
