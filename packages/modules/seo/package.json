@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-seo",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "type": "module",
   "sideEffects": false,
   "description": "SEO metadata management for catalog, CMS, and blog surfaces.",

@@ -511,7 +511,8 @@ describe('the tree itself', () => {
       'blog',
       'cms',
       'inventory',
-      'pim_ergonode',
+      // `pim_ergonode` was the ninth, and left for the paid repository with its
+      // boot hook (feature 134); the eight that stay still exercise the rule.
       'product_feeds',
     ] as const) {
       const file = await fileOf(sources, moduleId, `effectiveState.isPresent('${moduleId}')`);

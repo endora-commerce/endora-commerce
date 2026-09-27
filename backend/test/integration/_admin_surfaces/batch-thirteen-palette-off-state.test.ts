@@ -2,7 +2,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { contributions as priceListsAdmin } from '@endora-commerce/mod-price-lists/admin';
 import { contributions as quickOrderAdmin } from '@endora-commerce/mod-quick-order/admin';
 import { contributions as inventoryAdmin } from '@endora-commerce/mod-inventory/admin';
-import { contributions as pimErgonodeAdmin } from '@endora-commerce/mod-pim-ergonode/admin';
 import type { AdminContributions } from '@endora-commerce/admin-kit/contributions';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import { ACTION_PERMISSION_DISAGREEMENTS } from '../../../scripts/check-action-route-permissions.js';
@@ -41,9 +40,21 @@ import { withModuleOff, type OffStateAxis } from '../../helpers/off-state.js';
  *
  * `quick_order` and `pim_ergonode` already declared theirs and are untouched.
  *
- * ## The axis, and why one of the four has the other one
+ * ## Three subjects, not four (feature 134, W2.4)
  *
- * Three of the four are switchable, so `deactivated` is the axis that measures
+ * `pim_ergonode`'s row left this file by subject. The **mechanism** — the
+ * server resolving the palette against the effective enabled-set, on the
+ * operator axis — stays driven here by `quick_order` and `inventory`, whose
+ * declarations are in this repository, and on the platform axis by
+ * `price_lists`. The **declaration** — its four actions, each landing on a
+ * route its own `./admin` layer declares, on the code that route enforces
+ * save the one import row `ACTION_PERMISSION_DISAGREEMENTS` records — is that
+ * module's and is asserted inside its package. The deleted row is read back
+ * from `git show 077b90f42:backend/test/integration/_admin_surfaces/batch-thirteen-palette-off-state.test.ts`.
+ *
+ * ## The axis, and why one of the three has the other one
+ *
+ * Two of the three are switchable, so `deactivated` is the axis that measures
  * something an operator can reach. `price_lists` declares
  * `activation.nonDeactivatable` (*"B2B is contract pricing"*), so it has no
  * operator axis at all and the harness drives the platform one — which is what
@@ -80,17 +91,6 @@ const SUBJECTS: readonly Subject[] = [
     actions: ['open-inventory'],
     axis: 'deactivated',
     admin: inventoryAdmin,
-  },
-  {
-    module: 'pim_ergonode',
-    actions: [
-      'open-ergonode-attribute-mappings',
-      'open-ergonode-category-mappings',
-      'open-pim-ergonode',
-      'run-ergonode-import',
-    ],
-    axis: 'deactivated',
-    admin: pimErgonodeAdmin,
   },
 ];
 
@@ -163,15 +163,16 @@ describe('batch 13 contributes no palette action while off (Constitution XVII it
       // between the two artefacts this batch put in one package, which is a
       // comparison nothing else makes.
       //
-      // **The exception is derived, never listed.** `pim_ergonode`'s
-      // `run-ergonode-import` lands on `/pim-ergonode` with the module's write
-      // code, deliberately: the row promises the import and not the screen, and
-      // `requiredPermission` is a single field that cannot say both. That is an
-      // owner's undecided question rather than a defect, and it is recorded
-      // once, in `ACTION_PERMISSION_DISAGREEMENTS`. Reading that ledger here
-      // rather than writing the id into this file means the day the owner
-      // decides, this case tightens in the same merge request that empties the
-      // entry.
+      // **The exception is derived, never listed.** An import row that lands
+      // on a connector's landing screen with the module's write code — the row
+      // promises the import and not the screen, and `requiredPermission` is a
+      // single field that cannot say both — is an owner's undecided question
+      // rather than a defect, and it is recorded once, in
+      // `ACTION_PERMISSION_DISAGREEMENTS`. None of the three subjects left here
+      // holds such an entry since the PIM connector's row moved into its
+      // package (feature 134, W2.4); the ledger is still read rather than
+      // assumed empty, so a subject that gains one is exempted by the same
+      // decision and not by an edit to this file.
       const manifest = REGISTERED_MANIFESTS.find(
         (entry) => entry.manifest.id === subject.module,
       )?.manifest;
@@ -234,7 +235,7 @@ describe('batch 13 contributes no palette action while off (Constitution XVII it
     expect(action?.requiredPermission).toBe('inventory:read');
   });
 
-  it('none of the four advertises a route it does not own', () => {
+  it('none of the three advertises a route it does not own', () => {
     // A palette row pointing into another module's surface is an advertisement
     // whose withdrawal nobody controls. Every action of every subject has to
     // land on a path that module's own `./admin` layer declares — which for

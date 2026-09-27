@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-import-export",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "type": "module",
   "sideEffects": false,
   "description": "Bulk product import and export wizard.",
