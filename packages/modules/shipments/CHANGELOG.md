@@ -1,5 +1,19 @@
 # @endora-commerce/mod-shipments
 
+## 0.8.6
+
+### Patch Changes
+
+- Updated dependencies [0af8db8]
+- Updated dependencies [7b1f09e]
+- Updated dependencies [8418b7d]
+- Updated dependencies [a12d4bf]
+- Updated dependencies [6738f35]
+- Updated dependencies [9ef7f4b]
+- Updated dependencies [1b3fb93]
+  - @endora-commerce/contracts@0.17.0
+  - @endora-commerce/platform@0.13.3
+
 ## 0.8.5
 
 ### Patch Changes

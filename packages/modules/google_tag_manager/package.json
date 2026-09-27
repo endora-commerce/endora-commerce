@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-google-tag-manager",
-  "version": "0.8.5",
+  "version": "0.8.6",
   "type": "module",
   "sideEffects": false,
   "description": "Google Tag Manager integration: per-sales-channel container injection behind the storefront consent decision, a documented commerce dataLayer vocabulary, and an optional server-side tagging relay.",

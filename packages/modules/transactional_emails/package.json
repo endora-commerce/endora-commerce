@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-transactional-emails",
-  "version": "0.9.6",
+  "version": "0.9.7",
   "type": "module",
   "sideEffects": false,
   "description": "Admin-editable transactional email content and look (global + per sales channel), email-safe blocks/templates, variables, and preview.",

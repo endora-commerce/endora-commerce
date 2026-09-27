@@ -1,5 +1,46 @@
 # @endora-commerce/mod-i18n
 
+## 0.9.6
+
+### Patch Changes
+
+- 922d0c3: The invoice template editor offers blocks other modules declare, and keeps blocks it cannot show
+
+  The editor now reads `GET /api/v1/admin/invoice-templates/page-builder/config` and merges it into its own configuration through `withDescribedInvoiceBlocks`:
+  - A block that a present module declares, and that this module has no editor binding for, can be inserted and configured from the _Invoice sections_ palette. Its fields come from the descriptor. On the canvas it appears as a short note naming the module that draws it on the PDF. _Preview PDF_ shows the real output.
+  - A stored block that nothing covers keeps its place and its props, and shows a note saying it is not available on this instance and is not printed. This covers a module that is off, a module that is not installed, and a name nobody recognises. The block is not offered in the palette.
+  - If the descriptor cannot be fetched, the editor keeps its own blocks and still shows every stored block it cannot render as that note. No block is dropped.
+
+  `mod-i18n` adds the three `invoiceTemplates.describedBlock.*` strings in English and Polish.
+
+- 170cd2f: The invoice PDF and the admin invoice screen print the invoice's KSeF number whatever any module's state
+  - **PDF.** `invoices.InvoiceHeader` prints `<labelKsefNumber>: <number>` directly under the title row when the invoice has a KSeF number. The label defaults to `Numer w KSeF` and can be changed in the template builder. There is no prop to hide the row. The row is left out only while a block that prints the number itself (a registration with `printsKsefReferenceNumber: true`) is present and placed in the template. For the built-in layout, present is enough. The number is printed exactly once, including for a number an accounting vendor recorded while the KSeF module is off or absent.
+  - **Admin.** The invoice detail screen shows a _KSeF number_ row whenever the invoice has one. The `invoice.detail.after` zone is unchanged.
+  - The KSeF module sets `printsKsefReferenceNumber: true` on `ksef.InvoiceSection`, so an invoice that places that section prints its number once, from the section, as before. That module has since left this repository; its release with the change is cut from the paid-modules repository.
+  - `mod-i18n` adds `invoiceDetail.field.ksefNumber` in English and Polish.
+
+- 2584b73: The KSeF module's two permission labels move into its own bundle
+
+  `adminRoles.permission.ksef:read` and `adminRoles.permission.ksef:write` ("View KSeF status",
+  "Manage KSeF integration", with their Polish translations) leave `@endora-commerce/mod-i18n`'s
+  shared bundle and ship in `@endora-commerce/mod-ksef`'s own `i18n/` bundle, where the other
+  integrations' permission labels already are. The role editor shows the same text as before when
+  both packages are upgraded together; with the new `mod-i18n` and an older `mod-ksef`, the two
+  permissions show their codes until the module is upgraded too.
+
+  The `mod-ksef` half of this change is released from the paid-modules repository, which the module left for
+  (feature 134); this repository no longer versions `@endora-commerce/mod-ksef`.
+
+- Updated dependencies [0af8db8]
+- Updated dependencies [7b1f09e]
+- Updated dependencies [8418b7d]
+- Updated dependencies [a12d4bf]
+- Updated dependencies [6738f35]
+- Updated dependencies [9ef7f4b]
+- Updated dependencies [1b3fb93]
+  - @endora-commerce/contracts@0.17.0
+  - @endora-commerce/platform@0.13.3
+
 ## 0.9.5
 
 ### Patch Changes

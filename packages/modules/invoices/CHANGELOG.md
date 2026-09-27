@@ -1,5 +1,67 @@
 # @endora-commerce/mod-invoices
 
+## 0.11.0
+
+### Minor Changes
+
+- 922d0c3: The invoice template editor offers blocks other modules declare, and keeps blocks it cannot show
+
+  The editor now reads `GET /api/v1/admin/invoice-templates/page-builder/config` and merges it into its own configuration through `withDescribedInvoiceBlocks`:
+  - A block that a present module declares, and that this module has no editor binding for, can be inserted and configured from the _Invoice sections_ palette. Its fields come from the descriptor. On the canvas it appears as a short note naming the module that draws it on the PDF. _Preview PDF_ shows the real output.
+  - A stored block that nothing covers keeps its place and its props, and shows a note saying it is not available on this instance and is not printed. This covers a module that is off, a module that is not installed, and a name nobody recognises. The block is not offered in the palette.
+  - If the descriptor cannot be fetched, the editor keeps its own blocks and still shows every stored block it cannot render as that note. No block is dropped.
+
+  `mod-i18n` adds the three `invoiceTemplates.describedBlock.*` strings in English and Polish.
+
+- a12d4bf: Invoice PDF blocks declared by another module are rendered through `invoicePdfBlockRegistry`, and `ksefVerificationResolver` is gone
+  - **New registration, `invoicePdfBlockRegistry`.** A module that declares an invoice template block registers its renderer, its builder description and the per-render data it needs (see `InvoicePdfBlockRegistration` in `@endora-commerce/contracts`). While the contributing module is not present, its block is not rendered, not described and its data is not read. A stored template that places the block keeps it, and the PDF simply has no such section. The built-in fallback layout ends with the present contributors' blocks.
+  - **Removed: the `ksefVerificationResolver` contribution point and `InvoicePdfRenderer.setKsefVerificationResolver`.** A composition that contributed `ksefVerificationResolver` drops that line. The KSeF module now registers its block, verification QR included, itself. `InvoicePdfRenderer` gains `content(invoice, locale, tree?)`, which returns the pdfmake content every render path uses.
+  - **The generic invoice template seed no longer contains `ksef.InvoiceSection`.** A new instance's generic template has eight blocks, all of them this module's. Existing templates are not rewritten, because the seed revision is unchanged. An operator who wants the KSeF section places it in the template builder.
+  - **The invoice template editor no longer binds `ksef.InvoiceSection`.** The builder descriptor (`GET /api/v1/admin/invoice-templates/page-builder/config`) now describes this module's ten blocks plus each present contributor's block.
+
+  `minor` rather than `patch` because a registration name and a public method were removed.
+
+- 9ef7f4b: `invoices` identifies an imported sale document by its source system and its id there, and validates what an importer sends
+
+  `upsertImportedDocument` used to find an existing `erp_import` row by the source id alone, across every source system, and then overwrite that row's organization, header and reference. After an operator switched ERP, the second system's first colliding id would have taken over the first system's document together with its already-downloaded attachments. The lookup is now scoped to `(externalDocumentRef.system, externalDocumentRef.externalId)`. It still does not narrow by organization: within one source system, a document the source system reassigns to another contractor moves with it.
+
+  `upsertImportedDocument` parses its input with `erpSaleDocumentUpsertInputSchema` and refuses a payload that does not parse with `VALIDATION_FAILED`, writing nothing — including a payload in the previous `xlSaleDocumentId` shape from a connector built against an older `@endora-commerce/contracts`.
+
+  A new migration, `Migration20260926T230239InvoicesImportIdentity`:
+  - renames the stored `external_document_ref` keys `xlSaleDocumentId` → `externalId` and `xlDocumentNumber` → `externalNumber`;
+  - renames `invoice_external_attachments.xl_attachment_id` → `external_attachment_id`, and its unique constraint to `invoice_external_attachments_invoice_external_uq`;
+  - replaces the unique index `invoices_external_xl_sale_document_uq` with `invoices_external_document_uq` on the pair, for `erp_import` rows;
+  - adds the check `invoices_erp_import_identity_chk`, which refuses an `erp_import` row with an empty or missing `system` or `externalId`.
+
+  Its `down()` restores the previous shape only while a single source system has written; once two systems share an id, recreating the id-only index fails.
+
+- 6738f35: `invoices` owns the first download of an ERP-imported attachment and dispatches it by source system
+
+  The customer route `GET /api/v1/account/organization/invoices/:invoiceId/attachments/:attachmentId` no longer resolves `comarchXlSaleDocumentAttachmentPort`. The module registers `invoiceAttachmentFetchRegistry` (an ungated contribution registry), and a connector registers a fetch provider into it keyed by the source system its import writes into `externalDocumentRef.system`. On each download the registry checks that the invoice and the attachment belong to the calling organization, then calls the provider of that document's own system if its module is effectively present. It never falls back to another provider. An absent, switched-off or unknown provider answers 404, as an unfetchable attachment already did, and a file stored earlier stays downloadable. Registering a second provider for a system that already has one throws.
+
+  The manifest no longer declares a `refuses-without` edge onto `comarch_xl`. A connector that still provides `comarchXlSaleDocumentAttachmentPort` instead of registering into the new seam is no longer called: its attachments answer 404 until it registers.
+
+- 170cd2f: The invoice PDF and the admin invoice screen print the invoice's KSeF number whatever any module's state
+  - **PDF.** `invoices.InvoiceHeader` prints `<labelKsefNumber>: <number>` directly under the title row when the invoice has a KSeF number. The label defaults to `Numer w KSeF` and can be changed in the template builder. There is no prop to hide the row. The row is left out only while a block that prints the number itself (a registration with `printsKsefReferenceNumber: true`) is present and placed in the template. For the built-in layout, present is enough. The number is printed exactly once, including for a number an accounting vendor recorded while the KSeF module is off or absent.
+  - **Admin.** The invoice detail screen shows a _KSeF number_ row whenever the invoice has one. The `invoice.detail.after` zone is unchanged.
+  - The KSeF module sets `printsKsefReferenceNumber: true` on `ksef.InvoiceSection`, so an invoice that places that section prints its number once, from the section, as before. That module has since left this repository; its release with the change is cut from the paid-modules repository.
+  - `mod-i18n` adds `invoiceDetail.field.ksefNumber` in English and Polish.
+
+### Patch Changes
+
+- Updated dependencies [0af8db8]
+- Updated dependencies [7b1f09e]
+- Updated dependencies [8418b7d]
+- Updated dependencies [a12d4bf]
+- Updated dependencies [6738f35]
+- Updated dependencies [9ef7f4b]
+- Updated dependencies [1b3fb93]
+  - @endora-commerce/contracts@0.17.0
+  - @endora-commerce/admin-kit@0.9.7
+  - @endora-commerce/page-builder-admin@0.9.7
+  - @endora-commerce/page-builder-core@0.9.7
+  - @endora-commerce/platform@0.13.3
+
 ## 0.10.5
 
 ### Patch Changes

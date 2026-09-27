@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-currencies",
-  "version": "0.8.5",
+  "version": "0.8.6",
   "type": "module",
   "sideEffects": false,
   "description": "Currency reference data and per-channel currency configuration.",
