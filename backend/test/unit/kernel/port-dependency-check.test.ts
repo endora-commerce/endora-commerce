@@ -1086,7 +1086,7 @@ describe('findRootIssues — PLATFORM_OWNED_NAMES', () => {
     // `specs/134-paid-module-extraction/` research D16 §5. This case said
     // "a root preparing a seam, not a defect" until T124: written for a seam
     // about to gain a reader, it also cleared a seam for a reader in another
-    // repository — `pimAkeneoRunWorkers` and five siblings stood in the platform
+    // repository — six values named after paid modules stood in the platform
     // after their readers had left, and nothing here could say so.
     const issues = sweep({
       roots: bothRoots(['salesChannelResolutionPort'], ['salesChannelResolutionPort']),
@@ -1904,7 +1904,7 @@ describe('a delegating root supplies through its composer', () => {
       '  await composeTestServer({',
       '    composition,',
       '    values: {',
-      '      productFeedsRunWorkers: false,',
+      "      productFeedsPublicBaseUrl: 'http://feeds.test.local',",
       "      storefrontBaseUrl: 'http://localhost:3000',",
       '    },',
       '    contribute: async () => undefined,',
@@ -1914,7 +1914,7 @@ describe('a delegating root supplies through its composer', () => {
     ].join('\n');
 
     expect(delegatedSuppliedNames(root, 'root.ts', 'composeTestServer', ['values'])).toEqual([
-      'productFeedsRunWorkers',
+      'productFeedsPublicBaseUrl',
       'storefrontBaseUrl',
     ]);
     // The names are invisible to the call-shape reader, which is the whole

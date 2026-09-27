@@ -620,46 +620,25 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     // answer, read by every module that starts one — at construction and from
     // its `ctx.onBoot` reconcile — so no module reads `BACKEND_ROLE` itself and
     // no module needs a flag of its own here
-    // (`specs/134-paid-module-extraction/` research D16, contract W1.1).
+    // (`specs/134-paid-module-extraction/` research D16, contract W1.1). The six
+    // values named after paid modules that stood beside it were removed in
+    // T124, and `product_feeds`' own worker flag with them once that module
+    // read this instead. Its two values below are D16 §6's free-side
+    // remainder, not a pattern to follow.
     processRunsWorkers: runWorkers,
-    // `product_feeds`' own flag: a free module's copy of the same pattern,
-    // recorded by D16 §6 as not this feature's to move.
-    productFeedsRunWorkers: runWorkers,
-    // Deprecated, all six (`specs/134-paid-module-extraction/` research D16,
-    // T122): values named after a module, which a composition root must not
-    // carry for a module that may be absent (contract W1.1). No in-tree module
-    // reads them any more except `pim_akeneo` — the readers moved to
-    // `processRunsWorkers` above and to calling `resolvePublicApiBaseUrl()`
-    // themselves. They stay only because a published module release may still
-    // resolve them, and dropping a platform-registered name is a breaking
-    // release, never a patch. Removal is T124.
-    /** @deprecated Read `processRunsWorkers`. Removal: T124 (D16). */
-    pimErgonodeRunWorkers: runWorkers,
-    /** @deprecated Read `processRunsWorkers`. Removal: T124 (D16). */
-    pimAkeneoRunWorkers: runWorkers,
-    /** @deprecated Read `processRunsWorkers`. Removal: T124 (D16). */
-    pimPimcoreRunWorkers: runWorkers,
-    /** @deprecated Read `processRunsWorkers`. Removal: T124 (D16). */
-    pimUnopimRunWorkers: runWorkers,
-    /** @deprecated Read `processRunsWorkers`. Removal: T124 (D16). */
-    comarchXlRunWorkers: runWorkers,
-    /** @deprecated Call `resolvePublicApiBaseUrl()`. Removal: T124 (D16). */
-    pimAkeneoPublicBaseUrl: resolvePublicApiBaseUrl(),
     productFeedsPublicBaseUrl: resolvePublicApiBaseUrl(),
     productFeedsTokenEncryptionKey: process.env['SETTINGS_SECRET_ENCRYPTION_KEY'],
     // The key newsletter confirmation and unsubscribe links are signed with
     // (`specs/117-instance-bring-up/` Phase 6, T6-B1).
     //
-    // A **value** rather than a read inside the module, and the reason is where
-    // the estate can see it: `NEWSLETTER_TOKEN_SECRET` is declared in this
-    // package's own environment declaration, and `check:env-inputs` does not
-    // judge module packages — that is Phase 3. Moving the read into
-    // `@endora-commerce/mod-newsletter` would take it out of the judged
-    // population and leave the declaration here reading as an `unread-input`,
-    // which is two defects for the price of a tidy-up. The platform registering
-    // a module-named value is not the platform importing a module, and it is
-    // what `pimAkeneoPublicBaseUrl` and the five `*RunWorkers` flags above
-    // already are.
+    // A **value** rather than a read inside the module, because
+    // `NEWSLETTER_TOKEN_SECRET` is declared in this package's own environment
+    // declaration. It is a module-named value in a composition root, which
+    // `specs/134-paid-module-extraction/` research D16 §2(d) names as the target
+    // to converge away from — the module registering it itself, with a default
+    // computed from platform-published inputs — and D16 §6 records as a free-side
+    // question rather than that feature's. It is not a precedent: the six
+    // module-named values that once stood beside it were removed (T124).
     //
     // The fallback chain is the declaration's own sentence: absent, *"newsletter
     // links are signed with the session key instead"*. The **third** fallback

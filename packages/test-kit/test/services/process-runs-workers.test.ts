@@ -70,15 +70,13 @@ async function composeWith(
     ...(values === undefined ? {} : { values }),
   });
   try {
-    for (const retired of [
-      'pimErgonodeRunWorkers',
-      'pimPimcoreRunWorkers',
-      'pimUnopimRunWorkers',
-      'comarchXlRunWorkers',
-      'pimAkeneoRunWorkers',
-    ]) {
-      expect(handle.container.hasRegistration(retired), retired).toBe(false);
-    }
+    // No per-module worker flag: the kit's one answer is `processRunsWorkers`,
+    // and the module-named flags it replaced are gone from every composition
+    // (T124). Derived from the registrations rather than listed, so a flag
+    // added under a new module's name is caught too.
+    expect(
+      Object.keys(handle.container.registrations).filter((name) => /RunWorkers$/.test(name)),
+    ).toEqual(['processRunsWorkers']);
   } finally {
     await teardownTestServer(handle);
   }
