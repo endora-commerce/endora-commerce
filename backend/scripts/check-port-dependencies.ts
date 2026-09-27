@@ -283,6 +283,7 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   'pimAkeneoRunWorkers',
   'pimPimcoreRunWorkers',
   'pimUnopimRunWorkers',
+  'comarchXlRunWorkers',
   // `product_feeds`' own flag — a free module's copy of the same pattern, which
   // D16 §6 records as not this feature's.
   'productFeedsRunWorkers',
@@ -515,12 +516,11 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // worker itself is `webhooks`' own now; only the deployment half — production
   // follows `BACKEND_ROLE`, the harness runs none — stays a root's.
   webhooksRunWorkers: 'webhooks',
-  // Whether this composition runs the Comarch XL sync consumers (feature 119).
-  // Deprecated by `specs/134-paid-module-extraction/` D16 (T122): `comarch_xl`
-  // reads the platform's `processRunsWorkers` now, and both roots keep
-  // registering this name only for a published copy of the module. Removed by
-  // T124.
-  comarchXlRunWorkers: 'comarch_xl',
+  // `comarchXlRunWorkers` was here, attributed to `comarch_xl`, and moved to
+  // `PLATFORM_OWNED_NAMES` when the module left for the paid repository
+  // (feature 134, T069): a name attributed to a module this tree no longer
+  // declares is `every host-registered port names a module that exists`'s red,
+  // and the PIM connectors' flags took the same move before it.
 };
 
 

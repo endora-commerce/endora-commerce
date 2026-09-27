@@ -99,7 +99,6 @@ import { entities as shoppingListsEntities } from '@endora-commerce/mod-shopping
 import { entities as taxesEntities } from '@endora-commerce/mod-taxes/backend';
 import { entities as i18nEntities } from '@endora-commerce/mod-i18n/backend';
 import { entities as webhooksEntities } from '@endora-commerce/mod-webhooks/backend';
-import { entities as comarchXlEntities } from '@endora-commerce/mod-comarch-xl/backend';
 
 export const ALL_ENTITIES = [
   AuditLogEntry,
@@ -164,5 +163,4 @@ export const ALL_ENTITIES = [
   ...(taxesEntities as readonly EntityClassLike[]),
   ...(i18nEntities as readonly EntityClassLike[]),
   ...(webhooksEntities as readonly EntityClassLike[]),
-  ...(comarchXlEntities as readonly EntityClassLike[]),
 ] as const;

@@ -1,7 +1,7 @@
 ---
-'@endora-commerce/mod-comarch-xl': patch
 ---
 
-A sale-document attachment fetched from XL is uploaded as its bytes again
-
-The first download of an attachment failed with a 500: the REST client returns the file as a plain `Uint8Array`, and `Readable.from` iterates a plain typed array element by element, so the upload received numbers instead of a byte stream. The bytes are now passed as one `Buffer` chunk.
+`@endora-commerce/mod-comarch-xl` left this repository with feature 134's `comarch_xl` departure;
+the attachment upload fix this changeset described — the fetched bytes passed as one `Buffer` chunk
+— is carried in the module's history and released from the paid-modules repository. No package in
+this workspace changes.

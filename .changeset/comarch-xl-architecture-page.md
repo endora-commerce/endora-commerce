@@ -1,5 +1,7 @@
 ---
-'@endora-commerce/mod-comarch-xl': patch
 ---
 
-The package's `docs/` now ships the connector's architecture page, `docs/comarch_xl/architecture.md` (served at `/modules/comarch_xl/architecture/`), which used to live in the documentation site's own tree. The operator guide links it relatively. No runtime change.
+`@endora-commerce/mod-comarch-xl` left this repository with feature 134's `comarch_xl` departure;
+the architecture page this changeset described, now in the package's own `docs/`, is carried in the
+module's history and released from the paid-modules repository. No package in this workspace
+changes.
