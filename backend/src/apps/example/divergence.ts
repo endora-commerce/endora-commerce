@@ -113,6 +113,20 @@ export const divergence: DeploymentDivergenceDeclaration = {
       'active, and refuses with the owner’s code when one is. It vetoes only a request naming ' +
       'this module and only when that request switches it on; every other activation, and every ' +
       'deactivation, passes through untouched.',
+    // `ledger_challenger_fixture` — feature 134, `research.md` D23 §2. Two entries,
+    // because it carries one seam of `ledger_vendor_fixture`'s four: the family's
+    // second declared member exists so the mutex stays a property of a pair after
+    // the paid vendors leave, and that needs the interceptor and nothing else.
+    'port-consumed:ledger_challenger_fixture:invoiceLedgerRegistryPort':
+      'The vendor mutex, asked from this module’s own activation interceptor. A second ' +
+      'declared member is what keeps the refusal a property of a pair once the paid vendors ' +
+      'leave: with `ledger_vendor_fixture` alone the family would have no sibling the ' +
+      'registry knows from a declaration and no second interceptor on the shared route.',
+    'interceptor:ledger_challenger_fixture:POST /api/v1/admin/modules/:id/activation#pre':
+      'The same enforcement `ledger_vendor_fixture` carries, for this member: it runs before ' +
+      'the kernel’s activation handler and vetoes only a request switching this module on ' +
+      'while a sibling vendor is active. Every other activation, and every deactivation, ' +
+      'passes through untouched.',
     'port-consumed:carrier_fixture:shippingAdapterRegistry':
       'The contribution seam `delivery_methods` publishes for a module that ships parcels, ' +
       'reached from this fixture’s boot hook so that the carrier port keeps an implementor in ' +
