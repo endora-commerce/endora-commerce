@@ -1,5 +1,12 @@
 # @endora-commerce/cli
 
+## 0.13.1
+
+### Patch Changes
+
+- Updated dependencies [8a88460]
+  - @endora-commerce/contracts@0.16.0
+
 ## 0.13.0
 
 ### Minor Changes
