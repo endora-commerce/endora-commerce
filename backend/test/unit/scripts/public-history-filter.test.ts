@@ -45,6 +45,7 @@ import {
   renderPathsFile,
   renderReplaceMessageFile,
   resolveModuleExclusions,
+  tipResidueFindings,
   translateMatch,
   vacuousReason,
   validateReplacements,
@@ -193,6 +194,60 @@ describe('the module-id exclusion resolves through the declared manifest (D-246)
   it('refuses a run that could resolve no module at all, rather than excluding nothing', () => {
     const resolved = resolveModuleExclusions(['blog'], []);
     expect(resolved.findings.map((f) => f.kind)).toContain('no-module-packages');
+  });
+});
+
+describe('an excluded id still at the tip refuses (136 FR-050, GAP-6)', () => {
+  // The tip is where the module still *is*: excluding its history while its
+  // source sits in the projected tip would publish it anyway, or — through the
+  // second pass — publish a tip that no longer builds. Either way the
+  // extraction is incomplete, and the run says so rather than guessing.
+  const tip = [
+    { moduleId: 'blog', dir: 'packages/modules/blog' },
+    { moduleId: 'quotes', dir: 'packages/modules/rfq' },
+    { moduleId: 'wishlist', dir: 'packages/modules/wishlist' },
+  ];
+
+  it('is silent when the list is empty (FR-012)', () => {
+    const residue = tipResidueFindings([], tip, { allowTipResidue: false, apply: false });
+    expect(residue).toEqual({ findings: [], allowed: [] });
+  });
+
+  it('is silent for an id that has already left the tip', () => {
+    const residue = tipResidueFindings(['gone'], tip, { allowTipResidue: false, apply: false });
+    expect(residue).toEqual({ findings: [], allowed: [] });
+  });
+
+  it('refuses every excluded id still declared at the tip, naming the id and its tip root', () => {
+    const residue = tipResidueFindings(['gone', 'quotes', 'wishlist'], tip, {
+      allowTipResidue: false,
+      apply: false,
+    });
+    expect(residue.allowed).toEqual([]);
+    expect(residue.findings.map((f) => [f.kind, f.subject])).toEqual([
+      ['excluded-id-at-tip', 'quotes'],
+      ['excluded-id-at-tip', 'wishlist'],
+    ]);
+    expect(residue.findings[0]!.detail).toContain('packages/modules/rfq');
+    expect(residue.findings[1]!.detail).toContain('packages/modules/wishlist');
+    expect(residue.findings[0]!.detail).toContain('--allow-tip-residue');
+  });
+
+  it('lets a rehearsal through with --allow-tip-residue, reporting what it let through', () => {
+    const residue = tipResidueFindings(['quotes'], tip, { allowTipResidue: true, apply: false });
+    expect(residue.findings).toEqual([]);
+    expect(residue.allowed.map((f) => [f.kind, f.subject])).toEqual([
+      ['excluded-id-at-tip', 'quotes'],
+    ]);
+  });
+
+  it('never lets the final run through: --allow-tip-residue with --apply still refuses', () => {
+    const residue = tipResidueFindings(['quotes'], tip, { allowTipResidue: true, apply: true });
+    expect(residue.allowed).toEqual([]);
+    expect(residue.findings.map((f) => [f.kind, f.subject])).toEqual([
+      ['excluded-id-at-tip', 'quotes'],
+    ]);
+    expect(residue.findings[0]!.detail).toContain('--apply');
   });
 });
 

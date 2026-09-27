@@ -67,7 +67,11 @@
  * Usage — **through the package script**, which is the spelling that keeps the
  * exit code:
  *
- *   `pnpm --filter backend run history:filter -- [--ref <rev>] [--out <dir>] [--apply]`
+ *   `pnpm --filter backend run history:filter -- [--ref <rev>] [--out <dir>] [--apply]
+ *     [--allow-tip-residue]`
+ *
+ * `--allow-tip-residue` lets a dry run through while an excluded id is still
+ * declared at the tip ({@link tipResidueFindings}); `--apply` ignores it.
  *
  * Measured, because the difference is invisible until it matters:
  * `pnpm --filter backend run` propagates this script's **2** and
@@ -153,6 +157,7 @@ export type FindingKind =
   | 'unresolved-module-id'
   | 'duplicate-module-id'
   | 'no-module-packages'
+  | 'excluded-id-at-tip'
   | 'unusable-literal'
   | 'self-referential-replacement'
   | 'duplicate-literal'
@@ -336,6 +341,68 @@ export function resolveModuleExclusions(
     paths.push(pkg.dir);
   }
   return { paths: findings.length > 0 ? [] : paths, findings };
+}
+
+/** What {@link tipResidueFindings} is told about the run it guards. */
+export interface TipResidueOptions {
+  /** `--allow-tip-residue`: a rehearsal while extraction waves are still landing. */
+  readonly allowTipResidue: boolean;
+  /** `--apply`: the final run, which the allowance never reaches. */
+  readonly apply: boolean;
+}
+
+export interface TipResidue {
+  /** Residue that refuses this run. */
+  readonly findings: readonly Finding[];
+  /** Residue a dry run was told to let through, reported rather than hidden. */
+  readonly allowed: readonly Finding[];
+}
+
+/**
+ * An excluded id whose module is **still declared at the tip** refuses the run
+ * (`specs/136-open-source-publication/` FR-050, GAP-6).
+ *
+ * The exclusion is written for a module that has left this repository and
+ * whose history must not follow it into the public one. An id still at the tip
+ * is an extraction that has not finished: the second pass would strip the
+ * module from a tip whose other packages still import it, or — were the list
+ * resolved by history alone — the tip would be published with the module in
+ * it. Neither is a projection anybody decided on, so the run refuses and names
+ * each id with the root the tip holds it at.
+ *
+ * `tipPackages` is the **tip's** population — a scan of the tree being
+ * projected — and stays that when the resolver moves to history
+ * (`specs/134-paid-module-extraction/` T091): the two questions are different,
+ * "where has this id ever lived" and "is it still here".
+ *
+ * `--allow-tip-residue` lets a **dry run** through while waves are still
+ * landing, and what it let through is returned as `allowed` so the report says
+ * so. It never reaches `--apply`: the final run may not carry residue.
+ */
+export function tipResidueFindings(
+  ids: readonly string[],
+  tipPackages: readonly DeclaredModulePackage[],
+  options: TipResidueOptions,
+): TipResidue {
+  const byId = new Map(tipPackages.map((pkg) => [pkg.moduleId, pkg]));
+  const residue: Finding[] = [];
+  for (const id of new Set(ids)) {
+    const pkg = byId.get(id);
+    if (pkg === undefined) continue;
+    residue.push({
+      kind: 'excluded-id-at-tip',
+      subject: id,
+      detail:
+        `excluded, yet the tip still declares it at \`${pkg.dir}\`. Its extraction has not ` +
+        'finished; the exclusion is for a module that has left this repository. ' +
+        (options.apply
+          ? 'The final run (--apply) refuses this whatever else is passed — ' +
+            '--allow-tip-residue is for rehearsals only'
+          : 'A rehearsal may pass --allow-tip-residue while waves are still landing'),
+    });
+  }
+  if (options.allowTipResidue && !options.apply) return { findings: [], allowed: residue };
+  return { findings: residue, allowed: [] };
 }
 
 // --- the replacement record (T022) -----------------------------------------
@@ -843,6 +910,8 @@ interface RunReport {
   readonly excludedEntries: readonly { subject: string; disposition: string; reason: string }[];
   readonly moduleIds: readonly string[];
   readonly modulePaths: readonly string[];
+  /** Excluded ids still at the tip that `--allow-tip-residue` let a dry run through with. */
+  readonly tipResidueAllowed: readonly string[];
   readonly historicalRootsDropped: readonly string[];
   readonly patterns: readonly PatternHit[];
   readonly replacedCommits: readonly { sha: string; class: string; label: string }[];
@@ -897,6 +966,12 @@ function formatReport(report: RunReport): string[] {
     }`,
   );
   for (const path of report.modulePaths) p(`  - ${path}`);
+  if (report.tipResidueAllowed.length > 0) {
+    p(
+      `[public-history-filter] still at the tip, let through by --allow-tip-residue ` +
+        `(a rehearsal, not a publishable run): ${report.tipResidueAllowed.join(', ')}`,
+    );
+  }
   p(
     `[public-history-filter] historical top-level names the keep-list drops: ` +
       `${report.historicalRootsDropped.length}`,
@@ -935,6 +1010,7 @@ function formatReport(report: RunReport): string[] {
 function main(): void {
   const argv = process.argv.slice(2);
   const apply = argv.includes('--apply');
+  const allowTipResidue = argv.includes('--allow-tip-residue');
   const ref = valueOf(argv, '--ref') ?? 'HEAD';
   const gitDir = git(['rev-parse', '--absolute-git-dir']).trim();
   const out = valueOf(argv, '--out') ?? join(gitDir, 'endora-public-history');
@@ -994,6 +1070,17 @@ function main(): void {
   const moduleIds = exclusionBlock?.moduleIds ?? [];
   const exclusions = resolveModuleExclusions(moduleIds, modulePackages);
   findings.push(...exclusions.findings);
+  // FR-050: the same scan is the tip's population. When T091 moves the resolver
+  // onto history, this call keeps reading the tip — it asks whether the module
+  // is still here, not where it has ever been.
+  const residue = tipResidueFindings(moduleIds, modulePackages, { allowTipResidue, apply });
+  findings.push(...residue.findings);
+  for (const f of residue.allowed) {
+    console.warn(
+      `[public-history-filter] allowed by --allow-tip-residue (rehearsal only): ` +
+        `[${f.kind}] ${f.subject}: ${f.detail}`,
+    );
+  }
   findings.push(...validateReplacements(replacements));
 
   const projection = projectionOf(paths, specs, exclusions.paths);
@@ -1171,6 +1258,7 @@ function main(): void {
     excludedEntries: excludedEntriesOf(document),
     moduleIds,
     modulePaths: exclusions.paths,
+    tipResidueAllowed: residue.allowed.map((f) => f.subject),
     historicalRootsDropped,
     patterns: audit.hits,
     replacedCommits: replacements.commits.map((c) => ({
