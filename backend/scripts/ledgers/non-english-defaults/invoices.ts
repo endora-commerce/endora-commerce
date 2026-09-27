@@ -31,18 +31,6 @@ export const entries: Readonly<Record<string, string>> = {
     'own `locale`, so the backend can resolve the reader\'s language at the moment it ' +
     'composes the label. Author the default in English and read the Polish from `invoices`\' ' +
     'own bundle.',
-  'packages/modules/invoices/src/backend/pdf-components/sections.ts:2791fb2d8a11':
-    '`Zweryfikuj fakturę w KSeF` — **Domain-mandated, and expected to outlive the rest of ' +
-    'this ledger.** It is the standing example the contract\'s § 2.1 names: a KSeF marking ' +
-    'on a Polish invoice is a Polish legal artefact, not an untranslated sentence.\n\n' +
-    'This label sits under the QR code that resolves to the Ministry of Finance\'s own ' +
-    'verification page, which answers in Polish, on a document issued into a Polish ' +
-    'national system under Polish law. Translating it would make the invoice wrong rather ' +
-    'than more international. `specs/093-backend-delivered-prose/research.md` § 1.4 ' +
-    'recorded the same verdict so it would not be re-litigated; this entry is where it is ' +
-    'now enforced.\n\n' +
-    'Retired by nothing this feature can do. It retires if KSeF stops being the obligation ' +
-    'it is.',
   'packages/modules/invoices/src/backend/pdf-components/sections.ts:2a33dd1d5562':
     '`Zapłacono` — Shape D — a Polish **default** behind an operator-editable pdfmake prop, ' +
     '`str(props, \'<key>\', \'<default>\')`.\n\n' +
