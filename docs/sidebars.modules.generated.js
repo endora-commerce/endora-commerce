@@ -238,14 +238,6 @@ const modules = [
   },
   {
     type: 'category',
-    label: 'Infakt', key: 'infakt',
-    link: { type: 'doc', id: 'modules/infakt' },
-    items: [
-      'module-reference/infakt',
-    ],
-  },
-  {
-    type: 'category',
     label: 'inventory', key: 'inventory',
     link: { type: 'doc', id: 'modules/inventory' },
     items: [
@@ -266,14 +258,6 @@ const modules = [
     link: { type: 'doc', id: 'modules/invoices' },
     items: [
       'module-reference/invoices',
-    ],
-  },
-  {
-    type: 'category',
-    label: 'KSeF', key: 'ksef',
-    link: { type: 'doc', id: 'modules/ksef' },
-    items: [
-      'module-reference/ksef',
     ],
   },
   {

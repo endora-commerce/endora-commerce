@@ -449,15 +449,18 @@ reaches the paid state from the provider's callback — not from a manual status
 
 ### F5. KSeF, if the client invoices in Poland
 
-**Why.** The `ksef` module defaults `ksef.integration.enabled` to `false` and its environment to
-`test` (`packages/modules/ksef/src/manifest.ts`), which is the right default — a misconfigured
-production submission is legally binding. Going live is therefore a deliberate act.
+**Why.** Endora submits invoices to KSeF through a KSeF submission module, which is available
+separately. Its integration ships switched off and pointed at KSeF's `test` environment, which is
+the right default — a misconfigured production submission is legally binding. Going live is
+therefore a deliberate act. A client whose accounting vendor submits to KSeF instead sets the
+invoice ledger's KSeF routing to `vendor`.
 
-**Do (operator).** Install and configure the module on `/ksef`: upload or generate the
-certificates, verify the connection in `test`, then switch the environment to `prod` and enable
-the integration.
+**Do (operator).** For native submission, configure the KSeF module as its own documentation
+describes: credentials, a connection check in `test`, then the switch to `prod` with the
+integration enabled. For vendor submission, set the routing on the invoice ledger's Routing tab.
 
-**Verify.** One invoice submitted in `test` and accepted, before the environment is switched.
+**Verify.** One invoice submitted in `test` and accepted, before the environment is switched —
+or, for vendor submission, one invoice carrying the KSeF number the vendor recorded.
 
 ---
 

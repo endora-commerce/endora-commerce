@@ -73,7 +73,6 @@ import { entities as productFeedsEntities } from '@endora-commerce/mod-product-f
 import { entities as googleAnalyticsEntities } from '@endora-commerce/mod-google-analytics/backend';
 import { entities as invoicesEntities } from '@endora-commerce/mod-invoices/backend';
 import { entities as invoiceLedgerEntities } from '@endora-commerce/mod-invoice-ledger/backend';
-import { entities as ksefEntities } from '@endora-commerce/mod-ksef/backend';
 import { entities as languagesEntities } from '@endora-commerce/mod-languages/backend';
 import { entities as linkedinAdsEntities } from '@endora-commerce/mod-linkedin-ads/backend';
 import { entities as megamenuEntities } from '@endora-commerce/mod-megamenu/backend';
@@ -137,7 +136,6 @@ export const ALL_ENTITIES = [
   ...(googleAnalyticsEntities as readonly EntityClassLike[]),
   ...(invoicesEntities as readonly EntityClassLike[]),
   ...(invoiceLedgerEntities as readonly EntityClassLike[]),
-  ...(ksefEntities as readonly EntityClassLike[]),
   ...(languagesEntities as readonly EntityClassLike[]),
   ...(linkedinAdsEntities as readonly EntityClassLike[]),
   ...(megamenuEntities as readonly EntityClassLike[]),

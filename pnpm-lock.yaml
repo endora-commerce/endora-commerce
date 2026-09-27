@@ -113,9 +113,6 @@ importers:
       '@endora-commerce/mod-import-export':
         specifier: workspace:*
         version: link:../packages/modules/import_export
-      '@endora-commerce/mod-infakt':
-        specifier: workspace:*
-        version: link:../packages/modules/infakt
       '@endora-commerce/mod-inventory':
         specifier: workspace:*
         version: link:../packages/modules/inventory
@@ -125,9 +122,6 @@ importers:
       '@endora-commerce/mod-invoices':
         specifier: workspace:*
         version: link:../packages/modules/invoices
-      '@endora-commerce/mod-ksef':
-        specifier: workspace:*
-        version: link:../packages/modules/ksef
       '@endora-commerce/mod-linkedin-ads':
         specifier: workspace:*
         version: link:../packages/modules/linkedin_ads
@@ -408,9 +402,6 @@ importers:
       '@endora-commerce/mod-import-export':
         specifier: workspace:*
         version: link:../packages/modules/import_export
-      '@endora-commerce/mod-infakt':
-        specifier: workspace:*
-        version: link:../packages/modules/infakt
       '@endora-commerce/mod-inventory':
         specifier: workspace:*
         version: link:../packages/modules/inventory
@@ -420,9 +411,6 @@ importers:
       '@endora-commerce/mod-invoices':
         specifier: workspace:*
         version: link:../packages/modules/invoices
-      '@endora-commerce/mod-ksef':
-        specifier: workspace:*
-        version: link:../packages/modules/ksef
       '@endora-commerce/mod-languages':
         specifier: workspace:*
         version: link:../packages/modules/languages
@@ -2155,48 +2143,6 @@ importers:
         specifier: ^2.1.4
         version: 2.1.9(@types/node@22.19.17)(jsdom@29.1.1(@noble/hashes@2.0.1))(lightningcss@1.32.0)(terser@5.46.2)
 
-  packages/modules/infakt:
-    devDependencies:
-      '@endora-commerce/admin-kit':
-        specifier: workspace:*
-        version: link:../../admin-kit
-      '@endora-commerce/contracts':
-        specifier: workspace:*
-        version: link:../../contracts
-      '@endora-commerce/platform':
-        specifier: workspace:*
-        version: link:../../platform
-      '@types/node':
-        specifier: ^22.9.0
-        version: 22.19.17
-      '@types/react':
-        specifier: ^19.2.14
-        version: 19.2.14
-      bullmq:
-        specifier: ^5.76.1
-        version: 5.76.1
-      fastify:
-        specifier: ^5.8.5
-        version: 5.8.5
-      ioredis:
-        specifier: ^5.10.1
-        version: 5.10.1
-      lucide-react:
-        specifier: ^1.11.0
-        version: 1.11.0(react@19.2.5)
-      react:
-        specifier: ^19.2.5
-        version: 19.2.5
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^2.1.4
-        version: 2.1.9(@types/node@22.19.17)(jsdom@29.1.1(@noble/hashes@2.0.1))(lightningcss@1.32.0)(terser@5.46.2)
-      zod:
-        specifier: ^4.2.0
-        version: 4.3.6
-
   packages/modules/inventory:
     devDependencies:
       '@endora-commerce/admin-kit':
@@ -2343,69 +2289,6 @@ importers:
       pdfmake:
         specifier: ^0.3.7
         version: 0.3.7
-      react:
-        specifier: ^19.2.5
-        version: 19.2.5
-      react-router-dom:
-        specifier: ^7.14.2
-        version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^2.1.4
-        version: 2.1.9(@types/node@22.19.17)(jsdom@29.1.1(@noble/hashes@2.0.1))(lightningcss@1.32.0)(terser@5.46.2)
-      zod:
-        specifier: ^4.2.0
-        version: 4.3.6
-
-  packages/modules/ksef:
-    devDependencies:
-      '@endora-commerce/admin-kit':
-        specifier: workspace:*
-        version: link:../../admin-kit
-      '@endora-commerce/contracts':
-        specifier: workspace:*
-        version: link:../../contracts
-      '@endora-commerce/page-builder-core':
-        specifier: workspace:*
-        version: link:../../page-builder-core
-      '@endora-commerce/platform':
-        specifier: workspace:*
-        version: link:../../platform
-      '@fastify/multipart':
-        specifier: ^10.0.0
-        version: 10.0.0
-      '@measured/puck':
-        specifier: ^0.20.2
-        version: 0.20.2(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(use-sync-external-store@1.6.0(react@19.2.5))
-      '@mikro-orm/core':
-        specifier: ^6.6.13
-        version: 6.6.13
-      '@mikro-orm/migrations':
-        specifier: ^6.6.13
-        version: 6.6.13(@mikro-orm/core@6.6.13)(@types/node@22.19.17)(pg@8.20.0)
-      '@mikro-orm/postgresql':
-        specifier: ^6.6.13
-        version: 6.6.13(@mikro-orm/core@6.6.13)
-      '@types/node':
-        specifier: ^22.9.0
-        version: 22.19.17
-      '@types/react':
-        specifier: ^19.2.14
-        version: 19.2.14
-      bullmq:
-        specifier: ^5.76.1
-        version: 5.76.1
-      fastify:
-        specifier: ^5.8.5
-        version: 5.8.5
-      ioredis:
-        specifier: ^5.10.1
-        version: 5.10.1
-      lucide-react:
-        specifier: ^1.11.0
-        version: 1.11.0(react@19.2.5)
       react:
         specifier: ^19.2.5
         version: 19.2.5

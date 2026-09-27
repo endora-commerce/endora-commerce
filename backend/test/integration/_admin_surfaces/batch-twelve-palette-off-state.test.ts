@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { contributions as invoicesAdmin } from '@endora-commerce/mod-invoices/admin';
-import { contributions as ksefAdmin } from '@endora-commerce/mod-ksef/admin';
 import { contributions as quoteRequestsAdmin } from '@endora-commerce/mod-quote-requests/admin';
 import type { AdminContributions } from '@endora-commerce/admin-kit/contributions';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
@@ -13,8 +12,16 @@ import { withModuleOff, type OffStateAxis } from '../../helpers/off-state.js';
 
 /**
  * The **server-side** half of feature 091 batch 12's off-state proof — the
- * command palette, for the three modules that took their admin surfaces into
- * their packages: `invoices`, `ksef` and `quote_requests`.
+ * command palette, for the modules that took their admin surfaces into their
+ * packages: `invoices` and `quote_requests`.
+ *
+ * The batch had a third, `ksef`, which left the repository (feature 134, T069;
+ * `contracts/extraction-procedure.md` W2.4). Its row in `SUBJECTS` and its own
+ * case — one action, for its own landing route, and its one zone kept out of
+ * the palette — asserted that module's declaration, which travelled in its
+ * package's `src/admin/index.test.ts`; the palette mechanism they drove is still
+ * driven here, over the two real declarations that stay, on the same axis.
+ * Recovery: `git show f75de58e9:backend/test/integration/_admin_surfaces/batch-twelve-palette-off-state.test.ts`.
  *
  * ## Why this is here and not in the admin
  *
@@ -30,9 +37,9 @@ import { withModuleOff, type OffStateAxis } from '../../helpers/off-state.js';
  * ## What each module brings to it
  *
  * **This batch declares no new action**, which is the opposite of batches 8, 10
- * and 11 and is worth stating rather than leaving as an absence: all four
- * actions — `open-invoices`, `invoice-templates`, `open-ksef` and
- * `open-rfq-inbox` — were already in the manifests. What the batch does delete
+ * and 11 and is worth stating rather than leaving as an absence: the actions —
+ * `open-invoices`, `invoice-templates` and `open-rfq-inbox` — were already in
+ * the manifests. What the batch does delete
  * is `AppShell.tsx`'s hand-written `PALETTE_ITEMS` row for `/quote-requests`,
  * and that row was a **second copy** of `open-rfq-inbox`: the same
  * destination, the same code, the same keywords, advertised by a table the
@@ -41,9 +48,9 @@ import { withModuleOff, type OffStateAxis } from '../../helpers/off-state.js';
  * desk after the withdrawal. The first case below is what makes the remaining
  * advertisement withdraw.
  *
- * ## The axis, and why it is the operator's for all three
+ * ## The axis, and why it is the operator's for both
  *
- * None of the three declares `activation.nonDeactivatable`, so an operator can
+ * Neither declares `activation.nonDeactivatable`, so an operator can
  * genuinely produce the off state and `deactivated` is the axis that measures
  * something an operator can reach. The lock is read off the manifests in the
  * last case rather than restated here, so a module locked one day fails there
@@ -65,12 +72,6 @@ const SUBJECTS: readonly Subject[] = [
     actions: ['invoice-templates', 'open-invoices'],
     axis: 'deactivated',
     admin: invoicesAdmin,
-  },
-  {
-    module: 'ksef',
-    actions: ['open-ksef'],
-    axis: 'deactivated',
-    admin: ksefAdmin,
   },
   {
     module: 'quote_requests',
@@ -177,24 +178,5 @@ describe('batch 12 contributes no palette action while off (Constitution XVII it
     for (const keyword of ['rfq', 'quote', 'zapytanie']) {
       expect(action?.keywords, keyword).toContain(keyword);
     }
-  });
-
-  it('ksef advertises its screen and not the zone it contributes into another module', () => {
-    // The zone is not a palette surface and must not become one: an operator
-    // reaches `InvoiceKsefPanel` by opening an invoice, never by name. This
-    // module declares exactly one action, for its own landing route, and the
-    // contribution is asserted here as **absent** from the advertisement so a
-    // later action pointing at `/invoices/:id` — a route this module does not
-    // own — fails rather than quietly advertising somebody else's screen.
-    const manifest = REGISTERED_MANIFESTS.find(
-      (entry) => entry.manifest.id === 'ksef',
-    )?.manifest;
-    const routes = new Set((ksefAdmin.routes ?? []).map((route) => route.path));
-    for (const action of manifest?.actions ?? []) {
-      expect(routes.has(action.targetRoute), action.targetRoute).toBe(true);
-    }
-    expect((ksefAdmin.zones ?? []).map((zone) => zone.zone)).toEqual([
-      'invoice.detail.after',
-    ]);
   });
 });

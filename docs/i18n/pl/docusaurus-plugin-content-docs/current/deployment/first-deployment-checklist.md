@@ -441,14 +441,18 @@ credentials, przełącz environment na production i zarejestruj callback URL —
 
 ### F5. KSeF, gdy klient fakturuje w Polsce
 
-**Dlaczego.** Moduł `ksef` domyślnie ustawia `ksef.integration.enabled` na `false`, a environment na
-`test` (`packages/modules/ksef/src/manifest.ts`) — właściwy default — błędnie skonfigurowane
-production submission jest prawnie wiążące. Wejście live to więc świadomy akt.
+**Dlaczego.** Endora wysyła faktury do KSeF przez moduł wysyłki KSeF, dostępny osobno. Jego
+integracja jest domyślnie wyłączona i wskazuje środowisko `test` KSeF — właściwy default —
+błędnie skonfigurowane production submission jest prawnie wiążące. Wejście live to więc świadomy
+akt. Klient, którego dostawca księgowy sam wysyła do KSeF, ustawia zamiast tego routing KSeF
+księgi faktur na `vendor`.
 
-**Zrób (operator).** Zainstaluj i skonfiguruj moduł na `/ksef`: wgraj albo wygeneruj certyfikaty,
-zweryfikuj połączenie w `test`, potem przełącz environment na `prod` i włącz integrację.
+**Zrób (operator).** Dla wysyłki natywnej skonfiguruj moduł KSeF zgodnie z jego własną
+dokumentacją: poświadczenia, sprawdzenie połączenia w `test`, potem przełączenie na `prod` z
+włączoną integracją. Dla wysyłki przez dostawcę ustaw routing w zakładce Routing księgi faktur.
 
-**Zweryfikuj.** Jedna faktura wysłana w `test` i zaakceptowana, zanim przełączysz environment.
+**Zweryfikuj.** Jedna faktura wysłana w `test` i zaakceptowana, zanim przełączysz environment —
+albo, przy wysyłce przez dostawcę, jedna faktura z numerem KSeF zapisanym przez dostawcę.
 
 ---
 

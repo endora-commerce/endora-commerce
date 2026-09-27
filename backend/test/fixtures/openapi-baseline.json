@@ -2493,40 +2493,6 @@
         }
       }
     },
-    "/api/v1/admin/infakt/connection": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      },
-      "put": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/admin/infakt/connection/channels/{salesChannelId}": {
-      "put": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/admin/infakt/connection/test": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
     "/api/v1/admin/inventory": {
       "get": {
         "responses": {
@@ -2759,85 +2725,6 @@
       }
     },
     "/api/v1/admin/invoices/{id}/send-email": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/admin/ksef/credentials": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      },
-      "post": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/admin/ksef/credentials/generate": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/admin/ksef/credentials/{id}": {
-      "delete": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/admin/ksef/invoices/{invoiceId}/submit": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/admin/ksef/submissions": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/admin/ksef/submissions/{id}": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/admin/ksef/submissions/{id}/upo": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/admin/ksef/test-connection": {
       "post": {
         "responses": {
           "200": {
@@ -6418,15 +6305,6 @@
     },
     "/api/v1/i18n/config": {
       "get": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/v1/integrations/infakt/webhook": {
-      "post": {
         "responses": {
           "200": {
             "description": "OK"

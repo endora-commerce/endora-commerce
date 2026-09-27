@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   CAPABILITY_KEYS,
   INVOICE_LEDGER_UNREADABLE_VENDOR_ERROR,
+  INVOICE_LEDGER_VENDOR_KSEF_ABSENT_MESSAGE,
 } from '@endora-commerce/contracts';
 import {
   InvoiceLedgerClientMap,
@@ -17,9 +18,16 @@ import {
 import { ScriptedLedgerFixtureClient } from '../../helpers/ledger-fixture-client.js';
 import { switchCapabilityFamilyOff } from '../../helpers/capability-families.js';
 import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
+import { effectiveState } from '@endora-commerce/platform/kernel';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import { seedInvoiceableOrder, setSellerSettings } from '../invoices/helpers.js';
-import { ADMIN, findDelivery, issueInvoice, waitForDelivery } from './helpers.js';
+import {
+  ADMIN,
+  findDelivery,
+  issueInvoice,
+  setLedgerKsefRouting,
+  waitForDelivery,
+} from './helpers.js';
 
 /**
  * The free ledger suite's **vendor-independent** subject — feature 134,
@@ -243,5 +251,57 @@ describe('invoice ledger — the fixture vendor, end to end [integration]', () =
     const issued = await issueInvoice(h, orderId, 'invoice');
     const queued = await waitForDelivery(h, issued.id);
     expect(queued.adapterId).toBe(FIXTURE_MODULE_ID);
+  }, 60_000);
+  it('writes one dead delivery when KSeF is delegated and no vendor is active', async () => {
+    // The ledger's dead-letter path (`invoice_ledger`'s `enqueueClosed`): routing
+    // says the vendor submits to KSeF, and there is no active vendor to do it, so
+    // the invoice would otherwise reach KSeF by nobody. The ledger records that
+    // as a closed row the operator can see rather than enqueuing nothing.
+    //
+    // Feature 134, `contracts/extraction-procedure.md` W2.4: this was the free
+    // half of `integration/infakt/ksef-delegate-infakt-off.test.ts`, whose other
+    // halves (no Infakt HTTP while off, no native KSeF submission while
+    // delegated) are the two paid modules' and leave with them. Here it is
+    // driven over the fixture vendor, which stays.
+    const off = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/modules/${FIXTURE_MODULE_ID}/activation`,
+      ...ADMIN,
+      payload: { active: false },
+    });
+    expect(off.statusCode, off.body).toBe(200);
+    ledgerFixtureHttp.reset();
+
+    try {
+      await setLedgerKsefRouting(h, 'vendor');
+      const { orderId } = await seedInvoiceableOrder(h.em(), { salesChannelId: channelId });
+      const issued = await issueInvoice(h, orderId, 'invoice');
+
+      const delivery = await waitForDelivery(h, issued.id);
+      expect(delivery.status).toBe('dead');
+      expect(delivery.ksefRouting).toBe('vendor');
+      expect(delivery.ksefDelegated).toBe(true);
+      // Attributed the way the ledger attributes a dead letter: to the first
+      // member the family declares, derived, never a vendor this file names. It
+      // read `not.toBe(FIXTURE_MODULE_ID)` first, which held only while another
+      // declared vendor sorted ahead of the fixture — the rehearsed departure of
+      // the last packaged vendor turned it red (feature 134, T069).
+      expect(delivery.adapterId).toBe(
+        effectiveState.declaredMembersOfCapability(CAPABILITY_KEYS.INVOICE_LEDGER_VENDOR)[0] ??
+          'invoice_ledger',
+      );
+      expect(delivery.credentialCode).toBe(delivery.adapterId);
+      expect(delivery.lastError).toBe(INVOICE_LEDGER_VENDOR_KSEF_ABSENT_MESSAGE);
+      expect(ledgerFixtureHttp.createCalls).toEqual([]);
+    } finally {
+      await setLedgerKsefRouting(h, 'native');
+      const on = await h.app.inject({
+        method: 'POST',
+        url: `/api/v1/admin/modules/${FIXTURE_MODULE_ID}/activation`,
+        ...ADMIN,
+        payload: { active: true },
+      });
+      expect(on.statusCode, on.body).toBe(200);
+    }
   }, 60_000);
 });

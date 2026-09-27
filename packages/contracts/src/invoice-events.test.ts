@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import * as invoices from './invoices.js';
-import * as ksef from './ksef.js';
 
 /**
  * `specs/134-paid-module-extraction/` T062 (FR-024, `research.md` §C.4).
@@ -12,17 +11,14 @@ import * as ksef from './ksef.js';
  * own events — and would have taken them out of this package with that file.
  *
  * The negative half is the point: a schema re-exported from both files would
- * pass the positive assertions and leave the misfiling in place.
+ * pass the positive assertions and leave the misfiling in place. It asserts
+ * about the KSeF file, which E5 moved into `@endora-commerce/mod-ksef`, so it
+ * lives beside that file now: `packages/modules/ksef/src/contracts/index.test.ts`.
  */
 describe('invoices owns its domain event payloads', () => {
   it('declares both schemas in the invoices contract', () => {
     expect(invoices.invoiceIssuedEventSchema).toBeDefined();
     expect(invoices.invoiceCorrectedEventSchema).toBeDefined();
-  });
-
-  it('no longer declares them in the KSeF contract', () => {
-    expect(Object.keys(ksef)).not.toContain('invoiceIssuedEventSchema');
-    expect(Object.keys(ksef)).not.toContain('invoiceCorrectedEventSchema');
   });
 
   it('parses the payload invoices emits for an issued invoice', () => {
