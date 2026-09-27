@@ -73,10 +73,6 @@ import type {
   XlImportedOffer as XlImportedOfferRow,
   XlSyncJob as XlSyncJobRow,
 } from '@endora-commerce/mod-comarch-xl/test-support';
-import type {
-  KsefCredential as KsefCredentialRow,
-  KsefSubmission as KsefSubmissionRow,
-} from '@endora-commerce/mod-ksef/test-support';
 import type { SearchPhraseRecord as SearchPhraseRecordRow } from '../../../packages/modules/search/src/backend/entities/search-phrase-record.entity.js';
 import type { Tax as TaxRow } from '../../../packages/modules/taxes/src/backend/entities/tax.entity.js';
 import type { Asset as AssetRow } from '../../../packages/modules/assets_library/src/backend/entities/asset.entity.js';
@@ -587,12 +583,8 @@ export const WebhookDelivery = classNamed<WebhookDeliveryRow>(
  * Batch three (feature 080, T040b). Ten classes across six packages, each one a
  * class an integration or contract test hands to a live `EntityManager`.
  *
- * Same rule as batch two, and it excluded exactly one site: `KsefCredential` is
- * here because `integration/ksef/helpers.ts` persists one, while
- * `ksef-auth.test.ts` — now beside its subject in the package's
- * `src/backend/services/` — calls `new KsefCredential()` against a stubbed
- * `EntityManager` and keeps its relative import of the entity — a different
- * object on purpose, and one no ORM ever sees.
+ * `KsefCredential` and `KsefSubmission` were two of the ten; they left with
+ * `ksef` (feature 134, T069), whose host tests were their only readers here.
  */
 export const Comparison = classNamed<ComparisonRow>(
   installedModuleEntities,
@@ -624,16 +616,6 @@ export const LanguageCountry = classNamed<LanguageCountryRow>(
   installedModuleEntities,
   'dictionaries',
   'LanguageCountry',
-);
-export const KsefCredential = classNamed<KsefCredentialRow>(
-  installedModuleEntities,
-  'ksef',
-  'KsefCredential',
-);
-export const KsefSubmission = classNamed<KsefSubmissionRow>(
-  installedModuleEntities,
-  'ksef',
-  'KsefSubmission',
 );
 export const SearchPhraseRecord = classNamed<SearchPhraseRecordRow>(
   installedModuleEntities,
@@ -679,8 +661,6 @@ export type {
   CountryRow,
   DictionaryTranslationRow,
   LanguageCountryRow,
-  KsefCredentialRow,
-  KsefSubmissionRow,
   SearchPhraseRecordRow,
   TaxRow,
 };

@@ -158,7 +158,8 @@ export const CHAIN_ROUTING_ANSWERS: Readonly<Record<string, string>> = {
   COMPARISON_NOT_FOUND: 'comparisons',
   PDF_GENERATION_FAILED: 'comparisons',
 
-  // core (100 captured; 87 since pim_ergonode's thirteen left — see below)
+  // core (100 captured; 80 since pim_ergonode's thirteen and ksef's seven left —
+  // see below)
   ACCOUNT_BLOCKED: 'core',
   ACTIVE_RESERVATIONS_EXIST: 'core',
   ADDRESS_IN_USE: 'core',
@@ -200,13 +201,13 @@ export const CHAIN_ROUTING_ANSWERS: Readonly<Record<string, string>> = {
   INTERNAL: 'core',
   INVALID_CREDENTIALS: 'core',
   INVALID_TRANSITION: 'core',
-  KSEF_ALREADY_SUBMITTED: 'core',
-  KSEF_CREDENTIAL_EXISTS: 'core',
-  KSEF_CREDENTIAL_INVALID: 'core',
-  KSEF_ENROLLMENT_REJECTED: 'core',
-  KSEF_NOT_CONFIGURED: 'core',
-  KSEF_NOT_SUBMITTABLE: 'core',
-  KSEF_UNAVAILABLE: 'core',
+  // KSEF_* (7) were here, answered `core`, and are not any more: D-129's sweep
+  // re-homed them to `ksef`, and that module left this repository for the paid
+  // one with them as its own `ksefErrorCodes` (feature 134, T069).
+  // `ERROR_CODES` no longer holds them, so the capture's own rule — one entry
+  // per member — drops them; this is the deliberate change the header asks to be
+  // argued rather than regenerated, and nothing else in the capture moves. The
+  // chain's answer for them is `git show f75de58e9:` this file.
   LIMIT_INSUFFICIENT: 'core',
   MODULE_ACTIVATION_PROTECTED: 'core',
   MODULE_DEPENDENCIES_ABSENT: 'core',

@@ -145,7 +145,8 @@ const MIGRATED_MODULES: readonly string[] = [
   // half: the ledger alone would say where each code belongs and leave the
   // manifest's declaration unmeasured.
   'erp_connector',
-  'infakt',
+  // `infakt` was here — its two codes were minted with it — and left this
+  // repository with them (feature 134, T069).
   'inventory',
   'invoice_ledger',
   'invoices',
@@ -154,7 +155,8 @@ const MIGRATED_MODULES: readonly string[] = [
   // all twenty — so the reference side that makes this roster entry answerable
   // is `capture ⊕ rehomed`, and each of the twenty carries a
   // `REHOMED_ERROR_CODES` entry naming its tier and its reason.
-  'ksef',
+  // `ksef` was here — Tier A, MR 2 re-homed its seven codes from `_i18n` — and
+  // left this repository with them (feature 134, T069).
   'megamenu',
   'mfa',
   'orders',

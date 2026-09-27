@@ -400,14 +400,8 @@ export const ERROR_CODES = {
   CREDENTIAL_IN_USE: 'CREDENTIAL_IN_USE',
   CREDENTIAL_TYPE_IMMUTABLE: 'CREDENTIAL_TYPE_IMMUTABLE',
 
-  // Feature 059 — KSeF (Krajowy System e-Faktur integration).
-  KSEF_NOT_CONFIGURED: 'KSEF_NOT_CONFIGURED',
-  KSEF_UNAVAILABLE: 'KSEF_UNAVAILABLE',
-  KSEF_CREDENTIAL_INVALID: 'KSEF_CREDENTIAL_INVALID',
-  KSEF_CREDENTIAL_EXISTS: 'KSEF_CREDENTIAL_EXISTS',
-  KSEF_ENROLLMENT_REJECTED: 'KSEF_ENROLLMENT_REJECTED',
-  KSEF_ALREADY_SUBMITTED: 'KSEF_ALREADY_SUBMITTED',
-  KSEF_NOT_SUBMITTABLE: 'KSEF_NOT_SUBMITTABLE',
+  // Feature 059 — KSeF. Its seven `KSEF_*` codes left with the `ksef` module
+  // (feature 134, T069), which declares them itself as `ksefErrorCodes`.
 
   // Product Feed module (feature 067). The module's own operator-facing reason
   // strings live in `PRODUCT_FEED_ERROR_CODES` (product-feeds.ts) and travel in
@@ -457,10 +451,8 @@ export const ERROR_CODES = {
   INVOICE_LEDGER_CREDENTIALS_MISSING: 'INVOICE_LEDGER_CREDENTIALS_MISSING',
   /** Delivery is succeeded or otherwise not eligible for operator retry. */
   INVOICE_LEDGER_DELIVERY_NOT_RETRYABLE: 'INVOICE_LEDGER_DELIVERY_NOT_RETRYABLE',
-  /** Infakt account-details / connection test failed. */
-  INFAKT_CONNECTION_FAILED: 'INFAKT_CONNECTION_FAILED',
-  /** Infakt webhook HMAC missing, invalid, or secret unset. */
-  INFAKT_WEBHOOK_UNAUTHORIZED: 'INFAKT_WEBHOOK_UNAUTHORIZED',
+  // `INFAKT_CONNECTION_FAILED` and `INFAKT_WEBHOOK_UNAUTHORIZED` left with the
+  // `infakt` module (feature 134, T069), which declares them as `infaktErrorCodes`.
 
   // Shared ERP connector layer (feature 119).
   /** Another ERP connector is operator-active; activation refused (FR-006). */

@@ -5,7 +5,6 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { withModuleOff } from '../../helpers/off-state.js';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { sampleInvoiceDetail } from '../../../../packages/modules/invoices/src/backend/pdf-components/sample.js';
 import { ADMIN_COOKIE, seedInvoiceableOrder, setSellerSettings } from './helpers.js';
@@ -30,11 +29,10 @@ import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
  *    unchanged, which is what the editor does with a node it cannot render;
  *  - the builder descriptor stops describing the block.
  *
- * **Absent, the way this file can reach it.** While `ksef` is composed in this
- * repository the file takes it off on the platform axis, which is the axis a
- * deployment that does not offer the module is on; once the module is no longer
- * composed here, it is absent by construction and the same assertions run
- * as they stand. Nothing here imports the module. The database is the run's own
+ * **Absent by construction.** While `ksef` was composed in this repository the
+ * file took it off on the platform axis, which is the axis a deployment that
+ * does not offer the module is on. The module has since left (T069), so it is
+ * absent here by construction and the same assertions run as they stand. Nothing here imports the module. The database is the run's own
  * clone (`test/global-setup.ts`), never the development database.
  */
 
@@ -77,10 +75,16 @@ interface RendererSurface {
   content(invoice: InvoiceDetail, locale: 'pl' | 'en', tree?: unknown): Promise<unknown[]>;
 }
 
-/** The declaring module off for the duration of `body`, or already absent. */
+/**
+ * The declaring module is absent by construction: it left this repository
+ * (feature 134, T069), so no composition here registers it. Until then this
+ * helper switched it off on the platform axis; the premise it relied on is now
+ * the tree's own, and is asserted rather than assumed so that a composition
+ * that registered the id again would fail here instead of passing vacuously.
+ */
 async function withKsefAbsent<T>(body: () => Promise<T>): Promise<T> {
-  if (!registryCache.enabledIds().includes('ksef')) return body();
-  return withModuleOff('ksef', 'platform-unavailable', body);
+  expect(registryCache.enabledIds().includes('ksef')).toBe(false);
+  return body();
 }
 
 describe('invoices — a stored block whose declarant is absent (134 T063)', () => {
