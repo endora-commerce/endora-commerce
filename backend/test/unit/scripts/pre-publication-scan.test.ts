@@ -7,7 +7,7 @@
  * ## Why every fixture value below is assembled at run time
  *
  * This file is public, and the scan it tests reads the public tip. A literal
- * credential shape, a personal address or a counterparty word written here
+ * credential shape, a personal address or a C2 vocabulary term written here
  * would be a finding in the report this file exists to keep honest — and a
  * credential shape would also trip every upstream secret scanner the public
  * repository is pushed past. So each synthetic value is joined from parts, and
@@ -49,7 +49,7 @@ const FAKE_PERSON = j('jan.kowal', 'ski', '@', 'firma-realna', '.pl');
 const INTERNAL_HOST = j('git', '.internal-corp', '.example');
 /** A private address with a port. */
 const PRIVATE_ADDRESS = j('192.', '168.', '12.', '7', ':', '5432');
-/** A counterparty word the vocabulary knows, and the C2 class it belongs to. */
+/** A C2 term the vocabulary knows. */
 const C2_WORD = j('pi', 'lot');
 const STATUS_PHRASE = j('pa', 'id mod', 'ule');
 
@@ -143,7 +143,7 @@ describe('personal data: an address is personal unless it is reserved or a role'
 
   it('validates national identifiers by checksum, and only beside their name', () => {
     // The published specimen number, whose checksum is valid by construction.
-    const validOne = ['44051401359'].find(validPesel);
+    const validOne = [j('440514', '01359')].find(validPesel);
     expect(validOne).toBeDefined();
     expect(validPesel('44051401358')).toBe(false);
     expect(validNip('1234563218')).toBe(true);
