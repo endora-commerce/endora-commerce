@@ -51,7 +51,9 @@
 #     files under `admin/test/` naming the module by **specifier**, in either spelling; each
 #     is dispositioned by subject under W2.2 and most of it moves into the package
 #   * **W1**: a *free* package still naming this module in code that runs. Comments are prose and
-#     are left in place deliberately (E9, D-247); a specifier is coupling
+#     are left in place deliberately (E9, D-247); a specifier is coupling — and so is a
+#     composition root naming the module by its camelCase id (`scripts/lib/w1-root-names.sh`,
+#     contract W1.1, T125)
 #   * a `migration-foreign-writes` shard for this module (E2 / W7: a paid module writing a free
 #     module's table after the split is a cross-repository schema dependency with no owner)
 #   * **E3p**, and this one is the export's own completeness: a path of this history carrying the
@@ -72,7 +74,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --out) OUT="$2"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
-    -h|--help) sed -n '2,61p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,63p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*) printf 'unknown option: %s\n' "$1" >&2; exit 2 ;;
     *) MODULE_ID="$1"; shift ;;
   esac
@@ -168,6 +170,16 @@ say 'W1 — checking no free package still resolves this module by specifier'
 # `ksef` here, while W1's own sentence is *"in code that runs"* (`research.md` D13 §7).
 COUPLED=$(git grep -l -E "from '(@endora-commerce/mod-${KEBAB}|.*packages/modules/${MODULE_ID})" -- 'packages/*' ":(exclude)$PKG" ':(exclude)*.md' || true)
 [ -n "$COUPLED" ] && die $'W1 is incomplete. These packages still resolve this module by specifier:\n'"$COUPLED"$'\nA free package naming a wave member in code that runs is W1\'s refusal verbatim.'
+
+# W1, second gate: a composition root naming this module by its camelCase id — a value it
+# registers, contributes or reads for a consumer that is about to live in another repository
+# (contract W1.1, `research.md` D16 §5). No specifier is involved, so the gate above cannot see
+# it. Scoped to the two roots on purpose; `scripts/lib/w1-root-names.sh` says why.
+say 'W1 — checking no composition root names this module by its camelCase id'
+# shellcheck source=lib/w1-root-names.sh
+. "$REPO_ROOT/scripts/lib/w1-root-names.sh"
+ROOT_NAMED=$(w1_root_name_hits "$MODULE_ID")
+[ -n "$ROOT_NAMED" ] && die $'W1 is incomplete. A composition root names this module in code that runs:\n'"$ROOT_NAMED"$'\nMove the reader onto a module-agnostic platform value (`processRunsWorkers`, `resolvePublicApiBaseUrl()`), have the module register its own value, or have it supply its contribution from its own composition (contract W1.1) — then delete the root line. Removing a name the platform registers is a breaking platform release.'
 
 # ---------------------------------------------------------------------------
 # E3p — the path set, resolved over the history and never written down
