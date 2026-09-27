@@ -1,5 +1,174 @@
 # @endora-commerce/contracts
 
+## 0.17.0
+
+### Minor Changes
+
+- 0af8db8: `@endora-commerce/contracts` no longer exports the Comarch XL module's schemas; the module publishes its own
+
+  **If you import any `comarchXl*`/`ComarchXl*` or `xl*`/`Xl*` symbol, `COMARCH_XL_SETTING_CODES`,
+  `COMARCH_XL_READ_PERMISSION`, `COMARCH_XL_MANAGE_PERMISSION` or `XL_CONTRACT_VERSION` from
+  `@endora-commerce/contracts` or from its `./comarch-xl` subpath, this release removes it.** One
+  hundred and thirty-nine exports go: the admin API shapes (connection, connection test, identity,
+  warehouse, price-list and status mappings, sync jobs, worker heartbeats, imported offers), the XL
+  wire schemas and snapshots, the seven overlay extension ports (`ComarchXlSellabilityPort` and its
+  siblings), the setting codes, the two permission codes, and every type inferred beside them.
+  They are now on the module's own `./contracts` subpath:
+
+  ```diff
+  - import { COMARCH_XL_SETTING_CODES, type ComarchXlSellabilityPort } from '@endora-commerce/contracts';
+  + import { COMARCH_XL_SETTING_CODES, type ComarchXlSellabilityPort } from '@endora-commerce/mod-comarch-xl/contracts';
+  ```
+
+  A deployment overlay that decorates one of the module's ports imports the port's type from there.
+  One symbol that sat in the same file stays where it was imported from: `ContractorCreditLimitPort`,
+  the published name of `credit_limits`' `creditLimitService` registration, is `credit_limits`' own
+  port and is now declared beside its other contract types. Nothing else in
+  `@endora-commerce/contracts` changes: the ERP connector family's shared vocabulary
+  (`erp-connector`) and the vendor-neutral imported-invoice seam stay in the free contracts.
+
+  `@endora-commerce/mod-comarch-xl`'s half of this change — the `./contracts` export and the module
+  owning its ten error codes as `comarchXlErrorCodes` — is released from the paid repository, which
+  the module has moved to.
+
+- 7b1f09e: `@endora-commerce/contracts` no longer exports the Infakt connector's schemas; the connector publishes its own
+
+  **If you import any `infakt*`/`Infakt*` symbol or an `INFAKT_*` constant from
+  `@endora-commerce/contracts` or from its `./infakt` subpath, this release removes it.** Thirty-three
+  exports go: the environment and setting codes, the permission and credential codes, the delivery
+  messages, the API hosts and paths, the service-line, webhook-event and connection request and
+  response shapes, `InfaktHttpPort`, and every type inferred beside them. They are now on the
+  module's own `./contracts` subpath:
+
+  ```diff
+  - import { INFAKT_SETTING_CODES, infaktConnectionDtoSchema } from '@endora-commerce/contracts';
+  + import { INFAKT_SETTING_CODES, infaktConnectionDtoSchema } from '@endora-commerce/mod-infakt/contracts';
+  ```
+
+  Nothing else in `@endora-commerce/contracts` changes; the invoice ledger's own vendor-neutral
+  contract stays where it is.
+
+  `@endora-commerce/mod-infakt` gains the `./contracts` export. It already declared `zod` as a peer
+  dependency, so installing it pulls in nothing new.
+
+  `@endora-commerce/mod-infakt` also owns its two error codes now: the root export gains
+  `infaktErrorCodes`, declared with `defineModuleErrorCodes`, and the webhook's raise site uses it
+  instead of `ERROR_CODES.INFAKT_WEBHOOK_UNAUTHORIZED`. The codes' values on the wire do not change.
+
+  The `mod-infakt` half of this change is released from the paid-modules repository, which the module left for
+  (feature 134); this repository no longer versions `@endora-commerce/mod-infakt`.
+
+- 8418b7d: `invoiceIssuedEventSchema`, `invoiceCorrectedEventSchema`, `InvoiceIssuedEvent` and `InvoiceCorrectedEvent` are declared in the invoices contract
+
+  The payload schemas of `invoice.issued.v1` and `invoice.corrected.v1` belong to the module that raises those events, so they moved from `@endora-commerce/contracts/ksef` to `@endora-commerce/contracts/invoices`. The shapes are unchanged.
+
+  An import from the package root (`@endora-commerce/contracts`) keeps working. An import from the subpath has to change:
+
+  ```ts
+  // before
+  import { invoiceIssuedEventSchema } from '@endora-commerce/contracts/ksef';
+  // after
+  import { invoiceIssuedEventSchema } from '@endora-commerce/contracts/invoices';
+  ```
+
+  `minor` rather than `patch` because the `./ksef` subpath no longer exports the four names.
+
+- a12d4bf: Add the contributed invoice PDF block contract: `InvoicePdfBlockRegistration`, `InvoicePdfBlockRegistryPort`, `InvoiceTemplateBlockDescription` and `InvoiceTemplateBlockField`
+
+  A module that declares an invoice template block now renders, describes and enriches it itself, by registering an `InvoicePdfBlockRegistration` into `invoices`' `invoicePdfBlockRegistry` from its composition root:
+
+  ```ts
+  lazyPort<InvoicePdfBlockRegistryPort>(ctx, 'invoicePdfBlockRegistry').register({
+    name: 'acme.InvoiceStamp', // `<moduleId>.<LocalName>`, as your manifest declares it
+    moduleId: 'acme',
+    describe: () => ({ label: 'Stamp', fields: {} }),
+    resolve: (invoiceId) => loadStampData(invoiceId), // optional, read once per render
+    render: ({ props, invoice, locale, resolved }) => ({ text: '…' }), // one pdfmake content node
+  });
+  ```
+
+  `InvoicePdfBlockRegistration.printsKsefReferenceNumber?: boolean` says the block prints the invoice's KSeF number itself. While such a block is present and placed, `invoices` leaves out its own header row for the number, so the number is printed exactly once.
+
+  Additive only; nothing existing changes shape. `minor` because it is new published surface.
+
+- 6738f35: The ERP attachment download seam is now `invoices`' own, and the imported document's source system is open
+
+  **If you implement or import `ComarchXlSaleDocumentAttachmentPort` or `COMARCH_XL_SALE_DOCUMENT_ATTACHMENT_PORT`, this release removes them.** The interface moves, unchanged in shape, to `InvoiceAttachmentFetchPort`, and a connector no longer publishes it under a container name of its own; it registers it into `invoices`' `invoiceAttachmentFetchRegistry` (`INVOICE_ATTACHMENT_FETCH_REGISTRY`) under the source system it imports from:
+
+  ```diff
+  - import type { ComarchXlSaleDocumentAttachmentPort } from '@endora-commerce/contracts';
+  - ctx.di.providePort('comarchXlSaleDocumentAttachmentPort', …);
+  + import type { InvoiceAttachmentFetchRegistryPort } from '@endora-commerce/contracts';
+  + ctx.onBoot(() => {
+  +   lazyPort<InvoiceAttachmentFetchRegistryPort>(ctx, 'invoiceAttachmentFetchRegistry').register({
+  +     system: 'my_erp',        // the value your import writes into externalDocumentRef.system
+  +     moduleId: 'my_erp',      // your module id; its effective presence is read on every download
+  +     provider: { ensureAttachmentBytes: (input) => … },
+  +   });
+  + });
+  ```
+
+  New exports: `InvoiceAttachmentFetchPort`, `InvoiceAttachmentFetchRegistration`, `InvoiceAttachmentFetchRegistryPort` and `INVOICE_ATTACHMENT_FETCH_REGISTRY`.
+
+  **`externalDocumentRefSchema.system` is a non-empty string (at most 64 characters) instead of `z.literal('comarch_xl')`.** Every value that parsed before still parses; code that narrowed on the literal type now sees `string`.
+
+  **`ErpSaleDocumentAttachmentContext` gains a required `system: string`** — the imported document's `externalDocumentRef.system`. An implementation of `ErpSaleDocumentWritePort.resolveAttachmentContext` outside `@endora-commerce/mod-invoices` has to return it.
+
+- 9ef7f4b: An ERP-imported sale document is identified by `(system, externalId)`, and the import contract names no vendor
+
+  **If you call `ErpSaleDocumentWritePort.upsertImportedDocument`, rename three fields.** The source system's own document id, document number and attachment id lose their `xl` prefix:
+
+  ```diff
+    externalDocumentRef: {
+      system: 'my_erp',
+  -   xlSaleDocumentId: doc.id,
+  -   xlDocumentNumber: doc.number,
+  +   externalId: doc.id,
+  +   externalNumber: doc.number,
+      documentKind: 'invoice',
+    },
+    attachments: doc.attachments.map((a) => ({
+  -   xlAttachmentId: a.id,
+  +   externalAttachmentId: a.id,
+      fileName: a.fileName,
+    })),
+  ```
+
+  **`externalDocumentRefSchema.externalId` is required and non-empty** (at most 128 characters); `xlSaleDocumentId` accepted an empty string. A reference that carries only `xlSaleDocumentId` no longer parses.
+
+  **`ErpSaleDocumentAttachmentContext`** — what `resolveAttachmentContext` answers — carries `externalId` and `externalAttachmentId` in place of `xlSaleDocumentId` and `xlAttachmentId`.
+
+  The pair is the identity: the same `externalId` from another `system` is another document. The Comarch XL vendor schemas in `comarch-xl.ts` keep their `xl*` names, which describe Comarch XL's own API.
+
+- 1b3fb93: `@endora-commerce/contracts` no longer exports the KSeF module's schemas; the module publishes its own
+
+  **If you import any `ksef*`/`Ksef*` symbol, `KSEF_SETTING_CODES`, `KSEF_ENVIRONMENTS` or another
+  `KSEF_*` constant from `@endora-commerce/contracts` or from its `./ksef` subpath, this release
+  removes it.** Forty-four exports go: the environment, credential and submission vocabularies, the
+  credential, connection-test and submission request and response shapes, the submit job payload,
+  the setting codes, and every type inferred beside them. They are now on the module's own
+  `./contracts` subpath:
+
+  ```diff
+  - import { KSEF_SETTING_CODES, ksefSubmissionDtoSchema } from '@endora-commerce/contracts';
+  + import { KSEF_SETTING_CODES, ksefSubmissionDtoSchema } from '@endora-commerce/mod-ksef/contracts';
+  ```
+
+  Nothing else in `@endora-commerce/contracts` changes. The KSeF state the free tier records —
+  `ksefReferenceNumber` and `ksefProcessedAt` on the invoice, and `invoice_ledger`'s KSeF routing —
+  stays in the free contracts, and `invoice.issued.v1` / `invoice.corrected.v1` stay in the invoices
+  contract.
+
+  `@endora-commerce/mod-ksef` gains the `./contracts` export. It already declared `zod` as a peer
+  dependency, so installing it pulls in nothing new.
+
+  `@endora-commerce/mod-ksef` also owns its seven error codes now: the root export gains
+  `ksefErrorCodes`, declared with `defineModuleErrorCodes`, and every raise site in the module uses it
+  instead of `ERROR_CODES.KSEF_*`. The codes' values on the wire do not change.
+
+  The `mod-ksef` half of this change is released from the paid-modules repository, which the module left for
+  (feature 134); this repository no longer versions `@endora-commerce/mod-ksef`.
+
 ## 0.16.0
 
 ### Minor Changes
