@@ -60,14 +60,14 @@ const USAGE = `endora — scaffolding and conformance tooling for Endora Commerc
 
 Usage:
   endora new module <id> --name <text> --description <text> [options]
-  endora new instance <dir> [--module <id>...] [--deployment <name>] [--registry <url>]
-                            [--topology single-host|three-host] [--dry-run]
+  endora new instance <dir> [--module <id>...] [--without <member>...] [--deployment <name>]
+                            [--registry <url>] [--topology single-host|three-host] [--dry-run]
   endora new storefront <dir> [--registry <url>] [--<input> <value>...] [--dry-run]
-  endora install <dir> --admin-email <e> --admin-password <p> --admin-first-name <f>
-                       --admin-last-name <l> (--demo | --no-demo)
-                       [--no-services] [--no-storefront] [--storefront-dir <path>]
-                       [--module <id>...] [--deployment <name>] [--registry <url>]
-                       [--topology single-host|three-host] [--dry-run]
+  endora install [<dir>] [--admin-email <e>] [--admin-password <p>] [--admin-first-name <f>]
+                         [--admin-last-name <l>] [--demo | --no-demo] [--without <member>...]
+                         [--no-services] [--no-storefront] [--storefront-dir <path>]
+                         [--module <id>...] [--deployment <name>] [--registry <url>]
+                         [--topology single-host|three-host] [--non-interactive] [--dry-run]
   endora generate [--dry-run]
   endora dev [--storefront-dir <path>] [--no-storefront]
   endora --help
@@ -115,6 +115,11 @@ Options for \`new instance\`:
                                 Given none, it writes the smallest set that
                                 composes — the modules the platform cannot run
                                 without, closed the same way
+  --without <member>[,<member>...]
+                                a member not to write (repeatable): \`admin\` or
+                                \`docs\`. The default is every member; \`backend\`
+                                cannot be declined, because it is what composes the
+                                platform. The module list is the same either way
   --deployment <name>           the directory under \`apps/\` holding your overlay
                                 modules and your divergence declaration, and the
                                 value of \`DEPLOYMENT\` (default: the workspace name)
@@ -137,19 +142,29 @@ Options for \`new instance\`:
 checkout of this repository, the storefront beside it), starts the development
 services, installs, generates, builds, migrates, installs every module and creates
 the administrator — the sequence \`endora new instance\` prints and nothing else. It
-composes the two \`new\` commands and reimplements neither, it never prompts, and
-every step is echoed before it runs so an operator can reproduce any one of them by
-hand. A failing step exits with that step's own code and prints what is left.
+composes the two \`new\` commands and reimplements neither, and every step is echoed
+before it runs so an operator can reproduce any one of them by hand. A failing step
+exits with that step's own code and prints what is left.
+
+At a terminal it asks what the flags below did not answer — at most seven questions,
+and Enter takes the recommendation wherever there is one: every part, the services
+started. The demo question has no recommendation and the administrator has no
+default. Every question has a flag; with \`--non-interactive\`, \`--dry-run\`, a CI
+marker or no terminal it asks nothing, and a missing answer is one refusal naming
+every flag still owed.
 
 Options for \`install\`:
-  <dir>                         where the instance goes. Required; it must be empty,
-                                or hold nothing but a \`.env\` you placed there
+  <dir>                         where the instance goes; it must be empty, or hold
+                                nothing but a \`.env\` you placed there. Asked at a
+                                terminal (recommending \`./endora-commerce\`),
+                                required everywhere else
   --admin-email <address>       the administrator you sign in as. All four are
   --admin-password <secret>     required: nothing else creates an account, and the
   --admin-first-name <text>     password is never generated — it is the one value
   --admin-last-name <text>      you have to remember
   --demo | --no-demo            whether to seed every installed module's example
-                                data. Required, and deliberately with no default:
+                                data. Required — asked at a terminal — and
+                                deliberately with no default:
                                 an instance you will sell from wants none of it and
                                 one you are evaluating wants it before the first
                                 screen. Seeding runs last and a failure in it does
@@ -158,6 +173,10 @@ Options for \`install\`:
                                 mail catcher, and do not write their addresses into
                                 the instance's \`.env\`. Use it when you run those
                                 services yourself
+  --without <member>[,<member>...]
+                                a member of the instance not to write (\`admin\`,
+                                \`docs\`), passed to \`new instance\`; the default is
+                                every member
   --no-storefront               write the instance alone. The storefront is copied
                                 out of a checkout of this repository, so a run from
                                 anywhere else needs this flag
@@ -166,8 +185,9 @@ Options for \`install\`:
                                 that workspace and become a member of it)
   --module, --deployment, --registry, --topology
                                 passed through to \`new instance\` unread
+  --non-interactive             ask nothing, even at a terminal
   --dry-run                     report every file and every step; write nothing,
-                                start nothing and run nothing
+                                start nothing, run nothing and ask nothing
 
 \`endora dev\` is what an instance's \`pnpm run dev:all\` runs: the API (\`pnpm run
 start\`), the admin preview (\`pnpm run preview:admin\`) and, when there is one, the
@@ -299,6 +319,7 @@ function parse(argv: readonly string[], declaredInputFlags: readonly string[] = 
       'activation-setting': { type: 'string' },
       'non-deactivatable': { type: 'string' },
       module: { type: 'string', multiple: true },
+      without: { type: 'string', multiple: true },
       deployment: { type: 'string' },
       registry: { type: 'string' },
       topology: { type: 'string' },
@@ -570,6 +591,7 @@ async function runNewInstanceCommand(
     const result = await runNewInstance({
       ...(rest[0] === undefined ? {} : { dir: rest[0] }),
       modules: asList(parsed.values['module']),
+      without: asList(parsed.values['without']),
       ...(asString(parsed.values['deployment']) === undefined
         ? {}
         : { deployment: asString(parsed.values['deployment'])! }),
@@ -680,11 +702,14 @@ async function runInstallCommand(
       ...(asString(parsed.values['topology']) === undefined
         ? {}
         : { topology: asString(parsed.values['topology'])! }),
-      storefront: !asFlag(parsed.values['no-storefront']),
+      // A key only for a flag that was typed: the wizard reads *absent* as a
+      // question still to ask, and a `true` here would be an answer nobody gave.
+      ...(asFlag(parsed.values['no-storefront']) ? { storefront: false } : {}),
       ...(asString(parsed.values['storefront-dir']) === undefined
         ? {}
         : { storefrontDir: asString(parsed.values['storefront-dir'])! }),
-      services: !asFlag(parsed.values['no-services']),
+      ...(asFlag(parsed.values['no-services']) ? { services: false } : {}),
+      without: asList(parsed.values['without']),
       ...(demo === undefined ? {} : { demo }),
       ...(asString(parsed.values['admin-email']) === undefined
         ? {}
@@ -702,6 +727,7 @@ async function runInstallCommand(
         ? {}
         : { revalidateSecret: asString(parsed.values['revalidate-secret'])! }),
       dryRun: asFlag(parsed.values['dry-run']),
+      nonInteractive: asFlag(parsed.values['non-interactive']),
       // The pipeline's own output is the operator's: every step inherits the
       // descriptors, so what pnpm says is what they see, live.
       echo: (line: string) => void process.stdout.write(`${line}\n`),

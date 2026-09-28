@@ -18,16 +18,17 @@
  * true. The four flags that belong to `new instance` — `--module`,
  * `--deployment`, `--registry`, `--topology` — are passed through unread.
  *
- * ## Why this phase never prompts, and why that is not a deficiency
+ * ## When it asks, and when it never does
  *
  * `cli-product.md` R2.5c is a **ceiling**: a prompt may be issued only when
  * both descriptors are TTYs and no `--non-interactive`, `--dry-run` or CI
- * marker is present. A command that asks nothing is under that ceiling by
- * construction, so this half of the one-shot ships under the guarantee exactly
- * as it stands today — no ruling, no amendment. The wizard (spec §6) adds
- * questions on top and needs R2.5f; it is a separate phase and this file is
- * written so that it can be one: the question set is the flag set, and a wizard
- * is a thing that fills flags in.
+ * marker is present. Below it, this command asks nothing at all and every
+ * missing answer is part of the one refusal — the posture Phase 3 shipped, and
+ * unchanged. At a terminal it runs the wizard (`wizard.ts`, spec §6), under
+ * R2.5f — 125's PR-1(b), accepted by the owner on 2026-09-25 and placed as
+ * D-269. The wizard is a thing that fills flags in: its question set is the
+ * flag set, so what it hands the rest of this function is the same options a
+ * fully-flagged `--non-interactive` run supplies (SC-107).
  *
  * ## Validate completely, then write — and then, only then, run
  *
@@ -52,13 +53,20 @@ import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join, resolve, sep } from 'node:path';
 
 import { parseEnvFile, writeEnvFile } from '../inputs/env-file.js';
-import { generateSecret } from '../inputs/resolve.js';
+import {
+  generateSecret,
+  interactivityOf,
+  mayPrompt,
+  type InteractivityFacts,
+} from '../inputs/resolve.js';
 import {
   developmentAddresses,
   developmentMailUrl,
   DEV_COMPOSE_PATH,
 } from '../new-instance/deploy.js';
 import {
+  MEMBER_VOCABULARY,
+  memberRefusal,
   runNewInstance,
   type NewInstanceResult,
 } from '../new-instance/index.js';
@@ -66,6 +74,15 @@ import {
   runNewStorefront,
   type NewStorefrontResult,
 } from '../new-storefront/index.js';
+
+import {
+  answeredByFlags,
+  answersLine,
+  askWizard,
+  WizardClosedError,
+  type QuestionId,
+  type WizardIo,
+} from './wizard.js';
 
 /** A refusal the operator can act on — exit 1. */
 export class InstallInputError extends Error {
@@ -120,6 +137,13 @@ export interface InstallOptions {
   readonly deployment?: string | undefined;
   readonly registry?: string | undefined;
   readonly topology?: string | undefined;
+  /**
+   * The members not to write — `--without <member>`, passed through to
+   * `endora new instance` and validated with every other precondition here.
+   * Empty or absent passes **nothing**, so the common case is the argv a bare
+   * `endora new instance <dir>` has (125 R6.3b).
+   */
+  readonly without?: readonly string[] | undefined;
 
   // --- what this command decides -------------------------------------------
   /** Write the storefront repository too. Default yes; `--no-storefront` off. */
@@ -131,10 +155,10 @@ export interface InstallOptions {
   /**
    * Seed demo data.
    *
-   * **`undefined` is a refusal, and that is deliberate** (FR-124): D-216 rules
-   * that silence means *no* and the owner has asked for a question, so until
-   * PR-2 rules which way Enter falls, the only posture that cannot silently
-   * pick the answer the owner did not is to require one.
+   * **`undefined` is a refusal, and that is final** (FR-124): 125 PR-2 was
+   * ruled option (c) by the owner on 2026-09-25 (D-269) — the one question
+   * whose two audiences want opposite answers has no default, in the wizard
+   * (where Enter re-asks) or on the command line.
    */
   readonly demo?: boolean | undefined;
 
@@ -152,12 +176,15 @@ export interface InstallOptions {
    * values that are *"each internally consistent and jointly wrong"*
    * (`packages/platform/src/env/index.ts`). Proposed ruling PR-3 states that as
    * a narrowing of the `generable: false` declaration rather than a reversal:
-   * a single run over both trees is a single environment.
+   * a single run over both trees is a single environment. Ruled as proposed
+   * on 2026-09-25 (D-269); `input-resolution.md` R4.6 is the rule.
    */
   readonly revalidateSecret?: string | undefined;
 
   /** Report every step and every file; run nothing and write nothing. */
   readonly dryRun?: boolean | undefined;
+  /** Refuse rather than ask, even at a terminal (`input-resolution.md` R3.4). */
+  readonly nonInteractive?: boolean | undefined;
 
   // --- seams, so a test asserts the decisions and not the machine -----------
   /**
@@ -181,6 +208,14 @@ export interface InstallOptions {
   readonly packageManagers?: readonly PackageManagerRunner[] | undefined;
   /** Whether a Docker daemon answers. Defaults to a probe. */
   readonly dockerReachable?: boolean | undefined;
+  /**
+   * The facts R2.5c's conjunction is decided over. Defaults to this process's
+   * own descriptors, flags and environment; a test hands in *"both are
+   * terminals"* without being on one.
+   */
+  readonly interactivity?: InteractivityFacts | undefined;
+  /** Where the wizard asks and reads. Defaults to this process's own. */
+  readonly io?: WizardIo | undefined;
 }
 
 /** One way to run `pnpm` on this machine. */
@@ -204,6 +239,8 @@ export interface InstallResult {
   readonly exitCode: number;
   /** What this run derived from the document it rendered, by name (FR-105). */
   readonly derived: readonly string[];
+  /** R2.5f (iv) — the `[answers]` line: where each of §6.2's answers came from. */
+  readonly answers: string;
   readonly dryRun: boolean;
 }
 
@@ -413,39 +450,98 @@ function storefrontInputs(
  * `.env`), **run** (the pipeline, each step echoed). A `--dry-run` stops after
  * the first and reports the other two.
  */
-export async function runInstall(options: InstallOptions): Promise<InstallResult> {
-  const cwd = options.cwd ?? process.cwd();
+export async function runInstall(given: InstallOptions): Promise<InstallResult> {
+  const cwd = given.cwd ?? process.cwd();
   const output: string[] = [];
   const say = (line: string): void => {
     output.push(line);
-    options.echo?.(line);
+    given.echo?.(line);
   };
+
+  // ── ask, only where R2.5c's conjunction holds (R2.5f i) ───────────────────
+  const interactive = mayPrompt(
+    given.interactivity ??
+      interactivityOf({
+        nonInteractive: given.nonInteractive === true,
+        dryRun: given.dryRun === true,
+      }),
+  );
+  let options: InstallOptions = given;
+  let provenance: {
+    readonly fromFlags: ReadonlyMap<QuestionId, string>;
+    readonly prompted: readonly QuestionId[];
+    readonly recommended: readonly QuestionId[];
+  };
+  if (interactive) {
+    try {
+      const outcome = await askWizard(
+        given,
+        given.io ?? { input: process.stdin, output: process.stdout, terminal: true },
+        {
+          vocabulary: MEMBER_VOCABULARY,
+          storefront: {
+            available: referenceStorefrontRoot(cwd) !== null,
+            reason:
+              'not from here: it is copied out of a checkout of the platform repository, ' +
+              'and there is none above this directory — `endora new storefront` adds it later',
+          },
+        },
+      );
+      options = { ...given, ...outcome.answers };
+      provenance = outcome;
+    } catch (error: unknown) {
+      if (error instanceof WizardClosedError) throw new InstallInputError(error.message);
+      throw error;
+    }
+  } else {
+    // Nothing asked: every answer is a flag, and the two offered questions a
+    // flag did not answer take §6.2's recommendation — *everything*, *yes* —
+    // which is what Phase 3 already did and is now said out loud.
+    const fromFlags = answeredByFlags(given);
+    provenance = {
+      fromFlags,
+      prompted: [],
+      recommended: (['parts', 'services'] as const).filter((id) => !fromFlags.has(id)),
+    };
+  }
 
   // ── decide ────────────────────────────────────────────────────────────────
   const refusals = new Refusals();
-  if (options.dir === undefined || options.dir.trim().length === 0) {
+  // A missing directory is one refusal among the others rather than the first
+  // and only one: a run with no answers at all is told everything it owes in
+  // one message (FR-157, R3.2), and the checks that need a directory are the
+  // only ones it skips.
+  const namedDir =
+    options.dir === undefined || options.dir.trim().length === 0
+      ? null
+      : isAbsolute(options.dir)
+        ? options.dir
+        : resolve(cwd, options.dir);
+  if (namedDir === null) {
     refusals.add(
-      '`endora install` takes the directory to write, and has no default: the ' +
-        "directory's basename becomes the workspace name, so a default would invent a name " +
-        'nobody chose.',
+      '`endora install` takes the directory to write — `<dir>` — and outside the wizard has no ' +
+        "default: the directory's basename becomes the workspace name, so a default would " +
+        'invent a name nobody chose.',
     );
-    refusals.throwIfAny();
   }
-  const targetDir = isAbsolute(options.dir!) ? options.dir! : resolve(cwd, options.dir!);
   const wantsStorefront = options.storefront !== false;
   const wantsServices = options.services !== false;
-  const storefrontDir = !wantsStorefront
-    ? null
-    : options.storefrontDir === undefined
-      ? `${targetDir}-storefront`
-      : isAbsolute(options.storefrontDir)
-        ? options.storefrontDir
-        : resolve(cwd, options.storefrontDir);
+  const namedStorefrontDir =
+    !wantsStorefront || namedDir === null
+      ? null
+      : options.storefrontDir === undefined
+        ? `${namedDir}-storefront`
+        : isAbsolute(options.storefrontDir)
+          ? options.storefrontDir
+          : resolve(cwd, options.storefrontDir);
 
-  const inTheWay = occupied(targetDir);
+  const declinedRefusal = memberRefusal(options.without ?? []);
+  if (declinedRefusal !== null) refusals.add(declinedRefusal);
+
+  const inTheWay = namedDir === null ? null : occupied(namedDir);
   if (inTheWay !== null) {
     refusals.add(
-      `${targetDir} exists and is not empty (${inTheWay}). An instance's files are yours; ` +
+      `${namedDir!} exists and is not empty (${inTheWay}). An instance's files are yours; ` +
         'this command never merges into a directory. Scaffold into an empty one — a ' +
         'directory holding nothing but a `.env` is the exception, and that file is read as ' +
         'your own answers.',
@@ -456,19 +552,19 @@ export async function runInstall(options: InstallOptions): Promise<InstallResult
   // be swept into its `pnpm-workspace.yaml` globs and become a member of a
   // workspace it is not part of, which is D-230's topology broken by a
   // directory choice.
-  if (storefrontDir !== null && storefrontDir.startsWith(targetDir + sep)) {
+  if (namedStorefrontDir !== null && namedStorefrontDir.startsWith(namedDir! + sep)) {
     refusals.add(
-      `--storefront-dir ${storefrontDir} is inside ${targetDir}. The storefront is its own ` +
+      `--storefront-dir ${namedStorefrontDir} is inside ${namedDir!}. The storefront is its own ` +
         "repository (D-195): written there it would be swept into the instance's workspace " +
         'globs and become a member of a workspace it is not part of. Put it beside the ' +
         'instance — the default is `<dir>-storefront`.',
     );
   }
-  if (storefrontDir !== null) {
-    const storefrontInTheWay = occupied(storefrontDir);
+  if (namedStorefrontDir !== null) {
+    const storefrontInTheWay = occupied(namedStorefrontDir);
     if (storefrontInTheWay !== null) {
       refusals.add(
-        `${storefrontDir} exists and is not empty (${storefrontInTheWay}). Pass ` +
+        `${namedStorefrontDir} exists and is not empty (${storefrontInTheWay}). Pass ` +
           '`--storefront-dir <path>` for another directory, or `--no-storefront` to write no ' +
           'storefront at all.',
       );
@@ -538,8 +634,7 @@ export async function runInstall(options: InstallOptions): Promise<InstallResult
   }
 
   if (options.demo === undefined) {
-    // FR-124 — required until PR-2 rules the default, and this is the only
-    // posture that is correct under either ruling.
+    // FR-124 — required, by 125 PR-2 option (c) as ruled (D-269).
     refusals.add(
       'say whether to install demo data: `--demo` seeds every installed module\'s example ' +
         'rows, `--no-demo` seeds none. There is deliberately no default — an instance you ' +
@@ -549,14 +644,23 @@ export async function runInstall(options: InstallOptions): Promise<InstallResult
   }
 
   refusals.throwIfAny();
+  // Both are decided: a missing directory was a refusal above.
+  const targetDir = namedDir!;
+  const storefrontDir = namedStorefrontDir;
   const runner = runners[0]!;
   const dryRun = options.dryRun === true;
 
   // ── write ─────────────────────────────────────────────────────────────────
   say(`endora install ${targetDir}${dryRun ? ' — dry run, nothing written' : ''}`);
+  const answers = answersLine(provenance);
+  say(`  ${answers}`);
+  const without = (options.without ?? []).filter((name) => name.trim().length > 0);
   const instance = await runNewInstance({
     dir: targetDir,
     ...(options.modules === undefined ? {} : { modules: options.modules }),
+    // R6.3b — nothing at all when every member is wanted, so the common case
+    // is the argv a bare `endora new instance <dir>` has.
+    ...(without.length === 0 ? {} : { without }),
     ...(options.deployment === undefined ? {} : { deployment: options.deployment }),
     ...(options.registry === undefined ? {} : { registry: options.registry }),
     ...(options.topology === undefined ? {} : { topology: options.topology }),
@@ -646,6 +750,9 @@ export async function runInstall(options: InstallOptions): Promise<InstallResult
       instance,
       dryRun,
       demo: options.demo === true,
+      recommended: provenance.recommended,
+      services: wantsServices,
+      passwordFromFlag: provenance.fromFlags.has('admin-password'),
     })) {
       say(line);
     }
@@ -660,6 +767,7 @@ export async function runInstall(options: InstallOptions): Promise<InstallResult
     output,
     exitCode,
     derived,
+    answers,
     dryRun,
   };
 }
@@ -798,6 +906,10 @@ function closing(input: {
   readonly dryRun: boolean;
   readonly demo: boolean;
   readonly admin: { readonly email?: string | undefined; readonly password?: string | undefined };
+  readonly recommended: readonly QuestionId[];
+  readonly services: boolean;
+  /** Whether the password was `--admin-password` or typed at the wizard's prompt. */
+  readonly passwordFromFlag: boolean;
 }): readonly string[] {
   const lines = ['', input.dryRun ? 'It would then be yours to start:' : 'Done. To start it:'];
   // One command first (`specs/136-open-source-publication/` GAP-7, FR-060):
@@ -840,13 +952,37 @@ function closing(input: {
   }
   lines.push(
     '',
-    `Sign in as ${input.admin.email ?? ''} with the password you passed on the command line.`,
+    `Sign in as ${input.admin.email ?? ''} with the password you ` +
+      `${input.passwordFromFlag ? 'passed on the command line' : 'entered above'}.`,
     input.demo
       ? `Demo data ${input.dryRun ? 'would be' : 'was'} seeded. \`pnpm run cli demo reset\` withdraws it ` +
         'and leaves your own rows alone.'
       : `No demo data ${input.dryRun ? 'would be' : 'was'} seeded. \`pnpm run cli demo seed\` adds a ` +
         "shop's worth of it, and `demo reset` withdraws it again.",
   );
+  // R2.5f (iv) — every answer taken as a recommendation, said to be one, with
+  // what reverses it. A recommendation nobody is told they accepted is a
+  // default with better manners.
+  const reversals: Readonly<Record<QuestionId, string | null>> = {
+    directory: `the directory ${input.targetDir} — pass another as \`endora install <dir>\``,
+    parts:
+      'every part this build can write — `--without <member>` and `--no-storefront` leave one ' +
+      'out of the next install',
+    services: input.services
+      ? 'the development services, started — `pnpm run dev:services:down` stops them'
+      : null,
+    demo: null,
+    'admin-email': null,
+    'admin-password': null,
+    'admin-name': null,
+  };
+  const taken = input.recommended
+    .map((id) => reversals[id])
+    .filter((line): line is string => line !== null);
+  if (taken.length > 0) {
+    lines.push('', 'Recommended, and taken because nothing said otherwise:');
+    for (const line of taken) lines.push(`  ${line}`);
+  }
   return lines;
 }
 

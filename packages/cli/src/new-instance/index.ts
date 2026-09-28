@@ -85,6 +85,7 @@ import {
 import {
   assertDeploymentName,
   assertWorkspaceName,
+  memberRefusal,
   planInstance,
   wiringLineCount,
   type InstancePlan,
@@ -108,6 +109,13 @@ export interface NewInstanceOptions {
    * operator's input can decide. Absent is `single-host`.
    */
   readonly topology?: string | undefined;
+  /**
+   * The members not to write — `--without <member>`, repeatable
+   * (`specs/118-instance-member-selection/contracts/instance-members.md` R3.5,
+   * ruled by D-215). Subtractive, so absent is *every member*; validated
+   * against the template's own vocabulary before anything is resolved.
+   */
+  readonly without?: readonly string[] | undefined;
   /** Report every file it would write, and write nothing (R5.3). */
   readonly dryRun?: boolean | undefined;
   readonly cwd?: string | undefined;
@@ -198,6 +206,16 @@ export async function runNewInstance(
   // *"the most common scenario is probably all three layers on one machine"*.
   const topology =
     options.topology === undefined ? DEFAULT_TOPOLOGY : assertTopology(options.topology);
+  // F10 / F11 — the member vocabulary, decided with the rest and before any
+  // package is resolved: a name outside it, or the one member that composes the
+  // platform, is the operator's to change (`instance-members.md` §5.6).
+  const without = new Set(
+    (options.without ?? []).map((name) => name.trim()).filter((name) => name.length > 0),
+  );
+  const declinedRefusal = memberRefusal([...without]);
+  if (declinedRefusal !== null) {
+    throw new InstanceInputError(without.has('backend') ? 'F11' : 'F10', declinedRefusal);
+  }
 
   // F5 — `--registry` is not a URL, or the configuration cannot be read. The
   // writer is `new-storefront/npmrc.ts` verbatim (R5.7); what changes is the
@@ -284,7 +302,12 @@ export async function runNewInstance(
   // one tier that acts.
   const resolution = planResolution({
     declared,
-    members: adminShell !== undefined && adminKit !== undefined ? ['backend', 'admin'] : ['backend'],
+    // A declined admin is a member not written, and an input only it reads is
+    // out of the population exactly as it is for an unavailable one (118 §6).
+    members:
+      adminShell !== undefined && adminKit !== undefined && !without.has('admin')
+        ? ['backend', 'admin']
+        : ['backend'],
     flags: {},
     envFile: parseEnvFile(existingEnv),
     interactivity: { ...interactivityOf({ nonInteractive: true, dryRun: options.dryRun === true }), nonInteractive: true },
@@ -344,6 +367,7 @@ export async function runNewInstance(
     registry,
     npmrc,
     topology,
+    without,
     declared,
     existingEnv,
     generated: new Map(generated.map((entry) => [entry.name, entry.value] as const)),
@@ -692,3 +716,11 @@ export function nextSteps(
 }
 
 export { InstanceHostError, InstanceInputError };
+
+/**
+ * The member vocabulary and its refusal, re-exported for `endora install`:
+ * that command validates `--without` with its other preconditions and renders
+ * the checklist from the vocabulary, and it reaches both through this runner
+ * rather than through the template, which it must not name (125 FR-143).
+ */
+export { MEMBER_VOCABULARY, memberRefusal, type MemberDeclaration } from './template.js';
