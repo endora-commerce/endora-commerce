@@ -31,7 +31,7 @@ The Docker stack binds the three apps to `127.0.0.1` only, so they are reachable
 
 | File | Purpose |
 |------|---------|
-| `compose.prod.yml` | Runtime topology — pulls images by tag, wires services, publishes apps on loopback ports |
+| `compose.prod.yml` | Runtime topology — pulls images by tag, wires services, publishes apps on loopback ports. Fixes no container name and joins no external network, so a second stack starts beside it under its own `-p <project>` |
 | `nginx.example.conf` | **Template** server blocks for the host nginx (proxy + certbot TLS) — copied & adapted on the VPS, **not** applied by CI |
 | `nginx.docs.example.conf` | **Template** server block for the documentation site — a static root, no proxy; copied & adapted on the VPS, **not** applied by CI |
 | `publish-docs.sh` | Shipped to the VPS by `publish:docs` and run there — flips `current` onto the transferred release, records it, prunes to five |
@@ -109,7 +109,10 @@ refuses one). A deployment is therefore the operator's own act, on the host:
    docker compose --env-file .env -f compose.prod.yml pull
    docker compose --env-file .env -f compose.prod.yml up -d
    ```
-   `backend-migrate` applies the migrations before the API starts.
+   `backend-migrate` applies the migrations, then `backend-install` runs every
+   module's install hooks (`module:install --all`, idempotent), and only then does
+   the API start. A database whose first act after the migrations is a boot never
+   runs those hooks, which is why the install step is not optional.
 3. **Create an admin user** (once), on the VPS:
    ```bash
    cd /opt/b2b
@@ -130,9 +133,10 @@ refuses one). A deployment is therefore the operator's own act, on the host:
 
 ## Subsequent deploys
 
-The same two `docker compose` commands with the new `IMAGE_TAG`. Migrations run before
-the API starts every time; rollback is the same commands with
-an older tag. This repository's pipeline performs none of it.
+The same two `docker compose` commands with the new `IMAGE_TAG`. Migrations and the
+install step run before the API starts every time (the install is a no-op for a module
+already installed); rollback is the same commands with an older tag. This repository's
+pipeline performs none of it.
 
 ---
 
@@ -273,18 +277,6 @@ The five most recent releases are kept, and the live one is never pruned even wh
 outside that window — so a release you have rolled back onto stays there until you roll forward.
 The next publication from the default branch flips `current` onto the new build as usual; a
 rollback holds only until then.
-
-### A neighbouring file that will mislead you
-
-`deploy/compose.prod.yml`'s header comment describes a `central-nginx-proxy` container on an
-external `public_proxy` Docker network as the live TLS terminator. **That is not what runs.**
-The owner ruled on 2026-09-22 that the topology is the one this file and
-`deploy/nginx.example.conf` describe: a host-level nginx with certbot, in front of loopback
-ports. The compose header is a documentation defect owned by devops and is deliberately not
-fixed here — `compose.prod.yml` is a separate unit with its own owner. It is recorded because a
-reader who reaches for that file to add a vhost will be misled exactly the way the specification
-for this documentation site was: there is no container to attach the docs to, no `public_proxy`
-network to join, and nothing about publishing documentation belongs in that file.
 
 ---
 
