@@ -1,24 +1,16 @@
-# B2B Platform
+# Endora Commerce
 
-A Supplier-operated B2B commerce platform supporting both **Quote Request (RFQ)** and **direct-purchase** workflows on one codebase, with Customer Organizations, multi-user Roles, Credit Limit settlement, a permissioned Admin Panel, and an open API + webhook layer built for ERP / PIM / WMS / CRM integrations.
+**Open-source commerce for B2B and B2C** — quote requests and direct purchase on one codebase,
+customer organisations with roles and credit limits, a permissioned admin panel, a server-rendered
+storefront, and an API and webhook layer built for ERP, PIM and WMS integrations. A Fastify +
+MikroORM backend on PostgreSQL, a React admin, a Next.js storefront, and every business capability
+a module you install, switch off or replace.
 
-- **Constitution** (governance source of truth): [`.specify/memory/constitution.md`](./.specify/memory/constitution.md)
-- **Feature 001 — Foundation spec, plan, tasks**: [`specs/001-b2b-platform-foundation/`](./specs/001-b2b-platform-foundation/) — **complete**, every checkbox in `tasks.md` is ticked across User Stories 1–7.
-- **Runtime guidance and module docs**: the docs site in [`docs/`](./docs/)
-
-## Table of contents
-
-- [Overview](#overview)
-- [Capability status](#capability-status)
-- [Prerequisites](#prerequisites)
-- [Install](#install)
-- [Environment variables](#environment-variables)
-- [Running the stack](#running-the-stack)
-- [Running the test suite](#running-the-test-suite)
-- [Running migrations](#running-migrations)
-- [Repository layout](#repository-layout)
-- [Hardware & system requirements](#hardware--system-requirements)
-- [Constitution quick reference](#constitution-quick-reference)
+[Documentation](https://docs.commerce.endora.software) ·
+[Contributing](CONTRIBUTING.md) ·
+[Security](SECURITY.md) ·
+[Code of Conduct](CODE_OF_CONDUCT.md) ·
+[Licence: MIT](LICENSE)
 
 ## Overview
 
@@ -37,240 +29,53 @@ vendor-neutral `payments`, `payment_methods`, `delivery_methods`, `shipments`, `
 parties can build their own adapters. Sell here and invoice where you already invoice; an operator
 who wants Endora itself to issue Polish invoices needs the commercial KSeF module.
 
-The repository is a **pnpm monorepo** with three independently buildable applications plus shared packages and a documentation site:
+## Quick start
 
-- `backend/` — Node.js + TypeScript API server (Fastify + MikroORM + Zod).
-- `storefront/` — Next.js customer-facing website (SSR-first for catalog/category/product pages).
-- `admin/` — React admin panel (Vite). Usable on smartphone viewports from feature **029** (drawer navigation below 1024px; see [`docs/docs/admin/mobile-responsive.md`](./docs/docs/admin/mobile-responsive.md)).
-- `packages/contracts/` — Zod schemas shared across applications (source of truth for API types per Principle V).
-- `packages/cms-components/` — Page Builder React components shared between admin (Puck editor) and storefront (`<Render>` server component); built around the new `cms` module's component-extension SPI. Styled with a self-contained, `cmsc:`-prefixed Tailwind stylesheet (`dist/cms-components.css`) so it renders identically in either host without restyling host chrome (feature 041).
-- `docs/` — Docusaurus documentation site for developers and Product Owners.
-
-## Capability status
-
-Foundation feature 001 is complete; feature 002 (catalog module extension) ships Attribute Sets, Gallery with Base/Small/Thumbnail labels, Product Attachments, Product Links (related / up-sell / cross-sell), and three new product types (`grouped`, `bundle`, `virtual`). Feature 006 (search module) closes the loop on the foundation's Meilisearch scaffolding: typeahead popup feed, fire-and-forget analytics ingest into `search_phrase_records`, and an opt-in LLM-augmented hybrid lexical + semantic mode driven by six settings registered through the Settings module. Each capability below is exercised by contract / integration tests in `backend/test/` and surfaced through the storefront (Next.js) and admin panel (Vite + React).
-
-**Customer-facing (storefront)**
-
-- Catalog browsing with multi-locale name/description, category tree, faceted filters, Meilisearch-backed full-text search, and a server-rendered PDP with stock badge + structured-data JSON-LD. Five product types: `simple`, `configurable` (with variant picker), `grouped` (fixed children + Add-bundle CTA), `bundle` (configurable slots with min/max + per-slot validation), `virtual` (digital delivery CTA).
-- Product Gallery with curated Base / Small / Thumbnail label invariants (atomic swap on conflict), product Attachments grouped by type (Certificate, Tech spec, …), and Related / Up-sell / Cross-sell sections rendered on the PDP and cart.
-- Account flows — register, email verification, login (with optional 2FA challenge field), password reset, profile, change password, two-factor enrolment.
-- Organization settings — members list with role change / remove, pending-invitation list with revoke, addresses CRUD.
-- Cart that supports anonymous → logged-in merge, full checkout (address → delivery → payment → review → submit), order confirmation with the bank-transfer next-action panel, and an orders history view. Feature 027 layers a full lifecycle (active / abandoned / completed / rejected), per-Organization "requires cart approval" gate with submit-for-approval → approve / reject (with reason), Promotions-driven coupon application with reason-specific rejection and auto-drop-on-read, Cart ↔ Quote Request and Shopping List → Cart conversions with re-pricing from the customer's current price list, up-sell strip from the Catalog's `up_sell` link kind, re-pricing-on-read (30 s Redis cache), 200-line per-cart cap, abandonment sweep with optional notification e-mail, and per-cart audit feed.
-- Returns & Complaints (Refunds, RMA) module (feature 046): return/complaint cases raised against completed orders with an admin-configurable status workflow (mirrors Orders — `new → authorized → received → resolved → closed`, plus `rejected`/`cancelled`), RMA numbering with settings-driven prefix/suffix, free-return window counted from the order's completing status with EU Directive (EU) 2023/2673-aligned defaults (14 days), full/partial line returns with managed reasons, admin↔customer comments (visibility + notify), settlement into money refunds / store credit (via `credit_limits`) / replacement / repair with corrective invoices, return delivery methods with per-method cost, and reverse-logistics shipments. Cross-module work (orders, payments, invoices, credit_limits) goes through documented ports. Storefront self-service pages + admin management UI. See `docs/docs/modules/returns.md`.
-- Quote Requests — "Request a quote" widget on the PDP, list grouped by status, detail page with mode-aware editing, accept / reject with reason, and deep-linking from converters.
-- Shopping lists — per-customer named bundles with item editing and one-click bulk **convert-to-cart** / **convert-to-RFQ** (archived rows are skipped + reported, never blocking).
-- Quick order — paste a `sku,quantity` CSV, server-renders a recognised + rejected partition with line numbers, then bulk-adds to cart.
-- Credit-limit-aware checkout — granted/available/reservation widget on Account, an inline panel during checkout, and automatic filtering of `credit_limit`-kind payment methods when no limit exists or the cart exceeds the available credit.
-- Impersonation banner appears on every authenticated page when a Supplier admin is acting as the buyer.
-
-**Supplier-operated (admin panel)**
-
-- Catalog admin: Products list + editor (per-locale fields, category multi-select, default price, archive), Categories tree editor with cycle guard + non-empty-delete refusal, Attributes manager with hot-toggle searchable / filterable / variant-axis checkboxes, Attribute Sets manager with assign/unassign and system-Default protection, Attachment Types dictionary, plus per-product inline sections for Variants, Gallery (with replace-conflict toggle), Attachments, Product Links, Grouped children and Bundle slots.
-- Inventory: read with hydrated SKU / name, absolute on-hand set form (reserved counters are read-only — driven by orders).
-- Customer organizations: list with status / VAT / search filters, detail with status + VAT-status patches and members table.
-- Customers (Klienci) module (feature 040): customer-account lifecycle on top of `customer_accounts`. Storefront self-service — standalone (org-less) registration gated by a Setting, a personal address book (billing/delivery, one default per kind, plus selectable org-shared addresses), default payment/delivery method, change-password, and order/quote-request history. Admin oversight — a customer list + detail with the five info fields (created, group, organization, blocked, last login); block/unblock and soft-delete/restore with role-based authority (platform admin, or the salesperson inherited from the customer's organization; org-less customers are open to any salesperson) + an org-owner depletion guard; impersonation (org-optional); admin password reset (emails a set-password link); NIP/VAT validation; organization assign/unassign; direct customer-group assignment (overrides the org's group in pricing); read-only orders/RFQ/abandoned-carts panels; and an "online customers" view. Soft-deleted accounts are restorable within a configurable window (`customers.deletion_retention_days`, default 365), after which an anonymization sweep permanently scrubs PII. Migrations `060_customer_accounts_lifecycle` (block/deletion/group columns) and `061_customer_addresses_init`.
-- Orders: an admin-configurable lifecycle (statuses + transitions managed in the UI, with templated `order.status.*` business events and veto-capable guards); a server-side orders list with filter/sort/search, per-status counts, bulk status change + bulk invoice print, private/shared saved views, and CSV export; create-an-order-on-behalf-of-a-customer (built by a sales rep, the customer is emailed to pay it); order comments (customer-visible/internal + notify); reorder and clone-to-quote-request; order-confirmation emails CC'd to per-organization and per-scope recipient lists; and Settings for minimum order value and reorder-enabled (global or per sales channel). Feature 038 adds the `order_statuses`, `order_status_transitions`, `order_comments`, `order_list_saved_views` tables and the `organizations.order_confirmation_emails` column.
-- Carts (feature 027): platform-wide carts list with status + approval filters and badge variants, read-only cart detail with line items, applied coupon, conversion lineage, full audit feed, and an emergency reject action (terminal, with required reason). Per-Organization `requires_cart_approval` policy can also be toggled by a platform admin from the Organization detail page.
-- Invoices: filterable list with per-order PDF re-download buttons.
-- Quote Requests: triage list with status + assignee filters, claim, send-quote with per-item pricing + lead-time / validity terms, decline with a free-text message.
-- Pricing engine (feature 011): named price lists with a Draft / Scheduled / Active / Expired lifecycle (auto-transitioned by a 5-min sweeper), Base + Sale `type` partitioning, multi-bracket per-currency pricing per product, an Application Rule AST (Sales Channel / Customer Group / Organization / Category / Currency, AND/OR, depth-5) edited via a recursive rule builder, and a four-level price-display chain (Settings → Organization → Category → Product) with a `none` mode that hides every price element and routes purchase intent into Quote Requests. Migration 031 seeds a protected `Default` list from the legacy `attributeValues.defaultPrice` and writes a per-currency report to `backend/var/migration-reports/011_price_lists_seed.json`. Linked-price-lists panel on the catalog product editor surfaces every list a product is part of with a deep link to the editor pre-focused on that product.
-- Taxes / Promotions: per-rule taxes with country / product-type / VAT-status narrowing + default fallback, percentage / amount / free-delivery promotions. Promotions support a `criteria[]` discriminated union (feature 012 / US8) — today the `attribute` variant is meaningful, letting an operator build rules like `material in [steel]` or `gear_ratio range [20, 50]` against any attribute carrying `isPromoRule = true`. Skip-on-toggle (FR-039) silently ignores criteria pointing at attributes whose `isPromoRule` was flipped off, with an audit log entry on every skip.
-- Attributes (feature 012): SKU is now editable on every Product (the internal canonical reference is the immutable `Product.id` UUID); ProductAttribute carries four new behavioural flags (`isPromoRule`, `isVisibleOnProductPage`, `isRequired`, `filterPosition`) plus a per-locale `labelDefault` fallback; Attribute Sets re-render the product editor when swapped (values for hidden attributes are retained server-side per FR-012); option-list editor for `select` / `enum` / `multiselect` types replaces the legacy `enum_values: string[]` JSONB column (decommissioned by migration 032); storefront filter sidebar honours `filterPosition` and the PDP carries a "Parametry produktu" tab listing every attribute flagged `isVisibleOnProductPage` that has a value, with select-style values rendered as the per-locale option label.
-- Delivery + Payment Methods CRUD with per-locale labels and kind selector for payment drivers.
-- Credit Limits: roster of every granted limit + per-organization grant / adjust editor with `allowOverAllocation` override.
-- Users & Roles: admin-user CRUD with role assignment, role editor with a permission-matrix grouped by module, plus a canonical permissions catalogue.
-- Audit Log viewer: filtered query with stateBefore / stateAfter side-by-side JSON expansion.
-- Integrations: API keys (bearer-token credentials), Webhooks (HMAC-signed outbound subscriptions), External Integrations.
-- Phase-10 surfaces: Analytics, SEO meta-tag overrides, Languages & Currencies, CMS pages, Import / Export.
-- CMS module (feature 014): replaces the legacy `cms_pages` minimal surface with a full editorial system — Pages, Blocks, Templates, and Hooks authored through a Page Builder (drag-and-drop with Puck + a Tiptap-based `Text` rich-text component). Backend modules contribute components through an in-process SPI; the storefront resolves a `(channel, language, slug | block-code | hook-code)` tuple into a fully-inlined render payload, cached in Redis with a 5-minute TTL. The 23 base storefront Hook codes (header.top, homepage.top, footer.*, product.*, cms.page.*, login/register, etc.) are seeded idempotently at boot.
-- Megamenu module (feature 015): authors the storefront's primary navigation as a multi-level tree of menu items (Category links, CMS-page links, External links, Buttons, Assets, embedded CMS Blocks). Configurations are scoped to `(sales channel × language)` pairs with a Postgres partial unique index enforcing "exactly one active megamenu per scope" (atomic swap on activation). Items support optional left/right icons; CMS-block embeds inline through the same Puck render pipeline as the CMS module. The storefront renders a hover-revealed full-width drop-down panel on desktop (3-column grid per the Industria design) and a stacked drill-down drawer on mobile. Reference protection plugs into the Assets Library (icons + assets) and the CMS module (pages + blocks) deletion chains. Zero new runtime dependencies.
-- Blog module (feature 016): editorial blog surface with Posts, Categories (tree-structured), and Tags. Posts inherit the CMS Page's field shape (slug, draft → published → archived lifecycle, per-language Page Builder content, SEO meta) and add per-Post ordered Related Posts (detach-on-delete contract) and Related Products (soft-delete + storefront filter). Categories carry Page Builder descriptions, optional main images, and form an adjacency-list tree with cycle prevention; the seeded `Default` category is system-protected. Tags are globally unique by `code` with block-on-delete. Configurable per Sales Channel through Settings: `blog.enabled`, `blog.url_prefix` (default `blog`), `blog.latest_count` (default 5), `blog.posts_per_page` (default 12); a settings change wipes the storefront cache via the EventBus. Storefront serves three endpoints (`by-channel`, `by-slug`, `tag-by-code`). Two seeded admin roles — `Blog Manager` (blog only) and `Content Manager` (blog + CMS) — with platform-wide deletion-protection. Zero new runtime dependencies.
-- Dictionary (Słownik) module (feature 017): one operator registry for Countries, Currencies, and Languages, including active/storefront-visible flags, localized labels, country-language associations, storefront registry cache, reusable admin/storefront pickers, and a shared backend validator port that rejects unknown or newly inactive codes across addresses, taxes, warehouses, organizations, sales channels, promotions, megamenu bindings, and blog language scopes. Legacy Languages and Currencies endpoints remain available for compatibility. Zero new infrastructure requirements.
-- Product Scope Editor (feature 022): adds a four-scope attribute-value model (`global`, `language`, `channel`, `channel+language`) on top of the existing per-language `products.name` / `products.description` JSONB and the global `products.attribute_values` baseline. Introduces two scope-flag columns on `product_attributes` (`channel_scoped`, `language_scoped`), a `product_value_overrides` table (channel-aware slots with two partial UNIQUE indexes), and a `product_editor_preferences` table (per-(admin user, product) remembered switcher state). System attributes Name + Description are pinned channel+language-scoped via a backend constant — their channel overrides land in `product_value_overrides` under reserved keys `name` / `description`. A pure resolver in `@endora-commerce/contracts` (shared between backend and admin SPA) implements the deterministic fallback chain `(channel+language) → (channel) → (global+language) → (global)`; the search indexer threads the same resolver per-channel so per-(channel, language) overrides are visible in storefront search. The admin product edit page gains a `<ProductScopeEditor>` panel at the top of the Details tab — Sales Channel + Language switchers, a resolved-value preview with a source badge, and inline "Add / Edit override" + "Reset to Global" affordances driven by `PATCH /admin/catalog/products/:id/value-overrides` with a six-rule server-side validator (attribute_unknown, attribute_not_channel_scoped, attribute_missing_language, channel_not_assigned_to_product, language_not_in_channel, value_invalid). Zero new runtime dependencies.
-- Credentials module (feature 058): a `/credentials` admin screen to define **reusable credential configurations** — a coded instance of a code-registered *configuration type* (ships **LLM**: GPT / Gemini / Claude / DeepSeek; and **Email adapter**: SMTP / Amazon SES / SendGrid) with type-driven, validated, secret-safe fields. Settings can reference a configuration through the new `credential_ref` value type (a type-constrained picker + masked preview), so one configuration backs many settings and a single key change propagates everywhere. Secrets are AES-256-GCM at rest (reusing `SETTINGS_SECRET_ENCRYPTION_KEY`), write-only, masked on read, redacted in audit; writes run through the Command Bus; delete is blocked while referenced. The type set is an open registry (overlay-safe). Zero new runtime dependencies.
-- Quick Order module (feature 039): buyer-acceleration toolkit reusing the existing ordering stack. (1) CSV **and** Excel (`.xlsx`) import that builds a Cart or a Quote Request, including variant resolution from extra attribute columns, duplicate-SKU merge, and an `quick_order.import_max_rows` cap; available in storefront (`/quick-order`) and admin (on-behalf of a customer). (2) Quick product search by SKU, name, and the values of attributes flagged with the new `product_attributes.quick_searchable` column. (3) Customer- and Organization-level **default ordering preferences** (payment method, delivery method, billing + shipping address) in a new `quick_order_default_preferences` table, resolved customer-over-org with a use-time eligibility re-check, role-scoped editing (Customer / Org Admin / Salesperson / Platform Admin), audited, and auto-applied at checkout. (4) "Order again" → new Cart or Quote Request (reuses the orders reorder + clone-to-quote endpoints). (5) **One-click buy** gated by the `quick_order.one_click_buy_enabled` setting (global or per Sales Channel) plus the presence of all four eligible defaults — skips Cart/Checkout and places the order via the existing `placeOrder` path, routing by the payment `nextAction`. **One new runtime dependency: `exceljs`** (backend-only, isolated to the Excel-import adapter) for `.xlsx` parsing.
-
-- Product Feed module (feature 067): publishes the catalogue of one Sales Channel as a provider-shaped feed file — Google Merchant Center / Meta XML, marketplace CSV/TSV — at a **stable tokenised URL** the provider fetches anonymously, regenerated on a per-feed cron schedule (BullMQ Job Scheduler, `feed:<id>`) with overlap refused by an atomic claim rather than queued. Five predefined templates ship (Google and Meta complete; Amazon, eBay and Allegro as skeletons), editable through a visual, keyboard-operable field-list editor with a draft preview, and portable between installations as deterministic JSON. A feed can be narrowed with the shared rule builder (live match count computed from the same prices the run will emit), priced net or gross from a named price list or the anonymous channel resolution, and mapped onto Google's and Meta's own product taxonomies — both **bundled on disk** (5 595 + 2 967 nodes, `en` + `pl`) and installed at boot from files, so **generation never depends on reaching a provider**. An optional, **off-by-default** weekly check (`product_feeds.taxonomy_fetch_enabled`) can download a newer provider revision; it installs it **inactive**, and only an audited operator promotion — after an impact preview showing which mappings and shop categories would lose their provider category — changes what a feed emits. Generation streams: 100 000 products produce a 38 MB file with peak live heap under 20 MB. Runs record per-item skip/warning diagnostics with a CSV export, a failed run notifies once per transition into failure, and the public link can be rotated or revoked with immediate effect. Gated by `product_feeds:read` / `product_feeds:write` (the generated file carries prices, so its download needs `:write`). Zero new runtime dependencies — the XML and delimited serializers are hand-written because they must stream. See `docs/docs/modules/product_feeds.md`.
-
-For an authoritative endpoint list, see the live OpenAPI document at `GET /api/v1/_openapi.json` and the per-module pages under [`docs/docs/modules/`](./docs/docs/modules/).
-
-## Prerequisites
-
-- **Node.js** ≥ 22.18 (LTS). Use `nvm use` or Volta; `.nvmrc` is pinned to `22`. MikroORM 7 needs 22.17; 22.18 is the first release that strips TypeScript types without a flag, which is how a deployment’s overlay module — a `.ts` file nothing compiles — is loaded at all (D-236).
-- **pnpm** ≥ 9. Enable via `corepack enable && corepack prepare pnpm@latest --activate`.
-- **Docker** + **Docker Compose v2** (for PostgreSQL, Redis, Meilisearch, Mailpit).
-- **Git**.
-
-## Install
+You need **Node.js ≥ 22.18**, **pnpm** (`corepack enable` provides it) and **Docker** with
+Compose v2. Then two commands:
 
 ```bash
-git clone <repo>
-cd b2b-platform
-pnpm install
+npx create-endora-commerce@latest my-shop
+cd my-shop && pnpm run start
 ```
 
-The install pulls all workspaces (`backend`, `storefront`, `admin`, `packages/*`, `docs`).
+The first writes an instance into `my-shop/`, starts PostgreSQL, Redis, Meilisearch and Mailpit
+in Docker, installs every module, creates your administrator and prints every address and
+credential you need. Each step prints the command it runs, so a failure names the command to
+finish by hand. The second starts the API on `http://localhost:3001`; the admin and the
+storefront each have their own command, printed at the end of the first.
 
-`@endora-commerce/cms-components` ships a pre-built, self-contained Tailwind stylesheet
-(`dist/cms-components.css`, committed) that both the storefront CMS render path and the admin
-Page Builder import. Regenerate it after changing those components' utility classes:
+`create-endora-commerce` is only a front door: it runs `endora install` from
+[`@endora-commerce/cli`](packages/cli/), which you can also call directly as
+`npx @endora-commerce/cli install my-shop`. Everything it writes is an ordinary pnpm workspace
+you own — the API, the admin and the storefront build and deploy independently.
 
-```bash
-pnpm --filter @endora-commerce/cms-components build   # uses @tailwindcss/cli (build-time devDep)
-```
+> **Before the first public release** the packages are not on the public npm registry yet, so
+> the two commands above do not resolve. To run Endora Commerce from a clone of this repository,
+> follow [Developing Endora Commerce](#developing-endora-commerce) below.
 
-## Environment variables
+## Documentation
 
-Every application reads its configuration from a workspace-local `.env` file. Copy the examples after `pnpm install`:
+Everything past the first run is on the documentation site,
+**[docs.commerce.endora.software](https://docs.commerce.endora.software)** — built from
+[`docs/`](docs/) and from each module package's own `docs/` directory:
 
-```bash
-cp backend/.env.example       backend/.env
-cp storefront/.env.example    storefront/.env
-cp admin/.env.example         admin/.env
-```
-
-Values in the examples are safe defaults for local development against the Docker Compose stack. **The storefront's copy is not optional**: `BACKEND_BASE_URL` and `NEXT_PUBLIC_API_BASE_URL` are required, and a storefront that has neither refuses to build and refuses to start, naming the variable and this file. It used to invent `http://localhost:3001` instead — which, for the `NEXT_PUBLIC_` one, Next bakes into the browser bundle at build time, so a shop built without it pointed every visitor at their own machine while the build reported success. Production configuration is described in [`deploy/README.md`](./deploy/README.md) (topology, secrets, TLS, the deploy pipeline); everything a first client deployment needs on top of a running stack — permission grants, module activation, business settings, backups — is in the [First Production Deployment Checklist](./docs/docs/deployment/first-deployment-checklist.md).
-
-**Transactional email (backend)** — Verification and invitation emails use the shared `Mailer` abstraction. Set **`SMTP_URL`** (for example `smtp://localhost:1025` against Mailpit, or your provider’s SMTP relay URL) so `composeApp` wires `SmtpMailer`; when unset, development uses `ConsoleMailer`. Optional: **`SMTP_FROM`** / **`MAIL_FROM`** for the visible sender address.
-
-**Sales Channels (backend)** — Both env vars are optional. **`DEFAULT_SALES_CHANNEL_CODE`** sets which channel the backend boot reconciles as the platform's system-default (FR-002 of feature 005); when unset, defaults to `default`. **`SALES_CHANNEL_HOST_MAP`** maps incoming HTTP `Host` headers to channel codes when no explicit `X-Sales-Channel` header is provided — comma-separated list of `host=channelCode` pairs (e.g. `serwisA.com=channel-a,serwisB.com=channel-b`); empty disables host resolution. Storefront and integration paths fall back to the system-default when no resolution succeeds; admin paths refuse with `missing_sales_channel_context`.
-
-**Assets Library (backend, feature 013)** — **`ASSETS_LIBRARY_HMAC_KEY`** signs short-lived URLs for `private`-visibility assets served from the local-FS adapter via `/assets/file/:assetId?token=&exp=`. Generate per environment with `openssl rand -hex 32`; rotating invalidates every outstanding private URL. Cloud adapters (S3, GCS) use their own native signed URLs and ignore this key. The local-FS adapter writes uploaded files under the platform-relative directory configured by the `assets.local.base_dir` setting (default `var/assets`); make sure the backend process can read and write that location. Active adapter selection (`local | s3 | gcs`) and per-adapter configuration (bucket, region, credentials, prefix, public-base URL) live in the Settings module under the `storage` group.
-
-**Secret settings (backend, feature 043)** — **`SETTINGS_SECRET_ENCRYPTION_KEY`** is a base64-encoded 32-byte AES key (generate with `openssl rand -base64 32`) that encrypts `secret`-typed settings at rest, including secret fields of credential configurations (feature 058, which reuse the same key). Secret settings are write-only through the admin API: reads return only an `isSet` flag, never the value. Writing a secret without this key fails with `SETTING_SECRET_KEY_MISSING`; reads of legacy plaintext values keep working without it. Rotating the key invalidates previously encrypted values (re-enter them in Settings).
-
-**Prompt assistant (backend, feature 043)** — the admin command palette's natural-language prompt mode (module `prompt_actions`) is configured through the Settings module (`prompt_actions.enabled`, `prompt_actions.bulk_limit`) plus a `prompt_actions.llm_credentials` reference to a reusable **LLM credential configuration** (provider + model + API key; feature 058, managed on the Credentials screen). No additional env vars beyond the secret-settings key above. The capability is off by default and gated by the `prompt_actions:use` admin permission.
-
-**PWA (feature 046)** — Progressive-Web-App support for the storefront and admin (module `pwa`; new backend deps `web-push` + `sharp`). Identity (name, short name, theme/background color, icon), the `caching_enabled`/`push_enabled` toggles, and the VAPID keys live in the Settings module under the `pwa.*` group, resolved per Sales Channel (global value + per-channel override). Push uses standard Web-Push/VAPID through a provider-agnostic abstraction (default `web_push`; FCM/OneSignal are drop-in providers); the VAPID private key and optional FCM service-account JSON are `secret` settings (need `SETTINGS_SECRET_ENCRYPTION_KEY`). Generate a VAPID key pair from the admin (`POST /api/v1/admin/pwa/vapid/generate`). Optional env: **`PWA_VAPID_SUBJECT`** (`mailto:` contact baked into Web-Push, default `mailto:admin@b2b-platform.local`); set **`NEXT_PUBLIC_BUILD_ID`** (storefront) and **`VITE_BUILD_ID`** (admin) per deploy so the service-worker cache invalidates on new releases. Push delivery is a BullMQ consumer (`pwa.push.deliver`) co-located in the API process unless `BACKEND_ROLE=api` (then it runs only in the `worker` process). The `pwa:read` / `pwa:write` / `pwa:send_push` permissions gate the admin surface. See `docs/docs/modules/pwa.md` for the app-store-wrapping checklist.
-
-**Credentials (feature 058)** — the `credentials` module lets an operator define a **reusable credential configuration** once (a coded instance of a code-registered *configuration type*) and reference it from many settings via the new `credential_ref` settings value type, so one configuration backs the AI-assistant LLM key, the search embedder key, and the newsletter email adapter with no re-entry. Two types ship: **LLM** (providers GPT / Gemini / Claude / DeepSeek) and **Email adapter** (SMTP / Amazon SES / SendGrid). Secret fields **reuse the existing `SETTINGS_SECRET_ENCRYPTION_KEY`** (AES-256-GCM at rest — **no new secret to provision**); they are write-only at the boundary, masked on every read, and redacted in audit. All writes go through the Command Bus; delete is blocked while a setting references the configuration (`CREDENTIAL_IN_USE`). The type set is an open registry — a module (or overlay) registers a new type via `configurationTypeRegistry.register(...)` with no change to the credentials core. The `credentials:read` / `credentials:write` permissions gate the `/credentials` admin screen. See `docs/docs/modules/credentials.md`.
-
-**Product feeds (feature 067)** — the `product_feeds` module writes each generated feed into the configured Assets Library storage backend, under its own private `product-feeds/…` locator prefix and never as an `Asset` row. **These files consume disk**: a 100 000-product Google feed is roughly 38 MB, and each feed keeps the published file plus `product_feeds.artefact_retention_count` older ones (default 3), so budget about *(N + 1) × file size* per feed. Retention is enforced after every successful run and a lost worker's partial object is purged by the stale-run sweep, so growth is bounded. The other operator knobs live in the Settings module under `product_feeds.*`: `max_concurrent_runs` (2), `skip_share_failure_threshold` (0.5), `stale_claim_timeout_minutes` (30), `run_issue_cap` (1000), `public_fetch_rate_limit_per_minute` (60), `category_mapping_tree_limit` (1000). Generation and the stale-run sweep are BullMQ consumers co-located in the API process unless `BACKEND_ROLE=api` (then they run in the `worker` process). The bundled Google/Meta taxonomy files add ~1.5 MB to the image; see `packages/modules/product_feeds/src/backend/data/taxonomies/PROVENANCE.md`, which also records the still-open licensing question. See `docs/docs/modules/product_feeds.md`.
-
-**Google Analytics (feature 049)** — GA4 integration for the storefront (module `google_analytics`; no new runtime dependency). Activation, per-Sales-Channel Measurement ID (`G-…`), Enhanced Ecommerce, server-side tagging (endpoint + Measurement Protocol API secret), and the `require_consent` toggle live in the Settings module under the `google_analytics.*` group (the API secret is a `secret` setting → needs `SETTINGS_SECRET_ENCRYPTION_KEY`). The storefront injects `gtag.js` (`afterInteractive`, Consent Mode v2, one manual `page_view` per App-Router navigation) and emits Enhanced Ecommerce events (`view_item`, `add_to_cart`, `begin_checkout`, `purchase`). Admins define **custom events** (name + trigger action + selected payload fields) on the `/google-analytics` admin screen; triggers are `contact_form_submitted`, `place_order_clicked`, `add_to_cart`, `add_to_quote_request`, `add_to_shopping_list`, and `button_click_by_id`. When server-side tagging is enabled for a channel, the browser posts to `/api/v1/storefront/google-analytics/collect` and a BullMQ consumer (`google_analytics.ss.deliver`, co-located in the API process unless `BACKEND_ROLE=api`) forwards to GA4 — no client/server double count. The `google_analytics:read` / `google_analytics:write` permissions gate the admin surface. See `docs/docs/modules/google-analytics.md`.
-
-## Running the stack
-
-```bash
-# 1. Start infrastructure (PostgreSQL + Redis + Meilisearch + Mailpit).
-pnpm run dev:infra
-docker compose ps           # verify all four services are healthy
-
-# 2. Run all three apps in parallel with hot reload.
-pnpm run dev
-#   backend     → http://localhost:3001
-#   storefront  → http://localhost:3000
-#   admin       → http://localhost:3002
-#   mailpit UI  → http://localhost:8025
-```
-
-**Optional — [Warden](https://docs.warden.dev/)** instead of Compose: one `local`
-environment under `.warden/` gives the same infra plus `*.endora.test` HTTPS via
-Traefik. Apps still run on the host with `pnpm run dev`. Full guide:
-[`docs/docs/operations/warden.md`](./docs/docs/operations/warden.md). Do not run
-Warden and `pnpm run dev:infra` at the same time (port clash).
-
-Or run individually:
-
-```bash
-pnpm --filter backend    run dev
-pnpm --filter storefront run dev
-pnpm --filter admin      run dev
-pnpm --filter docs       run dev   # http://localhost:3003 — Docusaurus
-```
-
-## Running the test suite
-
-TDD is non-negotiable per the constitution (Principle III). Every backend module ships with:
-
-- Unit tests for domain logic.
-- Contract tests for its public HTTP surface.
-- Integration tests against a real PostgreSQL (no DB mocking).
-
-```bash
-pnpm test                                   # every workspace
-pnpm --filter backend run test              # backend only
-pnpm --filter backend run test:contract     # contract tests only
-pnpm --filter backend run test:integration  # integration tests (needs Postgres up)
-pnpm --filter backend exec vitest --watch   # TDD watch mode
-```
-
-Infrastructure services must be running for integration tests:
-
-```bash
-pnpm run dev:infra
-```
-
-## Running migrations
-
-The backend uses MikroORM migrations. Each module owns its own migrations under `packages/modules/<module>/src/migrations/`; the few genuinely cross-cutting ones live in `backend/src/db/migrations/`.
-
-```bash
-pnpm --filter backend run migration:up        # apply all pending
-pnpm --filter backend run migration:down      # roll back the most recent
-pnpm --filter backend run migration:pending   # list migrations not yet applied
-pnpm --filter backend run migration:new -- --module <id> --name <slug>   # scaffold a new migration
-pnpm --filter backend run db:reset            # drop + recreate + migrate (dev only)
-pnpm --filter backend run cli demo seed       # load the synthetic demo shop
-```
-
-Migrations are named `<YYYYMMDDTHHmmss>_<module>_<slug>.ts` (UTC timestamp, no repo-wide sequence number), and the class name is derived mechanically from the filename — so two branches never have to agree on a number. `migration:new` writes the file and prints the two lines to paste into `backend/src/db/migrations-registry.ts`; an unregistered migration does not run and fails the round-trip guard. Execution order is computed from the timestamps and corrected by the module-manifest dependency graph — never by the order of lines in the registry.
-
-See [`docs/docs/architecture/migrations.md`](docs/docs/architecture/migrations.md) for the naming convention, the ordering rules, the FK-drift validator, and the failure modes.
-
-After `endora demo seed` a demo Platform Administrator and a demo Customer Organization are available — credentials are printed by the command. `endora demo reset` withdraws what it created.
-
-## Module lifecycle
-
-Feature 018 introduces a CLI-driven module lifecycle: each backend module declares a `manifest.ts` (id, name, version, dependencies, optional settings + install/uninstall hooks) and the platform persists installed/enabled state in a `module_registrations` table. Operators run:
-
-```bash
-pnpm --filter backend run module:install <id>          # install (runs migrations + settings + install hook)
-pnpm --filter backend run module:uninstall <id>        # soft uninstall (data preserved)
-pnpm --filter backend run module:uninstall <id> --hard --force  # hard (drops tables + data)
-pnpm --filter backend run module:enable <id>           # toggle on at runtime
-pnpm --filter backend run module:disable <id> [--cascade]  # toggle off (cascade walks dependents)
-pnpm --filter backend run module:status [<id>] [--json] [--filter=<state>]
-```
-
-The legacy `modules:install` / `modules:uninstall` aliases (plural form) **are gone** — they were shims that printed a deprecation notice and `spawn`ed the singular commands, and they were removed when `settings` was prepared for packaging (feature 080, T053). Use `module:install` / `module:uninstall`. The admin app can render a read-only "Modules" panel from `GET /api/v1/admin/modules` (permission `platform.modules.read`).
-
-## Admin UI languages
-
-Feature 019 adds a per-user Admin UI language preference (Polish + English at launch; English is the platform-wide fallback) and a module-scoped translation pipeline so every backend module ships its own bundle of translated strings under `packages/modules/<id>/i18n/<lang>.json`. Each Admin UI user picks their language from the **Profile** page; the entire Admin UI re-renders without sign-out and the choice follows the user across devices. Modules opt in by adding `i18n: { bundlesDir: 'i18n' }` to their `manifest.ts` and shipping the JSON files in that directory at the package root — `bundlesDir` is resolved against the directory holding the module's `package.json`, not against the manifest's own; the boot-time reconciler picks them up. Migration `20260507T091405_i18n_admin_i18n_init.ts` introduces the `translation_bundles` table and `admin_users.preferred_language` column. See `docs/docs/modules/i18n.md` for the full guide.
-
-Feature 021 completes the Admin UI bilingual rollout (PL/EN). Switch language via the top-right language picker or the Profile page. New Admin UI strings must be added to both bundles; see `docs/docs/contributing/translations.md` for the glossary, workflow, and CI gates.
-
-## Repository layout
-
-```text
-b2b-platform/
-├── backend/          # Fastify + TypeScript API server (every business module lives here)
-├── storefront/       # Next.js customer-facing site
-├── admin/            # React admin panel
-├── packages/
-│   ├── contracts/      # shared Zod schemas + inferred types
-│   ├── admin-kit/      # the admin's design system, helpers and HTTP client
-│   └── cms-components/ # Page Builder React components shared by admin + storefront
-├── docs/             # Docusaurus documentation site
-├── docker-compose.yml
-├── .warden/          # optional Warden local env (see docs/docs/operations/warden.md)
-├── tsconfig.base.json
-├── eslint.config.js
-├── .prettierrc
-├── .specify/         # Spec-Kit governance: constitution, feature specs, templates
-├── specs/            # Per-feature specs, plans, tasks, contracts
-└── scripts/          # Shell scripts for CI and local checks
-```
-
-Backend module folders follow the naming rule from Principle VI: **plural `snake_case`** (e.g. `orders/`, `quote_requests/`, `credit_limits/`, `sales_channels/`). The only permitted singular exceptions are `auth` and `example`.
+- **Modules** — what each one does, its settings, permissions and admin screens:
+  [module reference](docs/docs/module-reference/README.md).
+- **Going to production** — the [first deployment checklist](docs/docs/deployment/first-deployment-checklist.md)
+  and [`deploy/`](deploy/README.md) (topology, secrets, TLS).
+- **Extending it** — the [kernel](docs/docs/architecture/kernel.md), the
+  [customisation ladder](docs/docs/architecture/customisation-ladder.md) and
+  [per-deployment overlay modules](docs/docs/architecture/overlay-pattern.md).
+- **The API** — a running backend serves its OpenAPI document at `GET /api/v1/_openapi.json`.
 
 ## Hardware & system requirements
 
-The platform is sized to run on a **single VPS** that meets the combined minimum requirements of all mandated technologies. This section is the authoritative list — it MUST be updated in the same pull request as any change that introduces a new runtime dependency or alters baseline resource expectations (per the Infrastructure Constraints section of the constitution).
+Endora Commerce is sized to run on a **single VPS** meeting the combined minimum requirements of
+the technologies it uses. These tables are the authoritative list: a change that adds a runtime
+dependency or alters baseline resource use updates them in the same pull request.
 
-### Development environment
+### Development
 
 | Resource | Minimum | Recommended |
 | --- | --- | --- |
@@ -282,23 +87,20 @@ The platform is sized to run on a **single VPS** that meets the combined minimum
 | Node.js | 22.x LTS (see `.nvmrc`) — minimum **22.18** (MikroORM 7 needs 22.17; unflagged type stripping needs 22.18) | — |
 | pnpm | 9.x | — |
 
-Approximate resident usage with everything running (`pnpm run dev` + Docker stack + Vitest in watch mode):
+Approximate resident usage with everything running (`pnpm run dev` + Docker stack + Vitest in
+watch mode): PostgreSQL 16 ~150 MB, Redis 7 ~50 MB, Meilisearch 1.11 ~300 MB (larger with the
+catalogue), Mailpit ~20 MB, and ~500–800 MB for each of the three Node.js processes in watch mode.
 
-- PostgreSQL 16 (Alpine): ~150 MB RAM.
-- Redis 7 (Alpine): ~50 MB RAM.
-- Meilisearch 1.11: ~300 MB RAM (catalog-dependent; larger indexes require more).
-- Mailpit: ~20 MB RAM.
-- Three Node.js processes under watch mode: ~500–800 MB RAM each.
+### Production (single VPS, no container orchestration)
 
-### Production environment (single VPS, no container orchestration)
-
-Target workload: a single Supplier with a catalog of hundreds of thousands of products, hundreds of RFQs and hundreds of orders per month (spec FR-130; constitution Performance & Scale Targets).
+Target workload: a single supplier with a catalogue of hundreds of thousands of products, and
+hundreds of quote requests and hundreds of orders per month.
 
 | Resource | Minimum | Recommended |
 | --- | --- | --- |
 | CPU | 4 vCPU | 8 vCPU |
 | RAM | 8 GB | 16 GB |
-| Disk | 40 GB SSD | 100 GB NVMe SSD (with daily backups of `b2b-postgres-data`) |
+| Disk | 40 GB SSD | 100 GB NVMe SSD (with daily database backups) |
 | OS | Linux LTS (Ubuntu 22.04+ / Debian 12+) | — |
 | Network | Static public IPv4, HTTPS terminator (nginx / Caddy / Cloudflare) | — |
 | PostgreSQL | 16.x | — |
@@ -306,34 +108,129 @@ Target workload: a single Supplier with a catalog of hundreds of thousands of pr
 | Meilisearch | 1.11.x | — |
 | Node.js | 22.x LTS (minimum 22.18) | — |
 
-Container orchestration (Kubernetes, Docker Swarm, Nomad) is an operational choice, **not** a constitutional one. Running each service directly on the VPS via systemd + Postgres/Redis/Meilisearch from distro packages is an equally valid target.
+Container orchestration (Kubernetes, Docker Swarm, Nomad) is an operational choice, not a
+requirement; running each service directly on the VPS under systemd, with PostgreSQL, Redis and
+Meilisearch from distribution packages, is an equally valid target. Catalogues above 300k SKUs or
+sustained traffic above one order per minute should use the Recommended tier or move Meilisearch
+to its own node. Queues run on Redis (BullMQ).
 
-### Scaling notes
+## Developing Endora Commerce
 
-- The "hundreds of products / month" scale fits comfortably inside the Minimum tier.
-- Catalogs above 300k SKUs or sustained > 1 order per minute should use the Recommended tier or split `meilisearch` onto a dedicated node (reserved-fallback path per R-08).
-- The `queue` workload uses Redis (BullMQ-class). RabbitMQ is a documented fallback (constitution Technology Stack) only if Redis is demonstrably insufficient.
+This section is for working on Endora Commerce itself, in this repository. It is a pnpm
+monorepo:
 
-## Constitution quick reference
+| Path | What it is |
+| --- | --- |
+| `backend/` | The API server's composition roots, the static-check estate and the backend test suites |
+| `admin/` | The React admin application (Vite) |
+| `storefront/` | The reference Next.js storefront, server-rendered |
+| `packages/platform/` | The kernel: HTTP layer, event bus, command bus, tenancy, module lifecycle |
+| `packages/contracts/` | Zod schemas — the source of truth for every API shape |
+| `packages/modules/<id>/` | One package per domain module: entities, services, routes, migrations, translations, admin screens, docs and tests |
+| `packages/cli/` | The `endora` command |
+| `docs/` | The Docusaurus documentation site |
 
-These are the non-negotiable rules; see [`.specify/memory/constitution.md`](./.specify/memory/constitution.md) for the full text.
+### Set up
 
-1. **Modular Architecture** — every backend module owns its domain logic, entities, migrations, routes, and tests. No cross-module internals imports.
-2. **API-First Design** — storefront and admin consume documented HTTP APIs; no shared DB, no in-process imports across apps.
-3. **Test-Driven Development** — tests first, must fail for the right reason; unit + contract + integration per module; no DB mocking.
-4. **YAGNI & Minimal Dependencies** — new runtime dependencies require a written justification in the PR description.
-5. **TypeScript Everywhere** — strict mode; Zod at every boundary; `any` requires a justifying comment.
-6. **Naming Conventions** — plural `snake_case` backend module folders and DB tables; `camelCase` TS and JSON; `PascalCase` types/classes; `kebab-case` URLs.
-7. **SEO, Performance & Discoverability** — storefront SSR/SSG with Core Web Vitals in "Good" at the 75th percentile on mid-range mobile.
-8. **Working Language — English** — only two artifacts MUST be authored in English: **inline comments and docstrings inside source files** and **every page authored under the `/docs/` Docusaurus site**. Identifiers, file/folder names, DB tables and columns, API field names, URL path segments, string literals (logs, error codes, route definitions, migration SQL, end-customer copy), specs, plans, tasks, the root README's body, module READMEs, ADRs, governance docs, commit messages, PR descriptions, and code-review prose MAY all be in any language the team chooses. Identifier *case* is still governed by Principle VI; localized customer content remains free per Principle VII.
-9. **UI Reuse & Design-System Consistency** — new frontend work reuses existing Admin UI / Storefront UI components and layouts by default; a net-new component or layout is introduced only with a stated UX justification (the missing pattern, the primitives evaluated, why composition failed).
-10. **Scalable Queue Consumers** — invariant (MUST): any asynchronous, queue-backed operation uses a durable distributed queue with atomic job claim + idempotent handlers (safe at N≥2 instances), the producer only enqueues (never inline-executes), and the consumer is a separable worker entrypoint — an in-process `setInterval` sweeper draining the queue inside the API process is prohibited. Posture (SHOULD/MAY): run the consumer as a separate, independently scalable process by default; low-volume work may be co-located in the API deployable if it stays separable and the co-location is justified in one sentence.
-11. **Systemic Multi-Tenant Isolation** — tenant isolation is enforced by a framework-level guard, not per-service `where`-clauses: an ambient TenantContext derived server-side from the authenticated actor (never from request inputs), a data-access-layer filter that confines every read/write on tenant-owned entities even when a service omits the condition, fail-closed on missing context, mandatory per-entity scope classification enforced by a CI check, and a single greppable + audited escape hatch (`withSystemScope` / `withOrgScope`) as the only way to cross tenants. New tenant-owned entities ship with cross-tenant tests. The guard is defense-in-depth — it complements, never replaces, `requireAdmin` / `requireCustomer`. The **Organization is the single tenant concept**: every transacting customer is backed by a non-null Organization — a company org for B2B, or a single-member **personal organization** for an individual (B2C) — so there is no "no-organization" scoping path.
-12. **Sales-Channel Content Scoping** — a distinct isolation axis from org tenancy: every storefront read and every channel-bound commercial evaluation (catalog visibility, related/cross/up-sell links, promotions, pricing) is confined to the request's resolved sales channel. A channel is **always** resolved (explicit header/host map, else the system-default) and the filter is always applied — no path returns the full cross-channel set, and a null/unresolved channel **fails closed** (never matches a channel-bound record). The `sales_channel_*` membership bridges are read only through the channel-membership service (`no-unscoped-channel-query` lint), and channel-scoped paths ship with cross-channel tests. Interim per-service predicates are allowed only while they fail closed and use the sanctioned accessor; a future unified channel resolver absorbs them.
-13. **Uniform Write Auditing via Command Bus** — sensitive writes (create/update/delete of a domain record) run as named **Commands** through the Command Bus, which is the single, guaranteed writer of the audit trail: services in migrated modules do not call the audit writer by hand. The write, exactly one audit entry, and any domain event are **co-transactional** (commit ⇒ one audit entry + event once; rollback ⇒ neither); the actor is server-derived from the ambient TenantContext (never from request inputs, composing with Principle XI). A CI coverage check flags a sensitive mutation that neither runs a Command nor audits, and flags double-auditing. Where a Command declares itself reversible it exposes operator-facing **undo** that restores captured pre-state — all-or-nothing per record with a conflict report, idempotent-safe, and itself audited (irreversible side effects are never offered undo). The bus is thin (no CQRS, no read model); migration is incremental, so the coverage check is report-only until a module is migrated, then build-breaking.
-14. **Entity-Agnostic Extensibility & Runtime Custom Fields** — a capability spanning multiple host entity types is built as an **entity-agnostic core** whose host-specific behavior lives only behind documented extension points (an opaque config the host interprets, or a host-registered adapter) — the core never embeds a catalog flag, order status, or channel rule, and never reads that config for meaning. A generic layer that generalizes an existing entity-specific system (e.g. `product_attributes`) leaves it the **untouched source of truth**: reuse its design (typed definitions, per-locale labels, option lists), not its code; any later convergence is an adapter, not a rewrite. Where operators extend core entities at deployment time, adding/editing/removing a field is a **data** change (a definition row) — never a schema migration or code deploy — validated per write against its definition and inheriting the host record's tenant scope (Principle XI); the host owns persistence + audit while the generic layer owns definitions + validation, and definition/option mutations run through the Command Bus (Principle XIII). Principle IV still governs *whether* a field is a real column or a custom field.
-15. **Untouched Core & Per-Deployment Overlay** — the platform is multi-deployment (one codebase, many client installations), so per-deployment customization goes through a **per-deployment overlay location** whose files shadow/extend their core equivalents, resolved **deterministically at build/composition time** — never by editing a file under the core modules tree and never by forking. The core stays deployment-agnostic and the **bare-core build keeps working unchanged**. Overriding a core unit is **contract-gated**: the unit exposes a documented interface an overlay must satisfy, checked at build time, so contract drift is a build failure, not a runtime surprise. Two overlays targeting one unit **fail the build** (never silent last-wins), stale override targets fail the build, and every build emits an **override manifest** so a deployment's divergence from core is auditable. Overlay modules register **without editing the shared core registry**, are ordinary lifecycle participants, declare their permissions (permission-inventory passes per deployment), and run under the same tenant (Principle XI), channel (Principle XII), and Command-Bus (Principle XIII) guards — an override swaps an implementation, never a guard seam. The v1 overridable surface is services/routes/config/new modules; schema/entity/migration overrides are deferred, and resolution adds no runtime dependency (Principle IV).
-16. **Module Discoverability in the Admin Command Palette** — a module that ships an admin surface makes itself discoverable through the **⌘K / CTRL+K command palette**, declared in its **own manifest** — never only through the sidebar, and never by adding a row to a shared hand-maintained list. Declare the module's **primary landing surface** plus the **few highest-value operator actions**; this is a discovery surface, not a sitemap (Principle IV governs the count). Every entry carries the **permission code** gating the surface it routes to, so the palette shows an operator only what they can actually reach. Labels and descriptions come from the module's **own translation bundle** and must resolve in **every supported admin language**, covered by an automated check against the real on-disk bundles — bundle installation is load-and-skip-on-error, so a malformed bundle fails silently and renders raw keys. Every `targetRoute` points at a live admin route; a dead entry is worse than no entry.
-17. **Operator-Toggleable Modules & Disabled-Means-Absent** — a module's presence is decided by **two orthogonal axes with different owners**, never collapsed into one: **platform availability** (the lifecycle registry's installed/enabled state — owned by whoever operates the deployment, changed via CLI: *"is this module installed and wired here?"*) and **operator activation** (a Setting flipped from a **platform-owned admin surface that belongs to no module** — owned by the business operator, changed from the Admin UI: *"does this client want this capability?"*). A module is present only when **both** are true, and every gating seam resolves that **effective** conjunction, failing closed if either is off. Neither axis overwrites the other: a platform disable → enable cycle preserves the operator's choice, and a Settings write never overrides a platform lockout. Each module declares exactly **one** activation control in its **own manifest** (never a shared list), rendered on the platform modules screen rather than on any module's own admin surface — a module that hosts the switch can be switched off and take the way back with it; flipping it is an audited Command (Principle XIII) effective across API and worker processes without a redeploy. A module that is off behaves as if **never installed** on all four surfaces: services, subscribers, queue consumers and interceptors do not run (cross-module callers get the explicit module-disabled error); every route it owns rejects, gated at the **route-registration seam** rather than per handler; no Admin UI sidebar entry, palette action, widget, tab, settings group **or editable configuration**; and nothing contributed to the Storefront. Both frontends resolve this from the server's effective enabled-set — hard-coding the surfaces is not compliance. The **single exception** is the module's own activation control. The Admin UI must not render a platform-unavailable module as merely "switched off" — it is absent, or blocked with the reason stated. Off is **not** uninstall: no data, configuration, bundles, permissions or schema are destroyed, and switching back on restores everything. A module the platform cannot run without declares itself **non-deactivatable in its manifest** (locked control, stated reason, and the lifecycle orchestrator refuses to disable it) — never hard-coded in the admin app, and never because of where a screen lives. Dependencies **fail closed** on and across both axes. A missing registration row resolves to an explicit state and a missing activation value to the manifest default — never to "on" by absence. Routes, workers and subscriptions go through the platform's gating wrappers (CI-enforced), and every module ships an off-state test covering API rejection, admin absence, non-editable configuration, storefront absence and restoration — including the deactivated-while-platform-available case. Driving example: `pim_ergonode` is installed, but a client who does not use Ergonode switches it off from the Admin UI and it leaves the sidebar and stops synchronising, with no deployment change.
+```bash
+git clone https://github.com/endora-commerce/endora-commerce.git
+cd endora-commerce
+pnpm install
+pnpm run build:packages          # every package resolves through its built ./dist
 
-Pull-request quality gates (from the constitution's Development Workflow section): Constitution Check, tests passing, `tsc --noEmit` + lint clean, naming conventions honored (`pnpm run check:naming`), working-language respected (`pnpm run check:language`), docs synchronized, dependency justifications present, UI reuse honored, async queue work backed by a durable queue + atomic claim + separable consumer (separate process by default), tenant-owned data confined by the framework isolation guard (classification + ambient-context filter + audited escape hatch), channel-scoped content confined to the resolved sales channel (fail-closed, sanctioned bridge accessor), sensitive writes audited uniformly through the Command Bus (co-transactional, server-derived actor, coverage check passing), cross-cutting capabilities kept entity-agnostic (host specifics behind extension points; runtime custom fields are validated, tenant-scoped data), and per-deployment customization confined to the overlay layer (untouched deployment-agnostic core, deterministic build-time resolution, contract-gated overrides, auditable override manifest), every admin module discoverable from the command palette (manifest-declared entries, permission-gated, labels resolving in every supported language, routes that exist), and every module operator-toggleable from Settings with a module that is off absent from business logic, API, Admin UI and Storefront alike (platform availability AND operator activation resolved as one effective state, non-destructive and reversible, dependencies fail closed). The PR template at [`.github/pull_request_template.md`](./.github/pull_request_template.md) checks these for you.
+cp backend/.env.example    backend/.env
+cp storefront/.env.example storefront/.env
+cp admin/.env.example      admin/.env
+
+pnpm run dev:infra               # PostgreSQL, Redis, Meilisearch and Mailpit in Docker
+pnpm run setup                   # recreate the development database, install every module
+```
+
+`pnpm run build:packages` is a precondition rather than an optimisation: re-run it after editing
+anything under `packages/`. `pnpm run setup` **drops and recreates the development database**
+named in `backend/.env` — run it for a fresh start, not over data you want to keep.
+
+### Environment variables
+
+Each application reads a `.env` in its own directory, and the `.env.example` beside it holds
+safe defaults for the Docker stack. The variables you are most likely to set:
+
+| Variable | Application | What it does |
+| --- | --- | --- |
+| `DATABASE_URL`, `REDIS_URL`, `MEILISEARCH_URL`, `MEILISEARCH_API_KEY` | backend | The three services. |
+| `SMTP_URL`, `MAIL_FROM` | backend | Outgoing e-mail (`smtp://localhost:1025` is Mailpit). Unset in development, e-mail is written to the console. |
+| `SETTINGS_SECRET_ENCRYPTION_KEY` | backend | Base64 32-byte key (`openssl rand -base64 32`) encrypting secret settings and stored credentials at rest. Writing a secret without it fails; rotating it invalidates stored secrets. |
+| `ASSETS_LIBRARY_HMAC_KEY` | backend | Signs short-lived URLs for private assets on local storage (`openssl rand -hex 32`). |
+| `DEFAULT_SALES_CHANNEL_CODE`, `SALES_CHANNEL_HOST_MAP` | backend | Which sales channel is the default, and which request host maps to which channel (`shop-a.example=channel-a,…`). |
+| `PWA_VAPID_SUBJECT` | backend | The `mailto:` contact sent with Web Push messages. |
+| `BACKEND_BASE_URL`, `NEXT_PUBLIC_API_BASE_URL` | storefront | **Required.** The storefront refuses to build or start without them rather than pointing every visitor at `localhost`. |
+| `NEXT_PUBLIC_BUILD_ID` / `VITE_BUILD_ID` | storefront / admin | Set per deployment so the service-worker cache is invalidated on a new release. |
+| `VITE_API_BASE_URL` | admin | Where the admin reaches the API. |
+
+A module's own settings — payment and delivery methods, storage adapters, analytics, feeds —
+live in the Settings module and are described on that module's documentation page, not in
+`.env`. Production configuration is in the
+[first deployment checklist](docs/docs/deployment/first-deployment-checklist.md).
+
+### Run it
+
+```bash
+pnpm run dev                     # backend, storefront and admin, with hot reload
+#   backend     → http://localhost:3001
+#   storefront  → http://localhost:3000
+#   admin       → http://localhost:3002
+#   mailpit     → http://localhost:8025
+
+pnpm --filter backend    run dev # or one application at a time
+pnpm --filter storefront run dev
+pnpm --filter admin      run dev
+pnpm --filter docs       run dev # the documentation site, http://localhost:3003
+```
+
+[Warden](https://docs.warden.dev/) is an optional alternative to `dev:infra` that adds
+`*.endora.test` HTTPS hosts; see [`docs/docs/operations/warden.md`](docs/docs/operations/warden.md),
+and do not run both at once.
+
+### Test it
+
+Tests come first — a failing test before the implementation — and a module's tests sit beside
+its code as `*.test.ts`.
+
+```bash
+pnpm --filter backend run test:unit:fast       # no PostgreSQL, Redis or Meilisearch needed
+pnpm --filter backend exec vitest run <path>   # one file while you iterate
+pnpm --filter backend run test                 # unit + contract + integration; needs dev:infra
+pnpm --filter '!backend' run test              # every other workspace member
+pnpm -r run typecheck && pnpm -r run lint
+```
+
+### Migrations
+
+Each module owns its migrations under `packages/modules/<id>/src/migrations/`, named
+`<YYYYMMDDTHHmmss>_<module>_<slug>.ts`; execution order comes from the timestamps and the module
+dependency graph.
+
+```bash
+pnpm --filter backend run migration:up         # apply every pending migration
+pnpm --filter backend run migration:pending    # list what is not applied yet
+pnpm --filter backend run migration:new -- --module <id> --name <slug>
+pnpm --filter backend run module:status        # installed and enabled modules
+```
+
+`migration:new` prints the two lines that register the new file; an unregistered migration does
+not run. [`docs/docs/architecture/migrations.md`](docs/docs/architecture/migrations.md) has the
+rules and the failure modes. Demo data is optional: `pnpm --filter backend run cli demo seed`
+loads a synthetic shop and prints its credentials, and `cli demo reset` withdraws it.
+
+### Contributing
+
+[CONTRIBUTING.md](CONTRIBUTING.md) is the place to start: how a change is specified, tested,
+checked and signed off, and how the project is governed. The binding principles every change is
+reviewed against are in [the constitution](.specify/memory/constitution.md), and
+[`AGENTS.md`](AGENTS.md) maps the repository and routes to the convention for whatever you are
+about to do. Report a suspected vulnerability privately, as [SECURITY.md](SECURITY.md) describes.
+
+## Licence
+
+Endora Commerce is released under the [MIT licence](LICENSE). The project's names are covered
+by the [trademark policy](TRADEMARKS.md).
