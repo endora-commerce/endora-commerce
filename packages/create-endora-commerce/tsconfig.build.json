@@ -1,0 +1,15 @@
+{
+  // Emit configuration — the only configuration in this package allowed to
+  // write files. `paths` is cleared and `rootDir` set, which is the TS6059 trap
+  // `specs/conventions/building-packages.md` describes; `noEmitOnError` so a
+  // failed compile ships nothing.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {},
+    "rootDir": "./src",
+    "noEmit": false,
+    "noEmitOnError": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["**/*.test.ts", "**/*.spec.ts"]
+}

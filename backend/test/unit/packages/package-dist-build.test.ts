@@ -121,6 +121,7 @@ interface PackageManifest {
   readonly files?: readonly string[];
   readonly scripts?: Readonly<Record<string, string>>;
   readonly exports?: Readonly<Record<string, unknown>>;
+  readonly bin?: string | Readonly<Record<string, string>>;
   readonly dependencies?: Readonly<Record<string, string>>;
   readonly peerDependencies?: Readonly<Record<string, string>>;
 }
@@ -1238,9 +1239,17 @@ describe('the built declarations compile under `moduleResolution: NodeNext` (D-1
   }, 60_000);
 
   it("every workspace package's built dist compiles in a strict NodeNext consumer", async () => {
-    const probed: ProbedPackage[] = PACKAGES.map(({ dir, name }) => ({ name, dir }));
+    // A **program** — a `bin` and no `exports` map at all — has nothing a consumer can
+    // import, so there is no declaration to compile and the floor below does not apply
+    // to it: `create-endora-commerce` (D-267) is the case, a shim whose only surface is
+    // its executable. Keyed on the absent map rather than on a name, so a package that
+    // declares one — even a map of nothing but wildcards — still meets the floor.
+    const libraries = PACKAGES.filter(
+      ({ manifest }) => manifest.exports !== undefined || manifest.bin === undefined,
+    );
+    const probed: ProbedPackage[] = libraries.map(({ dir, name }) => ({ name, dir }));
     const subpathsPerPackage = new Map(
-      PACKAGES.map(({ name, manifest }) => [name, typedSubpaths(name, manifest)] as const),
+      libraries.map(({ name, manifest }) => [name, typedSubpaths(name, manifest)] as const),
     );
     const everySubpath = [...subpathsPerPackage.values()].flat();
 

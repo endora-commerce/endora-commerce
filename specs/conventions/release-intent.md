@@ -116,10 +116,11 @@ or both. A branch that deleted changeset files and produced neither is refused, 
 inverted question in its new clothes — and an added changeset, empty or not, reclassifies
 nothing.
 
-**Tags: `privatePackages.tag` is `false`, and since the publication ruling of 2026-09-05 that
-field decides nothing at all.** It is consulted only where changesets asks *which private
-packages to tag* (`getUntaggedPrivatePackages`), and there are none: every versionable package
-is public. A public package is git-tagged by `changeset publish` regardless of it
+**Tags: `privatePackages.tag` is `false`.** It is consulted only where changesets asks *which
+private packages to tag* (`getUntaggedPrivatePackages`). Between the publication ruling of
+2026-09-05 and D-267 there were none and the field decided nothing; since D-267 there is one —
+`create-endora-commerce`, private until the first npmjs publish — and `false` is what keeps a
+release from writing a tag for a version no registry serves. A public package is git-tagged by `changeset publish` regardless of it
 (`@changesets/cli@3.0.1`, `dist/git-tag.mjs`). So the field is now held for the **reader**
 rather than for the tool — `check:release-intent`'s `tag-policy-unstated` is total in both
 states and, with nothing private left, requires it to be explicitly present and boolean, so
@@ -137,10 +138,9 @@ is what made the paragraph above wrong twice.
 Two things about `.changeset/config.json` that are load-bearing and look like boilerplate:
 
 - **`privatePackages: { "version": true, "tag": false }`.** This bullet described a
-  repository in which every package under `packages/` was `"private": true`; since the
-  publication ruling of 2026-09-05 **none is**, so `version: true` governs nothing and is kept
-  because it costs nothing and is what makes the tooling correct again the moment a package is
-  ever made private. The measurement it records still holds for that state and is why it is
+  repository in which every package under `packages/` was `"private": true`; after the
+  publication ruling of 2026-09-05 **none was**, and D-267 made one private again
+  (`create-endora-commerce`), so `version: true` is once more what lets changesets version it. The measurement it records still holds for that state and is why it is
   written down at all. `@changesets/config@4` defaults
   `privatePackages` to `false`, which makes every changesets command skip all five and report
   a cheerful nothing — including the CI gate. `version: true` is what makes the tooling see
@@ -164,7 +164,11 @@ a `workspace:*` range to the sibling's **exact** version and a package left behi
 dependent pinning a version the registry does not have. This paragraph read *"nothing is
 published yet: every package is `"private": true` … `check:release-intent` goes red the moment
 `private` comes off one"* — the direction has inverted, and the check now goes red the moment
-`private` goes **on** one. Not publishing something is what takes a merge request that says so.
+`private` goes **on** one. Not publishing something is what takes a merge request that says so. **One member is private by
+ruling rather than by accident** (D-267): `create-endora-commerce` is unscoped, the configured
+target cannot serve an unscoped name, and nothing depends on it — `check:release-intent`
+exempts exactly that conjunction, prints it, and refuses a publish to public npmjs while it
+holds, so the first npmjs publish is the merge request that flips it.
 The meta-package / supported-set question D-108 defers is still open, and so is the move to
 public npmjs, which D-203 makes its own step. The longer guide, for the moment you are writing
 the file, is `.changeset/README.md`.

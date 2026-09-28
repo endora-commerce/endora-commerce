@@ -895,6 +895,19 @@ importers:
         specifier: ^2.1.4
         version: 2.1.9(@types/node@22.19.17)(jsdom@29.1.1(@noble/hashes@2.0.1))(lightningcss@1.32.0)(terser@5.46.2)
 
+  packages/create-endora-commerce:
+    dependencies:
+      '@endora-commerce/cli':
+        specifier: workspace:*
+        version: link:../cli
+    devDependencies:
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      vitest:
+        specifier: ^2.1.4
+        version: 2.1.9(@types/node@22.19.17)(jsdom@29.1.1(@noble/hashes@2.0.1))(lightningcss@1.32.0)(terser@5.46.2)
+
   packages/email-components:
     devDependencies:
       '@endora-commerce/page-builder-core':
