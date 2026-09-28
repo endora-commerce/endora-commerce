@@ -48,6 +48,7 @@ import {
   runNewInstance,
 } from '../new-instance/index.js';
 import { InstallHostError, InstallInputError, runInstall } from '../install/index.js';
+import { DevHostError, DevInputError, runDev } from '../dev/index.js';
 import {
   generateReport,
   GenerateHostError,
@@ -68,6 +69,7 @@ Usage:
                        [--module <id>...] [--deployment <name>] [--registry <url>]
                        [--topology single-host|three-host] [--dry-run]
   endora generate [--dry-run]
+  endora dev [--storefront-dir <path>] [--no-storefront]
   endora --help
 
 \`endora new module\` writes a module package that is composed by the platform,
@@ -166,6 +168,18 @@ Options for \`install\`:
                                 passed through to \`new instance\` unread
   --dry-run                     report every file and every step; write nothing,
                                 start nothing and run nothing
+
+\`endora dev\` is what an instance's \`pnpm run dev:all\` runs: the API (\`pnpm run
+start\`), the admin preview (\`pnpm run preview:admin\`) and, when there is one, the
+storefront beside the instance (its \`pnpm run dev\`), in one terminal with each
+line prefixed by its layer. Ctrl-C stops all of them; any one ending stops the
+rest and names which. It changes no layer's own build or start command — each is
+still deployed on its own. Run it from the instance's root.
+
+Options for \`dev\`:
+  --storefront-dir <path>       where the storefront is (default: \`<dir>-storefront\`
+                                beside the instance, when it exists)
+  --no-storefront               start the API and the admin preview only
 
 \`endora generate\` renders the two files an instance's admin project is built
 from and commits neither: the contribution registry of the module packages this
@@ -721,6 +735,62 @@ async function runInstallCommand(
   }
 }
 
+/**
+ * `endora dev` — the argv half of an instance's `pnpm run dev:all`
+ * (`specs/136-open-source-publication/` GAP-7, FR-060).
+ *
+ * The terminal's interrupt reaches this process and is forwarded: each layer
+ * runs in a process group of its own, so the supervisor — not the terminal —
+ * decides the order things stop in, and a backgrounded watcher inside a layer
+ * is stopped with it. An interrupt is exit 0: the operator asked for the stop.
+ */
+async function runDevCommand(
+  parsed: Parsed,
+  rest: readonly string[],
+  cwd: string,
+): Promise<number> {
+  if (rest.length > 0) {
+    process.stderr.write(
+      `endora: \`dev\` takes no argument; got ${rest.join(', ')}. Run it from the root of ` +
+        `the instance, as \`pnpm run dev:all\`.\n`,
+    );
+    return 1;
+  }
+  const storefrontDir = asString(parsed.values['storefront-dir']);
+  if (asFlag(parsed.values['no-storefront']) && storefrontDir !== undefined) {
+    process.stderr.write(
+      'endora: `--no-storefront` and `--storefront-dir` were both given, and they are two ' +
+        'answers to one question. Pass one.\n',
+    );
+    return 1;
+  }
+  const controller = new AbortController();
+  const interrupt = (): void => controller.abort();
+  process.on('SIGINT', interrupt);
+  process.on('SIGTERM', interrupt);
+  try {
+    return await runDev({
+      cwd,
+      storefront: asFlag(parsed.values['no-storefront']) ? false : storefrontDir,
+      write: (line: string) => void process.stdout.write(`${line}\n`),
+      signal: controller.signal,
+    });
+  } catch (error: unknown) {
+    if (error instanceof DevInputError) {
+      process.stderr.write(`endora: ${error.message}\n`);
+      return 1;
+    }
+    if (error instanceof DevHostError) {
+      process.stderr.write(`endora: ${error.message}\n`);
+      return 2;
+    }
+    throw error;
+  } finally {
+    process.off('SIGINT', interrupt);
+    process.off('SIGTERM', interrupt);
+  }
+}
+
 export async function main(argv: readonly string[], cwd: string): Promise<number> {
   // The one thing that has to happen **before** the parse: `new storefront`
   // accepts a flag per input the reference storefront declares, and those names
@@ -767,10 +837,14 @@ export async function main(argv: readonly string[], cwd: string): Promise<number
     return runGenerateCommand(parsed, [subject, ...rest].filter((v) => v !== undefined), cwd);
   }
 
+  if (command === 'dev') {
+    return runDevCommand(parsed, [subject, ...rest].filter((v) => v !== undefined), cwd);
+  }
+
   if (command !== 'new') {
     process.stderr.write(
       `endora: unknown command "${command}". This build provides \`new module\`, ` +
-        `\`new instance\`, \`new storefront\`, \`install\`, \`generate\` and \`check\`.\n`,
+        `\`new instance\`, \`new storefront\`, \`install\`, \`generate\`, \`dev\` and \`check\`.\n`,
     );
     return 1;
   }

@@ -800,6 +800,27 @@ function closing(input: {
   readonly admin: { readonly email?: string | undefined; readonly password?: string | undefined };
 }): readonly string[] {
   const lines = ['', input.dryRun ? 'It would then be yours to start:' : 'Done. To start it:'];
+  // One command first (`specs/136-open-source-publication/` GAP-7, FR-060):
+  // the supervisor over the per-layer commands below, which stay printed for
+  // the operator who wants a layer on its own. A storefront somewhere other
+  // than the default sibling is named, since `dev:all` looks for the default.
+  const defaultStorefront = `${input.targetDir}-storefront`;
+  const devAllArgs =
+    input.storefrontDir !== null && input.storefrontDir !== defaultStorefront
+      ? ` -- --storefront-dir ${input.storefrontDir}`
+      : '';
+  const rootManifest = input.instance.plan.files.find((file) => file.path === 'package.json');
+  const rootScripts =
+    rootManifest === undefined
+      ? {}
+      : ((JSON.parse(rootManifest.content) as { scripts?: Record<string, unknown> }).scripts ?? {});
+  if (typeof rootScripts['dev:all'] === 'string') {
+    lines.push(
+      `  cd ${input.targetDir} && pnpm run dev:all${devAllArgs}   # every layer, one terminal; Ctrl-C stops them`,
+      '',
+      'Or one layer at a time:',
+    );
+  }
   lines.push(`  cd ${input.targetDir} && pnpm run start      # the API, on http://localhost:3001`);
   if (input.instance.plan.members.includes('admin')) {
     lines.push('  pnpm run preview:admin                    # the admin bundle, in a second terminal');
