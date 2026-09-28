@@ -7,9 +7,8 @@
 # routes the review request. A later line overrides an earlier one for the paths
 # it matches, so narrower rules go below the catch-all.
 #
-# [CODEOWNERS_OWNER] is a placeholder for the GitHub user or team handle
-# (`@user` or `@endora-commerce/<team>`) that reviews this repository. GitHub
-# reports the line as invalid until it is replaced, and replacing it is part of
-# configuring branch protection (T033), before the repository becomes public.
+# The owner is the organisation's `maintainers` team. A code owner that is a
+# team must be *visible* (a secret team is ignored) and must hold write access
+# to this repository, or GitHub reports the line as invalid.
 
-*       [CODEOWNERS_OWNER]
+*       @endora-commerce/maintainers
