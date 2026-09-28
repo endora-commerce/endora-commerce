@@ -87,8 +87,10 @@ Everything past the first run is on the documentation site,
 **[docs.commerce.endora.software](https://docs.commerce.endora.software)** — built from
 [`docs/`](docs/) and from each module package's own `docs/` directory:
 
+- **Installing** — every question, flag and limit of the two commands above:
+  [getting started](docs/docs/getting-started.md).
 - **Modules** — what each one does, its settings, permissions and admin screens:
-  [module reference](docs/docs/module-reference/README.md).
+  [module reference](docs/docs/modules/README.md).
 - **Going to production** — the [first deployment checklist](docs/docs/deployment/first-deployment-checklist.md)
   and [`deploy/`](deploy/README.md) (topology, secrets, TLS).
 - **Extending it** — the [kernel](docs/docs/architecture/kernel.md), the
