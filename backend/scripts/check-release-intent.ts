@@ -1747,8 +1747,8 @@ function scanChangesetProse(
           'this estate found in a published artefact came through this surface. Judge it ' +
           'against `specs/conventions/commercial-data.md` §1 rather than against the word ' +
           'that matched: §4(b) and §4(c) narrow this rule sharply, and its measured precision ' +
-          'is about 28 %. If it is a false positive, clear it **in the changeset body** with ' +
-          '`<!-- commercial-data: cleared `' +
+          'is about 28 %. If it is a false positive, clear it **beside the paragraph that ' +
+          'carries it** with `<!-- commercial-data: cleared `' +
           hit.term +
           '` — why -->` and a reason somebody can disagree with. Do not widen the term list: ' +
           'that silently stops the rule refusing a real finding somewhere else.',
