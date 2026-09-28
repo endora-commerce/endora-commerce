@@ -1134,13 +1134,13 @@ function nginxExample(input: DeployInput): string {
  * is not something a resolved manifest produces — the running interpreter's own
  * major is the fallback rather than a literal written here.
  */
-function nodeImage(enginesNode: string): string {
+export function nodeImage(enginesNode: string): string {
   const major = /(\d+)/.exec(enginesNode)?.[1] ?? process.versions.node.split('.')[0]!;
   return `node:${major}-slim`;
 }
 
 /** `corepack`, activating the package manager the root manifest pins. */
-function corepack(packageManager: string | undefined): readonly string[] {
+export function corepack(packageManager: string | undefined): readonly string[] {
   return packageManager === undefined
     ? [
         '# Your root manifest pins no `packageManager`, so corepack takes its own',
@@ -1165,7 +1165,7 @@ function memberManifests(input: DeployInput): readonly string[] {
 }
 
 /** The `docker build` line, with every `--build-arg` the declaration emits. */
-function buildInvocation(target: BuildTarget, path: string): readonly string[] {
+export function buildInvocation(target: BuildTarget, path: string): readonly string[] {
   const flags = buildArgFlags(target);
   return [
     `#   docker build -f ${path} \\`,
@@ -1175,7 +1175,7 @@ function buildInvocation(target: BuildTarget, path: string): readonly string[] {
 }
 
 /** The `ARG`/`ENV` pair per input this target's build reads. */
-function argDeclarations(target: BuildTarget): readonly string[] {
+export function argDeclarations(target: BuildTarget): readonly string[] {
   return buildInputsFor(target).flatMap(({ input, consumer }) => [
     ...wrapComment(input.meaning),
     `ARG ${consumer.buildArg}`,
