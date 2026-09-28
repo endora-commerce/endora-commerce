@@ -146,11 +146,11 @@
  * them together would let each go blind behind the other's red. And it says
  * nothing about whether a test is good, current or complete.
  *
- * Usage: `tsx scripts/check-test-ownership.ts [--list [<module-id>]]`
- * `--list` prints the misplaced count per module; `--list <module-id>` prints
- * one `misplaced`/`host`/`shared` line per test file that module owns and
- * exits — the query `scripts/extract-paid-module.sh`'s W2 asks instead of
- * carrying a predicate of its own (D-262 clause 1).
+ * Usage: `tsx scripts/check-test-ownership.ts [--list]`
+ * `--list` prints the misplaced count per module. (`--list <module-id>`, the
+ * per-file query the paid-module extraction script's W2 gate asked instead of
+ * carrying a predicate of its own, D-262 clause 1, retired with that script —
+ * `specs/136-open-source-publication/` W3.3.)
  * Exit 0 = every test file is where the table puts it; exit 1 = at least one is
  * not, or a shard is stale; exit 2 = the run could not see the population it
  * judges — see {@link vacuousTestOwnership}.
@@ -1000,25 +1000,8 @@ function readIfPresent(path: string): string | null {
   }
 }
 
-/**
- * `--list [<module-id>]`'s per-file tag, and the vocabulary is the table's.
- *
- * `misplaced` is §1's first row — the file belongs in the package. `host` is a
- * file this module owns that composes from the host's install, which is the
- * host's by **kind** (D-252) and travels to the paid repository's
- * `host/backend/test/modules/<id>/` rather than into the package. `shared` is
- * the `≥ 2` row: it is **reported and never decided**, because §1.1's question
- * — *is this test's subject one module, or the boundary between two?* — is put
- * to a human and no instrument may answer it (D-262 clause 2).
- */
-type ListedVerdict = 'misplaced' | 'host' | 'shared';
-
 async function main(): Promise<void> {
-  const listAt = process.argv.indexOf('--list');
-  const listMode = listAt !== -1;
-  const listArgument = listMode ? (process.argv[listAt + 1] ?? null) : null;
-  const listModule =
-    listArgument !== null && !listArgument.startsWith('-') ? listArgument : null;
+  const listMode = process.argv.includes('--list');
   const layout = await requireModuleLayout(PREFIX);
   const backendRoot = resolve(dirname(new URL(import.meta.url).pathname), '..');
   const keyOf = (path: string): string =>
@@ -1113,37 +1096,6 @@ async function main(): Promise<void> {
     serverBoundHosts: hosts,
     ledger: ledger.shards,
   });
-
-  // `--list <module-id>` — the query `scripts/extract-paid-module.sh`'s W2 asks,
-  // so that the extraction gate and this check cannot come to disagree about
-  // which of a module's tests are the host's (D-262 clause 1; W2.1 of
-  // `specs/134-paid-module-extraction/contracts/extraction-procedure.md`). One
-  // tagged line per file and nothing else on stdout, because the caller is a
-  // shell. The vacuity guard above has already run, so an unreadable tree
-  // refuses here as it does anywhere else rather than answering "no tests".
-  if (listModule !== null) {
-    if (!directories.some(([moduleId]) => moduleId === listModule)) {
-      console.error(
-        `${PREFIX} \`${listModule}\` is not a module in this tree — an answer about a module ` +
-          'that does not exist is an empty list, which reads exactly like a clean one',
-      );
-      process.exit(2);
-    }
-    for (const file of files) {
-      if (file.root !== 'application') continue;
-      const owners = ownersOf(file.text, file.key, layout.modulePackageNames).owners;
-      if (!owners.includes(listModule)) continue;
-      const verdict = ownershipOf({
-        owners,
-        composesServer: composesServer(file.text, file.key),
-        serverBoundHosts: hosts,
-      });
-      const tag: ListedVerdict =
-        verdict.verdict === 'the-module' ? 'misplaced' : owners.length > 1 ? 'shared' : 'host';
-      console.log(`${tag} ${file.key}`);
-    }
-    process.exit(0);
-  }
 
   if (listMode) {
     for (const [moduleId, misplaced] of [...result.misplacedByModule].sort(

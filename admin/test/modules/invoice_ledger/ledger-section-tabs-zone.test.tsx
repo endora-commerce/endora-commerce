@@ -78,14 +78,6 @@ import { adminSession, modulePresence, withSession } from '../../helpers/render-
  * `check:off-state-coverage`'s counter measures none of this — its walk root is
  * `backend/test` alone — so a green `switchable=N proven=N findings=0` beside
  * this change is not a claim about the admin half.
- *
- * **Do not spell a vendor's package specifier or its `packages/modules/<id>/`
- * path anywhere in this file, not even in this comment.** W2's gate
- * (`scripts/extract-paid-module.sh`) greps the **text** of `admin/test` for
- * both spellings and does not read the import graph, so a path written here as
- * a helpful cross-reference refuses the extraction exactly as an import would —
- * the way `paypal` came to be refused by a file nobody had attributed to it. A
- * bare module id is prose and is fine (E9's first class).
  */
 
 const ledger = await import('@endora-commerce/mod-invoice-ledger/admin');
