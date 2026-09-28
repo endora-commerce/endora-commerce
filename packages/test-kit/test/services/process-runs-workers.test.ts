@@ -73,9 +73,12 @@ async function composeWith(
     // No per-module worker flag: the kit's one answer is `processRunsWorkers`,
     // and the module-named flags it replaced are gone from every composition
     // (T124). Derived from the registrations rather than listed, so a flag
-    // added under a new module's name is caught too.
+    // added under a new module's name is caught too. `Runs?`: the platform's
+    // name is `processRunsWorkers` and a module-named flag was `<id>RunWorkers`,
+    // so a pattern matching only one of the two spellings answers `[]` for
+    // either expectation.
     expect(
-      Object.keys(handle.container.registrations).filter((name) => /RunWorkers$/.test(name)),
+      Object.keys(handle.container.registrations).filter((name) => /Runs?Workers$/.test(name)),
     ).toEqual(['processRunsWorkers']);
   } finally {
     await teardownTestServer(handle);
