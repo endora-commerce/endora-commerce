@@ -3093,7 +3093,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/136-w6-community-files` (W6), merged with `origin/master` after !1853 and !1851: files 4832 -> 4833.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`feat/136-install-experience` (W5.3, W5.4), merged with `origin/master` after !1850: files 4833 -> 4835.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`feat/136-w52-install-wizard` (W5.2), merged with `origin/master` after !1852: files 4835 -> 4836.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    files: 4836,
+    // **136 W5.1 (`create-endora-commerce`, D-267): 4836 -> 4839.** Agrees on `origin/master` (06bc1f2c7, after !1854 and !1855) and moves with the branch: the package's three TypeScript files; measured on the pristine pair after merging `origin/master`.
+    files: 4839,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -10086,7 +10087,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/136-w6-community-files` (W6), merged with `origin/master` after !1853 and !1851: files 7798 -> 7807.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`feat/136-install-experience` (W5.3, W5.4), merged with `origin/master` after !1850: files 7807 -> 7814.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`feat/136-w52-install-wizard` (W5.2), merged with `origin/master` after !1852: files 7814 -> 7821.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    files: 7821,
+    // **136 W5.1 (`create-endora-commerce`, D-267): 7821 -> 7830.** Agrees on `origin/master` (06bc1f2c7, after !1854 and !1855) and moves with the branch: the package's eight files and its changeset; measured on the pristine pair after merging `origin/master`.
+    files: 7830,
     sites: null,
     sources: [],
     //
@@ -12086,7 +12088,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_ergonode` leaves): 84 -> 82.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
     // **T069 (`comarch_xl` leaves), after merging `origin/master` at !1841: files 82 -> 80.** The record was resolved wholly to `master` and re-measured on a pristine detached worktree of the merge commit `8c875cb4a`, after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the tree is this branch's E5 and `comarch_xl`'s departure (package, 34 host test files and their support file, three Polish pages, E1 baseline) over `master`. Not computed from a delta.
     // **T069 (`ksef` and `infakt` leave): 80 -> 76.** Agrees on `origin/master` (d6808271f, after `comarch_xl` left) and moves with the branch: E5, the two packages, their host tests, their Polish pages, the E9 drain and T140/T142; measured on the pristine pair.
-    files: 76,
+    // **136 W5.1 (`create-endora-commerce`, D-267): 76 -> 77.** Agrees on `origin/master` (06bc1f2c7, after !1854 and !1855) and moves with the branch: one more workspace member's manifest, and its classification and publication decisions; measured on the pristine pair after merging `origin/master`.
+    files: 77,
     // **`chore/094-akeneo-adapt` (!1496, over !1495): sites 495 -> 501.** The `pim_akeneo`
     // module package arriving, plus `master` at 5c7a4d82a. This branch's test move is net
     // zero here — measured at the commit before it, which read the same number.
@@ -12102,7 +12105,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T055 (`pim_ergonode` leaves): 459 -> 453.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
     // **T069 (`comarch_xl` leaves), after merging `origin/master` at !1841: sites 453 -> 447.** The record was resolved wholly to `master` and re-measured on a pristine detached worktree of the merge commit `8c875cb4a`, after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the tree is this branch's E5 and `comarch_xl`'s departure (package, 34 host test files and their support file, three Polish pages, E1 baseline) over `master`. Not computed from a delta.
     // **T069 (`ksef` and `infakt` leave): 447 -> 435.** Agrees on `origin/master` (d6808271f, after `comarch_xl` left) and moves with the branch: E5, the two packages, their host tests, their Polish pages, the E9 drain and T140/T142; measured on the pristine pair.
-    sites: 435,
+    // **136 W5.1 (`create-endora-commerce`, D-267): 435 -> 437.** Agrees on `origin/master` (06bc1f2c7, after !1854 and !1855) and moves with the branch: one more workspace member's manifest, and its classification and publication decisions; measured on the pristine pair after merging `origin/master`.
+    sites: 437,
     // **Feature 114 Phase 3 (FR-017, D-225): a second author, and neither count
     // moves.** `changeset-subjects` is the distinct package names the changeset
     // files name, reconciled against the members the workspace globs produce.
@@ -12335,7 +12339,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/136-w6-community-files` (W6), merged with `origin/master` after !1853 and !1851: files 7859 -> 7868.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`feat/136-install-experience` (W5.3, W5.4), merged with `origin/master` after !1850: files 7868 -> 7875.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`feat/136-w52-install-wizard` (W5.2), merged with `origin/master` after !1852: files 7875 -> 7882.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    files: 7882,
+    // **136 W5.1 (`create-endora-commerce`, D-267): 7882 -> 7891.** Agrees on `origin/master` (06bc1f2c7, after !1854 and !1855) and moves with the branch: the package's eight files and its changeset; measured on the pristine pair after merging `origin/master`.
+    files: 7891,
     // **T055 (`pim_unopim` leaves): 1335 -> 1336.** measured on the branch's tree and not attributed further; it is inside the band either way and is re-recorded because it agreed on `master`.
     // **T055 (`pim_pimcore` leaves): 1336 -> 1337.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
     // **T055 (`pim_ergonode` leaves): 1337 -> 1338.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
@@ -15641,7 +15646,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/136-w6-community-files` (W6), merged with `origin/master` after !1853 and !1851: files 7858 -> 7867.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`feat/136-install-experience` (W5.3, W5.4), merged with `origin/master` after !1850: files 7867 -> 7874.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`feat/136-w52-install-wizard` (W5.2), merged with `origin/master` after !1852: files 7874 -> 7881.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    files: 7881,
+    // **136 W5.1 (`create-endora-commerce`, D-267): 7881 -> 7890.** Agrees on `origin/master` (06bc1f2c7, after !1854 and !1855) and moves with the branch: the package's eight files and its changeset; measured on the pristine pair after merging `origin/master`.
+    files: 7890,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -16366,7 +16372,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/136-w6-community-files` (W6), merged with `origin/master` after !1853 and !1851: files 5458 -> 5460.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`feat/136-install-experience` (W5.3, W5.4), merged with `origin/master` after !1850: files 5460 -> 5465.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`feat/136-w52-install-wizard` (W5.2), merged with `origin/master` after !1852: files 5465 -> 5470.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    files: 5470,
+    // **136 W5.1 (`create-endora-commerce`, D-267): 5470 -> 5473.** Agrees on `origin/master` (06bc1f2c7, after !1854 and !1855) and moves with the branch: the package's three TypeScript files; measured on the pristine pair after merging `origin/master`.
+    files: 5473,
     sites: null,
     sources: ['manifest-index'],
     //
