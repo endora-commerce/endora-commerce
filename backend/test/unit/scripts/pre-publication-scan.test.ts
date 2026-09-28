@@ -790,6 +790,39 @@ describe('amendment 6: inline vocabulary clearances are counted as cleared, not 
     expect(v.findings).toBe(0);
     expect(scanExitCode(v)).toBe(0);
   });
+
+  /**
+   * D-277: a clearance reaches its own block. The scan hands the rule only the
+   * candidate lines, so it must keep the blank lines between blocks, or every
+   * annotation would reach the whole file again.
+   */
+  it('clears a term only in the block the annotation sits in (D-277)', () => {
+    const text = [
+      `// Signed with the ${C2_WORD} customer last week.`,
+      '',
+      'const fixture = `',
+      `the ${C2_WORD} module`,
+      clearance(C2_WORD, 'names the programme module, not a client'),
+      '`;',
+      '',
+    ].join('\n');
+    const c2 = detectContent(text, CTX_PLAIN).filter((h) => h.klass === 'C2');
+    expect(c2.map((h) => [h.line, h.mark ?? 'finding'])).toEqual([
+      [1, 'finding'],
+      [4, 'cleared'],
+    ]);
+  });
+
+  it('reports a clearance whose own block lost its hit as stale (D-277)', () => {
+    const text = [clearance(C2_WORD, 'the term left this paragraph'), 'nothing here', '', `the ${C2_WORD} module`].join(
+      '\n',
+    );
+    const c2 = detectContent(text, CTX_PLAIN).filter((h) => h.klass === 'C2');
+    expect(c2.map((h) => [h.line, h.mark ?? 'finding'])).toEqual([
+      [4, 'finding'],
+      [1, 'stale-clearance'],
+    ]);
+  });
 });
 
 describe('amendment 7: what the record does not change', () => {

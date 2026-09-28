@@ -383,14 +383,24 @@ export function detectContent(text: string, ctx: ScanContext): Hit[] {
   if (VOCABULARY_PREFILTER.test(text)) {
     // Only the candidate lines and the clearance annotations are handed to the
     // rule, with their numbers kept: the rule is per line, so this is the same
-    // verdict at a fraction of the cost over a history of large files.
+    // verdict at a fraction of the cost over a history of large files. A
+    // clearance reaches its own block only (D-277), so one blank line stands in
+    // for every block boundary the dropped lines held; its number is -1 and no
+    // hit can land on it.
     const all = text.split('\n');
     const kept: number[] = [];
+    let boundary = false;
     for (let i = 0; i < all.length; i += 1) {
       const l = all[i]!;
-      if (VOCABULARY_PREFILTER.test(l) || CLEARANCE_LINE.test(l)) kept.push(i);
+      if (VOCABULARY_PREFILTER.test(l) || CLEARANCE_LINE.test(l)) {
+        if (boundary && kept.length > 0) kept.push(-1);
+        boundary = false;
+        kept.push(i);
+      } else if (l.trim() === '') {
+        boundary = true;
+      }
     }
-    const scan = scanCommercialVocabulary(kept.map((i) => all[i]!).join('\n'));
+    const scan = scanCommercialVocabulary(kept.map((i) => (i === -1 ? '' : all[i]!)).join('\n'));
     const asClass = (k: string): ScanClass => (k === 'C4' ? 'C4-other' : (k as ScanClass));
     for (const hit of scan.hits) {
       hits.push({ klass: asClass(hit.klass), rule: hit.term, line: kept[hit.line - 1]! + 1 });
